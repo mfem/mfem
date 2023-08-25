@@ -134,14 +134,14 @@ inline int to_int(HYPRE_Int i)
 
 
 /// The MemoryClass used by Hypre objects.
-inline constexpr MemoryClass GetHypreMemoryClass()
+inline MemoryClass GetHypreMemoryClass()
 {
 #if !defined(HYPRE_USING_GPU)
    return MemoryClass::HOST;
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
-   return MemoryClass::DEVICE;
+   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE : MemoryClass::HOST;
 #endif
 }
 
@@ -153,7 +153,8 @@ inline MemoryType GetHypreMemoryType()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
-   return MemoryType::DEVICE;
+   // TODO TMS: Device::GetDeviceMemoryType() ?
+   return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE : Device::GetHostMemoryType();
 #endif
 }
 

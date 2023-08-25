@@ -315,7 +315,7 @@ void HypreParVector::HypreRead() const
    hypre_VectorData(x_loc) =
       const_cast<double*>(data.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
@@ -324,7 +324,7 @@ void HypreParVector::HypreReadWrite()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
@@ -333,7 +333,7 @@ void HypreParVector::HypreWrite()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = data.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
 }
 
@@ -347,7 +347,7 @@ void HypreParVector::WrapMemoryRead(const Memory<double> &mem)
    hypre_VectorData(x_loc) =
       const_cast<double*>(mem.Read(GetHypreMemoryClass(), size));
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
@@ -361,7 +361,7 @@ void HypreParVector::WrapMemoryReadWrite(Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.ReadWrite(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
@@ -375,7 +375,7 @@ void HypreParVector::WrapMemoryWrite(Memory<double> &mem)
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
    hypre_VectorData(x_loc) = mem.Write(GetHypreMemoryClass(), size);
 #ifdef HYPRE_USING_GPU
-   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_DEVICE;
+   hypre_VectorMemoryLocation(x_loc) = mfem::GetHypreMemoryLocation();
 #endif
    data.MakeAlias(mem, 0, size);
 }
@@ -535,6 +535,10 @@ void HypreParMatrix::Init()
 
 void HypreParMatrix::Read(MemoryClass mc) const
 {
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      mc = Device::GetHostMemoryClass();
+   }
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -547,8 +551,7 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -556,6 +559,10 @@ void HypreParMatrix::Read(MemoryClass mc) const
 
 void HypreParMatrix::ReadWrite(MemoryClass mc)
 {
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      mc = Device::GetHostMemoryClass();
+   }
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -568,8 +575,7 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -577,6 +583,10 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
 
 void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 {
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+   {
+      mc = Device::GetHostMemoryClass();
+   }
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    if (set_diag)
@@ -592,8 +602,7 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml =
-      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
 #endif
@@ -759,7 +768,7 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
       h_mat->owns_data = 0;
 #if MFEM_HYPRE_VERSION >= 21800
-      h_mat->memory_location = HYPRE_MEMORY_DEVICE;
+      h_mat->memory_location = mfem::GetHypreMemoryLocation();
 #endif
       return 3;
    }
@@ -2427,7 +2436,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       int_buf_data = mfem_hypre_CTAlloc(HYPRE_Int, int_buf_sz);
 
       HYPRE_Int *send_map_elmts;
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) // TODO TMS
       hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
       send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
 #else
@@ -2439,7 +2448,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
          int_buf_data[i] = eliminate_row[k];
       });
 
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) // TODO TMS
       // Try to use device-aware MPI for the communication if available
       comm_handle = hypre_ParCSRCommHandleCreate_v2(
                        11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
@@ -2882,8 +2891,9 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    //        in ex28p.
    // Quick fix: add a diagonal matrix with 0 diagonal.
    // Maybe use hypre_CSRMatrixCheckDiagFirst to see if we need the fix.
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE)
    {
-      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P); // TODO TMS cudaMalloc
       const bool keepTranspose = false;
       rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
       hypre_ParCSRMatrixDestroy(Q);
@@ -2891,25 +2901,27 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
       // alternative:
       // hypre_ParCSRMatrixRAPKT
    }
-#else
-#if MFEM_HYPRE_VERSION <= 22200
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+   else
 #endif
-
-   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
-
-#if MFEM_HYPRE_VERSION <= 22200
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from P (even if it does not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
    {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+#if MFEM_HYPRE_VERSION <= 22200
+      HYPRE_Int P_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+#endif
+
+      hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+
+#if MFEM_HYPRE_VERSION <= 22200
+      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+         from P (even if it does not own them)! */
+      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      if (P_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+      }
+#endif
    }
-#endif
-#endif
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
@@ -4979,14 +4991,20 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
       // After the addition of hypre_IntArray, mapping is assumed
       // to be a device pointer. Previously, it was assumed to be
       // a host pointer.
+      HYPRE_Int *mapping = nullptr;
 #if defined(hypre_IntArrayData) && defined(HYPRE_USING_GPU)
-      HYPRE_Int *mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
-      hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
-                    HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
-      mfem_hypre_TFree_host(h_mapping);
-#else
-      HYPRE_Int *mapping = h_mapping;
+      if (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE)
+      {
+         mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
+         hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
+                       HYPRE_MEMORY_DEVICE, HYPRE_MEMORY_HOST);
+         mfem_hypre_TFree_host(h_mapping);
+      }
+      else
 #endif
+      {
+         mapping = h_mapping;
+      }
 
       // hypre actually deletes the mapping pointer in HYPRE_BoomerAMGDestroy,
       // so we don't need to track it
