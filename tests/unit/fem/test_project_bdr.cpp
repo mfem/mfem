@@ -32,7 +32,6 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
    int n = 1;
    int dim = 3;
    int order = 1;
-   int npts = 0;
 
    double tol = 1e-6;
 
@@ -84,7 +83,6 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
 
                for (int j=0; j<ir.GetNPoints(); j++)
                {
-                  npts++;
                   const IntegrationPoint &ip = ir.IntPoint(j);
                   T->SetIntPoint(&ip);
 

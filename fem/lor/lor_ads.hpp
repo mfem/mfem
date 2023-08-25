@@ -60,7 +60,7 @@ public:
    /// Return the associated BatchedLOR_AMS object.
    BatchedLOR_AMS &GetAMS() { return ams; }
 
-   // The following should be protected, but contain MFEM_FORALL kernels
+   // The following should be protected, but contain mfem::forall kernels
 
    /// Form the discrete curl matrix (not part of the public API).
    void FormCurlMatrix();

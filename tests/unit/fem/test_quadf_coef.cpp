@@ -33,6 +33,8 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureFunction quadf_coeff(&qspace, 1);
    QuadratureFunction quadf_vcoeff(&qspace, dim);
 
+   REQUIRE(quadf_coeff.UseDevice());
+
    const IntegrationRule ir = qspace.GetElementIntRule(0);
 
    const GeometricFactors *geom_facts =

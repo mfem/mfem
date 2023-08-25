@@ -42,47 +42,34 @@ fi
 # post
 mkdir ${artifacts_path}
 
-if [[ -s ${glob_err} ]]
-then
-  echo "ERROR during ${BASELINE_TEST} execution";
-  echo "Here is the ${glob_err} file content";
-  cat ${glob_err}
-  cp ${glob_err} ${artifacts_path}/${glob_err}
-  exit 1;
-elif [[ ! -f ${base_patch} && ! -f ${base_out} ]]
-then
-  echo "Something went WRONG in ${BASELINE_TEST}:";
-  echo "Either ${base_patch} or ${base_out} should exists";
-  exit 1;
-elif [[ -f ${base_patch} ]]
-then
-  echo "${BASELINE_TEST}: Differences found, patch generated"
-  cp ${base_patch} ${artifacts_path}/${base_patch}
-elif [[ -f ${base_out} ]]
-then
-  echo "${BASELINE_TEST}: Differences found, replacement file generated"
-  cp ${base_out} ${artifacts_path}/${base_out}
-fi
-
+status=0
 if [[ -f ${BASELINE_TEST}.out ]]; then
   cp ${BASELINE_TEST}.out ${artifacts_path}
 fi
-
+if [[ -s ${glob_err} ]]; then
+  echo "ERROR during ${BASELINE_TEST} execution"
+  echo "Here is the ${glob_err} file content"
+  cat ${glob_err}
+  cp ${glob_err} ${artifacts_path}/${glob_err}
+  status=1
+fi
+if [[ -f ${base_patch} ]]; then
+  echo "${BASELINE_TEST}: Differences found, patch generated"
+  cp ${base_patch} ${artifacts_path}/${base_patch}
+elif [[ -f ${base_out} ]]; then
+  echo "${BASELINE_TEST}: Differences found, replacement file generated"
+  cp ${base_out} ${artifacts_path}/${base_out}
+fi
 # base_diff won't even exist if there is no difference.
-if [[ -f ${base_diff} ]]
-then
+if [[ -f ${base_diff} ]]; then
   echo "${BASELINE_TEST}: Relevant differences (filtered diff) ..."
   cat ${base_diff}
   cp ${base_diff} ${artifacts_path}/${base_diff}
-  # We create a .err file, because that's how we signal that there was a diff.
-  cp ${base_diff} ${artifacts_path}/gitlab-${BASELINE_TEST}-${MACHINE_NAME}.err
+  status=1
 fi
-
-if [[ ! -s ${base_diff} ]]
-then
+if [[ $status -eq 0 ]]; then
   echo "${BASELINE_TEST}: PASSED"
-  true
 else
   echo "${BASELINE_TEST}: FAILED"
-  false
 fi
+exit $status

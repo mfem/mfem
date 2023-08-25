@@ -469,6 +469,7 @@ public:
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
+   /// @note The returned Table should be deleted by the caller
    Table *GetFaceToAllElementTable() const;
 
    /// Returns (a pointer to an object containing) the following data:
@@ -502,35 +503,41 @@ public:
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
    ///
-   /// Note that the pointer is owned by the class and is shared, i.e., calling
-   /// this function resets pointers obtained from previous calls.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the shared face index @a sf. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively.
-       Note that the pointer is owned by the class and is shared, i.e., calling
-       this function resets pointers obtained from previous calls. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the shared face index @a sf. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the face index @a FaceNo. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively.
-       Note that the pointer is owned by the class and is shared, i.e., calling
-       this function resets pointers obtained from previous calls. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the face index @a FaceNo. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
    /// Returns a pointer to the transformation defining the i-th face neighbor.
-   /// Note that the pointer is owned by the class and is shared, i.e., calling
-   /// this function resets pointers obtained from previous calls.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    ElementTransformation *GetFaceNbrElementTransformation(int i)
    {
       GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
@@ -589,7 +596,7 @@ public:
    /// given suffixes according to the MPI rank. The mesh will be written to the
    /// files using ParMesh::Print. The given @a precision will be used for ASCII
    /// output.
-   void Save(const char *fname, int precision=16) const override;
+   void Save(const std::string &fname, int precision=16) const override;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
@@ -618,7 +625,7 @@ public:
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
-   void SaveAsOne(const char *fname, int precision=16) const;
+   void SaveAsOne(const std::string &fname, int precision=16) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
@@ -655,7 +662,7 @@ public:
                   InverseElementTransformation *inv_trans = NULL) override;
 
    /// Debugging method
-   void PrintSharedEntities(const char *fname_prefix) const;
+   void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
 

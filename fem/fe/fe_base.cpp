@@ -12,6 +12,7 @@
 // Finite Element Base classes
 
 #include "fe_base.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -400,7 +401,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
          }
       }
    }
-   else
+   else if (range_type == VECTOR)
    {
       d2q->B.SetSize(nqpt*dim*dof);
       d2q->Bt.SetSize(dof*nqpt*dim);
@@ -417,6 +418,10 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
             }
          }
       }
+   }
+   else
+   {
+      // Skip B and Bt for unknown range type
    }
    switch (deriv_type)
    {
@@ -471,7 +476,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
             {
                for (int j = 0; j < dof; j++)
                {
-                  d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
+                  d2q->G[i+nqpt*(d+cdim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
                }
             }
          }
@@ -479,10 +484,17 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
       }
       case NONE:
       default:
-         MFEM_ABORT("invalid finite element derivative type");
+         // Skip G and Gt for unknown derivative type
+         break;
    }
    dof2quad_array.Append(d2q);
    return *d2q;
+}
+
+void FiniteElement::GetFaceMap(const int face_id,
+                               Array<int> &face_map) const
+{
+   MFEM_ABORT("method is not implemented for this element");
 }
 
 FiniteElement::~FiniteElement()
@@ -2507,6 +2519,12 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
    {
       basis1d.ScaleIntegrated(map_type == VALUE);
    }
+}
+
+void NodalTensorFiniteElement::GetFaceMap(const int face_id,
+                                          Array<int> &face_map) const
+{
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
 }
 
 VectorTensorFiniteElement::VectorTensorFiniteElement(const int dims,

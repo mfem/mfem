@@ -91,11 +91,11 @@
 #include <fstream>
 #include <iostream>
 #include "../common/mfem-common.hpp"
-#include "dist_solver.hpp"
 #include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
+using namespace common;
 
 double sine_ls(const Vector &x)
 {

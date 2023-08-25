@@ -88,6 +88,7 @@ bool HiopOptimizationProblem::eval_f(const size_type &n, const double *x,
 
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    obj_value = problem.CalcObjective(x_vec);
 
    return true;
@@ -102,6 +103,7 @@ bool HiopOptimizationProblem::eval_grad_f(const size_type &n, const double *x,
 
    Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    problem.CalcObjectiveGrad(x_vec, gradf_vec);
    std::memcpy(gradf, gradf_vec.GetData(), ntdofs_loc * sizeof(double));
 
@@ -123,6 +125,7 @@ bool HiopOptimizationProblem::eval_cons(const size_type &n, const size_type &m,
    if (new_x) { constr_info_is_current = false; }
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)
@@ -150,6 +153,7 @@ bool HiopOptimizationProblem::eval_Jac_cons(const size_type &n,
    if (new_x) { constr_info_is_current = false; }
    Vector x_vec(ntdofs_loc);
    x_vec = x;
+   problem.new_x = new_x;
    UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)

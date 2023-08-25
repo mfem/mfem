@@ -107,7 +107,7 @@ void DGMassInverse::Update()
 {
    M->Assemble();
    M->AssembleDiagonal(diag_inv);
-   internal::MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   diag_inv.Reciprocal();
 }
 
 DGMassInverse::~DGMassInverse()
@@ -168,7 +168,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    constexpr int NB = Q1D ? Q1D : 1; // block size
 
-   MFEM_FORALL_2D(e, NE, NB, NB, 1,
+   mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
 
