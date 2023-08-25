@@ -76,8 +76,6 @@ protected:
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned
-   const FaceRestriction *int_face_normal_deriv; // Not owned
-   const FaceRestriction *bdr_face_normal_deriv; // Not owned
 
 public:
    PABilinearFormExtension(BilinearForm*);
