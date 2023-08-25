@@ -465,6 +465,9 @@ public:
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
+
+   inline void operator=(const T &a)
+   { array1d = a; }
 };
 
 

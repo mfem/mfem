@@ -15,8 +15,14 @@
 #include "../config/config.hpp"
 #include "../general/array.hpp"
 
+#include <vector>
+#include <map>
+
 namespace mfem
 {
+
+class KnotVector;
+class Mesh;
 
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
@@ -257,8 +263,103 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
+   /// @brief Return an integration rule for KnotVector @a kv, defined by
+   /// applying this rule on each knot interval.
+   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
+};
+
+/// Class for defining different integration rules on each NURBS patch.
+class NURBSMeshRules
+{
+public:
+   /// Construct a rule for each patch, using SetPatchRules1D.
+   NURBSMeshRules(const int numPatches, const int dim_) :
+      patchRules1D(numPatches, dim_),
+      npatches(numPatches), dim(dim_) { }
+
+   /// Returns a rule for the element.
+   IntegrationRule &GetElementRule(const int elem, const int patch,
+                                   const int *ijk,
+                                   Array<const KnotVector*> const& kv,
+                                   bool & deleteRule) const;
+
+   /// Add a rule to be used for individual elements. Returns the rule index.
+   std::size_t AddElementRule(IntegrationRule *ir_element)
+   {
+      elementRule.push_back(ir_element);
+      return elementRule.size() - 1;
+   }
+
+   /// @brief Set the integration rule for the element of the given index. This
+   /// rule is used instead of the rule for the patch containing the element.
+   void SetElementRule(const std::size_t element,
+                       const std::size_t elementRuleIndex)
+   {
+      elementToRule[element] = elementRuleIndex;
+   }
+
+   /// @brief Set 1D integration rules to be used as a tensor product rule on
+   /// the patch with index @a patch. This class takes ownership of these rules.
+   void SetPatchRules1D(const int patch,
+                        std::vector<const IntegrationRule*> & ir1D);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return a pointer to the 1D rule in the specified
+   /// @a dimension.
+   const IntegrationRule* GetPatchRule1D(const int patch,
+                                         const int dimension) const
+   {
+      return patchRules1D(patch, dimension);
+   }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return the integration point with index (i,j,k).
+   void GetIntegrationPointFrom1D(const int patch, int i, int j, int k,
+                                  IntegrationPoint & ip);
+
+   /// @brief Finalize() must be called before this class can be used for
+   /// assembly. In particular, it defines data used by GetPointElement().
+   void Finalize(Mesh const& mesh);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns the index of the element containing
+   /// integration point (i,j,k) for patch index @a patch. Finalize() must be
+   /// called first.
+   int GetPointElement(int patch, int i, int j, int k) const
+   {
+      return pointToElem[patch](i,j,k);
+   }
+
+   int GetDim() const { return dim; }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns an array of knot span indices for each
+   /// integration point in the specified @a dimension.
+   const Array<int>& GetPatchRule1D_KnotSpan(const int patch,
+                                             const int dimension) const
+   {
+      return patchRules1D_KnotSpan[patch][dimension];
+   }
+
+   ~NURBSMeshRules();
+
+private:
+   /// Tensor-product rules defined on all patches independently.
+   Array2D<const IntegrationRule*> patchRules1D;
+
+   /// Integration rules defined on elements.
+   std::vector<IntegrationRule*> elementRule;
+
+   std::map<std::size_t, std::size_t> elementToRule;
+
+   std::vector<Array3D<int>> pointToElem;
+   std::vector<std::vector<Array<int>>> patchRules1D_KnotSpan;
+
+   const int npatches;
+   const int dim;
 };
 
 /// A Class that defines 1-D numerical quadrature rules on [0,1].
