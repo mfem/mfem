@@ -468,8 +468,30 @@ protected:
 
    /// Returns the orientation of "test" relative to "base"
    static int GetTriOrientation (const int * base, const int * test);
+
+   /// Returns the orientation of "base" relative to "test"
+   /// In other words: GetTriOrientation(test, base) should equal
+   /// InvertTriOrientation(GetTriOrientation(base, test))
+   static int InvertTriOrientation(int ori);
+
+   /// Returns the orientation of "c" relative to "a" by composing
+   /// previously computed orientations relative to an intermediate
+   /// set "b".
+   static int ComposeTriOrientations(int ori_a_b, int ori_b_c);
+
    /// Returns the orientation of "test" relative to "base"
    static int GetQuadOrientation (const int * base, const int * test);
+
+   /// Returns the orientation of "base" relative to "test"
+   /// In other words: GetQuadOrientation(test, base) should equal
+   /// InvertQuadOrientation(GetQuadOrientation(base, test))
+   static int InvertQuadOrientation(int ori);
+
+   /// Returns the orientation of "c" relative to "a" by composing
+   /// previously computed orientations relative to an intermediate
+   /// set "b".
+   static int ComposeQuadOrientations(int ori_a_b, int ori_b_c);
+
    /// Returns the orientation of "test" relative to "base"
    static int GetTetOrientation (const int * base, const int * test);
 
@@ -621,8 +643,8 @@ public:
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. See also @a Mesh::LoadFromFile. */
-   explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
-                 bool fix_orientation = true);
+   explicit Mesh(const std::string &filename, int generate_edges = 0,
+                 int refine = 1, bool fix_orientation = true);
 
    /** Creates mesh by reading data stream in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
@@ -675,7 +697,7 @@ public:
        @note @a filename is not cached by the Mesh object and can be
        safely deleted following this function call.
    */
-   static Mesh LoadFromFile(const char *filename,
+   static Mesh LoadFromFile(const std::string &filename,
                             int generate_edges = 0, int refine = 1,
                             bool fix_orientation = true);
 
@@ -1962,6 +1984,15 @@ public:
    /// @}
 
    ///@{ @name NURBS mesh refinement methods
+   /** Refine a NURBS mesh with the knots specified in the file named @a ref_file.
+       The file has the number of knot vectors on the first line. It is the same
+       number of knot vectors specified in the NURBS mesh in the section edges. Then
+       for each knot vector specified in the section edges (with the same ordering),
+       a line describes (in this order): 1) an integer giving the number of knots
+       inserted, 2) the knots inserted as a double. The advantage of this method
+       is that it is possible to specifically refine a coarse NURBS mesh without
+       changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
+   void RefineNURBSFromFile(std::string ref_file);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
@@ -1981,7 +2012,7 @@ public:
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be
    /// used for ASCII output.
-   virtual void Save(const char *fname, int precision=16) const;
+   virtual void Save(const std::string &fname, int precision=16) const;
 
    /// Print the mesh to the given stream using the adios2 bp format
 #ifdef MFEM_USE_ADIOS2
