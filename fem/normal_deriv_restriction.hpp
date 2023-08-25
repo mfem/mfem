@@ -20,13 +20,13 @@ namespace mfem
 class FiniteElementSpace;
 enum class ElementDofOrdering;
 
-/// @brief Class to compute (reference coordinate) face normal derivatives of a
-/// L2 grid function (used internally by L2FaceRestriction).
+/// @brief Class to compute face normal derivatives (in reference coordinate) of
+/// an L2 grid function (used internally by L2FaceRestriction).
 class L2NormalDerivativeFaceRestriction
 {
 protected:
-   const FiniteElementSpace &fes; ///< The L2 space.
-   const FaceType face_type; ///< Boundary or interior spaces?
+   const FiniteElementSpace &fes; ///< The L2 finite element space.
+   const FaceType face_type; ///< Face type: either boundary or interior.
    const int dim; ///< Dimension of the mesh.
    const int nf; ///< Number of faces of the given @a face_type.
    const int ne; ///< Number of elements.
@@ -36,15 +36,15 @@ protected:
    Array<int> elem_to_face; ///< Element-wise information array.
 
 public:
-   /// @brief Constructs an L2NormalDerivativeFaceRestriction
-   /// @param[in] fes_ The FiniteElementSpace on which this operates
-   /// @param[in] ordering ordering of dofs
-   /// @param[in] face_type_ type of faces to compute restriction for (interior or boundary)
+   /// @brief Constructor.
+   /// @param[in] fes_ The associated FiniteElementSpace (should be L2/DG).
+   /// @param[in] ordering The ordering of L-DOFs.
+   /// @param[in] face_type_ Type of faces to compute restriction (interior or boundary).
    L2NormalDerivativeFaceRestriction(const FiniteElementSpace &fes_,
                                      const ElementDofOrdering ordering,
                                      const FaceType face_type_);
 
-   /// @brief Computes the normal derivatives on the @a type faces of the mesh.
+   /// @brief Computes the normal derivatives on the @a face_type faces of the mesh.
    /// @param[in] x The L-vector degrees of freedom.
    /// @param[out] y The face E(like)-vector degrees of freedom of the format
    /// (face_dofs x vdim x 2 x nf) where nf is the number of faces of type @a
