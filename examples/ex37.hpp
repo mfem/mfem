@@ -581,7 +581,9 @@ void DiffusionSolver::ResetFEM()
 {
    delete u; u = nullptr;
    delete fes; fes = nullptr;
-   delete pfes; pfes = nullptr;
+   #ifdef MFEM_USE_MPI
+   delete pfes; pfes=nullptr;
+   #endif
    delete fec; fec = nullptr;
    delete b;
 }
@@ -770,7 +772,9 @@ void LinearElasticitySolver::ResetFEM()
 {
    delete u; u = nullptr;
    delete fes; fes = nullptr;
-   delete pfes; pfes = nullptr;
+   #ifdef MFEM_USE_MPI
+   delete pfes; pfes=nullptr;
+   #endif
    delete fec; fec = nullptr;
    delete b;
 }
