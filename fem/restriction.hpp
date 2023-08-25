@@ -14,6 +14,7 @@
 
 #include "../linalg/operator.hpp"
 #include "../mesh/mesh.hpp"
+#include "normal_deriv_restriction.hpp"
 
 namespace mfem
 {
@@ -218,6 +219,16 @@ public:
       y = 0.0;
       AddMultTranspose(x, y);
    }
+
+   virtual void NormalDerivativeMult(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
+
+   virtual void NormalDerivativeAddMultTranspose(const Vector &x, Vector &y) const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
 };
 
 /// @brief Operator that extracts face degrees of freedom for H1, ND, or RT
@@ -348,8 +359,6 @@ protected:
 /// @brief Alias for ConformingFaceRestriction, for backwards compatibility and
 /// as base class for ParNCH1FaceRestriction.
 using H1FaceRestriction = ConformingFaceRestriction;
-
-class L2NormalDerivativeFaceRestriction;
 
 /// Operator that extracts Face degrees of freedom for L2 spaces.
 /** Objects of this type are typically created and owned by FiniteElementSpace
@@ -482,7 +491,10 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
-   const L2NormalDerivativeFaceRestriction &GetNormalDerivativeRestriction() const;
+   void NormalDerivativeMult(const Vector &x, Vector &y) const override;
+
+   void NormalDerivativeAddMultTranspose(const Vector &x,
+                                         Vector &y) const override;
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
@@ -500,6 +512,9 @@ private:
        @param[in] type       Request internal or boundary faces dofs.
    */
    void ComputeGatherIndices();
+
+   /// Lazily create the internal normal derivative restriction operator.
+   void EnsureNormalDerivativeRestriction() const;
 
 protected:
    mutable Array<int> face_map; // Used in the computation of GetFaceDofs
@@ -997,51 +1012,6 @@ public:
                         x.
    */
    void DoubleValuedNonconformingTransposeInterpolationInPlace(Vector& x) const;
-};
-
-class L2NormalDerivativeFaceRestriction : public FaceRestriction
-{
-protected:
-   const FiniteElementSpace& fes;
-   const FaceType face_type;
-   const int sdim; // spatial dimension
-   const int nf; // number of faces
-   const int ne; // number of elements
-   int ne_type; // number of elements with faces of type face type
-   const int vdim; // dimension of functions in fes
-   const bool byvdim;
-   // ordering of dofs. e.g. byvdim == true -> (u[0], v[0], ..., u[n-1], v[n-1]). byvdim == false -> (u[0], ..., u[n-1], v[0], ..., v[n-1])
-
-   Array<int> face_to_elem; // nf x 4
-   Array<int> elem_to_face; // ne_type x 9
-
-public:
-   /// @brief constructs an L2NormalDerivativeFaceRestriction
-   /// @param[in] fes_ The FiniteElementSpace on which this operates
-   /// @param[in] ordering ordering of dofs
-   /// @param[in] face_type_ type of faces to compute restriction for (interior or boundary)
-   L2NormalDerivativeFaceRestriction(const FiniteElementSpace& fes_,
-                                     const ElementDofOrdering ordering,
-                                     const FaceType face_type_);
-
-   /// @brief Computes the normal derivatives on the @a type faces of the mesh.
-   /// @param[in] x The L-vector degrees of freedom.
-   /// @param[out] y The face E(like)-vector degrees of freedom of the format
-   /// (face_dofs x vdim x 2 x nf) where nf is the number of @a type faces. The
-   /// face_dofs are ordered according to @a ordering specified on
-   /// construction.
-   void Mult(const Vector &x, Vector &y) const override;
-
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const override;
-
-   virtual void Mult2D(const Vector &x, Vector &y) const;
-
-   virtual void Mult3D(const Vector &x, Vector &y) const;
-
-   void AddMultTranspose2D(const Vector &x, Vector &y, const double a) const;
-
-   void AddMultTranspose3D(const Vector &x, Vector &y, const double a) const;
 };
 
 /** @brief Convert a dof face index from Native ordering to lexicographic

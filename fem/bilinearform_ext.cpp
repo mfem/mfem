@@ -247,8 +247,6 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    elem_restrict = NULL;
    int_face_restrict_lex = NULL;
    bdr_face_restrict_lex = NULL;
-   int_face_normal_deriv = NULL;
-   bdr_face_normal_deriv = NULL;
 }
 
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
@@ -288,13 +286,8 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       }
       if (needs_normal_derivs)
       {
-         if (const auto *l2_face_restr = dynamic_cast<const L2FaceRestriction*>
-                                         (int_face_restrict_lex))
-         {
-            int_face_normal_deriv = &l2_face_restr->GetNormalDerivativeRestriction();
-            int_face_dXdn.SetSize(int_face_normal_deriv->Height());
-            int_face_dYdn.SetSize(int_face_normal_deriv->Height());
-         }
+         int_face_dXdn.SetSize(int_face_restrict_lex->Height());
+         int_face_dYdn.SetSize(int_face_restrict_lex->Height());
       }
    }
 
@@ -320,13 +313,8 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       }
       if (needs_normal_derivs)
       {
-         if (const auto *l2_face_restr = dynamic_cast<const L2FaceRestriction*>
-                                         (bdr_face_restrict_lex))
-         {
-            bdr_face_normal_deriv = &l2_face_restr->GetNormalDerivativeRestriction();
-            bdr_face_dXdn.SetSize(bdr_face_normal_deriv->Height());
-            bdr_face_dYdn.SetSize(bdr_face_normal_deriv->Height());
-         }
+         bdr_face_dXdn.SetSize(bdr_face_restrict_lex->Height());
+         bdr_face_dYdn.SetSize(bdr_face_restrict_lex->Height());
       }
    }
 }
@@ -455,15 +443,16 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (int_face_restrict_lex && iFISz>0)
    {
       int_face_restrict_lex->Mult(x, int_face_X);
-      if (int_face_normal_deriv)
+      if (int_face_dXdn.Size() > 0)
       {
-         int_face_normal_deriv->Mult(x, int_face_dXdn);
+         int_face_restrict_lex->NormalDerivativeMult(x, int_face_dXdn);
       }
-      if (int_face_X.Size()>0)
+      if (int_face_X.Size() > 0)
       {
          int_face_Y = 0.0;
 
-         if (int_face_normal_deriv)
+         // if normal derivatives are needed by at least one integrator...
+         if (int_face_dYdn.Size() > 0)
          {
             int_face_dYdn = 0.0;
          }
@@ -481,9 +470,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             }
          }
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
-         if (int_face_normal_deriv)
+         if (int_face_dYdn.Size() > 0)
          {
-            int_face_normal_deriv->AddMultTranspose(int_face_dYdn, y);
+            int_face_restrict_lex->NormalDerivativeAddMultTranspose(int_face_dYdn, y);
          }
       }
    }
@@ -493,15 +482,16 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    if (bdr_face_restrict_lex && bFISz>0)
    {
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
-      if (bdr_face_normal_deriv)
+      if (bdr_face_dXdn.Size() > 0)
       {
-         bdr_face_normal_deriv->Mult(x, bdr_face_dXdn);
+         bdr_face_restrict_lex->NormalDerivativeMult(x, bdr_face_dXdn);
       }
-      if (bdr_face_X.Size()>0)
+      if (bdr_face_X.Size() > 0)
       {
          bdr_face_Y = 0.0;
 
-         if (bdr_face_normal_deriv)
+         // if normal derivatives are needed by at least one integrator...
+         if (bdr_face_dYdn.Size() > 0)
          {
             bdr_face_dYdn = 0.0;
          }
@@ -519,9 +509,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             }
          }
          bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
-         if (bdr_face_normal_deriv)
+         if (bdr_face_dYdn.Size() > 0)
          {
-            bdr_face_normal_deriv->AddMultTranspose(bdr_face_dYdn, y);
+            bdr_face_restrict_lex->NormalDerivativeAddMultTranspose(bdr_face_dYdn, y);
          }
       }
    }
