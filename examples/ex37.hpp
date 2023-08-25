@@ -577,7 +577,7 @@ ParGridFunction * DiffusionSolver::GetParFEMSolution()
 }
 #endif
 
-void DiffusionSolver::ResetFEM()
+DiffusionSolver::~DiffusionSolver()
 {
    delete u; u = nullptr;
    delete fes; fes = nullptr;
@@ -586,12 +586,6 @@ void DiffusionSolver::ResetFEM()
 #endif
    delete fec; fec = nullptr;
    delete b;
-}
-
-
-DiffusionSolver::~DiffusionSolver()
-{
-   ResetFEM();
 }
 
 
@@ -768,7 +762,7 @@ ParGridFunction * LinearElasticitySolver::GetParFEMSolution()
 }
 #endif
 
-void LinearElasticitySolver::ResetFEM()
+LinearElasticitySolver::~LinearElasticitySolver()
 {
    delete u; u = nullptr;
    delete fes; fes = nullptr;
@@ -777,10 +771,5 @@ void LinearElasticitySolver::ResetFEM()
 #endif
    delete fec; fec = nullptr;
    delete b;
-}
-
-LinearElasticitySolver::~LinearElasticitySolver()
-{
-   ResetFEM();
 }
 }
