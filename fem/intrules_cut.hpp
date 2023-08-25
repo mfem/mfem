@@ -60,6 +60,13 @@ private:
    DenseMatrix FaceWeights;
 
    /**
+    @brief Compute 1D quadrature weights
+
+    Compute the quadrature weights for the 1D surface quadrature rule.
+    */
+   void ComputeWeights1D();
+
+   /**
     @brief Compute 2D quadrature weights
 
     Compute the quadrature weights for the 2D surface quadrature rule by means
@@ -190,6 +197,14 @@ private:
     @brief Singular value decomposition of the moment-fitting system
     */
    DenseMatrixSVD* SVD;
+
+   /**
+    @brief Compute the 1D quadrature weights
+
+    Compute the 1D quadrature weights for the volumetric subdomain quadrature
+    rule.
+    */
+   void ComputeWeights1D();
 
    /**
     @brief Compute the 2D quadrature weights

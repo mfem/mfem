@@ -27,7 +27,11 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
 {
    SetOrder(q);
    Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
-   if (Trafo.GetDimension() == 2)
+   if (Tr.GetDimension() == 1)
+   {
+      nBasis = -1;
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       nBasis = 2 * (GetOrder() + 1) + (int)(GetOrder() * (GetOrder() + 1) / 2);
    }
@@ -64,7 +68,14 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
       intp.weight = 0.;
    }
 
-   Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
+   if (Trafo.GetDimension() == 1)
+   {
+      Weights.SetSize(2, Trafo.mesh->GetNE());
+   }
+   else
+   {
+      Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
+   }
    Weights = 0.;
 
    if (Trafo.GetDimension() == 3)
@@ -94,13 +105,67 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
    }
 
    // compute the weights for current element
-   if (Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
    else if (Trafo.GetDimension() == 3)
    {
       ComputeWeights3D();
+   }
+}
+
+void SIntegrationRule::ComputeWeights1D()
+{
+   Mesh* mesh = Trafo.mesh;
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
+   {
+      mesh->GetElementTransformation(elem, &Trafo);
+      IntegrationPoint ip0;
+      ip0.x = 0.;
+      IntegrationPoint ip1;
+      ip1.x = 1.;
+      Trafo.SetIntPoint(&ip0);
+      if (LvlSet.Eval(Trafo, ip0) * LvlSet.Eval(Trafo, ip1) < 0.)
+      {
+         IntegrationPoint ip2;
+         ip2.x = .5;
+         while (LvlSet.Eval(Trafo, ip2) > -1e-12
+                && LvlSet.Eval(Trafo, ip2) < 1e-12)
+         {
+            if (LvlSet.Eval(Trafo, ip0) * LvlSet.Eval(Trafo, ip2) < 0.)
+            {
+               ip1.x = ip2.x;
+            }
+            else
+            {
+               ip0.x = ip2.x;
+            }
+
+            ip2.x = (ip1.x + ip0.x) / 2.;
+         }
+         Weights(0,elem) = ip2.x;
+         Weights(1,elem) = 1. / Trafo.Weight();
+      }
+      else if (LvlSet.Eval(Trafo, ip0) > 0. && LvlSet.Eval(Trafo, ip1) <= 1e-12)
+      {
+         Weights(0,elem) = 1.;
+         Weights(1,elem) = 1. / Trafo.Weight();
+      }
+      else if (LvlSet.Eval(Trafo, ip1) > 0. && LvlSet.Eval(Trafo, ip0) <= 1e-12)
+      {
+         Weights(0,elem) = 0.;
+         Weights(1,elem) = 1. / Trafo.Weight();
+      }
+      else
+      {
+         Weights(0,elem) = .5;
+         Weights(1,elem) = 0.;
+      }
    }
 }
 
@@ -235,7 +300,6 @@ void SIntegrationRule::ComputeWeights2D()
 
       // do integration over the edges
       for (int edge = 0; edge < me->GetNEdges(); edge++)
-      {
          if (edge_int[edge] && !interior)
          {
             Vector point0(Trafo.GetSpaceDim());
@@ -289,7 +353,6 @@ void SIntegrationRule::ComputeWeights2D()
                }
             }
          }
-      }
 
       Vector scale(Size());
 
@@ -702,7 +765,11 @@ void SIntegrationRule::mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN,
 void SIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
    Trafo = Tr;
-   if (Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
@@ -715,7 +782,11 @@ void SIntegrationRule::Update(IsoparametricTransformation& Tr)
 void SIntegrationRule::UpdateInterface(Coefficient& levelset)
 {
    LvlSet = levelset;
-   if (Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
@@ -727,11 +798,18 @@ void SIntegrationRule::UpdateInterface(Coefficient& levelset)
 
 void SIntegrationRule::SetElement(int ElementNo)
 {
-   for (int ip = 0; ip < GetNPoints(); ip++)
+   if (Trafo.GetDimension() == 1)
    {
-      IntegrationPoint &intp = IntPoint(ip);
-      intp.weight = Weights(ip, ElementNo);
+      IntegrationPoint &intp = IntPoint(0);
+      intp.x = Weights(0, ElementNo);
+      intp.weight = Weights(1, ElementNo);
    }
+   else
+      for (int ip = 0; ip < GetNPoints(); ip++)
+      {
+         IntegrationPoint &intp = IntPoint(ip);
+         intp.weight = Weights(ip, ElementNo);
+      }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -743,6 +821,10 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    SetOrder(q);
    Tr.mesh->GetElementTransformation(0, &Trafo);
    nBasis = 0;
+   if (Trafo.GetDimension() == 1)
+   {
+      nBasis = -1;
+   }
    if (Trafo.GetDimension() == 2)
    {
       nBasis = (int)((GetOrder() + 1) * (GetOrder() + 2) / 2);
@@ -765,21 +847,49 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
       ir = irs.Get(Trafo.GetGeometryType(), qorder);
    }
 
-   // set the quadrature points and default weights
-   SetSize(ir.GetNPoints());
-   InteriorWeights.SetSize(ir.GetNPoints());
-   for (int ip = 0; ip < Size(); ip++)
+   if (Trafo.GetDimension() == 1)
    {
-      IntPoint(ip).index = ip;
-      IntegrationPoint &intp = IntPoint(ip);
-      intp.x = ir.IntPoint(ip).x;
-      intp.y = ir.IntPoint(ip).y;
-      intp.z = ir.IntPoint(ip).z;
-      intp.weight = 0.;
-      InteriorWeights(ip) = ir.IntPoint(ip).weight;
+      ir = irs.Get(Geometry::SEGMENT, GetOrder());
    }
 
-   Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
+   // set the quadrature points and default weights
+   SetSize(ir.GetNPoints());
+   if (Trafo.GetDimension() == 1)
+   {
+      InteriorWeights.SetSize(2 * ir.GetNPoints());
+      for (int ip = 0; ip < Size(); ip++)
+      {
+         IntPoint(ip).index = ip;
+         IntegrationPoint &intp = IntPoint(ip);
+         intp.x = ir.IntPoint(ip).x;
+         InteriorWeights(2 * ip) = ir.IntPoint(ip).x;
+         intp.weight = 0.;
+         InteriorWeights(2 * ip + 1) = ir.IntPoint(ip).weight;
+      }
+   }
+   else
+   {
+      InteriorWeights.SetSize(ir.GetNPoints());
+      for (int ip = 0; ip < Size(); ip++)
+      {
+         IntPoint(ip).index = ip;
+         IntegrationPoint &intp = IntPoint(ip);
+         intp.x = ir.IntPoint(ip).x;
+         intp.y = ir.IntPoint(ip).y;
+         intp.z = ir.IntPoint(ip).z;
+         intp.weight = 0.;
+         InteriorWeights(ip) = ir.IntPoint(ip).weight;
+      }
+   }
+
+   if (Trafo.GetDimension() == 1)
+   {
+      Weights.SetSize(2 * GetNPoints(), Trafo.mesh->GetNE());
+   }
+   else
+   {
+      Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
+   }
    Weights = 0.;
 
    if (Trafo.GetDimension() == 3)
@@ -789,34 +899,95 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
       FaceWeights = 0.;
    }
 
-   // assamble the matrix
-   DenseMatrix Mat(nBasis, Size());
-   for (int ip = 0; ip < ir.GetNPoints(); ip++)
+   if (Trafo.GetDimension() > 1)
    {
-      Vector shape;
-      if (Trafo.GetDimension() == 2)
+      // assamble the matrix
+      DenseMatrix Mat(nBasis, Size());
+      for (int ip = 0; ip < ir.GetNPoints(); ip++)
       {
-         Basis2D(ir.IntPoint(ip), shape);
+         Vector shape;
+         if (Trafo.GetDimension() == 2)
+         {
+            Basis2D(ir.IntPoint(ip), shape);
+         }
+         else if (Trafo.GetDimension() == 3)
+         {
+            Basis3D(ir.IntPoint(ip), shape);
+         }
+
+         Mat.SetCol(ip, shape);
       }
-      else if (Trafo.GetDimension() == 3)
-      {
-         Basis3D(ir.IntPoint(ip), shape);
-      }
-      Mat.SetCol(ip, shape);
+
+      // compute the svd for the matrix
+      SVD = new DenseMatrixSVD(Mat, 'A', 'A');
+      SVD->Eval(Mat);
    }
 
-   // compute the svd for the matrix
-   SVD = new DenseMatrixSVD(Mat, 'A', 'A');
-   SVD->Eval(Mat);
-
    // compute the weights for the current element
-   if (Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
    else if (Trafo.GetDimension() == 3)
    {
       ComputeWeights3D();
+   }
+}
+
+void CutIntegrationRule::ComputeWeights1D()
+{
+   Mesh* mesh = Trafo.mesh;
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
+   {
+      mesh->GetElementTransformation(elem, &Trafo);
+      IntegrationPoint ip0;
+      ip0.x = 0.;
+      IntegrationPoint ip1;
+      ip1.x = 1.;
+      Trafo.SetIntPoint(&ip0);
+      if (LvlSet.Eval(Trafo, ip0) * LvlSet.Eval(Trafo, ip1) < 0.)
+      {
+         Vector tempX(GetNPoints());
+         double length;
+         if (LvlSet.Eval(Trafo, ip0) > 0.)
+         {
+            length = SIR->IntPoint(0).x;
+            for (int ip = 0; ip < GetNPoints(); ip++)
+            {
+               tempX(ip) = InteriorWeights(2 * ip) * length;
+            }
+         }
+         else
+         {
+            length = 1. - SIR->IntPoint(0).x;
+            for (int ip = 0; ip < GetNPoints(); ip++)
+               tempX(ip) = SIR->IntPoint(0).x
+                           + InteriorWeights(2 * ip) * length;
+         }
+
+         for (int ip = 0; ip < GetNPoints(); ip++)
+         {
+            Weights(2 * ip,elem) = tempX(ip);
+            Weights(2 * ip + 1,elem) = InteriorWeights(2 * ip + 1) * length;
+         }
+      }
+      else if (LvlSet.Eval(Trafo, ip0) <= -1e-12
+               || LvlSet.Eval(Trafo, ip1) <= -1e-12)
+      {
+         for (int ip = 0; ip < GetNPoints(); ip++)
+         {
+            Weights(2 * ip,elem) = InteriorWeights(2 * ip);
+            Weights(2 * ip + 1,elem) = 0.;
+         }
+      }
+      else
+      {
+         Weights.SetCol(elem, InteriorWeights);
+      }
    }
 }
 
@@ -951,7 +1122,6 @@ void CutIntegrationRule::ComputeWeights2D()
 
       // do the integration over the edges
       for (int edge = 0; edge < me->GetNEdges(); edge++)
-      {
          if (edge_int[edge] && !interior)
          {
             Vector point0(Trafo.GetSpaceDim());
@@ -1004,7 +1174,6 @@ void CutIntegrationRule::ComputeWeights2D()
                }
             }
          }
-      }
 
       // do the integration over the interface
       if (element_int && !interior)
@@ -1368,7 +1537,12 @@ void CutIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
    Trafo = Tr;
    SIR->Update(Tr);
-   if (Trafo.GetDimension() == 2)
+
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
@@ -1382,7 +1556,12 @@ void CutIntegrationRule::UpdateInterface(Coefficient& levelset)
 {
    LvlSet = levelset;
    SIR->UpdateInterface(LvlSet);
-   if (Trafo.GetDimension() == 2)
+
+   if (Trafo.GetDimension() == 1)
+   {
+      ComputeWeights1D();
+   }
+   else if (Trafo.GetDimension() == 2)
    {
       ComputeWeights2D();
    }
@@ -1396,11 +1575,19 @@ void CutIntegrationRule::SetElement(int ElementNo)
 {
    SIR->SetElement(ElementNo);
 
-   for (int ip = 0; ip < GetNPoints(); ip++)
-   {
-      IntegrationPoint &intp = IntPoint(ip);
-      intp.weight = Weights(ip, ElementNo);
-   }
+   if (Trafo.GetDimension() == 1)
+      for (int ip = 0; ip < GetNPoints(); ip++)
+      {
+         IntegrationPoint &intp = IntPoint(ip);
+         intp.x = Weights(2 * ip, ElementNo);
+         intp.weight = Weights(2 * ip + 1, ElementNo);
+      }
+   else
+      for (int ip = 0; ip < GetNPoints(); ip++)
+      {
+         IntegrationPoint &intp = IntPoint(ip);
+         intp.weight = Weights(ip, ElementNo);
+      }
 }
 
 CutIntegrationRule::~CutIntegrationRule() { delete SVD; delete SIR; }
