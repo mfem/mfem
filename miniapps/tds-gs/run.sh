@@ -34,7 +34,7 @@ do_initial=0
 
 # linear solver parameters
 max_krylov_iter=10000
-max_newton_iter=30
+max_newton_iter=8
 krylov_tol=1e-9 # check this...
 newton_tol=1e-12
 

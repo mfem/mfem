@@ -409,10 +409,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   GridFunction xnew(&fespace);
   GridFunction res(&fespace);
 
-  GridFunction dx_(&fespace);
-  GridFunction dp_(&fespace);
-  double da_;
-  double dl_;
+  // GridFunction dx_(&fespace);
+  // GridFunction dp_(&fespace);
+  // double da_;
+  // double dl_;
 
   SparseMatrix *invH;
   SparseMatrix *invHFT;
@@ -437,7 +437,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   visit_dc.RegisterField("Bp", &Bp_field);
   visit_dc.RegisterField("Bz", &Bz_field);
 
-  int max_levels = 2;
+  int max_levels = 4;
   int max_dofs = 12000;
 
   if (do_control) {
@@ -492,80 +492,82 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     Array<int> row_offsets(n_off);
     Array<int> col_offsets(n_off);
 
-    // newton iterations
-    double error_old;
-    double error;
-    for (int i = 0; i < max_newton_iter; ++i) {
+    // define error estimator for AMR
+    ErrorEstimator *estimator{nullptr};
+    ConstantCoefficient one(1.0);
+    // BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
+    DiffusionIntegratorCoefficient diff_op_coeff(model);
+    DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
+    estimator = new LSZienkiewiczZhuEstimator(*integ, x);
+    ThresholdRefiner refiner(*estimator);
+    refiner.SetTotalErrorFraction(0.7);
 
-      xnew = x;
+    // *** AMR LOOP *** //
+    for (int it_amr = 0; ; ++it_amr) {
+      int cdofs = fespace.GetTrueVSize();
+      printf("AMR iteration %d\n", it_amr);
+      printf("Number of unknowns: %d\n", cdofs);
 
-      // define error estimator for AMR
-      ErrorEstimator *estimator{nullptr};
-      ConstantCoefficient one(1.0);
-      // BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
-      DiffusionIntegratorCoefficient diff_op_coeff(model);
-      DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
-      estimator = new LSZienkiewiczZhuEstimator(*integ, xnew);
-      ThresholdRefiner refiner(*estimator);
-      refiner.SetTotalErrorFraction(0.7);
-      
-      for (int it_amr = 0; ; ++it_amr) {
-        int cdofs = fespace.GetTrueVSize();
-        cout << "\nAMR iteration " << it_amr << endl;
-        cout << "Number of unknowns: " << cdofs << endl;
+      char name_mesh[60];
+      sprintf(name_mesh, "gf/mesh_amr%d.mesh", it_amr);
+      mesh->Save(name_mesh);
 
-        
-        LinearForm coil_term(&fespace);
-        int ndof__ = fespace.GetNDofs();
-        SparseMatrix * F;
-        F = new SparseMatrix(ndof__, num_currents);
-        DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
-  
-        BilinearForm diff_operator(&fespace);
-        DefineLHS(*model, rho_gamma, diff_operator);
+      // *** prepare operators for solver *** //
+      LinearForm coil_term(&fespace);
+      int ndof__ = fespace.GetNDofs();
+      SparseMatrix * F;
+      F = new SparseMatrix(ndof__, num_currents);
+      DefineRHS(*model, rho_gamma, *mesh, *exact_coefficient, *exact_forcing_coeff, coil_term, F);
 
-        SparseMatrix * K_;
-        Vector g_;
-        vector<Vector> *alpha_coeffs;
-        vector<Array<int>> *J_inds;
-        alpha_coeffs = new vector<Vector>;
-        J_inds = new vector<Array<int>>;
-        init_coeff->compute_QP(N_control, mesh, &fespace);
-        K_ = init_coeff->compute_K();
-        g_ = init_coeff->compute_g();
-        J_inds = init_coeff->get_J();
-        alpha_coeffs = init_coeff->get_alpha();
+      BilinearForm diff_operator(&fespace);
+      DefineLHS(*model, rho_gamma, diff_operator);
 
-        SparseMatrix * H;
-        H = new SparseMatrix(num_currents, num_currents);
-        for (int i = 0; i < num_currents; ++i) {
-          if (i < 5) {
-            H->Set(i, i, weight_coils);
-          } else {
-            H->Set(i, i, weight_solenoids);
-          }
-        }
-        H->Finalize();
+      SparseMatrix * K_;
+      Vector g_;
+      vector<Vector> *alpha_coeffs;
+      vector<Array<int>> *J_inds;
+      alpha_coeffs = new vector<Vector>;
+      J_inds = new vector<Array<int>>;
+      init_coeff->compute_QP(N_control, mesh, &fespace);
+      K_ = init_coeff->compute_K();
+      g_ = init_coeff->compute_g();
+      J_inds = init_coeff->get_J();
+      alpha_coeffs = init_coeff->get_alpha();
 
-        SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
-        op.set_i_option(obj_option);
-        op.set_obj_weight(obj_weight);  
-        
-        if (reduce) {
-          row_offsets[0] = 0;
-          row_offsets[1] = pv.Size();
-          row_offsets[2] = row_offsets[1] + pv.Size();
-          row_offsets[3] = row_offsets[2] + 1;
-          row_offsets[4] = row_offsets[3] + 1;
+      SparseMatrix * H;
+      H = new SparseMatrix(num_currents, num_currents);
+      for (int i = 0; i < num_currents; ++i) {
+        if (i < 5) {
+          H->Set(i, i, weight_coils);
         } else {
-          row_offsets[0] = 0;
-          row_offsets[1] = pv.Size();
-          row_offsets[2] = row_offsets[1] + uv->Size();
-          row_offsets[3] = row_offsets[2] + pv.Size();
-          row_offsets[4] = row_offsets[3] + 1;
-          row_offsets[5] = row_offsets[4] + 1;
+          H->Set(i, i, weight_solenoids);
         }
+      }
+      H->Finalize();
 
+      SysOperator op(&diff_operator, &coil_term, model, &fespace, mesh, attr_lim, &x, F, uv, H, K_, &g_, alpha_coeffs, J_inds, &alpha, include_plasma);
+      op.set_i_option(obj_option);
+      op.set_obj_weight(obj_weight);  
+
+      if (reduce) {
+        row_offsets[0] = 0;
+        row_offsets[1] = pv.Size();
+        row_offsets[2] = row_offsets[1] + pv.Size();
+        row_offsets[3] = row_offsets[2] + 1;
+        row_offsets[4] = row_offsets[3] + 1;
+      } else {
+        row_offsets[0] = 0;
+        row_offsets[1] = pv.Size();
+        row_offsets[2] = row_offsets[1] + uv->Size();
+        row_offsets[3] = row_offsets[2] + pv.Size();
+        row_offsets[4] = row_offsets[3] + 1;
+        row_offsets[5] = row_offsets[4] + 1;
+      }
+
+      // *** NEWTON LOOP *** //
+      double error_old;
+      double error;
+      for (int i = 0; i < max_newton_iter; ++i) {
         // print out objective function and regularization
 
         // -b3 = eq_res = B(y^n) - F u^n
@@ -578,18 +580,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         Vector Ba = op.get_Ba();
         cout << "plasma current " << C / op.get_mu() << endl;
 
-        // if (i == 0) {
-        //   eq_res.Save("gf/initial_eq_res.gf");
-        // } else {
-        //   eq_res.Save("gf/eq_res.gf");
-        // }
         char name_eq_res[60];
-        sprintf(name_eq_res, "gf/eq_res_i%d_amr%d.gf", i, it_amr);
+        sprintf(name_eq_res, "gf/eq_res_amr%d_i%d.gf", it_amr, i);
         eq_res.Save(name_eq_res);
-
-        char name_mesh[60];
-        sprintf(name_mesh, "gf/mesh_i%d_amr%d.mesh", i, it_amr);
-        mesh->Save(name_mesh);
 
         // if (visualization && sol_sock.good())
         //   {
@@ -604,9 +597,6 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         printf("psi_x = %e; r_x = %e; z_x = %e\n", psi_x, x_x[0], x_x[1]);
         printf("psi_ma = %e; r_ma = %e; z_ma = %e\n", psi_ma, x_ma[0], x_ma[1]);
 
-        // if (i == 0) {
-        //   return;
-        // }
         BrCoeff.set_psi_vals(psi_x, psi_ma);
         BpCoeff.set_psi_vals(psi_x, psi_ma);
         BzCoeff.set_psi_vals(psi_x, psi_ma);
@@ -814,104 +804,92 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
                       << " iterations. Residual norm is " << solver.GetFinalNorm()
                       << ".\n";
           }
-
-        dx_ = dx.GetBlock(0);
-        dp_ = dx.GetBlock(1);
-        da_ = dx.GetBlock(2)[0];
-        dl_ = dx.GetBlock(3)[0];
-        add(x, dx_, xnew);
-
-        if (it_amr >= max_levels) {
-          printf("max number of refinement levels\n");
-          break;
-        }
-        if (cdofs > max_dofs)
-          {
-            cout << "Reached the maximum number of dofs. Stop." << endl;
-            break;
-          }
         
-        refiner.Apply(*mesh);
-        mesh->Save("mesh_refine.mesh");
-        if (refiner.Stop()) {
-          cout << "Stopping criterion satisfied. Stop." << endl;
-          break;
-        } else {
-          printf("Refining mesh, i=%d\n", it_amr);
+        // dx_ = dx.GetBlock(0);
+        // dp_ = dx.GetBlock(1);
+        // da_ = dx.GetBlock(2)[0];
+        // dl_ = dx.GetBlock(3)[0];
+
+        // x += dx_;
+        // pv += dp_;
+        // invHFT->AddMult(dp_, *uv);
+        // invH->AddMult(b2, *uv);
+        // if (add_alpha) {
+        //   alpha += da_;
+        //   lv += dl_;
+        // }
+
+        x += dx.GetBlock(0);
+        pv += dx.GetBlock(1);
+        invHFT->AddMult(dx.GetBlock(1), *uv);
+        invH->AddMult(b2, *uv);
+        if (add_alpha) {
+          alpha += dx.GetBlock(2)[0];
+          lv += dx.GetBlock(3)[0];
+        }        
+
+        printf("currents: [");
+        for (int i = 0; i < uv->Size(); ++i) {
+          printf("%.3e ", (*uv)[i]);
         }
+        printf("]\n");
+      
+        x.Save("gf/xtmp.gf");
+        char name[60];
+        sprintf(name, "gf/xtmp_amr%d_i%d.gf", it_amr, i);
+        x.Save(name);
+        Br_field.Save("gf/Br.gf");
+        Bp_field.Save("gf/Bp.gf");
+        Bz_field.Save("gf/Bz.gf");
 
-        fespace.Update();
+        // compute magnetic field
+        x.GetDerivative(1, 0, psi_r);
+        x.GetDerivative(1, 1, psi_z);
+        Br_field.ProjectCoefficient(BrCoeff);
+        Bp_field.ProjectCoefficient(BpCoeff);
+        Bz_field.ProjectCoefficient(BzCoeff);
 
-        x.Update();
-        xnew.Update();
-        res.Update();
-        psi_r.Update();
-        psi_z.Update();
-        Br_field.Update();
-        Bp_field.Update();
-        Bz_field.Update();
-        pv.Update();
-        eq_res.Update();
-        opt_res.Update();
-        b1.Update();
-        b3.Update();
-        b1p.Update();
-        b3p.Update();
-
-        dx_.Update();
-        dp_.Update();
-
-
-        // break;
+        visit_dc.Save();
       }
 
-      if (error < newton_tol) {
+      if (it_amr >= max_levels) {
+        printf("max number of refinement levels\n");
         break;
       }
-      // break;
-
-      // x += dx.GetBlock(0);
-      // pv += dx.GetBlock(1);
-      // invHFT->AddMult(dx.GetBlock(1), *uv);
-      // invH->AddMult(b2, *uv);
-      // if (add_alpha) {
-      //   alpha += dx.GetBlock(2)[0];
-      //   lv += dx.GetBlock(3)[0];
-      // }
-
-      x += dx_;
-      pv += dp_;
-      invHFT->AddMult(dp_, *uv);
-      invH->AddMult(b2, *uv);
-      if (add_alpha) {
-        alpha += da_;
-        lv += dl_;
+      if (cdofs > max_dofs)
+        {
+          cout << "Reached the maximum number of dofs. Stop." << endl;
+          break;
+        }
+        
+      refiner.Apply(*mesh);
+      mesh->Save("mesh_refine.mesh");
+      if (refiner.Stop()) {
+        cout << "Stopping criterion satisfied. Stop." << endl;
+        break;
+      } else {
+        printf("Refining mesh, i=%d\n", it_amr);
       }
-      
 
-      printf("currents: [");
-      for (int i = 0; i < uv->Size(); ++i) {
-        printf("%.3e ", (*uv)[i]);
-      }
-      printf("]\n");
-      
-      x.Save("gf/xtmp.gf");
-      char name[60];
-      sprintf(name, "gf/xtmp%d.gf", i);
-      x.Save(name);
-      Br_field.Save("gf/Br.gf");
-      Bp_field.Save("gf/Bp.gf");
-      Bz_field.Save("gf/Bz.gf");
+      fespace.Update();
 
-      // compute magnetic field
-      x.GetDerivative(1, 0, psi_r);
-      x.GetDerivative(1, 1, psi_z);
-      Br_field.ProjectCoefficient(BrCoeff);
-      Bp_field.ProjectCoefficient(BpCoeff);
-      Bz_field.ProjectCoefficient(BzCoeff);
-
-      visit_dc.Save();
-      
+      x.Update();
+      // xnew.Update();
+      res.Update();
+      psi_r.Update();
+      psi_z.Update();
+      Br_field.Update();
+      Bp_field.Update();
+      Bz_field.Update();
+      pv.Update();
+      eq_res.Update();
+      opt_res.Update();
+      b1.Update();
+      b3.Update();
+      b1p.Update();
+      b3p.Update();
+      // dx_.Update();
+      // dp_.Update();
 
     }
      
