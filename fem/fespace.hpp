@@ -876,6 +876,13 @@ public:
    /// GetElementInteriorVDofs().
    void GetElementInteriorDofs(int i, Array<int> &dofs) const;
 
+   /// @brief Returns the number of degrees of freedom associated with the
+   /// interior of the specified element.
+   ///
+   /// See GetElementInteriorDofs() for more information or to obtain the
+   /// relevant indices.
+   int GetNumElementInteriorDofs(int i) const;
+
    /// @brief Returns the indices of the degrees of freedom for the interior
    /// of the specified face.
    ///
@@ -888,13 +895,6 @@ public:
    /// GetFaceInteriorVDofs().
    void GetFaceInteriorDofs(int i, Array<int> &dofs) const;
 
-   /// @brief Returns the number of degrees of freedom associated with the
-   /// interior of the specified element.
-   ///
-   /// See GetElementInteriorDofs() for more information or to obtain the
-   /// relevant indices.
-   int GetNumElementInteriorDofs(int i) const;
-
    /// @brief Returns the indices of the degrees of freedom for the interior
    /// of the specified edge.
    ///
@@ -902,6 +902,11 @@ public:
    /// GetEdgeInteriorVDofs().
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
    ///@}
+
+   /** @brief Returns indices of degrees of freedom for NURBS patch index
+    @a patch. Cartesian ordering is used, for the tensor-product degrees of
+    freedom. */
+   void GetPatchDofs(int patch, Array<int> &dofs) const;
 
    /// @anchor dof2vdof @name DoF To VDoF Conversion methods
    /// These methods convert between local dof and local vector dof using the
@@ -1015,7 +1020,7 @@ public:
 
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
-   /// not necessarily equal to 1. The returned indexes are always ordered
+   /// not necessarily equal to 1. The returned indices are always ordered
    /// byNODES, irrespective of whether the space is byNODES or byVDIM.
    /// See also GetElementDofs().
    ///
@@ -1043,6 +1048,9 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+
+   /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
+   void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.

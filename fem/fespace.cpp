@@ -311,6 +311,12 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
+void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
+{
+   GetPatchDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
 {
    GetFaceDofs(i, vdofs);
@@ -3072,18 +3078,6 @@ int FiniteElementSpace::GetNumElementInteriorDofs(int i) const
                          GetElementOrderImpl(i));
 }
 
-void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
-{
-   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
-
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
-   dofs.SetSize (ne);
-   for (int j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
-   {
-      dofs[j] = k;
-   }
-}
-
 void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
 {
    MFEM_VERIFY(!IsVariableOrder(), "not implemented");
@@ -3106,6 +3100,25 @@ void FiniteElementSpace::GetFaceInteriorDofs(int i, Array<int> &dofs) const
    {
       dofs[j] = nvdofs + nedofs + base + j;
    }
+}
+
+void FiniteElementSpace::GetEdgeInteriorDofs(int i, Array<int> &dofs) const
+{
+   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   dofs.SetSize (ne);
+   for (int j = 0, k = nvdofs+i*ne; j < ne; j++, k++)
+   {
+      dofs[j] = k;
+   }
+}
+
+void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
+{
+   MFEM_ASSERT(NURBSext,
+               "FiniteElementSpace::GetPatchDofs needs a NURBSExtension");
+   NURBSext->GetPatchDofs(patch, dofs);
 }
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
