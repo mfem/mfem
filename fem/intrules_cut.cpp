@@ -27,23 +27,20 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
 {
    SetOrder(q);
    Tr.mesh->GetElementTransformation(Tr.ElementNo, &Trafo);
-   if(Trafo.GetDimension() == 2)
-      nBasis = 2 * (GetOrder() + 1) + (int)(GetOrder() * (GetOrder() + 1) / 2);
-   else if(Trafo.GetDimension() == 3)
+   if (Trafo.GetDimension() == 2)
    {
-      if(GetOrder()== 0) { nBasis = 3; }
-      else if(GetOrder()== 1) { nBasis = 11; }
-      else if(GetOrder()== 2) { nBasis = 26; }
-      else if(GetOrder()== 3) { nBasis = 50; }
-      else if(GetOrder()== 4) { nBasis = 85; }
-      else if(GetOrder()== 5) { nBasis = 133; }
-      else if(GetOrder()== 6) { nBasis = 196; }
-      else if(GetOrder()== 7) { nBasis = 276; }
-      else if(GetOrder()== 8) { nBasis = 375; }
-      else if(GetOrder()== 9) { nBasis = 495; }
-      else if(GetOrder()== 10) { nBasis = 638; }
-      else if(GetOrder()== 11) { nBasis = 806; }
-      else if(GetOrder()== 12) { nBasis = 1001; }
+      nBasis = 2 * (GetOrder() + 1) + (int)(GetOrder() * (GetOrder() + 1) / 2);
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
+      if (GetOrder()== 0) { nBasis = 3; }
+      else if (GetOrder()== 1) { nBasis = 11; }
+      else if (GetOrder()== 2) { nBasis = 26; }
+      else if (GetOrder()== 3) { nBasis = 50; }
+      else if (GetOrder()== 4) { nBasis = 85; }
+      else if (GetOrder()== 5) { nBasis = 133; }
+      else if (GetOrder()== 6) { nBasis = 196; }
+      else if (GetOrder()>= 7) { nBasis = 276; SetOrder(7); }
    }
 
    // compute the quadrture points
@@ -70,10 +67,10 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
    Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
    Weights = 0.;
 
-   if(Trafo.GetDimension() == 3)
+   if (Trafo.GetDimension() == 3)
    {
       int nFBasis = 2 * (GetOrder() + 2)
-                   + (int)((GetOrder() + 1) * (GetOrder() + 2) / 2);
+                    + (int)((GetOrder() + 1) * (GetOrder() + 2) / 2);
       int fqorder = 0;
       IntegrationRule fir = irs.Get(Geometry::SQUARE, fqorder);
       for (; fir.GetNPoints() <= nFBasis; fqorder++)
@@ -94,13 +91,17 @@ SIntegrationRule::SIntegrationRule(int q, ElementTransformation& Tr,
 
       FaceWeights.SetSize(FaceIP.Size(), Trafo.mesh->GetNFaces());
       FaceWeights = 0.;
-   }      
+   }
 
    // compute the weights for current element
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void SIntegrationRule::ComputeWeights2D()
@@ -111,7 +112,7 @@ void SIntegrationRule::ComputeWeights2D()
    GridFunction LevelSet(&fes);
    LevelSet.ProjectCoefficient(LvlSet);
 
-   for(int elem = 0; elem < mesh->GetNE(); elem++)
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
    {
       Element* me = mesh->GetElement(elem);
       mesh->GetElementTransformation(elem, &Trafo);
@@ -203,9 +204,13 @@ void SIntegrationRule::ComputeWeights2D()
                    || LvlSet.Eval(Trafo, ip) < -1e-12)
             {
                if (LvlSet.Eval(Trafo, ip) > 1e-12)
+               {
                   pointC = mid;
+               }
                else
+               {
                   pointB = mid;
+               }
 
                mid = pointC;
                mid += pointB;
@@ -219,9 +224,13 @@ void SIntegrationRule::ComputeWeights2D()
          PointB.SetRow(edge, pointB);
 
          if ((layout == Layout::inside || layout == Layout::intersected))
+         {
             edge_int.Append(true);
+         }
          else
-         edge_int.Append(false);
+         {
+            edge_int.Append(false);
+         }
       }
 
       // do integration over the edges
@@ -242,11 +251,17 @@ void SIntegrationRule::ComputeWeights2D()
             Vector normal(Trafo.GetDimension());
             normal = 0.;
             if (edge == 0 || edge == 2)
+            {
                normal(1) = 1.;
+            }
             if (edge == 1 || edge == 3)
+            {
                normal(0) = 1.;
+            }
             if (edge == 0 || edge == 3)
+            {
                normal *= -1.;
+            }
 
             for (int ip = 0; ip < ir2->GetNPoints(); ip++)
             {
@@ -328,13 +343,17 @@ void SIntegrationRule::ComputeWeights2D()
          temp2 = 0.;
          for (int i = 0; i < nBasis; i++)
             if (SVD.Singularvalue(i) > 1e-12)
+            {
                temp2(i) = temp(i) / SVD.Singularvalue(i);
+            }
          SVD.RightSingularvectors().MultTranspose(temp2, ElemWeights);
       }
 
       // scale the weights
       for (int ip = 0; ip < GetNPoints(); ip++)
+      {
          Weights(ip, elem) = ElemWeights(ip) * scale(ip);
+      }
    }
 }
 
@@ -346,7 +365,7 @@ void SIntegrationRule::ComputeWeights3D()
    GridFunction LevelSet(&fes);
    LevelSet.ProjectCoefficient(LvlSet);
 
-   for(int face = 0; face < mesh->GetNFaces(); face++)
+   for (int face = 0; face < mesh->GetNFaces(); face++)
    {
       Array<int> verts;
       mesh->GetFaceVertices(face, verts);
@@ -375,11 +394,13 @@ void SIntegrationRule::ComputeWeights3D()
       CutIntegrationRule faceIntRule(GetOrder(), faceTrafo, LvlSet);
       faceIntRule.SetElement(0);
 
-      for(int ip = 0; ip < faceIntRule.GetNPoints(); ip++)
+      for (int ip = 0; ip < faceIntRule.GetNPoints(); ip++)
+      {
          FaceWeights(ip, face) = faceIntRule.IntPoint(ip).weight;
+      }
    }
 
-   for(int elem = 0; elem < mesh->GetNE(); elem++)
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
    {
       Element* me = Trafo.mesh->GetElement(Trafo.ElementNo);
       mesh->GetElementTransformation(elem, &Trafo);
@@ -398,7 +419,7 @@ void SIntegrationRule::ComputeWeights3D()
       Array<int> verts;
       mesh->GetElementVertices(elem, verts);
 
-      for(int face = 0; face < me->GetNFaces(); face++)
+      for (int face = 0; face < me->GetNFaces(); face++)
       {
          enum class Layout {inside, intersected, outside};
          Layout layout;
@@ -440,7 +461,7 @@ void SIntegrationRule::ComputeWeights3D()
          {
             element_int = true;
          }
-      
+
          Array<int> faces;
          Array<int> cor;
          mesh->GetElementFaces(elem, faces, cor);
@@ -451,15 +472,23 @@ void SIntegrationRule::ComputeWeights3D()
          Vector normal(Trafo.GetDimension());
          normal = 0.;
          if (face == 0 || face == 5)
+         {
             normal(2) = 1.;
+         }
          if (face == 1 || face == 3)
+         {
             normal(1) = 1.;
+         }
          if (face == 2 || face == 4)
+         {
             normal(0) = 1.;
+         }
          if (face == 0 || face == 1 || face == 4)
+         {
             normal *= -1.;
+         }
 
-         for(int ip = 0; ip < FaceIP.Size(); ip++)
+         for (int ip = 0; ip < FaceIP.Size(); ip++)
          {
             DenseMatrix shape;
             Vector point(3);
@@ -468,7 +497,7 @@ void SIntegrationRule::ComputeWeights3D()
             Trafo.TransformBack(point, ipoint);
             OrthoBasis3D(ipoint, shape);
 
-            for(int dof = 0; dof < nBasis; dof++)
+            for (int dof = 0; dof < nBasis; dof++)
             {
                Vector grad(Trafo.GetSpaceDim());
                shape.GetRow(dof, grad);
@@ -529,13 +558,17 @@ void SIntegrationRule::ComputeWeights3D()
          temp2 = 0.;
          for (int i = 0; i < nBasis; i++)
             if (SVD.Singularvalue(i) > 1e-12)
+            {
                temp2(i) = temp(i) / SVD.Singularvalue(i);
+            }
          SVD.RightSingularvectors().MultTranspose(temp2, ElemWeights);
       }
 
       // scale the weights
       for (int ip = 0; ip < GetNPoints(); ip++)
+      {
          Weights(ip, elem) = ElemWeights(ip) * scale(ip);
+      }
    }
 }
 
@@ -669,24 +702,32 @@ void SIntegrationRule::mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN,
 void SIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
    Trafo = Tr;
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void SIntegrationRule::UpdateInterface(Coefficient& levelset)
 {
    LvlSet = levelset;
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void SIntegrationRule::SetElement(int ElementNo)
 {
-   for(int ip = 0; ip < GetNPoints(); ip++)
+   for (int ip = 0; ip < GetNPoints(); ip++)
    {
       IntegrationPoint &intp = IntPoint(ip);
       intp.weight = Weights(ip, ElementNo);
@@ -702,11 +743,15 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    SetOrder(q);
    Tr.mesh->GetElementTransformation(0, &Trafo);
    nBasis = 0;
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       nBasis = (int)((GetOrder() + 1) * (GetOrder() + 2) / 2);
-   else if(Trafo.GetDimension() == 3)
-      for(int p = 0; p <= GetOrder(); p++)
+   }
+   else if (Trafo.GetDimension() == 3)
+      for (int p = 0; p <= GetOrder(); p++)
+      {
          nBasis +=(int)((p + 1) * (p + 2) / 2);
+      }
 
    // set surface integration rule
    SIR = new SIntegrationRule(GetOrder() + 1, Tr, levelset);
@@ -737,7 +782,7 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    Weights.SetSize(GetNPoints(), Trafo.mesh->GetNE());
    Weights = 0.;
 
-   if(Trafo.GetDimension() == 3)
+   if (Trafo.GetDimension() == 3)
    {
       FaceIP = SIR->FaceIP;
       FaceWeights.SetSize(SIR->FaceWeights.Height(), SIR->FaceWeights.Width());
@@ -749,10 +794,14 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    for (int ip = 0; ip < ir.GetNPoints(); ip++)
    {
       Vector shape;
-      if(Trafo.GetDimension() == 2)
+      if (Trafo.GetDimension() == 2)
+      {
          Basis2D(ir.IntPoint(ip), shape);
-      else if(Trafo.GetDimension() == 3)
+      }
+      else if (Trafo.GetDimension() == 3)
+      {
          Basis3D(ir.IntPoint(ip), shape);
+      }
       Mat.SetCol(ip, shape);
    }
 
@@ -761,10 +810,14 @@ CutIntegrationRule::CutIntegrationRule(int q, ElementTransformation& Tr,
    SVD->Eval(Mat);
 
    // compute the weights for the current element
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void CutIntegrationRule::ComputeWeights2D()
@@ -775,7 +828,7 @@ void CutIntegrationRule::ComputeWeights2D()
    GridFunction LevelSet(&fes);
    LevelSet.ProjectCoefficient(LvlSet);
 
-   for(int elem = 0; elem < mesh->GetNE(); elem++)
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
    {
       Element* me = mesh->GetElement(elem);
       mesh->GetElementTransformation(elem, &Trafo);
@@ -867,9 +920,13 @@ void CutIntegrationRule::ComputeWeights2D()
                    || LvlSet.Eval(Trafo, ip) < -1e-12)
             {
                if (LvlSet.Eval(Trafo, ip) > 1e-12)
+               {
                   pointC = mid;
+               }
                else
+               {
                   pointB = mid;
+               }
 
                mid = pointC;
                mid += pointB;
@@ -883,9 +940,13 @@ void CutIntegrationRule::ComputeWeights2D()
          PointB.SetRow(edge, pointB);
 
          if ((layout == Layout::inside || layout == Layout::intersected))
+         {
             edge_int.Append(true);
+         }
          else
+         {
             edge_int.Append(false);
+         }
       }
 
       // do the integration over the edges
@@ -906,11 +967,17 @@ void CutIntegrationRule::ComputeWeights2D()
             Vector normal(Trafo.GetDimension());
             normal = 0.;
             if (edge == 0 || edge == 2)
+            {
                normal(1) = 1.;
+            }
             if (edge == 1 || edge == 3)
+            {
                normal(0) = 1.;
+            }
             if (edge == 0 || edge == 3)
+            {
                normal *= -1.;
+            }
 
             for (int ip = 0; ip < ir2->GetNPoints(); ip++)
             {
@@ -933,7 +1000,7 @@ void CutIntegrationRule::ComputeWeights2D()
                {
                   shapes.GetRow(dof, adiv);
                   RHS(dof) += (adiv * normal) * ir2->IntPoint(ip).weight
-                             * dist.Norml2() / edgelength(edge);
+                              * dist.Norml2() / edgelength(edge);
                }
             }
          }
@@ -990,16 +1057,24 @@ void CutIntegrationRule::ComputeWeights2D()
          SVD->LeftSingularvectors().MultTranspose(RHS, temp);
          for (int i = 0; i < nBasis; i++)
             if (SVD->Singularvalue(i) > 1e-12)
+            {
                temp2(i) = temp(i) / SVD->Singularvalue(i);
+            }
          SVD->RightSingularvectors().MultTranspose(temp2, ElemWeights);
       }
       else if (interior)
+      {
          ElemWeights = InteriorWeights;
+      }
       else
+      {
          ElemWeights = 0.;
+      }
 
       for (int ip = 0; ip < GetNPoints(); ip++)
+      {
          Weights(ip, elem) = ElemWeights(ip);
+      }
    }
 }
 
@@ -1012,8 +1087,8 @@ void CutIntegrationRule::ComputeWeights3D()
    FiniteElementSpace fes(mesh, &fec);
    GridFunction LevelSet(&fes);
    LevelSet.ProjectCoefficient(LvlSet);
-   
-   for(int elem = 0; elem < mesh->GetNE(); elem++)
+
+   for (int elem = 0; elem < mesh->GetNE(); elem++)
    {
       Element* me = Trafo.mesh->GetElement(Trafo.ElementNo);
       mesh->GetElementTransformation(elem, &Trafo);
@@ -1032,7 +1107,7 @@ void CutIntegrationRule::ComputeWeights3D()
       Array<int> verts;
       mesh->GetElementVertices(elem, verts);
 
-      for(int face = 0; face < me->GetNFaces(); face++)
+      for (int face = 0; face < me->GetNFaces(); face++)
       {
          enum class Layout {inside, intersected, outside};
          Layout layout;
@@ -1074,7 +1149,7 @@ void CutIntegrationRule::ComputeWeights3D()
          {
             element_int = true;
          }
-      
+
          Array<int> faces;
          Array<int> cor;
          mesh->GetElementFaces(elem, faces, cor);
@@ -1085,15 +1160,23 @@ void CutIntegrationRule::ComputeWeights3D()
          Vector normal(Trafo.GetDimension());
          normal = 0.;
          if (face == 0 || face == 5)
+         {
             normal(2) = 1.;
+         }
          if (face == 1 || face == 3)
+         {
             normal(1) = 1.;
+         }
          if (face == 2 || face == 4)
+         {
             normal(0) = 1.;
+         }
          if (face == 0 || face == 1 || face == 4)
+         {
             normal *= -1.;
+         }
 
-         for(int ip = 0; ip < FaceIP.Size(); ip++)
+         for (int ip = 0; ip < FaceIP.Size(); ip++)
          {
             DenseMatrix shape;
             Vector point(3);
@@ -1102,7 +1185,7 @@ void CutIntegrationRule::ComputeWeights3D()
             Trafo.TransformBack(point, ipoint);
             BasisAntiDerivative3D(ipoint, shape);
 
-            for(int dof = 0; dof < nBasis; dof++)
+            for (int dof = 0; dof < nBasis; dof++)
             {
                Vector adiv(Trafo.GetSpaceDim());
                shape.GetRow(dof, adiv);
@@ -1162,16 +1245,24 @@ void CutIntegrationRule::ComputeWeights3D()
          temp2 = 0.;
          for (int i = 0; i < nBasis; i++)
             if (SVD->Singularvalue(i) > 1e-12)
+            {
                temp2(i) = temp(i) / SVD->Singularvalue(i);
+            }
          SVD->RightSingularvectors().MultTranspose(temp2, ElemWeights);
       }
-      else if(interior)
+      else if (interior)
+      {
          ElemWeights = InteriorWeights;
+      }
       else
+      {
          ElemWeights = 0.;
+      }
 
       for (int ip = 0; ip < GetNPoints(); ip++)
+      {
          Weights(ip, elem) = ElemWeights(ip);
+      }
    }
 }
 
@@ -1231,13 +1322,13 @@ void CutIntegrationRule::Basis3D(const IntegrationPoint& ip, Vector& shape)
    X(2) = -1. + 2. * ip.z;
 
    int count = 0;
-   for(int c = 0; c <= GetOrder(); c++)
-      for(int expo = 0; expo <= c; expo++)
-         for(int expo2 = 0; expo2 <= c - expo; expo2++)
+   for (int c = 0; c <= GetOrder(); c++)
+      for (int expo = 0; expo <= c; expo++)
+         for (int expo2 = 0; expo2 <= c - expo; expo2++)
          {
             shape(count) = pow(X(0), (double)(expo))
-                          * pow(X(1), (double)(expo2))
-                          * pow(X(2), (double)(c - expo - expo2));
+                           * pow(X(1), (double)(expo2))
+                           * pow(X(2), (double)(c - expo - expo2));
             count++;
          }
 }
@@ -1253,22 +1344,22 @@ void CutIntegrationRule::BasisAntiDerivative3D(const IntegrationPoint& ip,
    X(2) = -1. + 2. * ip.z;
 
    int count = 0;
-   for(int c = 0; c <= GetOrder(); c++)
-      for(int expo = 0; expo <= c; expo++)
-         for(int expo2 = 0; expo2 <= c - expo; expo2++)
+   for (int c = 0; c <= GetOrder(); c++)
+      for (int expo = 0; expo <= c; expo++)
+         for (int expo2 = 0; expo2 <= c - expo; expo2++)
          {
             shape(count, 0) = pow(X(0), (double)(expo + 1))
-                             * pow(X(1), (double)(expo2))
-                             * pow(X(2), (double)(c - expo - expo2))
-                             / (6. * (double)(expo + 1));
+                              * pow(X(1), (double)(expo2))
+                              * pow(X(2), (double)(c - expo - expo2))
+                              / (6. * (double)(expo + 1));
             shape(count, 1) = pow(X(0), (double)(expo))
-                             * pow(X(1), (double)(expo2 + 1))
-                             * pow(X(2), (double)(c - expo - expo2))
-                             / (6. * (double)(expo2 + 1));;
+                              * pow(X(1), (double)(expo2 + 1))
+                              * pow(X(2), (double)(c - expo - expo2))
+                              / (6. * (double)(expo2 + 1));;
             shape(count, 2) = pow(X(0), (double)(expo))
-                             * pow(X(1), (double)(expo2))
-                             * pow(X(2), (double)(c - expo - expo2 + 1))
-                             / (6. * (double)(c - expo + expo2 + 1));;
+                              * pow(X(1), (double)(expo2))
+                              * pow(X(2), (double)(c - expo - expo2 + 1))
+                              / (6. * (double)(c - expo + expo2 + 1));;
             count++;
          }
 }
@@ -1277,27 +1368,35 @@ void CutIntegrationRule::Update(IsoparametricTransformation& Tr)
 {
    Trafo = Tr;
    SIR->Update(Tr);
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void CutIntegrationRule::UpdateInterface(Coefficient& levelset)
 {
    LvlSet = levelset;
    SIR->UpdateInterface(LvlSet);
-   if(Trafo.GetDimension() == 2)
+   if (Trafo.GetDimension() == 2)
+   {
       ComputeWeights2D();
-   else if(Trafo.GetDimension() == 3)
+   }
+   else if (Trafo.GetDimension() == 3)
+   {
       ComputeWeights3D();
+   }
 }
 
 void CutIntegrationRule::SetElement(int ElementNo)
 {
    SIR->SetElement(ElementNo);
 
-   for(int ip = 0; ip < GetNPoints(); ip++)
+   for (int ip = 0; ip < GetNPoints(); ip++)
    {
       IntegrationPoint &intp = IntPoint(ip);
       intp.weight = Weights(ip, ElementNo);

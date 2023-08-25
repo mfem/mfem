@@ -41,7 +41,7 @@
 //              This example showcases how to set up integrators using the
 //              integration rules on surfaces and subdomains.
 //
-// [1] Mueller, B., Kummer, F. and Obelrack, M. (2013) Highly accurate surface
+// [1] Mueller, B., Kummer, F. and Oberlack, M. (2013) Highly accurate surface
 //     and volume integration on implicit domains by means of moment-fitting.
 //     Int. J. Numer. Meth. Engng. (96) 512-528. DOI:10.1002/nme.4569
 
@@ -349,7 +349,7 @@ int main(int argc, char *argv[])
 
    // 2. Construct and refine the mesh.
    Mesh *mesh;
-   if(itype == IntegrationType::Surface || itype == IntegrationType::Volumetric)
+   if (itype == IntegrationType::Surface || itype == IntegrationType::Volumetric)
    {
       mesh = new Mesh(2, 4, 1, 0, 2);
       mesh->AddVertex(-1.6,-1.6);
@@ -424,8 +424,8 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
    cout << "Mesh size dx:                       ";
    cout << 3.2 / pow(2., (double)ref_levels) << endl;
-   if(itype == IntegrationType::Surface
-      || itype == IntegrationType::Volumetric)
+   if (itype == IntegrationType::Surface
+       || itype == IntegrationType::Volumetric)
    {
       cout << "Number of div free basis functions: " << nbasis << endl;
       cout << "Number of quadrature points:        " << ir.GetNPoints() << endl;
@@ -438,8 +438,8 @@ int main(int argc, char *argv[])
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
-   if(itype == IntegrationType::Volumetric
-      || itype == IntegrationType::Volumetric3D)
+   if (itype == IntegrationType::Volumetric
+       || itype == IntegrationType::Volumetric3D)
    {
       cout << "--------------------------------------------" << endl;
       cout << "Computed value of volume integral:  " << volume.Sum() << endl;
