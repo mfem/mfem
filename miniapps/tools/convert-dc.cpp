@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    src_dc->SetPadDigitsRank(src_pad_digits_rank);
    src_dc->Load(src_cycle);
 
-   if (src_dc->Error() != DataCollection::NO_ERROR)
+   if (src_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading data collection: "
                 << src_coll_name
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
 
    out_dc->Save();
 
-   if (out_dc->Error() != DataCollection::NO_ERROR)
+   if (out_dc->Error() != DataCollection::No_Error)
    {
       mfem::out << "Error saving data collection: "
                 << out_coll_name

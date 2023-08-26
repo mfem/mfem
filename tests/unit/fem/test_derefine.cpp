@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -179,9 +179,7 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    x.ProjectCoefficient(c);
 
    // deep copy the fine solution
-   Vector xf = x;
-   GridFunction x_fine(x.FESpace());
-   x_fine.SetData(xf.GetData());
+   GridFunction x_fine(x);
 
    double mass_fine = integrate(&x_fine);
 

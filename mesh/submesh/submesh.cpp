@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -55,38 +55,119 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
    FinalizeTopology(true);
 
-   if (from == From::Domain && Dim >= 2)
+   if (Dim == 3)
    {
-      int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
-      if (Dim == 2)
+      parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                    parent_element_ids_);
+
+      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      int max_bdr_attr = parent.bdr_attributes.Max();
+
+      for (int i = 0; i < NumOfBdrElements; i++)
+      {
+         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrFace(i)]];
+         if (pbeid != -1)
+         {
+            int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+            GetBdrElement(i)->SetAttribute(attr);
+         }
+         else
+         {
+            // This case happens when a domain is extracted, but the root parent
+            // mesh didn't have a boundary element on the surface that defined
+            // it's boundary. It still creates a valid mesh, so we allow it.
+            GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
+         }
+      }
+
+      parent_face_ori_.SetSize(NumOfFaces);
+
+      for (int i = 0; i < NumOfFaces; i++)
+      {
+         Array<int> sub_vert;
+         GetFaceVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         parent.GetFaceVertices(parent_face_ids_[i], par_vert);
+
+         if (par_vert.Size() == 3)
+         {
+            parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
+         }
+         else
+         {
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+         }
+      }
+   }
+   else if (Dim == 2)
+   {
+      if (from == From::Domain)
       {
          parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                        parent_element_ids_);
-      }
-      else
-      {
-         parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
-                                                       parent_element_ids_);
-      }
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-      for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
-      {
-         if (GetFaceInformation(i).IsBoundary())
-         {
-            boundary[j] = faces[i]->Duplicate(this);
+         Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+         int max_bdr_attr = parent.bdr_attributes.Max();
 
-            int pbeid = Dim == 3 ?
-                        parent_face_to_be[parent_face_ids_[i]] :
-                        parent_face_to_be[parent_edge_ids_[i]];
+         for (int i = 0; i < NumOfBdrElements; i++)
+         {
+            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrFace(i)]];
             if (pbeid != -1)
             {
-               boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
+               int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+               GetBdrElement(i)->SetAttribute(attr);
             }
             else
             {
-               boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
+               // This case happens when a domain is extracted, but the root parent
+               // mesh didn't have a boundary element on the surface that defined
+               // it's boundary. It still creates a valid mesh, so we allow it.
+               GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
             }
-            j++;
+         }
+      }
+
+      parent_face_ori_.SetSize(NumOfElements);
+
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         Array<int> sub_vert;
+         GetElementVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         int be_ori = 0;
+         if (from == From::Boundary)
+         {
+            parent.GetBdrElementVertices(parent_element_ids_[i], par_vert);
+
+            int f = -1;
+            parent.GetBdrElementFace(parent_element_ids_[i], &f, &be_ori);
+         }
+         else
+         {
+            parent.GetElementVertices(parent_element_ids_[i], par_vert);
+         }
+
+         if (par_vert.Size() == 3)
+         {
+            int se_ori = GetTriOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeTriOrientations(be_ori, se_ori);
+         }
+         else
+         {
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
          }
       }
    }

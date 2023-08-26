@@ -121,6 +121,7 @@ The MFEM source code has the following structure:
   ├── fem
   │   ├── ceed
   │   ├── fe
+  │   ├── integ
   │   ├── lor
   │   ├── moonolith
   │   ├── qinterp
@@ -136,6 +137,7 @@ The MFEM source code has the following structure:
   │   ├── common
   │   ├── electromagnetics
   │   ├── gslib
+  │   ├── hdiv-linear-solver
   │   ├── hooke
   │   ├── meshing
   │   ├── mtop
@@ -209,7 +211,7 @@ device/host memory manager.
 - The main device-relevant classes and sources are:
   + [`Device`](https://docs.mfem.org/html/device_8hpp.html)
   + [`MemoryManager`](https://docs.mfem.org/html/mem_manager_8hpp.html)
-  + the [`MFEM_FORALL`](https://docs.mfem.org/html/forall_8hpp.html) macro
+  + the [`mfem::forall`](https://docs.mfem.org/html/forall_8hpp.html) function
   + the [`cuda.hpp`](https://docs.mfem.org/html/cuda_8hpp.html) and [`occa.hpp`](https://docs.mfem.org/html/occa_8hpp.html) files
 
 #### Utilities, building and documentation
