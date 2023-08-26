@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,15 +12,15 @@
 #ifndef MFEM_HIOP
 #define MFEM_HIOP
 
-#include "linalg.hpp"
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_HIOP
 #include "../general/globals.hpp"
+#include "solvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
 #endif
-
-#ifdef MFEM_USE_HIOP
 
 #include "hiopInterface.hpp"
 #include "hiopNlpFormulation.hpp"

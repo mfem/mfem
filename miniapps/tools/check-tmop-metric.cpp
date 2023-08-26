@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,8 @@ int main(int argc, char *argv[])
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 90: metric = new TMOP_Metric_090; break;
+      case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(tauval); break;
@@ -71,13 +73,15 @@ int main(int argc, char *argv[])
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
+      case 318: metric = new TMOP_Metric_318; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       case 360: metric = new TMOP_Metric_360; break;
@@ -198,7 +202,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < x_loc.Size(); i++)
    {
       double rate_sum = 0.0;
-      double dx = 0.1;
+      dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
          double err_k = 0.0;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,7 +68,7 @@ public:
    virtual ~Hexahedron() { }
 };
 
-extern class TriLinear3DFiniteElement HexahedronFE;
+extern MFEM_EXPORT class TriLinear3DFiniteElement HexahedronFE;
 
 }
 

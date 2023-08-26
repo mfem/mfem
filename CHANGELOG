@@ -8,52 +8,154 @@
                                https://mfem.org
 
 
-Version 4.5.1 (development)
+Version 4.5.3 (development)
 ===========================
-- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
-  as the coarsening operator for non-conforming AMR meshes.
-
-Meshing improvements
---------------------
-- Added support for pyramids in non-conforming meshes. Currently only isotropic
-  refinement is supported in this case.
-
-- Added support for pyramids in Gmsh meshes.
-
-- Fixed a bug in TMOP metric 301.
-
-Discretization improvements
----------------------------
-- TBD
-
-Linear and nonlinear solvers
-----------------------------
-- Added a fast normalization-based distance solver, see the Distance miniapp
-  in the miniapps/shifted/ directory.
+- Added curve interpolation method for NURBS.
 
 New and updated examples and miniapps
 -------------------------------------
-- The mesh-explorer miniapp can now save mesh files in the VisIt or ParaView
-  formats using the corresponding DataCollection objects. See option 'D' in the
-  main menu.
+- Added a new example code, Example 36/36p, to demonstrate the solution of
+  the obstacle problem with a new finite element method.
+
+- Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
+  skewness, and aspect-ratio computed from the Jacobian of the transformation.
+
+- Added a new miniapp for interface and boundary fitting to implicit domains
+  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp
+
+- Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes serial
+  and parallel examples for diffusion, convection-diffusion, acoustics and
+  Maxwell equations. The miniapp includes new classes such as (Par)DPGWeakForm,
+  (Par)ComplexDPGWeakForm and (Complex)BlockStaticCondensation. Three new
+  integrators are added in support of DPG systems: TraceIntegrator,
+  NormalTraceIntegrator and TangentTraceIntegrator.
+
+- Added new SubMesh examples demonstrating source terms and boundary conditions
+  transferred from SubMesh objects.
+
+- Added a miniapp for interpolation of NURBS.
+
+- Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
+  demonstrating the use of a matrix-free saddle-point solver methodology,
+  suitable for high-order discretizations and for GPU acceleration. Examples
+  illustrating the solution of Darcy and grad-div problems are included.
+
+- Added a random refinement option to the mesh-explorer miniapp to assist users
+  in experimenting with nonconforming meshes.
+
+- Moved the distance solver methods from miniapps/shifted to miniapps/common.
+
+- Added a new parallel LOR transfer miniapp, miniapps/tools/plor-transfer, which
+  mirrors the functionality of the serial LOR transfer miniapp,
+  miniapps/tools/lor-transfer
+
+Meshing improvements
+--------------------
+- Added support for free connectivity of NURBS patches allowing for more complex
+  patch configurations such as C-meshes. This is demonstrated in a new NURBS
+  miniapp.
+  
+- The edge to knot map for NURBS meshes can be determined automatically. It is no
+  longer needed to specify this in the NURBS mesh. A mesh in the NURBS miniapp
+  demonstrates this.
+
+- Added new methods in the Mesh class to set and get attributes on NURBS patches
+  and patch boundaries.
+
+- Added HIP support to the SUNDIALS interface.
+
+- TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
+  338. Added the tmop-metric-magnitude tool for tracking how metrics change
+  under geometric perturbations.
+
+Discretization improvements
+---------------------------
+- Face restriction operators for Nedelec and Raviart-Thomas finite element
+  spaces are now supported through the ConformingFaceRestriction class.
+
+- SubMesh and ParSubMesh have been extended to support the transfer of
+  Nedelec and Raviart-Thomas finite element spaces.
+
+- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
+
+- Added support for partial assembly on NURBS patches and NURBS patch sparse
+  matrix assembly. Patch matrix assembly includes the option to use reduced
+  approximate integration rules, computed by the newly implemented non-negative
+  least-squares (NNLS) solver.
+
+- Added support for p-refined meshes in FindPointsGSLIB.
+
+- Support for parallel transfer of H1 fields using the low-order refined (LOR)
+  transfer operators in L2ProjectionGridTransfer
+
+Linear and nonlinear solvers
+----------------------------
+- Updated interface to MUMPS direct solver to support multiple right-hand
+  sides, block low-rank compression, builds using 64-bit integers, and other
+  improvements.
+
+- Added an interface to the MKL Pardiso sparse direct solver developed by Intel.
+  This interface provides a serial (OpenMP shared memory) version of Pardiso for
+  use with SparseMatrix. This complements the existing parallel (MPI distributed
+  memory) version already available through the CPardiso MFEM integration.
 
 Integrations, testing and documentation
 ---------------------------------------
-- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
-  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
-
-- The following integrations have updated minimum version requirements:
-  * RAJA >= 2022.10.3
+- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
+  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
 
 Miscellaneous
 -------------
-- VisItDataCollection now correctly handles collection names containing
+- Improved lambda body debugging with the addition of mfem::forall functions.
+  These functions can take the place of the MFEM_FORALL macros, which have been
+  preserved for backwards compatibility.
+
+- Reorganized files for bilinear form, linear form, and nonlinear form integrators
+  in the fem/integ/ subdirectory.
+
+
+Version 4.5.2, released on March 23, 2023
+=========================================
+
+- Added support for pyramids in non-conforming meshes. Currently only isotropic
+  refinement is supported in this case.
+
+- Removed the support for the Mesquite toolkit. We recommend using MFEM's TMOP
+  functionality instead for mesh optimization. See the mesh-optimizer miniapp.
+
+- Added a fast normalization-based distance solver, see the Distance miniapp
+  in the miniapps/shifted/ directory.
+
+- Added a new meshing miniapp, Reflector, which reflects a high-order or NURBS
+  hexahedral mesh about a plane.
+
+- Updated logic in FindPointsGSLIB to ignore points found near (but outside) the
+  domain boundary.
+
+- Added an option to auto-balance compound TMOP metrics.
+
+- Fixed a bug in TMOP metric 301.
+
+- When using discontinuous (L2) spaces, use local (element-wise) L2 projection
+  as the coarsening operator for non-conforming AMR meshes.
+
+- Added support for GridFunction::GetGradients() and GetVectorGradient() on
+  face-neighbor elements.
+
+- Added support for pyramids in Gmsh meshes.
+
+- The Mesh Explorer miniapp can now save mesh files in the VisIt or ParaView
+  formats using the corresponding DataCollection. See option 'D' in the menu.
+
+- VisItDataCollection now correctly handles data collection names containing
   underscores.
 
-- VisItDataCollection::SetPadDigits() no longer alters the number of digits
-  used to represent the MPI rank because VisIt seems to require 6 digits.
-  This parameter can still be explicitly overridden with
-  VisItDataCollection::SetPadDigitsRank().
+- Added support for shared Windows builds with MSVC through CMake.
+  Developers note: this enhancement is facilitated by the addition of the macro
+  MFEM_EXPORT, see config.hpp for more details on its usage.
+
+- The following integrations have updated minimum version requirements:
+  * RAJA >= 2022.10.3
 
 API changes
 -----------
@@ -64,6 +166,11 @@ API changes
 - The methods Mesh::GetFaceBaseGeometry and Mesh::GetFaceGeometryType have been
   deprecated, and Mesh::GetFaceGeometry (which provides identical functionality)
   should be used instead.
+
+- VisItDataCollection::SetPadDigits() no longer alters the number of digits
+  used to represent the MPI rank because VisIt seems to require 6 digits.
+  This parameter can still be explicitly overridden with SetPadDigitsRank().
+
 
 Version 4.5, released on October 22, 2022
 =========================================

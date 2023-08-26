@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4173,6 +4173,28 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w,
    Init();
 }
 
+DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M,
+                               char left_singular_vectors,
+                               char right_singular_vectors)
+{
+   m = M.Height();
+   n = M.Width();
+   jobu = left_singular_vectors;
+   jobvt = right_singular_vectors;
+   Init();
+}
+
+DenseMatrixSVD::DenseMatrixSVD(int h, int w,
+                               char left_singular_vectors,
+                               char right_singular_vectors)
+{
+   m = h;
+   n = w;
+   jobu = left_singular_vectors;
+   jobvt = right_singular_vectors;
+   Init();
+}
+
 void DenseMatrixSVD::Init()
 {
    sv.SetSize(min(m, n));
@@ -4195,12 +4217,22 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
    double * datau = nullptr;
    double * datavt = nullptr;
-   if (jobu == 'S')
+   if (jobu == 'A')
+   {
+      U.SetSize(m,m);
+      datau = U.Data();
+   }
+   else if (jobu == 'S')
    {
       U.SetSize(m,min(m,n));
       datau = U.Data();
    }
-   if (jobvt == 'S')
+   if (jobvt == 'A')
+   {
+      Vt.SetSize(n,n);
+      datavt = Vt.Data();
+   }
+   else if (jobvt == 'S')
    {
       Vt.SetSize(min(m,n),n);
       datavt = Vt.Data();
@@ -4308,7 +4340,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL)
    pivot_flag[0] = true;
    bool *d_pivot_flag = pivot_flag.ReadWrite();
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int i = 0; i < m; i++)
       {
@@ -4373,7 +4405,7 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X)
    auto piv_all = mfem::Reshape(P.Read(), m, NE);
    auto x_all = mfem::Reshape(X.ReadWrite(), m, NE);
 
-   MFEM_FORALL(e, NE,
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       kernels::LUSolve(&data_all(0, 0,e), m, &piv_all(0, e), &x_all(0,e));
    });
