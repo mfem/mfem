@@ -102,6 +102,59 @@ public:
                      const IntegrationPoint &ip);
 };
 
+class KershawLeftTransformation : public VectorCoefficient
+{
+private:
+   int dim;
+   double epsy, epsz;
+   int smooth;
+
+public:
+   KershawLeftTransformation(const int dim_, double epsy_ = 0.3,
+                         double epsz_ = 0.3, int smooth_ = 1)
+      : VectorCoefficient(dim_), dim(dim_), epsy(epsy_),
+        epsz(epsz_), smooth(smooth_)
+   {
+      MFEM_VERIFY(dim > 1,"Kershaw transformation only works for 2D and 3D"
+                  "meshes.");
+      MFEM_VERIFY(smooth >= 1 && smooth <= 3,
+                  "Kershaw parameter smooth must be in [1, 3]");
+      MFEM_VERIFY(epsy > 0 && epsy <=1,
+                  "Kershaw sssssparameter epsy must be in (0, 1].");
+      if (dim == 3)
+      {
+         MFEM_VERIFY(epsz > 0 && epsz <=1,
+                     "Kershaw parameter epsz must be in (0, 1].");
+      }
+   }
+
+   // 1D transformation at the right boundary.
+   double right(const double eps, const double x)
+   {
+      return -0.6*x*x + 1.6*x;
+   }
+
+   // 1D transformation at the left boundary
+   double left(const double eps, const double x)
+   {
+      return 1-right(eps,1-x);
+   }
+
+   // Transition from a value of "a" for x=0, to a value of "b" for x=1.
+   // Controlled through "smooth" parameter.
+   double step(const double a, const double b, double x)
+   {
+      if (x <= 0) { return a; }
+      if (x >= 1) { return b; }
+      if (smooth == 1) { return a + (b-a) * (x); }
+      else if (smooth == 2) { return a + (b-a) * (x*x*(3-2*x)); }
+      else { return a + (b-a) * (x*x*x*(x*(6*x-15)+10)); }
+   }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 
 } // namespace common
 
