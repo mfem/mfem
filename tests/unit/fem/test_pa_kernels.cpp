@@ -666,9 +666,26 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
 
 TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 {
-   const int order = 4;
+   std::vector<std::string> mesh_filenames =
+   {
+      "../../data/star.mesh",
+      "../../data/star-q3.mesh",
+      "../../data/fichera.mesh",
+      "../../data/fichera-q3.mesh",
+   };
+   const bool have_data_dir = mfem_data_dir != "";
+   if (have_data_dir)
+   {
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_quad.v22.msh");
+      mesh_filenames.push_back(mfem_data_dir + "/gmsh/v22/unstructured_hex.v22.msh");
+   }
 
-   Mesh serial_mesh("../../data/star.mesh");
+   const int order = GENERATE(1, 2);
+   const auto mesh_fname = GENERATE_COPY(from_range(mesh_filenames));
+
+   CAPTURE(order, mesh_fname);
+
+   Mesh serial_mesh = Mesh::LoadFromFile(mesh_fname.c_str());
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
 
@@ -703,7 +720,7 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
 
    y_fa -= y_pa;
 
-   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-10));
 }
 
 #endif

@@ -17,14 +17,12 @@
 #include "pfespace.hpp"
 #include "fe/face_map_utils.hpp"
 
-#include "../general/communication.hpp"
-
 using namespace std;
 
 namespace mfem
 {
 
-static void PADGDiffusionsetup2D(const int Q1D,
+static void PADGDiffusionSetup2D(const int Q1D,
                                  const int NE,
                                  const int NF,
                                  const Array<double> &w,
@@ -63,15 +61,15 @@ static void PADGDiffusionsetup2D(const int Q1D,
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
    {
       const int normal_dir[] = {iwork(0, f), iwork(1, f)};
-      const int el[] = {iwork(2, f), iwork(3, f)};
       const int fid[] = {iwork(4, f), iwork(5, f)};
 
+      int el[] = {iwork(2, f), iwork(3, f)};
       const bool interior = el[1] >= 0;
       const int nsides = (interior) ? 2 : 1;
       const double factor = interior ? 0.5 : 1.0;
 
       const bool shared = el[1] >= NE;
-      const int el_1 = shared ? el[1] - NE : el[1];
+      el[1] = shared ? el[1] - NE : el[1];
 
       const int sgn0 = (fid[0] == 0 || fid[0] == 1) ? 1 : -1;
       const int sgn1 = (fid[1] == 0 || fid[1] == 1) ? 1 : -1;
@@ -91,15 +89,15 @@ static void PADGDiffusionsetup2D(const int Q1D,
             // Need to multiply the native=>lex0 with native=>lex1 and negate
             const int sgn = (side == 1) ? -1*sgn0*sgn1 : 1;
 
-            const int el_idx = (side == 0) ? el[0] : el_1;
-            auto J_el = (side == 1 && shared) ? J_shared : J;
-            auto detJ_el = (side == 1 && shared) ? detJ_shared : detJe;
+            const int e = el[side];
+            const auto &J_el = (side == 1 && shared) ? J_shared : J;
+            const auto &detJ_el = (side == 1 && shared) ? detJ_shared : detJe;
 
             double nJi[2];
-            nJi[0] = n(p,0,f)*J_el(i,j, 1,1, el_idx) - n(p,1,f)*J_el(i,j,0,1,el_idx);
-            nJi[1] = -n(p,0,f)*J_el(i,j,1,0, el_idx) + n(p,1,f)*J_el(i,j,0,0,el_idx);
+            nJi[0] = n(p,0,f)*J_el(i,j, 1,1, e) - n(p,1,f)*J_el(i,j,0,1,e);
+            nJi[1] = -n(p,0,f)*J_el(i,j,1,0, e) + n(p,1,f)*J_el(i,j,0,0,e);
 
-            const double dJe = detJ_el(i,j,el_idx);
+            const double dJe = detJ_el(i,j,e);
             const double dJf = detJf(p, f);
 
             const double w = factor * Qp * W[p] * dJf / dJe;
@@ -129,18 +127,24 @@ static void PADGDiffusionsetup2D(const int Q1D,
 static void PADGDiffusionSetup3D(const int Q1D,
                                  const int NE,
                                  const int NF,
-                                 const Array<double>& w,
-                                 const GeometricFactors& el_geom,
-                                 const FaceGeometricFactors& face_geom,
+                                 const Array<double> &w,
+                                 const GeometricFactors &el_geom,
+                                 const FaceGeometricFactors &face_geom,
                                  const FaceNeighborGeometricFactors *nbr_geom,
                                  const Vector &q,
                                  const double sigma,
                                  const double kappa,
                                  Vector &pa_data,
-                                 const Array<int>& iwork_)
+                                 const Array<int> &iwork_)
 {
-   const auto J = Reshape(el_geom.J.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
-   const auto detJe = Reshape(el_geom.detJ.Read(), Q1D, Q1D, Q1D, NE);
+   const auto J_loc = Reshape(el_geom.J.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
+   const auto detJe_loc = Reshape(el_geom.detJ.Read(), Q1D, Q1D, Q1D, NE);
+
+   const int n_nbr = nbr_geom ? nbr_geom->num_neighbor_elems : 0;
+   const auto J_shared = Reshape(nbr_geom ? nbr_geom->J.Read() : nullptr,
+                                 Q1D, Q1D, Q1D, 3, 3, n_nbr);
+   const auto detJ_shared = Reshape(nbr_geom ? nbr_geom->detJ.Read() : nullptr,
+                                    Q1D, Q1D, Q1D, n_nbr);
 
    const auto detJf = Reshape(face_geom.detJ.Read(), Q1D, Q1D, NF);
    const auto n = Reshape(face_geom.normal.Read(), Q1D, Q1D, 3, NF);
@@ -164,6 +168,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
    {
       MFEM_SHARED int perm[2][3];
       MFEM_SHARED int el[2];
+      MFEM_SHARED bool shared[2];
       MFEM_SHARED int fid[2];
       MFEM_SHARED int ortn[2];
 
@@ -179,8 +184,14 @@ static void PADGDiffusionSetup3D(const int Q1D,
             el[side] = iwork(_el_, side, f);
             fid[side] = iwork(_fid_, side, f);
             ortn[side] = iwork(_or_, side, f);
+
+            // If the element index is beyond the local partition NE, then the
+            // element is a "face neighbor" element.
+            shared[side] = (el[side] >= NE);
+            el[side] = shared[side] ? el[side] - NE : el[side];
          }
       }
+
       MFEM_SYNC_THREAD;
 
       const bool interior = el[1] >= 0;
@@ -204,20 +215,22 @@ static void PADGDiffusionSetup3D(const int Q1D,
                   p1 + Q1D*p2, Q1D, fid[0], fid[1], side, ortn[1], i, j, k);
 
                const int e = el[side];
+               const auto &J = shared[side] ? J_shared : J_loc;
+               const auto &detJe = shared[side] ? detJ_shared : detJe_loc;
 
                // *INDENT-OFF*
                double nJi[3];
-               nJi[0] = (  -J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
-                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
-                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 2, f);
+               nJi[0] = (  -J(i,j,k, 1,2, e)*J(i,j,k, 2,1, e) + J(i,j,k, 1,1, e)*J(i,j,k, 2,2, e)) * n(p1,p2, 0, f)
+                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 2,1, e) - J(i,j,k, 0,1, e)*J(i,j,k, 2,2, e)) * n(p1,p2, 1, f)
+                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 1,1, e) + J(i,j,k, 0,1, e)*J(i,j,k, 1,2, e)) * n(p1,p2, 2, f);
 
-               nJi[1] = (   J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 0, f)
-                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1, p2, 1, f)
-                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1, p2, 2, f);
+               nJi[1] = (   J(i,j,k, 1,2, e)*J(i,j,k, 2,0, e) - J(i,j,k, 1,0, e)*J(i,j,k, 2,2, e)) * n(p1,p2, 0, f)
+                        + (-J(i,j,k, 0,2, e)*J(i,j,k, 2,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 2,2, e)) * n(p1,p2, 1, f)
+                        + ( J(i,j,k, 0,2, e)*J(i,j,k, 1,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 1,2, e)) * n(p1,p2, 2, f);
 
-               nJi[2] = (  -J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 0, f)
-                        + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1, p2, 1, f)
-                        + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1, p2, 2, f);
+               nJi[2] = (  -J(i,j,k, 1,1, e)*J(i,j,k, 2,0, e) + J(i,j,k, 1,0, e)*J(i,j,k, 2,1, e)) * n(p1,p2, 0, f)
+                        + ( J(i,j,k, 0,1, e)*J(i,j,k, 2,0, e) - J(i,j,k, 0,0, e)*J(i,j,k, 2,1, e)) * n(p1,p2, 1, f)
+                        + (-J(i,j,k, 0,1, e)*J(i,j,k, 1,0, e) + J(i,j,k, 0,0, e)*J(i,j,k, 1,1, e)) * n(p1,p2, 2, f);
                // *INDENT-ON*
 
                const double dJe = detJe(i,j,k,e);
@@ -243,12 +256,11 @@ static void PADGDiffusionSetup3D(const int Q1D,
             pa(1, p1, p2, f) = hi;
          }
       }
-      MFEM_SYNC_THREAD;
    });
 }
 
-static void PADGDiffusionSetupIwork2D(const int nf, const Mesh& mesh,
-                                      const FaceType type, Array<int>& iwork_)
+static void PADGDiffusionSetupIwork2D(const int nf, const Mesh &mesh,
+                                      const FaceType type, Array<int> &iwork_)
 {
    const int ne = mesh.GetNE();
 
@@ -370,12 +382,15 @@ inline void SignedFaceNormalPermutation(int perm[3],
    }
 }
 
-static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
-                                      const FaceType type, Array<int>& iwork_)
+static void PADGDiffusionSetupIwork3D(const int nf, const Mesh &mesh,
+                                      const FaceType type, Array<int> &iwork_)
 {
+   const int ne = mesh.GetNE();
+
    int fidx = 0;
-   iwork_.SetSize(nf * 12);
+   // iwork array has 12 entries per face, 6 for each of the adjacent elements:
    // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
+   iwork_.SetSize(nf * 12);
    constexpr int _e_ = 3; // offset for element index
    constexpr int _fid_ = 4; // offset for local face id
    constexpr int _or_ = 5; // offset for orientation
@@ -401,7 +416,14 @@ static void PADGDiffusionSetupIwork3D(const int nf, const Mesh& mesh,
             const int fid1 = face_info.element[1].local_face_id;
             const int or1 = face_info.element[1].orientation;
 
-            iwork(  _e_, 1, fidx) = face_info.element[1].index;
+            if (face_info.IsShared())
+            {
+               iwork(  _e_, 1, fidx) = ne + face_info.element[1].index;
+            }
+            else
+            {
+               iwork(  _e_, 1, fidx) = face_info.element[1].index;
+            }
             iwork(_fid_, 1, fidx) = fid1;
             iwork( _or_, 1, fidx) = or1;
 
@@ -448,7 +470,6 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
                      mt);
 
    std::unique_ptr<FaceNeighborGeometricFactors> nbr_geom;
-
    if (type == FaceType::Interior)
    {
       nbr_geom.reset(new FaceNeighborGeometricFactors(*el_geom));
@@ -497,7 +518,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    }
    else if (dim == 2)
    {
-      PADGDiffusionsetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
+      PADGDiffusionSetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
                            nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
    }
    else if (dim == 3)
