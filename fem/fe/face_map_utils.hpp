@@ -53,7 +53,8 @@ void GetTensorFaceMap(const int dim, const int order, const int face_id,
                       Array<int> &face_map);
 
 /// @brief Given a face DOF index in native (counter-clockwise) ordering, return
-/// the corresponding DOF index in lexicographic ordering.
+/// the corresponding DOF index in lexicographic ordering (for a quadrilateral
+/// element).
 MFEM_HOST_DEVICE
 inline int ToLexOrdering2D(const int face_id, const int size1d, const int i)
 {
@@ -94,6 +95,9 @@ inline int PermuteFace2D(const int face_id1, const int face_id2,
    return ToLexOrdering2D(face_id2, size1d, new_index);
 }
 
+/// @brief Given a face DOF index in native (counter-clockwise) ordering, return
+/// the corresponding DOF index in lexicographic ordering (for a hexahedral
+/// element).
 MFEM_HOST_DEVICE
 inline int ToLexOrdering3D(const int face_id, const int size1d, const int i,
                            const int j)
@@ -112,6 +116,12 @@ inline int ToLexOrdering3D(const int face_id, const int size1d, const int i,
    }
 }
 
+/// @brief Given the index of a face DOF in lexicographic ordering relative
+/// element 1, permute the index so that it is lexicographically ordered
+/// relative to element 2.
+///
+/// The given face corresponds to local face index @a face_id1 relative to
+/// element 1, and @a face_id2 (with @a orientation) relative to element 2.
 MFEM_HOST_DEVICE
 inline int PermuteFace3D(const int face_id1, const int face_id2,
                          const int orientation,
@@ -193,6 +203,11 @@ inline void FaceIdxToVolIdx2D(const int qi, const int nq, const int face_id0,
    j = x_axis ? level : edge_idx;
 }
 
+/// @brief Given a face DOF (or quadrature) index ordered lexicographically
+/// relative to element 1, return the associated (i, j, k) coordinates.
+///
+/// The returned coordinates will be relative to element 1 or element 2
+/// according to the value of side (side == 0 corresponds element 1).
 MFEM_HOST_DEVICE
 inline void FaceIdxToVolIdx3D(const int index, const int size1d,
                               const int face_id0, const int face_id1,
