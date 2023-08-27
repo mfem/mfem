@@ -1626,8 +1626,8 @@ void Mesh::SetAttributes()
 {
    Array<int> attribs;
 
-   // std::cout << GetNBE() << " k10getnbe\n";
-   if (GetNBE() > 0) {
+   if (GetNBE() > 0)
+   {
       attribs.SetSize(GetNBE());
       for (int i = 0; i < attribs.Size(); i++)
       {

@@ -101,7 +101,7 @@ Array<Mesh *> SetupSurfaceMeshes()
       int nelem = 1;
       surf_meshes[0] = new Mesh(dim, nvert, 1, 0, spaceDim);
 
-       const double c_v[2][2] =
+      const double c_v[2][2] =
       {
          {0, 1}, {2.0, 3.0}
       };
@@ -130,7 +130,7 @@ Array<Mesh *> SetupSurfaceMeshes()
       int nelem = 1;
       surf_meshes[1] = new Mesh(dim, nvert, 1, 0, spaceDim);
 
-       const double c_v[4][3] =
+      const double c_v[4][3] =
       {
          {0, 1, 2}, {3, 4, 5}, {6, 7, 8}
       };
@@ -158,7 +158,7 @@ Array<Mesh *> SetupSurfaceMeshes()
       int nelem = 1;
       surf_meshes[2] = new Mesh(dim, nvert, 1, 0, spaceDim);
 
-       const double c_v[4][3] =
+      const double c_v[4][3] =
       {
          {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {9, 10, 11}
       };
@@ -179,11 +179,11 @@ Array<Mesh *> SetupSurfaceMeshes()
       surf_meshes[2]->FinalizeQuadMesh(1, 1, true);
    }
 
-      // std::cout << surf_meshes[0]->Dimension() << " " <<
-      // surf_meshes[0]->SpaceDimension() << " k10dimspacedim\n";
-      // surf_meshes[2]->SetCurvature(2);
-      // surf_meshes[0]->SetCurvature(2);
-      // MFEM_ABORT(" ");
+   // std::cout << surf_meshes[0]->Dimension() << " " <<
+   // surf_meshes[0]->SpaceDimension() << " k10dimspacedim\n";
+   // surf_meshes[2]->SetCurvature(2);
+   // surf_meshes[0]->SetCurvature(2);
+   // MFEM_ABORT(" ");
 
    return surf_meshes;
 }
@@ -387,12 +387,12 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
 }
 
 double TestInterfaceElementOrderReduction(const Mesh *mesh,
-                                      int face_el,
-                                      int el_order,
-                                      Array<Mesh *> surf_el_meshes,
-                                      GridFunction* ls_bg,
-                                      FindPointsGSLIB &finder,
-                                      int etype = 0)
+                                          int face_el,
+                                          int el_order,
+                                          Array<Mesh *> surf_el_meshes,
+                                          GridFunction* ls_bg,
+                                          FindPointsGSLIB &finder,
+                                          int etype = 0)
 {
    const GridFunction *x = mesh->GetNodes();
    const FiniteElementSpace *fes = x->FESpace();
@@ -406,7 +406,7 @@ double TestInterfaceElementOrderReduction(const Mesh *mesh,
    // int fe_dim = fe->GetDim();
    int mesh_dim = mesh->Dimension();
    // std::cout << fe_type << " " << fe_dim << " " <<
-   // mesh_dim << " k101\n"; 
+   // mesh_dim << " k101\n";
 
    IsoparametricTransformation T;
    DenseMatrix I;
@@ -416,7 +416,7 @@ double TestInterfaceElementOrderReduction(const Mesh *mesh,
    FiniteElementCollection *fecInt = new H1_FECollection(el_order,
                                                          mesh->Dimension());
    const auto *feInt = fecInt->GetFE(geom, el_order);
-   // Get interpolation matrix from current order to target order 
+   // Get interpolation matrix from current order to target order
    feInt->GetTransferMatrix(*fe, T, I);
 
    // Get current coordinates
@@ -449,19 +449,20 @@ double TestInterfaceElementOrderReduction(const Mesh *mesh,
    const IntegrationRule *ir = &(IntRulesLo.Get(geom, int_order));
 
    // Coordinates of the quadrature points in the physical space
-   Vector vxyz(mesh_dim*ir->GetNPoints()); 
-    // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
+   Vector vxyz(mesh_dim*ir->GetNPoints());
+   // Values of the ls fonction at the quadrature points that will be computed on the bg gridfunction
    Vector interp_values(ir->GetNPoints());
    // Compute the coords of the quadrature points in the physical space
    for (int i=0; i < ir->GetNPoints(); i++)
-   // For each quadrature point of the element
+      // For each quadrature point of the element
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Vector xyz(mesh_dim);
       transf->Transform(ip, xyz);
 
-      for (int d = 0; d < mesh_dim; d++) {
+      for (int d = 0; d < mesh_dim; d++)
+      {
          vxyz(i*mesh_dim + d) = xyz(d);
       }
    }
@@ -482,7 +483,8 @@ double TestInterfaceElementOrderReduction(const Mesh *mesh,
    }
 
    double orig_size = 0.0;
-   if (etype == 1) {
+   if (etype == 1)
+   {
       for (int i=0; i<ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
@@ -735,7 +737,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
 
    const char *vis_keys = "Rjaam";
    Array<Mesh *> surf_el_meshes = SetupSurfaceMeshes();
@@ -783,22 +785,28 @@ int main(int argc, char *argv[])
          }
       }
       GridFunction *mesh_surf_fit_bg_nodes = mesh_surf_fit_bg->GetNodes();
-      if (mesh_surf_fit_bg_nodes == NULL) {
+      if (mesh_surf_fit_bg_nodes == NULL)
+      {
          std::cout << "Background mesh does not have nodes. Setting curvature\n";
          mesh_surf_fit_bg->SetCurvature(1, 0, -1, 0);
       }
-      else {
+      else
+      {
          const TensorBasisElement *tbe =
-      dynamic_cast<const TensorBasisElement *>(mesh_surf_fit_bg_nodes->FESpace()->GetFE(0));
-      int order = mesh_surf_fit_bg_nodes->FESpace()->GetFE(0)->GetOrder();
-         if (tbe == NULL) {
-            std::cout << "Background mesh does not have tensor basis nodes. Setting tensor basis\n";
+            dynamic_cast<const TensorBasisElement *>
+            (mesh_surf_fit_bg_nodes->FESpace()->GetFE(0));
+         int order = mesh_surf_fit_bg_nodes->FESpace()->GetFE(0)->GetOrder();
+         if (tbe == NULL)
+         {
+            std::cout <<
+                      "Background mesh does not have tensor basis nodes. Setting tensor basis\n";
             mesh_surf_fit_bg->SetCurvature(order, 0, -1, 0);
          }
       }
       finder.Setup(*mesh_surf_fit_bg);
    }
-   else {
+   else
+   {
       MFEM_ABORT("p-adaptivity is not supported without background mesh");
    }
 
@@ -1123,22 +1131,25 @@ int main(int argc, char *argv[])
             mat(i) = 1;
             if (mesh->Dimension() == 2)
             {
-               if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 && center(1) < 0.75) {
-                     mat(i) = 0;
+               if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                   center(1) < 0.75)
+               {
+                  mat(i) = 0;
                }
             }
             else if (mesh->Dimension() == 3)
             {
                if (center(0) > 0.25 && center(0) < 0.75
-                  && center(1) > 0.25 && center(1) < 0.75
-                  && center(2) > 0.25 && center(2) < 0.75) {
-                     mat(i) = 0;
-                  }
+                   && center(1) > 0.25 && center(1) < 0.75
+                   && center(2) > 0.25 && center(2) < 0.75)
+               {
+                  mat(i) = 0;
+               }
             }
          }
          mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
-   
+
       if (prefine)
       {
          surf_fit_gf0_max_order = ProlongToMaxOrder(&surf_fit_gf0, 0);
@@ -1824,7 +1835,7 @@ int main(int argc, char *argv[])
                int ifnum = inter_faces[i];
                int el1 = inter_face_el1[i];
                int el2 = inter_face_el2[i];
-                  
+
                Array<int> els;
                int el_order = fespace->GetElementOrder(el1);
                double interface_error;
@@ -1849,23 +1860,24 @@ int main(int argc, char *argv[])
                int orig_order = el_order;
                int target_order = el_order;
                bool trycoarsening = true;
-               while (el_order > mesh_poly_deg+1 && interface_error < pref_tol && trycoarsening)
+               while (el_order > mesh_poly_deg+1 && interface_error < pref_tol &&
+                      trycoarsening)
                {
                   if (surf_bg_mesh)
                   {
                      face_coarsening_error = InterfaceElementOrderReduction(mesh,
-                                                                      inter_faces[i],
-                                                                      el_order-1,
-                                                                      surf_fit_bg_gf0,
-                                                                      finder);
+                                                                            inter_faces[i],
+                                                                            el_order-1,
+                                                                            surf_fit_bg_gf0,
+                                                                            finder);
                      // face_coarsening_error =    TestInterfaceElementOrderReduction(mesh,
-                                                                           // inter_faces[i], el_order-1, surf_el_meshes, surf_fit_bg_gf0, finder);
+                     // inter_faces[i], el_order-1, surf_el_meshes, surf_fit_bg_gf0, finder);
                   }
                   else
                   {
                      face_coarsening_error = ComputeIntegrateError(x_max_order->FESpace(),
-                                                        surf_fit_gf0_max_order,
-                                                        inter_faces[i]);
+                                                                   surf_fit_gf0_max_order,
+                                                                   inter_faces[i]);
                   }
                   // std::cout << "Interface coarsening error: " << el_order-1 << " " <<
                   // face_coarsening_error << " k101\n";
@@ -1875,7 +1887,8 @@ int main(int argc, char *argv[])
                      el_order -= 1;
                      target_order = el_order;
                   }
-                  else {
+                  else
+                  {
                      trycoarsening = false;
                   }
                }
