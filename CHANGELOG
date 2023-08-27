@@ -113,6 +113,8 @@ Miscellaneous
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
+- FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
+  an empty partition.
 
 Version 4.5.2, released on March 23, 2023
 =========================================
