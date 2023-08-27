@@ -287,11 +287,11 @@ public:
 
 void vis_tmop_metric_s(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, Mesh &pmesh,
-                       char *title, int position);
+                       char *title, int posx, int posy = 0, int wdx = 600, int wdy = 600);
 #ifdef MFEM_USE_MPI
 void vis_tmop_metric_p(int order, TMOP_QualityMetric &qm,
                        const TargetConstructor &tc, ParMesh &pmesh,
-                       char *title, int position);
+                       char *title, int posx, int posy = 0, int wdx = 600, int wdy = 600);
 #endif
 
 }
