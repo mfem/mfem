@@ -147,8 +147,8 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose(const Vector &x,
-                                                         Vector &y, const double a) const
+void L2NormalDerivativeFaceRestriction::AddMultTranspose(
+   const Vector &x, Vector &y, const double a) const
 {
    if (nf == 0) { return; }
    switch (dim)
@@ -267,8 +267,30 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 
 void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
+   int ne_shared = 0;
+   const double *face_nbr_data = nullptr;
+   std::unique_ptr<GridFunction> x_gf;
+
+#ifdef MFEM_USE_MPI
+   if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      if (face_type == FaceType::Interior)
+      {
+         ParGridFunction *x_pgf = new ParGridFunction;
+         x_gf.reset(x_pgf);
+         x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
+                        const_cast<Vector&>(x), 0);
+         x_pgf->ExchangeFaceNbrData();
+
+         face_nbr_data = x_pgf->FaceNbrData().Read();
+         ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
+      }
+   }
+#endif
+
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
+   const int num_elem = ne;
 
    const FiniteElement& fe = *fes.GetFE(0);
    const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
@@ -285,6 +307,8 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
    // t ? (vdim, d, d, d, ne) : (d, d, d, ne, vdim)
    const auto d_x = Reshape(x.Read(), t?vd:d, d, d, t?d:ne, t?ne:vd);
+   const auto d_x_shared = Reshape(face_nbr_data,
+                                   t?vd:d, d, d, t?d:ne_shared, t?ne_shared:vd);
    auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
 
    mfem::forall_2D(nf, 2, q2d, [=] MFEM_HOST_DEVICE (int f) -> void
@@ -307,6 +331,10 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
       MFEM_FOREACH_THREAD(side, x, 2)
       {
          const int el = f2e(side, f);
+         const bool shared = (el >= num_elem);
+         const auto &d_x_e = shared ? d_x_shared : d_x;
+         const int el_idx = shared ? el - num_elem : el;
+
          const int face_id = f2e(2 + side, f);
          const int orientation = f2e(4 + side, f);
 
@@ -317,7 +345,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
          MFEM_FOREACH_THREAD(p, y, q2d)
          {
-            if (el < 0)
+            if (el_idx < 0)
             {
                for (int c = 0; c < vd; ++c)
                {
@@ -346,7 +374,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
                      const int g_row = yz_plane ? i : xz_plane ? j : k;
                      const double g = G_(g_row, kk);
 
-                     grad_n += g * d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c);
+                     grad_n += g * d_x_e(t?c:l, t?l:m, t?m:n, t?n:el_idx, t?el_idx:c);
                   }
                   d_y(p, c, side, f) = grad_n;
                }
@@ -356,8 +384,8 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    });
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
-                                                           Vector &x, const double a) const
+void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
+   const Vector &y, Vector &x, const double a) const
 {
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
@@ -461,8 +489,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(const Vector &y,
    });
 }
 
-void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(const Vector& y,
-                                                           Vector& x, const double a) const
+void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
+   const Vector& y, Vector& x, const double a) const
 {
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
