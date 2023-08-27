@@ -13,8 +13,6 @@
 #include "../mesh/face_nbr_geom.hpp"
 #include "gridfunc.hpp"
 #include "qfunction.hpp"
-#include "restriction.hpp"
-#include "pfespace.hpp"
 #include "fe/face_map_utils.hpp"
 
 using namespace std;
@@ -33,14 +31,14 @@ static void PADGDiffusionSetup2D(const int Q1D,
                                  const double sigma,
                                  const double kappa,
                                  Vector &pa_data,
-                                 const Array<int> &iwork_)
+                                 const Array<int> &face_info_)
 {
-   const auto J = Reshape(el_geom.J.Read(), Q1D, Q1D, 2, 2, NE);
-   const auto detJe = Reshape(el_geom.detJ.Read(), Q1D, Q1D, NE);
+   const auto J_loc = Reshape(el_geom.J.Read(), Q1D, Q1D, 2, 2, NE);
+   const auto detJe_loc = Reshape(el_geom.detJ.Read(), Q1D, Q1D, NE);
 
    const int n_nbr = nbr_geom ? nbr_geom->num_neighbor_elems : 0;
-   const auto J_shared = Reshape(nbr_geom ? nbr_geom->J.Read() : nullptr, Q1D, Q1D,
-                                 2, 2, n_nbr);
+   const auto J_shared = Reshape(nbr_geom ? nbr_geom->J.Read() : nullptr,
+                                 Q1D, Q1D, 2, 2, n_nbr);
    const auto detJ_shared = Reshape(nbr_geom ? nbr_geom->detJ.Read() : nullptr,
                                     Q1D, Q1D, n_nbr);
 
@@ -53,17 +51,17 @@ static void PADGDiffusionSetup2D(const int Q1D,
    const auto W = w.Read();
 
    // (normal0, normal1, e0, e1, fid0, fid1)
-   const auto iwork = Reshape(iwork_.Read(), 6, NF);
+   const auto face_info = Reshape(face_info_.Read(), 6, NF);
 
    // (q, 1/h, J0_0, J0_1, J1_0, J1_1)
    auto pa = Reshape(pa_data.Write(), 6, Q1D, NF);
 
    mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      const int normal_dir[] = {iwork(0, f), iwork(1, f)};
-      const int fid[] = {iwork(4, f), iwork(5, f)};
+      const int normal_dir[] = {face_info(0, f), face_info(1, f)};
+      const int fid[] = {face_info(4, f), face_info(5, f)};
 
-      int el[] = {iwork(2, f), iwork(3, f)};
+      int el[] = {face_info(2, f), face_info(3, f)};
       const bool interior = el[1] >= 0;
       const int nsides = (interior) ? 2 : 1;
       const double factor = interior ? 0.5 : 1.0;
@@ -90,14 +88,14 @@ static void PADGDiffusionSetup2D(const int Q1D,
             const int sgn = (side == 1) ? -1*sgn0*sgn1 : 1;
 
             const int e = el[side];
-            const auto &J_el = (side == 1 && shared) ? J_shared : J;
-            const auto &detJ_el = (side == 1 && shared) ? detJ_shared : detJe;
+            const auto &J = (side == 1 && shared) ? J_shared : J_loc;
+            const auto &detJ = (side == 1 && shared) ? detJ_shared : detJe_loc;
 
             double nJi[2];
-            nJi[0] = n(p,0,f)*J_el(i,j, 1,1, e) - n(p,1,f)*J_el(i,j,0,1,e);
-            nJi[1] = -n(p,0,f)*J_el(i,j,1,0, e) + n(p,1,f)*J_el(i,j,0,0,e);
+            nJi[0] = n(p,0,f)*J(i,j, 1,1, e) - n(p,1,f)*J(i,j,0,1,e);
+            nJi[1] = -n(p,0,f)*J(i,j,1,0, e) + n(p,1,f)*J(i,j,0,0,e);
 
-            const double dJe = detJ_el(i,j,e);
+            const double dJe = detJ(i,j,e);
             const double dJf = detJf(p, f);
 
             const double w = factor * Qp * W[p] * dJf / dJe;
@@ -135,7 +133,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
                                  const double sigma,
                                  const double kappa,
                                  Vector &pa_data,
-                                 const Array<int> &iwork_)
+                                 const Array<int> &face_info_)
 {
    const auto J_loc = Reshape(el_geom.J.Read(), Q1D, Q1D, Q1D, 3, 3, NE);
    const auto detJe_loc = Reshape(el_geom.detJ.Read(), Q1D, Q1D, Q1D, NE);
@@ -156,10 +154,10 @@ static void PADGDiffusionSetup3D(const int Q1D,
    const auto W = Reshape(w.Read(), Q1D, Q1D);
 
    // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
-   const auto iwork = Reshape(iwork_.Read(), 6, 2, NF);
-   constexpr int _el_ = 3; // offset in iwork for element index
-   constexpr int _fid_ = 4; // offset in iwork for local face id
-   constexpr int _or_ = 5; // offset in iwork for orientation
+   const auto face_info = Reshape(face_info_.Read(), 6, 2, NF);
+   constexpr int _el_ = 3; // offset in face_info for element index
+   constexpr int _fid_ = 4; // offset in face_info for local face id
+   constexpr int _or_ = 5; // offset in face_info for orientation
 
    // (q, 1/h, J00, J01, J02, J10, J11, J12)
    const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF);
@@ -176,14 +174,14 @@ static void PADGDiffusionSetup3D(const int Q1D,
       {
          MFEM_FOREACH_THREAD(i, y, 3)
          {
-            perm[side][i] = iwork(i, side, f);
+            perm[side][i] = face_info(i, side, f);
          }
 
          if (MFEM_THREAD_ID(y) == 0)
          {
-            el[side] = iwork(_el_, side, f);
-            fid[side] = iwork(_fid_, side, f);
-            ortn[side] = iwork(_or_, side, f);
+            el[side] = face_info(_el_, side, f);
+            fid[side] = face_info(_fid_, side, f);
+            ortn[side] = face_info(_or_, side, f);
 
             // If the element index is beyond the local partition NE, then the
             // element is a "face neighbor" element.
@@ -259,50 +257,50 @@ static void PADGDiffusionSetup3D(const int Q1D,
    });
 }
 
-static void PADGDiffusionSetupIwork2D(const int nf, const Mesh &mesh,
-                                      const FaceType type, Array<int> &iwork_)
+static void PADGDiffusionSetupFaceInfo2D(const int nf, const Mesh &mesh,
+                                         const FaceType type, Array<int> &face_info_)
 {
    const int ne = mesh.GetNE();
 
    int fidx = 0;
-   iwork_.SetSize(nf * 6);
+   face_info_.SetSize(nf * 6);
 
    // normal0 and normal1 are the indices of the face normal direction relative
    // to the element in reference coordinates, i.e. if the face is normal to the
    // x-vector (left or right face), then it will be 0, otherwise 1.
 
    // 2d: (normal0, normal1, e0, e1, fid0, fid1)
-   auto iwork = Reshape(iwork_.HostWrite(), 6, nf);
+   auto face_info = Reshape(face_info_.HostWrite(), 6, nf);
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
-      auto face_info = mesh.GetFaceInformation(f);
+      auto f_info = mesh.GetFaceInformation(f);
 
-      if (face_info.IsOfFaceType(type))
+      if (f_info.IsOfFaceType(type))
       {
-         const int face_id_1 = face_info.element[0].local_face_id;
-         iwork(0, fidx) = (face_id_1 == 1 || face_id_1 == 3) ? 0 : 1;
-         iwork(2, fidx) = face_info.element[0].index;
-         iwork(4, fidx) = face_id_1;
+         const int face_id_1 = f_info.element[0].local_face_id;
+         face_info(0, fidx) = (face_id_1 == 1 || face_id_1 == 3) ? 0 : 1;
+         face_info(2, fidx) = f_info.element[0].index;
+         face_info(4, fidx) = face_id_1;
 
-         if (face_info.IsInterior())
+         if (f_info.IsInterior())
          {
-            const int face_id_2 = face_info.element[1].local_face_id;
-            iwork(1, fidx) = (face_id_2 == 1 || face_id_2 == 3) ? 0 : 1;
-            if (face_info.IsShared())
+            const int face_id_2 = f_info.element[1].local_face_id;
+            face_info(1, fidx) = (face_id_2 == 1 || face_id_2 == 3) ? 0 : 1;
+            if (f_info.IsShared())
             {
-               iwork(3, fidx) = ne + face_info.element[1].index;
+               face_info(3, fidx) = ne + f_info.element[1].index;
             }
             else
             {
-               iwork(3, fidx) = face_info.element[1].index;
+               face_info(3, fidx) = f_info.element[1].index;
             }
-            iwork(5, fidx) = face_id_2;
+            face_info(5, fidx) = face_id_2;
          }
          else
          {
-            iwork(1, fidx) = -1;
-            iwork(3, fidx) = -1;
-            iwork(5, fidx) = -1;
+            face_info(1, fidx) = -1;
+            face_info(3, fidx) = -1;
+            face_info(5, fidx) = -1;
          }
 
          fidx++;
@@ -310,7 +308,12 @@ static void PADGDiffusionSetupIwork2D(const int nf, const Mesh &mesh,
    }
 }
 
-// assigns to perm the permuation: perm[0] -> normal component, perm[1] -> first tangential, perm[2] -> second tangential according to the lexocographic ordering.
+// Assigns to perm the permuation:
+//    perm[0] <- normal component
+//    perm[1] <- first tangential component
+//    perm[2] <- second tangential component
+//
+// (Tangential components are ordering lexicographically).
 inline void FaceNormalPermutation(int perm[3], const int face_id)
 {
    const bool xy_plane = (face_id == 0 || face_id == 5);
@@ -322,7 +325,8 @@ inline void FaceNormalPermutation(int perm[3], const int face_id)
    perm[2] = (xy_plane) ? 2 : 3;
 }
 
-// assigns to perm the permutation as in FaceNormalPermutation for the second element on the face but signed to indicate the sign of the normal derivative.
+// Assigns to perm the permutation as in FaceNormalPermutation for the second
+// element on the face but signed to indicate the sign of the normal derivative.
 inline void SignedFaceNormalPermutation(int perm[3],
                                         const int face_id1,
                                         const int face_id2,
@@ -382,58 +386,58 @@ inline void SignedFaceNormalPermutation(int perm[3],
    }
 }
 
-static void PADGDiffusionSetupIwork3D(const int nf, const Mesh &mesh,
-                                      const FaceType type, Array<int> &iwork_)
+static void PADGDiffusionSetupFaceInfo3D(const int nf, const Mesh &mesh,
+                                         const FaceType type, Array<int> &face_info_)
 {
    const int ne = mesh.GetNE();
 
    int fidx = 0;
-   // iwork array has 12 entries per face, 6 for each of the adjacent elements:
+   // face_info array has 12 entries per face, 6 for each of the adjacent elements:
    // (perm[0], perm[1], perm[2], element_index, local_face_id, orientation)
-   iwork_.SetSize(nf * 12);
+   face_info_.SetSize(nf * 12);
    constexpr int _e_ = 3; // offset for element index
    constexpr int _fid_ = 4; // offset for local face id
    constexpr int _or_ = 5; // offset for orientation
 
-   auto iwork = Reshape(iwork_.HostWrite(), 6, 2, nf);
+   auto face_info = Reshape(face_info_.HostWrite(), 6, 2, nf);
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
-      auto face_info = mesh.GetFaceInformation(f);
+      auto f_info = mesh.GetFaceInformation(f);
 
-      if (face_info.IsOfFaceType(type))
+      if (f_info.IsOfFaceType(type))
       {
-         const int fid0 = face_info.element[0].local_face_id;
-         const int or0 = face_info.element[0].orientation;
+         const int fid0 = f_info.element[0].local_face_id;
+         const int or0 = f_info.element[0].orientation;
 
-         iwork(  _e_, 0, fidx) = face_info.element[0].index;
-         iwork(_fid_, 0, fidx) = fid0;
-         iwork( _or_, 0, fidx) = or0;
+         face_info(  _e_, 0, fidx) = f_info.element[0].index;
+         face_info(_fid_, 0, fidx) = fid0;
+         face_info( _or_, 0, fidx) = or0;
 
-         FaceNormalPermutation(&iwork(0, 0, fidx), fid0);
+         FaceNormalPermutation(&face_info(0, 0, fidx), fid0);
 
-         if (face_info.IsInterior())
+         if (f_info.IsInterior())
          {
-            const int fid1 = face_info.element[1].local_face_id;
-            const int or1 = face_info.element[1].orientation;
+            const int fid1 = f_info.element[1].local_face_id;
+            const int or1 = f_info.element[1].orientation;
 
-            if (face_info.IsShared())
+            if (f_info.IsShared())
             {
-               iwork(  _e_, 1, fidx) = ne + face_info.element[1].index;
+               face_info(  _e_, 1, fidx) = ne + f_info.element[1].index;
             }
             else
             {
-               iwork(  _e_, 1, fidx) = face_info.element[1].index;
+               face_info(  _e_, 1, fidx) = f_info.element[1].index;
             }
-            iwork(_fid_, 1, fidx) = fid1;
-            iwork( _or_, 1, fidx) = or1;
+            face_info(_fid_, 1, fidx) = fid1;
+            face_info( _or_, 1, fidx) = or1;
 
-            SignedFaceNormalPermutation(&iwork(0, 1, fidx), fid0, fid1, or1);
+            SignedFaceNormalPermutation(&face_info(0, 1, fidx), fid0, fid1, or1);
          }
          else
          {
             for (int i = 0; i < 6; ++i)
             {
-               iwork(i, 1, fidx) = -1;
+               face_info(i, 1, fidx) = -1;
             }
          }
 
@@ -451,23 +455,20 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    const int ne = fes.GetNE();
    nf = fes.GetNFbyType(type);
 
-   // if (nf == 0) { return; }
-
    // Assumes tensor-product elements
    Mesh &mesh = *fes.GetMesh();
    const FiniteElement &el =
       *fes.GetTraceElement(0, mesh.GetFaceGeometry(0));
    FaceElementTransformations &T0 =
       *fes.GetMesh()->GetFaceElementTransformations(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el.GetOrder(), T0);
+   const IntegrationRule &ir = IntRule ? *IntRule : GetRule(el.GetOrder(), T0);
    dim = mesh.Dimension();
-   const int q1d = pow(double(ir->Size()), 1.0/(dim - 1));
+   const int q1d = pow(double(ir.Size()), 1.0/(dim - 1));
 
-   auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*q1d - 3);
-   auto el_geom = mesh.GetGeometricFactors(
-                     vol_ir,
-                     GeometricFactors::JACOBIANS | GeometricFactors::DETERMINANTS,
-                     mt);
+   const auto vol_ir = irs.Get(mesh.GetElementGeometry(0), 2*q1d - 3);
+   const auto geom_flags = GeometricFactors::JACOBIANS |
+                           GeometricFactors::DETERMINANTS;
+   const auto el_geom = mesh.GetGeometricFactors(vol_ir, geom_flags, mt);
 
    std::unique_ptr<FaceNeighborGeometricFactors> nbr_geom;
    if (type == FaceType::Interior)
@@ -475,41 +476,32 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
       nbr_geom.reset(new FaceNeighborGeometricFactors(*el_geom));
    }
 
-   auto face_geom = mesh.GetFaceGeometricFactors(
-                       *ir,
-                       FaceGeometricFactors::DETERMINANTS |
-                       FaceGeometricFactors::NORMALS, type, mt);
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const auto face_geom_flags = FaceGeometricFactors::DETERMINANTS |
+                                FaceGeometricFactors::NORMALS;
+   auto face_geom = mesh.GetFaceGeometricFactors(ir, face_geom_flags, type, mt);
+   maps = &el.GetDofToQuad(ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    const int pa_size = (dim == 2) ? (6 * q1d * nf) : (8 * q1d * q1d * nf);
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
-   FaceQuadratureSpace fqs(mesh, *ir, type);
+   // Evaluate the coefficient at the face quadrature points.
+   FaceQuadratureSpace fqs(mesh, ir, type);
    CoefficientVector q(fqs, CoefficientStorage::COMPRESSED);
-   if (Q)
-   {
-      q.Project(*Q);
-   }
-   else if (MQ)
-   {
-      MFEM_ABORT("Not yet implemented");
-      // q.Project(*MQ);
-   }
-   else
-   {
-      q.SetConstant(1.0);
-   }
+   if (Q) { q.Project(*Q); }
+   else if (MQ) { MFEM_ABORT("Not yet implemented"); /* q.Project(*MQ); */ }
+   else { q.SetConstant(1.0); }
 
-   Array<int> iwork;
+   // Precompute face info arrays.
+   Array<int> face_info;
    if (dim == 2)
    {
-      PADGDiffusionSetupIwork2D(nf, mesh, type, iwork);
+      PADGDiffusionSetupFaceInfo2D(nf, mesh, type, face_info);
    }
    else if (dim == 3)
    {
-      PADGDiffusionSetupIwork3D(nf, mesh, type, iwork);
+      PADGDiffusionSetupFaceInfo3D(nf, mesh, type, face_info);
    }
 
    if (dim == 1)
@@ -518,24 +510,24 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    }
    else if (dim == 2)
    {
-      PADGDiffusionSetup2D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
-                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
+      PADGDiffusionSetup2D(quad1D, ne, nf, ir.GetWeights(), *el_geom, *face_geom,
+                           nbr_geom.get(), q, sigma, kappa, pa_data, face_info);
    }
    else if (dim == 3)
    {
-      PADGDiffusionSetup3D(quad1D, ne, nf, ir->GetWeights(), *el_geom, *face_geom,
-                           nbr_geom.get(), q, sigma, kappa, pa_data, iwork);
+      PADGDiffusionSetup3D(quad1D, ne, nf, ir.GetWeights(), *el_geom, *face_geom,
+                           nbr_geom.get(), q, sigma, kappa, pa_data, face_info);
    }
 }
 
-void DGDiffusionIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&
-                                                    fes)
+void DGDiffusionIntegrator::AssemblePAInteriorFaces(
+   const FiniteElementSpace &fes)
 {
    SetupPA(fes, FaceType::Interior);
 }
 
-void DGDiffusionIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&
-                                                    fes)
+void DGDiffusionIntegrator::AssemblePABoundaryFaces(
+   const FiniteElementSpace &fes)
 {
    SetupPA(fes, FaceType::Boundary);
 }
