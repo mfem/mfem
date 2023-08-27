@@ -903,11 +903,6 @@ public:
    void GetEdgeInteriorDofs(int i, Array<int> &dofs) const;
    ///@}
 
-   /** @brief Returns indices of degrees of freedom for NURBS patch index
-    @a patch. Cartesian ordering is used, for the tensor-product degrees of
-    freedom. */
-   void GetPatchDofs(int patch, Array<int> &dofs) const;
-
    /// @anchor dof2vdof @name DoF To VDoF Conversion methods
    /// These methods convert between local dof and local vector dof using the
    /// appropriate relationship based on the Ordering::Type defined in this
@@ -1048,9 +1043,6 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
-
-   /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
-   void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
