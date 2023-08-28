@@ -84,11 +84,11 @@ void BramblePasciakSolver::Init(
    // TODO
    // This is not general enough. We are assuming Q is diag
    // Not using invQ ...
-   HypreParMatrix *invQ = new HypreParMatrix(Q);
-   Vector diagQ;
-   Q.GetDiag(diagQ);
-   *invQ = 1.0;
-   invQ->InvScaleRows(diagQ);
+   // HypreParMatrix *invQ = new HypreParMatrix(Q);
+   // Vector diagQ;
+   // Q.GetDiag(diagQ);
+   // *invQ = 1.0;
+   // invQ->InvScaleRows(diagQ);
 
    Vector diagM;
    M.GetDiag(diagM);

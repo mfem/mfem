@@ -20,18 +20,6 @@ namespace mfem
 {
 namespace blocksolvers
 {
-
-// Exact solution, u and p, and r.h.s., f and g.
-void u_exact(const Vector & x, Vector & u);
-double p_exact(const Vector & x);
-void f_exact(const Vector & x, Vector & f);
-double g_exact(const Vector & x);
-double natural_bc(const Vector & x);
-
-/// Check if using Neumann BC
-bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr);
-
-/// Parameters for iterative solver
 struct IterSolveParameters
 {
    int print_level = 0;
@@ -40,112 +28,7 @@ struct IterSolveParameters
    double rel_tol = 1e-9;
 };
 
-/// Set standard options for general solvers
 void SetOptions(IterativeSolver& solver, const IterSolveParameters& param);
-
-SparseMatrix ElemToDof(const ParFiniteElementSpace& fes);
-
-/// DFS classes and structs
-/// Parameters for the divergence free solver
-struct DFSParameters : IterSolveParameters
-{
-   /** There are three components in the solver: a particular solution
-       satisfying the divergence constraint, the remaining div-free component of
-       the flux, and the pressure. When coupled_solve == false, the three
-       components will be solved one by one in the aforementioned order.
-       Otherwise, they will be solved at the same time. */
-   bool coupled_solve = false;
-   bool verbose = false;
-   IterSolveParameters coarse_solve_param;
-   IterSolveParameters BBT_solve_param;
-};
-
-/// Data for the divergence free solver
-struct DFSData
-{
-   std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
-   std::vector<OperatorPtr> agg_l2dof;    // agglomerates to L2 dofs table
-   std::vector<OperatorPtr> P_hdiv;   // Interpolation matrix for H(div) space
-   std::vector<OperatorPtr> P_l2;     // Interpolation matrix for L2 space
-   std::vector<OperatorPtr> P_hcurl;  // Interpolation for kernel space of div
-   std::vector<OperatorPtr> Q_l2;     // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
-   Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   std::vector<OperatorPtr> C;        // discrete curl: ND -> RT, map to Null(B)
-   DFSParameters param;
-};
-
-/// Finite element spaces concerning divergence free solver.
-/// The main usage of this class is to collect data needed for the solver.
-class DFSSpaces
-{
-   RT_FECollection hdiv_fec_;
-   L2_FECollection l2_fec_;
-   std::unique_ptr<FiniteElementCollection> hcurl_fec_;
-   L2_FECollection l2_0_fec_;
-
-   std::unique_ptr<ParFiniteElementSpace> coarse_hdiv_fes_;
-   std::unique_ptr<ParFiniteElementSpace> coarse_l2_fes_;
-   std::unique_ptr<ParFiniteElementSpace> coarse_hcurl_fes_;
-   std::unique_ptr<ParFiniteElementSpace> l2_0_fes_;
-
-   std::unique_ptr<ParFiniteElementSpace> hdiv_fes_;
-   std::unique_ptr<ParFiniteElementSpace> l2_fes_;
-   std::unique_ptr<ParFiniteElementSpace> hcurl_fes_;
-
-   std::vector<SparseMatrix> el_l2dof_;
-   const Array<int>& ess_bdr_attr_;
-   Array<int> all_bdr_attr_;
-
-   int level_;
-   DFSData data_;
-
-   void MakeDofRelationTables(int level);
-   void DataFinalize();
-public:
-   DFSSpaces(int order, int num_refine, ParMesh *mesh,
-             const Array<int>& ess_attr, const DFSParameters& param);
-
-   /** This should be called each time when the mesh (where the FE spaces are
-       defined) is refined. The spaces will be updated, and the prolongation for
-       the spaces and other data needed for the div-free solver are stored. */
-   void CollectDFSData();
-
-   const DFSData& GetDFSData() const { return data_; }
-   ParFiniteElementSpace* GetHdivFES() const { return hdiv_fes_.get(); }
-   ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
-};
-
-/// Wrapper for assembling the discrete Darcy problem (ex5p)
-class DarcyProblem
-{
-   OperatorPtr M_;
-   OperatorPtr B_;
-   Vector rhs_;
-   Vector ess_data_;
-   ParGridFunction u_;
-   ParGridFunction p_;
-   ParMesh mesh_;
-   std::shared_ptr<ParBilinearForm> mVarf_;
-   std::shared_ptr<ParMixedBilinearForm> bVarf_;
-   VectorFunctionCoefficient ucoeff_;
-   FunctionCoefficient pcoeff_;
-   DFSSpaces dfs_spaces_;
-   PWConstCoefficient mass_coeff;
-   const IntegrationRule *irs_[Geometry::NumGeom];
-public:
-   DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
-                Array<int> &ess_bdr, DFSParameters param);
-
-   HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
-   HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
-   const Vector& GetRHS() { return rhs_; }
-   const Vector& GetEssentialBC() { return ess_data_; }
-   const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
-   void ShowError(const Vector &sol, bool verbose);
-   void VisualizeSolution(const Vector &sol, std::string tag);
-   std::shared_ptr<ParBilinearForm> GetMform() const { return mVarf_; }
-   std::shared_ptr<ParMixedBilinearForm> GetBform() const { return bVarf_; }
-};
 
 /// Abstract solver class for Darcy's flow
 class DarcySolver : public Solver
@@ -175,7 +58,6 @@ public:
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
    virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
 };
-
 } // namespace blocksolvers
 } // namespace mfem
 

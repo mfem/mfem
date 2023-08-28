@@ -28,6 +28,61 @@ void GetRowColumnsRef(const SparseMatrix& A, int row, Array<int>& cols)
    cols.MakeRef(const_cast<int*>(A.GetRowColumns(row)), A.RowSize(row));
 }
 
+SparseMatrix ElemToDof(const ParFiniteElementSpace& fes)
+{
+   int* I = new int[fes.GetNE()+1];
+   copy_n(fes.GetElementToDofTable().GetI(), fes.GetNE()+1, I);
+   Array<int> J(new int[I[fes.GetNE()]], I[fes.GetNE()]);
+   copy_n(fes.GetElementToDofTable().GetJ(), J.Size(), J.begin());
+   fes.AdjustVDofs(J);
+   double* D = new double[J.Size()];
+   fill_n(D, J.Size(), 1.0);
+   return SparseMatrix(I, J, D, fes.GetNE(), fes.GetVSize());
+}
+
+DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
+                     const Array<int>& ess_attr, const DFSParameters& param)
+   : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
+     l2_0_fec_(0, mesh->Dimension()), ess_bdr_attr_(ess_attr), level_(0)
+{
+   if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+   {
+      mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
+   }
+
+   data_.param = param;
+
+   if (mesh->Dimension() == 3)
+   {
+      hcurl_fec_.reset(new ND_FECollection(order+1, mesh->Dimension()));
+   }
+   else
+   {
+      hcurl_fec_.reset(new H1_FECollection(order+1, mesh->Dimension()));
+   }
+
+   all_bdr_attr_.SetSize(ess_attr.Size(), 1);
+   hdiv_fes_.reset(new ParFiniteElementSpace(mesh, &hdiv_fec_));
+   l2_fes_.reset(new ParFiniteElementSpace(mesh, &l2_fec_));
+   coarse_hdiv_fes_.reset(new ParFiniteElementSpace(*hdiv_fes_));
+   coarse_l2_fes_.reset(new ParFiniteElementSpace(*l2_fes_));
+   l2_0_fes_.reset(new ParFiniteElementSpace(mesh, &l2_0_fec_));
+   l2_0_fes_->SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+   el_l2dof_.reserve(num_refine+1);
+   el_l2dof_.push_back(ElemToDof(*coarse_l2_fes_));
+
+   data_.agg_hdivdof.resize(num_refine);
+   data_.agg_l2dof.resize(num_refine);
+   data_.P_hdiv.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+   data_.P_l2.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+   data_.Q_l2.resize(num_refine);
+   hdiv_fes_->GetEssentialTrueDofs(ess_attr, data_.coarsest_ess_hdivdofs);
+   data_.C.resize(num_refine+1);
+
+   hcurl_fes_.reset(new ParFiniteElementSpace(mesh, hcurl_fec_.get()));
+   coarse_hcurl_fes_.reset(new ParFiniteElementSpace(*hcurl_fes_));
+   data_.P_hcurl.resize(num_refine, OperatorPtr(Operator::Hypre_ParCSR));
+}
 
 SparseMatrix* AggToInteriorDof(const Array<int>& bdr_truedofs,
                                const SparseMatrix& agg_elem,
