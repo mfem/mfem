@@ -63,6 +63,180 @@ using namespace std;
 using namespace mfem;
 using namespace blocksolvers;
 
+// Exact solution, u and p, and r.h.s., f and g.
+void u_exact(const Vector & x, Vector & u);
+double p_exact(const Vector & x);
+void f_exact(const Vector & x, Vector & f);
+double g_exact(const Vector & x);
+double natural_bc(const Vector & x);
+
+/** Wrapper for assembling the discrete Darcy problem (ex5p)
+                     [ M  B^T ] [u] = [f]
+                     [ B   0  ] [p] = [g]
+    where:
+       M = \int_\Omega (k u_h) \cdot v_h dx,
+       B = -\int_\Omega (div_h u_h) q_h dx,
+       f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
+       g = \int_\Omega g_exact q_h dx,
+       u_h, v_h \in R_h (Raviart-Thomas finite element space),
+       q_h \in W_h (piecewise discontinuous polynomials),
+       D: subset of the boundary where natural boundary condition is imposed. */
+class DarcyProblem
+{
+   OperatorPtr M_;
+   OperatorPtr B_;
+   Vector rhs_;
+   Vector ess_data_;
+   ParGridFunction u_;
+   ParGridFunction p_;
+   ParMesh mesh_;
+   std::shared_ptr<ParBilinearForm> mVarf_;
+   std::shared_ptr<ParMixedBilinearForm> bVarf_;
+   VectorFunctionCoefficient ucoeff_;
+   FunctionCoefficient pcoeff_;
+   DFSSpaces dfs_spaces_;
+   PWConstCoefficient mass_coeff;
+   const IntegrationRule *irs_[Geometry::NumGeom];
+public:
+   DarcyProblem(Mesh &mesh, int num_refines, int order, const char *coef_file,
+                Array<int> &ess_bdr, DFSParameters param);
+
+   HypreParMatrix& GetM() { return *M_.As<HypreParMatrix>(); }
+   HypreParMatrix& GetB() { return *B_.As<HypreParMatrix>(); }
+   const Vector& GetRHS() { return rhs_; }
+   const Vector& GetEssentialBC() { return ess_data_; }
+   const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
+   void ShowError(const Vector &sol, bool verbose);
+   void VisualizeSolution(const Vector &sol, std::string tag);
+   std::shared_ptr<ParBilinearForm> GetMform() const { return mVarf_; }
+   std::shared_ptr<ParMixedBilinearForm> GetBform() const { return bVarf_; }
+};
+
+DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
+                           const char *coef_file, Array<int> &ess_bdr,
+                           DFSParameters dfs_param)
+   : mesh_(MPI_COMM_WORLD, mesh), ucoeff_(mesh.Dimension(), u_exact),
+     pcoeff_(p_exact), dfs_spaces_(order, num_refs, &mesh_, ess_bdr, dfs_param),
+     mass_coeff()
+{
+   for (int l = 0; l < num_refs; l++)
+   {
+      mesh_.UniformRefinement();
+      dfs_spaces_.CollectDFSData();
+   }
+
+   Vector coef_vector(mesh.GetNE());
+   coef_vector = 1.0;
+   if (std::strcmp(coef_file, ""))
+   {
+      ifstream coef_str(coef_file);
+      coef_vector.Load(coef_str, mesh.GetNE());
+   }
+
+   mass_coeff.UpdateConstants(coef_vector);
+   VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
+   FunctionCoefficient natcoeff(natural_bc);
+   FunctionCoefficient gcoeff(g_exact);
+
+   u_.SetSpace(dfs_spaces_.GetHdivFES());
+   p_.SetSpace(dfs_spaces_.GetL2FES());
+   p_ = 0.0;
+   u_ = 0.0;
+   u_.ProjectBdrCoefficientNormal(ucoeff_, ess_bdr);
+
+   ParLinearForm fform(dfs_spaces_.GetHdivFES());
+   fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+   fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   fform.Assemble();
+
+   ParLinearForm gform(dfs_spaces_.GetL2FES());
+   gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   gform.Assemble();
+
+   // ParBilinearForm mVarf_(dfs_spaces_.GetHdivFES());
+   // ParMixedBilinearForm bVarf_(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
+
+   mVarf_ = make_shared<ParBilinearForm>(dfs_spaces_.GetHdivFES());
+   bVarf_ = make_shared<ParMixedBilinearForm>(dfs_spaces_.GetHdivFES(),
+                                              dfs_spaces_.GetL2FES());
+
+   mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
+   mVarf_->ComputeElementMatrices();
+   mVarf_->Assemble();
+   mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
+   mVarf_->Finalize();
+   M_.Reset(mVarf_->ParallelAssemble());
+
+   bVarf_->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   bVarf_->Assemble();
+   bVarf_->SpMat() *= -1.0;
+   bVarf_->EliminateTrialDofs(ess_bdr, u_, gform);
+   bVarf_->Finalize();
+   B_.Reset(bVarf_->ParallelAssemble());
+
+   rhs_.SetSize(M_->NumRows() + B_->NumRows());
+   Vector rhs_block0(rhs_.GetData(), M_->NumRows());
+   Vector rhs_block1(rhs_.GetData()+M_->NumRows(), B_->NumRows());
+   fform.ParallelAssemble(rhs_block0);
+   gform.ParallelAssemble(rhs_block1);
+
+   ess_data_.SetSize(M_->NumRows() + B_->NumRows());
+   ess_data_ = 0.0;
+   Vector ess_data_block0(ess_data_.GetData(), M_->NumRows());
+   u_.ParallelProject(ess_data_block0);
+
+   int order_quad = max(2, 2*order+1);
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs_[i] = &(IntRules.Get(i, order_quad));
+   }
+}
+
+void DarcyProblem::ShowError(const Vector& sol, bool verbose)
+{
+   u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
+   p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+
+   double err_u  = u_.ComputeL2Error(ucoeff_, irs_);
+   double norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
+   double err_p  = p_.ComputeL2Error(pcoeff_, irs_);
+   double norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
+
+   if (!verbose) { return; }
+   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+}
+
+void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
+{
+   int num_procs, myid;
+   MPI_Comm_size(mesh_.GetComm(), &num_procs);
+   MPI_Comm_rank(mesh_.GetComm(), &myid);
+
+   u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
+   p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
+
+   const char vishost[] = "localhost";
+   const int  visport   = 19916;
+   socketstream u_sock(vishost, visport);
+   u_sock << "parallel " << num_procs << " " << myid << "\n";
+   u_sock.precision(8);
+   u_sock << "solution\n" << mesh_ << u_ << "window_title 'Velocity ("
+          << tag << " solver)'" << endl;
+   MPI_Barrier(mesh_.GetComm());
+   socketstream p_sock(vishost, visport);
+   p_sock << "parallel " << num_procs << " " << myid << "\n";
+   p_sock.precision(8);
+   p_sock << "solution\n" << mesh_ << p_ << "window_title 'Pressure ("
+          << tag << " solver)'" << endl;
+}
+
+bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
+{
+   for (int attr : ess_bdr_attr) { if (attr == 0) { return false; } }
+   return true;
+}
+
 int main(int argc, char *argv[])
 {
 #ifdef HYPRE_USING_GPU
@@ -245,4 +419,42 @@ int main(int argc, char *argv[])
    }
 
    return 0;
+}
+
+void u_exact(const Vector & x, Vector & u)
+{
+   double xi(x(0));
+   double yi(x(1));
+   double zi(x.Size() == 3 ? x(2) : 0.0);
+
+   u(0) = - exp(xi)*sin(yi)*cos(zi);
+   u(1) = - exp(xi)*cos(yi)*cos(zi);
+   if (x.Size() == 3)
+   {
+      u(2) = exp(xi)*sin(yi)*sin(zi);
+   }
+}
+
+double p_exact(const Vector & x)
+{
+   double xi(x(0));
+   double yi(x(1));
+   double zi(x.Size() == 3 ? x(2) : 0.0);
+   return exp(xi)*sin(yi)*cos(zi);
+}
+
+void f_exact(const Vector & x, Vector & f)
+{
+   f = 0.0;
+}
+
+double g_exact(const Vector & x)
+{
+   if (x.Size() == 3) { return -p_exact(x); }
+   return 0;
+}
+
+double natural_bc(const Vector & x)
+{
+   return (-p_exact(x));
 }
