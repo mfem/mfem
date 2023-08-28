@@ -493,28 +493,20 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    else if (MQ) { MFEM_ABORT("Not yet implemented"); /* q.Project(*MQ); */ }
    else { q.SetConstant(1.0); }
 
-   // Precompute face info arrays.
    Array<int> face_info;
-   if (dim == 2)
-   {
-      PADGDiffusionSetupFaceInfo2D(nf, mesh, type, face_info);
-   }
-   else if (dim == 3)
-   {
-      PADGDiffusionSetupFaceInfo3D(nf, mesh, type, face_info);
-   }
-
    if (dim == 1)
    {
       MFEM_ABORT("dim==1 not supported in PADGTraceSetup");
    }
    else if (dim == 2)
    {
+      PADGDiffusionSetupFaceInfo2D(nf, mesh, type, face_info);
       PADGDiffusionSetup2D(quad1D, ne, nf, ir.GetWeights(), *el_geom, *face_geom,
                            nbr_geom.get(), q, sigma, kappa, pa_data, face_info);
    }
    else if (dim == 3)
    {
+      PADGDiffusionSetupFaceInfo3D(nf, mesh, type, face_info);
       PADGDiffusionSetup3D(quad1D, ne, nf, ir.GetWeights(), *el_geom, *face_geom,
                            nbr_geom.get(), q, sigma, kappa, pa_data, face_info);
    }
