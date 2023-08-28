@@ -332,9 +332,6 @@ protected:
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
-   /// Return the length of the segment from node i to node j.
-   double GetLength(int i, int j) const;
-
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order);

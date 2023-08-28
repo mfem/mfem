@@ -2593,6 +2593,32 @@ void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
    order.SetSize(NumOfEdges);
    Array<Pair<double, int> > length_idx(NumOfEdges);
 
+   auto GetLength = [this](int i, int j)
+   {
+      double length = 0.;
+      if (Nodes == NULL)
+      {
+         const double *vi = vertices[i]();
+         const double *vj = vertices[j]();
+         for (int k = 0; k < spaceDim; k++)
+         {
+            length += (vi[k]-vj[k])*(vi[k]-vj[k]);
+         }
+      }
+      else
+      {
+         Array<int> ivdofs, jvdofs;
+         Nodes->FESpace()->GetVertexVDofs(i, ivdofs);
+         Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
+         for (int k = 0; k < ivdofs.Size(); k++)
+         {
+            length += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
+                      ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
+         }
+      }
+      return length;
+   };
+
    for (int i = 0; i < NumOfVertices; i++)
    {
       for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
@@ -2608,7 +2634,9 @@ void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
 
    for (int i = 0; i < NumOfEdges; i++)
    {
-      order[length_idx[i].two] = i;
+      int j = i;
+      while (j > 0 && length_idx[j-1].one == length_idx[i].one) { j--; }
+      order[length_idx[i].two] = j;
    }
 }
 
@@ -6148,37 +6176,21 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
-   int i, j, k, wo = 0, fo = 0;
-   double *v[4];
+   int wo = 0, fo = 0;
 
    if (Dim == 2 && spaceDim == 2)
    {
       DenseMatrix J(2, 2);
 
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
-         int *vi = elements[i]->GetVertices();
-         if (Nodes == NULL)
-         {
-            for (j = 0; j < 3; j++)
-            {
-               v[j] = vertices[vi[j]]();
-            }
-            for (j = 0; j < 2; j++)
-               for (k = 0; k < 2; k++)
-               {
-                  J(j, k) = v[j+1][k] - v[0][k];
-               }
-         }
-         else
-         {
-            // only check the Jacobian at the center of the element
-            GetElementJacobian(i, J);
-         }
+         // only check the Jacobian at the center of the element
+         GetElementJacobian(i, J);
          if (J.Det() < 0.0)
          {
             if (fix_it)
             {
+               int *vi = elements[i]->GetVertices();
                switch (GetElementType(i))
                {
                   case Element::TRIANGLE:
@@ -6198,88 +6210,41 @@ int Mesh::CheckElementOrientation(bool fix_it)
          }
       }
    }
-
-   if (Dim == 3)
+   else if (Dim == 3)
    {
       DenseMatrix J(3, 3);
 
-      for (i = 0; i < NumOfElements; i++)
+      for (int i = 0; i < NumOfElements; i++)
       {
-         int *vi = elements[i]->GetVertices();
-         switch (GetElementType(i))
+         // only check the Jacobian at the center of the element
+         GetElementJacobian(i, J);
+         if (J.Det() < 0.0)
          {
-            case Element::TETRAHEDRON:
-               if (Nodes == NULL)
+            if (fix_it)
+            {
+               int *vi = elements[i]->GetVertices();
+               switch (GetElementType(i))
                {
-                  for (j = 0; j < 4; j++)
-                  {
-                     v[j] = vertices[vi[j]]();
-                  }
-                  for (j = 0; j < 3; j++)
-                     for (k = 0; k < 3; k++)
-                     {
-                        J(j, k) = v[j+1][k] - v[0][k];
-                     }
-               }
-               else
-               {
-                  // only check the Jacobian at the center of the element
-                  GetElementJacobian(i, J);
-               }
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                  case Element::TETRAHEDRON:
                      mfem::Swap(vi[0], vi[1]);
                      fo++;
-                  }
-               }
-               break;
-
-            case Element::WEDGE:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::WEDGE:
                      // how?
-                  }
-               }
-               break;
-
-            case Element::PYRAMID:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::PYRAMID:
                      // how?
-                  }
-               }
-               break;
-
-            case Element::HEXAHEDRON:
-               // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
-               if (J.Det() < 0.0)
-               {
-                  wo++;
-                  if (fix_it)
-                  {
+                     break;
+                  case Element::HEXAHEDRON:
                      // how?
-                  }
+                     break;
+                  default:
+                     MFEM_ABORT("Invalid 3D element type \""
+                                << GetElementType(i) << "\"");
+                     break;
                }
-               break;
-
-            default:
-               MFEM_ABORT("Invalid 3D element type \""
-                          << GetElementType(i) << "\"");
-               break;
+            }
+            wo++;
          }
       }
    }
@@ -7205,24 +7170,12 @@ void Mesh::GetBdrPointMatrix(int i,DenseMatrix &pointmat) const
 
    pointmat.SetSize(spaceDim, nv);
    for (k = 0; k < spaceDim; k++)
+   {
       for (j = 0; j < nv; j++)
       {
          pointmat(k, j) = vertices[v[j]](k);
       }
-}
-
-double Mesh::GetLength(int i, int j) const
-{
-   const double *vi = vertices[i]();
-   const double *vj = vertices[j]();
-   double length = 0.;
-
-   for (int k = 0; k < spaceDim; k++)
-   {
-      length += (vi[k]-vj[k])*(vi[k]-vj[k]);
    }
-
-   return sqrt(length);
 }
 
 // static method

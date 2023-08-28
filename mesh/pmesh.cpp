@@ -1789,6 +1789,32 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       Array<Pair<int, double> > ilen_len(order.Size());
 
+      auto GetLength = [this](int i, int j)
+      {
+         double length = 0.;
+         if (Nodes == NULL)
+         {
+            const double *vi = vertices[i]();
+            const double *vj = vertices[j]();
+            for (int k = 0; k < spaceDim; k++)
+            {
+               length += (vi[k]-vj[k])*(vi[k]-vj[k]);
+            }
+         }
+         else
+         {
+            Array<int> ivdofs, jvdofs;
+            Nodes->FESpace()->GetVertexVDofs(i, ivdofs);
+            Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
+            for (int k = 0; k < ivdofs.Size(); k++)
+            {
+               length += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
+                         ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
+            }
+         }
+         return length;
+      };
+
       for (int i = 0; i < NumOfVertices; i++)
       {
          for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
