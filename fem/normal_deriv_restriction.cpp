@@ -445,7 +445,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
       const int el = e2f(0, e); // global element index
 
       MFEM_SHARED double y_s[MAX_D1D];
-      MFEM_SHARED double pp[MAX_D1D];
+      MFEM_SHARED int pp[MAX_D1D];
       MFEM_SHARED double jj;
       MFEM_SHARED double BG[MAX_D1D*MAX_D1D];
       DeviceMatrix G(BG + d*q, q, d);
@@ -553,7 +553,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
    mfem::forall_3D(ne_type, q, q, q, [=] MFEM_HOST_DEVICE (int e) -> void
    {
-      MFEM_SHARED double pp[MD][MD];
+      MFEM_SHARED int pp[MD][MD];
       MFEM_SHARED double y_s[MD*MD];
       MFEM_SHARED int jj;
       MFEM_SHARED double xx_s[MD*MD*MD];
