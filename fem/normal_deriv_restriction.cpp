@@ -310,6 +310,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
       MFEM_SHARED double G_s[MAX_Q1D * MAX_D1D];
       DeviceMatrix G(G_s, q, d);
 
+      // Load G matrix into shared memory
       if (MFEM_THREAD_ID(x) == 0)
       {
          MFEM_FOREACH_THREAD(j, y, d*q)
@@ -366,7 +367,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
                      // the fixed 1D index of the normal component of the face
                      // quadrature point
                      const int g_row = yz_plane ? i : xz_plane ? j : k;
-                     const double g = G_(g_row, kk);
+                     const double g = G(g_row, kk);
 
                      grad_n += g * d_x_e(t?c:l, t?l:m, t?m:n, t?n:el_idx, t?el_idx:c);
                   }
