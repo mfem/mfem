@@ -142,7 +142,23 @@ void L2NormalDerivativeFaceRestriction::Mult(const Vector &x, Vector &y) const
    switch (dim)
    {
       case 2: Mult2D(x, y); break;
-      case 3: Mult3D(x, y); break;
+      case 3:
+      {
+         const int d1d = fes.GetElementOrder(0) + 1;
+         switch (d1d)
+         {
+            case 1: Mult3D<1>(x, y); break;
+            case 2: Mult3D<2>(x, y); break;
+            case 3: Mult3D<3>(x, y); break;
+            case 4: Mult3D<4>(x, y); break;
+            case 5: Mult3D<5>(x, y); break;
+            case 6: Mult3D<6>(x, y); break;
+            case 7: Mult3D<7>(x, y); break;
+            case 8: Mult3D<8>(x, y); break;
+            default: Mult3D(x, y); break; // fallback
+         }
+         break;
+      }
       default: MFEM_ABORT("Dimension not supported."); break;
    }
 }
@@ -154,7 +170,23 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(
    switch (dim)
    {
       case 2: AddMultTranspose2D(x, y, a); break;
-      case 3: AddMultTranspose3D(x, y, a); break;
+      case 3:
+      {
+         const int d1d = fes.GetElementOrder(0) + 1;
+         switch (d1d)
+         {
+            case 1: AddMultTranspose3D<1>(x, y, a); break;
+            case 2: AddMultTranspose3D<2>(x, y, a); break;
+            case 3: AddMultTranspose3D<3>(x, y, a); break;
+            case 4: AddMultTranspose3D<4>(x, y, a); break;
+            case 5: AddMultTranspose3D<5>(x, y, a); break;
+            case 6: AddMultTranspose3D<6>(x, y, a); break;
+            case 7: AddMultTranspose3D<7>(x, y, a); break;
+            case 8: AddMultTranspose3D<8>(x, y, a); break;
+            default: AddMultTranspose3D(x, y, a); break; // fallback
+         }
+         break;
+      }
       default: MFEM_ABORT("Not yet implemented"); break;
    }
 }
@@ -262,8 +294,11 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
    });
 }
 
+template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
+   static constexpr int MD = T_D1D ? T_D1D : MAX_D1D;
+
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
 
@@ -293,7 +328,8 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const int d = maps.ndof;
    const int q2d = q * q;
 
-   MFEM_ASSERT(q == d, "");
+   MFEM_VERIFY(q == d, "");
+   MFEM_VERIFY(T_D1D == d || T_D1D == 0, "");
 
    const auto G_ = Reshape(maps.G.Read(), q, d);
    // (el0, el1, fid0, fid1, or0, or1)
@@ -307,7 +343,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
    mfem::forall_2D(nf, 2, q2d, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      MFEM_SHARED double G_s[MAX_Q1D * MAX_D1D];
+      MFEM_SHARED double G_s[MD*MD];
       DeviceMatrix G(G_s, q, d);
 
       // Load G matrix into shared memory
@@ -484,9 +520,12 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
    });
 }
 
+template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
    const Vector &y, Vector &x, const double a) const
 {
+   static constexpr int MD = T_D1D ? T_D1D : MAX_D1D;
+
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
@@ -500,6 +539,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
    const int q2d = q * q;
 
    MFEM_VERIFY(q == d, "");
+   MFEM_VERIFY(T_D1D == d || T_D1D == 0, "");
 
    auto G_ = Reshape(maps.G.Read(), q, d);
 
@@ -513,13 +553,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
    mfem::forall_3D(ne_type, q, q, q, [=] MFEM_HOST_DEVICE (int e) -> void
    {
-      MFEM_SHARED double pp[MAX_D1D][MAX_D1D];
-      MFEM_SHARED double y_s[MAX_Q1D * MAX_Q1D];
+      MFEM_SHARED double pp[MD][MD];
+      MFEM_SHARED double y_s[MD*MD];
       MFEM_SHARED int jj;
-      MFEM_SHARED double xx_s[MAX_D1D*MAX_D1D*MAX_D1D];
+      MFEM_SHARED double xx_s[MD*MD*MD];
       auto xx = Reshape(xx_s, d, d, d);
 
-      MFEM_SHARED double G_s[MAX_D1D*MAX_Q1D];
+      MFEM_SHARED double G_s[MD*MD];
       DeviceMatrix G(G_s, q, d);
 
       if (MFEM_THREAD_ID(z) == 0)
