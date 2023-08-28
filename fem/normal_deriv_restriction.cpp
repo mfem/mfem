@@ -163,20 +163,17 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 {
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
-   std::unique_ptr<GridFunction> x_gf;
 
 #ifdef MFEM_USE_MPI
+   std::unique_ptr<ParGridFunction> x_gf;
    if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
    {
       if (face_type == FaceType::Interior)
       {
-         ParGridFunction *x_pgf = new ParGridFunction;
-         x_gf.reset(x_pgf);
-         x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                        const_cast<Vector&>(x), 0);
-         x_pgf->ExchangeFaceNbrData();
-
-         face_nbr_data = x_pgf->FaceNbrData().Read();
+         x_gf.reset(new ParGridFunction(const_cast<ParFiniteElementSpace*>(pfes),
+                                        const_cast<Vector&>(x), 0));
+         x_gf->ExchangeFaceNbrData();
+         face_nbr_data = x_gf->FaceNbrData().Read();
          ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
       }
    }
@@ -269,20 +266,17 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
-   std::unique_ptr<GridFunction> x_gf;
 
 #ifdef MFEM_USE_MPI
+   std::unique_ptr<ParGridFunction> x_gf;
    if (const auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
    {
       if (face_type == FaceType::Interior)
       {
-         ParGridFunction *x_pgf = new ParGridFunction;
-         x_gf.reset(x_pgf);
-         x_pgf->MakeRef(const_cast<ParFiniteElementSpace*>(pfes),
-                        const_cast<Vector&>(x), 0);
-         x_pgf->ExchangeFaceNbrData();
-
-         face_nbr_data = x_pgf->FaceNbrData().Read();
+         x_gf.reset(new ParGridFunction(const_cast<ParFiniteElementSpace*>(pfes),
+                                        const_cast<Vector&>(x), 0));
+         x_gf->ExchangeFaceNbrData();
+         face_nbr_data = x_gf->FaceNbrData().Read();
          ne_shared = pfes->GetParMesh()->GetNFaceNeighborElements();
       }
    }
@@ -292,8 +286,8 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
    const int num_elem = ne;
 
-   const FiniteElement& fe = *fes.GetFE(0);
-   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+   const FiniteElement &fe = *fes.GetFE(0);
+   const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
@@ -361,7 +355,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
                {
                   double grad_n = 0.0;
 
-                  for (int kk=0; kk < d; ++kk)
+                  for (int kk = 0; kk < d; ++kk)
                   {
                      // (l, m, n) 3D lexicographic index of interior points used
                      // in evaluating normal derivatives
@@ -390,8 +384,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
-   const FiniteElement& fe = *fes.GetFE(0);
-   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+   const FiniteElement &fe = *fes.GetFE(0);
+   const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
@@ -490,15 +484,15 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
 }
 
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
-   const Vector& y, Vector& x, const double a) const
+   const Vector &y, Vector &x, const double a) const
 {
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
    MFEM_VERIFY(vd == 1, "vdim > 1 not supported.");
 
-   const FiniteElement& fe = *fes.GetFE(0);
-   const DofToQuad& maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
+   const FiniteElement &fe = *fes.GetFE(0);
+   const DofToQuad &maps = fe.GetDofToQuad(fe.GetNodes(), DofToQuad::TENSOR);
 
    const int q = maps.nqpt;
    const int d = maps.ndof;
