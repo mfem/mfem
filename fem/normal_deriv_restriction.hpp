@@ -65,10 +65,12 @@ public:
 
    void Mult2D(const Vector &x, Vector &y) const;
 
-   void Mult3D(const Vector &x, Vector &y) const;
-
    void AddMultTranspose2D(const Vector &x, Vector &y, const double a) const;
 
+   template <int T_D1D = 0>
+   void Mult3D(const Vector &x, Vector &y) const;
+
+   template <int T_D1D = 0>
    void AddMultTranspose3D(const Vector &x, Vector &y, const double a) const;
 
    /// @}
