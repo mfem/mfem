@@ -317,7 +317,8 @@ public:
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
-   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
+   ParMesh(MPI_Comm comm, std::istream &input, int generate_edges = 0,
+           int refine = 1, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
