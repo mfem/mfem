@@ -257,6 +257,7 @@ int main(int argc, char *argv[])
    const char *coef_file = "";
    const char *ess_bdr_attr_file = "";
    int order = 0;
+   int ser_ref_levels = 2;
    int par_ref_levels = 2;
    bool show_error = false;
    bool visualization = false;
@@ -271,7 +272,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&par_ref_levels, "-r", "--ref",
+   args.AddOption(&ser_ref_levels, "-sr", "--serial-ref",
+                  "Number of serial refinement steps.");
+   args.AddOption(&par_ref_levels, "-pr", "--parallel-ref",
                   "Number of parallel refinement steps.");
    args.AddOption(&coef_file, "-c", "--coef",
                   "Coefficient file to use.");
@@ -308,12 +311,28 @@ int main(int argc, char *argv[])
 
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+
    int dim = mesh->Dimension();
-   int ser_ref_lvls =
-      (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
-   for (int i = 0; i < ser_ref_lvls; ++i)
+   // int ser_ref_levels_min =
+   //    (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
+
+   if (Mpi::Root())
+   {
+      cout << "Attemping " << ser_ref_levels << " serial refinements and "
+           << par_ref_levels << " parallel refinements.\n";
+   }
+
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
+   }
+
+   if (Mpi::Root())
+   {
+      MFEM_ASSERT(Mpi::WorldSize() < mesh->GetNE(),
+                  "Not enough elements in the mesh to be distributed:\n"
+                  << "No. of processors: " << Mpi::WorldSize() << "\n"
+                  << "No. of elements:   " << mesh->GetNE());
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
