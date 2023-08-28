@@ -243,14 +243,11 @@ public:
    /** @brief Construct the *local* ParFiniteElementSpace corresponding to the
        global FE space, @a global_fes. */
    /** The parameter @a pm is the *local* ParMesh obtained by decomposing the
-       global Mesh used by @a global_fes. The array @a partitioning represents
-       the parallel decomposition - it maps global element ids to MPI ranks.
-       If the FiniteElementCollection, @a f, is NULL (default), the FE
-       collection used by @a global_fes will be reused. If @a f is not NULL, it
-       must be the same as, or a copy of, the FE collection used by
-       @a global_fes. */
+       global Mesh used by @a global_fes. If the FiniteElementCollection, @a f,
+       is NULL (default), the FE collection used by @a global_fes will be
+       reused. If @a f is not NULL, it must be the same as, or a copy of, the FE
+       collection used by @a global_fes. */
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
-                         const int *partitioning,
                          const FiniteElementCollection *f = NULL);
 
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,

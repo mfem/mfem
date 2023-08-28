@@ -41,7 +41,7 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
    // duplicate the FiniteElementCollection from 'gf'
    fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
    // create a local ParFiniteElementSpace from the global one:
-   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, fec);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
