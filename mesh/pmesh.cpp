@@ -1730,7 +1730,7 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
-void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
+void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    Array<int> order;
    GetEdgeOrdering(v_to_v, order); // local edge ordering
