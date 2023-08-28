@@ -113,7 +113,7 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 {
    BlockVector x0block(block_offsetsx); x0block = 0.0;
    x0block.GetBlock(0).Set(1.0, x0);
-   x0block.GetBlock(1) = 1.e0;
+   x0block.GetBlock(1) = 1.0;
    x0block.GetBlock(1).Add(1.0, ml);
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
 
@@ -321,33 +321,41 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       diagStream.close();
    } 
 
-   SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
+   
+   int gsize = problem->GetGlobalNumConstraints();
+   int * rows = problem->GetConstraintsStarts();
 
-
-    int gsize = problem->GetGlobalNumConstraints();
-    int * rows = problem->GetConstraintsStarts();
-
-   D = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
-   HypreStealOwnership(*D,*Ds);
-   delete Ds;
+   
   
+   delete Wmm;
    if(Hmm != nullptr)
    {
-      Wmm = Hmm;
-      Wmm->Add(1.0, *D);
+      SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
+      HypreParMatrix * D = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      HypreStealOwnership(*D,*Ds);
+      delete Ds;
+      Wmm = ParAdd(Hmm,D);
+      delete D;
    }
    else
    {
-      Wmm = D;
+      SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
+      Wmm = new HypreParMatrix(problem->GetComm(), gsize, rows, Ds);
+      HypreStealOwnership(*Wmm,*Ds);
+      delete Ds;
    }
 
-   if (JuT) delete JuT;
+   delete JuT;
+   delete JmT;
    Ju = problem->Duc(x); JuT = Ju->Transpose();
+   Jm = problem->Dmc(x); JmT = Jm->Transpose();
+
    blockJu = problem->blockDuc(x); 
    JuTrowoffsets = blockJu->ColOffsets();
    JuTcoloffsets = blockJu->RowOffsets();
-   if (blockJuT) delete blockJuT;
+   delete blockJuT;
    blockJuT = new BlockOperator(JuTrowoffsets,JuTcoloffsets);
+   blockJuT->owns_blocks=1;
    for (int i = 0; i<blockJu->NumRowBlocks(); i++)
    {
       for (int j = 0; j<blockJu->NumColBlocks(); j++)
@@ -357,9 +365,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
          blockJuT->SetBlock(j,i,temp->Transpose());
       }
    }
-   blockJuT->owns_blocks=1;
-   if (JmT) delete JmT;
-   Jm = problem->Dmc(x); JmT = Jm->Transpose();
   
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
@@ -516,7 +521,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       else
       {
          Vector XX(Xhat.GetBlock(0));
-         CGSolver AreducedSolver(MPI_COMM_WORLD);
+         // CGSolver AreducedSolver(MPI_COMM_WORLD);
+         GMRESSolver AreducedSolver(MPI_COMM_WORLD);
 	      AreducedSolver.SetOperator(*Areduced);
          // AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetRelTol(linSolveTol);
@@ -544,19 +550,20 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          // HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(1,1));
 
          HypreBoomerAMG amg0(*K00);
-         // amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
-         amg0.SetSystemsOptions(3,false);
+         amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
+         // amg0.SetSystemsOptions(3,false);
          amg0.SetPrintLevel(0);
          HypreBoomerAMG amg1(*K11);
-         // amg1.SetElasticityOptions(problem->GetElasticityProblem2()->GetFESpace());
-         amg1.SetSystemsOptions(3,false);
+         amg1.SetElasticityOptions(problem->GetElasticityProblem2()->GetFESpace());
+         // amg1.SetSystemsOptions(3,false);
          amg1.SetPrintLevel(0);
          prec.SetDiagonalBlock(0,&amg0);
          prec.SetDiagonalBlock(1,&amg1);
-         // blockAreducedSolver.SetPreconditioner(prec);
-         blockAreducedSolver.SetPreconditioner(amg);
+         blockAreducedSolver.SetPreconditioner(prec);
+         // blockAreducedSolver.SetPreconditioner(amg);
          // blockAreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
 	      blockAreducedSolver.SetPrintLevel(3);
+         // blockAreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          blockAreducedSolver.Mult(breduced, XX);
          blockcgnum_iterations.Append(blockAreducedSolver.GetNumIterations());
       }
@@ -580,13 +587,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    for(int ii = 0; ii < dimM; ii++)
    {
       zlhat(ii) = -1.*(zl(ii) + (zl(ii) * Xhat(ii + dimU) - mu) / (x(ii + dimU) - ml(ii)) );
-   }
-
-   // free memory
-   delete D;
-   if(Hmm != nullptr)
-   {
-      delete Wmm;
    }
 }
 
@@ -915,4 +915,5 @@ ParInteriorPointSolver::~ParInteriorPointSolver()
    delete blockJuT;
    delete JuT;
    delete JmT;
+   delete Wmm;
 }

@@ -44,15 +44,15 @@ protected:
     HypreParMatrix * Hmu = nullptr;
     HypreParMatrix * Hmm = nullptr;
     HypreParMatrix * Wmm = nullptr;
-    HypreParMatrix *D = nullptr;
     HypreParMatrix * Ju = nullptr;
     BlockOperator * blockJu = nullptr;
     HypreParMatrix * Jm = nullptr;
     HypreParMatrix * JuT = nullptr;
-    Array<int> JuTrowoffsets;
-    Array<int> JuTcoloffsets;
     BlockOperator * blockJuT = nullptr;
     HypreParMatrix * JmT = nullptr;
+
+    Array<int> JuTrowoffsets;
+    Array<int> JuTcoloffsets;
     Array<int> cgnum_iterations;
     Array<int> blockcgnum_iterations;
     
