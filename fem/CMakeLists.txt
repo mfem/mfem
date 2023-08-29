@@ -9,6 +9,11 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+set(JITS
+  integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_mass_kernels.cpp
+  )
+
 set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
@@ -40,11 +45,9 @@ set(SRCS
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp
   integ/bilininteg_vectorfemass_pa.cpp
-  integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_hcurl_kernels.cpp
   integ/bilininteg_hdiv_kernels.cpp
   integ/bilininteg_hcurlhdiv_kernels.cpp
-  integ/bilininteg_mass_kernels.cpp
   integ/lininteg_boundary.cpp
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp
@@ -279,8 +282,10 @@ if (MFEM_USE_MPI)
     prestriction.hpp)
 endif()
 
+convert_filenames_to_full_paths(JITS)
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 
+set(JITSRCS ${JITSRCS} ${JITS} PARENT_SCOPE)
 set(SOURCES ${SOURCES} ${SRCS} PARENT_SCOPE)
 set(HEADERS ${HEADERS} ${HDRS} PARENT_SCOPE)

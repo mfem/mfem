@@ -6,6 +6,9 @@
 # Also ignore OS-specific files like .DS_Store on Mac
 # ------------------------------------------------------------------------------
 
+# Binaries
+/mjit
+
 # Object and library files
 *.o
 /libmfem.*
@@ -14,6 +17,13 @@
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
+
+# JIT library files
+libmjit*
+
+# Clangd files
+.qtc_clangd
+.clangd
 
 # Backup files
 *~
@@ -362,6 +372,8 @@ tests/unit/psedov_tests_*
 tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
+tests/unit/mjit_tests
+tests/unit/pmjit_tests
 tests/unit/debug_device_tests
 tests/unit/parallel_in_serial.mesh
 tests/unit/parallel_in_serial.gf

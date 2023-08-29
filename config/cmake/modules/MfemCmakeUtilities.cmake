@@ -861,7 +861,7 @@ function(mfem_export_mk_files)
     endif()
   endforeach()
   # TODO: Add support for MFEM_USE_CUDA=YES
-  set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+  set(MFEM_CXX ${CMAKE_CXX_COMPILER} CACHE STRING "" FORCE)
   set(MFEM_HOST_CXX ${MFEM_CXX})
   set(MFEM_CPPFLAGS "")
   get_target_property(cxx_std mfem CXX_STANDARD)
@@ -874,13 +874,17 @@ function(mfem_export_mk_files)
          MFEM_CXXFLAGS)
   set(MFEM_TPLFLAGS "")
   foreach(dir ${TPL_INCLUDE_DIRS})
-    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}")
+    set(MFEM_TPLFLAGS "${MFEM_TPLFLAGS} -I${dir}" CACHE STRING "" FORCE)
   endforeach()
   # TODO: MFEM_TPLFLAGS: add other TPL flags, in addition to the -I flags.
   set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
   set(MFEM_PICFLAG "")
   if (BUILD_SHARED_LIBS)
-    set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
+    if (MFEM_USE_CUDA)
+       set(MFEM_PICFLAG "-Xcompiler=${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
+   else()
+       set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
+   endif(MFEM_USE_CUDA)
   endif()
   set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")
   # TPL link flags: set below
@@ -979,6 +983,7 @@ function(mfem_export_mk_files)
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
+  set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS}" CACHE STRING "" FORCE)
 
   # Create the build-tree version of 'config.mk'
   configure_file(
@@ -1006,4 +1011,6 @@ function(mfem_export_mk_files)
   install(FILES ${PROJECT_BINARY_DIR}/config/config-install.mk
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/ RENAME config.mk)
 
+set(MFEM_BUILD_FLAGS "${MFEM_CXXFLAGS} -I${MFEM_INC_DIR}"
+    CACHE STRING "Flags used for compiling all source files" FORCE)
 endfunction()

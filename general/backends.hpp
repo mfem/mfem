@@ -32,6 +32,10 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
+#ifdef MFEM_USE_JIT
+// required to use the same stream for runtime compilations
+#define CAMP_USE_PLATFORM_DEFAULT_STREAM 1
+#endif
 // The following two definitions suppress CUB and THRUST deprecation warnings
 // about requiring c++14 with c++11 deprecated but still supported (to be
 // removed in a future release).

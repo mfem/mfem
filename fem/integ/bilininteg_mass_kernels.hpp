@@ -33,20 +33,23 @@ void PAMassAssembleDiagonal(const int dim, const int D1D,
 
 // PA Mass Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-inline void PAMassAssembleDiagonal2D(const int NE,
-                                     const Array<double> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int d1d = 0,
-                                     const int q1d = 0)
+MFEM_HOST_DEVICE inline
+void PAMassAssembleDiagonal2D(const int NE,
+                              const Array<double> &b,
+                              const Vector &d,
+                              Vector &y,
+                              const int d1d = 0,
+                              const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, NE);
+
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -80,69 +83,61 @@ inline void PAMassAssembleDiagonal2D(const int NE,
 
 // Shared memory PA Mass Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-inline void SmemPAMassAssembleDiagonal2D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+MFEM_HOST_DEVICE inline
+void SmemPAMassAssembleDiagonal2D_element(const int e,
+                                          const ConstDeviceMatrix &b,
+                                          const ConstDeviceCube &D,
+                                          const DeviceCube &Y,
+                                          int d1d = 0,
+                                          int q1d = 0,
+                                          int nbz = 1)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+
+   const int tidz = MFEM_THREAD_ID(z);
+
+   MFEM_SHARED double B[MQ1][MD1];
+   MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
+   double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
+   if (tidz == 0)
    {
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
-      double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
-      if (tidz == 0)
+      MFEM_FOREACH_THREAD(d,y,D1D)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
+            B[q][d] = b(q,d);
          }
       }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(dy,y,D1D)
-         {
-            QD[qx][dy] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               QD[qx][dy] += B[qy][dy] * B[qy][dy] * D(qx, qy, e);
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
-         MFEM_FOREACH_THREAD(dx,x,D1D)
+         QD[qx][dy] = 0.0;
+         for (int qy = 0; qy < Q1D; ++qy)
          {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               // might need absolute values on next line
-               Y(dx,dy,e) += B[qx][dx] * B[qx][dx] * QD[qx][dy];
-            }
+            QD[qx][dy] += B[qy][dy] * B[qy][dy] * D(qx, qy, e);
          }
       }
-   });
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dy,y,D1D)
+   {
+      MFEM_FOREACH_THREAD(dx,x,D1D)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            // might need absolute values on next line
+            Y(dx,dy,e) += B[qx][dx] * B[qx][dx] * QD[qx][dy];
+         }
+      }
+   }
 }
 
 // PA Mass Diagonal 3D kernel
@@ -158,8 +153,8 @@ inline void PAMassAssembleDiagonal3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, D1D);
-   auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -217,89 +212,81 @@ inline void PAMassAssembleDiagonal3D(const int NE,
 
 // Shared memory PA Mass Diagonal 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAMassAssembleDiagonal3D(const int NE,
-                                         const Array<double> &b_,
-                                         const Vector &d_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+MFEM_HOST_DEVICE inline
+void SmemPAMassAssembleDiagonal3D_element(const int e,
+                                          const ConstDeviceMatrix &b,
+                                          const DeviceTensor<4,const double> &D,
+                                          const DeviceTensor<4> &Y,
+                                          const int d1d = 0,
+                                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   auto b = Reshape(b_.Read(), Q1D, D1D);
-   auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+
+   const int tidz = MFEM_THREAD_ID(z);
+
+   MFEM_SHARED double B[MQ1][MD1];
+   MFEM_SHARED double QQD[MQ1][MQ1][MD1];
+   MFEM_SHARED double QDD[MQ1][MD1][MD1];
+
+   if (tidz == 0)
    {
-      const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      MFEM_SHARED double B[MQ1][MD1];
-      MFEM_SHARED double QQD[MQ1][MQ1][MD1];
-      MFEM_SHARED double QDD[MQ1][MD1][MD1];
-      if (tidz == 0)
+      MFEM_FOREACH_THREAD(d,y,D1D)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD(q,x,Q1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
-            {
-               B[q][d] = b(q,d);
-            }
+            B[q][d] = b(q,d);
          }
       }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(dz,z,D1D)
-            {
-               QQD[qx][qy][dz] = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  QQD[qx][qy][dz] += B[qz][dz] * B[qz][dz] * D(qx, qy, qz, e);
-               }
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
+      MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            MFEM_FOREACH_THREAD(dy,y,D1D)
+            QQD[qx][qy][dz] = 0.0;
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               QDD[qx][dy][dz] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  QDD[qx][dy][dz] += B[qy][dy] * B[qy][dy] * QQD[qx][qy][dz];
-               }
+               QQD[qx][qy][dz] += B[qz][dz] * B[qz][dz] * D(qx, qy, qz, e);
             }
          }
       }
-      MFEM_SYNC_THREAD;
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(qx,x,Q1D)
+   {
       MFEM_FOREACH_THREAD(dz,z,D1D)
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(dx,x,D1D)
+            QDD[qx][dy][dz] = 0.0;
+            for (int qy = 0; qy < Q1D; ++qy)
             {
-               double t = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
-               }
-               Y(dx, dy, dz, e) += t;
+               QDD[qx][dy][dz] += B[qy][dy] * B[qy][dy] * QQD[qx][qy][dz];
             }
          }
       }
-   });
+   }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD(dz,z,D1D)
+   {
+      MFEM_FOREACH_THREAD(dy,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(dx,x,D1D)
+         {
+            double t = 0.0;
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               t += B[qx][dx] * B[qx][dx] * QDD[qx][dy][dz];
+            }
+            Y(dx, dy, dz, e) += t;
+         }
+      }
+   }
 }
 
 void PAMassApply(const int dim,
@@ -334,6 +321,48 @@ void OccaPAMassApply3D(const int D1D,
                        Vector &Y);
 #endif // MFEM_USE_OCCA
 
+// PA Mass Diagonal 1D kernel
+MFEM_HOST_DEVICE inline
+void PAMassApply1D_Element(const int e,
+                           const int NE,
+                           const double *b_,
+                           const double *bt_,
+                           const double *d_,
+                           const double *x_,
+                           double *y_,
+                           const int D1D,
+                           const int Q1D)
+{
+   const auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   const auto D = ConstDeviceMatrix(d_, Q1D, NE);
+   const auto X = ConstDeviceMatrix(x_, D1D, NE);
+   auto Y = DeviceMatrix(y_, D1D, NE);
+
+   constexpr int max_Q1D = MAX_Q1D;
+   double XQ[max_Q1D];
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      XQ[qx] = 0.0;
+   }
+   for (int dx = 0; dx < D1D; ++dx)
+   {
+      const double s = X(dx,e);
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         XQ[qx] += B(qx,dx)*s;
+      }
+   }
+   for (int qx = 0; qx < Q1D; ++qx)
+   {
+      const double q = XQ[qx]*D(qx,e);
+      for (int dx = 0; dx < D1D; ++dx)
+      {
+         Y(dx,e) += Bt(dx,qx) * q;
+      }
+   }
+}
+
 template <bool ACCUMULATE = true>
 MFEM_HOST_DEVICE inline
 void PAMassApply2D_Element(const int e,
@@ -343,15 +372,13 @@ void PAMassApply2D_Element(const int e,
                            const double *d_,
                            const double *x_,
                            double *y_,
-                           const int d1d = 0,
-                           const int q1d = 0)
+                           const int D1D,
+                           const int Q1D)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
-   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
-   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
-   auto X = ConstDeviceCube(x_, D1D, D1D, NE);
+   const auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   const auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   const auto X = ConstDeviceCube(x_, D1D, D1D, NE);
    auto Y = DeviceCube(y_, D1D, D1D, NE);
 
    if (!ACCUMULATE)
@@ -432,7 +459,7 @@ void PAMassApply2D_Element(const int e,
    }
 }
 
-template<int T_D1D, int T_Q1D, int T_NBZ, bool ACCUMULATE = true>
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0, bool T_PEQ = true>
 MFEM_HOST_DEVICE inline
 void SmemPAMassApply2D_Element(const int e,
                                const int NE,
@@ -441,19 +468,23 @@ void SmemPAMassApply2D_Element(const int e,
                                const double *x_,
                                double *y_,
                                int d1d = 0,
-                               int q1d = 0)
+                               int q1d = 0,
+                               int nbz = 1,
+                               bool peq = true)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
+   const bool accumulate = (T_D1D && T_Q1D) ? T_PEQ : peq;
+
+   constexpr int NBZ = T_NBZ ? T_NBZ : nbz;
 
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
-   auto x = ConstDeviceCube(x_, D1D, D1D, NE);
+   const auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto D = ConstDeviceCube(d_, Q1D, Q1D, NE);
+   const auto x = ConstDeviceCube(x_, D1D, D1D, NE);
    auto Y = DeviceCube(y_, D1D, D1D, NE);
 
    const int tidz = MFEM_THREAD_ID(z);
@@ -467,7 +498,6 @@ void SmemPAMassApply2D_Element(const int e,
    double (*DQ)[MQ1] = (double (*)[MQ1]) (sm1 + tidz);
    double (*QQ)[MQ1] = (double (*)[MQ1]) (sm0 + tidz);
    double (*QD)[MD1] = (double (*)[MD1]) (sm1 + tidz);
-
 
    MFEM_FOREACH_THREAD(dy,y,D1D)
    {
@@ -546,7 +576,7 @@ void SmemPAMassApply2D_Element(const int e,
          {
             dd += (QD[qy][dx] * Bt[dy][qy]);
          }
-         if (ACCUMULATE)
+         if (accumulate)
          {
             Y(dx, dy, e) += dd;
          }
@@ -567,15 +597,13 @@ void PAMassApply3D_Element(const int e,
                            const double *d_,
                            const double *x_,
                            double *y_,
-                           const int d1d,
-                           const int q1d)
+                           const int D1D,
+                           const int Q1D)
 {
-   const int D1D = d1d;
-   const int Q1D = q1d;
-   auto B = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
-   auto D = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
-   auto X = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   const auto B = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto Bt = ConstDeviceMatrix(bt_, D1D, Q1D);
+   const auto D = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   const auto X = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
    auto Y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
 
    if (!ACCUMULATE)
@@ -709,7 +737,7 @@ void PAMassApply3D_Element(const int e,
    }
 }
 
-template<int T_D1D, int T_Q1D, bool ACCUMULATE = true>
+template<int T_D1D = 0, int T_Q1D = 0, bool T_PEQ = true>
 MFEM_HOST_DEVICE inline
 void SmemPAMassApply3D_Element(const int e,
                                const int NE,
@@ -718,17 +746,20 @@ void SmemPAMassApply3D_Element(const int e,
                                const double *x_,
                                double *y_,
                                const int d1d = 0,
-                               const int q1d = 0)
+                               const int q1d = 0,
+                               bool peq = true)
 {
-   constexpr int D1D = T_D1D ? T_D1D : d1d;
-   constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const bool accumulate = (T_D1D && T_Q1D) ? T_PEQ : peq;
+
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-   auto b = ConstDeviceMatrix(b_, Q1D, D1D);
-   auto d = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
-   auto x = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
+   const auto b = ConstDeviceMatrix(b_, Q1D, D1D);
+   const auto d = DeviceTensor<4,const double>(d_, Q1D, Q1D, Q1D, NE);
+   const auto x = DeviceTensor<4,const double>(x_, D1D, D1D, D1D, NE);
    auto y = DeviceTensor<4,double>(y_, D1D, D1D, D1D, NE);
 
    MFEM_SHARED double sDQ[MQ1*MD1];
@@ -923,7 +954,7 @@ void SmemPAMassApply3D_Element(const int e,
          MFEM_UNROLL(MD1)
          for (int dz = 0; dz < D1D; ++dz)
          {
-            if (ACCUMULATE)
+            if (accumulate)
             {
                y(dx,dy,dz,e) += u[dz];
             }
@@ -935,116 +966,6 @@ void SmemPAMassApply3D_Element(const int e,
       }
    }
    MFEM_SYNC_THREAD;
-}
-
-// PA Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void PAMassApply2D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
-                          const Vector &d_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
-{
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
-
-   const auto B = b_.Read();
-   const auto Bt = bt_.Read();
-   const auto D = d_.Read();
-   const auto X = x_.Read();
-   auto Y = y_.ReadWrite();
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      internal::PAMassApply2D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
-   });
-}
-
-// Shared memory PA Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-inline void SmemPAMassApply2D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
-{
-   MFEM_CONTRACT_VAR(bt_);
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
-   const auto b = b_.Read();
-   const auto D = d_.Read();
-   const auto x = x_.Read();
-   auto Y = y_.ReadWrite();
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
-   {
-      internal::SmemPAMassApply2D_Element<T_D1D,T_Q1D,T_NBZ>(e, NE, b, D, x, Y, d1d,
-                                                             q1d);
-   });
-}
-
-// PA Mass Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void PAMassApply3D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
-                          const Vector &d_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
-                          const int q1d = 0)
-{
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
-
-   const auto B = b_.Read();
-   const auto Bt = bt_.Read();
-   const auto D = d_.Read();
-   const auto X = x_.Read();
-   auto Y = y_.ReadWrite();
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-   {
-      internal::PAMassApply3D_Element(e, NE, B, Bt, D, X, Y, d1d, q1d);
-   });
-}
-
-// Shared memory PA Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAMassApply3D(const int NE,
-                              const Array<double> &b_,
-                              const Array<double> &bt_,
-                              const Vector &d_,
-                              const Vector &x_,
-                              Vector &y_,
-                              const int d1d = 0,
-                              const int q1d = 0)
-{
-   MFEM_CONTRACT_VAR(bt_);
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= M1D, "");
-   MFEM_VERIFY(Q1D <= M1Q, "");
-   auto b = b_.Read();
-   auto d = d_.Read();
-   auto x = x_.Read();
-   auto y = y_.ReadWrite();
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
-   {
-      internal::SmemPAMassApply3D_Element<T_D1D,T_Q1D>(e, NE, b, d, x, y, d1d, q1d);
-   });
 }
 
 } // namespace internal
