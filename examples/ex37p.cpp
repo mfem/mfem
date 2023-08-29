@@ -14,7 +14,7 @@
 //              density-filtered [3] topology optimization problem. The
 //              objective is to minimize the compliance
 //
-//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]² and ρ ∈ L²(Ω)
+//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]² and ρ ∈ L¹(Ω)
 //
 //                  subject to
 //
