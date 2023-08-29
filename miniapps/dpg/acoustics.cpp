@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
    socketstream p_out_i;
 
    double err0 = 0.;
-   int dof0;
+   int dof0 = 0; // init to suppress gcc warning
 
    std::cout << "\n  Ref |"
              << "    Dofs    |"
