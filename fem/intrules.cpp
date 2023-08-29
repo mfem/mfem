@@ -16,6 +16,7 @@
 // Formulas at http://nines.cs.kuleuven.be/research/ecf/ecf.html
 
 #include "fem.hpp"
+#include "../mesh/nurbs.hpp"
 #include <cmath>
 
 #ifdef MFEM_USE_MPFR
@@ -173,6 +174,51 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    }
 }
 
+IntegrationRule*
+IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
+{
+   const int np = this->GetNPoints();
+   const int ne = kv.GetNE();
+
+   IntegrationRule *kvir = new IntegrationRule(ne * np);
+
+   double x0 = kv[0];
+   double x1 = x0;
+
+   int id = 0;
+   for (int e=0; e<ne; ++e)
+   {
+      x0 = x1;
+
+      if (e == ne-1)
+      {
+         x1 = kv[kv.Size() - 1];
+      }
+      else
+      {
+         // Find the next unique knot
+         while (id < kv.Size() - 1)
+         {
+            id++;
+            if (kv[id] != x0)
+            {
+               x1 = kv[id];
+               break;
+            }
+         }
+      }
+
+      const double s = x1 - x0;
+
+      for (int j=0; j<this->GetNPoints(); ++j)
+      {
+         const double x = x0 + (s * (*this)[j].x);
+         (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
+      }
+   }
+
+   return kvir;
+}
 
 #ifdef MFEM_USE_MPFR
 
@@ -1723,6 +1769,237 @@ IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
                              *SegmentIntRules[RealOrder],
                              *SegmentIntRules[RealOrder]);
    return CubeIntRules[Order];
+}
+
+IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
+                                                const int patch, const int *ijk,
+                                                Array<const KnotVector*> const& kv,
+                                                bool & deleteRule) const
+{
+   deleteRule = false;
+
+   // First check whether a rule has been assigned to element index elem.
+   auto search = elementToRule.find(elem);
+   if (search != elementToRule.end())
+   {
+      return *elementRule[search->second];
+   }
+
+   MFEM_VERIFY(patchRules1D.NumRows(),
+               "Undefined rule in NURBSMeshRules::GetElementRule");
+
+   // Use a tensor product of rules on the patch.
+   MFEM_VERIFY(kv.Size() == dim, "");
+
+   int np = 1;
+   std::vector<std::vector<double>> el(dim);
+
+   std::vector<int> npd;
+   npd.assign(3, 0);
+
+   for (int d=0; d<dim; ++d)
+   {
+      const int order = kv[d]->GetOrder();
+
+      const double kv0 = (*kv[d])[order + ijk[d]];
+      const double kv1 = (*kv[d])[order + ijk[d] + 1];
+
+      const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
+
+      for (int i=0; i<patchRules1D(patch,d)->Size(); ++i)
+      {
+         const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
+         if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
+         {
+            const double x = (ip.x - kv0) / (kv1 - kv0);
+            el[d].push_back(x);
+            el[d].push_back(ip.weight);
+         }
+      }
+
+      npd[d] = el[d].size() / 2;
+      np *= npd[d];
+   }
+
+   IntegrationRule *irp = new IntegrationRule(np);
+   deleteRule = true;
+
+   // Set (*irp)[i + j*npd[0] + k*npd[0]*npd[1]] =
+   //     (el[0][2*i], el[1][2*j], el[2][2*k])
+
+   MFEM_VERIFY(npd[0] > 0 && npd[1] > 0, "Assuming 2D or 3D");
+
+   for (int i = 0; i < npd[0]; ++i)
+   {
+      for (int j = 0; j < npd[1]; ++j)
+      {
+         for (int k = 0; k < std::max(npd[2], 1); ++k)
+         {
+            const int id = i + j*npd[0] + k*npd[0]*npd[1];
+            (*irp)[id].x = el[0][2*i];
+            (*irp)[id].y = el[1][2*j];
+
+            (*irp)[id].weight = el[0][(2*i)+1];
+            (*irp)[id].weight *= el[1][(2*j)+1];
+
+            if (npd[2] > 0)
+            {
+               (*irp)[id].z = el[2][2*k];
+               (*irp)[id].weight *= el[2][(2*k)+1];
+            }
+         }
+      }
+   }
+
+   return *irp;
+}
+
+void NURBSMeshRules::GetIntegrationPointFrom1D(const int patch, int i, int j,
+                                               int k, IntegrationPoint & ip)
+{
+   MFEM_VERIFY(patchRules1D.NumRows() > 0,
+               "Assuming patchRules1D is set.");
+
+   ip.weight = (*patchRules1D(patch,0))[i].weight;
+   ip.x = (*patchRules1D(patch,0))[i].x;
+
+   if (dim > 1)
+   {
+      ip.weight *= (*patchRules1D(patch,1))[j].weight;
+      ip.y = (*patchRules1D(patch,1))[j].x;  // 1D rule only has x
+   }
+
+   if (dim > 2)
+   {
+      ip.weight *= (*patchRules1D(patch,2))[k].weight;
+      ip.z = (*patchRules1D(patch,2))[k].x;  // 1D rule only has x
+   }
+}
+
+void NURBSMeshRules::Finalize(Mesh const& mesh)
+{
+   if ((int) pointToElem.size() == npatches) { return; }  // Already set
+
+   MFEM_VERIFY(elementToRule.empty() && patchRules1D.NumRows() > 0
+               && npatches > 0, "Assuming patchRules1D is set.");
+   MFEM_VERIFY(mesh.NURBSext, "");
+   MFEM_VERIFY(mesh.Dimension() == dim, "");
+
+   pointToElem.resize(npatches);
+   patchRules1D_KnotSpan.resize(npatches);
+
+   // First, find all the elements in each patch.
+   std::vector<std::vector<int>> patchElements(npatches);
+
+   for (int e=0; e<mesh.GetNE(); ++e)
+   {
+      patchElements[mesh.NURBSext->GetElementPatch(e)].push_back(e);
+   }
+
+   Array<int> ijk(3);
+   Array<int> maxijk(3);
+   Array<int> np(3);  // Number of points in each dimension
+   ijk = 0;
+
+   Array<const KnotVector*> pkv;
+
+   for (int p=0; p<npatches; ++p)
+   {
+      patchRules1D_KnotSpan[p].resize(dim);
+
+      // For each patch, get the range of ijk.
+      mesh.NURBSext->GetPatchKnotVectors(p, pkv);
+      MFEM_VERIFY((int) pkv.Size() == dim, "");
+
+      maxijk = 1;
+      np = 1;
+      for (int d=0; d<dim; ++d)
+      {
+         maxijk[d] = pkv[d]->GetNKS();
+         np[d] = patchRules1D(p,d)->Size();
+      }
+
+      // For each patch, set a map from ijk to element index.
+      Array3D<int> ijk2elem(maxijk[0], maxijk[1], maxijk[2]);
+      ijk2elem = -1;
+
+      for (auto elem : patchElements[p])
+      {
+         mesh.NURBSext->GetElementIJK(elem, ijk);
+         MFEM_VERIFY(ijk2elem(ijk[0], ijk[1], ijk[2]) == -1, "");
+         ijk2elem(ijk[0], ijk[1], ijk[2]) = elem;
+      }
+
+      // For each point, find its ijk and from that its element index.
+      // It is assumed here that the NURBSFiniteElement kv the same as the
+      // patch kv.
+
+      for (int d=0; d<dim; ++d)
+      {
+         patchRules1D_KnotSpan[p][d].SetSize(patchRules1D(p,d)->Size());
+
+         for (int r=0; r<patchRules1D(p,d)->Size(); ++r)
+         {
+            const IntegrationPoint& ip = (*patchRules1D(p,d))[r];
+
+            const int order = pkv[d]->GetOrder();
+
+            // Find ijk_d such that ip.x is in the corresponding knot-span.
+            int ijk_d = 0;
+            bool found = false;
+            while (!found)
+            {
+               const double kv0 = (*pkv[d])[order + ijk_d];
+               const double kv1 = (*pkv[d])[order + ijk_d + 1];
+
+               const bool rightEnd = (order + ijk_d + 1) == (pkv[d]->Size() - 1);
+
+               if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
+               {
+                  found = true;
+               }
+               else
+               {
+                  ijk_d++;
+               }
+            }
+
+            patchRules1D_KnotSpan[p][d][r] = ijk_d;
+         }
+      }
+
+      pointToElem[p].SetSize(np[0], np[1], np[2]);
+      for (int i=0; i<np[0]; ++i)
+         for (int j=0; j<np[1]; ++j)
+            for (int k=0; k<np[2]; ++k)
+            {
+               const int elem = ijk2elem(patchRules1D_KnotSpan[p][0][i],
+                                         patchRules1D_KnotSpan[p][1][j],
+                                         patchRules1D_KnotSpan[p][2][k]);
+               MFEM_VERIFY(elem >= 0, "");
+               pointToElem[p](i,j,k) = elem;
+            }
+   } // Loop (p) over patches
+}
+
+void NURBSMeshRules::SetPatchRules1D(const int patch,
+                                     std::vector<const IntegrationRule*> & ir1D)
+{
+   MFEM_VERIFY((int) ir1D.size() == dim, "Wrong dimension");
+
+   for (int i=0; i<dim; ++i)
+   {
+      patchRules1D(patch,i) = ir1D[i];
+   }
+}
+
+NURBSMeshRules::~NURBSMeshRules()
+{
+   for (int i=0; i<patchRules1D.NumRows(); ++i)
+      for (int j=0; j<patchRules1D.NumCols(); ++j)
+      {
+         delete patchRules1D(i, j);
+      }
 }
 
 }
