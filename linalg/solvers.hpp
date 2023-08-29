@@ -432,7 +432,7 @@ public:
 
    ~OperatorChebyshevSmoother() {}
 
-   void Mult(const Vector&x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
 
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
@@ -1244,6 +1244,126 @@ public:
    using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
+
+#ifdef MFEM_USE_LAPACK
+/** Non-negative least squares (NNLS) solver class, for computing a vector
+    with non-negative entries approximately satisfying an under-determined
+    linear system. */
+class NNLSSolver : public Solver
+{
+public:
+   NNLSSolver();
+
+   ~NNLSSolver() { }
+
+   /// The operator must be a DenseMatrix.
+   void SetOperator(const Operator &op) override;
+
+   void Mult(const Vector &w, Vector &sol) const override;
+
+   /**
+     * Set verbosity. If set to 0: print nothing; if 1: just print results;
+     * if 2: print short update on every iteration; if 3: print longer update
+     * each iteration.
+     */
+   void SetVerbosity(int v) { verbosity_ = v; }
+
+   void SetTolerance(double tol) { const_tol_ = tol; }
+
+   /// Set the minimum number of nonzeros required for the solution.
+   void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
+
+   /// Set the maximum number of nonzeros required for the solution, as an early
+   /// termination condition.
+   void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
+
+   /// Set threshold on relative change in residual over nStallCheck_ iterations.
+   void SetResidualChangeTolerance(double tol)
+   { res_change_termination_tol_ = tol; }
+
+   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+
+   /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
+   void SetRHSDelta(double d) { rhs_delta_ = d; }
+
+   /// Set the maximum number of outer iterations in Solve().
+   void SetOuterIterations(int n) { n_outer_ = n; }
+
+   /// Set the maximum number of inner iterations in Solve().
+   void SetInnerIterations(int n) { n_inner_ = n; }
+
+   /// Set the number of iterations to use for stall checking.
+   void SetStallCheck(int n) { nStallCheck_ = n; }
+
+   /// Set a flag to determine whether to call NormalizeConstraints().
+   void SetNormalize(bool n) { normalize_ = n; }
+
+   /**
+     * Enumerated types of QRresidual mode. Options are 'off': the residual is
+     * calculated normally, 'on': the residual is calculated using the QR
+     * method, 'hybrid': the residual is calculated normally until we experience
+     * rounding errors, then the QR method is used. The default is 'hybrid',
+     * which should see the best performance. Recommend using 'hybrid' or 'off'
+     * only, since 'on' is computationally expensive.
+     */
+   enum class QRresidualMode {off, on, hybrid};
+
+   /**
+    * Set the residual calculation mode for the NNLS solver. See QRresidualMode
+    * enum above for details.
+    */
+   void SetQRResidualMode(const QRresidualMode qr_residual_mode);
+
+   /**
+    * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
+    * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
+    * DenseMatrix input to SetOperator().
+    *
+    * The method by which we find the solution is the active-set method
+    * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
+    * errors in the case of very tight tolerances, we have the option to compute
+    * the residual using the QR factorization of A, by res = b - Q*Q^T*b. This
+    * residual calculation results in less rounding error, but is more
+    * computationally expensive. To select whether to use the QR residual method
+    * or not, see set_qrresidual_mode above.
+    */
+   void Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const;
+
+   /**
+     * Normalize the constraints such that the tolerances for each constraint
+     * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
+     * cases.
+     */
+   void NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const;
+
+private:
+   const DenseMatrix *mat;
+
+   double const_tol_;
+   int min_nnz_; // minimum number of nonzero entries
+   mutable int max_nnz_; // maximum number of nonzero entries
+   int verbosity_;
+
+   /**
+    * @brief Threshold on relative change in residual over nStallCheck_
+    * iterations, for stall sensing.
+    */
+   double res_change_termination_tol_;
+
+   double zero_tol_;
+   double rhs_delta_;
+   int n_outer_;
+   int n_inner_;
+   int nStallCheck_;
+
+   bool normalize_;
+
+   mutable bool NNLS_qrres_on_;
+   QRresidualMode qr_residual_mode_;
+
+   mutable Vector row_scaling_;
+};
+#endif // MFEM_USE_LAPACK
 
 }
 
