@@ -675,36 +675,59 @@ void ConformingFaceRestriction::Mult(const Vector& x, Vector& y) const
    });
 }
 
-void ConformingFaceRestriction::AddMultTranspose(
-   const Vector& x, Vector& y, const double a) const
+static void ConformingFaceRestriction_AddMultTranspose(
+   const int ndofs,
+   const int face_dofs,
+   const int nf,
+   const int vdim,
+   const bool by_vdim,
+   const Array<int> &gather_offsets,
+   const Array<int> &gather_indices,
+   const Vector &x,
+   Vector &y,
+   bool use_signs,
+   const double a)
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    if (nf==0) { return; }
    // Assumes all elements have the same number of dofs
-   const int nface_dofs = face_dofs;
-   const int vd = vdim;
-   const bool t = byvdim;
    auto d_offsets = gather_offsets.Read();
    auto d_indices = gather_indices.Read();
-   auto d_x = Reshape(x.Read(), nface_dofs, vd, nf);
-   auto d_y = Reshape(y.ReadWrite(), t?vd:ndofs, t?ndofs:vd);
+   auto d_x = Reshape(x.Read(), face_dofs, vdim, nf);
+   auto d_y = Reshape(y.ReadWrite(), by_vdim?vdim:ndofs, by_vdim?ndofs:vdim);
    mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
+      for (int c = 0; c < vdim; ++c)
       {
          double dof_value = 0;
          for (int j = offset; j < next_offset; ++j)
          {
             const int s_idx_j = d_indices[j];
-            const int sgn = (s_idx_j >= 0) ? 1 : -1;
+            const double sgn = (s_idx_j >= 0 || !use_signs) ? 1.0 : -1.0;
             const int idx_j = (s_idx_j >= 0) ? s_idx_j : -1 - s_idx_j;
-            dof_value += sgn*d_x(idx_j % nface_dofs, c, idx_j / nface_dofs);
+            dof_value += sgn*d_x(idx_j % face_dofs, c, idx_j / face_dofs);
          }
-         d_y(t?c:i,t?i:c) += dof_value;
+         d_y(by_vdim?c:i,by_vdim?i:c) += dof_value;
       }
    });
+}
+
+void ConformingFaceRestriction::AddMultTranspose(
+   const Vector& x, Vector& y, const double a) const
+{
+   ConformingFaceRestriction_AddMultTranspose(
+      ndofs, face_dofs, nf, vdim, byvdim, gather_offsets, gather_indices, x, y,
+      true, a);
+}
+
+void ConformingFaceRestriction::AddMultTransposeUnsigned(
+   const Vector& x, Vector& y, const double a) const
+{
+   ConformingFaceRestriction_AddMultTranspose(
+      ndofs, face_dofs, nf, vdim, byvdim, gather_offsets, gather_indices, x, y,
+      false, a);
 }
 
 void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
@@ -1050,6 +1073,7 @@ L2FaceRestriction::L2FaceRestriction(const FiniteElementSpace &fes,
 void L2FaceRestriction::SingleValuedConformingMult(const Vector& x,
                                                    Vector& y) const
 {
+   if (nf == 0) { return; }
    MFEM_ASSERT(
       m == L2FaceValues::SingleValued,
       "This method should be called when m == L2FaceValues::SingleValued.");
@@ -1771,6 +1795,7 @@ void NCL2FaceRestriction::DoubleValuedNonconformingMult(
 void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
    Vector& y) const
 {
+   if (nf == 0) { return; }
    // Assumes all elements have the same number of dofs
    const int nface_dofs = face_dofs;
    const int vd = vdim;
@@ -1817,7 +1842,6 @@ void NCL2FaceRestriction::DoubleValuedNonconformingInterpolation(
 
 void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
 {
-   if (nf==0) { return; }
    if ( type==FaceType::Interior && m==L2FaceValues::DoubleValued )
    {
       DoubleValuedNonconformingMult(x, y);
