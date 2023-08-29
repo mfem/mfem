@@ -51,6 +51,10 @@ private:
     */
    DenseMatrix Weights;
    /**
+    @brief Column-wise matrix of the transformation weights of the normal
+    */
+   DenseMatrix SurfaceWeights;
+   /**
     @brief Array of face integration points
     */
    Array<IntegrationPoint> FaceIP;
@@ -119,12 +123,20 @@ public:
    /**
     @brief Update the surface integration rule
 
-    Update the surface integration for a new element given by the
-    transformation.
+    Update the surface integration rule if the transformations have changed.
 
-    @param [in] Tr volumetric transformation for the new element
+    @param [in] Tr transformation for the new element
     */
    void Update(IsoparametricTransformation& Tr);
+
+   /**
+    @brief Update the surface integration rule
+
+    Update the transformation of the normal if the transformations have changed.
+
+    @param [in] Tr transformation for the new element
+    */
+   void UpdateSurfaceWeights(IsoparametricTransformation& Tr);
 
    /**
     @brief Update the interface
@@ -136,9 +148,27 @@ public:
    void UpdateInterface(Coefficient& levelset);
 
    /**
-    @brief Set the elemnt number the integration rule is for
+    @brief Set the element number the integration rule is for
     */
    void SetElement(int ElementNo);
+
+   /**
+    @brief Set the element number the integration rule is for
+
+    The weights will be multiplied by the transofrmation weights of the normal.
+    */
+   void SetElementWithSurfaceWeights(int ElementNo);
+
+   /**
+    @brief Get the weights for the transformation of the normal
+
+    Get the weights for the transformation of the normal on an element.
+
+    @param [in] ElementNo number of the element
+    @param [out] surfaceweights vector containing the weights for each IntPoint
+    */
+   void GetSurfaceWeights(int ElementNo, Vector& surfaceweights)
+   { SurfaceWeights.GetColumn(ElementNo, surfaceweights); }
 
    /**
     @brief Destructor of the surface integration rule

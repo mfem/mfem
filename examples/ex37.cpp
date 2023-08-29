@@ -52,7 +52,9 @@ using namespace std;
 using namespace mfem;
 
 /// @brief Integration rule the example should demonstrate
-enum class IntegrationType { Surface, Volumetric, Surface3D, Volumetric3D };
+enum class IntegrationType { Volumetric1D, Surface2D, Volumetric2D,
+                             Surface3D, Volumetric3D
+                           };
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
@@ -60,9 +62,11 @@ double lvlset(const Vector& X)
 {
    switch (itype)
    {
-      case IntegrationType::Surface:
+      case IntegrationType::Volumetric1D:
+         return .55 - X(0);
+      case IntegrationType::Surface2D:
          return 1. - (pow(X(0), 2.) + pow(X(1), 2.));
-      case IntegrationType::Volumetric:
+      case IntegrationType::Volumetric2D:
          return 1. - (pow(X(0) / 1.5, 2.) + pow(X(1) / .75, 2.));
       case IntegrationType::Surface3D:
          return 1. - (pow(X(0), 2.) + pow(X(1), 2.) + pow(X(2), 2.));
@@ -78,9 +82,11 @@ double integrand(const Vector& X)
 {
    switch (itype)
    {
-      case IntegrationType::Surface:
+      case IntegrationType::Volumetric1D:
+         return 1.;
+      case IntegrationType::Surface2D:
          return 3. * pow(X(0), 2.) - pow(X(1), 2.);
-      case IntegrationType::Volumetric:
+      case IntegrationType::Volumetric2D:
          return 1.;
       case IntegrationType::Surface3D:
          return 4. - 3. * pow(X(0), 2.) + 2. * pow(X(1), 2.) - pow(X(2), 2.);
@@ -96,9 +102,11 @@ double Surface()
 {
    switch (itype)
    {
-      case IntegrationType::Surface:
+      case IntegrationType::Volumetric1D:
+         return 1.;
+      case IntegrationType::Surface2D:
          return 2. * M_PI;
-      case IntegrationType::Volumetric:
+      case IntegrationType::Volumetric2D:
          return 7.26633616541076;
       case IntegrationType::Surface3D:
          return 40. / 3. * M_PI;
@@ -114,9 +122,11 @@ double Volume()
 {
    switch (itype)
    {
-      case IntegrationType::Surface:
+      case IntegrationType::Volumetric1D:
+         return .55;
+      case IntegrationType::Surface2D:
          return NAN;
-      case IntegrationType::Volumetric:
+      case IntegrationType::Volumetric2D:
          return 9. / 8. * M_PI;
       case IntegrationType::Surface3D:
          return NAN;
@@ -196,7 +206,7 @@ public:
       elvect = 0.;
 
       // Update the surface integration rule for the current element
-      SIntRule->SetElement(Tr.ElementNo);
+      SIntRule->SetElementWithSurfaceWeights(Tr.ElementNo);
 
       for (int ip = 0; ip < SIntRule->GetNPoints(); ip++)
       {
@@ -317,8 +327,8 @@ int main(int argc, char *argv[])
    // 1. Parse he command-line options.
    int ref_levels = 3;
    int order = 2;
-   const char *inttype = "surface";
-   itype = IntegrationType::Surface;
+   const char *inttype = "surface2d";
+   itype = IntegrationType::Surface2D;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Order of quadrature rule");
@@ -327,14 +337,20 @@ int main(int argc, char *argv[])
                   "IntegrationType to demonstrate");
    args.ParseCheck();
 
-   if (strcmp(inttype, "surface") == 0 || strcmp(inttype, "Surface") == 0)
+   if (strcmp(inttype, "volumetric1d") == 0
+       || strcmp(inttype, "Volumetric1D") == 0)
    {
-      itype = IntegrationType::Surface;
+      itype = IntegrationType::Volumetric1D;
    }
-   else if (strcmp(inttype, "volumetric") == 0
-            || strcmp(inttype, "Volumetric") == 0)
+   else if (strcmp(inttype, "surface2d") == 0
+            || strcmp(inttype, "Surface2D") == 0)
    {
-      itype = IntegrationType::Volumetric;
+      itype = IntegrationType::Surface2D;
+   }
+   else if (strcmp(inttype, "volumetric2d") == 0
+            || strcmp(inttype, "Volumetric2D") == 0)
+   {
+      itype = IntegrationType::Volumetric2D;
    }
    else if (strcmp(inttype, "surface3d") == 0
             || strcmp(inttype, "Surface3d") == 0)
@@ -349,7 +365,12 @@ int main(int argc, char *argv[])
 
    // 2. Construct and refine the mesh.
    Mesh *mesh;
-   if (itype == IntegrationType::Surface || itype == IntegrationType::Volumetric)
+   if (itype == IntegrationType::Volumetric1D)
+   {
+      mesh = new Mesh("../data/inline-segment.mesh");
+   }
+   if (itype == IntegrationType::Surface2D
+       || itype == IntegrationType::Volumetric2D)
    {
       mesh = new Mesh(2, 4, 1, 0, 2);
       mesh->AddVertex(-1.6,-1.6);
@@ -359,7 +380,8 @@ int main(int argc, char *argv[])
       mesh->AddQuad(0,1,2,3);
       mesh->FinalizeQuadMesh(1, 0, 1);
    }
-   else //if(itype == IntegrationType::Surface3D || itype == IntegrationType::Volumetric3D)
+   else if (itype == IntegrationType::Surface3D
+            || itype == IntegrationType::Volumetric3D)
    {
       mesh = new Mesh(3, 8, 1, 0, 3);
       mesh->AddVertex(-1.6,-1.6,-1.6);
@@ -392,7 +414,8 @@ int main(int argc, char *argv[])
    mesh->GetElementTransformation(0, &Tr);
    SIntegrationRule* sir = new SIntegrationRule(order, Tr, levelset);
    CutIntegrationRule* cir = NULL;
-   if (itype == IntegrationType::Volumetric
+   if (itype == IntegrationType::Volumetric1D
+       || itype == IntegrationType::Volumetric2D
        || itype == IntegrationType::Volumetric3D)
    {
       cir = new CutIntegrationRule(order, Tr, levelset);
@@ -405,7 +428,8 @@ int main(int argc, char *argv[])
    surface.AddDomainIntegrator(new SurfaceLFIntegrator(u, levelset, sir));
    surface.Assemble();
 
-   if (itype == IntegrationType::Volumetric
+   if (itype == IntegrationType::Volumetric1D
+       || itype == IntegrationType::Volumetric2D
        || itype == IntegrationType::Volumetric3D)
    {
       volume.AddDomainIntegrator(new SubdomainLFIntegrator(u, levelset, cir));
@@ -423,9 +447,16 @@ int main(int argc, char *argv[])
    }
    cout << "============================================" << endl;
    cout << "Mesh size dx:                       ";
-   cout << 3.2 / pow(2., (double)ref_levels) << endl;
-   if (itype == IntegrationType::Surface
-       || itype == IntegrationType::Volumetric)
+   if (itype != IntegrationType::Volumetric1D)
+   {
+      cout << 3.2 / pow(2., (double)ref_levels) << endl;
+   }
+   else
+   {
+      cout << .25 / pow(2., (double)ref_levels) << endl;
+   }
+   if (itype == IntegrationType::Surface2D
+       || itype == IntegrationType::Volumetric2D)
    {
       cout << "Number of div free basis functions: " << nbasis << endl;
       cout << "Number of quadrature points:        " << ir.GetNPoints() << endl;
@@ -438,7 +469,8 @@ int main(int argc, char *argv[])
    cout << abs(surface.Sum() - Surface()) << endl;
    cout << "Relative Error (Surface):           ";
    cout << abs(surface.Sum() - Surface()) / Surface() << endl;
-   if (itype == IntegrationType::Volumetric
+   if (itype == IntegrationType::Volumetric1D
+       || itype == IntegrationType::Volumetric2D
        || itype == IntegrationType::Volumetric3D)
    {
       cout << "--------------------------------------------" << endl;
