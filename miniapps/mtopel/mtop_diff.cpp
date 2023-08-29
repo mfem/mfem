@@ -451,6 +451,7 @@ int main(int argc, char *argv[])
    sink->SetDesignFES(pgdens.ParFESpace());
    sink->SetDensity(vdens);
    sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
+   sink->SetRotationAngles(angle_x, angle_y, angle_z);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
