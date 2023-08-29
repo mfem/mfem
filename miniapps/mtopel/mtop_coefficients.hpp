@@ -774,6 +774,13 @@ public:
         delete solver; solver=nullptr;
     }
 
+    void SetCorrelationLen(double lx_){
+        lx=lx_;
+        ly=lx_;
+        lz=lx_;
+        delete solver; solver=nullptr;
+    }
+
     void SetRotationAngles(double angle_x_, double angle_y_, double angle_z_){
         angle_x=angle_x_;
         angle_y=angle_y_;

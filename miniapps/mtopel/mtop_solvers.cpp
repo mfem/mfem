@@ -1258,6 +1258,221 @@ void ComplianceObjective::Grad(Vector& grad)
     nf->Mult(*dens,grad);
 }
 
+double InvMechObjIntegrator::GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                                       const Vector &elfun)
+{
+    if(disp==nullptr){return 0.0;}
+    if(adj==nullptr){return 0.0;}
+
+    const int dim=el.GetDim();
+    {
+        const int spaceDim=Tr.GetDimension();
+        if(dim!=spaceDim)
+        {
+            mfem::mfem_error("InvMechObjIntegrator::GetElementEnergy is not define on manifold meshes.");
+        }
+    }
+
+    DenseMatrix ugrads; ugrads.SetSize(dim);
+    DenseMatrix agrads; agrads.SetSize(dim);
+    DenseMatrix ustrains; ustrains.SetSize(dim);
+    DenseMatrix astrains; astrains.SetSize(dim);
+
+    DenseMatrix CC;
+    if(dim==3){CC.SetSize(6);}
+    else{CC.SetSize(3);}
+    Vector uengstrain;
+    Vector uengstress;
+    Vector aengstrain;
+    if(dim==3){
+        uengstrain.SetSize(6);
+        aengstrain.SetSize(6);
+    }
+    else{
+        uengstrain.SetSize(3);
+        aengstrain.SetSize(3);
+    }
+    uengstress.SetSize(uengstrain.Size());
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+disp->FESpace()->GetOrder(Tr.ElementNo);
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+    double w;
+    double energy=0.0;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        disp->GetVectorGradient(Tr,ugrads);
+        adj->GetVectorGradient(Tr,agrads);
+
+        double E=Ecoef->Eval(Tr,ip);
+        if(dim==2)
+        {
+            elast::EvalLinStrain2D(ugrads,ustrains);
+            elast::Convert2DVoigtStrain(ustrains,uengstrain);
+            elast::EvalLinStrain2D(agrads,astrains);
+            elast::Convert2DVoigtStrain(astrains,aengstrain);
+            elast::IsotropicStiffnessTensor2D(E,nu,CC);
+        }else{//dim==3
+            elast::EvalLinStrain3D(ugrads,ustrains);
+            elast::Convert3DVoigtStrain(ustrains,uengstrain);
+            elast::EvalLinStrain3D(agrads,astrains);
+            elast::Convert3DVoigtStrain(astrains,aengstrain);
+            elast::IsotropicStiffnessTensor3D(E,nu,CC);
+        }
+        CC.Mult(uengstrain,uengstress);
+
+        energy=energy+w*(aengstrain*uengstress);
+    }
+
+    return energy;
+}
+
+void  InvMechObjIntegrator::AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                           const Vector &elfun, Vector &elvect)
+{
+
+    const int dof=el.GetDof();
+    const int dim=el.GetDim();
+    {
+        const int spaceDim=Tr.GetDimension();
+        if(dim!=spaceDim)
+        {
+            mfem::mfem_error("ComplianceNLIntegrator::AssembleElementVector is not define on manifold meshes.");
+        }
+    }
+
+    elvect.SetSize(dof); elvect=0.0;
+    if(disp==nullptr){return;}
+    if(adj==nullptr){return;}
+
+    Vector shapef(dof);
+
+    DenseMatrix ugrads; ugrads.SetSize(dim);
+    DenseMatrix agrads; agrads.SetSize(dim);
+    DenseMatrix ustrains; ustrains.SetSize(dim);
+    DenseMatrix astrains; astrains.SetSize(dim);
+
+    DenseMatrix CC;
+    if(dim==3){CC.SetSize(6);}
+    else{CC.SetSize(3);}
+    Vector uengstrain;
+    Vector uengstress;
+    Vector aengstrain;
+    if(dim==3){
+        uengstrain.SetSize(6);
+        aengstrain.SetSize(6);
+    }
+    else{
+        uengstrain.SetSize(3);
+        aengstrain.SetSize(3);
+    }
+    uengstress.SetSize(uengstrain.Size());
+
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+2*(disp->FESpace()->GetOrder(Tr.ElementNo));
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+
+    double w;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        double E=Ecoef->Eval(Tr,ip);
+
+        disp->GetVectorGradient(Tr,ugrads);
+        adj->GetVectorGradient(Tr,agrads);
+
+        if(dim==2)
+        {
+            elast::EvalLinStrain2D(ugrads,ustrains);
+            elast::Convert2DVoigtStrain(ustrains,uengstrain);
+            elast::EvalLinStrain2D(agrads,astrains);
+            elast::Convert2DVoigtStrain(astrains,aengstrain);
+            elast::IsotropicStiffnessTensor2D(E,nu,CC);
+        }else{//dim==3
+            elast::EvalLinStrain3D(ugrads,ustrains);
+            elast::Convert3DVoigtStrain(ustrains,uengstrain);
+            elast::EvalLinStrain3D(agrads,astrains);
+            elast::Convert3DVoigtStrain(astrains,aengstrain);
+            elast::IsotropicStiffnessTensor3D(E,nu,CC);
+        }
+        CC.Mult(uengstrain,uengstress);
+
+        double lo=aengstrain*uengstress;
+        lo=lo*Ecoef->Grad(Tr,ip);
+        lo=-lo*w;
+        el.CalcShape(ip,shapef);
+        elvect.Add(lo,shapef);
+    }
+}
+
+void InvMechObjIntegrator::AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                                               const Vector &elfun, DenseMatrix &elmat)
+{
+    {
+        mfem::mfem_error("InvMechObjIntegrator::AssembleElementGrad is not defined!");
+    }
+}
+
+double InvMechObjective::Eval(mfem::ParGridFunction& sol, mfem::ParGridFunction& adj)
+{
+    if(Ecoef==nullptr){
+        MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Eval method!");
+    }
+
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv of dfes in ComplianceObjective should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new InvMechObjIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetE(Ecoef);
+    intgr->SetPoissonRatio(nu);
+    intgr->SetDisp(&sol);
+    intgr->SetAdj(&adj);
+    double rt=nf->GetEnergy(*dens);
+
+    return rt;
+}
+
+void InvMechObjective::Grad(mfem::ParGridFunction& sol, mfem::ParGridFunction& adj, Vector& grad)
+{
+    if(Ecoef==nullptr){
+        MFEM_ABORT("Ecoef in ComplianceObjective should be set before calling the Eval method!");
+    }
+
+    if(dfes==nullptr){
+        MFEM_ABORT("fsolv of dfes in ComplianceObjective should be set before calling the Eval method!");
+    }
+
+    if(nf==nullptr){
+        nf=new ParNonlinearForm(dfes);
+        intgr=new InvMechObjIntegrator();
+        nf->AddDomainIntegrator(intgr);
+    }
+
+    intgr->SetE(Ecoef);
+    intgr->SetPoissonRatio(nu);
+    intgr->SetDisp(&sol);
+    intgr->SetAdj(&adj);
+
+    nf->Mult(*dens,grad);
+}
+
+
 /*
 double StressObjNLIntegrator::GetElementEnergy(const FiniteElement &el,
                                                ElementTransformation &Tr,

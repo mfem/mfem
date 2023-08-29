@@ -936,6 +936,111 @@ private:
 };
 
 
+class InvMechObjIntegrator:public NonlinearFormIntegrator
+{
+public:
+    InvMechObjIntegrator()
+    {
+        //The class does not own any the following objects
+        disp=nullptr;
+        adj=nullptr;
+        nu=0.2;
+        Ecoef=nullptr;
+    }
+
+    void SetDisp(ParGridFunction* disp_)
+    {
+        disp=disp_;
+    }
+
+    void SetAdj(ParGridFunction* adj_)
+    {
+        adj=adj_;
+    }
+
+    void SetE(YoungModulus* E_)
+    {
+        Ecoef=E_;
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun);
+
+    virtual
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                               const Vector &elfun, Vector &elvect);
+
+    virtual
+    void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                             const Vector &elfun, DenseMatrix &elmat);
+
+private:
+    ParGridFunction* disp;
+    ParGridFunction* adj;
+
+    double nu;
+    YoungModulus* Ecoef;
+
+};
+
+
+class InvMechObjective
+{
+public:
+    InvMechObjective()
+    {
+        dfes=nullptr;
+        nf=nullptr;
+        dens=nullptr;
+        nu=0.2;
+    }
+
+    ~InvMechObjective(){ delete nf;};
+
+    void SetFilter(FilterSolver* fsolv_){
+        //dfes=fsolv_->GetDesignFES();
+        dfes=fsolv_->GetFilterFES();
+    }
+
+    void SetDesignFES(ParFiniteElementSpace* fes)
+    {
+        dfes=fes;
+    }
+
+    void SetE(YoungModulus* E_){
+        Ecoef=E_;
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    void SetDens(Vector& dens_)
+    {
+        dens=&dens_;
+    }
+
+    double Eval(mfem::ParGridFunction& sol, mfem::ParGridFunction& adj);
+
+    void Grad(mfem::ParGridFunction& sol, mfem::ParGridFunction& adj, Vector& grad);
+
+private:
+    ParFiniteElementSpace* dfes;//design space
+    ParNonlinearForm* nf;
+    InvMechObjIntegrator* intgr;
+    YoungModulus* Ecoef;
+    double nu;
+    Vector* dens;
+};
+
+
 /*
 
 class StressObjNLIntegrator:public NonlinearFormIntegrator

@@ -156,6 +156,11 @@ add_mfem_miniapp(mtop_diff
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
+add_mfem_miniapp(mtop_hdiff
+        MAIN mtop_hdiff.cpp
+        ${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
 add_mfem_miniapp(mtop_foundation
         MAIN mtop_foundation.cpp
         ${PARADIFF_COMMON_FILES}
@@ -180,6 +185,11 @@ add_mfem_miniapp(mtop_full_table_2D
 add_mfem_miniapp(mtop_half_table_3D
         MAIN mtop_half_table_3D.cpp
         ${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
+add_mfem_miniapp(mtop_mech
+	MAIN mtop_mech.cpp
+	${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 
 
