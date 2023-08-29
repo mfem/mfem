@@ -58,6 +58,11 @@ add_mfem_miniapp(mesh-optimizer
   LIBRARIES mfem mfem-common)
 add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
+add_mfem_miniapp(mesh-quality
+  MAIN mesh-quality.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
+
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
   LIBRARIES mfem)

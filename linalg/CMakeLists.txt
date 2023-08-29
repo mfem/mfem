@@ -124,6 +124,11 @@ if (MFEM_USE_MKL_CPARDISO)
   list(APPEND HDRS cpardiso.hpp)
 endif()
 
+if (MFEM_USE_MKL_PARDISO)
+  list(APPEND SRCS pardiso.cpp)
+  list(APPEND HDRS pardiso.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 
