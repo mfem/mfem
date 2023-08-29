@@ -134,9 +134,9 @@ double projit(GridFunction &psi, double target_volume, double tol=1e-12,
  *
  *     u ∈ V ⊂ (H¹)ᵈ (order p)
  *     ψ ∈ L² (order p - 1), ρ = sigmoid(ψ)
- *     ρ̃ ∈ H¹ (order p - 1)
+ *     ρ̃ ∈ H¹ (order p)
  *     w ∈ V  (order p)
- *     w̃ ∈ H¹ (order p - 1)
+ *     w̃ ∈ H¹ (order p)
  *
  * ---------------------------------------------------------------
  *                          ALGORITHM
@@ -154,29 +154,25 @@ double projit(GridFunction &psi, double target_volume, double tol=1e-12,
  *
  *     3. Solve primal problem ∂_w L = 0; i.e.,
  *
- *      (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) ε(u), ε(v)) = (f,v)   ∀ v ∈ V,
+ *      (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)   ∀ v ∈ V.
  *
- *     where λ(ρ̃) := λ r(ρ̃) and  μ(ρ̃) := μ r(ρ̃).
- *
- *     NB. The dual problem ∂_u L = 0 is the same as the primal problem due to symmetry.
+ *     NB. The dual problem ∂_u L = 0 is the negative of the primal problem due to symmetry.
  *
  *     4. Solve for filtered gradient ∂_ρ̃ L = 0; i.e.,
  *
- *      (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-r'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |ε(u)|²),v)   ∀ v ∈ H¹.
+ *      (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)   ∀ v ∈ H¹.
  *
- *     5. Construct gradient G ∈ L²; i.e.,
+ *     5. Project the gradient onto the discrete latent space; i.e., solve
  *
  *                         (G,v) = (w̃,v)   ∀ v ∈ L².
  *
- *     6. Mirror descent update until convergence; i.e.,
+ *     6. Bregman proximal gradient update; i.e.,
  *
- *                      ψ ← projit(ψ - αG),
+ *                            ψ ← ψ - αG + c,
  *
- *     where
+ *     where α > 0 is a step size parameter and c ∈ R is a constant ensuring
  *
- *          α > 0                                    (step size parameter)
- *
- *     and projit is a (compatible) projection operator enforcing ∫_Ω ρ(=sigmoid(ψ)) dx = θ vol(Ω).
+ *                     ∫_Ω sigmoid(ψ - αG + c) dx = θ vol(Ω).
  *
  *  end
  *
@@ -402,7 +398,7 @@ int main(int argc, char *argv[])
       rho_filter = *FilterSolver->GetFEMSolution();
 
       // Step 2 - State solve
-      // Solve (λ(ρ̃) ∇⋅u, ∇⋅v) + (2 μ(ρ̃) ε(u), ε(v)) = (f,v)
+      // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
       SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
       ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
       ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
@@ -411,7 +407,7 @@ int main(int argc, char *argv[])
       u = *ElasticitySolver->GetFEMSolution();
 
       // Step 3 - Adjoint filter solve
-      // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ(ρ̃) |∇⋅u|² + 2 μ(ρ̃) |ε(u)|²),v)
+      // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
       StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter,
                                             rho_min);
       FilterSolver->SetRHSCoefficient(&rhs_cf);
@@ -431,7 +427,7 @@ int main(int argc, char *argv[])
       const double material_volume = projit(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
-      double norm_reduced_gradient = zerogf.ComputeL2Error(succ_diff_rho)/alpha;
+      double norm_reduced_gradient = zerogf.ComputeL1Error(succ_diff_rho)/alpha;
       psi_old = psi;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
