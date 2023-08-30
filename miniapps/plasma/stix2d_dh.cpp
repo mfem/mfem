@@ -502,8 +502,7 @@ public:
    }
 };
 
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh,
+void AdaptInitialMesh(ParMesh &pmesh,
                       ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace & H1FESpace,
                       ParFiniteElementSpace & H1VFESpace,
@@ -573,12 +572,12 @@ void record_cmd_line(int argc, char *argv[]);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   MPI::Init(argc, argv);
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
    display_banner(mfem::out);
 
-   if (mpi.Root()) { record_cmd_line(argc, argv); }
+   if (Mpi::Root()) { record_cmd_line(argc, argv); }
 
    int logging = 1;
 
@@ -1002,7 +1001,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
@@ -1013,7 +1012,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       return 1;
    }
    Device device(device_config);
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       device.Print();
    }
@@ -1328,7 +1327,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       phase_shift = true;
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -1336,7 +1335,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
@@ -1416,7 +1415,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   if ( mpi.Root() && logging > 0 )
+   if ( Mpi::Root() && logging > 0 )
    {
       cout << "Building Extruded 2D Mesh ..." << endl;
    }
@@ -1449,7 +1448,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    }
    tic_toc.Stop();
 
-   if (mpi.Root() && logging > 0 )
+   if (Mpi::Root() && logging > 0 )
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
@@ -1463,12 +1462,12 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    // Define a parallel mesh by a partitioning of the serial mesh. Refine
    // this mesh further in parallel to increase the resolution. Once the
    // parallel mesh is defined, the serial mesh can be deleted.
-   if ( mpi.Root() && logging > 0 )
+   if ( Mpi::Root() && logging > 0 )
    { cout << "Building Parallel Mesh ..." << endl; }
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Starting initialization." << endl;
    }
@@ -1503,7 +1502,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       if (ieqdsk)
       {
          eqdsk = new G_EQDSK_Data(ieqdsk);
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             eqdsk->PrintInfo();
             if (logging > 0)
@@ -1517,7 +1516,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    /*
    if (eqdsk)
      {
-        if (mpi.Root())
+        if (Mpi::Root())
          {
             cout << "Using B field from " << eqdsk_file << endl;
          }
@@ -1566,12 +1565,12 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    BlockVector density(density_offsets);
    BlockVector temperature(temperature_offsets);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating plasma profile." << endl;
    }
    /*
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "   Setting default temperature profile type " << tpt_def
            << " with parameters \"";
@@ -1582,7 +1581,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    if (tpa_sol.Size() > 0)
    {
       /*
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          
          cout << "   Setting scrape-off layer temperature profile type " << tpt_sol
@@ -1596,7 +1595,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    if (tpa_cor.Size() > 0)
    {
       /*
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "   Setting core temperature profile type " << tpt_cor
               << " with parameters \"";
@@ -1607,7 +1606,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       TeCoef.SetParams(tpa_cor, tpt_cor, tpp_cor);
    }
    /*
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "   Setting default density profile type " << dpt_def
            << " with parameters \"";
@@ -1618,7 +1617,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    if (dpa_vac.Size() > 0)
    {
       /*
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "   Setting vacuum density profile type " << dpt_vac
               << " with parameters \"";
@@ -1631,7 +1630,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    if (dpa_sol.Size() > 0)
    {
       /*
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "   Setting scrape-off layer density profile type " << dpt_sol
               << " with parameters \"";
@@ -1644,7 +1643,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    if (dpa_cor.Size() > 0)
    {
       /*
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "   Setting core density profile type " << dpt_cor
               << " with parameters \"";
@@ -1760,7 +1759,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    {
       if (amr_coef == 1)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Adapting mesh to Stix 'P' coefficient." << endl;
          }
@@ -1776,7 +1775,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
          L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
-         AdaptInitialMesh(mpi, pmesh, err_fes,
+         AdaptInitialMesh(pmesh, err_fes,
                           H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace,
                           BCoef, kReCoef, rhoCoef, TeCoef, TiCoef, 
                           nueCoef, nuiCoef,
@@ -1792,7 +1791,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       }
       else
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Adapting mesh to Stix 'S' coefficient." << endl;
          }
@@ -1808,7 +1807,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
          L2_ParFESpace err_fes(&pmesh, 0, pmesh.Dimension());
 
-         AdaptInitialMesh(mpi, pmesh, err_fes,
+         AdaptInitialMesh(pmesh, err_fes,
                           H1FESpace, H1VFESpace, HCurlFESpace, HDivFESpace, L2FESpace,
                           BCoef, kReCoef, rhoCoef, TeCoef, TiCoef, 
                           nueCoef, nuiCoef,
@@ -1824,7 +1823,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       }
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating coefficients for Maxwell equations." << endl;
    }
@@ -1907,7 +1906,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
          if (nrmRe + nrmIm > 1e-13)
          {
             cout << "element " << i << " on processor "
-                 << mpi.WorldRank() << endl;
+                 << Mpi::WorldRank() << endl;
             IRe.Print(cout);
             IIm.Print(cout);
             cout << endl;
@@ -1931,7 +1930,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
    if (visualization && wave_type[0] != ' ')
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Visualize input fields." << endl;
       }
@@ -2011,7 +2010,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       }
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Setup boundary conditions." << endl;
    }
@@ -2199,7 +2198,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
                    sbcs[0]->attr_marker);
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Creating Cold Plasma Dielectric solver." << endl;
    }
@@ -2269,7 +2268,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
       CPD.WriteVisItFields(0);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -2279,7 +2278,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -2297,13 +2296,13 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       {
          // Compute error
          double glb_error_H = CPD.GetHFieldError(HReCoef, HImCoef);
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Global L2 Error in H field " << glb_error_H << endl;
          }
 
          double glb_error_E = CPD.GetEFieldError(EReCoef, EImCoef);
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Global L2 Error in E field " << glb_error_E << endl;
          }
@@ -2325,7 +2324,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
          CPD.DisplayToGLVis();
       }
       */
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -2333,7 +2332,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -2346,7 +2345,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (Mpi::Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -2371,7 +2370,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
       // maximum element error.
       const double frac = 0.3;
       double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
       }
@@ -2387,9 +2386,9 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
              nue_gf, nui_gf);
       CPD.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1 && false)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
@@ -2419,8 +2418,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
    return 0;
 }
 
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+void AdaptInitialMesh(ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace & H1FESpace,
                       ParFiniteElementSpace & H1VFESpace,
                       ParFiniteElementSpace & HCurlFESpace,
@@ -2473,7 +2471,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
    for (int it = 0; it < max_its; it++)
    {
       HYPRE_Int global_dofs = L2FESpace.GlobalTrueVSize();
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR iteration " << it << endl;
          cout << "Number of L2 unknowns: " << global_dofs << endl;
@@ -2483,7 +2481,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       double l2_nrm = gf.ComputeL2Error(zeroCoef, zeroCoef);
       double l2_err = gf.ComputeL2Error(ReCoef, ImCoef);
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          if (l2_nrm > 0.0)
          {
@@ -2512,7 +2510,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       if (global_dofs > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached the maximum number of dofs. Stop." << endl;
          }
@@ -2526,7 +2524,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Stopping criterion satisfied. Stop." << endl;
          }
@@ -2572,7 +2570,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       }
 
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << endl;
    }
