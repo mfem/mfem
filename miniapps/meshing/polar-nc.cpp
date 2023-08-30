@@ -115,7 +115,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          blocks.Append(Pair<int, int>(mesh->GetNE(), n));
 
          // first create hanging vertices
-         int hang;
+         int hang = 0; // init to suppress gcc warning
          for (int i = 0; i < m; i++)
          {
             double alpha = phi * (2*i+1) / n;
