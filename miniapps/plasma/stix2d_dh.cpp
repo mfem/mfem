@@ -2960,6 +2960,7 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
 {
    // 1 antenna with real amplitude
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_VERIFY(curve_params_.Size() > 2, "data missing from curve_params_");
 
    j.SetSize(x.Size());
    j = 0.0;
@@ -3015,7 +3016,7 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   if (curve_params_.Size() < 4)
+   if (curve_params_.Size() < 7)
    {
       return;
    }
@@ -3070,6 +3071,15 @@ void curve_current_source_v1_r(const Vector &x, Vector &j)
 {
    // 1 or 2 antenna with real amplitude(s)
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_VERIFY(curve_params_.Size() > 0, "data missing from curve_params_");
+   if (curve_params_(0) == 1)
+   {
+      MFEM_VERIFY(curve_params_.Size() > 2, "data missing from curve_params_");
+   }
+   else
+   {
+      MFEM_VERIFY(curve_params_.Size() > 4, "data missing from curve_params_");
+   }
 
    j.SetSize(x.Size());
    j = 0.0;
@@ -3221,7 +3231,7 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
    double zmin1 = rmin * sin((M_PI * thetamin1) / 180.);
    double zmax1 = rmin * sin((M_PI * thetamax1) / 180.);
 
-   if (curve_params_.Size() < 6)
+   if (curve_params_.Size() < 7)
    {
       return;
    }
@@ -3330,6 +3340,15 @@ void curve_current_source_v1_i(const Vector &x, Vector &j)
 void curve_current_source_v2_r(const Vector &x, Vector &j)
 {
    MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+   MFEM_VERIFY(curve_params_.Size() > 0, "data missing from curve_params_");
+   if (curve_params_(0) == 1)
+   {
+      MFEM_VERIFY(curve_params_.Size() > 2, "data missing from curve_params_");
+   }
+   else
+   {
+      MFEM_VERIFY(curve_params_.Size() > 4, "data missing from curve_params_");
+   }
 
    j.SetSize(x.Size());
    j = 0.0;
@@ -3475,9 +3494,13 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    double b = 0.415;
    double c = 0.15;
 
-   if (curve_params_.Size() < 6)
+   if (curve_params_.Size() < 7)
    {
       return;
+   }
+   if (curve_params_(0) != 1)
+   {
+      MFEM_VERIFY(curve_params_.Size() > 8, "data missing from curve_params_");
    }
 
    else if (curve_params_(0) == 1 && curve_params_.Size() < 8)
