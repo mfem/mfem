@@ -3753,6 +3753,11 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //             "Current slab require a magnetic field in the z-direction.");
          break;
+      default:
+         h_r_ = 0.0;
+         h_i_ = 0.0;
+         k_r_ = 0.0;
+         k_i_ = 0.0;
    }
 }
 
@@ -4000,6 +4005,11 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //           "Current slab require a magnetic field in the z-direction.");
          break;
+      default:
+         e_r_ = 0.0;
+         e_i_ = 0.0;
+         k_r_ = 0.0;
+         k_i_ = 0.0;
    }
 }
 
