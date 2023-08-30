@@ -1014,15 +1014,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          SheathImpedance * z_r = dynamic_cast<SheathImpedance*>(sbc->real);
          SheathImpedance * z_i = dynamic_cast<SheathImpedance*>(sbc->imag);
 
-         if (z_r) 
-         { 
-            z_r->SetPotential(*phi_); 
+         if (z_r)
+         {
+            z_r->SetPotential(*phi_);
             z_r->SetHiter(&H_iter_);
          }
 
-         if (z_i) 
-         { 
-            z_i->SetPotential(*phi_); 
+         if (z_i)
+         {
+            z_i->SetPotential(*phi_);
             z_i->SetHiter(&H_iter_);
          }
       }
@@ -2300,7 +2300,7 @@ CPDSolverDH::WriteVisItFields(int it)
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
 
-         VectorGridFunctionCoefficient h_r(&h_->real());  
+         VectorGridFunctionCoefficient h_r(&h_->real());
          VectorGridFunctionCoefficient h_i(&h_->imag());
          InnerProductCoefficient hbrCoef(h_r, *BCoef_);
          InnerProductCoefficient hbiCoef(h_i, *BCoef_);
@@ -2325,7 +2325,7 @@ CPDSolverDH::WriteVisItFields(int it)
          InnerProductCoefficient ReEyStix(yStix, e_r);
          InnerProductCoefficient ImExStix(xStix, e_i);
          InnerProductCoefficient ImEyStix(yStix, e_i);
-         
+
          SumCoefficient eplus_r(ReExStix,ImEyStix,1.0,-1.0);
          SumCoefficient eplus_i(ImExStix,ReEyStix);
          SumCoefficient emin_r(ReExStix,ImEyStix);
@@ -2333,7 +2333,7 @@ CPDSolverDH::WriteVisItFields(int it)
 
          e_plus_->ProjectCoefficient(eplus_r,eplus_i);
          e_min_->ProjectCoefficient(emin_r,emin_i);
-         
+
          /*
               MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
               MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);

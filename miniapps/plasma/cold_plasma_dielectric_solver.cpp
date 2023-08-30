@@ -756,7 +756,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
- 
+
       for (int i=0; i<sbcs_->Size(); i++)
       {
          ComplexCoefficientByAttr * sbc = (*sbcs_)[i];
@@ -1301,7 +1301,7 @@ CPDSolver::Solve()
          phi_->real() -= avgPhireal;
          phi_->imag() -= avgPhiimag;
       }
-      
+
       if ( grad_ && phi_ != NULL)
       {
          grad_->Mult(phi_->real(), e_->real());
@@ -1312,12 +1312,12 @@ CPDSolver::Solve()
 
       // This is just the real part of k...
       if ( kOpr_ && phi_ != NULL)
-      {         
+      {
          kOpr_->AddMult(phi_->imag(), e_->real(), 1.0);
          kOpr_->AddMult(phi_->real(), e_->imag(), -1.0);
       }
       if ( kOpi_ && phi_ != NULL)
-      {         
+      {
          kOpi_->AddMult(phi_->imag(), e_->imag(), 1.0);
          kOpi_->AddMult(phi_->real(), e_->real(), 1.0);
       }
@@ -1534,35 +1534,35 @@ CPDSolver::Solve()
          break;
 #endif
 #ifdef MFEM_USE_MUMPS
-      case DMUMPS:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
+         case DMUMPS:
          {
-            cout << "MUMPS (Real) Solver Requested" << endl;
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "MUMPS (Real) Solver Requested" << endl;
+            }
+            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+            HypreParMatrix * A1C = A1Z->GetSystemMatrix();
+            MUMPSSolver dmumps(MPI_COMM_WORLD);
+            dmumps.SetPrintLevel(1);
+            dmumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+            dmumps.SetOperator(*A1C);
+            dmumps.Mult(RHS, E);
+            delete A1C;
          }
-         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-         HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-         MUMPSSolver dmumps(MPI_COMM_WORLD);
-         dmumps.SetPrintLevel(1);
-         dmumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-         dmumps.SetOperator(*A1C);
-         dmumps.Mult(RHS, E);
-         delete A1C;
-      }
-      break;
-      case ZMUMPS:
-      {
-         if ( myid_ == 0 && logging_ > 0 )
+         break;
+         case ZMUMPS:
          {
-            cout << "MUMPS (Complex) Solver Requested" << endl;
+            if ( myid_ == 0 && logging_ > 0 )
+            {
+               cout << "MUMPS (Complex) Solver Requested" << endl;
+            }
+            ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
+            ComplexMUMPSSolver zmumps;
+            zmumps.SetPrintLevel(1);
+            zmumps.SetOperator(*A1Z);
+            zmumps.Mult(RHS, E);
          }
-         ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
-         ComplexMUMPSSolver zmumps;
-         zmumps.SetPrintLevel(1);
-         zmumps.SetOperator(*A1Z);
-         zmumps.Mult(RHS, E);
-      }
-      break;
+         break;
 #endif
 #ifdef MFEM_USE_STRUMPACK
          case STRUMPACK:

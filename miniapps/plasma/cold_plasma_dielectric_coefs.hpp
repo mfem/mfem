@@ -59,7 +59,7 @@ inline double vthermal(double Te   /* Joules */,
 }
 
 inline std::complex<double> vthermal(std::complex<double> Te   /* Joules */,
-                       std::complex<double> mass   /* AMU */)
+                                     std::complex<double> mass   /* AMU */)
 {
    return sqrt( (2.0 * Te) / ( mass * amu_ ) );
 }
@@ -117,7 +117,7 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    int nuprof,
                                    double res_lim);
 
-std::complex<double> P_cold_plasma(double omega, 
+std::complex<double> P_cold_plasma(double omega,
                                    double kparallel, double nue,
                                    const Vector & number,
                                    const Vector & charge,
@@ -126,7 +126,7 @@ std::complex<double> P_cold_plasma(double omega,
                                    double iontemp,
                                    int nuprof);
 
-std::complex<double> S_cold_plasma(double omega, 
+std::complex<double> S_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
                                    const Vector & number,
@@ -137,7 +137,7 @@ std::complex<double> S_cold_plasma(double omega,
                                    int nuprof,
                                    double res_lim);
 
-std::complex<double> D_cold_plasma(double omega, 
+std::complex<double> D_cold_plasma(double omega,
                                    double kparallel, double Bmag,
                                    double nue, double nui,
                                    const Vector & number,
@@ -394,7 +394,7 @@ protected:
    double getBMagnitude(ElementTransformation &T,
                         const IntegrationPoint &ip);
    double getKvecMagnitude(ElementTransformation &T,
-                        const IntegrationPoint &ip);
+                           const IntegrationPoint &ip);
    void   fillDensityVals(ElementTransformation &T,
                           const IntegrationPoint &ip);
    void   fillTemperatureVals(ElementTransformation &T,
@@ -847,7 +847,7 @@ private:
 
 public:
    StixFrame(const ParGridFunction & B, bool xdir,
-                 CoordSystem coord_sys = CARTESIAN_3D);
+             CoordSystem coord_sys = CARTESIAN_3D);
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
