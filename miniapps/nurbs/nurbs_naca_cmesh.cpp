@@ -357,8 +357,16 @@ int main(int argc, char *argv[])
                   "Stretch of the knot vector of the tail.");
    args.AddOption(&str_wake, "-sw", "--str-wake",
                   "Stretch of the knot vector of the wake.");
-   args.AddOption(&str_bnd, "-srad", "--str-circ",
+   args.AddOption(&str_bnd, "-sbnd", "--str-circ",
                   "Stretch of the knot vector of the circle.");
+
+   bool visualization = true;
+   bool visit = true;
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization. This is a dummy option to enable testing.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
+                  "Enable or disable VisIt visualization.");
 
    // Parse and print commandline options
    args.Parse();
@@ -737,7 +745,8 @@ int main(int argc, char *argv[])
    delete kvr;
    delete kv_o1;
    delete kv_o2;
-   delete xyf[0], xyf[1];
+   delete xyf[0];
+   delete xyf[1];
 
    cout << endl << "Boundary identifiers:" << endl;
    cout << "   1   Bottom" << endl;
@@ -757,13 +766,15 @@ int main(int argc, char *argv[])
    mesh->PrintInfo();
 
    // Print mesh to file for visualisation
-   VisItDataCollection dc = VisItDataCollection("mesh", mesh);
-   dc.SetPrefixPath("solution");
-   dc.SetCycle(0);
-   dc.SetTime(0.0);
-   dc.Save();
+   if(visit)
+   {
+      VisItDataCollection dc = VisItDataCollection("mesh", mesh);
+      dc.SetPrefixPath("solution");
+      dc.SetCycle(0);
+      dc.SetTime(0.0);
+      dc.Save();
+   }
 
-   // Close
    delete mesh;
    return 0;
 }
