@@ -2731,7 +2731,6 @@ void GridFunction::ProjectBdrCoefficientNormal(
       SetSubVector(dofs, lvec);
    }
 #else
-   std::cout << "Entering ProjectBdrCoefNorm" << std::endl;
    // implementation for the case when the face dofs are scaled point
    // values of the normal component.
    const FiniteElement *fe;
@@ -2748,9 +2747,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
       fe = fes->GetBE(i);
       T = fes->GetBdrElementTransformation(i);
       const IntegrationRule &ir = fe->GetNodes();
-      std::cout << "Line 2719" << std::endl;
       lvec.SetSize(fe->GetDof());
-      std::cout << "Line 2721" << std::endl;
       for (int j = 0; j < ir.GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
@@ -2766,7 +2763,6 @@ void GridFunction::ProjectBdrCoefficientNormal(
       }
       SetSubVector(dofs, lvec);
    }
-   std::cout << "Leaving ProjectBdrNormal" << std::endl;
 #endif
 }
 
