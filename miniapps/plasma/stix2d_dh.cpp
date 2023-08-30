@@ -1656,12 +1656,12 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
    for (int i=0; i<=numbers.Size(); i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(TeCoef);
    }
    for (int i=0; i<charges.Size(); i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
       density_gf *= numbers[i]/numbers[0];
    }
@@ -2003,7 +2003,7 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
          stringstream oss;
          oss << "Density Species " << i;
-         density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+         density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
          VisualizeField(sock, vishost, visport,
                         density_gf, oss.str().c_str(),
                         Wx, Wy, Ww, Wh);
@@ -2248,11 +2248,11 @@ args.AddOption((int*)&dpt_def, "-dp", "--density-profile",
 
       visit_dc.RegisterField("Re_E_Exact", &auxFields[1]->real());
       visit_dc.RegisterField("Im_E_Exact", &auxFields[1]->imag());
-       
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0));
+
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(0).GetMemory());
       visit_dc.RegisterField("Electron_Temp", &temperature_gf);
 
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(0).GetMemory());
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
       //nue_gf *= 1/omega;
@@ -2630,7 +2630,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    density.Update(density_offsets);
    for (int i=0; i<density_offsets.Size()-1; i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
@@ -2642,7 +2642,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    temperature.Update(temperature_offsets);
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(TeCoef);
    }
 }

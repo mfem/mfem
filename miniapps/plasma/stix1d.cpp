@@ -766,13 +766,13 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<=numbers.Size(); i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(tempCoef);
    }
 
    for (int i=0; i<numbers.Size(); i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
@@ -1117,7 +1117,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    density.Update(density_offsets);
    for (int i=0; i<density_offsets.Size()-1; i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
@@ -1129,7 +1129,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    temperature.Update(temperature_offsets);
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(TCoef);
    }
 }
