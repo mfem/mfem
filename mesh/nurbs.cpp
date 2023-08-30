@@ -1523,7 +1523,6 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      knotVectorsCompr(orig.knotVectorsCompr.Size()),
-
      weights(orig.weights),
      d_to_d(orig.d_to_d),
      master(orig.master),
@@ -1549,7 +1548,6 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    {
       knotVectors[i] = new KnotVector(*orig.knotVectors[i]);
    }
-
    CreateComprehensiveKV();
 
    // Copy the patches:
@@ -1723,7 +1721,6 @@ NURBSExtension::NURBSExtension(std::istream &input)
 
    // periodic
    ConnectBoundaries();
-   CreateExtendedKV();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -1736,7 +1733,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    NumOfKnotVectors = parent->GetNKV();
    knotVectors.SetSize(NumOfKnotVectors);
    knotVectorsCompr.SetSize(parent->GetNP()*parent->Dimension());
-
    const Array<int> &pOrders = parent->GetOrders();
    for (int i = 0; i < NumOfKnotVectors; i++)
    {
@@ -1750,7 +1746,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
          knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }
-
    CreateComprehensiveKV();
 
    // copy some data from parent
@@ -1809,7 +1804,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
          knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
       }
    }
-
    CreateComprehensiveKV();
 
    // copy some data from parent
@@ -1861,7 +1855,6 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
    {
       knotVectors[i] = new KnotVector(*parent->GetKnotVector(i));
    }
-
    CreateComprehensiveKV();
 
    GenerateOffsets();
@@ -2603,6 +2596,7 @@ void NURBSExtension::UpdateUniqueKV()
          }
       }
    }
+
    MFEM_VERIFY(ConsistentKVSets(), "Mismatch in KnotVectors");
 }
 
@@ -2656,15 +2650,6 @@ bool NURBSExtension::ConsistentKVSets()
          }
 
          // Check if Knotvectors have the same knots
-         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
-         KnotVec(edges[e[i]])->Difference(*(knotVectorsExt[Dimension()*p+i]), diff);
-         if (kvdir[i] == -1) {knotVectorsExt[Dimension()*p+i]->Flip();}
-
-         if (diff.Size() > 0)
-         {
-            mfem::out << "\nKnots of knotVectorsExt " << i << " of patch " << p;
-            mfem::out << " do not agree with knots of knotVectors " <<
-                      KnotInd(edges[e[i]]) << "\n";
          if (flip) {knotVectorsCompr[icomp]->Flip();}
 
          KnotVec(iun)->Difference(*(knotVectorsCompr[icomp]), diff);
