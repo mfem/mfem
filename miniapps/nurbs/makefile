@@ -143,6 +143,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
+	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_* naca-cmesh.mesh
 	@rm -rf Example1*
-	@rm -rf CurveInt
+	@rm -rf CurveInt Naca_cmesh
