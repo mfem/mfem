@@ -72,6 +72,9 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
+          - os: ubuntu-latest
+            target: dbg
+            config-opts: 'CPPFLAGS+=-Og'
           - os: windows-latest
             codecov: NO
           - os: windows-latest
@@ -230,7 +233,7 @@ jobs:
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
         config-options: ${{ matrix.config-opts }}
-        library-only: ${{ matrix.target == 'dbg' }}
+        library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
 
     # Run checks (and only checks) on debug targets
     - name: checks
@@ -240,7 +243,7 @@ jobs:
 
     # Note: 'tests' include the unit tests
     - name: tests
-      if: matrix.build-system == 'make' && matrix.target == 'opt'
+      if: matrix.build-system == 'make' && (matrix.target == 'opt' || matrix.os == 'ubuntu-latest')
       run: |
         cd ${{ env.MFEM_TOP_DIR }} && make test
 
