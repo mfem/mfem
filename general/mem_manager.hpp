@@ -17,9 +17,6 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
-#ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_GPU
-#endif
 
 namespace mfem
 {
@@ -994,17 +991,7 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    h_ptr = base.h_ptr + offset;
    if (!(base.flags & Registered))
    {
-      if (
-#if !defined(HYPRE_USING_GPU)
-         // If the following condition is true then MemoryManager::Exists()
-         // should also be true:
-         IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#else
-         // When HYPRE_USING_GPU is defined we always register the 'base' if
-         // the MemoryManager::Exists():
-         MemoryManager::Exists()
-#endif
-      )
+      if (IsDeviceMemory(MemoryManager::GetDeviceMemoryType()))
       {
          // Register 'base':
          MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
