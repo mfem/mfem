@@ -33,27 +33,27 @@ typedef HYPRE_Int HYPRE_BigInt;
 namespace mfem
 {
 #if MFEM_HYPRE_VERSION >= 22600
-   inline HYPRE_MemoryLocation GetHypreMemoryLocation()
-   {
-      HYPRE_MemoryLocation loc;
-      HYPRE_GetMemoryLocation(&loc);
-      return loc;
-   }
-   inline HYPRE_ExecutionPolicy GetHypreExecutionPolicy()
-   {
-      HYPRE_ExecutionPolicy pol;
-      HYPRE_GetExecutionPolicy(&pol);
-      return pol;
-   }
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc;
+}
+inline HYPRE_ExecutionPolicy GetHypreExecutionPolicy()
+{
+   HYPRE_ExecutionPolicy pol;
+   HYPRE_GetExecutionPolicy(&pol);
+   return pol;
+}
 #else
-   inline HYPRE_MemoryLocation GetHypreMemoryLocation()
-   {
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
 #ifdef HYPRE_USING_GPU
-      return HYPRE_MEMORY_DEVICE;
+   return HYPRE_MEMORY_DEVICE;
 #else
-      return HYPRE_MEMORY_HOST;
+   return HYPRE_MEMORY_HOST;
 #endif // HYPRE_USING_GPU
-   }
+}
 #endif
 };
 

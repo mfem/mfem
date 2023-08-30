@@ -121,22 +121,27 @@ bool CanShallowCopy(const Memory<T> &src, MemoryClass mc)
 inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
-#if !defined(HYPRE_USING_GPU)
-   SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
-#else
-   size = internal::to_int(hypre_VectorSize(x_loc));
-   MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
-                    ? MemoryType::HOST : GetHypreMemoryType());
-   if (hypre_VectorData(x_loc) != NULL)
+#if defined(HYPRE_USING_GPU)
+   if (HypreUsingGPU())
    {
-      data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+      size = internal::to_int(hypre_VectorSize(x_loc));
+      MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
+                       ? MemoryType::HOST : GetHypreMemoryType());
+      if (hypre_VectorData(x_loc) != NULL)
+      {
+         data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+      }
+      else
+      {
+         data.Reset();
+      }
    }
    else
-   {
-      data.Reset();
-   }
 #endif
+   {
+      SetDataAndSize(hypre_VectorData(x_loc),
+                     internal::to_int(hypre_VectorSize(x_loc)));
+   }
 }
 
 HypreParVector::HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size,
@@ -551,7 +556,8 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
+                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -575,7 +581,8 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
+                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif
@@ -602,7 +609,8 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
+                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
 #endif
@@ -1369,8 +1377,11 @@ hypre_ParCSRMatrix* HypreParMatrix::StealData()
    MFEM_ASSERT(ParCSROwner, "");
    hypre_ParCSRMatrix *R = A;
 #ifdef HYPRE_USING_GPU
-   if (diagOwner == -1) { HostReadWrite(); }
-   else { HypreReadWrite(); }
+   if (HypreUsingGPU())
+   {
+      if (diagOwner == -1) { HostReadWrite(); }
+      else { HypreReadWrite(); }
+   }
 #endif
    ParCSROwner = false;
    Destroy();
@@ -1718,7 +1729,10 @@ void HypreParMatrix::EnsureMultTranspose() const
 #if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
     (MFEM_HYPRE_VERSION > 22500)
 #ifdef HYPRE_USING_GPU
-   hypre_ParCSRMatrixLocalTranspose(A);
+   if (HypreUsingGPU())
+   {
+      hypre_ParCSRMatrixLocalTranspose(A);
+   }
 #endif
 #endif
 }
@@ -1728,15 +1742,18 @@ void HypreParMatrix::ResetTranspose() const
 #if (MFEM_HYPRE_VERSION == 22500 && HYPRE_DEVELOP_NUMBER >= 1) || \
     (MFEM_HYPRE_VERSION > 22500)
 #ifdef HYPRE_USING_GPU
-   if (A->diagT)
+   if (HypreUsingGPU())
    {
-      hypre_CSRMatrixDestroy(A->diagT);
-      A->diagT = NULL;
-   }
-   if (A->offdT)
-   {
-      hypre_CSRMatrixDestroy(A->offdT);
-      A->offdT = NULL;
+      if (A->diagT)
+      {
+         hypre_CSRMatrixDestroy(A->diagT);
+         A->diagT = NULL;
+      }
+      if (A->offdT)
+      {
+         hypre_CSRMatrixDestroy(A->offdT);
+         A->offdT = NULL;
+      }
    }
 #endif
 #endif
@@ -2425,8 +2442,10 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       }
 
       // Which of the local rows are to be eliminated?
-      MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; );
-      MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; );
+      //MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; ); // TODO TMS
+      mfem::forall_switch(HypreUsingGPU(), diag_nrows, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[i] = 0; });
+      //MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; ); // TODO TMS
+      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[ess_dofs_d[i]] = 1; });
 
       // Use a matvec communication pattern to find (in eliminate_col) which of
       // the local offd columns are to be eliminated
@@ -2436,27 +2455,38 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       int_buf_data = mfem_hypre_CTAlloc(HYPRE_Int, int_buf_sz);
 
       HYPRE_Int *send_map_elmts;
-#if defined(HYPRE_USING_GPU) // TODO TMS
-      hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
-      send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
-#else
-      send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+#if defined(HYPRE_USING_GPU)
+      if (HypreUsingGPU())
+      {
+         hypre_ParCSRCommPkgCopySendMapElmtsToDevice(comm_pkg);
+         send_map_elmts = hypre_ParCSRCommPkgDeviceSendMapElmts(comm_pkg);
+      }
+      else
 #endif
-      MFEM_HYPRE_FORALL(i, int_buf_sz,
+      {
+         send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
+      }
+      //MFEM_HYPRE_FORALL(i, int_buf_sz,
+      mfem::forall_switch(HypreUsingGPU(), int_buf_sz, [=] MFEM_HOST_DEVICE (int i)
       {
          int k = send_map_elmts[i];
          int_buf_data[i] = eliminate_row[k];
       });
 
-#if defined(HYPRE_USING_GPU) // TODO TMS
-      // Try to use device-aware MPI for the communication if available
-      comm_handle = hypre_ParCSRCommHandleCreate_v2(
-                       11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
-                       HYPRE_MEMORY_DEVICE, eliminate_col);
-#else
-      comm_handle = hypre_ParCSRCommHandleCreate(
-                       11, comm_pkg, int_buf_data, eliminate_col );
+#if defined(HYPRE_USING_GPU)
+      if (HypreUsingGPU())
+      {
+         // Try to use device-aware MPI for the communication if available
+         comm_handle = hypre_ParCSRCommHandleCreate_v2(
+                          11, comm_pkg, HYPRE_MEMORY_DEVICE, int_buf_data,
+                          HYPRE_MEMORY_DEVICE, eliminate_col);
+      }
+      else
 #endif
+      {
+         comm_handle = hypre_ParCSRCommHandleCreate(
+                          11, comm_pkg, int_buf_data, eliminate_col );
+      }
    }
 
    // Eliminate rows and columns in the diagonal block
@@ -2465,7 +2495,8 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto J = diag->j;
       auto data = diag->data;
 
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      //MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -2503,7 +2534,8 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    {
       const auto I = offd->i;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      //MFEM_HYPRE_FORALL(i, n_ess_dofs,
+      mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
          for (int j=I[idof]; j<I[idof+1]; ++j)
@@ -2524,7 +2556,8 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      MFEM_HYPRE_FORALL(i, nrows_offd,
+      //MFEM_HYPRE_FORALL(i, nrows_offd,
+      mfem::forall_switch(HypreUsingGPU(), nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int j=I[i]; j<I[i+1]; ++j)
          {
@@ -2700,7 +2733,7 @@ void HypreParMatrix::Destroy()
    if (A == NULL) { return; }
 
 #ifdef HYPRE_USING_GPU
-   if (ParCSROwner && (diagOwner < 0 || offdOwner < 0))
+   if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
       // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
@@ -2864,10 +2897,15 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
 {
    hypre_ParCSRMatrix * ab;
 #ifdef HYPRE_USING_GPU
-   ab = hypre_ParCSRMatMat(*A, *B);
-#else
-   ab = hypre_ParMatmul(*A,*B);
+   if (HypreUsingGPU())
+   {
+      ab = hypre_ParCSRMatMat(*A, *B);
+   }
+   else
 #endif
+   {
+      ab = hypre_ParMatmul(*A,*B);
+   }
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    if (!hypre_ParCSRMatrixCommPkg(ab)) { hypre_MatvecCommPkgCreate(ab); }
@@ -2891,9 +2929,9 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    //        in ex28p.
    // Quick fix: add a diagonal matrix with 0 diagonal.
    // Maybe use hypre_CSRMatrixCheckDiagFirst to see if we need the fix.
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE)
+   if (HypreUsingGPU())
    {
-      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P); // TODO TMS cudaMalloc
+      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       const bool keepTranspose = false;
       rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
       hypre_ParCSRMatrixDestroy(Q);
@@ -2935,36 +2973,39 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
    hypre_ParCSRMatrix * rap;
 
 #ifdef HYPRE_USING_GPU
+   if (HypreUsingGPU())
    {
       hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
       rap = hypre_ParCSRTMatMat(*Rt,Q);
       hypre_ParCSRMatrixDestroy(Q);
    }
-#else
+   else
+#endif
+   {
 #if MFEM_HYPRE_VERSION <= 22200
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-   HYPRE_Int Rt_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
+      HYPRE_Int P_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+      HYPRE_Int Rt_owns_its_col_starts =
+         hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*Rt));
 #endif
 
-   hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
+      hypre_BoomerAMGBuildCoarseOperator(*Rt,*A,*P,&rap);
 
 #if MFEM_HYPRE_VERSION <= 22200
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from Rt and P (even if they do not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-   if (P_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
-   }
-   if (Rt_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
-   }
+      /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+         from Rt and P (even if they do not own them)! */
+      hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+      hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+      if (P_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+      }
+      if (Rt_owns_its_col_starts)
+      {
+         hypre_ParCSRMatrixSetColStartsOwner(*Rt, 1);
+      }
 #endif
-#endif
+   }
 
    hypre_ParCSRMatrixSetNumNonzeros(rap);
    // hypre_MatvecCommPkgCreate(rap);
@@ -3394,7 +3435,7 @@ int ParCSRRelax_FIR(hypre_ParCSRMatrix *A, // matrix to relax with
 
 HypreSmoother::HypreSmoother() : Solver()
 {
-   type = default_type;
+   type = DefaultType();
    relax_times = 1;
    relax_weight = 1.0;
    omega = 1.0;
@@ -3419,7 +3460,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
                              double omega_, int poly_order_,
                              double poly_fraction_, int eig_est_cg_iter_)
 {
-   type = type_;
+   type = (type_ == -1) ? DefaultType() : type_;
    relax_times = relax_times_;
    relax_weight = relax_weight_;
    omega = omega_;
@@ -3534,17 +3575,22 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (l1_norms && pos_l1_norms)
    {
 #if defined(HYPRE_USING_GPU)
-      double *d_l1_norms = l1_norms;  // avoid *this capture
-      MFEM_GPU_FORALL(i, height,
+      if (HypreUsingGPU())
       {
-         d_l1_norms[i] = std::abs(d_l1_norms[i]);
-      });
-#else
-      for (int i = 0; i < height; i++)
-      {
-         l1_norms[i] = std::abs(l1_norms[i]);
+         double *d_l1_norms = l1_norms;  // avoid *this capture
+         MFEM_GPU_FORALL(i, height,
+         {
+            d_l1_norms[i] = std::abs(d_l1_norms[i]);
+         });
       }
+      else
 #endif
+      {
+         for (int i = 0; i < height; i++)
+         {
+            l1_norms[i] = std::abs(l1_norms[i]);
+         }
+      }
    }
 
    if (type == 16)
@@ -4820,41 +4866,49 @@ HypreBoomerAMG::HypreBoomerAMG(const HypreParMatrix &A) : HypreSolver(&A)
 
 void HypreBoomerAMG::SetDefaultOptions()
 {
-#if !defined(HYPRE_USING_GPU)
-   // AMG coarsening options:
-   int coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-   int agg_levels   = 1;    // number of aggressive coarsening levels
-   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
-
    // AMG interpolation options:
-   int interp_type  = 6;    // 6 = extended+i, 0 = classical
-   int Pmax         = 4;    // max number of elements per row in P
+   int coarsen_type, agg_levels, interp_type, Pmax, relax_type, relax_sweeps,
+       print_level, max_levels;
+   double theta;
 
-   // AMG relaxation options:
-   int relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
-   int relax_sweeps = 1;    // relaxation sweeps on each level
+   if (!HypreUsingGPU())
+   {
+      // AMG coarsening options:
+      coarsen_type = 10;   // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      agg_levels   = 1;    // number of aggressive coarsening levels
+      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
-   // Additional options:
-   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-   int max_levels   = 25;   // max number of levels in AMG hierarchy
-#else
-   // AMG coarsening options:
-   int coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-   int agg_levels   = 0;    // number of aggressive coarsening levels
-   double theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
+      // AMG interpolation options:
+      interp_type  = 6;    // 6 = extended+i, 0 = classical
+      Pmax         = 4;    // max number of elements per row in P
 
-   // AMG interpolation options:
-   int interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
-   int Pmax         = 4;    // max number of elements per row in P
+      // AMG relaxation options:
+      relax_type   = 8;    // 8 = l1-GS, 6 = symm. GS, 3 = GS, 18 = l1-Jacobi
+      relax_sweeps = 1;    // relaxation sweeps on each level
 
-   // AMG relaxation options:
-   int relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
-   int relax_sweeps = 1;    // relaxation sweeps on each level
+      // Additional options:
+      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      max_levels   = 25;   // max number of levels in AMG hierarchy
+   }
+   else
+   {
+      // AMG coarsening options:
+      coarsen_type = 8;    // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
+      agg_levels   = 0;    // number of aggressive coarsening levels
+      theta     = 0.25; // strength threshold: 0.25, 0.5, 0.8
 
-   // Additional options:
-   int print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
-   int max_levels   = 25;   // max number of levels in AMG hierarchy
-#endif
+      // AMG interpolation options:
+      interp_type  = 6;    // 6 = extended+i, or 18 = extended+e
+      Pmax         = 4;    // max number of elements per row in P
+
+      // AMG relaxation options:
+      relax_type   = 18;   // 18 = l1-Jacobi, or 16 = Chebyshev
+      relax_sweeps = 1;    // relaxation sweeps on each level
+
+      // Additional options:
+      print_level  = 1;    // print AMG iterations? 1 = no, 2 = yes
+      max_levels   = 25;   // max number of levels in AMG hierarchy
+   }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
@@ -4993,7 +5047,7 @@ void HypreBoomerAMG::SetSystemsOptions(int dim, bool order_bynodes)
       // a host pointer.
       HYPRE_Int *mapping = nullptr;
 #if defined(hypre_IntArrayData) && defined(HYPRE_USING_GPU)
-      if (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE)
+      if (HypreUsingGPU())
       {
          mapping = mfem_hypre_CTAlloc(HYPRE_Int, height);
          hypre_TMemcpy(mapping, h_mapping, HYPRE_Int, height,
@@ -5096,7 +5150,10 @@ void HypreBoomerAMG::RecomputeRBMs()
 void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 {
 #ifdef HYPRE_USING_GPU
-   MFEM_ABORT("this method is not supported in hypre built with GPU support");
+   if (HypreUsingGPU())
+   {
+      MFEM_ABORT("this method is not supported in hypre built with GPU support");
+   }
 #endif
 
    // Save the finite element space to support multiple calls to SetOperator()
@@ -5300,23 +5357,14 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_GPU)
-   int amg_coarsen_type = 10;
-   int amg_agg_levels   = 1;
-   int amg_rlx_type     = 8;
-   int rlx_type         = 2;
+   const bool hypre_gpu = HypreUsingGPU();
+   int amg_coarsen_type = hypre_gpu ? 8 : 10;
+   int amg_agg_levels   = hypre_gpu ? 0 : 1;
+   int amg_rlx_type     = hypre_gpu ? 18 : 8;
+   int rlx_type         = hypre_gpu ? 1: 2;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
-#else
-   int amg_coarsen_type = 8;
-   int amg_agg_levels   = 0;
-   int amg_rlx_type     = 18;
-   int rlx_type         = 1;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#endif
 
    space_dim = sdim;
    ams_cycle_type = cycle_type;
@@ -5704,23 +5752,14 @@ void HypreADS::MakeSolver()
    int rlx_sweeps       = 1;
    double rlx_weight    = 1.0;
    double rlx_omega     = 1.0;
-#if !defined(HYPRE_USING_GPU)
-   int rlx_type         = 2;
-   int amg_coarsen_type = 10;
-   int amg_agg_levels   = 1;
-   int amg_rlx_type     = 8;
+   const bool hypre_gpu = HypreUsingGPU();
+   int rlx_type         = hypre_gpu ? 1 : 2;
+   int amg_coarsen_type = hypre_gpu ? 8 : 10;
+   int amg_agg_levels   = hypre_gpu ? 0 : 1;
+   int amg_rlx_type     = hypre_gpu ? 18 : 8;
    double theta         = 0.25;
    int amg_interp_type  = 6;
    int amg_Pmax         = 4;
-#else
-   int rlx_type         = 1;
-   int amg_coarsen_type = 8;
-   int amg_agg_levels   = 0;
-   int amg_rlx_type     = 18;
-   double theta         = 0.25;
-   int amg_interp_type  = 6;
-   int amg_Pmax         = 4;
-#endif
 
    HYPRE_ADSCreate(&ads);
 
