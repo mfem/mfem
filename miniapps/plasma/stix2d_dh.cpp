@@ -1706,6 +1706,14 @@ int main(int argc, char *argv[])
 
          phase_shift = true;
       }
+      else if (kVec.Size() < 6)
+      {
+         kr = kVec;
+         ki = 0.0;
+         kVec.SetSize(6);
+         for (int i=0; i<3; i++) { kVec[i] = kr[i]; }
+         for (int i=0; i<3; i++) { kVec[3+i] = ki[i]; }
+      }
 
       kReVec.SetDataAndSize(&kVec[0], 3);
       kImVec.SetDataAndSize(&kVec[3], 3);
@@ -3775,6 +3783,10 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
       case 'J':
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //             "Current slab require a magnetic field in the z-direction.");
+         h_r_ = 0.0;
+         h_i_ = 0.0;
+         k_r_ = 0.0;
+         k_i_ = 0.0;
          break;
       default:
          h_r_ = 0.0;
@@ -4027,6 +4039,10 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
       case 'J':
          // MFEM_VERIFY(fabs(B_[2]) == Bmag_,
          //           "Current slab require a magnetic field in the z-direction.");
+         e_r_ = 0.0;
+         e_i_ = 0.0;
+         k_r_ = 0.0;
+         k_i_ = 0.0;
          break;
       default:
          e_r_ = 0.0;
