@@ -10,6 +10,12 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
+//               nurbs_ex1 -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
+//               nurbs_ex1 -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+//               nurbs_ex1 -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+//               nurbs_ex1 -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -239,15 +245,14 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 50,000
-   //    elements.
+   //    'ref_levels' of uniform refinement and knot insertion of knots defined
+   //    in a refinement file. We choose 'ref_levels' to be the largest number
+   //    that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
       if (mesh->NURBSext && (strlen(ref_file) != 0))
       {
-         cout << "Refining nurbs from file" << endl;
-         RefineNURBSFromFile(ref_file, mesh);
+         mesh->RefineNURBSFromFile(ref_file);
       }
 
       if (ref_levels < 0)
