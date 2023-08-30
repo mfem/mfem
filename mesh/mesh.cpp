@@ -5344,14 +5344,12 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    FinalizeTopology();
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 
-
    /* Generate knot 2 edge mapping -- if edges are not specified in the mesh file
       See data/two-squares-nurbs-autoedge.mesh for an example */
    if (edge_to_knot.Size() == 0)
    {
       edge_vertex = new Table(NumOfEdges, 2);
       edge_to_knot.SetSize(NumOfEdges);
-
       constexpr int notset = -9999999;
       edge_to_knot = notset;
       Array<int> edges;
@@ -5423,7 +5421,6 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
             v1 = edge_to_knot[e1];
             df = flip*oedge[edge0[j]]*oedge[edge1[j]];
 
-
             // Case 1: knot vector is not set
             if ((v0 == notset) && (v1 == notset))
             {
@@ -5431,11 +5428,9 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
                edge_to_knot[e1] = knot;
                knot++;
             }
-
             // Case 2 & 3: knot vector on one of the two edges
             // is set earlier (in another patch). We just have
             // to copy it for the opposing edge.
-
             else if ((v0 != notset) && (v1 == notset))
             {
                edge_to_knot[e1] = (df >= 0 ? -v0-1 : v0);
@@ -5484,6 +5479,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
                }
             }
          }
+
          passes++;
       }
       while (corrections > 0 && passes < GetNE() + 1);
@@ -5499,7 +5495,6 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       /* Renumber knotvectors, such that:
          -- numbering is consecutive
          -- starts at zero */
-
       Array<int> cnt(NumOfEdges);
       cnt = 0;
       for (j = 0; j < NumOfEdges; j++)

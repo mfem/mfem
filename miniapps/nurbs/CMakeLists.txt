@@ -114,7 +114,6 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
-
 endif()
 
 if (MFEM_USE_MPI)
