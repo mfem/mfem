@@ -733,7 +733,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
-   const FiniteElementSpace *x_fes;
+   const FiniteElementSpace *x_fes = nullptr;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
