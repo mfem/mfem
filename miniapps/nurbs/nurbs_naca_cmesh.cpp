@@ -766,7 +766,7 @@ int main(int argc, char *argv[])
    mesh->PrintInfo();
 
    // Print mesh to file for visualisation
-   if(visit)
+   if (visit)
    {
       VisItDataCollection dc = VisItDataCollection("mesh", mesh);
       dc.SetPrefixPath("solution");
