@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
    //    We can use the same material maps for both problems.
 
    std::map<int, double> sigmaMap, InvTcondMap, TcapMap, InvTcapMap;
-   double sigmaAir;
+   double sigmaAir = 0.0; // init to suppress gcc warning
    double TcondAir;
    double TcapAir;
    if (strcmp(problem,"rod")==0 || strcmp(problem,"coil")==0)

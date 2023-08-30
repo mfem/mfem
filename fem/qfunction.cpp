@@ -115,7 +115,8 @@ std::ostream &operator<<(std::ostream &os, const QuadratureFunction &qf)
 }
 
 void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    os << R"(<VTKFile type="UnstructuredGrid" version="0.1")";
    if (compression_level != 0)
@@ -129,11 +130,9 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    const char *type_str = (format != VTKFormat::BINARY32) ? "Float64" : "Float32";
    std::vector<char> buf;
 
-   Mesh &mesh = *qspace->GetMesh();
-
-   int np = qspace->GetSize();
-   int ne = mesh.GetNE();
-   int sdim = mesh.SpaceDimension();
+   const int np = qspace->GetSize();
+   const int ne = qspace->GetNE();
+   const int sdim = qspace->GetMesh()->SpaceDimension();
 
    // For quadrature functions, each point is a vertex cell, so number of cells
    // is equal to number of points
@@ -148,7 +147,7 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    Vector pt(sdim);
    for (int i = 0; i < ne; i++)
    {
-      ElementTransformation &T = *mesh.GetElementTransformation(i);
+      ElementTransformation &T = *qspace->GetTransformation(i);
       const IntegrationRule &ir = GetIntRule(i);
       for (int j = 0; j < ir.Size(); j++)
       {
@@ -205,8 +204,9 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
    os << "</Cells>\n";
 
    os << "<PointData>\n";
-   os << "<DataArray type=\"" << type_str << "\" Name=\"u\" format=\""
-      << fmt_str << "\" NumberOfComponents=\"" << vdim << "\">\n";
+   os << "<DataArray type=\"" << type_str << "\" Name=\"" << field_name
+      << "\" format=\"" << fmt_str << "\" NumberOfComponents=\"" << vdim
+      << "\">\n";
    for (int i = 0; i < ne; i++)
    {
       DenseMatrix vals;
@@ -233,10 +233,11 @@ void QuadratureFunction::SaveVTU(std::ostream &os, VTKFormat format,
 }
 
 void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
-                                 int compression_level) const
+                                 int compression_level,
+                                 const std::string &field_name) const
 {
    std::ofstream f(filename + ".vtu");
-   SaveVTU(f, format, compression_level);
+   SaveVTU(f, format, compression_level, field_name);
 }
 
 }

@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//       --------------------------------------------------------------
-//       LOR Transfer Miniapp:  Map functions between HO and LOR spaces
-//       --------------------------------------------------------------
+//   -----------------------------------------------------------------------
+//   Parallel LOR Transfer Miniapp:  Map functions between HO and LOR spaces
+//   -----------------------------------------------------------------------
 //
 // This miniapp visualizes the maps between a high-order (HO) finite element
 // space, typically using high-order functions on a high-order mesh, and a
@@ -29,17 +29,17 @@
 // particular finite element spaces. For example they satisfy PR=I, plus mass
 // conservation in both directions for L2 fields.
 //
-// Compile with: make lor-transfer
+// Compile with: make plor-transfer
 //
-// Sample runs:  lor-transfer
-//               lor-transfer -h1
-//               lor-transfer -t
-//               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
-//               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
-//               lor-transfer -lref 4 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 1
-//               lor-transfer -lref 5 -o 4 -lo 3 -p 2
-//               lor-transfer -lref 5 -o 4 -lo 0 -p 3
+// Sample runs:  plor-transfer
+//               plor-transfer -h1
+//               plor-transfer -t
+//               plor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
+//               plor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
+//               plor-transfer -lref 4 -o 4 -lo 0 -p 1
+//               plor-transfer -lref 5 -o 4 -lo 0 -p 1
+//               plor-transfer -lref 5 -o 4 -lo 3 -p 2
+//               plor-transfer -lref 5 -o 4 -lo 0 -p 3
 
 #include "mfem.hpp"
 #include <fstream>
@@ -62,11 +62,15 @@ double RHO_exact(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
-double compute_mass(FiniteElementSpace *, double, VisItDataCollection &,
+double compute_mass(ParFiniteElementSpace *, double, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
 {
+   // Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+
    // Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    int order = 3;
@@ -98,12 +102,14 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    // Read the mesh from the given mesh file.
-   Mesh mesh(mesh_file, 1, 1);
+   Mesh serial_mesh(mesh_file, 1, 1);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
    int dim = mesh.Dimension();
 
    // Create the low-order refined mesh
    int basis_lor = BasisType::GaussLobatto; // BasisType::ClosedUniform;
-   Mesh mesh_lor = Mesh::MakeRefined(mesh, lref, basis_lor);
+   ParMesh mesh_lor = ParMesh::MakeRefined(mesh, lref, basis_lor);
 
    // Create spaces
    FiniteElementCollection *fec, *fec_lor;
@@ -113,7 +119,10 @@ int main(int argc, char *argv[])
       if (lorder == 0)
       {
          lorder = 1;
-         cerr << "Switching the H1 LOR space order from 0 to 1\n";
+         if (Mpi::Root())
+         {
+            cerr << "Switching the H1 LOR space order from 0 to 1\n";
+         }
       }
       fec = new H1_FECollection(order, dim);
       fec_lor = new H1_FECollection(lorder, dim);
@@ -125,27 +134,29 @@ int main(int argc, char *argv[])
       fec_lor = new L2_FECollection(lorder, dim);
    }
 
-   FiniteElementSpace fespace(&mesh, fec);
-   FiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
+   ParFiniteElementSpace fespace(&mesh, fec);
+   ParFiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
-   GridFunction rho(&fespace);
-   GridFunction rho_lor(&fespace_lor);
+   ParGridFunction rho(&fespace);
+   ParGridFunction rho_lor(&fespace_lor);
 
    // Data collections for vis/analysis
-   VisItDataCollection HO_dc("HO", &mesh);
+   VisItDataCollection HO_dc(MPI_COMM_WORLD, "HO", &mesh);
    HO_dc.RegisterField("density", &rho);
-   VisItDataCollection LOR_dc("LOR", &mesh_lor);
+   VisItDataCollection LOR_dc(MPI_COMM_WORLD, "LOR", &mesh_lor);
    LOR_dc.RegisterField("density", &rho_lor);
 
-   BilinearForm M_ho(&fespace);
+   ParBilinearForm M_ho(&fespace);
    M_ho.AddDomainIntegrator(new MassIntegrator);
    M_ho.Assemble();
    M_ho.Finalize();
+   HypreParMatrix* M_ho_tdof = M_ho.ParallelAssemble();
 
-   BilinearForm M_lor(&fespace_lor);
+   ParBilinearForm M_lor(&fespace_lor);
    M_lor.AddDomainIntegrator(new MassIntegrator);
    M_lor.Assemble();
    M_lor.Finalize();
+   HypreParMatrix* M_lor_tdof = M_lor.ParallelAssemble();
 
    // HO projections
    direction = "HO -> LOR @ HO";
@@ -174,36 +185,61 @@ int main(int argc, char *argv[])
    R.Mult(rho, rho_lor);
    compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy); Wx += offx; }
+   auto global_max = [](const Vector& v)
+   {
+      double max = v.Normlinf();
+      MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      return max;
+   };
 
    if (gt->SupportsBackwardsOperator())
    {
       const Operator &P = gt->BackwardOperator();
       // LOR->HO prolongation
       direction = "HO -> LOR @ HO";
-      GridFunction rho_prev = rho;
+      ParGridFunction rho_prev = rho;
       P.Mult(rho_lor, rho);
       compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
-      cout.precision(12);
-      cout << "|HO - P(R(HO))|_∞   = " << rho_prev.Normlinf() << endl;
+      Vector rho_prev_true(fespace.GetTrueVSize());
+      rho_prev.GetTrueDofs(rho_prev_true);
+      double l_inf = global_max(rho_prev_true);
+      if (Mpi::Root())
+      {
+         cout.precision(12);
+         cout << "|HO - P(R(HO))|_∞   = " << l_inf << endl;
+      }
    }
 
    // HO* to LOR* dual fields
-   LinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   ParLinearForm M_rho(&fespace), M_rho_lor(&fespace_lor);
+   auto global_sum = [](const Vector& v)
+   {
+      double sum = v.Sum();
+      MPI_Allreduce(MPI_IN_PLACE, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return sum;
+   };
    if (!use_pointwise_transfer && gt->SupportsBackwardsOperator())
    {
+      Vector M_rho_true(fespace.GetTrueVSize());
+      M_ho_tdof->Mult(rho.GetTrueVector(), M_rho_true);
+      fespace.GetRestrictionOperator()->MultTranspose(M_rho_true, M_rho);
       const Operator &P = gt->BackwardOperator();
-      M_ho.Mult(rho, M_rho);
       P.MultTranspose(M_rho, M_rho_lor);
-      cout << "HO -> LOR dual field: " << abs(M_rho.Sum()-M_rho_lor.Sum()) << "\n\n";
+      double ho_dual_mass = global_sum(M_rho);
+      double lor_dual_mass = global_sum(M_rho_lor);
+      if (Mpi::Root())
+      {
+         cout << "HO -> LOR dual field: " << abs(ho_dual_mass - lor_dual_mass) << "\n\n";
+      }
    }
 
    // LOR projections
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
-   GridFunction rho_lor_prev = rho_lor;
+   ParGridFunction rho_lor_prev = rho_lor;
    double lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
@@ -224,20 +260,41 @@ int main(int argc, char *argv[])
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy); }
 
       rho_lor_prev -= rho_lor;
-      cout.precision(12);
-      cout << "|LOR - R(P(LOR))|_∞ = " << rho_lor_prev.Normlinf() << endl;
+      Vector rho_lor_prev_true(fespace_lor.GetTrueVSize());
+      rho_lor_prev.GetTrueDofs(rho_lor_prev_true);
+      double l_inf = global_max(rho_lor_prev_true);
+      if (Mpi::Root())
+      {
+         cout.precision(12);
+         cout << "|LOR - R(P(LOR))|_∞ = " << l_inf << endl;
+      }
    }
 
    // LOR* to HO* dual fields
    if (!use_pointwise_transfer)
    {
-      M_lor.Mult(rho_lor, M_rho_lor);
+      Vector M_rho_lor_true(fespace_lor.GetTrueVSize());
+      M_lor_tdof->Mult(rho_lor.GetTrueVector(), M_rho_lor_true);
+      fespace_lor.GetRestrictionOperator()->MultTranspose(M_rho_lor_true,
+                                                          M_rho_lor);
       R.MultTranspose(M_rho_lor, M_rho);
-      cout << "LOR -> HO dual field: " << abs(M_rho.Sum() - M_rho_lor.Sum()) << '\n';
+      double ho_dual_mass = global_sum(M_rho);
+      double lor_dual_mass = global_sum(M_rho_lor);
+
+      cout << lor_dual_mass << '\n';
+      cout << ho_dual_mass << '\n';
+
+      if (Mpi::Root())
+      {
+         cout << "LOR -> HO dual field: " << abs(ho_dual_mass - lor_dual_mass) << '\n';
+      }
    }
 
    delete fec;
    delete fec_lor;
+   delete M_ho_tdof;
+   delete M_lor_tdof;
+   delete gt;
 
    return 0;
 }
@@ -269,6 +326,8 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
    int  visport   = 19916;
 
    socketstream sol_sockL2(vishost, visport);
+   sol_sockL2 << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() <<
+              "\n";
    sol_sockL2.precision(8);
    sol_sockL2 << "solution\n" << *dc.GetMesh() << *dc.GetField("density")
               << "window_geometry " << x << " " << y << " " << w << " " << h
@@ -277,22 +336,25 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-double compute_mass(FiniteElementSpace *L2, double massL2,
+double compute_mass(ParFiniteElementSpace *L2, double massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
-   LinearForm lf(L2);
+   ParLinearForm lf(L2);
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 
-   double newmass = lf(*dc.GetField("density"));
-   cout.precision(18);
-   cout << space << " " << prefix << " mass   = " << newmass;
-   if (massL2 >= 0)
+   double newmass = lf(*dc.GetParField("density"));
+   if (Mpi::Root())
    {
-      cout.precision(4);
-      cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      cout.precision(18);
+      cout << space << " " << prefix << " mass   = " << newmass;
+      if (massL2 >= 0)
+      {
+         cout.precision(4);
+         cout << " ("  << fabs(newmass-massL2)*100/massL2 << "%)";
+      }
+      cout << endl;
    }
-   cout << endl;
    return newmass;
 }
