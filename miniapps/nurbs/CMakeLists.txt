@@ -91,6 +91,9 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_curveint> -no-vis -no-visit
     -nw -n 9)
 
+  add_test(NAME nurbs_naca_cmesh_ser
+    COMMAND $<TARGET_FILE:nurbs_naca_cmesh> -no-vis -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3)
+
   add_test(NAME nurbs_ex1_two_squares_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-squares.ref)
