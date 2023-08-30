@@ -1625,9 +1625,9 @@ public:
 #endif
 
    /** Used to update the target specification after the mesh has changed. The
-       new mesh positions are given by new_x. If @a use_flags is true, repeated
-       calls won't do anything until ResetUpdateFlags() is called. */
-   void UpdateTargetSpecification(const Vector &new_x, bool use_flag = false,
+       new mesh positions are given by new_x. If @a reuse_flag is true,
+       repeated calls won't do anything until ResetUpdateFlags() is called. */
+   void UpdateTargetSpecification(const Vector &new_x, bool reuse_flag = false,
                                   int new_x_ordering=Ordering::byNODES);
 
    void UpdateTargetSpecification(Vector &new_x, Vector &IntData,
@@ -1642,17 +1642,17 @@ public:
 
    /** Used for finite-difference based computations. Computes the target
        specifications after a mesh perturbation in x or y direction.
-       If @a use_flags is true, repeated calls won't do anything until
+       If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateGradientTargetSpecification(const Vector &x, double dx,
-                                          bool use_flag = false,
+                                          bool reuse_flag = false,
                                           int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
-       If @a use_flags is true, repeated calls won't do anything until
+       If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
    void UpdateHessianTargetSpecification(const Vector &x, double dx,
-                                         bool use_flag = false,
+                                         bool reuse_flag = false,
                                          int x_ordering = Ordering::byNODES);
 
    void SetAdaptivityEvaluator(AdaptivityEvaluator *ae)
@@ -1743,6 +1743,7 @@ protected:
    // Custom integration rules.
    IntegrationRules *IntegRules;
    int integ_order;
+   bool integ_over_target = true;
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
@@ -1771,7 +1772,7 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
+   GridFunction *surf_fit_gf;           // Owned, Updated by surf_fit_eval.
    const Array<bool> *surf_fit_marker;  // Not owned.
    Coefficient *surf_fit_coeff;         // Not owned.
    AdaptivityEvaluator *surf_fit_eval;  // Not owned.
@@ -1898,8 +1899,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &new_x,
-                                      int x_ordering = Ordering::byNODES);
+   void UpdateAfterMeshPositionChange(const Vector &x_new,
+                                      const FiniteElementSpace &x_fes);
 
    void DisableLimiting()
    {
@@ -1999,6 +2000,18 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   /// The TMOP integrals can be computed over the reference element or the
+   /// target elements. This function is used to switch between the two options.
+   /// By default integratioin is performed over the target elements.
+   void IntegrateOverTarget(bool integ_over_target_)
+   {
+      MFEM_VERIFY(metric_normal == 1.0 && lim_normal == 1.0,
+                  "This function must be called before EnableNormalization, as "
+                  "the normalization computations must know how to integrate.");
+
+      integ_over_target = integ_over_target_;
    }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
