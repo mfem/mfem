@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Try to push to the remote 5 times. If the push fails, and the local and remote
+# have diverged, then pull from the remote to merge changes, and try pushing
+# again. If some other failure happens
+for i in {1..5}; do
+   git push origin master && exit 0
+   # Wait for 20 seconds in case someone else is pushing to the remote
+   # concurrently
+   sleep 20
+   # Fetch any updates from the remote
+   git remote update
+   # Get the latest commit on the local branch
+   LOCAL=$(git rev-parse @)
+   # Get the latest commit on the remote
+   REMOTE=$(git rev-parse @{u})
+   # Get the common ancestor
+   BASE=$(git merge-base @ @{u})
+   # Have the local and remote diverged?
+   if [[ $LOCAL != $REMOTE && $LOCAL != $BASE && $REMOTE != $BASE ]]; then
+      git pull
+      if [[ $? == 0 ]]; then
+         continue
+      else
+         exit 1 # Something else went wrong trying to pull
+      fi
+   fi
+done
+
+exit 1 # Did not succeed in 5 attempts

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,6 +89,16 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
          case 0x324: return Values3D<L,3,2,4>(NE,B,X,Y);
          case 0x336: return Values3D<L,3,3,6>(NE,B,X,Y);
          case 0x348: return Values3D<L,3,4,8>(NE,B,X,Y);
+
+         // Used for LOR batched assembly
+         case 0x322: return Values3D<L,3,2,2>(NE,B,X,Y);
+         case 0x333: return Values3D<L,3,3,3>(NE,B,X,Y);
+         case 0x344: return Values3D<L,3,4,4>(NE,B,X,Y);
+         case 0x355: return Values3D<L,3,5,5>(NE,B,X,Y);
+         case 0x366: return Values3D<L,3,6,6>(NE,B,X,Y);
+         case 0x377: return Values3D<L,3,7,7>(NE,B,X,Y);
+         case 0x388: return Values3D<L,3,8,8>(NE,B,X,Y);
+         case 0x399: return Values3D<L,3,9,9>(NE,B,X,Y);
 
          default:
          {

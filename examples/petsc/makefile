@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -78,6 +78,7 @@ EX1_ARGS_CUDA         := -m ../../data/star.mesh --usepetsc --partial-assembly -
 EX1_ARGS_CUDAAMG      := -m ../../data/star.mesh --usepetsc --device cuda --petscopts rc_ex1p_cudaamg
 EX2_ARGS              := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p
 EX2_ARGS_BDDC         := -m ../../data/beam-tri.mesh --usepetsc --nonoverlapping --petscopts rc_ex2p_bddc
+EX2_ARGS_ASM          := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p_asm
 EX3_ARGS              := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
 EX4_ARGS              := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping
 EX4_HYB_ARGS          := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization
@@ -109,6 +110,7 @@ endif
 ex2p-test-par: ex2p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS_BDDC))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS_ASM))
 ex3p-test-par: ex3p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS))
 ex4p-test-par: ex4p
@@ -158,4 +160,4 @@ clean-build:
 clean-exec:
 	@rm -rf mesh.* sol.* sol_p.* sol_u.* Example5*
 	@rm -f ex9-mesh.* ex9-init.* ex9-final.* Example9*
-	@rm -f deformed.* velocity.* elastic_energy.*
+	@rm -f deformed.* velocity.* elastic_energy.* mode_*

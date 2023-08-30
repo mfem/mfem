@@ -305,6 +305,8 @@ int main(int argc, char *argv[])
          vis_w.precision(8);
          visualize(vis_w, mesh, &x, &w, "Elastic energy density", true);
       }
+      cout << "GLVis visualization paused."
+           << " Press space (in the GLVis window) to resume it.\n";
    }
 
    double ee0 = oper.ElasticEnergy(x.GetTrueVector());

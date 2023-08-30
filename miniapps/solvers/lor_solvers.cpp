@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,6 +57,12 @@
 //    lor_solvers -m ../../data/amr-quad.mesh -fe n
 //    lor_solvers -m ../../data/amr-quad.mesh -fe r
 //    lor_solvers -m ../../data/amr-quad.mesh -fe l
+//
+// Device sample runs:
+//    lor_solvers -fe h -d cuda
+//    lor_solvers -fe n -d cuda
+//    lor_solvers -fe r -d cuda
+//    lor_solvers -fe l -d cuda
 
 #include "mfem.hpp"
 #include <fstream>
@@ -68,14 +74,13 @@
 using namespace std;
 using namespace mfem;
 
-bool grad_div_problem = false;
-
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/star.mesh";
    int ref_levels = 1;
    int order = 3;
    const char *fe = "h";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -88,7 +93,12 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.ParseCheck();
+
+   Device device(device_config);
+   device.Print();
 
    bool H1 = false, ND = false, RT = false, L2 = false;
    if (string(fe) == "h") { H1 = true; }
@@ -97,7 +107,6 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
    Mesh mesh(mesh_file, 1, 1);
@@ -105,8 +114,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(dim == 2 || dim == 3, "Spatial dimension must be 2 or 3.");
    for (int l = 0; l < ref_levels; l++) { mesh.UniformRefinement(); }
 
-   FunctionCoefficient f_coeff(f), u_coeff(u);
-   VectorFunctionCoefficient f_vec_coeff(dim, f_vec), u_vec_coeff(dim, u_vec);
+   FunctionCoefficient f_coeff(f(1.0)), u_coeff(u);
+   VectorFunctionCoefficient f_vec_coeff(dim, f_vec(RT)), u_vec_coeff(dim, u_vec);
 
    int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
    unique_ptr<FiniteElementCollection> fec;
