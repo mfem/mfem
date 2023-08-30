@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization. This is a dummy option to enable testing.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
-                  "Enable or disable VisIt visualization.");
+                  "Enable or disable VisIt visualization in output Naca_cmesh.");
 
    // Parse and print commandline options
    args.Parse();
@@ -571,7 +571,7 @@ int main(int argc, char *argv[])
    if (visit)
    {
       VisItDataCollection dc = VisItDataCollection("mesh", mesh);
-      dc.SetPrefixPath("solution");
+      dc.SetPrefixPath("Naca_cmesh");
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
