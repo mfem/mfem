@@ -2419,10 +2419,22 @@ int main(int argc, char *argv[])
       CPD.DisplayAnimationToGLVis();
    }
 
+   if (Mpi::Root() && auxFields.Size() > 0)
+   {
+      cout << "Deleting auxiliary field vectors" << endl;
+   }
+
    for (int i=0; i<auxFields.Size(); i++)
    {
       delete auxFields[i];
    }
+
+   if (Mpi::Root())
+   {
+      cout << "Deleting remaining objects" << endl;
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
 
    return 0;
 }
