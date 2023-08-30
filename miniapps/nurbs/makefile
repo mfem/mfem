@@ -107,10 +107,10 @@ nurbs_curveint-test-seq: nurbs_curveint
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_2))
 
-CI_ARGS_1 := -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
+NCT_ARGS_1 := -no-visit -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
 
 nurbs_naca_cmesh-test-seq: nurbs_naca_cmesh
-	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(NCT_ARGS_1))
 
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
