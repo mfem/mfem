@@ -142,6 +142,7 @@ int main(int argc, char *argv[])
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;
+   bool integ_over_targ  = true;
    const char *devopt    = "cpu";
    bool pa               = false;
    int n_hr_iter         = 5;
@@ -270,11 +271,18 @@ int main(int argc, char *argv[])
    args.AddOption(&exactaction, "-ex", "--exact_action",
                   "-no-ex", "--no-exact-action",
                   "Enable exact action of TMOP_Integrator.");
+   args.AddOption(&integ_over_targ, "-it", "--integrate-target",
+                  "-ir", "--integrate-reference",
+                  "Integrate over target (-it) or reference (-ir) element.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
-                  "Set the verbosity level - 0, 1, or 2.");
+                  "Verbosity level for the involved iterative solvers:\n\t"
+                  "0: no output\n\t"
+                  "1: Newton iterations\n\t"
+                  "2: Newton iterations + linear solver summaries\n\t"
+                  "3: newton iterations + linear solver iterations");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
                   "0 - Advection based (DEFAULT), 1 - GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
@@ -767,8 +775,8 @@ int main(int argc, char *argv[])
    TMOP_QualityMetric *metric_to_use = barrier_type > 0 || worst_case_type > 0
                                        ? untangler_metric
                                        : metric;
-   TMOP_Integrator *tmop_integ = new TMOP_Integrator(metric_to_use, target_c,
-                                                     h_metric);
+   auto tmop_integ = new TMOP_Integrator(metric_to_use, target_c, h_metric);
+   tmop_integ->IntegrateOverTarget(integ_over_targ);
    if (barrier_type > 0 || worst_case_type > 0)
    {
       tmop_integ->ComputeUntangleMetricQuantiles(x, *fespace);
@@ -889,6 +897,7 @@ int main(int argc, char *argv[])
          tmop_integ2->SetCoefficient(metric_coeff2);
       }
       else { tmop_integ2 = new TMOP_Integrator(metric2, target_c, h_metric); }
+      tmop_integ2->IntegrateOverTarget(integ_over_targ);
       tmop_integ2->SetIntegrationRules(*irules, quad_order);
       if (fdscheme) { tmop_integ2->EnableFiniteDifferences(x); }
       tmop_integ2->SetExactActionFlag(exactaction);
@@ -1021,10 +1030,16 @@ int main(int argc, char *argv[])
       a.SetEssentialVDofs(ess_vdofs);
    }
 
-   // 14. As we use the Newton method to solve the resulting nonlinear system,
-   //     here we setup the linear solver for the system's Jacobian.
+   // As we use the inexact Newton method to solve the resulting nonlinear
+   // system, here we setup the linear solver for the system's Jacobian.
    Solver *S = NULL, *S_prec = NULL;
    const double linsol_rtol = 1e-12;
+   // Level of output.
+   IterativeSolver::PrintLevel linsolver_print;
+   if (verbosity_level == 2)
+   { linsolver_print.Errors().Warnings().FirstAndLast(); }
+   if (verbosity_level > 2)
+   { linsolver_print.Errors().Warnings().Iterations(); }
    if (lin_solver == 0)
    {
       S = new DSmoother(1, 1.0, max_lin_iter);
@@ -1035,7 +1050,7 @@ int main(int argc, char *argv[])
       cg->SetMaxIter(max_lin_iter);
       cg->SetRelTol(linsol_rtol);
       cg->SetAbsTol(0.0);
-      cg->SetPrintLevel(verbosity_level >= 2 ? 3 : -1);
+      cg->SetPrintLevel(linsolver_print);
       S = cg;
    }
    else
@@ -1044,8 +1059,7 @@ int main(int argc, char *argv[])
       minres->SetMaxIter(max_lin_iter);
       minres->SetRelTol(linsol_rtol);
       minres->SetAbsTol(0.0);
-      if (verbosity_level > 2) { minres->SetPrintLevel(1); }
-      minres->SetPrintLevel(verbosity_level == 2 ? 3 : -1);
+      minres->SetPrintLevel(linsolver_print);
       if (lin_solver == 3 || lin_solver == 4)
       {
          if (pa)
@@ -1066,17 +1080,16 @@ int main(int argc, char *argv[])
       S = minres;
    }
 
+   //
    // Perform the nonlinear optimization.
+   //
    const IntegrationRule &ir =
       irules->Get(fespace->GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(ir, solver_type);
    // Provide all integration rules in case of a mixed mesh.
    solver.SetIntegrationRules(*irules, quad_order);
-   if (solver_type == 0)
-   {
-      // Specify linear solver when we use a Newton-based solver.
-      solver.SetPreconditioner(*S);
-   }
+   // Specify linear solver when we use a Newton-based solver.
+   if (solver_type == 0) { solver.SetPreconditioner(*S); }
    // For untangling, the solver will update the min det(T) values.
    solver.SetMinDetPtr(&min_detJ);
    solver.SetMaxIter(solver_iter);
@@ -1086,8 +1099,11 @@ int main(int argc, char *argv[])
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
-   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-
+   // Level of output.
+   IterativeSolver::PrintLevel newton_print;
+   if (verbosity_level > 0)
+   { newton_print.Errors().Warnings().Iterations(); }
+   solver.SetPrintLevel(newton_print);
    // hr-adaptivity solver.
    // If hr-adaptivity is disabled, r-adaptivity is done once using the
    // TMOPNewtonSolver.

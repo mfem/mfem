@@ -13,28 +13,45 @@ set(SRCS
   bilinearform.cpp
   bilinearform_ext.cpp
   bilininteg.cpp
-  bilininteg_br2.cpp
-  bilininteg_convection_mf.cpp
-  bilininteg_convection_pa.cpp
-  bilininteg_convection_ea.cpp
-  bilininteg_dgtrace_pa.cpp
-  bilininteg_dgtrace_ea.cpp
-  bilininteg_diffusion_mf.cpp
-  bilininteg_diffusion_pa.cpp
-  bilininteg_diffusion_ea.cpp
-  bilininteg_divergence.cpp
-  bilininteg_hcurl.cpp
-  bilininteg_hdiv.cpp
-  bilininteg_vectorfe.cpp
-  bilininteg_gradient.cpp
-  bilininteg_mass_mf.cpp
-  bilininteg_mass_pa.cpp
-  bilininteg_mass_ea.cpp
-  bilininteg_transpose_ea.cpp
-  bilininteg_vecdiffusion.cpp
-  bilininteg_vecdiffusion_mf.cpp
-  bilininteg_vecmass.cpp
-  bilininteg_vecmass_mf.cpp
+  integ/bilininteg_br2.cpp
+  integ/bilininteg_convection_mf.cpp
+  integ/bilininteg_convection_pa.cpp
+  integ/bilininteg_convection_ea.cpp
+  integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgtrace_pa.cpp
+  integ/bilininteg_dgtrace_ea.cpp
+  integ/bilininteg_diffusion_mf.cpp
+  integ/bilininteg_diffusion_pa.cpp
+  integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_diffusion_patch.cpp
+  integ/bilininteg_divdiv_pa.cpp
+  integ/bilininteg_gradient_pa.cpp
+  integ/bilininteg_interp_pa.cpp
+  integ/bilininteg_mass_mf.cpp
+  integ/bilininteg_mass_pa.cpp
+  integ/bilininteg_mass_ea.cpp
+  integ/bilininteg_mixedcurl_pa.cpp
+  integ/bilininteg_mixedvecgrad_pa.cpp
+  integ/bilininteg_transpose_ea.cpp
+  integ/bilininteg_vecdiffusion_mf.cpp
+  integ/bilininteg_vecdiffusion_pa.cpp
+  integ/bilininteg_vecdiv_pa.cpp
+  integ/bilininteg_vecmass_mf.cpp
+  integ/bilininteg_vecmass_pa.cpp
+  integ/bilininteg_vectorfediv_pa.cpp
+  integ/bilininteg_vectorfemass_pa.cpp
+  integ/bilininteg_diffusion_kernels.cpp
+  integ/bilininteg_hcurl_kernels.cpp
+  integ/bilininteg_hdiv_kernels.cpp
+  integ/bilininteg_hcurlhdiv_kernels.cpp
+  integ/bilininteg_mass_kernels.cpp
+  integ/lininteg_boundary.cpp
+  integ/lininteg_boundary_flux.cpp
+  integ/lininteg_domain.cpp
+  integ/lininteg_domain_grad.cpp
+  integ/lininteg_domain_vectorfe.cpp
+  integ/nonlininteg_vecconvection_pa.cpp
+  integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
   complex_fem.cpp
   convergence.cpp
@@ -74,11 +91,6 @@ set(SRCS
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
-  lininteg_boundary.cpp
-  lininteg_boundary_flux.cpp
-  lininteg_domain.cpp
-  lininteg_domain_grad.cpp
-  lininteg_vectorfe_domain.cpp
   lor/lor.cpp
   lor/lor_ads.cpp
   lor/lor_ams.cpp
@@ -91,8 +103,6 @@ set(SRCS
   nonlinearform_ext.cpp
   nonlininteg.cpp
   fespacehierarchy.cpp
-  nonlininteg_vectorconvection.cpp
-  nonlininteg_vectorconvection_mf.cpp
   qfunction.cpp
   qinterp/det.cpp
   qinterp/eval_by_nodes.cpp
@@ -143,7 +153,11 @@ set(HDRS
   bilinearform.hpp
   bilinearform_ext.hpp
   bilininteg.hpp
-  bilininteg_mass_pa.hpp
+  integ/bilininteg_diffusion_kernels.hpp
+  integ/bilininteg_hcurl_kernels.hpp
+  integ/bilininteg_hdiv_kernels.hpp
+  integ/bilininteg_hcurlhdiv_kernels.hpp
+  integ/bilininteg_mass_kernels.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
