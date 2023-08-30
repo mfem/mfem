@@ -1680,7 +1680,7 @@ CPDSolverDH::Solve()
       {
          cout << "MUMPS (Real) Solver Requested" << endl;
       }
-      AInv = new MUMPSSolver;
+      AInv = new MUMPSSolver(MPI_COMM_WORLD);
       AInv->SetOperator(*A1C);
    }
    if (sol_ == SolverType::ZMUMPS)
@@ -2015,7 +2015,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
          ComplexHypreParMatrix * M1Z = M1.As<ComplexHypreParMatrix>();
          HypreParMatrix * M1C = M1Z->GetSystemMatrix();
-         MUMPSSolver MInv;
+         MUMPSSolver MInv(MPI_COMM_WORLD);
          //MInv.SetReorderingStrategy(MUMPSSolver::PARMETIS);
          MInv.SetOperator(*M1C);
          MInv.Mult(RHS1, E);

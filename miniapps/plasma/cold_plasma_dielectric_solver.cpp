@@ -1542,7 +1542,7 @@ CPDSolver::Solve()
          }
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
-         MUMPSSolver dmumps;
+         MUMPSSolver dmumps(MPI_COMM_WORLD);
          dmumps.SetPrintLevel(1);
          dmumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
          dmumps.SetOperator(*A1C);
