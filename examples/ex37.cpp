@@ -139,18 +139,35 @@ double Volume()
 }
 
 #ifdef MFEM_USE_LAPACK
+/**
+ @brief Class for surface IntegrationRule
+
+ This class demonstrates how IntegrationRules computed as CutIntegrationRules
+ can be saved to reduce the impact by computing them from scratch each time.
+ */
 class SIntegrationRule : public IntegrationRule
 {
 protected:
+   /// @brief Space Dimension of the IntegrationRule
    int dim;
-   Coefficient& LvlSet;
-   int lsOrder;
+   /// @brief Column-wise matrix of the quadtrature weights
    DenseMatrix Weights;
+   /// @brief Column-wise matrix of the transformation weights of the normal
    DenseMatrix SurfaceWeights;
 
 public:
-   SIntegrationRule(int Order, Coefficient& levelset, int lsorder, Mesh* mesh)
-      : LvlSet(levelset), lsOrder(lsorder)
+   /**
+    @brief Constructor of SIntegrationRule
+
+    The surface integrationRules are computed and saved in the constructor.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet Level-set defining the implicit interface
+    @param [in] lsOrder Polynomial degree for approx of level-set function
+    @param [in] mesh Pointer to the mesh that is used
+   */
+   SIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+      :
    {
       dim = mesh->Dimension();
 
@@ -211,6 +228,10 @@ public:
       }
    }
 
+   /**
+    @brief Set the weights for the given element and multiply them with the
+    transformation of the interface
+    */
    void SetElementinclSurfaceWeight(int Element)
    {
       if (dim == 1)
@@ -228,6 +249,7 @@ public:
          }
    }
 
+   /// @brief Set the weights for the given element
    void SetElement(int Element)
    {
       if (dim == 1)
@@ -244,20 +266,37 @@ public:
          }
    }
 
+   /// @brief Destructor of SIntegrationRule
    ~SIntegrationRule() {}
 };
 
+/**
+ @brief Class for volume IntegrationRule
+
+ This class demonstrates how IntegrationRules computed as CutIntegrationRules
+ can be saved to reduce the impact by computing them from scratch each time.
+ */
 class CIntegrationRule : public IntegrationRule
 {
 protected:
+   /// @brief Space Dimension of the IntegrationRule
    int dim;
-   Coefficient& LvlSet;
-   int lsOrder;
+   /// @brief Column-wise matrix of the quadtrature weights
    DenseMatrix Weights;
 
 public:
-   CIntegrationRule(int Order, Coefficient& levelset, int lsorder, Mesh* mesh)
-      : LvlSet(levelset), lsOrder(lsorder)
+   /**
+    @brief Constructor of CIntegrationRule
+
+    The volume integrationRules are computed and saved in the constructor.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet Level-set defining the implicit interface
+    @param [in] lsOrder Polynomial degree for approx of level-set function
+    @param [in] mesh Pointer to the mesh that is used
+   */
+   CIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
+      :
    {
       dim = mesh->Dimension();
 
@@ -314,6 +353,7 @@ public:
       }
    }
 
+   /// @brief Set the weights for the given element
    void SetElement(int Element)
    {
       if (dim == 1)
@@ -331,6 +371,7 @@ public:
          }
    }
 
+   /// @brief Destructor of CIntegrationRule
    ~CIntegrationRule() {}
 };
 /**
