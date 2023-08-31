@@ -292,13 +292,12 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 }
 
 void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &zl, 
-                                             BlockOperator &Ak, BlockOperator &Bk)
+                                             BlockOperator &Ak)
 {
    // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
    //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
    Huu = problem->Duuf(x); 
-   blockHuu = problem->blockDuuf(x); 
    Hum = problem->Dumf(x);
    Hmu = problem->Dmuf(x);
    Hmm = problem->Dmmf(x);
@@ -317,6 +316,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       for(int ii = 0; ii < dimM; ii++)
       {
          diagStream << setprecision(30) << DiagLogBar(ii) << endl;
+         // mfem::out << DiagLogBar(ii) << endl;
       }
       diagStream.close();
    } 
@@ -325,8 +325,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    int gsize = problem->GetGlobalNumConstraints();
    int * rows = problem->GetConstraintsStarts();
 
-   
-  
    delete Wmm;
    if(Hmm != nullptr)
    {
@@ -350,22 +348,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    Ju = problem->Duc(x); JuT = Ju->Transpose();
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
-   blockJu = problem->blockDuc(x); 
-   JuTrowoffsets = blockJu->ColOffsets();
-   JuTcoloffsets = blockJu->RowOffsets();
-   delete blockJuT;
-   blockJuT = new BlockOperator(JuTrowoffsets,JuTcoloffsets);
-   blockJuT->owns_blocks=1;
-   for (int i = 0; i<blockJu->NumRowBlocks(); i++)
-   {
-      for (int j = 0; j<blockJu->NumColBlocks(); j++)
-      {
-         if (blockJu->IsZeroBlock(i,j)) continue;
-         HypreParMatrix * temp = dynamic_cast<HypreParMatrix *>(&(blockJu->GetBlock(i, j)));
-         blockJuT->SetBlock(j,i,temp->Transpose());
-      }
-   }
-  
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
    //          [H_(m,u)  W_(m,m)   J_m^T]
@@ -375,11 +357,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
    if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
-
-   Bk.SetBlock(0, 0, blockHuu);                         Bk.SetBlock(0, 2, blockJuT);
-                           Bk.SetBlock(1, 1, Wmm); Bk.SetBlock(1, 2, JmT);
-   Bk.SetBlock(2, 0,  blockJu); Bk.SetBlock(2, 1,  Jm);
-
 }
 
 // perturbed KKT system solve
@@ -389,8 +366,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); 
    BlockVector b(block_offsetsuml); b = 0.0;
-   BlockOperator blockA(block_offsetsuml, block_offsetsuml);
-   FormIPNewtonMat(x, l, zl, A, blockA);
+   FormIPNewtonMat(x, l, zl, A);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
@@ -461,32 +437,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
-      MFEM_VERIFY(Wmmloc, "Wmmloc is null");
-      // Block setting
-      BlockOperator * blockHuuloc = dynamic_cast<BlockOperator *>(&(blockA.GetBlock(0, 0)));
-      MFEM_VERIFY(blockHuuloc, "Huuloc is null");
-      BlockOperator * blockJuloc  = dynamic_cast<BlockOperator *>(&(blockA.GetBlock(2, 0)));
-      MFEM_VERIFY(blockJuloc, "blockJuloc is null");
-      BlockOperator * blockJuTloc = dynamic_cast<BlockOperator *>(&(blockA.GetBlock(0, 2)));
-      MFEM_VERIFY(blockJuTloc, "blockJuTloc is null");
-      // Ju^T D Ju
-      Array<int> offsets; offsets = blockHuuloc->RowOffsets();
-      BlockOperator * blockJuTDJu = new BlockOperator(offsets);
-      blockJuTDJu->owns_blocks=1;
-      RAP(*Wmmloc,*blockJuloc, *blockJuTDJu);
-      BlockOperator *blockAreduced = new BlockOperator(offsets);
-      blockAreduced->owns_blocks = 1;
-      ParAdd(*blockHuuloc, *blockJuTDJu, *blockAreduced);  // Huu + Ju^T D Ju
-
-
-      // Mololithic setting
       HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
-      MFEM_VERIFY(Huuloc, "Huuloc is null");
       HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
-      MFEM_VERIFY(Juloc, "Juloc is null");
       HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
-      MFEM_VERIFY(JuTloc, "JuTloc is null");
-
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
 
@@ -496,8 +449,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       Vector tempVec(dimM); tempVec = 0.0;
       Wmmloc->Mult(b.GetBlock(2), tempVec);
       tempVec.Add(1.0, b.GetBlock(1));
-      // JuTloc->Mult(tempVec, breduced);
-      blockJuTloc->Mult(tempVec, breduced);
+      JuTloc->Mult(tempVec, breduced);
       breduced.Add(1.0, b.GetBlock(0));
       
       if(linSolver == 1)
@@ -520,57 +472,25 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       else
       {
-         Vector XX(Xhat.GetBlock(0));
-         // CGSolver AreducedSolver(MPI_COMM_WORLD);
-         GMRESSolver AreducedSolver(MPI_COMM_WORLD);
+         // Vector XX(Xhat.GetBlock(0));
+         CGSolver AreducedSolver(MPI_COMM_WORLD);
 	      AreducedSolver.SetOperator(*Areduced);
-         // AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetMaxIter(1000);
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
          amg.SetSystemsOptions(3,false);
-
+         amg.SetRelaxType(8);
 
          AreducedSolver.SetPreconditioner(amg);
-         // AreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
 	      AreducedSolver.SetPrintLevel(3);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          cgnum_iterations.Append(AreducedSolver.GetNumIterations());
-
-         CGSolver blockAreducedSolver(MPI_COMM_WORLD);
-	      blockAreducedSolver.SetOperator(*blockAreduced);
-         blockAreducedSolver.SetRelTol(linSolveTol);
-         blockAreducedSolver.SetMaxIter(1000);
-         BlockDiagonalPreconditioner prec(offsets);
-         HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(0,0));
-         HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockAreduced->GetBlock(1,1));
-
-         // HypreParMatrix * K00 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(0,0));
-         // HypreParMatrix * K11 = dynamic_cast<HypreParMatrix *>(&blockHuuloc->GetBlock(1,1));
-
-         HypreBoomerAMG amg0(*K00);
-         amg0.SetElasticityOptions(problem->GetElasticityProblem1()->GetFESpace());
-         // amg0.SetSystemsOptions(3,false);
-         amg0.SetPrintLevel(0);
-         HypreBoomerAMG amg1(*K11);
-         amg1.SetElasticityOptions(problem->GetElasticityProblem2()->GetFESpace());
-         // amg1.SetSystemsOptions(3,false);
-         amg1.SetPrintLevel(0);
-         prec.SetDiagonalBlock(0,&amg0);
-         prec.SetDiagonalBlock(1,&amg1);
-         blockAreducedSolver.SetPreconditioner(prec);
-         // blockAreducedSolver.SetPreconditioner(amg);
-         // blockAreducedSolver.SetPreconditioner(*problem->GetPreconditioner());
-	      blockAreducedSolver.SetPrintLevel(3);
-         // blockAreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         blockAreducedSolver.Mult(breduced, XX);
-         blockcgnum_iterations.Append(blockAreducedSolver.GetNumIterations());
       }
 
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
-      blockJuloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+      Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
       Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
       // xl = Wmm xm - bm
@@ -579,8 +499,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete JuTDJu;
       delete Areduced;
-      delete blockAreduced;
-      delete blockJuTDJu;
    }
 
    /* backsolve to determine zlhat */
@@ -909,10 +827,8 @@ void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
   linSolveTol = Tol;
 }
 
-
 ParInteriorPointSolver::~ParInteriorPointSolver() 
 {
-   delete blockJuT;
    delete JuT;
    delete JmT;
    delete Wmm;

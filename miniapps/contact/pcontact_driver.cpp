@@ -110,7 +110,6 @@ int main(int argc, char *argv[])
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
    Array<int> & CGiterations = optimizer.GetCGIterNumbers(); 
-   Array<int> & BlockCGiterations = optimizer.GetBlockCGIterNumbers(); 
    if (Mpi::Root())
    {
       mfem::out << endl;
@@ -119,7 +118,6 @@ int main(int argc, char *argv[])
       mfem::out << " Global number of dofs        = " << gndofs1 + gndofs2 << endl;
       mfem::out << " Global number of constraints = " << numconstr << endl;
       mfem::out << " CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
-      mfem::out << " Block CG iteration numbers   = " ; BlockCGiterations.Print(mfem::out, BlockCGiterations.Size());
    }
 
    MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");

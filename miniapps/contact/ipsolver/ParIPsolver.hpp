@@ -39,22 +39,16 @@ protected:
 
     Vector ckSoc;
     HypreParMatrix * Huu = nullptr;
-    BlockOperator * blockHuu = nullptr;
     HypreParMatrix * Hum = nullptr;
     HypreParMatrix * Hmu = nullptr;
     HypreParMatrix * Hmm = nullptr;
     HypreParMatrix * Wmm = nullptr;
     HypreParMatrix * Ju = nullptr;
-    BlockOperator * blockJu = nullptr;
     HypreParMatrix * Jm = nullptr;
     HypreParMatrix * JuT = nullptr;
-    BlockOperator * blockJuT = nullptr;
     HypreParMatrix * JmT = nullptr;
 
-    Array<int> JuTrowoffsets;
-    Array<int> JuTcoloffsets;
     Array<int> cgnum_iterations;
-    Array<int> blockcgnum_iterations;
     
     int jOpt;
     bool converged;
@@ -72,8 +66,7 @@ public:
     double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);
     void Mult(const Vector&, Vector &); 
-    // void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);
-    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &, BlockOperator &);
+    void FormIPNewtonMat(BlockVector& , Vector& , Vector& , BlockOperator &);
     void IPNewtonSolve(BlockVector& , Vector& , Vector& , Vector&, BlockVector& , double, bool);
     void lineSearch(BlockVector& , BlockVector& , double);
     void projectZ(const Vector & , Vector &, double);
@@ -82,7 +75,6 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
-    Array<int> & GetBlockCGIterNumbers() {return blockcgnum_iterations;}
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
     double phi(const BlockVector &, double);

@@ -84,31 +84,12 @@ ParContactProblem::ParContactProblem(ParElasticityProblem * prob1_, ParElasticit
    tdof_offsets[2] = ndof2;
    tdof_offsets.PartialSum();
 
-   blockK = new BlockOperator(tdof_offsets);
-   blockK->SetBlock(0,0,&prob1->GetOperator());
-   blockK->SetBlock(1,1,&prob2->GetOperator());
-   blockK->owns_blocks=0;
-
    Array2D<HypreParMatrix*> A(2,2);
    A(0,0) = &prob1->GetOperator();
    A(1,1) = &prob2->GetOperator();
    A(1,0) = nullptr;
    A(0,1) = nullptr;
    K = HypreParMatrixFromBlocks(A);
-
-   HypreBoomerAMG * amg1 = new HypreBoomerAMG(prob1->GetOperator());
-   // amg1->SetElasticityOptions(prob1->GetFESpace());
-   amg1->SetSystemsOptions(3,false);
-   amg1->SetPrintLevel(0);
-   HypreBoomerAMG * amg2 = new HypreBoomerAMG(prob2->GetOperator());
-   // amg2->SetElasticityOptions(prob2->GetFESpace());
-   amg2->SetSystemsOptions(3,false);
-   amg2->SetPrintLevel(0);
-
-   prec = new BlockDiagonalPreconditioner(tdof_offsets);
-   prec->owns_blocks = 1;
-   prec->SetDiagonalBlock(0,amg1);
-   prec->SetDiagonalBlock(1,amg2);
 
    B = new BlockVector(tdof_offsets);
    B->GetBlock(0).Set(1.0, prob1->GetRHS());
@@ -245,12 +226,12 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
    // local to global map for constraints
    Array<int> points_map(npoints);
-   int k = 0;
+   cnt = 0;
    for (int i = 0; i<gnpoints; i++)
    {
       if (i >= npts[myid] && i< npts[myid+1])
       {
-         points_map[k++] = i;
+         points_map[cnt++] = i;
       }
    }
    if (compute_hessians)
@@ -312,27 +293,20 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
    M2cols[0] = prob2->GetFESpace()->GetTrueDofOffsets()[0];
    M2cols[1] = prob2->GetFESpace()->GetTrueDofOffsets()[1];
 
-   M1 = new HypreParMatrix(comm,npoints,gnpoints,gndofs1,
+   Array2D<HypreParMatrix*> blockM(1,2);
+   blockM(0,0) = new HypreParMatrix(comm,npoints,gnpoints,gndofs1,
                           localS1.GetI(), localS1.GetJ(),localS1.GetData(),
                           M1rows,M1cols);
 
-   M2 = new HypreParMatrix(comm,npoints,gnpoints,gndofs2,
+   blockM(0,1) = new HypreParMatrix(comm,npoints,gnpoints,gndofs2,
                           localS2.GetI(), localS2.GetJ(),localS2.GetData(),
                           M2rows,M2cols);
 
-   Array2D<HypreParMatrix*> Marray(1,2);
-   Marray(0,0) = M1; Marray(0,1) = M2;
-   M = HypreParMatrixFromBlocks(Marray);
+   M = HypreParMatrixFromBlocks(blockM);
+   delete blockM(0,0);
+   delete blockM(0,1);
+   blockM.DeleteAll();
 
-   Mrow_offsets.SetSize(2);
-   Mrow_offsets[0] = 0;
-   Mrow_offsets[1] = npoints;
-
-   blockM = new BlockOperator(Mrow_offsets, tdof_offsets);
-   blockM->SetBlock(0,0,M1);
-   blockM->SetBlock(0,1,M2);
-   blockM->owns_blocks = 0;
-   
    if (compute_hessians)
    {
       Array<SparseMatrix*> localdS11(gnpoints);
@@ -372,72 +346,59 @@ void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, 
 
       // Construct dMi HypreParMatrix
       Array2D<HypreParMatrix *> dMs(2,2);
-      dM11.SetSize(gnpoints);
-      dM12.SetSize(gnpoints);
-      dM21.SetSize(gnpoints);
-      dM22.SetSize(gnpoints);
       dM.SetSize(gnpoints);
       int * offs1 = prob1->GetFESpace()->GetTrueDofOffsets();
       int * offs2 = prob2->GetFESpace()->GetTrueDofOffsets();
-      blockdM.SetSize(gnpoints);
       for (int i = 0; i<gnpoints; i++)
       {
-         dM11[i] = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs1, 
+         dMs(0,0) = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs1, 
                                       localdS11[i]->GetI(), localdS11[i]->GetJ(), 
                                       localdS11[i]->GetData(),
                                       offs1,offs1);
          delete localdS11[i];                                 
-         dM12[i] = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs2, 
+         dMs(0,1) = new HypreParMatrix(comm, ndofs1, gndofs1, gndofs2, 
                                       localdS12[i]->GetI(), localdS12[i]->GetJ(), 
                                       localdS12[i]->GetData(),
                                       offs1,offs2);   
          delete localdS12[i];                                 
-         dM21[i] = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs1, 
+         dMs(1,0) = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs1, 
                                       localdS21[i]->GetI(), localdS21[i]->GetJ(), 
                                       localdS21[i]->GetData(),
                                       offs2,offs1);
          delete localdS21[i];                                 
-         dM22[i] = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs2, 
+         dMs(1,1) = new HypreParMatrix(comm, ndofs2, gndofs2, gndofs2, 
                                       localdS22[i]->GetI(), localdS22[i]->GetJ(), 
                                       localdS22[i]->GetData(),
                                       offs2,offs2);    
          delete localdS22[i];                                 
-         blockdM[i] = new BlockOperator(tdof_offsets);
-         blockdM[i]->SetBlock(0,0,dM11[i]);                                                                                                                                  
-         blockdM[i]->SetBlock(0,1,dM12[i]);                                                                                                                                  
-         blockdM[i]->SetBlock(1,0,dM21[i]);                                                                                                                                  
-         blockdM[i]->SetBlock(1,1,dM22[i]);                                                                                                                                  
-         blockdM[i]->owns_blocks = 0;                                                                                                                                  
-         dMs(0,0) = dM11[i];
-         dMs(0,1) = dM12[i];
-         dMs(1,0) = dM21[i];
-         dMs(1,1) = dM22[i];
+
          dM[i] = HypreParMatrixFromBlocks(dMs);
+         delete dMs(0,0);
+         delete dMs(0,1);
+         delete dMs(1,0);
+         delete dMs(1,1);
       }
+      dMs.DeleteAll();
    }
 }
 
 double ParContactProblem::E(const Vector & d)
 {
    Vector kd(K->Height());
-   blockK->Mult(d,kd);
+   K->Mult(d,kd);
    return 0.5 * InnerProduct(comm,d, kd) - InnerProduct(comm,d, *B);
 }
 
 void ParContactProblem::DdE(const Vector &d, Vector &gradE)
 {
    gradE.SetSize(K->Height());
-   blockK->Mult(d, gradE);
+   K->Mult(d, gradE);
    gradE.Add(-1.0, *B); 
 }
 
 HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 {
    return K; 
-}
-BlockOperator* ParContactProblem::blockDddE(const Vector &d)
-{
-   return blockK; 
 }
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool compute_hessians_)
@@ -463,11 +424,6 @@ HypreParMatrix* ParContactProblem::Ddg(const Vector &d)
   return GetJacobian();
 }
 
-BlockOperator* ParContactProblem::blockDdg(const Vector &d)
-{
-  return GetBlockJacobian();
-}
-
 HypreParMatrix* ParContactProblem::lDddg(const Vector &d, const Vector &l)
 {
    return nullptr; // for now
@@ -480,11 +436,6 @@ QPOptParContactProblem::QPOptParContactProblem(ParContactProblem * problem_)
    dimU = problem->GetNumDofs();
    dimM = problem->GetNumContraints();
    dimC = problem->GetNumContraints();
-   block_offsets.SetSize(3);
-   block_offsets[0] = 0;
-   block_offsets[1] = dimU;
-   block_offsets[2] = dimM;
-   block_offsets.PartialSum();
    ml.SetSize(dimM); ml = 0.0;
    Vector negone(dimM); negone = -1.0;
    SparseMatrix diag(negone);
@@ -509,11 +460,6 @@ HypreParMatrix * QPOptParContactProblem::Duuf(const BlockVector & x)
    return problem->DddE(x.GetBlock(0));
 }
 
-BlockOperator * QPOptParContactProblem::blockDuuf(const BlockVector & x)
-{
-   return problem->blockDddE(x.GetBlock(0));
-}
-
 HypreParMatrix * QPOptParContactProblem::Dumf(const BlockVector & x)
 {
    return nullptr;
@@ -532,11 +478,6 @@ HypreParMatrix * QPOptParContactProblem::Dmmf(const BlockVector & x)
 HypreParMatrix * QPOptParContactProblem::Duc(const BlockVector & x)
 {
    return problem->Ddg(x.GetBlock(0));
-}
-
-BlockOperator * QPOptParContactProblem::blockDuc(const BlockVector & x)
-{
-   return problem->blockDdg(x.GetBlock(0));
 }
 
 HypreParMatrix * QPOptParContactProblem::Dmc(const BlockVector & x)
