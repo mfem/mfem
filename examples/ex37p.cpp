@@ -6,8 +6,8 @@
 // Sample runs:
 // mpirun -np 4 ex37p -alpha 10 -pv
 // mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
-// mpirun -np 4 ex37p -o 2 -alpha 5.0 -mi 50 -mf 0.4 -tol 1e-5
-// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -tol 1e-5
+// mpirun -np 4 ex37p -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
+// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -ntol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
@@ -58,8 +58,8 @@ using namespace std;
 using namespace mfem;
 
 /**
- * @brief Nonlinear projection of ψ onto the subspace
- *        ∫_Ω sigmoid(ψ) dx = θ vol(Ω) as follows.
+ * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+ *        ∫_Ω ρ dx = θ vol(Ω) as follows:
  *
  *        1. Compute the root of the R → R function
  *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
@@ -71,8 +71,8 @@ using namespace mfem;
  * @param max_its Newton maximum iteration number
  * @return double Final volume, ∫_Ω sigmoid(ψ)
  */
-double projit(ParGridFunction &psi, double target_volume, double tol=1e-12,
-              int max_its=10)
+double proj(ParGridFunction &psi, double target_volume, double tol=1e-12,
+            int max_its=10)
 {
    MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
    MappedGridFunctionCoefficient der_sigmoid_psi(&psi, der_sigmoid);
@@ -148,7 +148,7 @@ double projit(ParGridFunction &psi, double target_volume, double tol=1e-12,
  *
  *  Update ρ with projected mirror descent via the following algorithm.
  *
- *  1. Initialize ψ = inv_sigmoid(mass_fraction) so that ∫ sigmoid(ψ) = θ vol(Ω)
+ *  1. Initialize ψ = inv_sigmoid(vol_fraction) so that ∫ sigmoid(ψ) = θ vol(Ω)
  *
  *  While not converged:
  *
@@ -195,9 +195,10 @@ int main(int argc, char *argv[])
    int order = 2;
    double alpha = 1.0;
    double epsilon = 0.01;
-   double mass_fraction = 0.5;
+   double vol_fraction = 0.5;
    int max_it = 1e3;
-   double tol = 1e-4;
+   double itol = 1e-1;
+   double ntol = 1e-4;
    double rho_min = 1e-6;
    double lambda = 1.0;
    double mu = 1.0;
@@ -212,17 +213,19 @@ int main(int argc, char *argv[])
    args.AddOption(&alpha, "-alpha", "--alpha-step-length",
                   "Step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
-                  "epsilon phase field thickness");
+                  "Length scale for ρ.");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&tol, "-tol", "--tol",
-                  "Exit tolerance for ρ ");
-   args.AddOption(&mass_fraction, "-mf", "--mass-fraction",
-                  "Mass fraction for diffusion coefficient.");
+   args.AddOption(&ntol, "-ntol", "--rel-tol",
+                  "Normalized exit tolerance.");
+   args.AddOption(&itol, "-itol", "--abs-tol",
+                  "Increment exit tolerance.");
+   args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
+                  "Volume fraction for the material density.");
    args.AddOption(&lambda, "-lambda", "--lambda",
-                  "Lame constant λ");
+                  "Lamé constant λ.");
    args.AddOption(&mu, "-mu", "--mu",
-                  "Lame constant μ");
+                  "Lamé constant μ.");
    args.AddOption(&rho_min, "-rmin", "--psi-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
@@ -231,7 +234,6 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView output.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -314,9 +316,9 @@ int main(int argc, char *argv[])
    ParGridFunction psi_old(&control_fes);
    ParGridFunction rho_filter(&filter_fes);
    u = 0.0;
-   rho_filter = mass_fraction;
-   psi = inv_sigmoid(mass_fraction);
-   psi_old = inv_sigmoid(mass_fraction);
+   rho_filter = vol_fraction;
+   psi = inv_sigmoid(vol_fraction);
+   psi_old = inv_sigmoid(vol_fraction);
 
    // ρ = sigmoid(ψ)
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
@@ -381,7 +383,7 @@ int main(int argc, char *argv[])
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
-   const double target_volume = domain_volume * mass_fraction;
+   const double target_volume = domain_volume * vol_fraction;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -399,13 +401,14 @@ int main(int argc, char *argv[])
       rho_gf.ProjectCoefficient(rho);
       paraview_dc.SetPrefixPath("ParaView");
       paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetCycle(0);
       paraview_dc.SetDataFormat(VTKFormat::BINARY);
       paraview_dc.SetHighOrderOutput(true);
+      paraview_dc.SetCycle(0);
       paraview_dc.SetTime(0.0);
       paraview_dc.RegisterField("displacement",&u);
       paraview_dc.RegisterField("density",&rho_gf);
       paraview_dc.RegisterField("filtered_density",&rho_filter);
+      paraview_dc.Save();
    }
 
    // 11. Iterate
@@ -449,21 +452,23 @@ int main(int argc, char *argv[])
       w_rhs.Assemble();
       M.Mult(w_rhs,grad);
 
-      // Step 5 - Update design variable ψ ← projit(ψ - αG)
+      // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      const double material_volume = projit(psi, target_volume);
+      const double material_volume = proj(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
-      double norm_reduced_gradient = zerogf.ComputeL1Error(succ_diff_rho)/alpha;
+      double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
+      double norm_reduced_gradient = norm_increment/alpha;
       psi_old = psi;
 
       double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
       MPI_Allreduce(MPI_IN_PLACE,&compliance,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
       if (myid == 0)
       {
-         mfem::out << "norm of reduced gradient = " << norm_reduced_gradient << endl;
+         mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient << endl;
+         mfem::out << "norm of the increment = " << norm_increment << endl;
          mfem::out << "compliance = " << compliance << endl;
-         mfem::out << "mass_fraction = " << material_volume / domain_volume << endl;
+         mfem::out << "volume fraction = " << material_volume / domain_volume << endl;
       }
 
       if (glvis_visualization)
@@ -483,7 +488,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      if (norm_reduced_gradient < tol)
+      if (norm_reduced_gradient < ntol && norm_increment < itol)
       {
          break;
       }
