@@ -20,24 +20,46 @@
 
 namespace mfem
 {
+/**
+ @brief Abstract class for subdomain IntegrationRules
 
+ Class for subdomain (surface and subdomain) IntegrationRules. The class
+ provides different functions to construct the IntegrationRules.
+*/
 class CutIntegrationRules
 {
 protected:
+   /// @brief Order of the IntegrationRule
    int Order;
+   /// @brief Level-set defining the implicit interface
    Coefficient* LvlSet;
+   /// @brief  Polynomial degree for approximation of level-set function
    int lsOrder;
 
+   /// @brief Default constructor
    CutIntegrationRules()
       : Order(-1), LvlSet(NULL), lsOrder(0)   {}
 
+   /// @brief Constructor to set ab the CutIntegrationRules
    CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
       : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
 
+   /// @brief Initialize the CutIntegrationRules
    virtual void Init(int order, Coefficient& levelset, int lsO)
    { Order = order; LvlSet = &levelset; lsOrder = lsO; }
 
 public:
+   /**
+    @brief Get Surface IntegrationRule
+
+    Construct IntegrationRule to integrate on the implicit interface.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+   */
    virtual void GetSurfaceIntegrationRule(int Order,
                                           Coefficient& LvlSet,
                                           int lsO,
@@ -45,10 +67,32 @@ public:
                                           IntegrationRule& result)
       = 0;
 
+   /**
+    @brief Get Surface IntegrationRule
+
+    Construct IntegrationRule to integrate on the implicit interface.
+
+    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                           IntegrationRule& result)
       = 0;
 
+   /**
+    @brief Get Volume IntegrationRule
+
+    Construct IntegrationRule to integrate within the subdomain.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+   */
    virtual void GetVolumeIntegrationRule(int Order,
                                          Coefficient& LvlSet,
                                          int lsO,
@@ -58,12 +102,36 @@ public:
                                          = NULL)
       = 0;
 
+   /**
+    @brief Get Volume IntegrationRule
+
+    Construct IntegrationRule to integrate within the subdomain.
+
+    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
                                          IntegrationRule& result,
                                          const IntegrationRule* sir
                                          = NULL)
       = 0;
 
+   /**
+    @brief Compute transformation weights of interface
+
+    Compute the transformation weights for the interface. These have to be used
+    if integrating on the implicit interface.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [in] sir IntegrationRule defining the IntegrationPoints
+    @return Vector containing the transformation weights
+   */
    virtual Vector GetSurfaceWeights(int Order,
                                     Coefficient& LvlSet,
                                     int lsO,
@@ -71,70 +139,224 @@ public:
                                     const IntegrationRule* sir)
       = 0;
 
+   /**
+    @brief Compute transformation weights of interface
+
+    Compute the transformation weights for the interface. These have to be used
+    if integrating on the implicit interface.
+
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [in] sir IntegrationRule defining the IntegrationPoints
+    @return Vector containing the transformation weights
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
                                     const IntegrationRule* sir)
       = 0;
 
+   /// @brief Destructor of CutIntegrationRules
    virtual ~CutIntegrationRules() {}
 };
 
 #ifdef MFEM_USE_LAPACK
 
+/**
+ @brief Class for subdomain IntegrationRules by means of moment-fitting
+
+ Class for subdomain (surface and subdomain) IntegrationRules by means of
+ moment-fitting. The class provides different functions to construct the
+ IntegrationRules. The construction is done as described in Mueller et al. in
+ "Highly accurate surface and volume integration on implicit domains by means of
+ moment-fitting" (2013, see
+ https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569).
+*/
 class MomentFittingIntRules : public CutIntegrationRules
 {
 protected:
+   /// @brief Space Dimension of the element
    int dim;
+   /// @brief Number of divergence free bsis functions
    int nBasis;
+   /// @brief Number of basis functions for volume integration
    int nBasisVolume;
+   /// @brief IntgerationRule representing the reused IntegrationPoints
    IntegrationRule ir;
+   /// @brief SVD of the matrix for volumetric IntegrationRules
    DenseMatrixSVD* VolumeSVD;
+   /// @brief Array of face integration points
    Array<IntegrationPoint> FaceIP;
+   /// @brief Column-wise Matrix f the face quadrature weights
    DenseMatrix FaceWeights;
+   /// @brief Indicates the already computed face IntegrationRules
    Vector FaceWeightsComp;
 
+   /**
+    @brief Initialization for surface IntegrationRule
+
+    Initialize the members for computation of surface IntegrationRule. This is
+    called when the first IntegrationRule is computed or when Order or level-set
+    change.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation to initalize the members with
+   */
    void InitSurface(int order, Coefficient& levelset, int lsO,
                     ElementTransformation& Tr);
+
+   /**
+    @brief Initialization for volume IntegrationRule
+
+    Initialize the members for computation of surface IntegrationRule. This is
+    called when the first IntegrationRule is computed or when Order or level-set
+    change.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation to initalize the members with
+   */
    void InitVolume(int order, Coefficient& levelset, int lsO,
                    ElementTransformation& Tr);
+
+   /// @brief Initialize the MomentFittingIntRules
    void Init(int order, Coefficient& levelset, int lsO) override
    { Order = order; LvlSet = &levelset; lsOrder = lsO; FaceWeightsComp = 0.;}
 
+   /// @brief Clear stored data of the MomentFittingIntRules
+   void Clear();
+
+   /**
+    @brief Compute the IntegrationRules on the faces
+
+    Compute the IntegrationRules on the (cut) faces of an element. These will
+    be saved and reused if possible.
+
+    @param [in] Tr ElementTransformation of the element the IntegrationRules on
+   the faces are computed
+   */
    void ComputeFaceWeights(ElementTransformation& Tr);
 
+   /**
+    @brief Compute 1D quadrature weights
+
+    Compute the quadrature weights for the 1D surface quadrature rule.
+
+    @param [in] Tr ElementTransformation of the current element
+    */
    void ComputeSurfaceWeights1D(ElementTransformation& Tr);
+
+   /**
+    @brief Compute the 1D quadrature weights
+
+    Compute the 1D quadrature weights for the volumetric subdomain quadrature
+    rule.
+
+    @param [in] Tr ElementTransformation of the current element
+    @param [in] sir corresponding IntegrationRule on surface
+    */
    void ComputeVolumeWeights1D(ElementTransformation& Tr,
                                const IntegrationRule* sir);
+
+   /**
+    @brief Compute 2D quadrature weights
+
+    Compute the quadrature weights for the 2D surface quadrature rule by means
+    of moment-fitting. To construct the quadrature rule, special integrals are
+    reduced to integrals over the edges of the subcell where the level-set is
+    positiv.
+
+    @param [in] Tr ElementTransformation of the current element
+    */
    void ComputeSurfaceWeights2D(ElementTransformation& Tr);
+
+   /**
+    @brief Compute the 2D quadrature weights
+
+    Compute the 2D quadrature weights for the volumetric subdomain quadrature
+    rule by mmeans of moment-fitting. To construct the quadrature rule, special
+    integrals are reduced to integrals over the boundary of the subcell where
+    the level-set is positiv.
+
+    @param [in] Tr ElementTransformation of the current element
+    @param [in] sir corresponding IntegrationRule on surface
+    */
    void ComputeVolumeWeights2D(ElementTransformation& Tr,
                                const IntegrationRule* sir);
+
+   /**
+    @brief Compute 2D quadrature weights
+
+    Compute the quadrature weights for the 3D surface quadrature rule by means
+    of moment-fitting. To construct the quadrature rule, special integrals are
+    reduced to integrals over the edges of the subcell where the level-set is
+    positiv.
+
+    @param [in] Tr ElementTransformation of the current element
+    */
    void ComputeSurfaceWeights3D(ElementTransformation& Tr);
+
+
+   /**
+    @brief Compute the 3D quadrature weights
+
+    Compute the 3D quadrature weights for the volumetric subdomain quadrature
+    rule by mmeans of moment-fitting. To construct the quadrature rule, special
+    integrals are reduced to integrals over the boundary of the subcell where
+    the level-set is positiv.
+
+    @param [in] Tr ElementTransformation of the current element
+    @param [in] sir corresponding IntegrationRule on surface
+    */
    void ComputeVolumeWeights3D(ElementTransformation& Tr,
                                const IntegrationRule* sir);
 
+   /// @brief A divergence free basis on the element [-1,1]^2
    void DivFreeBasis2D(const IntegrationPoint& ip, DenseMatrix& shape);
+   /// @brief A orthogonalized divergence free basis on the element [-1,1]^2
    void OrthoBasis2D(const IntegrationPoint& ip, DenseMatrix& shape);
+   /// @brief A orthogonalized divergence free basis on the element [-1,1]^3
    void OrthoBasis3D(const IntegrationPoint& ip, DenseMatrix& shape);
+   /// @brief A step of the modified Gram-Schmidt algorithm
    void mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN, int step);
 
+   /// @brief Monomial basis on the element [-1,1]^2
    void Basis2D(const IntegrationPoint& ip, Vector& shape);
+   /// @brief Antiderivatives of the ,onomial basis on the element [-1,1]^2
    void BasisAD2D(const IntegrationPoint& ip, DenseMatrix& shape);
+   /// @brief Monomial basis on the element [-1,1]^3
    void Basis3D(const IntegrationPoint& ip, Vector& shape);
+   /// @brief Antiderivatives of the ,onomial basis on the element [-1,1^3
    void BasisAD3D(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
+   /// @brief Default constructor
    MomentFittingIntRules()
       : CutIntegrationRules(), dim(-1), nBasis(-1), nBasisVolume(-1),
         VolumeSVD(NULL)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
+   /// @brief Constructor to set ab the CutIntegrationRules
    MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
       : CutIntegrationRules(order, lvlset, lsO), dim(-1), nBasis(-1),
         nBasisVolume(-1),
         VolumeSVD(NULL)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
-   void Clear();
+   /**
+    @brief Get Surface IntegrationRule
 
+    Construct IntegrationRule to integrate on the implicit interface.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+   */
    virtual void GetSurfaceIntegrationRule(int order,
                                           Coefficient& lvlset,
                                           int lsO,
@@ -142,10 +364,32 @@ public:
                                           IntegrationRule& result)
    override;
 
+   /**
+    @brief Get Surface IntegrationRule
+
+    Construct IntegrationRule to integrate on the implicit interface.
+
+    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                           IntegrationRule& result)
    override;
 
+   /**
+    @brief Get Volume IntegrationRule
+
+    Construct IntegrationRule to integrate within the subdomain.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+   */
    virtual void GetVolumeIntegrationRule(int Order,
                                          Coefficient& LvlSet,
                                          int lsO,
@@ -155,12 +399,36 @@ public:
                                          = NULL)
    override;
 
+   /**
+    @brief Get Volume IntegrationRule
+
+    Construct IntegrationRule to integrate within the subdomain.
+
+    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the interface
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
                                          IntegrationRule& result,
                                          const IntegrationRule* sir
                                          = NULL)
    override;
 
+   /**
+    @brief Compute transformation weights of interface
+
+    Compute the transformation weights for the interface. These have to be used
+    if integrating on the implicit interface.
+
+    @param [in] Order Order of the IntegrationRule
+    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [in] sir IntegrationRule defining the IntegrationPoints
+    @return Vector containing the transformation weights
+   */
    virtual Vector GetSurfaceWeights(int order,
                                     Coefficient& lvlset,
                                     int lsO,
@@ -168,11 +436,24 @@ public:
                                     const IntegrationRule* sir)
    override;
 
+   /**
+    @brief Compute transformation weights of interface
+
+    Compute the transformation weights for the interface. These have to be used
+    if integrating on the implicit interface.
+
+    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
+    @param [in] sir IntegrationRule defining the IntegrationPoints
+    @return Vector containing the transformation weights
+
+    @warning This function can only be called when the CutIntegrationRules are
+    set up.
+   */
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
                                     const IntegrationRule* sir)
    override;
 
-
+   /// @brief Destructor of MomentFittingIntRules
    ~MomentFittingIntRules() { delete VolumeSVD; }
 };
 
@@ -181,6 +462,7 @@ public:
 namespace DivFreeBasis
 {
 
+/// @brief 3 dimensional divergence free basis functions on [-1,1]^3
 inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
 {
    int nBasis;
