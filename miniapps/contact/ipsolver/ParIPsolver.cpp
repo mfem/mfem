@@ -480,7 +480,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
          amg.SetSystemsOptions(3,false);
-         amg.SetRelaxType(8);
+         amg.SetRelaxType(relax_type);
 
          AreducedSolver.SetPreconditioner(amg);
 	      AreducedSolver.SetPrintLevel(3);
@@ -826,6 +826,12 @@ void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
 {
   linSolveTol = Tol;
 }
+
+void ParInteriorPointSolver::SetLinearSolveRelaxType(int relax_type_)
+{
+   relax_type = relax_type_;
+}
+
 
 ParInteriorPointSolver::~ParInteriorPointSolver() 
 {

@@ -34,13 +34,13 @@ int main(int argc, char *argv[])
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
    args.AddOption(&ref, "-r", "--refinements",
-                  "Number of uniform refinements.");     
+                  "Number of uniform refinements.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
-                  "Enable or disable ParaView visualization.");        
+                  "Enable or disable ParaView visualization.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");                                               
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -75,25 +75,27 @@ int main(int argc, char *argv[])
 
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
-   Array<int> & CGiterations = optimizer.GetCGIterNumbers(); 
+   Array<int> & CGiterations = optimizer.GetCGIterNumbers();
 
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
-   
+
    mfem::out << endl;
    mfem::out << " Initial Energy objective     = " << Einitial << endl;
    mfem::out << " Final Energy objective       = " << Efinal << endl;
    mfem::out << " Global number of dofs        = " << ndofs1 + ndofs2 << endl;
    mfem::out << " Global number of constraints = " << numconstr << endl;
-   mfem::out << " CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
+   mfem::out << " CG iteration numbers         = " ;
+   CGiterations.Print(mfem::out, CGiterations.Size());
 
-   MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
+   MFEM_VERIFY(optimizer.GetConverged(),
+               "Interior point solver did not converge.");
 
    if (visualization || paraview)
    {
       FiniteElementSpace * fes1 = prob1.GetFESpace();
       FiniteElementSpace * fes2 = prob2.GetFESpace();
-   
+
       Mesh * mesh1 = fes1->GetMesh();
       Mesh * mesh2 = fes2->GetMesh();
 
@@ -102,7 +104,7 @@ int main(int argc, char *argv[])
 
       mesh1->MoveNodes(x1_gf);
       mesh2->MoveNodes(x2_gf);
-      
+
       if (paraview)
       {
          ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
@@ -114,7 +116,7 @@ int main(int argc, char *argv[])
          paraview_dc1.SetTime(0.0);
          paraview_dc1.RegisterField("Body1", &x1_gf);
          paraview_dc1.Save();
-         
+
          ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
          paraview_dc2.SetPrefixPath("ParaView");
          paraview_dc2.SetLevelsOfDetail(1);
@@ -140,7 +142,7 @@ int main(int argc, char *argv[])
             socketstream sol_sock(vishost, visport);
             sol_sock.precision(8);
             sol_sock << "parallel " << 2 << " " << 1 << "\n"
-                     << "solution\n" << *mesh2 << x2_gf << flush;                     
+                     << "solution\n" << *mesh2 << x2_gf << flush;
          }
       }
    }

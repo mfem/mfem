@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
    double linsolvertol = 1e-6;
+   int relax_type = 8;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
@@ -40,17 +41,19 @@ int main(int argc, char *argv[])
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
-                  "Number of uniform refinements.");           
+                  "Number of uniform refinements.");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
-                  "Number of uniform refinements.");     
+                  "Number of uniform refinements.");
    args.AddOption(&linsolvertol, "-stol", "--solver-tol",
-                  "Linear Solver Tolerance.");                       
+                  "Linear Solver Tolerance.");
+   args.AddOption(&relax_type, "-rt", "--relax-type",
+                  "Selection of Smoother for AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");                   
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
-                  "Enable or disable ParaView visualization.");                                          
+                  "Enable or disable ParaView visualization.");
    args.Parse();
    if (!args.Good())
    {
@@ -65,10 +68,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file1,sref,pref,order); 
+   ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,
+                                                           mesh_file1,sref,pref,order);
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
    Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
-   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,mesh_file2,sref,pref,order); 
+   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,
+                                                           mesh_file2,sref,pref,order);
    Vector lambda2(prob2->GetMesh()->attributes.Max()); lambda2 = 57.6923076923;
    Vector mu2(prob2->GetMesh()->attributes.Max()); mu2 = 38.4615384615;
 
@@ -87,6 +92,7 @@ int main(int argc, char *argv[])
    int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
    optimizer.SetLinearSolveTol(linsolvertol);
+   optimizer.SetLinearSolveRelaxType(relax_type);
 
    ParGridFunction x1 = prob1->GetDisplacementGridFunction();
    ParGridFunction x2 = prob2->GetDisplacementGridFunction();
@@ -109,7 +115,7 @@ int main(int argc, char *argv[])
 
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
-   Array<int> & CGiterations = optimizer.GetCGIterNumbers(); 
+   Array<int> & CGiterations = optimizer.GetCGIterNumbers();
    if (Mpi::Root())
    {
       mfem::out << endl;
@@ -117,17 +123,19 @@ int main(int argc, char *argv[])
       mfem::out << " Final Energy objective       = " << Efinal << endl;
       mfem::out << " Global number of dofs        = " << gndofs1 + gndofs2 << endl;
       mfem::out << " Global number of constraints = " << numconstr << endl;
-      mfem::out << " CG iteration numbers         = " ; CGiterations.Print(mfem::out, CGiterations.Size());
+      mfem::out << " CG iteration numbers         = " ;
+      CGiterations.Print(mfem::out, CGiterations.Size());
    }
 
-   MFEM_VERIFY(optimizer.GetConverged(), "Interior point solver did not converge.");
+   MFEM_VERIFY(optimizer.GetConverged(),
+               "Interior point solver did not converge.");
 
 
    if (visualization || paraview)
    {
       ParFiniteElementSpace * fes1 = prob1->GetFESpace();
       ParFiniteElementSpace * fes2 = prob2->GetFESpace();
-   
+
       ParMesh * mesh1 = fes1->GetParMesh();
       ParMesh * mesh2 = fes2->GetParMesh();
 
@@ -154,7 +162,7 @@ int main(int argc, char *argv[])
          paraview_dc1.SetTime(0.0);
          paraview_dc1.RegisterField("Body1", &x1_gf);
          paraview_dc1.Save();
-   
+
          ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
          paraview_dc2.SetPrefixPath("ParaView");
          paraview_dc2.SetLevelsOfDetail(1);
@@ -181,7 +189,7 @@ int main(int argc, char *argv[])
             socketstream sol_sock(vishost, visport);
             sol_sock.precision(8);
             sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
-                     << "solution\n" << *mesh2 << x2_gf << flush;                     
+                     << "solution\n" << *mesh2 << x2_gf << flush;
          }
       }
    }

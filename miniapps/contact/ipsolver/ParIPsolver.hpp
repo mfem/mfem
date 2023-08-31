@@ -60,6 +60,7 @@ protected:
 
     int linSolver;
     double linSolveTol;
+    int relax_type = 8;
 public:
     ParInteriorPointSolver(QPOptParContactProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
@@ -87,6 +88,7 @@ public:
     void SaveLogBarrierHessianIterates(bool);
     void SetLinearSolver(int);
     void SetLinearSolveTol(double);
+    void SetLinearSolveRelaxType(int);
     virtual ~ParInteriorPointSolver();
 };
 
