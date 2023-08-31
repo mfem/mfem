@@ -32,7 +32,7 @@ void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
       IntegrationRules irs(0, Quadrature1D::GaussLegendre);
       ir = irs.Get(Geometry::SEGMENT, 0);
    }
-   else 
+   else
    {
       if (Tr.GetDimension() == 2)
       {
@@ -90,7 +90,7 @@ void MomentFittingIntRules::InitVolume(int order, Coefficient& levelset,
       }
 
       // assamble the matrix
-      DenseMatrix Mat(nBasis, ir.GetNPoints());
+      DenseMatrix Mat(nBasisVolume, ir.GetNPoints());
       for (int ip = 0; ip < ir.GetNPoints(); ip++)
       {
          Vector shape;
@@ -118,7 +118,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
 
-   if(FaceIP.Size() == 0)
+   if (FaceIP.Size() == 0)
    {
       FaceWeightsComp.SetSize(mesh->GetNFaces());
       FaceWeightsComp = 0.;
@@ -134,7 +134,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
 
    for (int face = 0; face < me->GetNFaces(); face++)
    {
-      if(FaceWeightsComp(faces[face]) == 0.)
+      if (FaceWeightsComp(faces[face]) == 0.)
       {
          FaceWeightsComp(faces[face]) = 1.;
          Array<int> verts;
@@ -161,11 +161,11 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
          IsoparametricTransformation faceTrafo;
          local_mesh.GetElementTransformation(0, &faceTrafo);
 
-         MomentFittingIntRules* FaceRules;
-         IntegrationRule FaceRule 
-            = FaceRules->GetVolumeIntegrationRule(Order, *LvlSet, lsOrder,
-                                                  faceTrafo);
-         if(FaceIP.Size() != FaceRule.Size())
+         MomentFittingIntRules FaceRules(Order, *LvlSet, lsOrder);
+         IntegrationRule FaceRule;
+         FaceRules.GetVolumeIntegrationRule(Order, *LvlSet, lsOrder,
+                                            faceTrafo, FaceRule);
+         if (FaceIP.Size() != FaceRule.Size())
          {
             FaceIP.SetSize(FaceRule.Size());
             for (int ip = 0; ip < FaceRule.GetNPoints(); ip++)
@@ -186,7 +186,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
 
          for (int ip = 0; ip < FaceRule.GetNPoints(); ip++)
          {
-            FaceWeights(ip, face) = FaceRule.IntPoint(ip).weight;
+            FaceWeights(ip, faces[face]) = FaceRule.IntPoint(ip).weight;
          }
       }
    }
@@ -297,10 +297,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
 {
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
-   H1_FECollection fec(lsOrder, 2);
-   FiniteElementSpace fes(Tr.mesh, &fec);
-   GridFunction LevelSet(&fes);
-   LevelSet.ProjectCoefficient(*LvlSet);
+
 
    Element* me = mesh->GetElement(elem);
    IsoparametricTransformation Trafo;
@@ -411,7 +408,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
 
       PointA.SetRow(edge, pointA);
       PointB.SetRow(edge, pointB);
-      
+
       if ((layout == Layout::inside || layout == Layout::intersected))
       {
          edge_int.Append(true);
@@ -481,6 +478,12 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
    // do integration over the area for integral over interface
    if (element_int && !interior)
    {
+      H1_FECollection fec(lsOrder, 2);
+      FiniteElementSpace fes(Tr.mesh, &fec);
+      GridFunction LevelSet(&fes);
+      LevelSet.ProjectCoefficient(*LvlSet);
+      mesh->GetElementTransformation(elem, &Trafo);
+
       const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
@@ -534,6 +537,8 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
       IntegrationPoint& intp = ir.IntPoint(ip);
       intp.weight = ElemWeights(ip);
    }
+
+   mesh->GetElementTransformation(elem, &Trafo);
 }
 
 void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
@@ -541,10 +546,6 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
 {
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
-   H1_FECollection fec(lsOrder, 2);
-   FiniteElementSpace fes(Tr.mesh, &fec);
-   GridFunction LevelSet(&fes);
-   LevelSet.ProjectCoefficient(*LvlSet);
 
    Element* me = mesh->GetElement(elem);
    IsoparametricTransformation Trafo;
@@ -721,6 +722,12 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
    // do the integration over the interface
    if (element_int && !interior)
    {
+      H1_FECollection fec(lsOrder, 2);
+      FiniteElementSpace fes(Tr.mesh, &fec);
+      GridFunction LevelSet(&fes);
+      LevelSet.ProjectCoefficient(*LvlSet);
+      mesh->GetElementTransformation(elem, &Trafo);
+
       const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
@@ -772,7 +779,7 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
       intp.weight = ElemWeights(ip);
    }
 
-   if(interior)
+   if (interior)
    {
       int qorder = 0;
       IntegrationRules irs(0, Quadrature1D::GaussLegendre);
@@ -783,18 +790,16 @@ void MomentFittingIntRules::ComputeVolumeWeights2D(ElementTransformation& Tr,
       }
       ir = ir2;
    }
+
+   mesh->GetElementTransformation(elem, &Trafo);
 }
 
 void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
 {
    ComputeFaceWeights(Tr);
-   
+
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
-   H1_FECollection fec(lsOrder, 3);
-   FiniteElementSpace fes(Tr.mesh, &fec);
-   GridFunction LevelSet(&fes);
-   LevelSet.ProjectCoefficient(*LvlSet);
 
    Element* me = mesh->GetElement(elem);
    IsoparametricTransformation Trafo;
@@ -903,6 +908,12 @@ void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
    // do integration over the area for integral over interface
    if (element_int && !interior)
    {
+      H1_FECollection fec(lsOrder, 3);
+      FiniteElementSpace fes(Tr.mesh, &fec);
+      GridFunction LevelSet(&fes);
+      LevelSet.ProjectCoefficient(*LvlSet);
+      mesh->GetElementTransformation(elem, &Trafo);
+
       const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
@@ -956,19 +967,20 @@ void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
       IntegrationPoint& intp = ir.IntPoint(ip);
       intp.weight = ElemWeights(ip);
    }
+
+   mesh->GetElementTransformation(elem, &Trafo);
+
 }
 
 void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
                                                    const IntegrationRule* sir)
 {
+   Order++;
    ComputeFaceWeights(Tr);
+   Order--;
 
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
-   H1_FECollection fec(lsOrder, 3);
-   FiniteElementSpace fes(Tr.mesh, &fec);
-   GridFunction LevelSet(&fes);
-   LevelSet.ProjectCoefficient(*LvlSet);
 
    Element* me = mesh->GetElement(elem);
    IsoparametricTransformation Trafo;
@@ -1067,7 +1079,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
          {
             Vector adiv(Trafo.GetSpaceDim());
             shape.GetRow(dof, adiv);
-            RHS(dof) -= (adiv * normal) * FaceWeights(ip, faces[face]);
+            RHS(dof) += (adiv * normal) * FaceWeights(ip, faces[face]);
          }
       }
    }
@@ -1075,6 +1087,12 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
    // do integration over the area for integral over interface
    if (element_int && !interior)
    {
+      H1_FECollection fec(lsOrder, 3);
+      FiniteElementSpace fes(Tr.mesh, &fec);
+      GridFunction LevelSet(&fes);
+      LevelSet.ProjectCoefficient(*LvlSet);
+      mesh->GetElementTransformation(elem, &Trafo);
+
       const FiniteElement* fe = fes.GetFE(elem);
       Vector normal(Trafo.GetDimension());
       Vector gradi(Trafo.GetDimension());
@@ -1103,7 +1121,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
          {
             Vector adiv(Trafo.GetSpaceDim());
             shapes.GetRow(dof, adiv);
-            RHS(dof) =  (adiv * normal) * sir->IntPoint(ip).weight;
+            RHS(dof) +=  (adiv * normal) * sir->IntPoint(ip).weight;
          }
       }
 
@@ -1127,7 +1145,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
       intp.weight = ElemWeights(ip);
    }
 
-   if(interior)
+   if (interior)
    {
       int qorder = 0;
       IntegrationRules irs(0, Quadrature1D::GaussLegendre);
@@ -1138,6 +1156,8 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
       }
       ir = ir2;
    }
+
+   mesh->GetElementTransformation(elem, &Trafo);
 }
 
 void MomentFittingIntRules::DivFreeBasis2D(const IntegrationPoint& ip,
@@ -1366,7 +1386,7 @@ void MomentFittingIntRules::BasisAD3D(const IntegrationPoint& ip,
 }
 
 void MomentFittingIntRules::Clear()
-{ 
+{
    dim = -1;
    nBasis = -1;
    nBasisVolume = -1;
@@ -1377,33 +1397,36 @@ void MomentFittingIntRules::Clear()
    FaceWeightsComp = 0.;
 }
 
-IntegrationRule MomentFittingIntRules::GetSurfaceIntegrationRule(int order, 
+void MomentFittingIntRules::GetSurfaceIntegrationRule(int order,
                                                       Coefficient& lvlset,
                                                       int lsO,
-                                                      ElementTransformation& Tr)
+                                                      ElementTransformation& Tr,
+                                                      IntegrationRule& result)
 {
-   if(order != Order || dim != Tr.GetDimension() || nBasis == -1)
+   if (order != Order || dim != Tr.GetDimension() || nBasis == -1)
    {
       Clear();
       InitSurface(order, lvlset, lsO, Tr);
    }
    else
+   {
       Init(order, lvlset, lsO);
+   }
 
-   if(Tr.GetDimension() == 3)
+   if (Tr.GetDimension() == 3)
    {
       FaceIP.DeleteAll();
       FaceWeights = 0.;
       FaceWeightsComp = 0.;
    }
 
-   return GetSurfaceIntegrationRule(Tr);
+   GetSurfaceIntegrationRule(Tr, result);
 }
 
-IntegrationRule MomentFittingIntRules::GetSurfaceIntegrationRule(
-                                                      ElementTransformation& Tr)
+void MomentFittingIntRules::GetSurfaceIntegrationRule(ElementTransformation& Tr,
+                                                      IntegrationRule& result)
 {
-   if(nBasis == -1)
+   if (nBasis == -1)
    {
       Clear();
       InitSurface(Order, *LvlSet, lsOrder, Tr);
@@ -1422,66 +1445,97 @@ IntegrationRule MomentFittingIntRules::GetSurfaceIntegrationRule(
       ComputeSurfaceWeights3D(Tr);
    }
 
-   return ir;
+   result.SetSize(ir.GetNPoints());
+   for (int ip = 0; ip < ir.GetNPoints(); ip++)
+   {
+      result.IntPoint(ip).index = ip;
+      IntegrationPoint &intp = result.IntPoint(ip);
+      intp.x = ir.IntPoint(ip).x;
+      intp.y = ir.IntPoint(ip).y;
+      intp.z = ir.IntPoint(ip).z;
+      intp.weight = ir.IntPoint(ip).weight;
+   }
+
 }
 
-IntegrationRule MomentFittingIntRules::GetVolumeIntegrationRule(int order,
+void MomentFittingIntRules::GetVolumeIntegrationRule(int order,
                                                      Coefficient& lvlset,
                                                      int lsO,
                                                      ElementTransformation& Tr,
+                                                     IntegrationRule& result,
                                                      const IntegrationRule* sir)
 {
-   if(order != Order || dim != Tr.GetDimension() || nBasisVolume == -1)
+   if (order != Order || dim != Tr.GetDimension() || nBasisVolume == -1)
    {
       Clear();
       InitVolume(order, lvlset, lsO, Tr);
    }
    else
+   {
       Init(order, lvlset, lsO);
+   }
 
-   if(Tr.GetDimension() == 3)
+   if (Tr.GetDimension() == 3)
    {
       FaceIP.DeleteAll();
       FaceWeights = 0.;
       FaceWeightsComp = 0.;
    }
 
-   return GetVolumeIntegrationRule(Tr, sir);
+   GetVolumeIntegrationRule(Tr, result, sir);
 }
 
-IntegrationRule MomentFittingIntRules::GetVolumeIntegrationRule(
-                                                     ElementTransformation& Tr,
+void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
+                                                     IntegrationRule& result,
                                                      const IntegrationRule* sir)
 {
-   if(nBasis == -1)
+   if (nBasis == -1)
    {
       Clear();
       InitVolume(Order, *LvlSet, lsOrder, Tr);
    }
 
    IntegrationRule SIR;
-   if(sir == NULL || (sir->GetOrder() - 1) != ir.GetOrder())
+   if (sir == NULL)
    {
-      MomentFittingIntRules* SurfaceRules;
-      SIR = SurfaceRules->GetSurfaceIntegrationRule(Order + 1, *LvlSet, lsOrder,
-                                                    Tr);
-      sir = &SIR;
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else if ((sir->GetOrder() - 1) != ir.GetOrder())
+   {
+      Order++;
+      GetSurfaceIntegrationRule(Tr, SIR);
+      Order--;
+   }
+   else
+   {
+      SIR = *sir;
    }
 
    if (Tr.GetDimension() == 1)
    {
-      ComputeVolumeWeights1D(Tr, sir);
+      ComputeVolumeWeights1D(Tr, &SIR);
    }
    else if (Tr.GetDimension() == 2)
    {
-      ComputeVolumeWeights2D(Tr, sir);
+      ComputeVolumeWeights2D(Tr, &SIR);
    }
    else if (Tr.GetDimension() == 3)
    {
-      ComputeVolumeWeights3D(Tr, sir);
+      ComputeVolumeWeights3D(Tr, &SIR);
    }
 
-   return ir;
+   result.SetSize(ir.GetNPoints());
+   for (int ip = 0; ip < ir.GetNPoints(); ip++)
+   {
+      result.IntPoint(ip).index = ip;
+      IntegrationPoint &intp = result.IntPoint(ip);
+      intp.x = ir.IntPoint(ip).x;
+      intp.y = ir.IntPoint(ip).y;
+      intp.z = ir.IntPoint(ip).z;
+      intp.weight = ir.IntPoint(ip).weight;
+   }
 }
 
 Vector MomentFittingIntRules::GetSurfaceWeights(int order,
@@ -1490,13 +1544,15 @@ Vector MomentFittingIntRules::GetSurfaceWeights(int order,
                                                 ElementTransformation& Tr,
                                                 const IntegrationRule* sir)
 {
-   if(order != Order || dim != Tr.GetDimension() || nBasis == -1)
+   if (order != Order || dim != Tr.GetDimension() || nBasis == -1)
    {
       Clear();
       InitSurface(order, lvlset, lsO, Tr);
    }
    else
+   {
       Init(order, lvlset, lsO);
+   }
 
    return GetSurfaceWeights(Tr, sir);
 }
@@ -1507,11 +1563,18 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
    Vector SurfaceWeights(sir->GetNPoints());
    SurfaceWeights = 0.;
 
-   if(Tr.GetDimension() > 1)
+   bool computeweights = false;
+   for (int ip = 0; ip < sir->GetNPoints(); ip++)
+      if (sir->IntPoint(ip).weight != 0.)
+      {
+         computeweights = true;
+      }
+
+   if (Tr.GetDimension() > 1 && computeweights)
    {
       int elem = Tr.ElementNo;
       Mesh* mesh = Tr.mesh;
-      H1_FECollection fec(lsOrder, 2);
+      H1_FECollection fec(lsOrder, Tr.GetDimension());
       FiniteElementSpace fes(Tr.mesh, &fec);
       GridFunction LevelSet(&fes);
       LevelSet.ProjectCoefficient(*LvlSet);
@@ -1550,7 +1613,7 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
    }
 
    return SurfaceWeights;
-}                                    
+}
 
 #endif //MFEM_USE_LAPACK
 
