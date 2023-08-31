@@ -29,54 +29,39 @@ protected:
    int lsOrder;
 
    CutIntegrationRules()
-    : Order(-1), LvlSet(NULL), lsOrder(0)   {}
+      : Order(-1), LvlSet(NULL), lsOrder(0)   {}
+
+   CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
+      : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
 
    virtual void Init(int order, Coefficient& levelset, int lsO)
    { Order = order; LvlSet = &levelset; lsOrder = lsO; }
 
 public:
-   virtual IntegrationRule GetSurfaceIntegrationRule(int Order, 
-                                                     Coefficient& LvlSet,
-                                                     int lsO,
-                                                     ElementTransformation& Tr) 
+   virtual void GetSurfaceIntegrationRule(int Order,
+                                          Coefficient& LvlSet,
+                                          int lsO,
+                                          ElementTransformation& Tr,
+                                          IntegrationRule& result)
       = 0;
 
-   virtual IntegrationRule GetSurfaceIntegrationRule(ElementTransformation& Tr) 
+   virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
+                                          IntegrationRule& result)
       = 0;
 
-   virtual void UpdateSurfaceIntegrationRule(Coefficient& LvlSet,
-                                             int lsO,
-                                             ElementTransformation& Tr,
-                                             IntegrationRule& ir)
+   virtual void GetVolumeIntegrationRule(int Order,
+                                         Coefficient& LvlSet,
+                                         int lsO,
+                                         ElementTransformation& Tr,
+                                         IntegrationRule& result,
+                                         const IntegrationRule* sir
+                                         = NULL)
       = 0;
 
-   virtual void UpdateSurfaceIntegrationRule(ElementTransformation& Tr,
-                                             IntegrationRule& ir)
-      = 0;
-
-   virtual IntegrationRule GetVolumeIntegrationRule(int Order,
-                                                    Coefficient& LvlSet,
-                                                    int lsO,
-                                                    ElementTransformation& Tr,
-                                                    const IntegrationRule* sir
-                                                    = NULL)
-      = 0;
-   
-   virtual IntegrationRule GetVolumeIntegrationRule(ElementTransformation& Tr,
-                                                    const IntegrationRule* sir
-                                                    = NULL)
-      = 0;
-   
-   virtual void UpdateVolumeIntegrationRule(Coefficient& LvlSet,
-                                            int lsO,
-                                            ElementTransformation& Tr,
-                                            IntegrationRule& ir,
-                                            const IntegrationRule* sir = NULL)
-      = 0;
-
-   virtual void UpdateVolumeIntegrationRule(ElementTransformation& Tr,
-                                            IntegrationRule& ir,
-                                            const IntegrationRule* sir = NULL)
+   virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
+                                         IntegrationRule& result,
+                                         const IntegrationRule* sir
+                                         = NULL)
       = 0;
 
    virtual Vector GetSurfaceWeights(int Order,
@@ -115,7 +100,7 @@ protected:
    { Order = order; LvlSet = &levelset; lsOrder = lsO; FaceWeightsComp = 0.;}
 
    void ComputeFaceWeights(ElementTransformation& Tr);
-   
+
    void ComputeSurfaceWeights1D(ElementTransformation& Tr);
    void ComputeVolumeWeights1D(ElementTransformation& Tr,
                                const IntegrationRule* sir);
@@ -138,44 +123,54 @@ protected:
 
 public:
    MomentFittingIntRules()
-    : CutIntegrationRules(), dim(-1), nBasis(-1), nBasisVolume(-1),
-      VolumeSVD(NULL)
+      : CutIntegrationRules(), dim(-1), nBasis(-1), nBasisVolume(-1),
+        VolumeSVD(NULL)
+   { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
+
+   MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
+      : CutIntegrationRules(order, lvlset, lsO), dim(-1), nBasis(-1),
+        nBasisVolume(-1),
+        VolumeSVD(NULL)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
    void Clear();
 
-   virtual IntegrationRule GetSurfaceIntegrationRule(int order, 
-                                                     Coefficient& lvlset,
-                                                     int lsO,
-                                                     ElementTransformation& Tr) 
-      override;
+   virtual void GetSurfaceIntegrationRule(int order,
+                                          Coefficient& lvlset,
+                                          int lsO,
+                                          ElementTransformation& Tr,
+                                          IntegrationRule& result)
+   override;
 
-   virtual IntegrationRule GetSurfaceIntegrationRule(ElementTransformation& Tr) 
-      override;
+   virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
+                                          IntegrationRule& result)
+   override;
 
-   virtual IntegrationRule GetVolumeIntegrationRule(int order,
-                                                    Coefficient& lvlset,
-                                                    int lsO,
-                                                    ElementTransformation& Tr,
-                                                    const IntegrationRule* sir
-                                                    = NULL)
-      override;
-   
-   virtual IntegrationRule GetVolumeIntegrationRule(ElementTransformation& Tr,
-                                                    const IntegrationRule* sir
-                                                    = NULL)
-      override;
+   virtual void GetVolumeIntegrationRule(int Order,
+                                         Coefficient& LvlSet,
+                                         int lsO,
+                                         ElementTransformation& Tr,
+                                         IntegrationRule& result,
+                                         const IntegrationRule* sir
+                                         = NULL)
+   override;
+
+   virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
+                                         IntegrationRule& result,
+                                         const IntegrationRule* sir
+                                         = NULL)
+   override;
 
    virtual Vector GetSurfaceWeights(int order,
                                     Coefficient& lvlset,
                                     int lsO,
                                     ElementTransformation& Tr,
                                     const IntegrationRule* sir)
-      override;
+   override;
 
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
                                     const IntegrationRule* sir)
-      override;
+   override;
 
 
    ~MomentFittingIntRules() { delete VolumeSVD; }

@@ -3,16 +3,17 @@
 // Compile with: make ex37
 //
 // Sample runs:  ex37
-//               ex37 -i surface
-//               ex37 -i surface -o 0
-//               ex37 -i surface -r 1
-//               ex37 -i surface -o 4
-//               ex37 -i surface -o 4 -r 5
-//               ex37 -i volumetric
-//               ex37 -i volumetric -o 0
-//               ex37 -i volumetric -r 1
-//               ex37 -i volumetric -o 4
-//               ex37 -i volumetric -o 4 -r 5
+//               ex37 -i volumetric1d
+//               ex37 -i surface2d
+//               ex37 -i surface2d -o 0
+//               ex37 -i surface2d -r 1
+//               ex37 -i surface2d -o 4
+//               ex37 -i surface2d -o 4 -r 5
+//               ex37 -i volumetric2d
+//               ex37 -i volumetric2d -o 0
+//               ex37 -i volumetric2d -r 1
+//               ex37 -i volumetric2d -o 4
+//               ex37 -i volumetric2d -o 4 -r 5
 //               ex37 -i surface3d
 //               ex37 -i surface3d -o 0
 //               ex37 -i surface3d -r 1
@@ -149,39 +150,63 @@ protected:
 
 public:
    SIntegrationRule(int Order, Coefficient& levelset, int lsorder, Mesh* mesh)
-    : LvlSet(levelset), lsOrder(lsorder)
+      : LvlSet(levelset), lsOrder(lsorder)
    {
       dim = mesh->Dimension();
 
       IsoparametricTransformation Tr;
-      MomentFittingIntRules* MFIRs;
+      MomentFittingIntRules MFIRs(Order, LvlSet, lsOrder);
       mesh->GetElementTransformation(0, &Tr);
-      IntegrationRule ir 
-         = MFIRs->GetSurfaceIntegrationRule(Order, levelset, lsorder, Tr);
-      Weights.SetSize(GetNPoints(), mesh->GetNE());
-      SurfaceWeights.SetSize(GetNPoints(), mesh->GetNE());
-      SurfaceWeights.SetCol(0, MFIRs->GetSurfaceWeights(Tr, &ir));
+      IntegrationRule ir;
+      MFIRs.GetSurfaceIntegrationRule(Tr, ir);
+      if (dim >1)
+      {
+         Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
+      }
+      else
+      {
+         Weights.SetSize(2, mesh->GetNE());
+      }
+      SurfaceWeights.SetSize(ir.GetNPoints(), mesh->GetNE());
+      SurfaceWeights.SetCol(0, MFIRs.GetSurfaceWeights(Tr, &ir));
       SetSize(ir.GetNPoints());
 
-      for(int ip = 0; ip < GetNPoints(); ip++)
+      for (int ip = 0; ip < GetNPoints(); ip++)
       {
          IntPoint(ip).index = ip;
          IntegrationPoint &intp = IntPoint(ip);
          intp.x = ir.IntPoint(ip).x;
          intp.y = ir.IntPoint(ip).y;
          intp.z = ir.IntPoint(ip).z;
-         Weights(ip, 0) = ir.IntPoint(ip).weight;
-      }
-      
-      for(int elem = 1; elem < mesh->GetNE(); elem++)
-      {
-         mesh->GetElementTransformation(elem, &Tr);
-         ir = MFIRs->GetSurfaceIntegrationRule(Tr);
-         SurfaceWeights.SetCol(elem, MFIRs->GetSurfaceWeights(Tr, &ir));
-
-         for(int ip = 0; ip < GetNPoints(); ip++)
+         if (dim > 1)
          {
             Weights(ip, 0) = ir.IntPoint(ip).weight;
+         }
+         else
+         {
+            Weights(0, 0) = ir.IntPoint(ip).x;
+            Weights(1, 0) = ir.IntPoint(ip).weight;
+         }
+      }
+
+
+      for (int elem = 1; elem < mesh->GetNE(); elem++)
+      {
+         mesh->GetElementTransformation(elem, &Tr);
+         MFIRs.GetSurfaceIntegrationRule(Tr, ir);
+         SurfaceWeights.SetCol(elem, MFIRs.GetSurfaceWeights(Tr, &ir));
+
+         for (int ip = 0; ip < GetNPoints(); ip++)
+         {
+            if (dim > 1)
+            {
+               Weights(ip, elem) = ir.IntPoint(ip).weight;
+            }
+            else
+            {
+               Weights(0, elem) = ir.IntPoint(ip).x;
+               Weights(1, elem) = ir.IntPoint(ip).weight;
+            }
          }
       }
    }
@@ -193,6 +218,7 @@ public:
          IntegrationPoint &intp = IntPoint(0);
          intp.x = Weights(0, Element);
          intp.weight = Weights(1, Element);
+         cout << intp.x << " " << Element << endl;
       }
       else
          for (int ip = 0; ip < GetNPoints(); ip++)
@@ -228,51 +254,68 @@ protected:
    Coefficient& LvlSet;
    int lsOrder;
    DenseMatrix Weights;
-   SIntegrationRule* SIR;
 
 public:
    CIntegrationRule(int Order, Coefficient& levelset, int lsorder, Mesh* mesh)
-    : LvlSet(levelset), lsOrder(lsorder), SIR(NULL)
+      : LvlSet(levelset), lsOrder(lsorder)
    {
       dim = mesh->Dimension();
-      SIR = new SIntegrationRule(Order, levelset, lsorder, mesh);
 
       IsoparametricTransformation Tr;
-      MomentFittingIntRules* MFIRs;
+      MomentFittingIntRules MFIRs(Order, LvlSet, lsOrder);
       mesh->GetElementTransformation(0, &Tr);
-      SIR->SetElement(0);
-      IntegrationRule ir 
-         = MFIRs->GetVolumeIntegrationRule(Order, levelset, lsorder, Tr, SIR);
-      Weights.SetSize(GetNPoints(), mesh->GetNE());
+      IntegrationRule ir;
+      MFIRs.GetVolumeIntegrationRule(Order, levelset, lsorder, Tr, ir);
+      if (dim > 1)
+      {
+         Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
+      }
+      else
+      {
+         Weights.SetSize(2 * ir.GetNPoints(), mesh->GetNE());
+      }
 
       SetSize(ir.GetNPoints());
-      for(int ip = 0; ip < GetNPoints(); ip++)
+      for (int ip = 0; ip < GetNPoints(); ip++)
       {
          IntPoint(ip).index = ip;
          IntegrationPoint &intp = IntPoint(ip);
          intp.x = ir.IntPoint(ip).x;
          intp.y = ir.IntPoint(ip).y;
          intp.z = ir.IntPoint(ip).z;
-         Weights(ip, 0) = ir.IntPoint(ip).weight;
-      }
-      
-      for(int elem = 1; elem < mesh->GetNE(); elem++)
-      {
-         mesh->GetElementTransformation(elem, &Tr);
-         SIR->SetElement(elem);
-         ir = MFIRs->GetVolumeIntegrationRule(Tr, SIR);
-
-         for(int ip = 0; ip < GetNPoints(); ip++)
+         if (dim > 1)
          {
             Weights(ip, 0) = ir.IntPoint(ip).weight;
+         }
+         else
+         {
+            Weights(2 * ip, 0) = ir.IntPoint(ip).x;
+            Weights(2 * ip + 1, 0) = ir.IntPoint(ip).weight;
+         }
+      }
+
+      for (int elem = 1; elem < mesh->GetNE(); elem++)
+      {
+         mesh->GetElementTransformation(elem, &Tr);
+         MFIRs.GetVolumeIntegrationRule(Tr, ir);
+
+         for (int ip = 0; ip < GetNPoints(); ip++)
+         {
+            if (dim > 1)
+            {
+               Weights(ip, elem) = ir.IntPoint(ip).weight;
+            }
+            else
+            {
+               Weights(2 * ip, elem) = ir.IntPoint(ip).x;
+               Weights(2 * ip + 1, elem) = ir.IntPoint(ip).weight;
+            }
          }
       }
    }
 
    void SetElement(int Element)
    {
-      SIR->SetElement(Element);
-
       if (dim == 1)
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
@@ -288,7 +331,7 @@ public:
          }
    }
 
-   ~CIntegrationRule() { delete SIR; }
+   ~CIntegrationRule() {}
 };
 /**
  @brief Class for surface linearform integrator
@@ -520,15 +563,15 @@ int main(int argc, char *argv[])
    FunctionCoefficient u(integrand);
 
    // 5. Define the necessary Integration rules on element 0.
-   IsoparametricTransformation Tr; 
-   mesh->GetElementTransformation(0, &Tr); 
-   SIntegrationRule* sir = new SIntegrationRule(order, levelset, 2, mesh); 
-   CIntegrationRule* cir = NULL; 
+   IsoparametricTransformation Tr;
+   mesh->GetElementTransformation(0, &Tr);
+   SIntegrationRule* sir = new SIntegrationRule(order, levelset, 2, mesh);
+   CIntegrationRule* cir = NULL;
    if (itype == IntegrationType::Volumetric1D
        || itype == IntegrationType::Volumetric2D
        || itype == IntegrationType::Volumetric3D)
    {
-      cir = new CIntegrationRule(order, levelset, 2, mesh); 
+      cir = new CIntegrationRule(order, levelset, 2, mesh);
    }
 
    // 6. Define and assemble the linar forms on the finite element space.
