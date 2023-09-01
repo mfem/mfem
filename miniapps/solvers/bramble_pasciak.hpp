@@ -48,20 +48,20 @@
 #define MFEM_BP_SOLVER_HPP
 
 #include "darcy_solver.hpp"
+#include <memory>
 
 namespace mfem
 {
 namespace blocksolvers
 {
 
-/// Parameters for the BPCG method
-struct BPCGParameters : IterSolveParameters
+/// Parameters for the BramblePasciakSolver method
+struct BPSParameters : IterSolveParameters
 {
    /* These are parameters for the scaling of the Q preconditioner
     * the usage of BPCG method, and the definition of the H preconditioner */
    bool use_bpcg = true;
    double q_scaling = 0.5;
-   bool use_hpc = false;
 };
 
 /// Bramble-Pasciak Conjugate Gradient
@@ -73,7 +73,7 @@ protected:
    /*  Operator list
     *  From IterativeSolver:
     *  *oper  -> A  = [M, Bt; B, 0]
-    *  *prec  -> P  = diag(M0, M1)
+    *  *prec  -> P  = diag(M0, M1) // Not used
     *  From this class:
     *  *iprec -> N  = diag(M0, 0)
     *  *pprec -> P' = P * [Id, 0; B*M0, -Id]
@@ -83,19 +83,19 @@ protected:
 
 public:
    BPCGSolver() { }
+   BPCGSolver(const Operator &ipc, const Operator &ppc) { pprec = &ppc; iprec = &ipc; }
 
 #ifdef MFEM_USE_MPI
    BPCGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+   BPCGSolver(MPI_Comm comm_, const Operator &ipc,
+              const Operator &ppc) : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
 #endif
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    virtual void SetPreconditioner(const Operator &pc)
-   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG"); } }
-
-   virtual void SetPreconditioner()
-   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG"); } }
+   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
    { iprec = &ipc; }
@@ -131,41 +131,35 @@ public:
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
-   OperatorPtr solver_;
-   // CGSolver solver_;
-   // BPCGSolver bpsolver_;
+   std::unique_ptr<IterativeSolver> solver_;
    BlockOperator *oop_, *ipc_;
    ProductOperator *mop_;
-   AddOperator *map_;
+   SumOperator *map_;
    ProductOperator *ppc_;
    BlockDiagonalPreconditioner *cpc_, *hpc_;
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
+   OperatorPtr M0_;
+   OperatorPtr M1_;
    Array<int> ess_zero_dofs_;
 
-   /// User provides system.
    void Init(HypreParMatrix &M, HypreParMatrix &B,
              HypreParMatrix &Q,
              Solver &M0, Solver &M1,
-             const BPCGParameters &param);
-
-   /// Construct specific preconditioners.
-   void Init(HypreParMatrix &M, HypreParMatrix &B,
-             HypreParMatrix &Q,
-             const BPCGParameters &param);
+             const BPSParameters &param);
 public:
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
       const std::shared_ptr<ParBilinearForm> &mVarf,
       const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-      const BPCGParameters &param);
+      const BPSParameters &param);
 
    /// System and mass preconditioner are user-provided
    BramblePasciakSolver(
       HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
       Solver &M0, Solver &M1,
-      const BPCGParameters &param);
+      const BPSParameters &param);
 
    /// Assemble a preconditioner for the mass matrix
    /** Mass preconditioner corresponds to a local re-scaling
@@ -177,13 +171,10 @@ public:
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
                                                       double alpha = 0.5);
 
-   /// Define if BPCG will be employed in Mult
-   void SetBPCG(bool use) { use_bpcg = use; }
-
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
    void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const;
+   virtual int GetNumIterations() const { return solver_->GetNumIterations(); }
 };
 
 } // namespace blocksolvers

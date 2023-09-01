@@ -26,8 +26,6 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
    solver.SetAbsTol(param.abs_tol);
    solver.SetRelTol(param.rel_tol);
 }
-} // namespace blocksolvers
-} // namespace mfem
 
 /// Wrapper Block Diagonal Preconditioned MINRES (ex5p)
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
@@ -64,3 +62,5 @@ void BDPMinresSolver::Mult(const Vector & x, Vector & y) const
    solver_.Mult(x, y);
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }
+} // namespace blocksolvers
+} // namespace mfem
