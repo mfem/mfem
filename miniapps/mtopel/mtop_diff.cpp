@@ -7,7 +7,12 @@
 #include "mtop_solvers.hpp"
 #include "mtop_coefficients.hpp"
 
-
+enum geom_type
+{
+   square,    
+   sphere     
+};
+geom_type geom;
 
 class CoeffHoles:public mfem::Coefficient
 {
@@ -114,11 +119,6 @@ public:
         af->SetRotationAngles(angle_x, angle_y, angle_z);
     }
 
-    void Solve()
-    {
-
-    }
-
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
     {
         dfes=fes;
@@ -165,7 +165,14 @@ public:
         grad=0.0;
 
         dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(2,0.0);
+        if (geom == geom_type::square)
+        {
+          dsolv->AddDirichletBC(2,0.0);
+        }
+        else
+        {
+          dsolv->AddDirichletBC(1,0.0);
+        }
         dsolv->AssembleTangent();
 
         std::uniform_int_distribution<int> uint(1,std::numeric_limits<int>::max());
@@ -224,7 +231,6 @@ private:
 
 };
 
-
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -256,6 +262,7 @@ int main(int argc, char *argv[])
    const char *petscrc_file = "";
    int restart=0;
    double volume_fraction = 0.35;
+   int igeom = 0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -324,7 +331,9 @@ int main(int argc, char *argv[])
    args.AddOption(&angle_y, "-e2", "--e2",
                   "Rotation angle in y direction");             
    args.AddOption(&angle_z, "-e3", "--e3",
-                  "Rotation angle in z direction");                                                                    
+                  "Rotation angle in z direction");   
+   args.AddOption(&igeom, "-g", "--geom", "Geometry type"
+                  "0: square, 1: sphere");                                                                                   
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -341,6 +350,10 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
+
+
+   MFEM_VERIFY((igeom == 0 || igeom == 1), "Wrong choice of geometry kind");
+   geom = (geom_type)igeom;
 
    int seed;
    {
@@ -371,6 +384,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   // mfem::out << mesh.bdr_attributes.Max() << std::endl;
 
    /*
    {
@@ -440,8 +454,15 @@ int main(int argc, char *argv[])
    //allocate the filter
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(2,1.0);
-
+   
+   if (geom == geom_type::square)
+   {
+      fsolv->AddBC(2,1.0);
+   }
+   else
+   {
+      fsolv->AddBC(1,1.0);
+   }
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
