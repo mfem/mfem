@@ -5421,18 +5421,17 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
             v1 = edge_to_knot[e1];
             df = flip*oedge[edge0[j]]*oedge[edge1[j]];
 
-            // Case 1: knot vector is not set
+            // Knot vector is not set
             if ((v0 == notset) && (v1 == notset))
             {
                edge_to_knot[e0] = (oedge[edge0[j]] >= 0 ? knot : -knot-1);
+               v0 = edge_to_knot[e0];
                knot++;
-               j--;
-               continue;
             }
-            // Case 2 & 3: knot vector on one of the two edges
-            // is set earlier (in another patch). We just have
-            // to copy it for the opposing edge.
-            else if ((v0 != notset) && (v1 == notset))
+
+            // Knot vector on one of the two edges is set earlier. We just have
+            // to copy it with the right orientation for the opposing edge.
+            if ((v0 != notset) && (v1 == notset))
             {
                edge_to_knot[e1] = (df >= 0 ? -v0-1 : v0);
             }
