@@ -5138,7 +5138,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    double filterA_tol = 0.0;
 
    // Set relaxation on specified grid points
-   int ns_down, ns_up, ns_coarse;
+   int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
       ns_down = prerelax.length();
@@ -5340,20 +5340,8 @@ void HypreAMS::MakeGradientAndInterpolation(
    rt_trace_space = dynamic_cast<const RT_Trace_FECollection*>(edge_fec);
    trace_space = trace_space || rt_trace_space;
 
-   int p = 1;
-   if (edge_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = edge_fespace->GetFaceOrder(0);
-         if (dim == 2) { p++; }
-      }
-      else
-      {
-         p = edge_fespace->GetElementOrder(0);
-      }
-   }
+   MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
+   int p = edge_fec->GetOrder();
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
    if (rt_trace_space)
@@ -5742,19 +5730,9 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
-   int p = 1;
-   if (face_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = face_fespace->GetFaceOrder(0) + 1;
-      }
-      else
-      {
-         p = face_fespace->GetElementOrder(0);
-      }
-   }
+
+   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
+   int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
