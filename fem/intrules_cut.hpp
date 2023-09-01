@@ -353,8 +353,8 @@ public:
 
     Construct IntegrationRule to integrate on the implicit interface.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] order Order of the IntegrationRule
+    @param [in] lvlset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
@@ -386,15 +386,15 @@ public:
 
     Construct IntegrationRule to integrate within the subdomain.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] order Order of the IntegrationRule
+    @param [in] lvlset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
     @param [in] sir corresponding IntegrationRule on surface
    */
-   virtual void GetVolumeIntegrationRule(int Order,
-                                         Coefficient& LvlSet,
+   virtual void GetVolumeIntegrationRule(int order,
+                                         Coefficient& lvlset,
                                          int lsO,
                                          ElementTransformation& Tr,
                                          IntegrationRule& result,
@@ -426,8 +426,8 @@ public:
     Compute the transformation weights for the interface. These have to be used
     if integrating on the implicit interface.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] order Order of the IntegrationRule
+    @param [in] lvlset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [in] sir IntegrationRule defining the IntegrationPoints
