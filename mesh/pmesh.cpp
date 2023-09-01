@@ -2865,7 +2865,7 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces,
    else
    {
       MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
-                 "face_nbr_el_to_face not generated.");
+                 "face_nbr_el_to_face not generated correctly.");
    }
 
    if (face_nbr_el_ori != nullptr && el_nbr < face_nbr_el_ori->Size())
@@ -2874,11 +2874,8 @@ ParMesh::GetFaceNbrElementFaces(int i, Array<int> &faces,
    }
    else
    {
-      // No face_nbr_el_ori was generated, make the orientations invalid.
-      // This will cause errors if the face orientations are necessary to
-      // evaluate the basis in face neighbor elements.
-      orientations.SetSize(faces.Size());
-      orientations = -1;
+      MFEM_ABORT("ParMesh::GetFaceNbrElementFaces(...) : "
+                 "face_nbr_el_ori not generated correctly.");
    }
 }
 
