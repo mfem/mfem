@@ -3,7 +3,7 @@
 
 #include <mfem.hpp>
 
-#if defined(MFEM_USE_ALGOIM) && defined(MFEM_USE_BLITZ)
+#ifdef MFEM_USE_ALGOIM
 #include <algoim_quad.hpp>
 
 namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ class LinearFormExtension
    LinearForm *lf;
 
    /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
-   const Operator *elem_restrict_lex; // Not owned
+   const ElementRestrictionOperator *elem_restrict_lex; // Not owned
 
    /// Operator that converts L-vectors to boundary E-vectors.
    const FaceRestriction *bdr_restrict_lex; // Not owned

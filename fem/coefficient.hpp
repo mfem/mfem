@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,6 +23,8 @@ namespace mfem
 {
 
 class Mesh;
+class QuadratureSpaceBase;
+class QuadratureFunction;
 
 #ifdef MFEM_USE_MPI
 class ParMesh;
@@ -70,6 +72,10 @@ public:
       return Eval(T, ip);
    }
 
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   virtual void Project(QuadratureFunction &qf);
+
    virtual ~Coefficient() { }
 };
 
@@ -87,6 +93,9 @@ public:
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
    { return (constant); }
+
+   /// Fill the QuadratureFunction @a qf with the constant value.
+   void Project(QuadratureFunction &qf);
 };
 
 /** @brief A piecewise constant coefficient with the constants keyed
@@ -249,6 +258,124 @@ public:
                        const IntegrationPoint &ip);
 };
 
+/// A common base class for returning individual components of the domain's
+/// Cartesian coordinates.
+class CartesianCoefficient : public Coefficient
+{
+protected:
+   int comp;
+   mutable Vector transip;
+
+   /// @a comp_ index of the desired component (0 -> x, 1 -> y, 2 -> z)
+   CartesianCoefficient(int comp_) : comp(comp_), transip(3) {}
+
+public:
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the x-component of the evaluation point
+class CartesianXCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianXCoefficient() : CartesianCoefficient(0) {}
+};
+
+/// Scalar coefficient which returns the y-component of the evaluation point
+class CartesianYCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianYCoefficient() : CartesianCoefficient(1) {}
+};
+
+/// Scalar coefficient which returns the z-component of the evaluation point
+class CartesianZCoefficient : public CartesianCoefficient
+{
+public:
+   CartesianZCoefficient() : CartesianCoefficient(2) {}
+};
+
+/// Scalar coefficient which returns the radial distance from the axis of
+/// the evaluation point in the cylindrical coordinate system
+class CylindricalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the angular position or azimuth (often
+/// denoted by theta) of the evaluation point in the cylindrical coordinate
+/// system
+class CylindricalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   CylindricalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the height or altitude of
+/// the evaluation point in the cylindrical coordinate system
+typedef CartesianZCoefficient CylindricalZCoefficient;
+
+/// Scalar coefficient which returns the radial distance from the origin of
+/// the evaluation point in the spherical coordinate system
+class SphericalRadialCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalRadialCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the azimuthal angle (often denoted by phi)
+/// of the evaluation point in the spherical coordinate system
+class SphericalAzimuthalCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalAzimuthalCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
+/// Scalar coefficient which returns the polar angle (often denoted by theta)
+/// of the evaluation point in the spherical coordinate system
+class SphericalPolarCoefficient : public Coefficient
+{
+private:
+   mutable Vector transip;
+
+public:
+   SphericalPolarCoefficient() : transip(3) {}
+
+   /// Evaluate the coefficient at @a ip.
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+};
+
 class GridFunction;
 
 /// Coefficient defined by a GridFunction. This coefficient is mesh dependent.
@@ -274,6 +401,13 @@ public:
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
+   /// to fill the QuadratureFunction.
+   virtual void Project(QuadratureFunction &qf);
 };
 
 
@@ -471,6 +605,13 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
+   /// the QuadratureFunction.
+   virtual void Project(QuadratureFunction &qf);
+
    virtual ~VectorCoefficient() { }
 };
 
@@ -575,6 +716,22 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
    using VectorCoefficient::Eval;
+};
+
+/// A vector coefficient which returns the physical location of the
+/// evaluation point in the Cartesian coordinate system.
+class PositionVectorCoefficient : public VectorCoefficient
+{
+public:
+
+   PositionVectorCoefficient(int dim) : VectorCoefficient(dim) {}
+
+   using VectorCoefficient::Eval;
+   /// Evaluate the vector coefficient at @a ip.
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~PositionVectorCoefficient() { }
 };
 
 /// A general vector function coefficient
@@ -687,6 +844,13 @@ public:
        M. */
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// This function uses the efficient QuadratureFunction::ProjectGridFunction
+   /// to fill the QuadratureFunction.
+   virtual void Project(QuadratureFunction &qf);
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -915,6 +1079,14 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points. The matrix will be transposed or not according to
+   /// the boolean argument @a transpose.
+   ///
+   /// The @a vdim of the QuadratureFunction should be equal to the height times
+   /// the width of the matrix.
+   virtual void Project(QuadratureFunction &qf, bool transpose=false);
+
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
        in the symmetric case, similarly to Eval. Matrix entry (i,j) is stored
@@ -943,6 +1115,8 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) { M = mat; }
+   /// Return a reference to the constant matrix.
+   const DenseMatrix& GetMatrix() { return mat; }
 };
 
 
@@ -1146,6 +1320,8 @@ public:
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
+   using MatrixCoefficient::Eval;
+
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
    double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip)
@@ -1260,6 +1436,15 @@ public:
    /// Get the size of the matrix.
    int GetSize() const { return height; }
 
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// @note As opposed to MatrixCoefficient::Project, this function stores only
+   /// the @a symmetric part of the matrix at each quadrature point.
+   ///
+   /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
+   virtual void ProjectSymmetric(QuadratureFunction &qf);
+
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
    /** @note When this method is called, the caller must make sure that the
@@ -1268,7 +1453,6 @@ public:
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
-   using MatrixCoefficient::Eval;
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a dense matrix @a K. */
    /** This function allows the use of SymmetricMatrixCoefficient in situations
@@ -1279,6 +1463,9 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+
+   /// Return a reference to the constant matrix.
+   const DenseSymmetricMatrix& GetMatrix() { return mat; }
 
    virtual ~SymmetricMatrixCoefficient() { }
 };
@@ -1294,7 +1481,6 @@ public:
    ///Construct using matrix @a m for the constant.
    SymmetricMatrixConstantCoefficient(const DenseSymmetricMatrix &m)
       : SymmetricMatrixCoefficient(m.Height()), mat(m) { }
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
@@ -1346,7 +1532,6 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(double t);
 
-   using MatrixCoefficient::Eval;
    using SymmetricMatrixCoefficient::Eval;
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
@@ -2049,8 +2234,6 @@ public:
 };
 ///@}
 
-class QuadratureFunction;
-
 /** @brief Vector quadrature function coefficient which requires that the
     quadrature rules used for this vector coefficient be the same as those that
     live within the supplied QuadratureFunction. */
@@ -2075,6 +2258,8 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
+   virtual void Project(QuadratureFunction &qf);
+
    virtual ~VectorQuadratureFunctionCoefficient() { }
 };
 
@@ -2094,7 +2279,121 @@ public:
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
 
+   virtual void Project(QuadratureFunction &qf);
+
    virtual ~QuadratureFunctionCoefficient() { }
+};
+
+/// Flags that determine what storage optimizations to use in CoefficientVector
+enum class CoefficientStorage : int
+{
+   FULL = 0, ///< Store the coefficient as a full QuadratureFunction.
+   CONSTANTS = 1 << 0, ///< Store constants using only @a vdim entries.
+   SYMMETRIC = 1 << 1, ///< Store the triangular part of symmetric matrices.
+   COMPRESSED = CONSTANTS | SYMMETRIC ///< Enable all above compressions.
+};
+
+inline CoefficientStorage operator|(CoefficientStorage a, CoefficientStorage b)
+{
+   return CoefficientStorage(int(a) | int(b));
+}
+
+inline int operator&(CoefficientStorage a, CoefficientStorage b)
+{
+   return int(a) & int(b);
+}
+
+
+/// @brief Class to represent a coefficient evaluated at quadrature points.
+///
+/// In the general case, a CoefficientVector is the same as a QuadratureFunction
+/// with a coefficient projected onto it.
+///
+/// This class allows for some "compression" of the coefficient data, according
+/// to the storage flags given by CoefficientStorage. For example, constant
+/// coefficients can be stored using only @a vdim values, and symmetric matrices
+/// can be stored using e.g. the upper triangular part of the matrix.
+class CoefficientVector : public Vector
+{
+protected:
+   CoefficientStorage storage; ///< Storage optimizations (see CoefficientStorage).
+   int vdim; ///< Number of values per quadrature point.
+   QuadratureSpaceBase &qs; ///< Associated QuadratureSpaceBase.
+   QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
+public:
+   /// Create an empty CoefficientVector.
+   CoefficientVector(QuadratureSpaceBase &qs_,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
+
+   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// QuadratureSpaceBase.
+   ///
+   /// If @a coeff is NULL, it will be interpreted as a constant with value one.
+   /// @sa CoefficientStorage for a description of @a storage_.
+   CoefficientVector(Coefficient *coeff, QuadratureSpaceBase &qs,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
+
+   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// QuadratureSpaceBase.
+   ///
+   /// @sa CoefficientStorage for a description of @a storage_.
+   CoefficientVector(Coefficient &coeff, QuadratureSpaceBase &qs,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
+
+   /// @brief Create a CoefficientVector from the given VectorCoefficient and
+   /// QuadratureSpaceBase.
+   ///
+   /// @sa CoefficientStorage for a description of @a storage_.
+   CoefficientVector(VectorCoefficient &coeff, QuadratureSpaceBase &qs,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
+
+   /// @brief Create a CoefficientVector from the given MatrixCoefficient and
+   /// QuadratureSpaceBase.
+   ///
+   /// @sa CoefficientStorage for a description of @a storage_.
+   CoefficientVector(MatrixCoefficient &coeff, QuadratureSpaceBase &qs,
+                     CoefficientStorage storage_ = CoefficientStorage::FULL);
+
+   /// @brief Evaluate the given Coefficient at the quadrature points defined by
+   /// @ref qs.
+   void Project(Coefficient &coeff);
+
+   /// @brief Evaluate the given VectorCoefficient at the quadrature points
+   /// defined by @ref qs.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   void Project(VectorCoefficient &coeff);
+
+   /// @brief Evaluate the given MatrixCoefficient at the quadrature points
+   /// defined by @ref qs.
+   ///
+   /// @sa CoefficientVector for a description of the @a compress argument.
+   void Project(MatrixCoefficient &coeff, bool transpose=false);
+
+   /// @brief Project the transpose of @a coeff.
+   ///
+   /// @sa Project(MatrixCoefficient&, QuadratureSpace&, bool, bool)
+   void ProjectTranspose(MatrixCoefficient &coeff);
+
+   /// Make this vector a reference to the given QuadratureFunction.
+   void MakeRef(const QuadratureFunction &qf_);
+
+   /// Set this vector to the given constant.
+   void SetConstant(double constant);
+
+   /// Set this vector to the given constant vector.
+   void SetConstant(const Vector &constant);
+
+   /// Set this vector to the given constant matrix.
+   void SetConstant(const DenseMatrix &constant);
+
+   /// Set this vector to the given constant symmetric matrix.
+   void SetConstant(const DenseSymmetricMatrix &constant);
+
+   /// Return the number of values per quadrature point.
+   int GetVDim() const;
+
+   ~CoefficientVector();
 };
 
 /** @brief Compute the Lp norm of a function f.

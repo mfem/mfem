@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,8 @@ namespace mfem
 {
 
 /** @brief Enumeration defining the assembly level for bilinear and nonlinear
-    form classes derived from Operator. */
+    form classes derived from Operator. For more details, see
+    https://mfem.org/howto/assembly_levels */
 enum class AssemblyLevel
 {
    /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
@@ -79,6 +80,9 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+   /** Indicates if the sparse matrix is sorted after assembly when using
+       Full Assembly (FA). */
+   bool sort_sparse_matrix = false;
 
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
@@ -177,8 +181,23 @@ public:
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
 
-       This method must be called before assembly. */
+       If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /** @brief Force the sparse matrix column indices to be sorted when using
+       AssemblyLevel::FULL.
+
+       When assembling on device the assembly algorithm uses atomic operations
+       to insert values in the sparse matrix, which can result in different
+       column index orderings across runs. Calling this method with @a enable_it
+       set to @a true forces a sorting algorithm to be called at the end of the
+       assembly procedure to ensure sorted column indices (and therefore
+       deterministic results).
+   */
+   void EnableSparseMatrixSorting(bool enable_it)
+   {
+      sort_sparse_matrix = enable_it;
+   }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }

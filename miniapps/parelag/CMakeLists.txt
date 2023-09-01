@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -33,10 +33,6 @@ if (MFEM_USE_PARELAG AND MFEM_USE_MPI)
 # on the idea that MFEM depends on the other libraries. Here, the setting is
 # such that ParELAG, in fact, depends on MFEM, while MFEM does not depend on
 # ParELAG. This addresses that issue.
-  if (CMAKE_VERSION VERSION_GREATER 2.8.11)
-    target_link_libraries(MultilevelHcurlHdivSolver PUBLIC ${TPL_LIBRARIES} mfem)
-  else()
-    target_link_libraries(MultilevelHcurlHdivSolver ${TPL_LIBRARIES} mfem)
-  endif()
+  target_link_libraries(MultilevelHcurlHdivSolver PUBLIC ${TPL_LIBRARIES} mfem)
 
 endif()

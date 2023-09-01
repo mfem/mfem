@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -340,7 +340,7 @@ const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
-GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
+GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    : gtopo(gt), mode(m)
 {
    group_buf_size = 0;

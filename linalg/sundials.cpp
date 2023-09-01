@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,9 +20,10 @@
 
 // SUNDIALS vectors
 #include <nvector/nvector_serial.h>
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
 #include <nvector/nvector_cuda.h>
-#include <sunmemory/sunmemory_cuda.h>
+#elif defined(MFEM_USE_HIP)
+#include <nvector/nvector_hip.h>
 #endif
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_mpiplusx.h>
@@ -36,113 +37,283 @@
 // Access SUNDIALS object's content pointer
 #define GET_CONTENT(X) ( X->content )
 
+#if defined(MFEM_USE_CUDA)
+#define SUN_Hip_OR_Cuda(X) X##_Cuda
+#define SUN_HIP_OR_CUDA(X) X##_CUDA
+#elif defined(MFEM_USE_HIP)
+#define SUN_Hip_OR_Cuda(X) X##_Hip
+#define SUN_HIP_OR_CUDA(X) X##_HIP
+#endif
+
 using namespace std;
+
+#if (SUNDIALS_VERSION_MAJOR < 6)
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VNewEmpty_Serial(sunindextype vec_length, SUNContext)
+{
+   return N_VNewEmpty_Serial(vec_length);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNMatrix SUNMatNewEmpty(SUNContext)
+{
+   return SUNMatNewEmpty();
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSolNewEmpty(SUNContext)
+{
+   return SUNLinSolNewEmpty();
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPGMR(N_Vector y, int pretype,
+                                                int maxl, SUNContext)
+{
+   return SUNLinSol_SPGMR(y, pretype, maxl);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNLinearSolver SUNLinSol_SPFGMR(N_Vector y, int pretype,
+                                                 int maxl, SUNContext)
+{
+   return SUNLinSol_SPFGMR(y, pretype, maxl);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* CVodeCreate(int lmm, SUNContext)
+{
+   return CVodeCreate(lmm);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* ARKStepCreate(ARKRhsFn fe, ARKRhsFn fi, realtype t0,
+                                    N_Vector y0, SUNContext)
+{
+   return ARKStepCreate(fe, fi, t0, y0);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED void* KINCreate(SUNContext)
+{
+   return KINCreate();
+}
+
+#ifdef MFEM_USE_MPI
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VNewEmpty_Parallel(MPI_Comm comm,
+                                              sunindextype local_length,
+                                              sunindextype global_length,
+                                              SUNContext)
+{
+   return N_VNewEmpty_Parallel(comm, local_length, global_length);
+}
+
+#endif // MFEM_USE_MPI
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(sunindextype length,
+                                                            booleantype use_managed_mem,
+                                                            SUNMemoryHelper helper,
+                                                            SUNContext)
+{
+   return SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(length, use_managed_mem, helper);
+}
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED SUNMemoryHelper SUNMemoryHelper_NewEmpty(SUNContext)
+{
+   return SUNMemoryHelper_NewEmpty();
+}
+
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
+
+#if defined(MFEM_USE_MPI) && (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+
+/// (DEPRECATED) Wrapper function for backwards compatibility with SUNDIALS
+/// version < 6
+MFEM_DEPRECATED N_Vector N_VMake_MPIPlusX(MPI_Comm comm, N_Vector local_vector,
+                                          SUNContext)
+{
+   return N_VMake_MPIPlusX(comm, local_vector);
+}
+
+#endif // MFEM_USE_MPI && (MFEM_USE_CUDA || MFEM_USE_HIP)
+
+#endif // SUNDIALS_VERSION_MAJOR < 6
+
 
 namespace mfem
 {
 
-// ---------------------------------------------------------------------------
-// SUNMemory interface class (private)
-// ---------------------------------------------------------------------------
-
-#ifdef MFEM_USE_CUDA
-class SundialsMemHelper
+void Sundials::Init()
 {
-protected:
-   /// The actual SUNDIALS object
-   SUNMemoryHelper h;
+   Sundials::Instance();
+}
 
-   friend class SundialsNVector;
+Sundials &Sundials::Instance()
+{
+   static Sundials sundials;
+   return sundials;
+}
 
-public:
-   SundialsMemHelper()
-   {
-      /* Allocate helper */
-      h = SUNMemoryHelper_NewEmpty();
+SUNContext &Sundials::GetContext()
+{
+   return Sundials::Instance().context;
+}
 
-      /* Set the ops */
-      h->ops->alloc     = SundialsMemHelper_Alloc;
-      h->ops->dealloc   = SundialsMemHelper_Dealloc;
-#ifdef MFEM_USE_CUDA
-      h->ops->copy      = SUNMemoryHelper_Copy_Cuda;
-      h->ops->copyasync = SUNMemoryHelper_CopyAsync_Cuda;
+SundialsMemHelper &Sundials::GetMemHelper()
+{
+   return Sundials::Instance().memHelper;
+}
+
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+
+Sundials::Sundials()
+{
+#ifdef MFEM_USE_MPI
+   MPI_Comm communicator = MPI_COMM_WORLD;
+   int return_val = SUNContext_Create((void*) &communicator, &context);
+#else
+   int return_val = SUNContext_Create(nullptr, &context);
 #endif
+   MFEM_VERIFY(return_val == 0, "Call to SUNContext_Create failed");
+   SundialsMemHelper actual_helper(context);
+   memHelper = std::move(actual_helper);
+}
+
+Sundials::~Sundials()
+{
+   SUNContext_Free(&context);
+}
+
+#else // SUNDIALS_VERSION_MAJOR >= 6
+
+Sundials::Sundials()
+{
+   // Do nothing
+}
+
+Sundials::~Sundials()
+{
+   // Do nothing
+}
+
+#endif // SUNDIALS_VERSION_MAJOR >= 6
+
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+SundialsMemHelper::SundialsMemHelper(SUNContext context)
+{
+   /* Allocate helper */
+   h = SUNMemoryHelper_NewEmpty(context);
+
+   /* Set the ops */
+   h->ops->alloc     = SundialsMemHelper_Alloc;
+   h->ops->dealloc   = SundialsMemHelper_Dealloc;
+   h->ops->copy      = SUN_Hip_OR_Cuda(SUNMemoryHelper_Copy);
+   h->ops->copyasync = SUN_Hip_OR_Cuda(SUNMemoryHelper_CopyAsync);
+}
+
+SundialsMemHelper::SundialsMemHelper(SundialsMemHelper&& that_helper)
+{
+   this->h = that_helper.h;
+   that_helper.h = nullptr;
+}
+
+SundialsMemHelper& SundialsMemHelper::operator=(SundialsMemHelper&& rhs)
+{
+   this->h = rhs.h;
+   rhs.h = nullptr;
+   return *this;
+}
+
+int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
+                                               SUNMemory* memptr, size_t memsize,
+                                               SUNMemoryType mem_type
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                               , void*
+#endif
+                                              )
+{
+   SUNMemory sunmem = SUNMemoryNewEmpty();
+
+   sunmem->ptr = NULL;
+   sunmem->own = SUNTRUE;
+
+   // memsize is the number of bytes to allocate, so we use Memory<char>
+   if (mem_type == SUNMEMTYPE_HOST)
+   {
+      Memory<char> mem(memsize, Device::GetHostMemoryType());
+      mem.SetHostPtrOwner(false);
+      sunmem->ptr  = mfem::HostReadWrite(mem, memsize);
+      sunmem->type = SUNMEMTYPE_HOST;
+      mem.Delete();
+   }
+   else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
+   {
+      Memory<char> mem(memsize, Device::GetDeviceMemoryType());
+      mem.SetDevicePtrOwner(false);
+      sunmem->ptr  = mfem::ReadWrite(mem, memsize);
+      sunmem->type = mem_type;
+      mem.Delete();
+   }
+   else
+   {
+      free(sunmem);
+      return -1;
    }
 
-   ~SundialsMemHelper()
+   *memptr = sunmem;
+   return 0;
+}
+
+int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
+                                                 SUNMemory sunmem
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+                                                 , void*
+#endif
+                                                )
+{
+   if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
    {
-      SUNMemoryHelper_Destroy(h);
-   }
-
-   /// Typecasting to SUNDIALS' SUNMemoryHelper type
-   operator SUNMemoryHelper() const { return h; }
-
-   static int SundialsMemHelper_Alloc(SUNMemoryHelper helper,
-                                      SUNMemory* memptr,
-                                      size_t memsize,
-                                      SUNMemoryType mem_type)
-   {
-      int length = memsize/sizeof(double);
-      SUNMemory sunmem = SUNMemoryNewEmpty();
-
-      sunmem->ptr = NULL;
-      sunmem->own = SUNTRUE;
-
-      if (mem_type == SUNMEMTYPE_HOST)
+      if (sunmem->type == SUNMEMTYPE_HOST)
       {
-         Memory<double> mem(length, Device::GetHostMemoryType());
-         mem.SetHostPtrOwner(false);
-         sunmem->ptr  = mfem::HostReadWrite(mem, length);
-         sunmem->type = SUNMEMTYPE_HOST;
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetHostMemoryType(), true);
          mem.Delete();
       }
-      else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
+      else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
       {
-         Memory<double> mem(length, Device::GetDeviceMemoryType());
-         mem.SetDevicePtrOwner(false);
-         sunmem->ptr  = mfem::ReadWrite(mem, length);
-         sunmem->type = mem_type;
+         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
+                          Device::GetDeviceMemoryType(), true);
          mem.Delete();
       }
       else
       {
-         free(sunmem);
+         MFEM_ABORT("Invalid SUNMEMTYPE");
          return -1;
       }
-
-      *memptr = sunmem;
-      return 0;
    }
+   free(sunmem);
+   return 0;
+}
 
-   static int SundialsMemHelper_Dealloc(SUNMemoryHelper helper, SUNMemory sunmem)
-   {
-      if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
-      {
-         if (sunmem->type == SUNMEMTYPE_HOST)
-         {
-            Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                               Device::GetHostMemoryType(), true);
-            mem.Delete();
-         }
-         else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
-         {
-            Memory<double> mem(static_cast<double*>(sunmem->ptr), 1,
-                               Device::GetDeviceMemoryType(), true);
-            mem.Delete();
-         }
-         else
-         {
-            MFEM_ABORT("Invalid SUNMEMTYPE");
-            return -1;
-         }
-      }
-      free(sunmem);
-      return 0;
-   }
-};
-
-SundialsMemHelper sunmemHelper;
-#endif
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 
 
 // ---------------------------------------------------------------------------
@@ -168,12 +339,13 @@ void SundialsNVector::_SetNvecDataAndSize_(long glob_size)
          NV_LENGTH_S(local_x) = size;
          break;
       }
-#ifdef MFEM_USE_CUDA
-      case SUNDIALS_NVEC_CUDA:
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      case SUN_HIP_OR_CUDA(SUNDIALS_NVEC):
       {
-         N_VSetHostArrayPointer_Cuda(HostReadWrite(), local_x);
-         N_VSetDeviceArrayPointer_Cuda(ReadWrite(), local_x);
-         static_cast<N_VectorContent_Cuda>(GET_CONTENT(local_x))->length = size;
+         SUN_Hip_OR_Cuda(N_VSetHostArrayPointer)(HostReadWrite(), local_x);
+         SUN_Hip_OR_Cuda(N_VSetDeviceArrayPointer)(ReadWrite(), local_x);
+         static_cast<SUN_Hip_OR_Cuda(N_VectorContent)>(GET_CONTENT(
+                                                          local_x))->length = size;
          break;
       }
 #endif
@@ -242,14 +414,14 @@ void SundialsNVector::_SetDataAndSize_()
          if (known) { data.ClearOwnerFlags(); }
          break;
       }
-#ifdef MFEM_USE_CUDA
-      case SUNDIALS_NVEC_CUDA:
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+      case SUN_HIP_OR_CUDA(SUNDIALS_NVEC):
       {
-         double *h_ptr = N_VGetHostArrayPointer_Cuda(local_x);
-         double *d_ptr = N_VGetDeviceArrayPointer_Cuda(local_x);
+         double *h_ptr = SUN_Hip_OR_Cuda(N_VGetHostArrayPointer)(local_x);
+         double *d_ptr = SUN_Hip_OR_Cuda(N_VGetDeviceArrayPointer)(local_x);
          const bool known = mm.IsKnown(h_ptr);
-         size = N_VGetLength_Cuda(local_x);
-         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false);
+         size = SUN_Hip_OR_Cuda(N_VGetLength)(local_x);
+         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false, true);
          if (known) { data.ClearOwnerFlags(); }
          UseDevice(true);
          break;
@@ -364,17 +536,19 @@ void SundialsNVector::SetDataAndSize(double *d, int s, long glob_size)
 N_Vector SundialsNVector::MakeNVector(bool use_device)
 {
    N_Vector x;
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    if (use_device)
    {
-      x = N_VNewWithMemHelp_Cuda(0, UseManagedMemory(), sunmemHelper);
+      x = SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(0, UseManagedMemory(),
+                                             Sundials::GetMemHelper(),
+                                             Sundials::GetContext());
    }
    else
    {
-      x = N_VNewEmpty_Serial(0);
+      x = N_VNewEmpty_Serial(0, Sundials::GetContext());
    }
 #else
-   x = N_VNewEmpty_Serial(0);
+   x = N_VNewEmpty_Serial(0, Sundials::GetContext());
 #endif
 
    MFEM_VERIFY(x, "Error in SundialsNVector::MakeNVector.");
@@ -393,19 +567,22 @@ N_Vector SundialsNVector::MakeNVector(MPI_Comm comm, bool use_device)
    }
    else
    {
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
       if (use_device)
       {
-         x = N_VMake_MPIPlusX(comm, N_VNewWithMemHelp_Cuda(0, UseManagedMemory(),
-                                                           sunmemHelper));
+         x = N_VMake_MPIPlusX(comm, SUN_Hip_OR_Cuda(N_VNewWithMemHelp)(0,
+                                                                       UseManagedMemory(),
+                                                                       Sundials::GetMemHelper(),
+                                                                       Sundials::GetContext()),
+                              Sundials::GetContext());
       }
       else
       {
-         x = N_VNewEmpty_Parallel(comm, 0, 0);
+         x = N_VNewEmpty_Parallel(comm, 0, 0, Sundials::GetContext());
       }
 #else
-      x = N_VNewEmpty_Parallel(comm, 0, 0);
-#endif // MFEM_USE_CUDA
+      x = N_VNewEmpty_Parallel(comm, 0, 0, Sundials::GetContext());
+#endif // MFEM_USE_CUDA || MFEM_USE_HIP
    }
 
    MFEM_VERIFY(x, "Error in SundialsNVector::MakeNVector.");
@@ -594,7 +771,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
 #endif
 
       // Create CVODE
-      sundials_mem = CVodeCreate(lmm_type);
+      sundials_mem = CVodeCreate(lmm_type, Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "error in CVodeCreate()");
 
       // Initialize CVODE
@@ -651,7 +828,7 @@ void CVODESolver::UseMFEMLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
+   LSA = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content      = this;
@@ -659,7 +836,7 @@ void CVODESolver::UseMFEMLinearSolver()
    LSA->ops->solve   = CVODESolver::LinSysSolve;
    LSA->ops->free    = LSFree;
 
-   A = SUNMatNewEmpty();
+   A = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
@@ -682,7 +859,7 @@ void CVODESolver::UseSundialsLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Create linear solver
-   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -941,7 +1118,7 @@ void CVODESSolver::UseMFEMLinearSolverB()
    if (LSB != NULL) { SUNLinSolFree(LSB); LSB = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSB = SUNLinSolNewEmpty();
+   LSB = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSB, "error in SUNLinSolNewEmpty()");
 
    LSB->content         = this;
@@ -949,7 +1126,7 @@ void CVODESSolver::UseMFEMLinearSolverB()
    LSB->ops->solve      = CVODESSolver::LinSysSolveB; // JW change
    LSB->ops->free       = LSFree;
 
-   AB = SUNMatNewEmpty();
+   AB = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(AB, "error in SUNMatNewEmpty()");
 
    AB->content      = this;
@@ -973,7 +1150,7 @@ void CVODESSolver::UseSundialsLinearSolverB()
    if (LSB != NULL) { SUNLinSolFree(LSB); LSB = NULL; }
 
    // Set default linear solver (Newton is the default Nonlinear Solver)
-   LSB = SUNLinSol_SPGMR(*yB, PREC_NONE, 0);
+   LSB = SUNLinSol_SPGMR(*yB, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSB, "error in SUNLinSol_SPGMR()");
 
    /* Attach the matrix and linear solver */
@@ -1359,16 +1536,18 @@ void ARKStepSolver::Init(TimeDependentOperator &f_)
       // Create ARKStep memory
       if (rk_type == IMPLICIT)
       {
-         sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, *Y);
+         sundials_mem = ARKStepCreate(NULL, ARKStepSolver::RHS1, t, *Y,
+                                      Sundials::GetContext());
       }
       else if (rk_type == EXPLICIT)
       {
-         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, *Y);
+         sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, NULL, t, *Y,
+                                      Sundials::GetContext());
       }
       else
       {
          sundials_mem = ARKStepCreate(ARKStepSolver::RHS1, ARKStepSolver::RHS2,
-                                      t, *Y);
+                                      t, *Y, Sundials::GetContext());
       }
       MFEM_VERIFY(sundials_mem, "error in ARKStepCreate()");
 
@@ -1435,7 +1614,7 @@ void ARKStepSolver::UseMFEMLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSA = SUNLinSolNewEmpty();
+   LSA = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
    LSA->content      = this;
@@ -1443,7 +1622,7 @@ void ARKStepSolver::UseMFEMLinearSolver()
    LSA->ops->solve   = ARKStepSolver::LinSysSolve;
    LSA->ops->free    = LSFree;
 
-   A = SUNMatNewEmpty();
+   A = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
    A->content      = this;
@@ -1466,7 +1645,7 @@ void ARKStepSolver::UseSundialsLinearSolver()
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Create linear solver
-   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -1481,7 +1660,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
 
    // Wrap linear solver as SUNLinearSolver and SUNMatrix
-   LSM = SUNLinSolNewEmpty();
+   LSM = SUNLinSolNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(LSM, "error in SUNLinSolNewEmpty()");
 
    LSM->content      = this;
@@ -1489,7 +1668,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
    LSA->ops->free    = LSFree;
 
-   M = SUNMatNewEmpty();
+   M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
@@ -1513,7 +1692,7 @@ void ARKStepSolver::UseSundialsMassLinearSolver(int tdep)
    if (LSM != NULL) { SUNLinSolFree(LSM); LSM = NULL; }
 
    // Create linear solver
-   LSM = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+   LSM = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
    MFEM_VERIFY(LSM, "error in SUNLinSol_SPGMR()");
 
    // Attach linear solver
@@ -1549,21 +1728,22 @@ void ARKStepSolver::SetOrder(int order)
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetOrder()");
 }
 
-void ARKStepSolver::SetERKTableNum(int table_num)
+void ARKStepSolver::SetERKTableNum(ARKODE_ERKTableID table_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, -1, table_num);
+   flag = ARKStepSetTableNum(sundials_mem, ARKODE_DIRK_NONE, table_id);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
-void ARKStepSolver::SetIRKTableNum(int table_num)
+void ARKStepSolver::SetIRKTableNum(ARKODE_DIRKTableID table_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, table_num, -1);
+   flag = ARKStepSetTableNum(sundials_mem, table_id, ARKODE_ERK_NONE);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
-void ARKStepSolver::SetIMEXTableNum(int etable_num, int itable_num)
+void ARKStepSolver::SetIMEXTableNum(ARKODE_ERKTableID etable_id,
+                                    ARKODE_DIRKTableID itable_id)
 {
-   flag = ARKStepSetTableNum(sundials_mem, itable_num, etable_num);
+   flag = ARKStepSetTableNum(sundials_mem, itable_id, etable_id);
    MFEM_VERIFY(flag == ARK_SUCCESS, "error in ARKStepSetTableNum()");
 }
 
@@ -1836,7 +2016,7 @@ void KINSolver::SetOperator(const Operator &op)
 #endif
 
       // Create the solver memory
-      sundials_mem = KINCreate();
+      sundials_mem = KINCreate(Sundials::GetContext());
       MFEM_VERIFY(sundials_mem, "Error in KINCreate().");
 
       // Set number of acceleration vectors
@@ -1865,7 +2045,7 @@ void KINSolver::SetOperator(const Operator &op)
          if (A != NULL) { SUNMatDestroy(A); A = NULL; }
          if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
-         LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0);
+         LSA = SUNLinSol_SPGMR(*Y, PREC_NONE, 0, Sundials::GetContext());
          MFEM_VERIFY(LSA, "error in SUNLinSol_SPGMR()");
 
          flag = KINSetLinearSolver(sundials_mem, LSA, NULL);
@@ -1897,7 +2077,7 @@ void KINSolver::SetSolver(Solver &solver)
       if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
       // Wrap KINSolver as SUNLinearSolver and SUNMatrix
-      LSA = SUNLinSolNewEmpty();
+      LSA = SUNLinSolNewEmpty(Sundials::GetContext());
       MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
       LSA->content      = this;
@@ -1905,7 +2085,7 @@ void KINSolver::SetSolver(Solver &solver)
       LSA->ops->solve   = KINSolver::LinSysSolve;
       LSA->ops->free    = LSFree;
 
-      A = SUNMatNewEmpty();
+      A = SUNMatNewEmpty(Sundials::GetContext());
       MFEM_VERIFY(A, "error in SUNMatNewEmpty()");
 
       A->content      = this;
@@ -1934,7 +2114,8 @@ void KINSolver::SetJFNKSolver(Solver &solver)
    if (LSA != NULL) { SUNLinSolFree(LSA); LSA = NULL; }
 
    // Setup FGMRES
-   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli);
+   LSA = SUNLinSol_SPFGMR(*Y, prec ? PREC_RIGHT : PREC_NONE, maxli,
+                          Sundials::GetContext());
    MFEM_VERIFY(LSA, "error in SUNLinSol_SPFGMR()");
 
    flag = SUNLinSol_SPFGMRSetMaxRestarts(LSA, maxlrs);

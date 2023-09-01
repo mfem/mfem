@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -82,6 +82,8 @@ public:
                             DenseMatrix &curl) const
    { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc, ElementTransformation &Trans,
                           Vector &dofs) const;
@@ -144,6 +146,11 @@ public:
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
    { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+
+   /// @brief Return the mapping from lexicographically ordered face DOFs to
+   /// lexicographically ordered element DOFs corresponding to local face
+   /// @a face_id.
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
 
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,

@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int nc_limit = 1;
-   int max_elems = 1e5;
+   int max_elems = 100*1000;
    double double_max_elems = double(max_elems);
    bool visualization = true;
    double osc_threshold = 1e-3;

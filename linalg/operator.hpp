@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,8 +53,7 @@ public:
 
    /// Initializes memory for true vectors of linear system
    void InitTVectors(const Operator *Po, const Operator *Ri, const Operator *Pi,
-                     Vector &x, Vector &b,
-                     Vector &X, Vector &B) const;
+                     Vector &x, Vector &b, Vector &X, Vector &B) const;
 
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
@@ -79,7 +78,7 @@ public:
    /** This is the MemoryClass that will be used to access the input and output
        vectors in the Mult() and MultTranspose() methods.
 
-       For example, classes using the MFEM_FORALL macro for implementation can
+       For example, classes using the mfem::forall macro for implementation can
        return the value returned by Device::GetMemoryClass().
 
        The default implementation of this method in class Operator returns
@@ -92,13 +91,37 @@ public:
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { mfem_error("Operator::MultTranspose() is not overloaded!"); }
+   { mfem_error("Operator::MultTranspose() is not overridden!"); }
+
+   /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
+   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+
+   /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
+
+   /// Operator application on a matrix: `Y=A(X)`.
+   virtual void ArrayMult(const Array<const Vector *> &X,
+                          Array<Vector *> &Y) const;
+
+   /// Action of the transpose operator on a matrix: `Y=A^t(X)`.
+   virtual void ArrayMultTranspose(const Array<const Vector *> &X,
+                                   Array<Vector *> &Y) const;
+
+   /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
+   virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
+                             const double a = 1.0) const;
+
+   /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
+       or `Y+=a*A^t(X)`. */
+   virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
+                                      Array<Vector *> &Y, const double a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
    {
-      mfem_error("Operator::GetGradient() is not overloaded!");
+      mfem_error("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
 
@@ -114,20 +137,24 @@ public:
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetProlongation() const { return NULL; }
+
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetRestriction() const  { return NULL; }
+
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to output vectors for the operator. `NULL` means identity. */
    virtual const Operator *GetOutputProlongation() const
    {
       return GetProlongation(); // Assume square unless specialized
    }
+
    /** @brief Transpose of GetOutputRestriction, directly available in this
        form to facilitate matrix-free RAP-type operators.
 
        `NULL` means identity. */
    virtual const Operator *GetOutputRestrictionTranspose() const { return NULL; }
+
    /** @brief Restriction operator from output vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
    virtual const Operator *GetOutputRestriction() const
@@ -267,6 +294,7 @@ public:
       Complex_Operator, ///< ID for class ComplexOperator.
       MFEM_ComplexSparseMat, ///< ID for class ComplexSparseMatrix.
       Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
+      Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
       MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
       MFEM_Block_Operator   ///< ID for the base class BlockOperator.
    };

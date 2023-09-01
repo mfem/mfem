@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,6 +68,9 @@ public:
 
    /// Change the size of the DenseSymmetricMatrix to s x s.
    void SetSize(int s);
+
+   /// Return the number of stored nonzeros in the matrix.
+   int GetStoredSize() const { return Height()*(Height()+1)/2; }
 
    /// Returns the matrix data array.
    inline double *Data() const

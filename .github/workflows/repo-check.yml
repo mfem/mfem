@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,12 +34,12 @@ jobs:
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.9.0
+      uses: styfle/cancel-workflow-action@0.11.0
       with:
         access_token: ${{ github.token }}
 
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: copyright check
       id: copyright
@@ -84,7 +84,7 @@ jobs:
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: get astyle
       run: |
@@ -101,11 +101,14 @@ jobs:
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: get doxygen and graphviz
       run: |
         sudo apt-get install doxygen graphviz
+
+    - name: update doxygen config file
+      run: |
         cd doc
         doxygen -u CodeDocumentation.conf.in
 
@@ -123,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout mfem
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
 

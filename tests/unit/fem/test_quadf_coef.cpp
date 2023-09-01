@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,8 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureSpace qspace(&mesh, intOrder);
    QuadratureFunction quadf_coeff(&qspace, 1);
    QuadratureFunction quadf_vcoeff(&qspace, dim);
+
+   REQUIRE(quadf_coeff.UseDevice());
 
    const IntegrationRule ir = qspace.GetElementIntRule(0);
 

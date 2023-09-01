@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,41 +14,26 @@
 namespace mfem
 {
 
-Multigrid::Multigrid()
-   : cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1)
+MultigridBase::MultigridBase()
+   : cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1),
+     nrhs(0)
 {}
 
-Multigrid::Multigrid(const Array<Operator*>& operators_,
-                     const Array<Solver*>& smoothers_,
-                     const Array<Operator*>& prolongations_,
-                     const Array<bool>& ownedOperators_,
-                     const Array<bool>& ownedSmoothers_,
-                     const Array<bool>& ownedProlongations_)
-   : Solver(operators_.Last()->NumRows()), cycleType(CycleType::VCYCLE),
-     preSmoothingSteps(1), postSmoothingSteps(1),
-     X(operators_.Size()), Y(X.Size()), R(X.Size()), Z(X.Size())
+MultigridBase::MultigridBase(const Array<Operator*>& operators_,
+                             const Array<Solver*>& smoothers_,
+                             const Array<bool>& ownedOperators_,
+                             const Array<bool>& ownedSmoothers_)
+   : Solver(operators_.Last()->Height(), operators_.Last()->Width()),
+     cycleType(CycleType::VCYCLE), preSmoothingSteps(1), postSmoothingSteps(1),
+     nrhs(0)
 {
    operators_.Copy(operators);
    smoothers_.Copy(smoothers);
-   prolongations_.Copy(prolongations);
    ownedOperators_.Copy(ownedOperators);
    ownedSmoothers_.Copy(ownedSmoothers);
-   ownedProlongations_.Copy(ownedProlongations);
-
-   for (int level = 0; level < operators.Size(); ++level)
-   {
-      X[level] = new Vector(operators[level]->NumRows());
-      *X[level] = 0.0;
-      Y[level] = new Vector(operators[level]->NumRows());
-      *Y[level] = 0.0;
-      R[level] = new Vector(operators[level]->NumRows());
-      *R[level] = 0.0;
-      Z[level] = new Vector(operators[level]->NumRows());
-      *Z[level] = 0.0;
-   }
 }
 
-Multigrid::~Multigrid()
+MultigridBase::~MultigridBase()
 {
    for (int i = 0; i < operators.Size(); ++i)
    {
@@ -60,12 +45,210 @@ Multigrid::~Multigrid()
       {
          delete smoothers[i];
       }
-      delete X[i];
-      delete Y[i];
-      delete R[i];
-      delete Z[i];
+   }
+   EraseVectors();
+}
+
+void MultigridBase::InitVectors() const
+{
+   if (X.NumRows() > 0 && X.NumCols() > 0) { EraseVectors(); }
+   const int M = NumLevels();
+   X.SetSize(M, nrhs);
+   Y.SetSize(M, nrhs);
+   R.SetSize(M, nrhs);
+   Z.SetSize(M, nrhs);
+   for (int i = 0; i < X.NumRows(); ++i)
+   {
+      const int n = operators[i]->Height();
+      for (int j = 0; j < X.NumCols(); ++j)
+      {
+         X(i, j) = new Vector(n);
+         Y(i, j) = new Vector(n);
+         R(i, j) = new Vector(n);
+         Z(i, j) = new Vector(n);
+      }
+   }
+}
+
+void MultigridBase::EraseVectors() const
+{
+   for (int i = 0; i < X.NumRows(); ++i)
+   {
+      for (int j = 0; j < X.NumCols(); ++j)
+      {
+         delete X(i, j);
+         delete Y(i, j);
+         delete R(i, j);
+         delete Z(i, j);
+      }
+   }
+}
+
+void MultigridBase::AddLevel(Operator* op, Solver* smoother,
+                             bool ownOperator, bool ownSmoother)
+{
+   height = op->Height();
+   width = op->Width();
+   operators.Append(op);
+   smoothers.Append(smoother);
+   ownedOperators.Append(ownOperator);
+   ownedSmoothers.Append(ownSmoother);
+}
+
+void MultigridBase::SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
+                                 int postSmoothingSteps_)
+{
+   cycleType = cycleType_;
+   preSmoothingSteps = preSmoothingSteps_;
+   postSmoothingSteps = postSmoothingSteps_;
+}
+
+void MultigridBase::Mult(const Vector& x, Vector& y) const
+{
+   Array<const Vector*> X_(1);
+   Array<Vector*> Y_(1);
+   X_[0] = &x;
+   Y_[0] = &y;
+   ArrayMult(X_, Y_);
+}
+
+void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
+                              Array<Vector*>& Y_) const
+{
+   MFEM_ASSERT(operators.Size() > 0,
+               "Multigrid solver does not have operators set!");
+   MFEM_ASSERT(X_.Size() == Y_.Size(),
+               "Number of columns mismatch in MultigridBase::Mult!");
+   if (iterative_mode)
+   {
+      MFEM_WARNING("Multigrid solver does not use iterative_mode and ignores "
+                   "the initial guess!");
    }
 
+   // Add capacity as necessary
+   nrhs = X_.Size();
+   if (X.NumCols() < nrhs) { InitVectors(); }
+
+   // Perform a single cycle
+   const int M = NumLevels();
+   for (int j = 0; j < nrhs; ++j)
+   {
+      MFEM_ASSERT(X_[j] && Y_[j], "Missing Vector in MultigridBase::Mult!");
+      *X(M - 1, j) = *X_[j];
+      *Y(M - 1, j) = 0.0;
+   }
+   Cycle(M - 1);
+   for (int j = 0; j < nrhs; ++j)
+   {
+      *Y_[j] = *Y(M - 1, j);
+   }
+}
+
+void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
+{
+   // y = y + S (x - A y) or y = y + S^T (x - A y)
+   if (zero)
+   {
+      Array<Vector *> X_(X[level], nrhs), Y_(Y[level], nrhs);
+      GetSmootherAtLevel(level)->ArrayMult(X_, Y_);
+   }
+   else
+   {
+      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
+            Z_(Z[level], nrhs);
+      for (int j = 0; j < nrhs; ++j)
+      {
+         *R_[j] = *X(level, j);
+      }
+      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
+      if (transpose)
+      {
+         GetSmootherAtLevel(level)->ArrayMultTranspose(R_, Z_);
+      }
+      else
+      {
+         GetSmootherAtLevel(level)->ArrayMult(R_, Z_);
+      }
+      for (int j = 0; j < nrhs; ++j)
+      {
+         *Y_[j] += *Z_[j];
+      }
+   }
+}
+
+void MultigridBase::Cycle(int level) const
+{
+   // Coarse solve
+   if (level == 0)
+   {
+      SmoothingStep(0, true, false);
+      return;
+   }
+
+   // Pre-smooth
+   for (int i = 0; i < preSmoothingSteps; ++i)
+   {
+      SmoothingStep(level, (cycleType == CycleType::VCYCLE && i == 0), false);
+   }
+
+   // Compute residual and restrict
+   {
+      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
+            X_(X[level - 1], nrhs);
+      for (int j = 0; j < nrhs; ++j)
+      {
+         *R_[j] = *X(level, j);
+      }
+      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
+      GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
+      for (int j = 0; j < nrhs; ++j)
+      {
+         *Y(level - 1, j) = 0.0;
+      }
+   }
+
+   // Corrections
+   Cycle(level - 1);
+   if (cycleType == CycleType::WCYCLE)
+   {
+      Cycle(level - 1);
+   }
+
+   // Prolongate and add
+   {
+      Array<Vector *> Y_(Y[level - 1], nrhs), Z_(Z[level], nrhs);
+      GetProlongationAtLevel(level - 1)->ArrayMult(Y_, Z_);
+      for (int j = 0; j < nrhs; ++j)
+      {
+         *Y(level, j) += *Z_[j];
+      }
+   }
+
+   // Post-smooth
+   for (int i = 0; i < postSmoothingSteps; ++i)
+   {
+      SmoothingStep(level, false, true);
+   }
+}
+
+Multigrid::Multigrid()
+   : MultigridBase()
+{}
+
+Multigrid::Multigrid(const Array<Operator*>& operators_,
+                     const Array<Solver*>& smoothers_,
+                     const Array<Operator*>& prolongations_,
+                     const Array<bool>& ownedOperators_,
+                     const Array<bool>& ownedSmoothers_,
+                     const Array<bool>& ownedProlongations_)
+   : MultigridBase(operators_, smoothers_, ownedOperators_, ownedSmoothers_)
+{
+   prolongations_.Copy(prolongations);
+   ownedProlongations_.Copy(ownedProlongations);
+}
+
+Multigrid::~Multigrid()
+{
    for (int i = 0; i < prolongations.Size(); ++i)
    {
       if (ownedProlongations[i])
@@ -73,158 +256,12 @@ Multigrid::~Multigrid()
          delete prolongations[i];
       }
    }
-
-   operators.DeleteAll();
-   smoothers.DeleteAll();
-   prolongations.DeleteAll();
-   X.DeleteAll();
-   Y.DeleteAll();
-   R.DeleteAll();
-   Z.DeleteAll();
 }
 
-void Multigrid::AddLevel(Operator* opr, Solver* smoother, bool ownOperator,
-                         bool ownSmoother)
-{
-   operators.Append(opr);
-   smoothers.Append(smoother);
-   ownedOperators.Append(ownOperator);
-   ownedSmoothers.Append(ownSmoother);
-   width = opr->Width();
-   height = opr->Height();
-
-   X.Append(new Vector(height));
-   *X.Last() = 0.0;
-   Y.Append(new Vector(height));
-   *Y.Last() = 0.0;
-   R.Append(new Vector(height));
-   *R.Last() = 0.0;
-   Z.Append(new Vector(height));
-   *Z.Last() = 0.0;
-}
-
-int Multigrid::NumLevels() const { return operators.Size(); }
-
-int Multigrid::GetFinestLevelIndex() const { return NumLevels() - 1; }
-
-const Operator* Multigrid::GetOperatorAtLevel(int level) const
-{
-   return operators[level];
-}
-
-Operator* Multigrid::GetOperatorAtLevel(int level)
-{
-   return operators[level];
-}
-
-const Operator* Multigrid::GetOperatorAtFinestLevel() const
-{
-   return GetOperatorAtLevel(operators.Size() - 1);
-}
-
-Operator* Multigrid::GetOperatorAtFinestLevel()
-{
-   return GetOperatorAtLevel(operators.Size() - 1);
-}
-
-Solver* Multigrid::GetSmootherAtLevel(int level) const
-{
-   return smoothers[level];
-}
-
-Solver* Multigrid::GetSmootherAtLevel(int level)
-{
-   return smoothers[level];
-}
-
-void Multigrid::SetCycleType(CycleType cycleType_, int preSmoothingSteps_,
-                             int postSmoothingSteps_)
-{
-   cycleType = cycleType_;
-   preSmoothingSteps = preSmoothingSteps_;
-   postSmoothingSteps = postSmoothingSteps_;
-}
-
-void Multigrid::Mult(const Vector& x, Vector& y) const
-{
-   MFEM_ASSERT(NumLevels() > 0, "");
-   *X.Last() = x;
-   *Y.Last() = 0.0;
-   Cycle(GetFinestLevelIndex());
-   y = *Y.Last();
-}
-
-void Multigrid::SetOperator(const Operator& op)
-{
-   MFEM_ABORT("SetOperator not supported in Multigrid");
-}
-
-void Multigrid::SmoothingStep(int level, bool transpose) const
-{
-   GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]); // r = A x
-   subtract(*X[level], *R[level], *R[level]);             // r = b - A x
-   if (transpose)
-   {
-      GetSmootherAtLevel(level)->MultTranspose(*R[level], *Z[level]); // z = S r
-   }
-   else
-   {
-      GetSmootherAtLevel(level)->Mult(*R[level], *Z[level]); // z = S r
-   }
-   add(*Y[level], 1.0, *Z[level], *Y[level]);             // x = x + S (b - A x)
-}
-
-void Multigrid::Cycle(int level) const
-{
-   if (level == 0)
-   {
-      GetSmootherAtLevel(level)->Mult(*X[level], *Y[level]);
-      return;
-   }
-
-   for (int i = 0; i < preSmoothingSteps; i++)
-   {
-      SmoothingStep(level, false);
-   }
-
-   // Compute residual
-   GetOperatorAtLevel(level)->Mult(*Y[level], *R[level]);
-   subtract(*X[level], *R[level], *R[level]);
-
-   // Restrict residual
-   GetProlongationAtLevel(level - 1)->MultTranspose(*R[level], *X[level - 1]);
-
-   // Init zeros
-   *Y[level - 1] = 0.0;
-
-   // Corrections
-   int corrections = 1;
-   if (cycleType == CycleType::WCYCLE)
-   {
-      corrections = 2;
-   }
-   for (int correction = 0; correction < corrections; ++correction)
-   {
-      Cycle(level - 1);
-   }
-
-   // Prolongate
-   GetProlongationAtLevel(level - 1)->Mult(*Y[level - 1], *R[level]);
-
-   // Add update
-   *Y[level] += *R[level];
-
-   // Post-smooth
-   for (int i = 0; i < postSmoothingSteps; i++)
-   {
-      SmoothingStep(level, true);
-   }
-}
-
-const Operator* Multigrid::GetProlongationAtLevel(int level) const
-{
-   return prolongations[level];
-}
+GeometricMultigrid::
+GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_)
+   : MultigridBase(), fespaces(fespaces_)
+{}
 
 GeometricMultigrid::~GeometricMultigrid()
 {
@@ -232,15 +269,10 @@ GeometricMultigrid::~GeometricMultigrid()
    {
       delete bfs[i];
    }
-
-   bfs.DeleteAll();
-
    for (int i = 0; i < essentialTrueDofs.Size(); ++i)
    {
       delete essentialTrueDofs[i];
    }
-
-   essentialTrueDofs.DeleteAll();
 }
 
 void GeometricMultigrid::FormFineLinearSystem(Vector& x, Vector& b,
@@ -254,11 +286,6 @@ void GeometricMultigrid::RecoverFineFEMSolution(const Vector& X,
                                                 const Vector& b, Vector& x)
 {
    bfs.Last()->RecoverFEMSolution(X, b, x);
-}
-
-const Operator* GeometricMultigrid::GetProlongationAtLevel(int level) const
-{
-   return fespaces.GetProlongationAtLevel(level);
 }
 
 } // namespace mfem

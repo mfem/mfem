@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1582,7 +1582,7 @@ tensor<T, n, n> inv(const tensor<T, n, n>& A)
  * @note when inverting a tensor of dual numbers,
  * hardcode the analytic derivative of the
  * inverse of a square matrix, rather than
- * apply gauss elimination directly on the dual number types
+ * apply Gauss elimination directly on the dual number types
  *
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -208,10 +208,6 @@ public:
                                             Vector &x, Vector &b,
                                             OperatorHandle &A, Vector &X, Vector &B) = 0;
 
-   virtual void AddMult(const Vector &x, Vector &y, const double c=1.0) const = 0;
-   virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double c=1.0) const = 0;
-
    virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
    virtual void Update() = 0;
@@ -287,7 +283,7 @@ public:
    /// Partial assembly of all internal integrators
    void Assemble();
 
-   void AddMult(const Vector &x, Vector &y, const double c) const;
+   void AddMult(const Vector &x, Vector &y, const double c=1.0) const;
 
    void AddMultTranspose(const Vector &x, Vector &y, const double c=1.0) const;
 

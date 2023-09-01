@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,8 +104,15 @@ void TestBatchedLOR()
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
-   ConstantCoefficient diff_coeff(M_PI);
-   ConstantCoefficient mass_coeff(1.0/M_PI);
+   // Test variable coefficients using grid functions defined on a H1 space
+   H1_FECollection h1fec(2, mesh.Dimension());
+   FiniteElementSpace h1fes(&mesh, &h1fec);
+   GridFunction gf1(&h1fes), gf2(&h1fes);
+   gf1.Randomize(1);
+   gf2.Randomize(2);
+
+   GridFunctionCoefficient mass_coeff(&gf1);
+   GridFunctionCoefficient diff_coeff(&gf2);
 
    BilinearForm a(&fespace);
    a.AddDomainIntegrator(new INTEG_1(mass_coeff));
@@ -191,8 +198,14 @@ void ParTestBatchedLOR()
    Array<int> ess_dofs;
    fespace.GetBoundaryTrueDofs(ess_dofs);
 
-   ConstantCoefficient diff_coeff(M_PI);
-   ConstantCoefficient mass_coeff(1.0/M_PI);
+   H1_FECollection h1fec(2, mesh.Dimension());
+   FiniteElementSpace h1fes(&mesh, &h1fec);
+   GridFunction gf1(&h1fes), gf2(&h1fes);
+   gf1.Randomize(1);
+   gf2.Randomize(2);
+
+   GridFunctionCoefficient mass_coeff(&gf1);
+   GridFunctionCoefficient diff_coeff(&gf2);
 
    ParBilinearForm a(&fespace);
    a.AddDomainIntegrator(new INTEG_1(diff_coeff));

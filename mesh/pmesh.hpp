@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,8 @@ class ParPumiMesh;
 class ParMesh : public Mesh
 {
 protected:
+   friend class ParSubMesh;
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -206,6 +208,62 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * The output of the shared edges is chosen by the @a ordering parameter with
+    * the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering Ordering for the shared edges.
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(int ordering,
+                                  GroupCommunicator& sedge_comm) const;
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * The output of the shared vertices is chosen by the @a ordering parameter
+    * with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(int ordering,
+                                    GroupCommunicator& svert_comm) const;
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * The output of the shared face quadrilaterals is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(int ordering,
+                                  GroupCommunicator& squad_comm) const;
+
+   /**
+    * @brief Get the shared face triangles GroupCommunicator.
+    *
+    * The output of the shared face triangles is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] stria_comm
+    */
+   void GetSharedTriCommunicator(int ordering,
+                                 GroupCommunicator& stria_comm) const;
+
    // Similar to Mesh::GetFacesTable()
    STable3D *GetSharedFacesTable();
 
@@ -329,20 +387,62 @@ public:
 
    ParNCMesh* pncmesh;
 
+   int *partitioning_cache = nullptr;
+
    int GetNGroups() const { return gtopo.NGroups(); }
 
    ///@{ @name These methods require group > 0
-   int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
-   int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
-   int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
-   int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
+   int GroupNVertices(int group) const { return group_svert.RowSize(group-1); }
+   int GroupNEdges(int group) const { return group_sedge.RowSize(group-1); }
+   int GroupNTriangles(int group) const { return group_stria.RowSize(group-1); }
+   int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
-   int GroupVertex(int group, int i)
+   int GroupVertex(int group, int i) const
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
-   void GroupEdge(int group, int i, int &edge, int &o);
-   void GroupTriangle(int group, int i, int &face, int &o);
-   void GroupQuadrilateral(int group, int i, int &face, int &o);
+   void GroupEdge(int group, int i, int &edge, int &o) const;
+   void GroupTriangle(int group, int i, int &face, int &o) const;
+   void GroupQuadrilateral(int group, int i, int &face, int &o) const;
    ///@}
+
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(GroupCommunicator& sedge_comm) const
+   {
+      GetSharedEdgeCommunicator(1, sedge_comm);
+   }
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(GroupCommunicator& svert_comm) const
+   {
+      GetSharedVertexCommunicator(1, svert_comm);
+   }
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(GroupCommunicator& squad_comm) const
+   {
+      GetSharedQuadCommunicator(1, squad_comm);
+   }
+
+   /**
+   * @brief Get the shared face triangles GroupCommunicator.
+   *
+   * @param[out] stria_comm
+   */
+   void GetSharedTriCommunicator(GroupCommunicator& stria_comm) const
+   {
+      GetSharedTriCommunicator(1, stria_comm);
+   }
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
@@ -369,6 +469,7 @@ public:
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
+   /// @note The returned Table should be deleted by the caller
    Table *GetFaceToAllElementTable() const;
 
    /// Returns (a pointer to an object containing) the following data:
@@ -401,28 +502,43 @@ public:
    ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
    /// These mask values are defined in the ConfigMasks enum type as part of the
    /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *GetFaceElementTransformations(
       int FaceNo,
       int mask = 31) override;
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the shared face index @a sf. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the shared face index @a sf. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D)
-       using the face index @a FaceNo. @a fill2 specify if the information
-       for elem2 of the face should be computed or not.
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+   /// Get the FaceElementTransformations for the given shared face (edge 2D)
+   /// using the face index @a FaceNo. @a fill2 specify if the information
+   /// for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
-   ElementTransformation *
-   GetFaceNbrElementTransformation(int i)
+   /// Returns a pointer to the transformation defining the i-th face neighbor.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   ElementTransformation *GetFaceNbrElementTransformation(int i)
    {
       GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
 
@@ -480,7 +596,7 @@ public:
    /// given suffixes according to the MPI rank. The mesh will be written to the
    /// files using ParMesh::Print. The given @a precision will be used for ASCII
    /// output.
-   void Save(const char *fname, int precision=16) const override;
+   void Save(const std::string &fname, int precision=16) const override;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
@@ -509,7 +625,7 @@ public:
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
-   void SaveAsOne(const char *fname, int precision=16) const;
+   void SaveAsOne(const std::string &fname, int precision=16) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
@@ -546,7 +662,7 @@ public:
                   InverseElementTransformation *inv_trans = NULL) override;
 
    /// Debugging method
-   void PrintSharedEntities(const char *fname_prefix) const;
+   void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
 
