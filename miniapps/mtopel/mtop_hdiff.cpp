@@ -196,6 +196,7 @@ public:
 
             dsolv->SetVolInput(*gf);
             dsolv->LSolve();
+
             dsolv->GetSol(sols);
 
             dsola->SetVolInput(*af);
@@ -207,6 +208,7 @@ public:
 
 
             //part 1
+            obj->SetDiffSolver(dsolv);
             vv=obj->Eval(sols);
             obj->Grad(sols,lgr);
 
@@ -215,6 +217,7 @@ public:
             rvar=rvar+vv*vv;
 
             //part 2
+            obj->SetDiffSolver(dsola);
             vv=obj->Eval(sola);
             obj->Grad(sola,lgr);
 
@@ -337,6 +340,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
+   double volume_fraction = 0.35;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -380,6 +384,10 @@ int main(int argc, char *argv[])
                   "-r",
                   "--radius",
                   "Filter radius");
+   args.AddOption(&volume_fraction,
+                  "-vf",
+                  "--volume-fraction",
+                  "Volume fraction");                  
    args.AddOption(&num_samples,
                   "-ns",
                   "--num-samples",
@@ -547,7 +555,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.35*tot_vol;
+   double max_vol=volume_fraction*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
 
@@ -592,13 +600,14 @@ int main(int argc, char *argv[])
 
 
       std::ostringstream paraview_file_name;
-      paraview_file_name << "TopOpt:ser_ref_" << ser_ref_levels  
+      paraview_file_name << "TopOpt-half:ser_ref_" << ser_ref_levels  
                                          << "_par_ref_" << par_ref_levels 
                                          << "_order_" << order 
                                          << "_num_samples_" << num_samples
                                          << "_crlx_" << corr_len_x 
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
+                                         << "_volume_fraction_" << volume_fraction
                                          << "_radius_" << fradius;
       mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
