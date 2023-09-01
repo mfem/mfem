@@ -167,7 +167,6 @@ public:
     @param [in] mesh Pointer to the mesh that is used
    */
    SIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
-      :
    {
       dim = mesh->Dimension();
 
@@ -296,7 +295,6 @@ public:
     @param [in] mesh Pointer to the mesh that is used
    */
    CIntegrationRule(int Order, Coefficient& LvlSet, int lsOrder, Mesh* mesh)
-      :
    {
       dim = mesh->Dimension();
 
@@ -304,7 +302,7 @@ public:
       MomentFittingIntRules MFIRs(Order, LvlSet, lsOrder);
       mesh->GetElementTransformation(0, &Tr);
       IntegrationRule ir;
-      MFIRs.GetVolumeIntegrationRule(Order, levelset, lsorder, Tr, ir);
+      MFIRs.GetVolumeIntegrationRule(Tr, ir);
       if (dim > 1)
       {
          Weights.SetSize(ir.GetNPoints(), mesh->GetNE());
