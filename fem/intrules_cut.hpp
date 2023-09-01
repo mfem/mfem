@@ -92,6 +92,7 @@ public:
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
+    @param [in] sir corresponding IntegrationRule on surface
    */
    virtual void GetVolumeIntegrationRule(int Order,
                                          Coefficient& LvlSet,
@@ -109,6 +110,7 @@ public:
 
     @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
+    @param [in] sir corresponding IntegrationRule on surface
 
     @warning This function can only be called when the CutIntegrationRules are
     set up.
@@ -199,8 +201,8 @@ protected:
     called when the first IntegrationRule is computed or when Order or level-set
     change.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] order Order of the IntegrationRule
+    @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation to initalize the members with
    */
@@ -214,8 +216,8 @@ protected:
     called when the first IntegrationRule is computed or when Order or level-set
     change.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
+    @param [in] order Order of the IntegrationRule
+    @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation to initalize the members with
    */
@@ -389,6 +391,7 @@ public:
     @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
+    @param [in] sir corresponding IntegrationRule on surface
    */
    virtual void GetVolumeIntegrationRule(int Order,
                                          Coefficient& LvlSet,
@@ -406,6 +409,7 @@ public:
 
     @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
+    @param [in] sir corresponding IntegrationRule on surface
 
     @warning This function can only be called when the CutIntegrationRules are
     set up.
