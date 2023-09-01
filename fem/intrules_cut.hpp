@@ -477,7 +477,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
    else if (Order == 4) { nBasis = 85; }
    else if (Order == 5) { nBasis = 133; }
    else if (Order == 6) { nBasis = 196; }
-   else if (Order >= 7) { nBasis = 276; Order = 7; }
+   else { nBasis = 276; Order = 7; }
 
    shape.SetSize(nBasis, 3);
    shape = 0.;
