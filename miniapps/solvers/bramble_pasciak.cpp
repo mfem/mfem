@@ -25,7 +25,7 @@
 //        q_h \in W_h (piecewise discontinuous polynomials),
 //        D: subset of the boundary where natural boundary condition is imposed.
 // with a block transformation of the form X = AN - Id
-//                  X = [ A*invQ - Id    0   ]
+//                  X = [ M*invQ - Id    0   ]
 //                      [     B*invQ    -Id  ]
 // where N is defined by
 //                  N = [ invQ    0 ]
@@ -37,23 +37,27 @@
 //                  P = [ M_1    0  ]
 //                      [  0    M_2 ]
 // Using the particular preconditioner H, defined as
-//                  H = [ A - Q    0  ]
+//                  H = [ M - Q    0  ]
 //                      [  0      M_2 ]
 // (where M_1 = Q), enables a simplified version of a CG iteration (BPCG), as it avoids
 // the direct application of invH and X.
 //
-// The code allows to use (P)CG with P or H, and BPCG.
+// The code allows to use (P)CG with P (this includes H), and BPCG.
 #include "bramble_pasciak.hpp"
 
 using namespace std;
 using namespace mfem;
 using namespace blocksolvers;
 
+namespace mfem
+{
+namespace blocksolvers
+{
 /// Bramble-Pasciak Solver
 BramblePasciakSolver::BramblePasciakSolver(
    const std::shared_ptr<ParBilinearForm> &mVarf,
    const std::shared_ptr<ParMixedBilinearForm> &bVarf,
-   const BPCGParameters &param)
+   const BPSParameters &param)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize())
 {
@@ -63,13 +67,26 @@ BramblePasciakSolver::BramblePasciakSolver(
    B_.reset(bVarf->ParallelAssemble());
    Q_.reset(ConstructMassPreconditioner(*mVarf, param.q_scaling));
 
-   Init(*M_, *B_, *Q_, param);
+   Vector diagM;
+   M_->GetDiag(diagM);
+   auto BT = B_->Transpose();
+   auto invDBt = new HypreParMatrix(*BT);
+   invDBt->InvScaleRows(diagM);
+   auto S = ParMult(B_.get(), invDBt);
+   M0_.Reset(new HypreDiagScale(*Q_));
+   M1_.Reset(new HypreBoomerAMG(*S));
+
+   // auto solver_M1 = new HypreBoomerAMG(*block11);
+   M1_.As<HypreBoomerAMG>()->SetPrintLevel(0);
+
+   Init(*M_, *B_, *Q_, *M0_.As<Solver>(), *M1_.As<Solver>(), param);
 }
 
+// TODO To test it!
 BramblePasciakSolver::BramblePasciakSolver(
    HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
    Solver &M0, Solver &M1,
-   const BPCGParameters &param)
+   const BPSParameters &param)
    : DarcySolver(M.NumRows(), B.NumRows())
 {
    Init(M, B, Q, M0, M1, param);
@@ -77,125 +94,8 @@ BramblePasciakSolver::BramblePasciakSolver(
 
 void BramblePasciakSolver::Init(
    HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
-   const BPCGParameters &param)
-{
-   auto Bt = new TransposeOperator(&B);
-   // invQ
-   // TODO
-   // This is not general enough. We are assuming Q is diag
-   // Not using invQ ...
-   // HypreParMatrix *invQ = new HypreParMatrix(Q);
-   // Vector diagQ;
-   // Q.GetDiag(diagQ);
-   // *invQ = 1.0;
-   // invQ->InvScaleRows(diagQ);
-
-   Vector diagM;
-   M.GetDiag(diagM);
-   auto BT = B.Transpose();
-   auto invDBt = new HypreParMatrix(*BT);
-   invDBt->InvScaleRows(diagM);
-   auto S = ParMult(&B, invDBt);
-   auto M0 = new HypreDiagScale(Q);
-   auto M1 = new HypreBoomerAMG(*S);
-   // auto solver_M1 = new HypreBoomerAMG(*block11);
-   M1->SetPrintLevel(0);
-
-   use_bpcg = param.use_bpcg;
-
-   if (use_bpcg)
-   {
-      oop_ = new BlockOperator(offsets_);
-      oop_->owns_blocks = false;
-      oop_->SetBlock(0, 0, &M);
-      oop_->SetBlock(0, 1, Bt);
-      oop_->SetBlock(1, 0, &B);
-
-      // cpc_ unused in bpcg
-      auto temp_cpc = new BlockDiagonalPreconditioner(offsets_);
-      temp_cpc->owns_blocks = true;
-      temp_cpc->SetDiagonalBlock(0, M0);
-      temp_cpc->SetDiagonalBlock(1, M1);
-      // tri(1,0) = B M0 = B invQ
-      auto id_m = new IdentityOperator(M.NumRows());
-      auto id_b = new IdentityOperator(B.NumRows());
-      auto BinvM0 = new ProductOperator(&B, M0, false, false);
-      // tri
-      auto temp_tri = new BlockOperator(offsets_);
-      temp_tri->owns_blocks = true;
-      temp_tri->SetBlock(0, 0, id_m);
-      temp_tri->SetBlock(1, 1, id_b, -1.0);
-      temp_tri->SetBlock(1, 0, BinvM0);
-
-      ppc_ = new ProductOperator(temp_cpc, temp_tri, true, true);
-
-      ipc_ = new BlockOperator(offsets_);
-      ipc_->owns_blocks = false;
-      ipc_->SetDiagonalBlock(0, M0);
-
-      // bpcg
-      solver_.Reset(new BPCGSolver(M.GetComm()));
-      SetOptions(*solver_.As<BPCGSolver>(), param);
-      {
-         solver_.As<BPCGSolver>()->SetOperator(*oop_);
-         solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
-         solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
-      }
-   }
-   else
-   {
-      // oop_ unused in cg
-      auto temp_oop = new BlockOperator(offsets_);
-      temp_oop->owns_blocks = false;
-      temp_oop->SetBlock(0, 0, &M);
-      temp_oop->SetBlock(0, 1, Bt);
-      temp_oop->SetBlock(1, 0, &B);
-
-      // ipc_ unused in cg
-      auto temp_ipc = new BlockOperator(offsets_);
-      temp_ipc->owns_blocks = false;
-      temp_ipc->SetDiagonalBlock(0, M0);
-
-      // temp_AN = temp_oop * temp_ipc
-      auto temp_AN = new ProductOperator(temp_oop, temp_ipc, true, true);
-
-      // Required for updating the RHS
-      auto id = new IdentityOperator(M.NumRows()+B.NumRows());
-      map_ = new AddOperator(temp_AN, 1.0, id, -1.0, true, true);
-
-      mop_ = new ProductOperator(map_, temp_oop, false, true);
-
-      cpc_ = new BlockDiagonalPreconditioner(offsets_);
-      cpc_->owns_blocks = true;
-      cpc_->SetDiagonalBlock(0, M0);
-      cpc_->SetDiagonalBlock(1, M1);
-
-      if (param.use_hpc)
-      {
-         auto Diff = new HypreParMatrix(M);
-         Diff->Add(-1.0,Q);
-         auto MM0 = new HypreDiagScale(*Diff);
-         auto MM1 = new HypreDiagScale(*S);
-
-         hpc_ = new BlockDiagonalPreconditioner(offsets_);
-         hpc_->owns_blocks = true;
-         hpc_->SetDiagonalBlock(0, MM0);
-         hpc_->SetDiagonalBlock(1, MM1);
-      }
-
-      solver_.Reset(new CGSolver(M.GetComm()));
-      SetOptions(*solver_.As<CGSolver>(), param);
-      {
-         solver_.As<CGSolver>()->SetOperator(*mop_);
-         solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
-      }
-   }
-}
-
-void BramblePasciakSolver::Init(
-   HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
    Solver &M0, Solver &M1,
-   const BPCGParameters &param)
+   const BPSParameters &param)
 {
    auto Bt = new TransposeOperator(&B);
    auto invQ = new HypreDiagScale(Q);
@@ -233,13 +133,8 @@ void BramblePasciakSolver::Init(
       ipc_->SetDiagonalBlock(0, invQ);
 
       // bpcg
-      solver_.Reset(new BPCGSolver(M.GetComm()));
-      SetOptions(*solver_.As<BPCGSolver>(), param);
-      {
-         solver_.As<BPCGSolver>()->SetOperator(*oop_);
-         solver_.As<BPCGSolver>()->SetIncompletePreconditioner(*ipc_);
-         solver_.As<BPCGSolver>()->SetParticularPreconditioner(*ppc_);
-      }
+      solver_.reset(new BPCGSolver(M.GetComm(), *ipc_, *ppc_));
+      solver_->SetOperator(*oop_);
    }
    else
    {
@@ -260,7 +155,7 @@ void BramblePasciakSolver::Init(
 
       // Required for updating the RHS
       auto id = new IdentityOperator(M.NumRows()+B.NumRows());
-      map_ = new AddOperator(temp_AN, 1.0, id, -1.0, true, true);
+      map_ = new SumOperator(temp_AN, 1.0, id, -1.0, true, true);
 
       mop_ = new ProductOperator(map_, temp_oop, false, true);
 
@@ -269,13 +164,12 @@ void BramblePasciakSolver::Init(
       cpc_->SetDiagonalBlock(0, &M0);
       cpc_->SetDiagonalBlock(1, &M1);
 
-      solver_.Reset(new CGSolver(M.GetComm()));
-      SetOptions(*solver_.As<CGSolver>(), param);
-      {
-         solver_.As<CGSolver>()->SetOperator(*mop_);
-         solver_.As<CGSolver>()->SetPreconditioner(*cpc_);
-      }
+      // (P)CG
+      solver_.reset(new CGSolver(M.GetComm()));
+      solver_->SetOperator(*mop_);
+      solver_->SetPreconditioner(*cpc_);
    }
+   SetOptions(*solver_, param);
 }
 
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
@@ -310,19 +204,13 @@ void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
    {
       Vector transformed_rhs(x.Size());
       map_->Mult(x, transformed_rhs);
-      solver_.As<CGSolver>()->Mult(transformed_rhs, y);
+      solver_->Mult(transformed_rhs, y);
    }
    else
    {
-      solver_.As<BPCGSolver>()->Mult(x, y);
+      solver_->Mult(x, y);
    }
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
-}
-
-int BramblePasciakSolver::GetNumIterations() const
-{
-   if (!use_bpcg) { return solver_.As<CGSolver>()->GetNumIterations(); }
-   else { return solver_.As<BPCGSolver>()->GetNumIterations(); }
 }
 
 /// Bramble-Pasciak CG
@@ -354,18 +242,18 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
       subtract(b, r, r); // r = b - A x
       // tra_->Mult(r,r_hat); // r_hat = X r
       // map_->Mult(r,r_tem); // r_tem = S r
-      pprec->Mult(r,r_bar); // r_bar = P r
-      p = r_bar;
-      oper->Mult(p, g); // g = A p
-      oper->Mult(r_bar, t); // t = A r_bar
-      iprec->Mult(r, r_red); // r_red = N r
    }
    else
    {
-      // TODO
-      MFEM_ABORT("To implement non-iterative mode: iterative_mode: " <<
-                 iterative_mode);
+      r = b;
+      x = 0.0;
    }
+
+   pprec->Mult(r,r_bar); // r_bar = P r
+   p = r_bar;
+   oper->Mult(p, g); // g = A p
+   oper->Mult(r_bar, t); // t = A r_bar
+   iprec->Mult(r, r_red); // r_red = N r
 
    // Initial norms
    delta = delta0 = Dot(t, r_red) - Dot(r_bar, r); // Dot(r_bar, r_hat)
@@ -516,3 +404,5 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    final_norm = sqrt(delta);
    Monitor(final_iter, final_norm, r, x, true);
 }
+} // namespace blocksolvers
+} // namespace mfem

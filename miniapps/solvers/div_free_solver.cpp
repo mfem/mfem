@@ -15,6 +15,10 @@ using namespace std;
 using namespace mfem;
 using namespace blocksolvers;
 
+namespace mfem
+{
+namespace blocksolvers
+{
 HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
                             const HypreParMatrix& P)
 {
@@ -567,3 +571,5 @@ int DivFreeSolver::GetNumIterations() const
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
+} // namespace blocksolvers
+} // namespace mfem

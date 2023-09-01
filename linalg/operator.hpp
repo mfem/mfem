@@ -770,7 +770,7 @@ public:
 };
 
 /// General linear combination operator: x -> a A(x) + b B(x).
-class AddOperator : public Operator
+class SumOperator : public Operator
 {
    const Operator *A, *B;
    const double alpha, beta;
@@ -778,7 +778,7 @@ class AddOperator : public Operator
    mutable Vector a, b;
 
 public:
-   AddOperator(
+   SumOperator(
       const Operator *A, const double alpha,
       const Operator *B, const double beta,
       bool ownA, bool ownB);
@@ -789,7 +789,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { A->MultTranspose(x, a); B->MultTranspose(x, b); add(alpha, a, beta, b, y); }
 
-   virtual ~AddOperator();
+   virtual ~SumOperator();
 };
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
