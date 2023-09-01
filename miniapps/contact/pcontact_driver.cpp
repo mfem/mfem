@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    double linsolvertol = 1e-6;
    int relax_type = 8;
+   double optimizer_tol = 1e-6;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
@@ -46,6 +47,8 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");
    args.AddOption(&linsolvertol, "-stol", "--solver-tol",
                   "Linear Solver Tolerance.");
+   args.AddOption(&optimizer_tol, "-otol", "--optimizer-tol",
+                  "Interior Point Solver Tolerance.");                  
    args.AddOption(&relax_type, "-rt", "--relax-type",
                   "Selection of Smoother for AMG");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -86,7 +89,7 @@ int main(int argc, char *argv[])
 
    ParInteriorPointSolver optimizer(&qpopt);
 
-   optimizer.SetTol(1e-6);
+   optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(50);
 
    int linsolver = 2;
