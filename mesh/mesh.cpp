@@ -5421,7 +5421,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
             v1 = edge_to_knot[e1];
             df = flip*oedge[edge0[j]]*oedge[edge1[j]];
 
-            // Knot vector is not set
+            // Knot vector is not set: set 1, let it figure out the other one
             if ((v0 == notset) && (v1 == notset))
             {
                edge_to_knot[e0] = (oedge[edge0[j]] >= 0 ? knot : -knot-1);
