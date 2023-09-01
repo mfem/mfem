@@ -31,23 +31,19 @@ TEST_CASE("Operator", "[Operator]")
    {
       // When cg is in a product (on the right), we require cg->iterative_mode to be false.
 
-      ProductOperator *product = NULL;
-      RAPOperator *rap = NULL;
-      TripleProductOperator *triple = NULL;
-
       // First, test that the failing version throws an exception.
       cg.iterative_mode = true;
-      REQUIRE_THROWS(product = new ProductOperator(&A, &cg, false, false));
-      REQUIRE_THROWS(triple = new TripleProductOperator(&A, &cg, &cg, false, false,
-                                                        false));
-      REQUIRE_THROWS(rap = new RAPOperator(A, cg, cg));
+      REQUIRE_THROWS(ProductOperator(&A, &cg, false, false));
+      REQUIRE_THROWS(TripleProductOperator(&A, &cg, &cg, false, false,
+                                           false));
+      REQUIRE_THROWS(RAPOperator(A, cg, cg));
 
       // Second, test that the correct version does not throw.
       cg.iterative_mode = false;
-      REQUIRE_NOTHROW(product = new ProductOperator(&A, &cg, false, false));
-      REQUIRE_NOTHROW(triple = new TripleProductOperator(&A, &cg, &cg, false, false,
-                                                         false));
-      REQUIRE_NOTHROW(rap = new RAPOperator(A, cg, cg));
+      REQUIRE_NOTHROW(ProductOperator(&A, &cg, false, false));
+      REQUIRE_NOTHROW(TripleProductOperator(&A, &cg, &cg, false, false,
+                                            false));
+      REQUIRE_NOTHROW(RAPOperator(A, cg, cg));
    }
 }
 

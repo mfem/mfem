@@ -129,6 +129,16 @@ public:
    }
 
    /**
+    * @brief Get the relative face orientations
+    *
+    * ParSubMesh element id (array index) to parent ParMesh face orientation.
+    */
+   const Array<int>& GetParentFaceOrientations() const
+   {
+      return parent_face_ori_;
+   }
+
+   /**
     * @brief Get the ParSubMesh face id map.
     *
     * ParMesh face id (array index) to ParSubMesh face id.
@@ -358,6 +368,10 @@ private:
    /// Mapping from ParSubMesh face ids (index of the array), to the parent
    /// ParMesh face ids.
    Array<int> parent_face_ids_;
+
+   /// Mapping from SubMesh face ids (index of the array), to the orientation
+   /// of the face relative to the parent face.
+   Array<int> parent_face_ori_;
 
    /// Mapping from parent ParMesh vertex ids (index of the array), to the
    /// ParSubMesh vertex ids. Inverse map of parent_vertex_ids_.
