@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bench.hpp"
+#include <stdlib.h> // setenv
 
 #ifdef MFEM_USE_BENCHMARK
 
@@ -115,7 +116,8 @@ struct Problem: public BakeOff
 static void BP##i(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   state.counters["KER"] = bm::Counter(!!getenv("KER"));}\
 BENCHMARK(BP##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
@@ -206,6 +208,13 @@ int main(int argc, char *argv[])
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;
+      }
+
+      const auto version = bmi::global_context->find("version");
+      if (version != bmi::global_context->end())
+      {
+         mfem::out << version->first << " : " << version->second << std::endl;
+         setenv("VERSION", version->second.c_str(), 1); // overwrite
       }
    }
    Device device(device_config.c_str());

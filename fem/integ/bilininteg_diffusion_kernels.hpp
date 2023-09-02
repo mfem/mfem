@@ -17,6 +17,7 @@
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
+#include "../../linalg/tensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
@@ -628,6 +629,52 @@ inline void PADiffusionApply2D(const int NE,
    });
 }
 
+// Dynamic shared memory PA Diffusion Apply 2D kernel
+void DynamicSmemPADiffusionApply2D(const int NE,
+                                   const bool symm,
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Vector &D,
+                                   const Vector &X,
+                                   Vector &Y,
+                                   const int D1D,
+                                   const int Q1D,
+                                   const int NBZ);
+
+// Static shared memory PA Diffusion Apply 2D kernel
+void StaticSmemPADiffusionApply2D(const int NE,
+                                  const bool symm,
+                                  const Array<double> &B,
+                                  const Array<double> &G,
+                                  const Vector &D,
+                                  const Vector &X,
+                                  Vector &Y,
+                                  const int D1D = 3,
+                                  const int Q1D = 3,
+                                  const int NBZ = 16);
+
+// Static shared memory PA Diffusion Apply 3D kernel
+void StaticSmemPADiffusionApply3D(const int NE,
+                                  const bool symm,
+                                  const Array<double> &B,
+                                  const Array<double> &G,
+                                  const Vector &D,
+                                  const Vector &X,
+                                  Vector &Y,
+                                  const int D1D,
+                                  const int Q1D);
+
+// Dynamic shared memory PA Diffusion Apply 3D kernel
+void DynamicSmemPADiffusionApply3D(const int NE,
+                                   const bool symm,
+                                   const Array<double> &B,
+                                   const Array<double> &G,
+                                   const Vector &D,
+                                   const Vector &X,
+                                   Vector &Y,
+                                   const int D1D,
+                                   const int Q1D);
+
 // Shared memory PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
 inline void SmemPADiffusionApply2D(const int NE,
@@ -640,7 +687,6 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const int d1d = 0,
                                    const int q1d = 0)
 {
-   dbg();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
@@ -669,11 +715,13 @@ inline void SmemPADiffusionApply2D(const int NE,
       MFEM_SHARED double Xz[NBZ][MD1][MD1];
       MFEM_SHARED double GD[2][NBZ][MD1][MQ1];
       MFEM_SHARED double GQ[2][NBZ][MD1][MQ1];
+
       double (*X)[MD1] = (double (*)[MD1])(Xz + tidz);
       double (*DQ0)[MD1] = (double (*)[MD1])(GD[0] + tidz);
       double (*DQ1)[MD1] = (double (*)[MD1])(GD[1] + tidz);
       double (*QQ0)[MD1] = (double (*)[MD1])(GQ[0] + tidz);
       double (*QQ1)[MD1] = (double (*)[MD1])(GQ[1] + tidz);
+
       MFEM_FOREACH_THREAD(dy,y,D1D)
       {
          MFEM_FOREACH_THREAD(dx,x,D1D)

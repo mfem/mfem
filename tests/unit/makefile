@@ -42,13 +42,13 @@ PCUDA_MAIN_OBJ = pcunit_test_main.o
 SYCL_FILES = $(sort $(wildcard $(SRC)sycl/*.cpp))
 USE_SYCL := $(MFEM_USE_SYCL:NO=)
 
-SEQ_SYCL_TESTS = sycl_tests_cpu
-SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_sycl_cpu)
-SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_sycl_gpu)
+SEQ_SYCL_TESTS = sycl_tests_host
+SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_cpu)
+SEQ_SYCL_TESTS += $(if $(USE_SYCL),sycl_tests_gpu)
 
+SEQ_SYCL_HOST_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.host.o)
 SEQ_SYCL_CPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.cpu.o)
-SEQ_SYCL_SYCL_CPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.sycl_cpu.o)
-SEQ_SYCL_SYCL_GPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.sycl_gpu.o)
+SEQ_SYCL_GPU_OBJ_FILES = $(SYCL_FILES:$(SRC)%.cpp=%.gpu.o)
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -245,9 +245,9 @@ $$(SEQ_SYCL_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_M
 	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
 	   $$(SYCL_TESTS_FLAGS) -o $$(@)
 endef
-$(eval $(call sycl_tests,cpu,CPU,cpu))
-$(eval $(call sycl_tests,sycl_cpu,SYCL_CPU,sycl-cpu))
-$(eval $(call sycl_tests,sycl_gpu,SYCL_GPU,sycl-gpu))
+$(eval $(call sycl_tests,host,HOST,sycl-host))
+$(eval $(call sycl_tests,cpu,CPU,sycl-cpu))
+$(eval $(call sycl_tests,gpu,GPU,sycl-gpu))
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .

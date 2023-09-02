@@ -27,48 +27,6 @@ using namespace mfem;
 #include "linalg/tensor.hpp"
 using mfem::internal::tensor;
 
-// sycl_ext_oneapi_work_group_local: this extension defines a
-// sycl::ext::oneapi::experimental::work_group_local class template
-// with behavior inspired by the C++ thread_local keyword and
-// the CUDA __shared__ keyword.
-
-template <typename T>
-inline T& mfem_local_memory()
-{
-   static_assert(std::is_trivial_v<T>, "T should be trivial!");
-#ifdef __SYCL_DEVICE_ONLY__
-   __attribute__((opencl_local)) std::uint8_t *lmem =
-      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
-   return reinterpret_cast<__attribute__((opencl_local)) T&>(*lmem);
-#else
-   //std::uint8_t *lmem = __mfem_allocateLocalMemory(sizeof(T), alignof(T));
-   return *new T;
-#endif
-}
-
-
-// sycl::group_local_memory
-template <typename T, typename... Args>
-sycl::multi_ptr<T, sycl::access::address_space::local_space>
-inline mfem_local_memory(Args &&...args)
-{
-#ifdef __SYCL_DEVICE_ONLY__
-   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
-      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
-
-   sycl::id<3> Id = __spirv::initLocalInvocationId<3, sycl::id<3>>();
-   if (Id == sycl::id<3>(0, 0, 0))
-   {
-      new (AllocatedMem) T(std::forward<Args>(args)...);
-   }
-   sycl::detail::workGroupBarrier();
-   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
-#else
-   [&args...] {}();
-   return new T(std::forward<Args>(args)...);
-#endif
-}
-
 
 void sycl_lmem()
 {
@@ -105,44 +63,34 @@ void sycl_lmem()
          /// ASSERT ARE NOT WORKING ///
 #ifdef __SYCL_DEVICE_ONLY__
          //#warning SYCL-[C|G]PU
+         sycl_out << "SYCL-[C|G]PU" << "\n";
 
-         constexpr float M_PIf = static_cast<float>(M_PI);
+         auto D = mfem_shared<double[8]>();
+         D[0] = M_PI;
+         if (D[0] != M_PI) { sycl_out << "❌"; }
 
-         __attribute__((opencl_local)) float *D=
-            reinterpret_cast<__attribute__((opencl_local)) float*>
-            (__sycl_allocateLocalMemory(sizeof(float)*8,32));
-         D[0] = M_PIf;
-         if (D[0] != M_PIf) { sycl_out << "❌"; }
+         auto H = mfem_shared<double[4]>();
+         H[0] = H[1] = H[2] = H[3] = M_PI;
+         if (H[0] != M_PI || H[1] != M_PI) { sycl_out << "❌"; }
+         if (H[2] != M_PI || H[3] != M_PI) { sycl_out << "❌"; }
 
-         __attribute__((opencl_local)) float (&H)[4] =
-            *reinterpret_cast<__attribute__((opencl_local)) float(*)[4]>
-            (__sycl_allocateLocalMemory(sizeof(float[4]),32));
-         H[0] = H[1] = H[2] = H[3] = M_PIf;
-         if (H[0] != M_PIf || H[1] != M_PIf) { sycl_out << "❌"; }
-         if (H[2] != M_PIf || H[3] != M_PIf) { sycl_out << "❌"; }
+         auto J = mfem_shared<double[2][3]>();
+         J[1][2] = M_PI;
+         if (J[1][2] != M_PI) { sycl_out << "❌"; }
 
-         auto J = mfem_local_memory<float[2][3]>();
-         J[1][2] = M_PIf;
-         if (J[1][2] != M_PIf) { sycl_out << "❌"; }
+         auto tensor_2_3 = mfem_shared<tensor<double,2,3>>();
+         tensor_2_3[1][2] = M_PI;
+         if (tensor_2_3[1][2] != M_PI) { sycl_out << "❌"; }
 
-         __attribute__((opencl_local)) tensor<float,2,3> &tensor_2_3 =
-            *reinterpret_cast<__attribute__((opencl_local)) tensor<float,2,3>*>
-            (__sycl_allocateLocalMemory(sizeof(tensor<float,2,3>),32));
-         tensor_2_3[1][2] = M_PIf;
-         if (tensor_2_3[1][2] != M_PIf) { sycl_out << "❌"; }
-
-         auto int_ptr =
-            *sycl::group_local_memory<int[64]>(itm.get_group());
+         auto int_ptr = mfem_shared<int[64]>();
          int_ptr[0] = 1234;
          if (int_ptr[0] != 1234) { sycl_out << "❌"; }
 
-         auto fp_ptr =
-            *sycl::group_local_memory<float[64]>(itm.get_group());
-         fp_ptr[0] = M_PIf;
-         if (fp_ptr[0] != M_PIf) { sycl_out << "❌"; }
+         auto fp_ptr = mfem_shared<double[64]>();
+         fp_ptr[0] = M_PI;
+         if (fp_ptr[0] != M_PI) { sycl_out << "❌"; }
 
-         auto GD =
-            *sycl::group_local_memory<float[2][3][3]>(itm.get_group());
+         auto GD = mfem_shared<double[2][3][3]>();
          GD[0][0][1] = 1.234f;
          GD[0][2][0] = 1.234f;
          GD[1][2][2] = 1.234f;
@@ -150,29 +98,28 @@ void sycl_lmem()
          if (GD[0][2][0] != 1.234f) { sycl_out << "❌"; }
          if (GD[1][2][2] != 1.234f) { sycl_out << "❌"; }
 
-         // does not work
-         /*auto tensor_2_3 =
-            *sycl::group_local_memory_for_overwrite<tensor<float,2,3>>(itm.get_group());
-         tensor_2_3[1][2] = M_PIf;
-         if (tensor_2_3[1][2] != M_PI) { sycl_out << "❌"; }*/
+         auto mlm_f8 = mfem_shared<double[8]>();
+         mlm_f8[4] = M_PI;
+         if (mlm_f8[4] != M_PI) { sycl_out << "❌"; }
 
-         auto mlm_f8 = mfem_local_memory<float[8]>();
-         mlm_f8[4] = M_PIf;
-         if (mlm_f8[4] != M_PIf) { sycl_out << "❌"; }
-
-         sycl_out << "SYCL-[C|G]PU" << "\n";
-
-         // proposed, but not available
+         // proposed, but not yet available
+         // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc
          // sycl::ext::oneapi::experimental::work_group_local<int[16]> program_scope_array;
 #else // SYCL_HOST:
          //#warning SYCL_HOST
          sycl_out << "SYCL_HOST" << "\n";
 
+         auto J = mfem_shared<tensor<double,2,3>>();
+         J[1][2] = M_PI;
+         if (J[1][2] != M_PI) { sycl_out << "❌"; }
+
          // MFEM_SHARED tensor<double,2,3> tensor_2_3_s;
          // MFEM_SHARED(tensor<double,2,3>, tensor_2_3_s);
-         auto tensor_2_3 = mfem_local_memory<tensor<double,2,3>>();
+         auto tensor_2_3 = mfem_shared<tensor<double,2,3>>();
          tensor_2_3[0][1] = M_PI;
          if (tensor_2_3[0][1] != M_PI) { sycl_out << "❌"; }
+
+         //MFEM_SHARED((tensor<double,2,3>), tensor_2_3); // comma error
 
          sycl_out << tensor_2_3[0][1] << "\n";
          sycl_out << "SYCL-HOST" << "\n";

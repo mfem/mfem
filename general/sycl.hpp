@@ -13,6 +13,7 @@
 #define MFEM_SYCL_HPP
 
 #include "../config/config.hpp"
+#include  <cstddef>
 
 #ifdef MFEM_USE_SYCL
 /*
@@ -26,7 +27,10 @@
  *  - DPC++, which uses LLVM/Clang and is part of oneAPI
  *  - OpenSYCL, which can target host OpenMP, CUDA and HIP/ROCm
  *
- *  FP64 not fully supported on devcloud
+ * sycl_ext_oneapi_work_group_local: this extension defines a
+ * sycl::ext::oneapi::experimental::work_group_local class template
+ * with behavior inspired by the C++ thread_local keyword and
+ * the CUDA __shared__ keyword.
  * */
 
 #include <CL/sycl.hpp>
@@ -51,7 +55,14 @@ using namespace cl;
 #define MFEM_GPU_CHECK(...) __VA_ARGS__
 
 #if defined(__SYCL_DEVICE_ONLY__)
-#define MFEM_SHARED // the compiler does the local memory mapping if it can
+#define MFEM_SHARED
+template <typename T> inline T& mfem_shared()
+{
+   static_assert(std::is_trivial_v<T>, "T should be trivial!");
+   __attribute__((opencl_local)) std::uint8_t *smem =
+      __sycl_allocateLocalMemory(sizeof(T), alignof(T));
+   return reinterpret_cast<__attribute__((opencl_local)) T&>(*smem);
+}
 #define MFEM_SYNC_THREAD sycl::detail::workGroupBarrier();
 #define MFEM_BLOCK_ID(k) __spirv_BuiltInWorkgroupId.k
 #define MFEM_THREAD_ID(k) __spirv_BuiltInLocalInvocationId.k
@@ -59,8 +70,6 @@ using namespace cl;
 #define MFEM_FOREACH_THREAD(i,k,N) \
 for(size_t i=__spirv_LocalInvocationId_##k(); i<N; i+=__spirv_WorkgroupSize_##k())
 #endif
-
-#include "debug.hpp"
 
 namespace mfem
 {
@@ -172,6 +181,13 @@ template <> struct SyclWrap<3>
    }
 };
 
+} // namespace mfem
+
+#endif // MFEM_USE_SYCL
+
+namespace mfem
+{
+
 /// Allocates device memory and returns destination ptr.
 void* SyclMemAlloc(void **d_ptr, size_t bytes);
 
@@ -213,6 +229,5 @@ int SyclGetDeviceCount();
 
 } // namespace mfem
 
-#endif // MFEM_USE_SYCL
 
 #endif // MFEM_SYCL_HPP

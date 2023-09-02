@@ -38,8 +38,10 @@ const int MAX_Q1D = 14;
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#define MFEM_UNROLL_DISABLED MFEM_PRAGMA(unroll(1))
 #else
 #define MFEM_UNROLL(N)
+#define MFEM_UNROLL_DISABLED
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
@@ -554,6 +556,14 @@ inline void ForallWrap(const bool use_dev, const int N,
    MFEM_CONTRACT_VAR(d_body);
    if (!use_dev) { goto backend_cpu; }
 
+#ifdef MFEM_USE_SYCL
+   // If Backend::SYCL_GPU or Backend::SYCL_CPU are allowed, use them
+   if (Device::Allows(Backend::SYCL_GPU | Backend::SYCL_CPU))
+   {
+      return SyclWrap<DIM>::run(N, d_body, X, Y, Z, G);
+   }
+#endif
+
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA)
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
@@ -570,13 +580,6 @@ inline void ForallWrap(const bool use_dev, const int N,
    }
 #endif
 
-#ifdef MFEM_USE_SYCL
-   // If Backend::SYCL_GPU is allowed, use it
-   if (Device::Allows(Backend::SYCL_GPU))
-   {
-      return SyclWrap<DIM>::run(N, d_body, X, Y, Z, G);
-   }
-#endif
 
 #ifdef MFEM_USE_CUDA
    // If Backend::CUDA is allowed, use it
@@ -613,8 +616,8 @@ inline void ForallWrap(const bool use_dev, const int N,
 #endif
 
 #ifdef MFEM_USE_SYCL
-   // If Backend::SYCL_CPU is allowed, use it
-   if (Device::Allows(Backend::SYCL_CPU))
+   // If Backend::SYCL_HOST is allowed, use it
+   if (Device::Allows(Backend::SYCL_HOST))
    {
       return SyclWrap<DIM>::run(N, h_body, X, Y, Z, G);
    }

@@ -43,6 +43,17 @@
 // Define the MFEM inner threading macros
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_SHARED __shared__
+
+/*template <typename T, std::size_t UID>
+inline __device__ T mfem_shared() { static __shared__ T smem_T; return smem_T; }*/
+
+template <typename T, std::size_t UID>
+__device__ static T mfem_shared()
+{
+   __shared__ uint8_t shMem alignas(alignof(T))[sizeof(T)];
+   return *(reinterpret_cast<T*>(shMem));
+}
+
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k

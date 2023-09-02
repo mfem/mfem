@@ -43,10 +43,10 @@ ceed::RestrMap ceed_restr_map;
 // Backends listed by priority, high to low:
 static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 {
-   Backend::SYCL_GPU,
+   Backend::SYCL_GPU, Backend::SYCL_CPU,
    Backend::CEED_CUDA, Backend::OCCA_CUDA, Backend::RAJA_CUDA, Backend::CUDA,
    Backend::CEED_HIP, Backend::RAJA_HIP, Backend::HIP, Backend::DEBUG_DEVICE,
-   Backend::SYCL_CPU,
+   Backend::SYCL_HOST,
    Backend::OCCA_OMP, Backend::RAJA_OMP,  Backend::OMP,
    Backend::CEED_CPU, Backend::OCCA_CPU, Backend::RAJA_CPU, Backend::CPU
 };
@@ -54,10 +54,10 @@ static const Backend::Id backend_list[Backend::NUM_BACKENDS] =
 // Backend names listed by priority, high to low:
 static const char *backend_name[Backend::NUM_BACKENDS] =
 {
-   "sycl-gpu",
+   "sycl-gpu", "sycl-cpu",
    "ceed-cuda", "occa-cuda", "raja-cuda", "cuda",
    "ceed-hip", "raja-hip", "hip", "debug",
-   "sycl-cpu",
+   "sycl-host",
    "occa-omp", "raja-omp", "omp",
    "ceed-cpu", "occa-cpu", "raja-cpu", "cpu"
 };
@@ -486,10 +486,13 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void SyclDeviceSetup(const bool use_gpu, const int dev, int &ngpu,
-                            const bool use_cpu)
+static void SyclDeviceSetup(const int dev, int &ngpu,
+                            const bool use_gpu,
+                            const bool use_cpu,
+                            const bool use_host)
 {
-   dbg("\033[33m%s",use_gpu ? "SYCL_GPU" : use_cpu ? "SYCL_CPU" : "HOST");
+   dbg("\033[33m%s",
+       use_gpu ? "SYCL_GPU" : use_cpu ? "SYCL_CPU" : use_host ? "HOST" : "???");
    MFEM_CONTRACT_VAR(dev);
 #ifdef MFEM_USE_SYCL
    if (use_gpu)
@@ -503,6 +506,12 @@ static void SyclDeviceSetup(const bool use_gpu, const int dev, int &ngpu,
    {
       auto Q = Sycl::Queue();//sycl::cpu_selector {});
       MFEM_VERIFY(Q.get_device().is_cpu(), "Sycl queue setup error!")
+      SyclGetDeviceCount();
+   }
+   if (use_host)
+   {
+      auto Q = Sycl::Queue();//sycl::cpu_selector {});
+      MFEM_VERIFY(Q.get_device().is_host(), "Sycl queue setup error!")
       SyclGetDeviceCount();
    }
 #else
@@ -606,8 +615,10 @@ void Device::Setup(const int device_id)
    }
    if (Allows(Backend::SYCL_MASK))
    {
-      SyclDeviceSetup(Allows(Backend::SYCL_GPU), dev, ngpu,
-                      Allows(Backend::SYCL_CPU));
+      SyclDeviceSetup(dev, ngpu,
+                      Allows(Backend::SYCL_GPU),
+                      Allows(Backend::SYCL_CPU),
+                      Allows(Backend::SYCL_HOST));
    }
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }

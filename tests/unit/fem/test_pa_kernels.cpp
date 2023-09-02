@@ -568,7 +568,7 @@ TEST_CASE("PA Mass", "[PartialAssembly], [CUDA]")
    test_pa_integrator<MassIntegrator>();
 } // PA Mass test case
 
-TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
+TEST_CASE("PA Diffusion", "[PartialAssembly], [Diffusion], [CUDA]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case

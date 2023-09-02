@@ -32,8 +32,8 @@
 #endif
 
 #ifdef MFEM_USE_SYCL
-#include "sycl.hpp"
 #endif
+#include "sycl.hpp"
 
 #ifdef MFEM_USE_RAJA
 // The following two definitions suppress CUB and THRUST deprecation warnings
@@ -61,6 +61,7 @@
       (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)) || \
       (defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)))
 #define MFEM_SHARED
+template <typename T, size_t = 0> T mfem_shared() { T t; return t; }
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0

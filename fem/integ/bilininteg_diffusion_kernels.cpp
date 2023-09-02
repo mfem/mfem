@@ -175,7 +175,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
             const double E = J11*J11 + J21*J21 + J31*J31;
             const double G = J12*J12 + J22*J22 + J32*J32;
             const double F = J11*J12 + J21*J22 + J31*J32;
-            const double iw = 1.0 / sqrt(E*G - F*F);
+            const double iw = 1.0 / std::sqrt(E*G - F*F);
             const double coeff = const_c ? C(0,0,0) : C(qx,qy,e);
             const double alpha = wq * coeff * iw;
             D(qx,qy,0,e) =  alpha * G; // 1,1
@@ -378,32 +378,32 @@ void PADiffusionAssembleDiagonal(const int dim,
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
-         case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
-         case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
-         case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
-         case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);
-         case 0x77: return SmemPADiffusionDiagonal2D<7,7,2>(NE,symm,B,G,D,Y);
-         case 0x88: return SmemPADiffusionDiagonal2D<8,8,1>(NE,symm,B,G,D,Y);
-         case 0x99: return SmemPADiffusionDiagonal2D<9,9,1>(NE,symm,B,G,D,Y);*/
-         default: return PADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D);
+            /*case 0x22: return SmemPADiffusionDiagonal2D<2,2,8>(NE,symm,B,G,D,Y);
+            case 0x33: return SmemPADiffusionDiagonal2D<3,3,8>(NE,symm,B,G,D,Y);
+            case 0x44: return SmemPADiffusionDiagonal2D<4,4,4>(NE,symm,B,G,D,Y);
+            case 0x55: return SmemPADiffusionDiagonal2D<5,5,4>(NE,symm,B,G,D,Y);
+            case 0x66: return SmemPADiffusionDiagonal2D<6,6,2>(NE,symm,B,G,D,Y);
+            case 0x77: return SmemPADiffusionDiagonal2D<7,7,2>(NE,symm,B,G,D,Y);
+            case 0x88: return SmemPADiffusionDiagonal2D<8,8,1>(NE,symm,B,G,D,Y);
+            case 0x99: return SmemPADiffusionDiagonal2D<9,9,1>(NE,symm,B,G,D,Y);
+            default: return PADiffusionDiagonal2D(NE,symm,B,G,D,Y,D1D,Q1D);*/
       }
    }
    else if (dim == 3)
    {
       switch ((D1D << 4 ) | Q1D)
       {
-         /*case 0x22: return SmemPADiffusionDiagonal3D<2,2>(NE,symm,B,G,D,Y);
-         case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,symm,B,G,D,Y);
-         case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,symm,B,G,D,Y);
-         case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,symm,B,G,D,Y);
-         case 0x46: return SmemPADiffusionDiagonal3D<4,6>(NE,symm,B,G,D,Y);
-         case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,symm,B,G,D,Y);
-         case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,symm,B,G,D,Y);
-         case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,symm,B,G,D,Y);
-         case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,symm,B,G,D,Y);
-         case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,symm,B,G,D,Y);*/
-         default: return PADiffusionDiagonal3D(NE,symm,B,G,D,Y,D1D,Q1D);
+            /*case 0x22: return SmemPADiffusionDiagonal3D<2,2>(NE,symm,B,G,D,Y);
+            case 0x23: return SmemPADiffusionDiagonal3D<2,3>(NE,symm,B,G,D,Y);
+            case 0x34: return SmemPADiffusionDiagonal3D<3,4>(NE,symm,B,G,D,Y);
+            case 0x45: return SmemPADiffusionDiagonal3D<4,5>(NE,symm,B,G,D,Y);
+            case 0x46: return SmemPADiffusionDiagonal3D<4,6>(NE,symm,B,G,D,Y);
+            case 0x56: return SmemPADiffusionDiagonal3D<5,6>(NE,symm,B,G,D,Y);
+            case 0x67: return SmemPADiffusionDiagonal3D<6,7>(NE,symm,B,G,D,Y);
+            case 0x78: return SmemPADiffusionDiagonal3D<7,8>(NE,symm,B,G,D,Y);
+            case 0x89: return SmemPADiffusionDiagonal3D<8,9>(NE,symm,B,G,D,Y);
+            case 0x9A: return SmemPADiffusionDiagonal3D<9,10>(NE,symm,B,G,D,Y);
+            default: return PADiffusionDiagonal3D(NE,symm,B,G,D,Y,D1D,Q1D);*/
       }
    }
    MFEM_ABORT("Unknown kernel.");
@@ -422,7 +422,7 @@ void PADiffusionApply(const int dim,
                       const Vector &X,
                       Vector &Y)
 {
-   dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D);
+   //dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D);
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -441,37 +441,117 @@ void PADiffusionApply(const int dim,
 #endif // MFEM_USE_OCCA
    const int id = (D1D << 4) | Q1D;
 
+   constexpr bool MFEM_KERNEL_CHECK = true;
+   if (MFEM_KERNEL_CHECK) { MFEM_WARNING("MFEM_KERNEL_CHECK"); }
+
+   enum class MFEM_KERNEL_TYPE { LEGACY, STATIC, DYNAMIC };
+   const static MFEM_KERNEL_TYPE MFEM_KERNEL_T =
+      getenv("VERSION") ?
+      static_cast<MFEM_KERNEL_TYPE>(std::stoi(getenv("VERSION"))) :
+      MFEM_KERNEL_TYPE::LEGACY;
+
    if (dim == 2)
    {
-      switch (id)
+      if (MFEM_KERNEL_CHECK && id == 0x33)
       {
-         //case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-         /*case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);*/
-         default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         Vector dynY = Y, stcY = Y;
+         SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+
+         DynamicSmemPADiffusionApply2D(NE,symm,B,G,D,X,dynY,3,3,16);
+         assert((dynY -= Y, dynY.Normlinf() < 1e-15));
+
+         StaticSmemPADiffusionApply2D(NE,symm,B,G,D,X,stcY,3,3,16);
+         assert((stcY -= Y, stcY.Normlinf() < 1e-15));
+         return;
+      }
+
+      if (MFEM_KERNEL_CHECK)
+      {
+         Vector dynY = Y, bkpY = Y;
+         PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         const int NBZ[8] = {16,16,8,8,4,4,2,2};
+         assert(D1D > 1);
+         const int z = D1D < 10 ? NBZ[D1D-2] : 1;
+         DynamicSmemPADiffusionApply2D(NE,symm,B,G,D,X,dynY,D1D,Q1D,z);
+         assert((dynY -= Y, dynY.Normlinf() < 1e-15));
+         Y = bkpY;
+      }
+
+      if (MFEM_KERNEL_T ==  MFEM_KERNEL_TYPE::LEGACY)
+      {
+         switch (id)
+         {
+            //case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
+            case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
+            /*case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
+            case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
+            case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
+            case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
+            case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
+            case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);*/
+            default: return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         }
+      }
+      else if (MFEM_KERNEL_T ==  MFEM_KERNEL_TYPE::STATIC)
+      {
+         return StaticSmemPADiffusionApply2D(NE,symm,B,G,D,X,Y);
+      }
+      else
+      {
+         constexpr int NBZ[8] = { 16,16,8,8,4,4,2,2 };
+         const int z = D1D < 10 ? NBZ[D1D-2] : 1;
+         return DynamicSmemPADiffusionApply2D(NE,symm,B,G,D,X,Y,D1D,Q1D,z);
       }
    }
 
    if (dim == 3)
    {
-      switch (id)
+      if (MFEM_KERNEL_CHECK && id == 0x34)
       {
-         /*case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);*/
-         default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         Vector dynY = Y, stcY = Y;
+         SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+
+         DynamicSmemPADiffusionApply3D(NE,symm,B,G,D,X,dynY,3,4);
+         assert((dynY -= Y, dynY.Normlinf() < 1e-15));
+
+         StaticSmemPADiffusionApply3D(NE,symm,B,G,D,X,stcY,3,4);
+         assert((stcY -= Y, stcY.Normlinf() < 1e-15));
+         return;
+      }
+
+      if (MFEM_KERNEL_CHECK)
+      {
+         Vector dynY = Y, bkpY = Y;
+         PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         DynamicSmemPADiffusionApply3D(NE,symm,B,G,D,X,dynY,D1D,Q1D);
+         assert((dynY -= Y, dynY.Normlinf() < 1e-15));
+         Y = bkpY;
+      }
+
+      if (MFEM_KERNEL_T ==  MFEM_KERNEL_TYPE::LEGACY)
+      {
+         switch (id)
+         {
+            //case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
+            case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
+            case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
+            case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
+            //case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
+            case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
+            //case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
+            case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
+            case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
+            //case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
+            default: return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
+         }
+      }
+      else if (MFEM_KERNEL_T ==  MFEM_KERNEL_TYPE::STATIC)
+      {
+         return StaticSmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
+      }
+      else // MFEM_KERNEL_TYPE::DYNAMIC
+      {
+         return DynamicSmemPADiffusionApply3D(NE,symm,B,G,D,X,Y,D1D,Q1D);
       }
    }
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);

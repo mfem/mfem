@@ -21,13 +21,19 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_SYCL
 sycl::queue Sycl::Queue()
 {
+   // Could use fallback queue
    if (Device::Allows(Backend::SYCL_GPU)) { return sycl::queue(sycl::gpu_selector{}); }
    if (Device::Allows(Backend::SYCL_CPU)) { return sycl::queue(sycl::cpu_selector{}); }
+   if (Device::Allows(Backend::SYCL_HOST)) { return sycl::queue(sycl::host_selector{}); }
    return sycl::queue(sycl::default_selector{});
 }
+#endif
 
+// Internal debug option, useful for tracking SYCL allocations,
+// deallocations and transfers.
 #undef MFEM_TRACK_SYCL_MEM
 
 void* SyclMemAlloc(void** dptr, size_t bytes)
@@ -221,6 +227,10 @@ int SyclGetDeviceCount()
             mfem::out << "\tDevice: ";
             mfem::out << device.get_info<sycl::info::device::name>() << " ";
             mfem::out << (device.is_gpu() ? "is a GPU" : "is a CPU");
+            if (device.is_gpu())
+            {
+               MFEM_VERIFY(device.has(sycl::aspect::fp64), "fp64 not supported!");
+            }
             mfem::out << std::endl;
          }
          if (out) { mfem::out << std::endl; }
