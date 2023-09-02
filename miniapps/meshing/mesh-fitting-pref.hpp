@@ -18,16 +18,44 @@ using namespace std;
 using namespace mfem;
 using namespace common;
 
+double GetMinDet(Mesh *mesh, FiniteElementSpace *fespace,
+                 IntegrationRules *irules, int quad_order)
+{
+   double tauval = infinity();
+   const int NE = mesh->GetNE();
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir =
+         irules->Get(fespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = mesh->GetElementTransformation(i);
+
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+
+      const IntegrationRule &ir2 = fespace->GetFE(i)->GetNodes();
+      for (int j = 0; j < ir2.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir2.IntPoint(j));
+         tauval = min(tauval, transf->Jacobian().Det());
+      }
+   }
+   return tauval;
+}
+
 // Propogates orders from interface elements given by @int_el_list to
-// neighbors. The current orders must be provided by @ordergf, and the
+// face neighbors. The current orders must be provided by @ordergf, and the
 // allowed different either needs to be an integer.
 // approach decides whether the difference allowed is maximum or exact.
-void PropogateOrders(const GridFunction &ordergf, //current orders
-                     const Array<int> &int_el_list,
-                     const Array<int> &diff,
-                     const Table &eltoeln,
-                     Array<int> &new_orders,
-                     const int approach = 0)
+void PropogateOrdersAcrossInterFace(const GridFunction
+                                    &ordergf, //current orders
+                                    const Array<int> &int_el_list,
+                                    const Array<int> &diff,
+                                    const Table &eltoeln,
+                                    Array<int> &new_orders,
+                                    const int approach = 0)
 {
    int nelem = ordergf.FESpace()->GetMesh()->GetNE();
    MFEM_VERIFY(ordergf.Size() == nelem,"Invalid size of current orders");
@@ -46,11 +74,126 @@ void PropogateOrders(const GridFunction &ordergf, //current orders
 
    bool done = false;
    int iter = 0;
+   int nelupdate = 0;
    while (!done)
    {
       propogate_list = propogate_list_new;
       propogate_list_new.SetSize(0);
 
+      for (int i = 0; i < propogate_list.Size(); i++)
+      {
+         order_propogated[propogate_list[i]] = true;
+      }
+
+      Array<int> propogate_list_current(0);
+
+      for (int i = 0; i < propogate_list.Size(); i++)
+      {
+         int elem = propogate_list[i];
+         Array<int> elem_neighbor_indices;
+         eltoeln.GetRow(elem, elem_neighbor_indices);
+         int elem_order = new_orders[elem];
+         for (int n = 0; n < elem_neighbor_indices.Size(); n++)
+         {
+            int elem_neighbor_index = elem_neighbor_indices[n];
+            if (order_propogated[elem_neighbor_index]) { continue; }
+            int current_order = new_orders[elem_neighbor_index];
+            int maxdiff = n > diff.Size()-1 ? 1 : diff[n];
+            propogate_list_new.Append(elem_neighbor_index);
+            // if this element has already been visited in this loop, then
+            // keep its current order as we might need it.
+            int temp_set_order = propogate_list_current.Find(elem_neighbor_index) != -1 ?
+                                 current_order : -1;
+            propogate_list_current.Append(elem_neighbor_index);
+            // approach = 0; If the interface element is 5, max diff = 2,
+            // the neighbor has to be atleast 3 (i.e. 3 || 4 || 5 || 6)
+            if (approach == 0)
+            {
+               if (current_order < elem_order-maxdiff)
+               {
+                  int set_order = std::max(1, elem_order-maxdiff);
+                  if (temp_set_order != -1)
+                  {
+                     set_order = std::max(set_order, temp_set_order);
+                  }
+                  new_orders[elem_neighbor_index] = set_order;
+                  nelupdate++;
+               }
+            }
+            // approach = 1; If the interface element is 5, max diff = 2,
+            // the neighbor has to be exactly 3
+            else if (approach == 1)
+            {
+               if (current_order != elem_order-maxdiff)
+               {
+                  int set_order = std::max(1, elem_order-maxdiff);
+                  if (temp_set_order != -1)
+                  {
+                     set_order = std::max(set_order, temp_set_order);
+                  }
+                  new_orders[elem_neighbor_index] = set_order;
+                  nelupdate++;
+               }
+            }
+         }
+      }
+
+      if (propogate_list_new.Size() > 0)
+      {
+         propogate_list_new.Sort();
+         propogate_list_new.Unique();
+      }
+      else
+      {
+         done = true;
+      }
+      iter++;
+   }
+   std::cout << "Number of elements order propogated across face to: " << nelupdate
+             <<
+             std::endl;
+}
+
+
+// Starts by the max order at interface and propogates orders across its neighbors.
+// Then proceeds to the next order in the mesh and propogates across its neighbors.
+void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
+                          const Array<int> &int_el_list,
+                          const Array<int> &diff,
+                          const Table &eltoeln,
+                          Array<int> &new_orders,
+                          const int approach = 0)
+{
+   int nelem = ordergf.FESpace()->GetMesh()->GetNE();
+   MFEM_VERIFY(ordergf.Size() == nelem, "Invalid size of current orders");
+   new_orders.SetSize(nelem);
+   for (int e = 0; e < nelem; e++)
+   {
+      new_orders[e] = ordergf(e);
+   }
+   int cur_max_order = new_orders.Max();
+   int n_int_els = int_el_list.Size();
+
+   Array<bool> order_propogated(nelem);
+   order_propogated = false;
+   Array<int> propogate_list(0);
+
+   for (int e = 0; e < int_el_list.Size(); e++)
+   {
+      int el = int_el_list[e];
+      order_propogated[el] = true; //set true for all interface elements
+      if (new_orders[el] == cur_max_order)
+      {
+         propogate_list.Append(el);
+         n_int_els -= 1;
+      }
+   }
+
+   bool done = false;
+   int iter = 0;
+   int nelupdate = 0;
+   while (!done)
+   {
       for (int i = 0; i < propogate_list.Size(); i++)
       {
          order_propogated[propogate_list[i]] = true;
@@ -72,38 +215,67 @@ void PropogateOrders(const GridFunction &ordergf, //current orders
             // the neighbor has to be atleast 3 (i.e. 3 || 4 || 5 || 6)
             if (approach == 0)
             {
-               if (current_order < elem_order-maxdiff && current_order != 1)
+               if (current_order < elem_order-maxdiff)
                {
-                  propogate_list_new.Append(elem_neighbor_index);
                   int set_order = std::max(1, elem_order-maxdiff);
-                  new_orders[elem_neighbor_index] = elem_order-maxdiff;
+                  new_orders[elem_neighbor_index] = set_order;
+                  nelupdate++;
                }
             }
             // approach = 1; If the interface element is 5, max diff = 2,
             // the neighbor has to be exactly 3
             else if (approach == 1)
             {
-               if (current_order != elem_order-maxdiff && current_order != 1)
+               if (current_order != elem_order-maxdiff)
                {
-                  propogate_list_new.Append(elem_neighbor_index);
                   int set_order = std::max(1, elem_order-maxdiff);
-                  new_orders[elem_neighbor_index] = elem_order-maxdiff;
+                  new_orders[elem_neighbor_index] = set_order;
+                  nelupdate++;
                }
             }
          }
       }
 
-      if (propogate_list_new.Size() > 0)
+      propogate_list.SetSize(0);
+      if (cur_max_order >= 3)
       {
-         propogate_list_new.Sort();
-         propogate_list_new.Unique();
+         cur_max_order -= 1;
+         for (int e = 0; e < new_orders.Size(); e++)
+         {
+            if (new_orders[e] == cur_max_order)
+            {
+               propogate_list.Append(e);
+            }
+         }
       }
-      else
+
+      if (propogate_list.Size() == 0)
       {
          done = true;
       }
       iter++;
    }
+   std::cout << "Number of elements order propogated by max to: " << nelupdate
+             <<
+             std::endl;
+}
+
+void PropogateOrders(const GridFunction &ordergf, //current orders
+                     const Array<int> &int_el_list,
+                     const Array<int> &diff,
+                     const Table &eltoeln,
+                     Array<int> &new_orders,
+                     const int approach = 0)
+{
+   PropogateOrdersAcrossInterFace(ordergf, int_el_list, diff, eltoeln, new_orders,
+                                  approach);
+   GridFunction ordergf2(ordergf);
+   for (int e = 0; e < new_orders.Size(); e++)
+   {
+      ordergf2(e) = new_orders[e];
+   }
+   PropogateOrdersByMax(ordergf2, int_el_list, diff, eltoeln, new_orders,
+                        approach);
 }
 
 
@@ -386,6 +558,68 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
       length += ip.weight*transf->Face->Weight();
    }
    return error;
+}
+
+bool CheckElementValidityAtOrder(Mesh *mesh,
+                                 int el,
+                                 int el_order)
+{
+   const GridFunction *x = mesh->GetNodes();
+   const FiniteElementSpace *fes = x->FESpace();
+   int node_ordering = fes->GetOrdering();
+   const int vdim = fes->GetVDim();
+
+   const FiniteElement *fe = fes->GetFE(el);
+   ElementTransformation *transf = mesh->GetElementTransformation(el);
+
+   int fe_type = fe->GetGeomType();
+   int mesh_dim = mesh->Dimension();
+
+   IsoparametricTransformation T;
+   DenseMatrix I;
+   Geometry::Type geom = fe->GetGeomType();
+   T.SetIdentityTransformation(geom);
+
+   FiniteElementCollection *fecInt = new H1_FECollection(el_order,
+                                                         mesh->Dimension());
+   const auto *feInt = fecInt->GetFE(geom, el_order);
+   // Get interpolation matrix from current order to target order
+   feInt->GetTransferMatrix(*fe, T, I);
+
+   // Get current coordinates
+   Vector elemvect(0);
+   Array<int> dofs;
+   fes->GetElementVDofs(el, dofs);
+   x->GetSubVector(dofs, elemvect);
+   DenseMatrix elemvecMat(elemvect.GetData(), dofs.Size()/vdim, vdim);
+
+   // Get coordinates for new order
+   DenseMatrix IntVals(I.Height(), elemvecMat.Width());
+   Mult(I, elemvecMat, IntVals);
+
+   IsoparametricTransformation *Tpr = NULL;
+   Tpr = new IsoparametricTransformation;
+   Tpr->SetFE(feInt);
+   Tpr->ElementNo = el;
+   Tpr->ElementType = ElementTransformation::ELEMENT;
+   Tpr->Attribute = transf->Attribute;
+   Tpr->GetPointMat().Transpose(IntVals); // PointMat = PMatI^T
+
+   const int int_order = 2*el_order + 3;
+   const IntegrationRule *ir = &(IntRulesLo.Get(geom, int_order));
+
+   double tauval = infinity();
+   for (int j = 0; j < ir->GetNPoints(); j++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(j);
+      Tpr->SetIntPoint(&ip);
+      tauval = min(tauval, Tpr->Jacobian().Det());
+   }
+
+   delete Tpr;
+   delete fecInt;
+
+   return (tauval > 0);
 }
 
 // InterfaceElementOrderReduction
