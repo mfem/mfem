@@ -13,36 +13,35 @@
 //               Bramble-Pasciak preconditioning for Darcy problem
 //          ----------------------------------------------------------
 //
-// Main idea is to precondition the block system
-//                 Ax = [ M  B^T ] [u] = [f]
+// Main idea is to transform the block system
+//                 Ax = [ M  B^T ] [u] = [f] = b
 //                      [ B   0  ] [p] = [g]
 //     where:
 //        M = \int_\Omega (k u_h) \cdot v_h dx,
 //        B = -\int_\Omega (div_h u_h) q_h dx,
-//        f = \int_\Omega f_exact v_h dx + \int_D natural_bc v_h dS,
-//        g = \int_\Omega g_exact q_h dx,
 //        u_h, v_h \in R_h (Raviart-Thomas finite element space),
 //        q_h \in W_h (piecewise discontinuous polynomials),
-//        D: subset of the boundary where natural boundary condition is imposed.
 // with a block transformation of the form X = AN - Id
-//                  X = [ A*invQ - Id    0   ]
+//                  X = [ M*invQ - Id    0   ]
 //                      [     B*invQ    -Id  ]
 // where N is defined by
 //                  N = [ invQ    0 ]
 //                      [   0     0 ]
 // and Q is constructed such that Q and M-Q are both s.p.d.
 //
-// The codes allows the user to provide such Q, or to construct it from the
-// element matrices A_T. Moreover, the user can provide a block preconditioner
-//                  P = [ M_1    0  ]
-//                      [  0    M_2 ]
-// Using the particular preconditioner H, defined as
-//                  H = [ A - Q    0  ]
-//                      [  0      M_2 ]
-// (where M_1 = Q), enables a simplified version of a CG iteration (BPCG), as it avoids
-// the direct application of invH and X.
+// The solution x is then obtained by solving XAx = Xb with PCG as XA is s.p.d.
 //
-// The code allows to use (P)CG with P or H, and BPCG.
+// The codes allows the user to provide such Q, or to construct it from the
+// element matrices M_T. Moreover, the user can provide a block preconditioner
+//                  P = [ M_0    0  ]
+//                      [  0    M_1 ]
+// for the transformed system XA.
+//
+// The code also allows the user to use BPCG, which is a special implementation
+// of the PCG iteration with the particular preconditioner H, defined as
+//                  H = [ M - Q    0  ]
+//                      [  0      M_1 ]
+// BPCG is efficient as it avoids the direct application of invH and X.
 
 #ifndef MFEM_BP_SOLVER_HPP
 #define MFEM_BP_SOLVER_HPP
@@ -58,10 +57,8 @@ namespace blocksolvers
 /// Parameters for the BramblePasciakSolver method
 struct BPSParameters : IterSolveParameters
 {
-   /* These are parameters for the scaling of the Q preconditioner
-    * the usage of BPCG method, and the definition of the H preconditioner */
-   bool use_bpcg = true;
-   double q_scaling = 0.5;
+   bool use_bpcg = true;   // whether to use BPCG
+   double q_scaling = 0.5; // scaling (> 0 and < 1) of the Q preconditioner
 };
 
 /// Bramble-Pasciak Conjugate Gradient
@@ -73,10 +70,9 @@ protected:
    /*  Operator list
     *  From IterativeSolver:
     *  *oper  -> A  = [M, Bt; B, 0]
-    *  *prec  -> P  = diag(M0, M1) // Not used
     *  From this class:
     *  *iprec -> N  = diag(M0, 0)
-    *  *pprec -> P' = P * [Id, 0; B*M0, -Id]
+    *  *pprec -> P' = diag(M0, M1) * [Id, 0; B*M0, -Id]
     */
    const Operator *iprec, *pprec;
    void UpdateVectors();
@@ -87,15 +83,15 @@ public:
 
 #ifdef MFEM_USE_MPI
    BPCGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
-   BPCGSolver(MPI_Comm comm_, const Operator &ipc,
-              const Operator &ppc) : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
+   BPCGSolver(MPI_Comm comm_, const Operator &ipc, const Operator &ppc)
+      : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
 #endif
 
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    virtual void SetPreconditioner(const Operator &pc)
-   { if (Mpi::Root()) { MFEM_WARNING("No explicit preconditioner required for BPCG.\n"); } }
+   { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner does NO effect to BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
    { iprec = &ipc; }
@@ -166,7 +162,8 @@ public:
     * based on the smallest eigenvalue of the generalized
     * eigenvalue problem locally on each element T:
     *         M_T x_T = lambda_T diag(M_T) x_T
-    * and we set Q_T = 0.5 * min(lambda_T) * diag(M_T).
+    * and we set Q_T = alpha * min(lambda_T) * diag(M_T),
+    * 0 < alpha < 1.
    */
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
                                                       double alpha = 0.5);
