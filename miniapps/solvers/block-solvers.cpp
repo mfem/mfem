@@ -26,11 +26,9 @@
 // polynomials (pressure p).
 //
 // The solvers being compared include:
-//    1. The divergence free solver (couple and decoupled modes)
-//    2. MINRES preconditioned by a block diagonal preconditioner
-//    3. PCG with a Bramble-Pasciak transformation
-//    4. Modified CG with a Bramble-Pasciak transformation (and a particular
-//       preconditioner). I.e., Bramble-Pasciak CG
+//    1. MINRES preconditioned by a block diagonal preconditioner
+//    2. The divergence free solver (couple and decoupled modes)
+//    3. The Bramble-Pasciak solver (using BPCG or regular PCG)
 //
 // We recommend viewing example 5 before viewing this miniapp.
 //
@@ -166,6 +164,7 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    mVarf_->ComputeElementMatrices();
    mVarf_->Assemble();
    mVarf_->EliminateEssentialBC(ess_bdr, u_, fform);
+
    mVarf_->Finalize();
    M_.Reset(mVarf_->ParallelAssemble());
 
@@ -304,31 +303,24 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
 
    int dim = mesh->Dimension();
-   // int ser_ref_levels_min =
-   //    (int)ceil(log(Mpi::WorldSize()/mesh->GetNE())/log(2.)/dim);
 
    if (Mpi::Root())
    {
-      cout << "Attemping " << ser_ref_levels << " serial refinements and "
-           << par_ref_levels << " parallel refinements.\n";
+      cout << "Number of serial refinements: " << ser_ref_levels << "\n"
+           << "Number of serial refinements: " << par_ref_levels << "\n";
    }
 
    for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
-      if (Mpi::Root())
-      {
-         cout << "Current NE: " << mesh->GetNE() << "\nCurrent serial refinement stage: "
-              << i << "\n\n";
-      }
    }
 
    if (Mpi::Root())
    {
       MFEM_ASSERT(Mpi::WorldSize() < mesh->GetNE(),
                   "Not enough elements in the mesh to be distributed:\n"
-                  << "No. of processors: " << Mpi::WorldSize() << "\n"
-                  << "No. of elements:   " << mesh->GetNE());
+                  << "Number of processors: " << Mpi::WorldSize() << "\n"
+                  << "Number of elements:   " << mesh->GetNE());
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -402,7 +394,7 @@ int main(int argc, char *argv[])
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
-   solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using BP transform + PCG)";
+   solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
