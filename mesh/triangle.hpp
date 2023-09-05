@@ -50,13 +50,14 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   void MarkEdge(DenseMatrix & pmat);
+   template <typename T1, typename T2>
+   void MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
+                 const Array<T2> &length2)
+   { MarkEdge(indices, v_to_v, length, length2); }
 
-   static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length)
-   { MarkEdge(indices, v_to_v, length); }
+   template <typename T1, typename T2>
+   static void MarkEdge(int *indices, const DSTable &v_to_v,
+                        const Array<T1> &length, const Array<T2> &length2);
 
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }

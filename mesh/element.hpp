@@ -84,9 +84,6 @@ public:
 
    virtual const int *GetFaceVertices(int fi) const = 0;
 
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length) {}
-
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const { return 0; }
 

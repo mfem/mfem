@@ -332,9 +332,9 @@ protected:
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
+   void GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const;
    void MarkForRefinement();
-   void MarkTriMeshForRefinement();
-   void GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order);
+   virtual void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming

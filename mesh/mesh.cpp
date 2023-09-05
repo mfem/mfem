@@ -2101,7 +2101,7 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
 
    if (refine)
    {
-      MarkTriMeshForRefinement();
+      MarkForRefinement();
    }
 
    if (generate_edges)
@@ -2555,44 +2555,8 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 }
 
 
-void Mesh::MarkForRefinement()
+void Mesh::GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const
 {
-   if (meshgen & 1)
-   {
-      if (Dim == 2)
-      {
-         MarkTriMeshForRefinement();
-      }
-      else if (Dim == 3)
-      {
-         DSTable v_to_v(NumOfVertices);
-         GetVertexToVertexTable(v_to_v);
-         MarkTetMeshForRefinement(v_to_v);
-      }
-   }
-}
-
-void Mesh::MarkTriMeshForRefinement()
-{
-   // Mark the longest triangle edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the triangle.
-   DenseMatrix pmat;
-   for (int i = 0; i < NumOfElements; i++)
-   {
-      if (elements[i]->GetType() == Element::TRIANGLE)
-      {
-         GetPointMatrix(i, pmat);
-         static_cast<Triangle*>(elements[i])->MarkEdge(pmat);
-      }
-   }
-}
-
-void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
-{
-   NumOfEdges = v_to_v.NumberOfEntries();
-   order.SetSize(NumOfEdges);
-   Array<Pair<double, int> > length_idx(NumOfEdges);
-
    auto GetLength = [this](int i, int j)
    {
       double length = 0.;
@@ -2619,24 +2583,51 @@ void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
       return length;
    };
 
+   lengths.SetSize(NumOfEdges);
    for (int i = 0; i < NumOfVertices; i++)
    {
       for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
       {
          int j = it.Index();
-         length_idx[j].one = GetLength(i, it.Column());
-         length_idx[j].two = j;
+         lengths[j] = GetLength(i, it.Column());
       }
    }
+};
 
-   // Sort by increasing edge-length.
-   length_idx.Sort();
-
-   for (int i = 0; i < NumOfEdges; i++)
+void Mesh::MarkForRefinement()
+{
+   if (meshgen & 1)
    {
-      int j = i;
-      while (j > 0 && length_idx[j-1].one == length_idx[i].one) { j--; }
-      order[length_idx[i].two] = j;
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      NumOfEdges = v_to_v.NumberOfEntries();
+      if (Dim == 2)
+      {
+         MarkTriMeshForRefinement(v_to_v);
+      }
+      else if (Dim == 3)
+      {
+         MarkTetMeshForRefinement(v_to_v);
+      }
+   }
+}
+
+void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
+{
+   // Mark the longest triangle edge by rotating the indices so that
+   // vertex 0 - vertex 1 is the longest edge in the triangle.
+   Array<double> lengths;
+   GetEdgeLengths(v_to_v, lengths);
+
+   Array<int> idx(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }
+
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      if (elements[i]->GetType() == Element::TRIANGLE)
+      {
+         dynamic_cast<Triangle &>(*elements[i]).MarkEdge(v_to_v, lengths, idx);
+      }
    }
 }
 
@@ -2644,21 +2635,24 @@ void Mesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    // Mark the longest tetrahedral edge by rotating the indices so that
    // vertex 0 - vertex 1 is the longest edge in the element.
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order);
+   Array<double> lengths;
+   GetEdgeLengths(v_to_v, lengths);
+
+   Array<int> idx(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }
 
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths, idx);
       }
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths, idx);
       }
    }
 }
@@ -3008,9 +3002,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 
    if (refine)
    {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
+      MarkForRefinement();
    }
 
    GetElementToFaceTable();
@@ -3277,8 +3269,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    // only perform it when Dim == spaceDim.
    if (Dim >= 2 && Dim == spaceDim)
    {
-      const int num_faces = GetNumFaces();
-      for (int i = 0; i < num_faces; i++)
+      for (int i = 0; i < GetNumFaces(); i++)
       {
          MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
                      faces_info[i].Elem2Inf%2 != 0, "Invalid mesh topology."
@@ -3978,8 +3969,6 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
          boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
          boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
       }
-
-      // MarkTriMeshForRefinement(); // done in Finalize(...)
    }
    else
    {

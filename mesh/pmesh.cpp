@@ -1737,125 +1737,38 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
+void ParMesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
+{
+   Array<double> lengths;
+   GetEdgeLengths(v_to_v, lengths);
+
+   Array<HYPRE_BigInt> gidx;
+   GetGlobalEdgeIndices(gidx);
+
+   for (int i = 0; i < NumOfElements; i++)
+   {
+      if (elements[i]->GetType() == Element::TRIANGLE)
+      {
+         dynamic_cast<Triangle &>(*elements[i]).MarkEdge(v_to_v, lengths, gidx);
+      }
+   }
+}
+
 void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order); // local edge ordering
+   Array<double> lengths;
+   GetEdgeLengths(v_to_v, lengths);
 
-   // create a GroupCommunicator on the shared edges
-   GroupCommunicator sedge_comm(gtopo);
-   GetSharedEdgeCommunicator(0, sedge_comm);
+   Array<HYPRE_BigInt> gidx;
+   GetGlobalEdgeIndices(gidx);
 
-   Array<int> sedge_ord(shared_edges.Size());
-   Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
-   for (int k = 0; k < shared_edges.Size(); k++)
-   {
-      // sedge_ledge may be undefined -- use shared_edges and v_to_v instead
-      const int sedge = group_sedge.GetJ()[k];
-      const int *v = shared_edges[sedge]->GetVertices();
-      sedge_ord[k] = order[v_to_v(v[0], v[1])];
-   }
-
-   sedge_comm.Bcast<int>(sedge_ord, 1);
-
-   for (int k = 0, gr = 1; gr < GetNGroups(); gr++)
-   {
-      const int n = group_sedge.RowSize(gr-1);
-      if (n == 0) { continue; }
-      sedge_ord_map.SetSize(n);
-      for (int j = 0; j < n; j++)
-      {
-         sedge_ord_map[j].one = sedge_ord[k+j];
-         sedge_ord_map[j].two = j;
-      }
-      SortPairs<int, int>(sedge_ord_map, n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_from = group_sedge.GetJ()[k+j];
-         const int *v = shared_edges[sedge_from]->GetVertices();
-         sedge_ord[k+j] = order[v_to_v(v[0], v[1])];
-      }
-      std::sort(&sedge_ord[k], &sedge_ord[k] + n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
-         const int *v = shared_edges[sedge_to]->GetVertices();
-         order[v_to_v(v[0], v[1])] = sedge_ord[k+j];
-      }
-      k += n;
-   }
-
-#ifdef MFEM_DEBUG
-   {
-      Array<Pair<int, double> > ilen_len(order.Size());
-
-      auto GetLength = [this](int i, int j)
-      {
-         double length = 0.;
-         if (Nodes == NULL)
-         {
-            const double *vi = vertices[i]();
-            const double *vj = vertices[j]();
-            for (int k = 0; k < spaceDim; k++)
-            {
-               length += (vi[k]-vj[k])*(vi[k]-vj[k]);
-            }
-         }
-         else
-         {
-            Array<int> ivdofs, jvdofs;
-            Nodes->FESpace()->GetVertexVDofs(i, ivdofs);
-            Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
-            for (int k = 0; k < ivdofs.Size(); k++)
-            {
-               length += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
-                         ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
-            }
-         }
-         return length;
-      };
-
-      for (int i = 0; i < NumOfVertices; i++)
-      {
-         for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
-         {
-            int j = it.Index();
-            ilen_len[j].one = order[j];
-            ilen_len[j].two = GetLength(i, it.Column());
-         }
-      }
-
-      SortPairs<int, double>(ilen_len, order.Size());
-
-      double d_max = 0.;
-      for (int i = 1; i < order.Size(); i++)
-      {
-         d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
-      }
-
-#if 0
-      // Debug message from every MPI rank.
-      mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-                << endl;
-#else
-      // Debug message just from rank 0.
-      double glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
-      if (MyRank == 0)
-      {
-         mfem::out << "glob_d_max = " << glob_d_max << endl;
-      }
-#endif
-   }
-#endif
-
-   // use 'order' to mark the tets, the boundary triangles, and the shared
+   // use the lengths to mark the tets, the boundary triangles, and the shared
    // triangle faces
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths, gidx);
       }
    }
 
@@ -1863,13 +1776,13 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths, gidx);
       }
    }
 
    for (int i = 0; i < shared_trias.Size(); i++)
    {
-      Triangle::MarkEdge(shared_trias[i].v, v_to_v, order);
+      Triangle::MarkEdge(shared_trias[i].v, v_to_v, lengths, gidx);
    }
 }
 
