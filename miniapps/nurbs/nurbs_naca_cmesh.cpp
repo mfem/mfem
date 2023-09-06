@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    bool visit = true;
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization. This is a dummy option to enable testing.");
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization in output Naca_cmesh.");
 
@@ -567,6 +567,18 @@ int main(int argc, char *argv[])
       dc.SetCycle(0);
       dc.SetTime(0.0);
       dc.Save();
+   }
+
+   if (visualization)
+   {
+      // Create glvis output
+      string mesh_file;
+      mesh_file.append(msh_path);
+      mesh_file.append("glvis_");
+      mesh_file.append(msh_filename);
+      mesh_file.append(".mesh");
+      ofstream glvis_output(mesh_file.c_str());
+      mesh->Print(glvis_output);
    }
 
    delete mesh;

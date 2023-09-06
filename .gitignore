@@ -277,6 +277,7 @@ miniapps/nurbs/sin-fit.mesh
 miniapps/nurbs/CurveInt
 miniapps/nurbs/nurbs_naca_cmesh
 miniapps/nurbs/naca-cmesh.mesh
+miniapps/nurbs/glvis_naca-cmesh.mesh
 miniapps/nurbs/Naca_cmesh
 
 miniapps/performance/ex1
