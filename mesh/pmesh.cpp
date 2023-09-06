@@ -6393,7 +6393,8 @@ void ParMesh::PrintVTU(std::string pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,
-                       bool bdr)
+                       bool bdr_elements,
+                       double scale_factor)
 {
    int pad_digits_rank = 6;
    DataCollection::create_directory(pathname, this, MyRank);
@@ -6453,7 +6454,8 @@ void ParMesh::PrintVTU(std::string pathname,
 
    std::string vtu_fname = pathname + "/" + fname + ".proc"
                            + to_padded_string(MyRank, pad_digits_rank);
-   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level, bdr);
+   Mesh::PrintVTU(vtu_fname, format, high_order_output, compression_level,
+                  bdr_elements, scale_factor);
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,

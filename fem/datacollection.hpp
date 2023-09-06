@@ -133,6 +133,10 @@ private:
 
    /// A collection of named QuadratureFunctions
    typedef NamedFieldsMap<QuadratureFunction> QFieldMap;
+
+   /// A collection of named Coefficients and VectorCoefficients
+   typedef NamedFieldsMap<Coefficient> CoeffFieldMap;
+   typedef NamedFieldsMap<VectorCoefficient> VCoeffFieldMap;
 public:
    typedef GFieldMap::MapType FieldMapType;
    typedef GFieldMap::iterator FieldMapIterator;
@@ -141,6 +145,14 @@ public:
    typedef QFieldMap::MapType QFieldMapType;
    typedef QFieldMap::iterator QFieldMapIterator;
    typedef QFieldMap::const_iterator QFieldMapConstIterator;
+
+   typedef CoeffFieldMap::MapType CoeffFieldMapType;
+   typedef CoeffFieldMap::iterator CoeffFieldMapIterator;
+   typedef CoeffFieldMap::const_iterator CoeffFieldMapConstIterator;
+
+   typedef VCoeffFieldMap::MapType VCoeffFieldMapType;
+   typedef VCoeffFieldMap::iterator VCoeffFieldMapIterator;
+   typedef VCoeffFieldMap::const_iterator VCoeffFieldMapConstIterator;
 
    /// Format constants to be used with SetFormat().
    /** Derived classes can define their own format enumerations and override the
@@ -168,6 +180,11 @@ protected:
 
    /** A FieldMap mapping registered names to QuadratureFunction pointers. */
    QFieldMap q_field_map;
+
+   /** A FieldMap mapping registered names to Coefficient and VectorCoefficient
+       pointers. */
+   CoeffFieldMap coeff_field_map;
+   VCoeffFieldMap vcoeff_field_map;
 
    /// The (common) mesh for the collected fields
    Mesh *mesh;
@@ -249,14 +266,27 @@ public:
    { field_map.Deregister(field_name, own_data); }
 
    /// Add a QuadratureFunction to the collection.
-   virtual void RegisterQField(const std::string& q_field_name,
+   virtual void RegisterQField(const std::string& field_name,
                                QuadratureFunction *qf)
-   { q_field_map.Register(q_field_name, qf, own_data); }
-
+   { q_field_map.Register(field_name, qf, own_data); }
 
    /// Remove a QuadratureFunction from the collection
    virtual void DeregisterQField(const std::string& field_name)
    { q_field_map.Deregister(field_name, own_data); }
+
+   /// Add a Coefficient or VectorCoefficient to the collection.
+   virtual void RegisterCoeffField(const std::string& field_name,
+                                   Coefficient *coeff)
+   { coeff_field_map.Register(field_name, coeff, own_data); }
+   virtual void RegisterVCoeffField(const std::string& field_name,
+                                    VectorCoefficient *vcoeff)
+   { vcoeff_field_map.Register(field_name, vcoeff, own_data); }
+
+   /// Remove a Coefficient or VectorCoefficient from the collection
+   virtual void DeregisterCoeffField(const std::string& field_name)
+   { coeff_field_map.Deregister(field_name, own_data); }
+   virtual void DeregisterVCoeffField(const std::string& field_name)
+   { vcoeff_field_map.Deregister(field_name, own_data); }
 
    /// Check if a grid function is part of the collection
    bool HasField(const std::string& field_name) const
@@ -280,13 +310,27 @@ public:
 #endif
 
    /// Check if a QuadratureFunction with the given name is in the collection.
-   bool HasQField(const std::string& q_field_name) const
-   { return q_field_map.Has(q_field_name); }
+   bool HasQField(const std::string& field_name) const
+   { return q_field_map.Has(field_name); }
 
    /// Get a pointer to a QuadratureFunction in the collection.
    /** Returns NULL if @a field_name is not in the collection. */
-   QuadratureFunction *GetQField(const std::string& q_field_name)
-   { return q_field_map.Get(q_field_name); }
+   QuadratureFunction *GetQField(const std::string& field_name)
+   { return q_field_map.Get(field_name); }
+
+   /** Check if a Coefficient or VectorCoefficient with the given name is in
+       the collection. */
+   bool HasCoeffField(const std::string& field_name) const
+   { return coeff_field_map.Has(field_name); }
+   bool HasVCoeffField(const std::string& field_name) const
+   { return vcoeff_field_map.Has(field_name); }
+
+   /// Get a pointer to a Coefficient or VectorCoefficient in the collection.
+   /** Returns NULL if @a field_name is not in the collection. */
+   Coefficient *GetCoeffField(const std::string& field_name)
+   { return coeff_field_map.Get(field_name); }
+   VectorCoefficient *GetVCoeffField(const std::string& field_name)
+   { return vcoeff_field_map.Get(field_name); }
 
    /// Get a const reference to the internal field map.
    /** The keys in the map are the field names and the values are pointers to
@@ -300,13 +344,23 @@ public:
    const QFieldMapType &GetQFieldMap() const
    { return q_field_map.GetMap(); }
 
+   /// Get a const reference to the internal coefficient-field map.
+   /** The keys in the map are the coefficient-field names and the values are
+       pointers to Coefficient%s or VectorCoefficient%s. */
+   const CoeffFieldMapType &GetCoeffFieldMap() const
+   { return coeff_field_map.GetMap(); }
+   const VCoeffFieldMapType &GetVCoeffFieldMap() const
+   { return vcoeff_field_map.GetMap(); }
+
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
+
    /// Set/change the mesh associated with the collection
    /** When passed a Mesh, assumes the serial case: MPI rank id is set to 0 and
        MPI num_procs is set to 1.  When passed a ParMesh, MPI info from the
        ParMesh is used to set the DataCollection's MPI rank and num_procs. */
    virtual void SetMesh(Mesh *new_mesh);
+
 #ifdef MFEM_USE_MPI
    /// Set/change the mesh associated with the collection.
    /** For this case, @a comm is used to set the DataCollection's MPI rank id
@@ -369,7 +423,19 @@ public:
    /// Save one field, assuming the collection directory already exists.
    virtual void SaveField(const std::string &field_name);
    /// Save one q-field, assuming the collection directory already exists.
-   virtual void SaveQField(const std::string &q_field_name);
+   virtual void SaveQField(const std::string &field_name);
+   /** Save one coefficient-field, assuming the collection directory already
+       exists. */
+   virtual void SaveCoeffField(const std::string &field_name)
+   {
+      MFEM_ABORT("SaveCoeffField not implemented for DataCollection class!");
+   }
+   /** Save one coefficient-field, assuming the collection directory already
+       exists. */
+   virtual void SaveVCoeffField(const std::string &field_name)
+   {
+      MFEM_ABORT("SaveVCoeffField not implemented for DataCollection class!");
+   }
 
    /// Load the collection. Not implemented in the base class DataCollection.
    virtual void Load(int cycle_ = 0);
@@ -512,12 +578,18 @@ private:
    VTKFormat pv_data_format;
    bool high_order_output;
    bool restart_mode;
+   bool bdr_output;
+   double length_scale;
 
 protected:
    void WritePVTUHeader(std::ostream &out);
    void WritePVTUFooter(std::ostream &out, const std::string &vtu_prefix);
    void SaveDataVTU(std::ostream &out, int ref);
    void SaveGFieldVTU(std::ostream& out, int ref_, const FieldMapIterator& it);
+   void SaveCoeffFieldVTU(std::ostream& out, int ref_,
+                          const CoeffFieldMapIterator& it);
+   void SaveVCoeffFieldVTU(std::ostream& out, int ref_,
+                           const VCoeffFieldMapIterator& it);
    const char *GetDataFormatString() const;
    const char *GetDataTypeString() const;
    /// @brief If compression is enabled, return the compression level, otherwise
@@ -530,7 +602,6 @@ protected:
    std::string GeneratePVDFileName();
    std::string GeneratePVTUFileName(const std::string &prefix);
    std::string GeneratePVTUPath();
-
 
 public:
    /// Constructor. The collection name is used when saving the data.
@@ -581,6 +652,14 @@ public:
    /// Sets whether or not to output the data as high-order elements (false
    /// by default). Reading high-order data requires ParaView 5.5 or later.
    void SetHighOrderOutput(bool high_order_output_);
+
+   /// Configures collection to save only fields evaluated on boundaries of
+   /// the mesh.
+   void SetBoundaryOutput(bool bdr_output_);
+
+   /// Sets length scale used to scale mesh point coordinates on output.
+   /// The default if unset is 1.0 (unscaled).
+   void SetLengthScale(double length_scale_);
 
    /// Enable or disable restart mode. If restart is enabled, new writes will
    /// preserve timestep metadata for any solutions prior to the currently

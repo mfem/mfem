@@ -2030,25 +2030,30 @@ public:
    /** Print the mesh in VTU format. The parameter ref > 0 specifies an element
        subdivision number (useful for high order fields and curved meshes).
        If @a bdr_elements is true, then output (only) the boundary elements,
-       otherwise output only the non-boundary elements. */
+       otherwise output only the non-boundary elements. The parameter
+       @a scale_factor sets a scale factor for the output mesh point
+       coordinates. */
    void PrintVTU(std::ostream &os,
                  int ref=1,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr_elements=false);
+                 bool bdr_elements=false,
+                 double scale_factor=1.0);
    /** Print the mesh in VTU format with file name fname. */
    virtual void PrintVTU(std::string fname,
                          VTKFormat format=VTKFormat::ASCII,
                          bool high_order_output=false,
                          int compression_level=0,
-                         bool bdr=false);
+                         bool bdr_elements=false,
+                         double scale_factor=1.0);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
    void PrintBdrVTU(std::string fname,
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
-                    int compression_level=0);
+                    int compression_level=0,
+                    double scale_factor=1.0);
 
    /** @brief Prints the mesh with boundary elements given by the boundary of
        the subdomains, so that the boundary of subdomain i has boundary
