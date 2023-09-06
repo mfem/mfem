@@ -572,13 +572,14 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       // Create glvis output
-      string mesh_file;
-      mesh_file.append(msh_path);
-      mesh_file.append("glvis_");
-      mesh_file.append(msh_filename);
-      mesh_file.append(".mesh");
-      ofstream glvis_output(mesh_file.c_str());
+      string glvis_file;
+      glvis_file.append(msh_path);
+      glvis_file.append("glvis_");
+      glvis_file.append(msh_filename);
+      glvis_file.append(".mesh");
+      ofstream glvis_output(glvis_file.c_str());
       mesh->Print(glvis_output);
+      glvis_output.close();
    }
 
    delete mesh;
