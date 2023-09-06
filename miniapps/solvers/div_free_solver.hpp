@@ -12,24 +12,12 @@
 #ifndef MFEM_DIVFREE_SOLVER_HPP
 #define MFEM_DIVFREE_SOLVER_HPP
 
-#include "mfem.hpp"
-#include <memory>
-#include <vector>
+#include "darcy_solver.hpp"
 
 namespace mfem
 {
 namespace blocksolvers
 {
-
-/// Parameters for iterative solver
-struct IterSolveParameters
-{
-   int print_level = 0;
-   int max_iter = 500;
-   double abs_tol = 1e-12;
-   double rel_tol = 1e-9;
-};
-
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
@@ -44,7 +32,7 @@ struct DFSParameters : IterSolveParameters
    IterSolveParameters BBT_solve_param;
 };
 
-/// Data for the divergence free solver
+/// Data for the divergenve free solver
 struct DFSData
 {
    std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
@@ -58,7 +46,7 @@ struct DFSData
    DFSParameters param;
 };
 
-/// Finite element spaces concerning divergence free solver.
+/// Finite element spaces concerning divergence free solvers
 /// The main usage of this class is to collect data needed for the solver.
 class DFSSpaces
 {
@@ -99,32 +87,7 @@ public:
    ParFiniteElementSpace* GetL2FES() const { return l2_fes_.get(); }
 };
 
-/// Abstract solver class for Darcy's flow
-class DarcySolver : public Solver
-{
-protected:
-   Array<int> offsets_;
-   bool rhs_needs_elimination_;
-   Array<int> ess_tdof_list_;
-   std::shared_ptr<HypreParMatrix> M_e_;
-   std::shared_ptr<HypreParMatrix> B_e_;
-public:
-   DarcySolver(int size0, int size1)
-      : Solver(size0 + size1), offsets_(3), rhs_needs_elimination_(false)
-   { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
-   virtual int GetNumIterations() const = 0;
-   void SetEliminatedSystems(std::shared_ptr<HypreParMatrix> M_e,
-                             std::shared_ptr<HypreParMatrix> B_e,
-                             const Array<int>& ess_tdof_list)
-   {
-      M_e_ = M_e;
-      B_e_ = B_e;
-      rhs_needs_elimination_ = true;
-      ess_tdof_list.Copy(ess_tdof_list_);
-   }
-   void EliminateEssentialBC(const Vector &ess_data, Vector &rhs) const;
-};
-
+/// Solvers for DFS
 /// Solver for B * B^T
 /// Compute the product B * B^T and solve it with CG preconditioned by BoomerAMG
 class BBTSolver : public Solver
@@ -195,25 +158,8 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
-/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
-class BDPMinres : public DarcySolver
-{
-   BlockOperator op_;
-   BlockDiagonalPreconditioner prec_;
-   OperatorPtr BT_;
-   OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
-   MINRESSolver solver_;
-   Array<int> ess_zero_dofs_;
-public:
-   BDPMinres(HypreParMatrix& M, HypreParMatrix& B, IterSolveParameters param);
-   virtual void Mult(const Vector & x, Vector & y) const;
-   virtual void SetOperator(const Operator &op) { }
-   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
-   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
-};
-
-/** Divergence free solver.
-    The basic idea of the solver is to exploit a multilevel decomposition of
+/// Divergence free solver.
+/** The basic idea of the solver is to exploit a multilevel decomposition of
     Raviart-Thomas space to find a particular solution satisfying the divergence
     constraint, and then solve the remaining (divergence-free) component in the
     kernel space of the discrete divergence operator.
@@ -285,7 +231,6 @@ public:
 };
 
 } // namespace blocksolvers
-
 } // namespace mfem
 
 #endif // MFEM_DIVFREE_SOLVER_HPP

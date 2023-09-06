@@ -15,14 +15,10 @@ using namespace std;
 using namespace mfem;
 using namespace blocksolvers;
 
-void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
+namespace mfem
 {
-   solver.SetPrintLevel(param.print_level);
-   solver.SetMaxIter(param.max_iter);
-   solver.SetAbsTol(param.abs_tol);
-   solver.SetRelTol(param.rel_tol);
-}
-
+namespace blocksolvers
+{
 HypreParMatrix* TwoStepsRAP(const HypreParMatrix& Rt, const HypreParMatrix& A,
                             const HypreParMatrix& P)
 {
@@ -203,16 +199,6 @@ void DFSSpaces::DataFinalize()
    l2_0_fes_.reset();
 }
 
-void DarcySolver::EliminateEssentialBC(const Vector &ess_data,
-                                       Vector &rhs) const
-{
-   BlockVector blk_ess_data(ess_data.GetData(), offsets_);
-   BlockVector blk_rhs(rhs, offsets_);
-   M_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(0));
-   B_e_->Mult(-1.0, blk_ess_data.GetBlock(0), 1.0, blk_rhs.GetBlock(1));
-   for (int dof : ess_tdof_list_) { rhs[dof] = ess_data[dof]; }
-}
-
 BBTSolver::BBTSolver(const HypreParMatrix& B, IterSolveParameters param)
    : Solver(B.NumRows()), BBT_solver_(B.GetComm())
 {
@@ -324,39 +310,6 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-BDPMinres::BDPMinres(HypreParMatrix& M, HypreParMatrix& B,
-                     IterSolveParameters param)
-   : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
-     BT_(B.Transpose()), solver_(M.GetComm())
-{
-   op_.SetBlock(0,0, &M);
-   op_.SetBlock(0,1, BT_.As<HypreParMatrix>());
-   op_.SetBlock(1,0, &B);
-
-   Vector Md;
-   M.GetDiag(Md);
-   BT_.As<HypreParMatrix>()->InvScaleRows(Md);
-   S_.Reset(ParMult(&B, BT_.As<HypreParMatrix>()));
-   BT_.As<HypreParMatrix>()->ScaleRows(Md);
-
-   prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
-   prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
-   static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
-   prec_.owns_blocks = true;
-
-   SetOptions(solver_, param);
-   solver_.SetOperator(op_);
-   solver_.SetPreconditioner(prec_);
-}
-
-void BDPMinres::Mult(const Vector & x, Vector & y) const
-{
-   Vector x_e(x);
-   if (rhs_needs_elimination_) { EliminateEssentialBC(y, x_e);}
-   solver_.Mult(x_e, y);
-   for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
-}
-
 DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
                              const DFSData& data)
    : DarcySolver(M.NumRows(), B.NumRows()), data_(data), param_(data.param),
@@ -387,7 +340,7 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
          }
 
          const IterSolveParameters& param = param_.coarse_solve_param;
-         auto coarse_solver = new BDPMinres(M_f, B_f, param);
+         auto coarse_solver = new BDPMinresSolver(M_f, B_f, param);
          if (ops_.Size() > 1)
          {
             coarse_solver->SetEssZeroDofs(data.coarsest_ess_hdivdofs);
@@ -617,7 +570,7 @@ int DivFreeSolver::GetNumIterations() const
 {
    if (ops_.Size() == 1)
    {
-      return static_cast<BDPMinres*>(smoothers_[0])->GetNumIterations();
+      return static_cast<BDPMinresSolver*>(smoothers_[0])->GetNumIterations();
    }
    return solver_.As<IterativeSolver>()->GetNumIterations();
 }
@@ -1025,3 +978,6 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
     P.Mult(lambda_true, rhs_r);
     ComputeSolution(y, rhs, rhs_r, block_offsets);
 }
+
+} // namespace blocksolvers
+} // namespace mfem

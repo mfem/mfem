@@ -14,6 +14,10 @@ Version 4.5.3 (development)
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new block solver in miniapp/solvers for the Darcy problem.
+  The new solver is based on a Bramble-Pasciak preconditioning. User can
+  use and implement their own preconditioner for the mass matrix.
+
 - Added a new example code, Example 36/36p, to demonstrate the solution of
   the obstacle problem with a new finite element method.
 
@@ -21,7 +25,10 @@ New and updated examples and miniapps
   skewness, and aspect-ratio computed from the Jacobian of the transformation.
 
 - Added a new miniapp for interface and boundary fitting to implicit domains
-  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp
+  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp.
+
+- Added a new miniapp for fitting of selected mesh nodes to specified positions,
+  while maintaining mesh quality. See miniapps/meshing/fit-node-position.cpp.
 
 - Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes serial
   and parallel examples for diffusion, convection-diffusion, acoustics and
@@ -113,6 +120,8 @@ Miscellaneous
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
+- FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
+  an empty partition.
 
 Version 4.5.2, released on March 23, 2023
 =========================================

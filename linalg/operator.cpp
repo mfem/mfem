@@ -365,6 +365,40 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
+SumOperator::SumOperator(const Operator *A, const double alpha,
+                         const Operator *B, const double beta,
+                         bool ownA, bool ownB)
+   : Operator(A->Height(), A->Width()),
+     A(A), alpha(alpha), B(B), beta(beta), ownA(ownA), ownB(ownB),
+     a(A->Width()), b(B->Width())
+{
+   MFEM_VERIFY(A->Width() == B->Width(),
+               "incompatible Operators: different widths\n"
+               << "A->Width() = " << A->Width()
+               << ", B->Width() = " << B->Width() );
+   MFEM_VERIFY(A->Height() == B->Height(),
+               "incompatible Operators: different heights\n"
+               << "A->Height() = " << A->Height()
+               << ", B->Height() = " << B->Height() );
+   /*
+    * TODO
+    * I think the operators can be iterative, as there is no composition but addition...
+    * {
+    *    const Solver* SolverB = dynamic_cast<const Solver*>(B);
+    *    if (SolverB)
+    *    {
+    *       MFEM_VERIFY(!(SolverB->iterative_mode),
+    *                   "Operator B of a ProductOperator should not be in iterative mode");
+    *    }
+    * }
+   */
+}
+
+SumOperator::~SumOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+}
 
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)

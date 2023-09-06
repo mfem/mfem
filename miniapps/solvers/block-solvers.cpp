@@ -26,15 +26,16 @@
 // polynomials (pressure p).
 //
 // The solvers being compared include:
-//    1. The divergence free solver (couple and decoupled modes)
-//    2. A block hybridization solver
-//    3. MINRES preconditioned by a block diagonal preconditioner
+//    1. MINRES preconditioned by a block diagonal preconditioner
+//    2. The divergence free solver (couple and decoupled modes)
+//    3. A block hybridization solver
+//    4. The Bramble-Pasciak solver (using BPCG or regular PCG)
 //
 // We recommend viewing example 5 before viewing this miniapp.
 //
 // Sample runs:
 //
-//    mpirun -np 8 block-solvers -r 2 -o 0
+//    mpirun -np 8 block-solvers -pr 2 -o 0
 //    mpirun -np 8 block-solvers -m anisotropic.mesh -c anisotropic.coeff -eb anisotropic.bdr
 //
 //
@@ -53,6 +54,7 @@
 //        condition will be imposed on boundary elements with the i-th attribute.
 
 #include "mfem.hpp"
+#include "bramble_pasciak.hpp"
 #include "div_free_solver.hpp"
 #include <fstream>
 #include <iostream>
@@ -137,8 +139,8 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
       ifstream coef_str(coef_file);
       coef_vector.Load(coef_str, mesh.GetNE());
    }
-   unique_ptr<PWConstCoefficient> temp_coeff(new PWConstCoefficient(coef_vector));
-   mass_coeff_ = move(temp_coeff);
+   mass_coeff_.reset(new PWConstCoefficient(coef_vector));
+
    VectorFunctionCoefficient fcoeff(mesh_.Dimension(), f_exact);
    FunctionCoefficient natcoeff(natural_bc);
    FunctionCoefficient gcoeff(g_exact);
@@ -170,7 +172,8 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    gform.ParallelAssemble(blk_rhs.GetBlock(1));
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
-   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff_.get()));
+   Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(*mass_coeff_));
+//   Mform_->ComputeElementMatrices();
    Mform_->Assemble();
    Mform_->Finalize();
 
@@ -272,16 +275,22 @@ int main(int argc, char *argv[])
    const char *coef_file = "";
    const char *ess_bdr_attr_file = "";
    int order = 0;
-   int par_ref = 2;
+   int ser_ref_levels = 1;
+   int par_ref_levels = 1;
    bool show_error = false;
    bool visualization = false;
+
    DFSParameters param;
+   BPSParameters bps_param;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&par_ref, "-r", "--ref",
+   args.AddOption(&ser_ref_levels, "-sr", "--serial-ref",
+                  "Number of serial refinement steps.");
+   args.AddOption(&par_ref_levels, "-pr", "--parallel-ref",
                   "Number of parallel refinement steps.");
    args.AddOption(&coef_file, "-c", "--coef",
                   "Coefficient file to use.");
@@ -301,19 +310,34 @@ int main(int argc, char *argv[])
    }
    if (Mpi::Root()) { args.PrintOptions(cout); }
 
-   if (Mpi::Root() && par_ref == 0)
+   if (Mpi::Root() && par_ref_levels == 0)
    {
       std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
-                << "when par_ref == 0.\n";
+                << "when par_ref_levels == 0.\n";
    }
 
    // Initialize the mesh, boundary attributes, and solver parameters
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+
    int dim = mesh->Dimension();
-   int ser_ref_lvls = ceil(log2((float)Mpi::WorldSize()/mesh->GetNE())/dim);
-   for (int i = 0; i < ser_ref_lvls; ++i)
+
+   if (Mpi::Root())
+   {
+      cout << "Number of serial refinements: " << ser_ref_levels << "\n"
+           << "Number of serial refinements: " << par_ref_levels << "\n";
+   }
+
+   for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
+   }
+
+   if (Mpi::Root())
+   {
+      MFEM_ASSERT(Mpi::WorldSize() < mesh->GetNE(),
+                  "Not enough elements in the mesh to be distributed:\n"
+                  << "Number of processors: " << Mpi::WorldSize() << "\n"
+                  << "Number of elements:   " << mesh->GetNE());
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -343,8 +367,8 @@ int main(int argc, char *argv[])
    // Generate components of the saddle point problem
    mfem::Array<int> ess_tdof_list;
    shared_ptr<HypreParMatrix> M, B, M_e, B_e;
-   DarcyProblem darcy(MPI_COMM_WORLD, *mesh, par_ref, order, coef_file, ess_bdr,
-                      param);
+   DarcyProblem darcy(MPI_COMM_WORLD, *mesh, par_ref_levels, order,
+                      coef_file, ess_bdr, param);
    darcy.GetParallelSystems(M, B, M_e, B_e, ess_tdof_list);
    const DFSData& DFS_data = darcy.GetDFSData();
    delete mesh;
@@ -354,7 +378,7 @@ int main(int argc, char *argv[])
       cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
       cout << "Dimension of the physical space: " << dim << "\n";
       cout << "Size of the discrete Darcy system: " << M->M() + B->M() << "\n";
-      if (par_ref > 0)
+      if (par_ref_levels > 0)
       {
          cout << "Dimension of the divergence free subspace: "
               << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
@@ -364,7 +388,7 @@ int main(int argc, char *argv[])
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
    ResetTimer();
-   BDPMinres bdp(*M, *B, param);
+   BDPMinresSolver bdp(*M, *B, param);
    bdp.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bdp] = chrono.RealTime();
 
@@ -384,11 +408,22 @@ int main(int argc, char *argv[])
    bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bh] = chrono.RealTime();
 
+   ResetTimer();
+   BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   setup_time[&bp_bpcg] = chrono.RealTime();
+
+   ResetTimer();
+   bps_param.use_bpcg = false;
+   BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   setup_time[&bp_pcg] = chrono.RealTime();
+
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bh] = "Block hybridization";
+   solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
+   solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
