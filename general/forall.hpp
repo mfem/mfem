@@ -19,6 +19,7 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#include "mdsmem.hpp"
 
 namespace mfem
 {
@@ -370,10 +371,43 @@ void CuKernel2D(const int N, BODY body)
    body(k);
 }
 
+template <typename Tsmem = double, typename BODY> __global__ static
+void CuKernel2DSmem(const int N, BODY body)
+{
+   const int k = blockIdx.x*blockDim.z + threadIdx.z;
+   if (k >= N) { return; }
+   extern __shared__ Tsmem smem[];
+   body(k, smem);
+}
+
+template <typename Tsmem = double, typename BODY> __global__ static
+void CuKernel2DGmem(const int N, BODY body, Tsmem *smem, const int smem_size)
+{
+   const int k = blockIdx.x*blockDim.z + threadIdx.z;
+   if (k >= N) { return; }
+   body(k, smem + smem_size*blockIdx.x);
+}
+
 template <typename BODY> __global__ static
 void CuKernel3D(const int N, BODY body)
 {
    for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k); }
+}
+
+template <typename Tsmem = double, typename BODY> __global__ static
+void CuKernel3DSmem(const int N, BODY body)
+{
+   extern __shared__ Tsmem smem[];
+   for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k, smem); }
+}
+
+template <typename Tsmem = double, typename BODY> __global__ static
+void CuKernel3DGmem(const int N, BODY body, Tsmem *smem, const int smem_size)
+{
+   for (int k = blockIdx.x; k < N; k += gridDim.x)
+   {
+      body(k, smem + smem_size*blockIdx.x);
+   }
 }
 
 template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
@@ -397,6 +431,36 @@ void CuWrap2D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
+template <typename Tsmem = double, typename DBODY>
+void CuWrapSmem2D(const int N, DBODY &&d_body, const int smem_size,
+                  const int X, const int Y, const int BZ, const int G)
+{
+   if (N==0) { return; }
+   MFEM_VERIFY(BZ > 0, "");
+   MFEM_VERIFY(G == 0, "Grid not implemented!");
+   MFEM_VERIFY(smem_size > 0, "No Shared memory!");
+
+   const dim3 BLCK(X,Y,BZ);
+
+   if (smem_size*sizeof(Tsmem) < 64*1024) // V100, w/o extra config
+   {
+      const int GRID = (N+BZ-1)/BZ;
+      CuKernel2DSmem<Tsmem><<<GRID, BLCK, sizeof(Tsmem)*smem_size>>>(N, d_body);
+   }
+   else
+   {
+      constexpr int SM = 80;
+      const int GRID = SM;
+      dbg("\033[33mFolding back to GLOBAL memory!");
+      static Memory<Tsmem> smem(smem_size*sizeof(Tsmem)*GRID);
+      smem.UseDevice(true);
+      CuKernel2DGmem<Tsmem><<<GRID,BLCK>>>(N, d_body,
+                                           smem.Write(MemoryClass::DEVICE, smem_size),
+                                           smem_size);
+   }
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
 template <typename DBODY>
 void CuWrap3D(const int N, DBODY &&d_body,
               const int X, const int Y, const int Z, const int G)
@@ -408,8 +472,38 @@ void CuWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
-template <int Dim>
-struct CuWrap;
+template <typename Tsmem = double, typename DBODY>
+void CuWrapSmem3D(const int N, DBODY &&d_body, const int smem_size,
+                  const int X, const int Y, const int Z, const int G)
+{
+   if (N==0) { return; }
+   MFEM_VERIFY(smem_size > 0, "No Shared memory!");
+
+   const dim3 BLCK(X,Y,Z);
+
+   if (smem_size*sizeof(Tsmem) < 64*1024) // V100, w/o extra config
+   {
+      const int NB = X*Y*Z < 16 ? 4 : 1;
+      const int GRID_X = (N + NB - 1) / NB;
+      const int GRID = G == 0 ? GRID_X : G;
+      CuKernel3DSmem<Tsmem><<<GRID, BLCK, sizeof(Tsmem)*smem_size>>>(N, d_body);
+   }
+   else
+   {
+      constexpr int SM = 80;
+      const int GRID = G == 0 ? SM : G;
+      dbg("\033[33mFolding back to GLOBAL memory (GRID:%d)!", GRID);
+      Memory<Tsmem> smem(smem_size*sizeof(Tsmem)*GRID);
+      smem.UseDevice(true);
+      CuKernel3DGmem<Tsmem><<<GRID,BLCK>>>(N, d_body,
+                                           smem.Write(MemoryClass::DEVICE, smem_size),
+                                           smem_size);
+   }
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
+template <int Dim> struct CuWrap;
+template <int Dim, typename Tsmem> struct CuWrapSmem;
 
 template <>
 struct CuWrap<1>
@@ -433,6 +527,17 @@ struct CuWrap<2>
    }
 };
 
+template <typename Tsmem>
+struct CuWrapSmem<2,Tsmem>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body, const int smem_size,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      CuWrapSmem2D<Tsmem>(N, d_body, smem_size, X, Y, Z, G);
+   }
+};
+
 template <>
 struct CuWrap<3>
 {
@@ -441,6 +546,17 @@ struct CuWrap<3>
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap3D(N, d_body, X, Y, Z, G);
+   }
+};
+
+template <typename Tsmem>
+struct CuWrapSmem<3,Tsmem>
+{
+   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
+   static void run(const int N, DBODY &&d_body, const int smem_size,
+                   const int X, const int Y, const int Z, const int G)
+   {
+      CuWrapSmem3D<Tsmem>(N, d_body, smem_size, X, Y, Z, G);
    }
 };
 
@@ -669,6 +785,65 @@ template<typename lambda>
 inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
+}
+
+/// The SMEM forall kernel body wrapper
+template <const int DIM, typename Tsmem = double, typename d_lambda, typename h_lambda>
+inline void ForallWrapSmem(const bool use_dev, const int N,
+                           d_lambda &&d_body, h_lambda &&h_body,
+                           const int smem_size,
+                           const int X=0, const int Y=0, const int Z=0,
+                           const int G=0)
+{
+   MFEM_CONTRACT_VAR(X);
+   MFEM_CONTRACT_VAR(Y);
+   MFEM_CONTRACT_VAR(Z);
+   MFEM_CONTRACT_VAR(G);
+   MFEM_CONTRACT_VAR(d_body);
+   MFEM_CONTRACT_VAR(smem_size);
+   if (!use_dev) { goto backend_cpu; }
+
+#ifdef MFEM_USE_CUDA
+   // If Backend::CUDA is allowed, use it
+   if (Device::Allows(Backend::CUDA))
+   {
+      return CuWrapSmem<DIM,Tsmem>::run(N, d_body, smem_size, X, Y, Z, G);
+   }
+#endif
+
+   // If Backend::DEBUG_DEVICE is allowed, use it
+   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
+
+backend_cpu:
+   // Handle Backend::CPU. This is also a fallback for any allowed backends not
+   // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
+   // OCCA_OMP with configuration 'occa-omp,cpu'.
+   MFEM_VERIFY(smem_size > 0, "smem_size should be positive!");
+   Tsmem smem[smem_size];
+   for (int k = 0; k < N; k++) { h_body(k,smem); }
+}
+
+template <const int DIM, typename Tsmem = double, typename lambda>
+inline void ForallWrapSmem(const bool use_dev, const int N, lambda &&body,
+                           const int smem_bytes,
+                           const int X=0, const int Y=0, const int Z=0,
+                           const int G=0)
+{
+   ForallWrapSmem<DIM,Tsmem>(use_dev, N, body, body, smem_bytes, X, Y, Z, G);
+}
+
+template<typename Tsmem = double, typename lambda>
+inline void forall_2D_batch_smem(int N, int X, int Y, int BZ, int smem_bytes,
+                                 lambda &&body)
+{
+   ForallWrapSmem<2,Tsmem>(true, N, body, smem_bytes, X, Y, BZ, 0);
+}
+
+template<typename Tsmem = double, typename lambda>
+inline void forall_3D_smem(int N, int X, int Y, int Z, int smem_bytes,
+                           lambda &&body)
+{
+   ForallWrapSmem<3,Tsmem>(true, N, body, smem_bytes, X, Y, Z, 0);
 }
 
 } // namespace mfem

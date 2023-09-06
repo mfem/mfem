@@ -50,11 +50,12 @@ using namespace cl;
 #define MFEM_DEVICE
 #define MFEM_LAMBDA
 #define MFEM_HOST_DEVICE
-#define MFEM_DEVICE_SYNC mfem::Sycl::Queue().queues_wait_and_throw()
+#define MFEM_DEVICE_SYNC mfem::Sycl::Queue().wait_and_throw()
 #define MFEM_STREAM_SYNC mfem::Sycl::Queue().wait_and_throw()
 #define MFEM_GPU_CHECK(...) __VA_ARGS__
 
 #if defined(__SYCL_DEVICE_ONLY__)
+
 #define MFEM_SHARED
 template <typename T> inline T& mfem_shared()
 {
@@ -63,6 +64,26 @@ template <typename T> inline T& mfem_shared()
       __sycl_allocateLocalMemory(sizeof(T), alignof(T));
    return reinterpret_cast<__attribute__((opencl_local)) T&>(*smem);
 }
+
+template<typename T, std::size_t UID>
+MFEM_DEVICE inline T& StaticSharedMemoryVariable()
+{
+   MFEM_SHARED uint8_t smem alignas(alignof(T))[sizeof(T)];
+   return *(reinterpret_cast<T*>(smem));
+}
+
+#define MFEM_STATIC_SHARED_VAR(var, ...) \
+__VA_ARGS__& var = StaticSharedMemoryVariable<__VA_ARGS__, __COUNTER__>()
+
+template<typename T, typename U>
+MFEM_DEVICE inline T& DynamicSharedMemoryVariable(U* &smem)
+{
+   T* base = reinterpret_cast<T*>(smem);
+   return (smem += sizeof(T)/sizeof(U), *base);
+}
+#define MFEM_DYNAMIC_SHARED_VAR(var, smem, ...) \
+__VA_ARGS__& var = DynamicSharedMemoryVariable<__VA_ARGS__>(smem)
+
 #define MFEM_SYNC_THREAD sycl::detail::workGroupBarrier();
 #define MFEM_BLOCK_ID(k) __spirv_BuiltInWorkgroupId.k
 #define MFEM_THREAD_ID(k) __spirv_BuiltInLocalInvocationId.k
@@ -131,18 +152,18 @@ template <> struct SyclWrap<2>
       sycl::queue Q = Sycl::Queue();
       Q.submit([&](sycl::handler &h)
       {
-#ifdef __SYCL_DEVICE_ONLY__ // SYCL-GPU:
+#ifdef __SYCL_DEVICE_ONLY__ // SYCL-[C|G]PU:
          const int L = static_cast<int>(std::ceil(std::sqrt((N+BZ-1)/BZ)));
          const sycl::range<3> grid(L*BZ, L*Y, L*X), group(BZ, Y, X);
-#else // SYCL-CPU:
+#else // SYCL-HOST:
          const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
          h.parallel_for(sycl::nd_range<3>(grid,group), [=](sycl::nd_item<3> itm)
          {
-            // const int k = itm.get_group_linear_id();
-            // blockIdx.x*blockDim.z + threadIdx.z;
-            const int k =
-               itm.get_group(2)*itm.get_local_range().get(0) + itm.get_local_id(0);
+            const int blockDim_z = itm.get_group(2);
+            const int blockIdx_x = itm.get_local_range().get(0);
+            const int threadIdx_z = itm.get_local_id(0);
+            const int k = blockDim_z*blockIdx_x + threadIdx_z;
             if (k >= N) { return; }
             body(k);
          });
@@ -164,10 +185,10 @@ template <> struct SyclWrap<3>
       sycl::queue Q = Sycl::Queue();
       Q.submit([&](sycl::handler &h)
       {
-#ifdef __SYCL_DEVICE_ONLY__ // SYCL-GPU:
+#ifdef __SYCL_DEVICE_ONLY__ // SYCL-[C|G]PU:
          const int L = static_cast<int>(std::ceil(std::cbrt(G == 0 ? N : G)));
          const sycl::range<3> grid(L*Z, L*Y, L*X), group(Z, Y, X);
-#else // SYCL-CPU:
+#else // SYCL-HOST:
          const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
          h.parallel_for(sycl::nd_range<3>(grid, group), [=](sycl::nd_item<3> itm)

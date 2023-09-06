@@ -523,6 +523,11 @@ inline void PADiffusionApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   //const int id = (D1D << 4) | Q1D;
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -649,9 +654,8 @@ void StaticSmemPADiffusionApply2D(const int NE,
                                   const Vector &D,
                                   const Vector &X,
                                   Vector &Y,
-                                  const int D1D = 3,
-                                  const int Q1D = 3,
-                                  const int NBZ = 16);
+                                  const int D1D,
+                                  const int Q1D);
 
 // Static shared memory PA Diffusion Apply 3D kernel
 void StaticSmemPADiffusionApply3D(const int NE,
@@ -689,6 +693,11 @@ inline void SmemPADiffusionApply2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   //const int id = (D1D << 4) | Q1D;
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
@@ -850,6 +859,11 @@ inline void PADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   //const int id = (D1D << 4) | Q1D;
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+
    MFEM_VERIFY(D1D <= MAX_D1D, "");
    MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
@@ -1042,6 +1056,11 @@ inline void SmemPADiffusionApply3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   //const int id = (D1D << 4) | Q1D;
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+
    constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
    constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
    MFEM_VERIFY(D1D <= M1D, "");

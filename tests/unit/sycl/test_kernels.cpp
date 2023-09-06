@@ -16,62 +16,48 @@ using namespace mfem;
 
 #ifdef MFEM_USE_SYCL
 
-#include <cassert>
-
 #include "general/forall.hpp"
-
-#include "general/debug.hpp"
 
 void sycl_kernels()
 {
-   auto Q = Sycl::Queue();
-
-   const int NE = 2;
-   const int TX = 3, TY = 4, BZ = 2;
-   int TZ = 1;
+   const int NE = 2, TX = 3, TY = 4, BZ = 2;
+   int TZ = 1; // starting with 2D tests
 
    Vector d(NE*TX*TY*TZ);
-   auto hD_w = Reshape(d.HostWrite(),NE,TX,TY,TZ);
-   auto init = [&](int e, int x, int y, int z) { hD_w(e, x, y, z) = 0.0; };
-   auto host_forall = [&](auto &q_func)
+   d.UseDevice(true);
+
+   auto hD = Reshape(d.HostReadWrite(),TX,TY,TZ,NE);
+
+   auto host_forall = [&](auto q_func)
    {
       for (int e = 0; e < NE; ++e)
          for (int x = 0; x < TX; ++x)
             for (int y = 0; y < TY; ++y)
-               for (int z = 0; z < TZ; ++z) { q_func(e, x, y, z); }
+               for (int z = 0; z < TZ; ++z) { q_func(x, y, z, e); }
    };
+   auto ini = [&](int x, int y, int z, int e) { hD(x,y,z,e) = 0.0; };
+   auto req_ini = [&](int x, int y, int z, int e) { REQUIRE(hD(x,y,z,e) == 0.0); };
+   auto req_one = [&](int x, int y, int z, int e) { REQUIRE(hD(x,y,z,e) == 1.0); };
+   auto req_one_ini = [&](int x, int y, int z, int e) {req_one(x,y,z,e), ini(x,y,z,e); };
 
-   host_forall(init);
-   auto dD_w = Reshape(d.ReadWrite(),NE,TX,TY,TZ);
+   host_forall(ini), host_forall(req_ini);
+
+   // forall_2D
+   auto dD = Reshape(d.ReadWrite(),TX,TY,TZ,NE);
    mfem::forall_2D(NE, TX, TY, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(x,x,TX)
       {
          MFEM_FOREACH_THREAD(y,y,TY)
          {
-            dD_w(e,x,y,0) += 1;
+            dD(x,y,0,e) += 1.0;
          }
       }
    });
-   // read back on host for the requirements
-   auto hD_r = Reshape(d.HostRead(),NE,TX,TY,TZ);
-   auto req_d = [&](int e, int x, int y, int z)
-   {
-      const int d = hD_r(e,x,y,z);
-      // dbg("e:%d thread:%d%d = %d",e,x,y,d);
-      REQUIRE(d == 1);
-   };
-   host_forall(req_d);
-
-   /*auto dbg_d = [&](int e, int x, int y, int z)
-   {
-      dbg("e:%d thread:%d%d = %d",e,x,y,z,hD_r(e,x,y,z));
-   };
-   host_forall(dbg_d);*/
-
    d.HostReadWrite();
-   host_forall(init);
-   //host_forall(dbg_d);
+   host_forall(req_one_ini);
+
+   // forall_2D_batch
    d.ReadWrite();
    mfem::forall_2D_batch(NE, TX, TY, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -79,21 +65,19 @@ void sycl_kernels()
       {
          MFEM_FOREACH_THREAD(y,y,TY)
          {
-            //std::cout << e << x << y << std::endl;
-            dD_w(e,x,y,0) += 1;
+            dD(x,y,0,e) += 1.0;
          }
       }
    });
-   Q.wait();
-   d.HostRead();
-   host_forall(req_d);
-   //host_forall(dbg_d);
+   d.HostReadWrite(), host_forall(req_one);
 
-   TZ = 3;
+   TZ = 3; // switching to 3D
    d.SetSize(NE*TX*TY*TZ);
-   hD_w = Reshape(d.HostWrite(),NE,TX,TY,TZ);
-   host_forall(init);
-   dD_w = Reshape(d.ReadWrite(),NE,TX,TY,TZ);
+   hD = Reshape(d.HostReadWrite(),TX,TY,TZ,NE);
+   host_forall(ini), host_forall(req_ini);
+
+   // forall_3D
+   dD = Reshape(d.ReadWrite(),TX,TY,TZ,NE);
    mfem::forall_3D(NE, TX, TY, TZ, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(x,x,TX)
@@ -102,18 +86,16 @@ void sycl_kernels()
          {
             MFEM_FOREACH_THREAD(z,z,TZ)
             {
-               dD_w(e,x,y,z) += 1;
+               dD(x,y,z,e) += 1.0;
             }
          }
       }
    });
-   hD_r = Reshape(d.HostRead(),NE,TX,TY,TZ);
-   host_forall(req_d);
+   d.HostReadWrite(), host_forall(req_one_ini);
 
-   d.HostReadWrite();
-   host_forall(init);
+   // forall_3D_grid
    d.ReadWrite();
-   mfem::forall_3D_grid(NE, TX, TY, TZ, 4, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_grid(NE, TX, TY, TZ, 5, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(x,x,TX)
       {
@@ -121,13 +103,12 @@ void sycl_kernels()
          {
             MFEM_FOREACH_THREAD(z,z,TZ)
             {
-               dD_w(e,x,y,z) += 1;
+               dD(x,y,z,e) += 1.0;
             }
          }
       }
    });
-   d.HostRead();
-   host_forall(req_d);
+   d.HostReadWrite(), host_forall(req_one);
 }
 
 #endif // MFEM_USE_SYCL

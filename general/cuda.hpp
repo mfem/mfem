@@ -54,6 +54,24 @@ __device__ static T mfem_shared()
    return *(reinterpret_cast<T*>(shMem));
 }
 
+template<typename T, std::size_t UID>
+MFEM_DEVICE inline T& StaticSharedMemoryVariable()
+{
+   MFEM_SHARED uint8_t smem alignas(alignof(T))[sizeof(T)];
+   return *(reinterpret_cast<T*>(smem));
+}
+#define MFEM_STATIC_SHARED_VAR(var, ...) \
+__VA_ARGS__& var = StaticSharedMemoryVariable<__VA_ARGS__, __COUNTER__>()
+
+template<typename T, typename U>
+MFEM_DEVICE inline T& DynamicSharedMemoryVariable(U* &smem)
+{
+   T* base = reinterpret_cast<T*>(smem);
+   return (smem += sizeof(T)/sizeof(U), *base);
+}
+#define MFEM_DYNAMIC_SHARED_VAR(var, smem, ...) \
+__VA_ARGS__& var = DynamicSharedMemoryVariable<__VA_ARGS__>(smem)
+
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) blockIdx.k
 #define MFEM_THREAD_ID(k) threadIdx.k

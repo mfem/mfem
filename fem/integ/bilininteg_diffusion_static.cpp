@@ -17,7 +17,7 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/tensor.hpp"
-#include "../../linalg/ttensor.hpp"
+//#include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
 #include <cassert>
 
@@ -27,32 +27,6 @@ namespace mfem
 namespace internal
 {
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-template<typename T, std::size_t UID>
-MFEM_DEVICE inline T& StaticSharedMemoryVariable()
-{
-   MFEM_SHARED uint8_t smem alignas(alignof(T))[sizeof(T)];
-   return *(reinterpret_cast<T*>(smem));
-}
-#define MFEM_STATIC_SHARED_VAR(var, ...) \
-__VA_ARGS__& var = StaticSharedMemoryVariable<__VA_ARGS__, __COUNTER__>()
-#else
-#define MFEM_STATIC_SHARED_VAR(var, ...) __VA_ARGS__ var;
-#endif
-
-/**
- * @brief DynamicSmemPADiffusionApply2D
- * @param NE
- * @param symmetric
- * @param b_
- * @param g_
- * @param d_
- * @param x_
- * @param y_
- * @param D1D
- * @param Q1D
- * @param NBZ
- */
 template<int D1D, int Q1D, int NBZ>
 void StaticSmemPADiffusionApply2DKernel(const int NE,
                                         const bool symmetric,
@@ -62,7 +36,6 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
                                         const Vector &x_,
                                         Vector &y_)
 {
-   dbg();
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto D = Reshape(d_.Read(), Q1D*Q1D, symmetric ? 3 : 4, NE);
@@ -74,7 +47,9 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
    {
       const int tidz = MFEM_THREAD_ID(z);
 
-      MFEM_STATIC_SHARED_VAR(tB, TMatrix<Q1D,D1D>); // operator(.,.)
+      // could also use DeviceTensor to be able to use as 'fallback'
+
+      // MFEM_STATIC_SHARED_VAR(tB, TMatrix<Q1D,D1D>); // operator()
 
       MFEM_STATIC_SHARED_VAR(B, tensor<double,Q1D,D1D>); // operator[]
       MFEM_STATIC_SHARED_VAR(G, tensor<double,Q1D,D1D>);
@@ -105,7 +80,7 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                B[qx][dy] = b(qx,dy);
-               tB(qx,dy) = b(qx,dy);
+               //tB(qx,dy) = b(qx,dy);
                G[qx][dy] = g(qx,dy);
             }
          }
@@ -120,8 +95,8 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
             for (int dx = 0; dx < D1D; ++dx)
             {
                const double coords = X[dy][dx];
-               //u += B[qx][dx] * coords;
-               u += tB(qx,dx) * coords;
+               u += B[qx][dx] * coords;
+               //u += tB(qx,dx) * coords;
                v += G[qx][dx] * coords;
             }
             DQ0[dy][qx] = u;
@@ -137,8 +112,8 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
             double v = 0.0;
             for (int dy = 0; dy < D1D; ++dy)
             {
-               //u += DQ1[dy][qx] * B[qy][dy];
-               u += DQ1[dy][qx] * B(qy,dy);
+               u += DQ1[dy][qx] * B[qy][dy];
+               //u += DQ1[dy][qx] * B(qy,dy);
                v += DQ0[dy][qx] * G[qy][dy];
             }
             QQ0[qy][qx] = u;
@@ -215,14 +190,28 @@ void StaticSmemPADiffusionApply2D(const int NE,
                                   const Vector &X,
                                   Vector &Y,
                                   const int D1D,
-                                  const int Q1D,
-                                  const int NBZ)
+                                  const int Q1D)
 {
-   dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D);
    const int id = (D1D << 4) | Q1D;
 
-   MFEM_VERIFY(id == 0x33 && NBZ == 16, "Wrong kernel!");
-   StaticSmemPADiffusionApply2DKernel<3,3,16>(NE,symm,B,G,D,X,Y);
+   static int cid = 0;
+   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+
+   switch (id)
+   {
+      case 0x22: return StaticSmemPADiffusionApply2DKernel<2,2,16>(NE,symm,B,G,D,X,Y);
+      case 0x23: return StaticSmemPADiffusionApply2DKernel<2,3,16>(NE,symm,B,G,D,X,Y);
+      case 0x33: return StaticSmemPADiffusionApply2DKernel<3,3,16>(NE,symm,B,G,D,X,Y);
+      case 0x34: return StaticSmemPADiffusionApply2DKernel<3,4,8>(NE,symm,B,G,D,X,Y);
+      case 0x44: return StaticSmemPADiffusionApply2DKernel<4,4,8>(NE,symm,B,G,D,X,Y);
+      case 0x45: return StaticSmemPADiffusionApply2DKernel<4,5,4>(NE,symm,B,G,D,X,Y);
+         //case 0x55: return StaticSmemPADiffusionApply2DKernel<5,5,8>(NE,symm,B,G,D,X,Y);
+         //case 0x66: return StaticSmemPADiffusionApply2DKernel<6,6,4>(NE,symm,B,G,D,X,Y);
+         //case 0x77: return StaticSmemPADiffusionApply2DKernel<7,7,4>(NE,symm,B,G,D,X,Y);
+         //case 0x88: return StaticSmemPADiffusionApply2DKernel<8,8,2>(NE,symm,B,G,D,X,Y);
+         //case 0x99: return StaticSmemPADiffusionApply2DKernel<9,9,2>(NE,symm,B,G,D,X,Y);
+   }
+   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
@@ -439,16 +428,18 @@ void StaticSmemPADiffusionApply3D(const int NE,
                                   const int D1D,
                                   const int Q1D)
 {
-   static int first = 0;
-   if (first++ == 0) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); }
-
    const int id = (D1D << 4) | Q1D;
+
+   static int cid = 0;
+   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
 
    switch (id)
    {
-      //case 0x22: return StaticSmemPADiffusionApply3DKernel<2,2>(NE,symm,B,G,D,X,Y);
+      case 0x22: return StaticSmemPADiffusionApply3DKernel<2,2>(NE,symm,B,G,D,X,Y);
       case 0x23: return StaticSmemPADiffusionApply3DKernel<2,3>(NE,symm,B,G,D,X,Y);
+      case 0x33: return StaticSmemPADiffusionApply3DKernel<3,3>(NE,symm,B,G,D,X,Y);
       case 0x34: return StaticSmemPADiffusionApply3DKernel<3,4>(NE,symm,B,G,D,X,Y);
+      case 0x44: return StaticSmemPADiffusionApply3DKernel<4,4>(NE,symm,B,G,D,X,Y);
       case 0x45: return StaticSmemPADiffusionApply3DKernel<4,5>(NE,symm,B,G,D,X,Y);
       //case 0x46: return StaticSmemPADiffusionApply3DKernel<4,6>(NE,symm,B,G,D,X,Y);
       case 0x56: return StaticSmemPADiffusionApply3DKernel<5,6>(NE,symm,B,G,D,X,Y);

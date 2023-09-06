@@ -117,7 +117,7 @@ static void BP##i(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
    while (state.KeepRunning()) { ker.benchmark(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
-   state.counters["KER"] = bm::Counter(!!getenv("KER"));}\
+   state.counters["VERSION"] = bm::Counter(getenv("VERSION")?std::stoi(getenv("VERSION")):0);}\
 BENCHMARK(BP##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
 
 /// BP1: scalar PCG with mass matrix, q=p+2

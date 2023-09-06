@@ -22,6 +22,7 @@ using namespace mfem;
 
 void sycl_diffusion()
 {
+   //setenv("VERSION","0",1);
    dbg("Diffusion");
    const int p = 2;
    const auto mesh_filename = "../../data/star-q3.mesh";
@@ -50,9 +51,9 @@ void sycl_diffusion()
    x.Randomize(1);
 
    a_pa.Mult(x, y_pa);
-   dbg("y_pa:"), y_pa.Print(); std::fflush(0);
+   //(dbg("y_pa:"), y_pa.Print());
    a_fa.Mult(x, y_fa);
-   dbg("y_fa:"), y_fa.Print(); std::fflush(0);
+   //(dbg("y_fa:"), y_fa.Print());
    y_pa -= y_fa;
    REQUIRE(y_pa.Norml2() == MFEM_Approx(0.0));
 }

@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../../config/config.hpp"
+
 #define MFEM_DEBUG_COLOR 50
 #include "../../general/debug.hpp"
 
@@ -27,302 +29,8 @@ namespace internal
 {
 
 #undef MFEM_SHARED_USE_CHAR
-#define MFEM_SHARED_EXTRA_LOAD 64*1024
+#define MFEM_SHARED_EXTRA_LOAD 0 // 64*1024
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-template<typename T, std::size_t UID>
-MFEM_DEVICE inline T& StaticSharedMemoryVariable()
-{
-   MFEM_SHARED uint8_t smem alignas(alignof(T))[sizeof(T)];
-   return *(reinterpret_cast<T*>(smem));
-}
-#define MFEM_STATIC_SHARED_VAR(var, ...) \
-__VA_ARGS__& var = StaticSharedMemoryVariable<__VA_ARGS__, __COUNTER__>()
-#else
-#define MFEM_STATIC_SHARED_VAR(var, ...) __VA_ARGS__ var;
-#endif
-
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
-template<typename T, typename U>
-MFEM_DEVICE inline T& DynamicSharedMemoryVariable(U* &smem)
-{
-   T* base = reinterpret_cast<T*>(smem);
-   return (smem += sizeof(T)/sizeof(U), *base);
-}
-#define MFEM_DYNAMIC_SHARED_VAR(var, smem, ...) \
-__VA_ARGS__& var = DynamicSharedMemoryVariable<__VA_ARGS__>(smem)
-#else
-#define MFEM_DYNAMIC_SHARED_VAR(var, sm, ...) \
-__VA_ARGS__ var; sm += sizeof(__VA_ARGS__)/sizeof(*sm);
-#endif
-
-/**
- * @brief The mdsmem class
- */
-template <int rank, typename T = double>
-struct mdsmem
-{
-   static constexpr auto iseq = std::make_integer_sequence<int, rank> {};
-
-   MFEM_HOST_DEVICE mdsmem() {}
-
-   template<typename U>
-   MFEM_HOST_DEVICE mdsmem(U* &smem, const int (& dimensions)[rank])
-   {
-      data = reinterpret_cast<T*>(smem);
-      size = 1;
-      for (int i = 0; i < rank; i++)
-      {
-         int id = rank - 1 - i;
-         size *= dimensions[id];
-         shape[id] = dimensions[id];
-         strides[id] = (id == rank - 1) ? 1 : strides[id+1] * shape[id+1];
-      }
-      smem += size * sizeof(T) / sizeof(U);
-   }
-
-   template <int N, int R, typename S, typename... Args>
-   struct Layout
-   {
-      MFEM_HOST_DEVICE
-      static inline int ini(int* shape, int* strides, S k, Args... args)
-      {
-         shape[N - 1] = k;
-         strides[N - 1] = Layout<N + 1, R, Args...>::ini(shape, strides, args...);
-         return shape[N - 1] * strides[N - 1];
-      }
-   };
-
-   template <int R, typename S, typename... Args>
-   struct Layout<R, R, S, Args...>
-   {
-      MFEM_HOST_DEVICE
-      static inline int ini(int* shape, int *strides, T k, Args...)
-      {
-         return (strides[R - 1] = 1, shape[R - 1] = k);
-      }
-   };
-
-   template<typename U, typename... Args>
-   MFEM_HOST_DEVICE mdsmem(U* &smem, Args... args)
-   {
-      data = reinterpret_cast<T*>(smem);
-      MFEM_STATIC_ASSERT(sizeof...(args) == rank, "Wrong number of arguments");
-      size = Layout<1, rank, Args...>::ini(shape, strides, args...);
-      smem += size * sizeof(T) / sizeof(U);
-   }
-
-   template < typename ... index_types >
-   MFEM_HOST_DEVICE auto & operator()(index_types ... indices)
-   {
-      static_assert(sizeof ... (indices) == rank);
-      return data[index(iseq, indices...)];
-   }
-
-   template < typename ... index_types >
-   MFEM_HOST_DEVICE auto & operator()(index_types ... indices) const
-   {
-      static_assert(sizeof ... (indices) == rank);
-      return data[index(iseq, indices...)];
-   }
-
-   template < int ... I, typename ... index_types >
-   MFEM_HOST_DEVICE auto index(std::integer_sequence<int, I...>, index_types
-                               ... indices) const
-   {
-      return ((indices * strides[I]) + ...);
-   }
-
-   //MFEM_HOST_DEVICE inline operator T *() const { return data; }
-
-   T* data alignas(alignof(T));
-   int size;
-   int shape[rank];
-   int strides[rank];
-};
-
-
-/// CUDA backend
-#if defined(MFEM_USE_CUDA)
-
-template <typename Tsmem = double, typename BODY> __global__ static
-void CuKernel2DSmem(const int N, BODY body)
-{
-   const int k = blockIdx.x*blockDim.z + threadIdx.z;
-   if (k >= N) { return; }
-   extern __shared__ Tsmem smem[];
-   body(k, smem);
-}
-
-template <typename Tsmem = double, typename BODY> __global__ static
-void CuKernel2DGmem(const int N, BODY body, Tsmem *smem, const int smem_size)
-{
-   const int k = blockIdx.x*blockDim.z + threadIdx.z;
-   if (k >= N) { return; }
-   body(k, smem + smem_size*blockIdx.x);
-}
-
-template <typename Tsmem = double, typename DBODY>
-void CuWrapSmem2D(const int N, DBODY &&d_body, const int smem_size,
-                  const int X, const int Y, const int BZ, const int G)
-{
-   if (N==0) { return; }
-   MFEM_VERIFY(BZ > 0, "");
-   MFEM_VERIFY(G == 0, "Grid not implemented!");
-   MFEM_VERIFY(smem_size > 0, "No Shared memory!");
-
-   const dim3 BLCK(X,Y,BZ);
-
-   if (smem_size*sizeof(Tsmem) < 64*1024) // V100, w/o extra config
-   {
-      const int GRID = (N+BZ-1)/BZ;
-      CuKernel2DSmem<Tsmem><<<GRID, BLCK, sizeof(Tsmem)*smem_size>>>(N, d_body);
-   }
-   else
-   {
-      constexpr int SM = 80;
-      const int GRID = SM;
-      dbg("\033[33mFolding back to GLOBAL memory!");
-      static Memory<Tsmem> smem(smem_size*sizeof(Tsmem)*GRID);
-      smem.UseDevice(true);
-      CuKernel2DGmem<Tsmem><<<GRID,BLCK>>>(N, d_body,
-                                           smem.Write(MemoryClass::DEVICE, smem_size),
-                                           smem_size);
-   }
-   MFEM_GPU_CHECK(cudaGetLastError());
-}
-
-template <typename Tsmem = double, typename BODY> __global__ static
-void CuKernel3DSmem(const int N, BODY body)
-{
-   extern __shared__ Tsmem smem[];
-   for (int k = blockIdx.x; k < N; k += gridDim.x) { body(k, smem); }
-}
-
-template <typename Tsmem = double, typename BODY> __global__ static
-void CuKernel3DGmem(const int N, BODY body, Tsmem *smem, const int smem_size)
-{
-   for (int k = blockIdx.x; k < N; k += gridDim.x)
-   {
-      body(k, smem + smem_size*blockIdx.x);
-   }
-}
-
-template <typename Tsmem = double, typename DBODY>
-void CuWrapSmem3D(const int N, DBODY &&d_body, const int smem_size,
-                  const int X, const int Y, const int Z, const int G)
-{
-   if (N==0) { return; }
-   MFEM_VERIFY(smem_size > 0, "No Shared memory!");
-
-   const dim3 BLCK(X,Y,Z);
-
-   if (smem_size*sizeof(Tsmem) < 64*1024) // V100, w/o extra config
-   {
-      const int NB = X*Y*Z < 16 ? 4 : 1;
-      const int GRID_X = (N + NB - 1) / NB;
-      const int GRID = G == 0 ? GRID_X : G;
-      CuKernel3DSmem<Tsmem><<<GRID, BLCK, sizeof(Tsmem)*smem_size>>>(N, d_body);
-   }
-   else
-   {
-      constexpr int SM = 80;
-      const int GRID = G == 0 ? SM : G;
-      dbg("\033[33mFolding back to GLOBAL memory (GRID:%d)!", GRID);
-      static Memory<Tsmem> smem(smem_size*sizeof(Tsmem)*GRID);
-      smem.UseDevice(true);
-      CuKernel3DGmem<Tsmem><<<GRID,BLCK>>>(N, d_body,
-                                           smem.Write(MemoryClass::DEVICE, smem_size),
-                                           smem_size);
-   }
-   MFEM_GPU_CHECK(cudaGetLastError());
-}
-
-template <int Dim, typename Tsmem> struct CuWrapSmem;
-
-template <typename Tsmem>
-struct CuWrapSmem<2,Tsmem>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body, const int smem_size,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      CuWrapSmem2D<Tsmem>(N, d_body, smem_size, X, Y, Z, G);
-   }
-};
-
-template <typename Tsmem>
-struct CuWrapSmem<3,Tsmem>
-{
-   template <const int BLCK = MFEM_CUDA_BLOCKS, typename DBODY>
-   static void run(const int N, DBODY &&d_body, const int smem_size,
-                   const int X, const int Y, const int Z, const int G)
-   {
-      CuWrapSmem3D<Tsmem>(N, d_body, smem_size, X, Y, Z, G);
-   }
-};
-#endif // MFEM_USE_CUDA
-
-/// The forall kernel body wrapper
-template <const int DIM, typename Tsmem = double, typename d_lambda, typename h_lambda>
-inline void ForallWrapSmem(const bool use_dev, const int N,
-                           d_lambda &&d_body, h_lambda &&h_body,
-                           const int smem_size,
-                           const int X=0, const int Y=0, const int Z=0,
-                           const int G=0)
-{
-   MFEM_CONTRACT_VAR(X);
-   MFEM_CONTRACT_VAR(Y);
-   MFEM_CONTRACT_VAR(Z);
-   MFEM_CONTRACT_VAR(G);
-   MFEM_CONTRACT_VAR(d_body);
-   MFEM_CONTRACT_VAR(smem_size);
-   if (!use_dev) { goto backend_cpu; }
-
-#ifdef MFEM_USE_CUDA
-   // If Backend::CUDA is allowed, use it
-   if (Device::Allows(Backend::CUDA))
-   {
-      return CuWrapSmem<DIM,Tsmem>::run(N, d_body, smem_size, X, Y, Z, G);
-   }
-#endif
-
-   // If Backend::DEBUG_DEVICE is allowed, use it
-   if (Device::Allows(Backend::DEBUG_DEVICE)) { goto backend_cpu; }
-
-backend_cpu:
-   // Handle Backend::CPU. This is also a fallback for any allowed backends not
-   // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
-   // OCCA_OMP with configuration 'occa-omp,cpu'.
-   assert(smem_size > 0);
-   Tsmem smem[smem_size];
-   //Tsmem *smem = new Tsmem[smem_size];
-   for (int k = 0; k < N; k++) { h_body(k,smem); }
-   //delete[] smem;
-}
-
-template <const int DIM, typename Tsmem = double, typename lambda>
-inline void ForallWrapSmem(const bool use_dev, const int N, lambda &&body,
-                           const int smem_bytes,
-                           const int X=0, const int Y=0, const int Z=0,
-                           const int G=0)
-{
-   ForallWrapSmem<DIM,Tsmem>(use_dev, N, body, body, smem_bytes, X, Y, Z, G);
-}
-
-template<typename Tsmem = double, typename lambda>
-inline void forall_2D_batch_smem(int N, int X, int Y, int BZ, int smem_bytes,
-                                 lambda &&body)
-{
-   ForallWrapSmem<2,Tsmem>(true, N, body, smem_bytes, X, Y, BZ, 0);
-}
-
-template<typename Tsmem = double, typename lambda>
-inline void forall_3D_smem(int N, int X, int Y, int Z, int smem_bytes,
-                           lambda &&body)
-{
-   ForallWrapSmem<3,Tsmem>(true, N, body, smem_bytes, X, Y, Z, 0);
-}
 
 void DynamicSmemPADiffusionApply2DKernel(const int NE,
                                          const bool symmetric,
@@ -333,7 +41,7 @@ void DynamicSmemPADiffusionApply2DKernel(const int NE,
                                          Vector &y_,
                                          const int d,
                                          const int q,
-                                         int z)
+                                         const int z)
 {
    const auto b = Reshape(b_.Read(), q, d);
    const auto g = Reshape(g_.Read(), q, d);
@@ -352,8 +60,8 @@ void DynamicSmemPADiffusionApply2DKernel(const int NE,
    mfem::internal::forall_2D_batch_smem<char>(NE, q,q,z, smem_size_char,
                                               [=] MFEM_HOST_DEVICE(int e, char *sm)
 #else
-   mfem::internal::forall_2D_batch_smem(NE, q,q,z, smem_size,
-                                        [=] MFEM_HOST_DEVICE(int e, double *sm)
+   mfem::forall_2D_batch_smem(NE, q,q,z, smem_size,
+                              [=] MFEM_HOST_DEVICE(int e, double *sm)
 #endif
    {
       const int tz = MFEM_THREAD_ID(z);
@@ -502,10 +210,14 @@ void DynamicSmemPADiffusionApply2D(const int NE,
                                    const int q,
                                    const int z)
 {
-   dbg("NE:%d d:%d q:%d z:%d",NE,d,q,z);
+   const int id = (d << 4) | q;
+   static int cid = 0;
+   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+
    DynamicSmemPADiffusionApply2DKernel(NE,symm,B,G,D,X,Y,d,q,z);
 }
 
+template<int T_D1D = 0, int T_Q1D = 0>
 void DynamicSmemPADiffusionApply3DKernel(const int NE,
                                          const bool symmetric,
                                          const Array<double> &b_,
@@ -513,9 +225,12 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                                          const Vector &d_,
                                          const Vector &x_,
                                          Vector &y_,
-                                         const int d,
-                                         const int q)
+                                         const int d1d = 0,
+                                         const int q1d = 0)
 {
+   const int d = T_D1D ? T_D1D : d1d;
+   const int q = T_Q1D ? T_Q1D : q1d;
+
    const auto b = Reshape(b_.Read(), q, d);
    const auto g = Reshape(g_.Read(), q, d);
    const auto D = Reshape(d_.Read(), q, q, q, symmetric ? 6 : 9, NE);
@@ -524,10 +239,9 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
    auto y = Reshape(y_.ReadWrite(), d, d, d, NE);
 
    const size_t smem_size = 4*q*d + // B,Bt,G,Gt
-                            d*d*d + // X
                             3*d*d*q + // DDQs
                             3*d*q*q + // DQQs
-                            3*q*q*q +  // QQQs
+                            3*q*q*q + // QQQs
                             MFEM_SHARED_EXTRA_LOAD;
 
 #ifdef MFEM_SHARED_USE_CHAR
@@ -535,23 +249,26 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
    mfem::internal::forall_3D_smem<char>(NE, q,q,q, smem_size_char,
                                         [=] MFEM_HOST_DEVICE(int e, char *sm)
 #else
-   forall_3D_smem(NE, q,q,q, smem_size, [=] MFEM_HOST_DEVICE (int e,
-                                                              double *sm)
+   forall_3D_smem(NE, q,q,q, smem_size, [=] MFEM_HOST_DEVICE (int e, double *sm)
 #endif
    {
-      const decltype(sm) base = sm;
+      //const decltype(sm) base = sm;
 
       mdsmem<2> B(sm, q,d), Bt(sm, d,q);
       mdsmem<2> G(sm, q,d), Gt(sm, d,q);
 
-      mdsmem<3> X(sm, d,d,d);
-      mdsmem<3> QDD0(sm, q,d,d), QDD1(sm, q,d,d), QDD2(sm, q,d,d);
-      mdsmem<3> QQD0(sm, q,q,d), QQD1(sm, q,q,d), QQD2(sm, q,q,d);
+      mdsmem<3> DDQ0(sm, d,d,q), DDQ1(sm, d,d,q), DDQ2(sm, d,d,q);
+      mdview<3> QDD0(DDQ0, q,d,d), QDD1(DDQ1, q,d,d), QDD2(DDQ2, q,d,d);
+      mdview<3> X(DDQ2, d,d,d);
+
+      mdsmem<3> QQD0(sm,   q,q,d), QQD1(sm,   q,q,d), QQD2(sm,   q,q,d);
+      mdview<3> DQQ0(QQD0, d,q,q), DQQ1(QQD1, d,q,q), DQQ2(QQD2, d,q,q);
+
       mdsmem<3> QQQ0(sm, q,q,q), QQQ1(sm, q,q,q), QQQ2(sm, q,q,q);
 
       mdsmem<1> Extra(sm, MFEM_SHARED_EXTRA_LOAD);
 
-      assert(sm == base + smem_size*sizeof(double)/sizeof(*sm));
+      //assert(sm == base + smem_size*sizeof(double)/sizeof(*sm));
 
       MFEM_FOREACH_THREAD(dz,z,d)
       {
@@ -559,7 +276,7 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,d)
             {
-               X(dx,dy,dz) = x(dx,dy,dz,e);
+               X(dz,dy,dx) = x(dx,dy,dz,e);
             }
          }
       }
@@ -585,12 +302,12 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                MFEM_UNROLL_DISABLED
                for (int dx = 0; dx < d; ++dx)
                {
-                  const double coords = X(dx,dy,dz);
+                  const double coords = X(dz,dy,dx);
                   u += coords * B(qx,dx);
                   v += coords * G(qx,dx);
                }
-               QDD0(qx,dy,dz) = u;
-               QDD1(qx,dy,dz) = v;
+               DDQ0(dz,dy,qx) = u;
+               DDQ1(dz,dy,qx) = v;
             }
          }
       }
@@ -605,13 +322,13 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                MFEM_UNROLL_DISABLED
                for (int dy = 0; dy < d; ++dy)
                {
-                  u += QDD1(qx,dy,dz) * B(qy,dy);
-                  v += QDD0(qx,dy,dz) * G(qy,dy);
-                  w += QDD0(qx,dy,dz) * B(qy,dy);
+                  u += DDQ1(dz,dy,qx) * B(qy,dy);
+                  v += DDQ0(dz,dy,qx) * G(qy,dy);
+                  w += DDQ0(dz,dy,qx) * B(qy,dy);
                }
-               QQD0(qx,qy,dz) = u;
-               QQD1(qx,qy,dz) = v;
-               QQD2(qx,qy,dz) = w;
+               DQQ0(dz,qy,qx) = u;
+               DQQ1(dz,qy,qx) = v;
+               DQQ2(dz,qy,qx) = w;
             }
          }
       }
@@ -626,9 +343,9 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                MFEM_UNROLL_DISABLED
                for (int dz = 0; dz < d; ++dz)
                {
-                  u += QQD0(qx,qy,dz) * B(qz,dz);
-                  v += QQD1(qx,qy,dz) * B(qz,dz);
-                  w += QQD2(qx,qy,dz) * G(qz,dz);
+                  u += DQQ0(dz,qy,qx) * B(qz,dz);
+                  v += DQQ1(dz,qy,qx) * B(qz,dz);
+                  w += DQQ2(dz,qy,qx) * G(qz,dz);
                }
                const double O11 = D(qx,qy,qz,0,e);
                const double O12 = D(qx,qy,qz,1,e);
@@ -642,9 +359,9 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                const double gX = u;
                const double gY = v;
                const double gZ = w;
-               QQQ0(qx,qy,qz) = (O11*gX) + (O12*gY) + (O13*gZ);
-               QQQ1(qx,qy,qz) = (O21*gX) + (O22*gY) + (O23*gZ);
-               QQQ2(qx,qy,qz) = (O31*gX) + (O32*gY) + (O33*gZ);
+               QQQ0(qz,qy,qx) = (O11*gX) + (O12*gY) + (O13*gZ);
+               QQQ1(qz,qy,qx) = (O21*gX) + (O22*gY) + (O23*gZ);
+               QQQ2(qz,qy,qx) = (O31*gX) + (O32*gY) + (O33*gZ);
             }
          }
       }
@@ -671,13 +388,13 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                MFEM_UNROLL_DISABLED
                for (int qx = 0; qx < q; ++qx)
                {
-                  u += QQQ0(qx,qy,qz) * Gt(dx,qx);
-                  v += QQQ1(qx,qy,qz) * Bt(dx,qx);
-                  w += QQQ2(qx,qy,qz) * Bt(dx,qx);
+                  u += QQQ0(qz,qy,qx) * Gt(dx,qx);
+                  v += QQQ1(qz,qy,qx) * Bt(dx,qx);
+                  w += QQQ2(qz,qy,qx) * Bt(dx,qx);
                }
-               QQD0(qy,qz,dx) = u;
-               QQD1(qy,qz,dx) = v;
-               QQD2(qy,qz,dx) = w;
+               QQD0(qz,qy,dx) = u;
+               QQD1(qz,qy,dx) = v;
+               QQD2(qz,qy,dx) = w;
             }
          }
       }
@@ -692,9 +409,9 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                MFEM_UNROLL_DISABLED
                for (int qy = 0; qy < q; ++qy)
                {
-                  u += QQD0(qy,qz,dx) * Bt(dy,qy);
-                  v += QQD1(qy,qz,dx) * Gt(dy,qy);
-                  w += QQD2(qy,qz,dx) * Bt(dy,qy);
+                  u += QQD0(qz,qy,dx) * Bt(dy,qy);
+                  v += QQD1(qz,qy,dx) * Gt(dy,qy);
+                  w += QQD2(qz,qy,dx) * Bt(dy,qy);
                }
                QDD0(qz,dy,dx) = u;
                QDD1(qz,dy,dx) = v;
@@ -734,11 +451,34 @@ void DynamicSmemPADiffusionApply3D(const int NE,
                                    const int d,
                                    const int q)
 {
-   static int first = 0;
-   if (first++ == 0) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); }
-   DynamicSmemPADiffusionApply3DKernel(NE,symm,B,G,D,X,Y,d,q);
+   const int id = (d << 4) | q;
+
+   static int cid = 0;
+   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+
+   switch (id)
+   {
+         // dynamic : SYCL, no instantiated kernels, smem_size to declare, +new smem tensors
+
+         //     5 % [GPU] slowdown if full dynamic
+
+         // 20~30 % [CPU] slowdown dynamic + JIT/switch
+
+         //      2x [CPU] slowdown if full dynamic
+#if 0
+      case 0x23: return DynamicSmemPADiffusionApply3DKernel<2,3>(NE,symm,B,G,D,X,Y);
+      case 0x34: return DynamicSmemPADiffusionApply3DKernel<3,4>(NE,symm,B,G,D,X,Y);
+      case 0x45: return DynamicSmemPADiffusionApply3DKernel<4,5>(NE,symm,B,G,D,X,Y);
+      case 0x56: return DynamicSmemPADiffusionApply3DKernel<5,6>(NE,symm,B,G,D,X,Y);
+      case 0x67: return DynamicSmemPADiffusionApply3DKernel<6,7>(NE,symm,B,G,D,X,Y);
+      case 0x78: return DynamicSmemPADiffusionApply3DKernel<7,8>(NE,symm,B,G,D,X,Y);
+#endif
+      default: return DynamicSmemPADiffusionApply3DKernel(NE,symm,B,G,D,X,Y,d,q);
+   }
+   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 
 } // namespace internal
 
 } // namespace mfem
+
