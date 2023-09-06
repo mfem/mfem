@@ -59,12 +59,6 @@ block-solvers: $(BLOCK_SOLVERS_OBJ)
 $(BLOCK_SOLVERS_OBJ): $(DARCY_SOLVERS_OBJ)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(BLOCK_SOLVERS_SRC) $< -o $@
 
-# elast-block-solvers: elast-block-solvers.o
-# 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $< $(MFEM_LIBS)
-
-# elast-block-solvers.o: elast-block-solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-# 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(MFEM_FLAGS) -c $< -o $@
-
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
