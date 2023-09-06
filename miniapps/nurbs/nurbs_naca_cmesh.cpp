@@ -1,6 +1,6 @@
 // Compile with: make nurbs_naca_cmesh
 //
-// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nrad 80 -ntip 20 -nwake 40 -sw 2.0
+// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0
 //                 -srad 2.5 -stip 1.1 -aoa 3
 //
 // Description:  This example code demonstrates the use of MFEM to create a C-mesh
@@ -32,7 +32,7 @@
 using namespace std;
 using namespace mfem;
 
-// Object that discribes a symmetric NACA foil section
+// Object that describes a symmetric NACA foil section
 class NACA4
 {
 protected:
@@ -60,7 +60,7 @@ public:
    // the tip of the foil section
    double xl(double l);
    // Get the chord of the foil_section
-   const double GetChord() {return c;}
+   double GetChord() {return c;}
 };
 
 // Function that finds the coordinates of the control points of the tip of the foil section @a xy
@@ -637,7 +637,7 @@ double NACA4::xl(double l)
 void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
-   // Length of halve the curve: the boundary covers both sides of the tip
+   // Length of half the curve: the boundary covers both sides of the tip
    double l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
@@ -665,10 +665,10 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
       xy[0]->Elem(n) = 0; xy[1]->Elem(n) = 0; // Foil section tip
       for (int i = 0; i < n; i++)
       {
-         // Lower halve
+         // Lower half
          xy[0]->Elem(i) = xcp[n-i];     xy[1]->Elem(i) = -foil_section.y(xcp[n-i]);
 
-         // Upper halve
+         // Upper half
          xy[0]->Elem(n+1+i) = xcp[i+1]; xy[1]->Elem(n+1+i) = foil_section.y(xcp[i+1]);
       }
    }
@@ -687,10 +687,10 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
       xy[0]->SetSize(2*n); xy[1]->SetSize(2*n);
       for (int i = 0; i < n; i++)
       {
-         // Lower halve
+         // Lower half
          xy[0]->Elem(i) = xcp[n-1-i]; xy[1]->Elem(i) = -foil_section.y(xcp[n-1-i]);
 
-         // Upper halve
+         // Upper half
          xy[0]->Elem(n+i) = xcp[i];   xy[1]->Elem(n+i) = foil_section.y(xcp[i]);
       }
    }
