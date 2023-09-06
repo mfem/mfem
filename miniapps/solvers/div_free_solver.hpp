@@ -32,7 +32,7 @@ struct DFSParameters : IterSolveParameters
    IterSolveParameters BBT_solve_param;
 };
 
-/// Data for the divergenve free solver
+/// Data for the divergence free solver
 struct DFSData
 {
    std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
