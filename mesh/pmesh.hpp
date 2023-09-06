@@ -111,9 +111,6 @@ protected:
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
-   // Mark all tris to ensure consistency across MPI tasks.
-   void MarkTriMeshForRefinement(const DSTable &v_to_v) override;
-
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
    void MarkTetMeshForRefinement(const DSTable &v_to_v) override;

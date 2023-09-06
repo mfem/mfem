@@ -20,6 +20,7 @@
 #include "../general/text.hpp"
 #include "../general/globals.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <fstream>
 
@@ -1737,30 +1738,50 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
-void ParMesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
-{
-   Array<double> lengths;
-   GetEdgeLengths(v_to_v, lengths);
-
-   Array<HYPRE_BigInt> gidx;
-   GetGlobalEdgeIndices(gidx);
-
-   for (int i = 0; i < NumOfElements; i++)
-   {
-      if (elements[i]->GetType() == Element::TRIANGLE)
-      {
-         dynamic_cast<Triangle &>(*elements[i]).MarkEdge(v_to_v, lengths, gidx);
-      }
-   }
-}
-
 void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    Array<double> lengths;
    GetEdgeLengths(v_to_v, lengths);
 
-   Array<HYPRE_BigInt> gidx;
-   GetGlobalEdgeIndices(gidx);
+   // create a GroupCommunicator over shared edges
+   GroupCommunicator sedge_comm(gtopo);
+   GetSharedEdgeCommunicator(0, sedge_comm);
+
+   // communicate the local index of each shared edge from the group master to
+   // other ranks in the group
+   Array<int> sedge_master_rank(shared_edges.Size());
+   Array<int> sedge_master_index(shared_edges.Size());
+   for (int i = 0; i < group_sedge.Size(); i++)
+   {
+      int rank = gtopo.GetGroupMasterRank(i+1);
+      for (int j = 0; j < group_sedge.RowSize(i); j++)
+      {
+         sedge_master_rank[group_sedge.GetRow(i)[j]] = rank;
+      }
+   }
+   for (int i = 0; i < shared_edges.Size(); i++)
+   {
+      // sedge_ledge may be undefined so use shared_edges and v_to_v instead
+      const int sedge = group_sedge.GetJ()[i];
+      const int *v = shared_edges[sedge]->GetVertices();
+      sedge_master_index[i] = v_to_v(v[0], v[1]);
+   }
+   sedge_comm.Bcast(sedge_master_index);
+
+   // the pairs (master rank, master local index) define a globally consistent
+   // edge ordering
+   Array<std::int64_t> glob_edge_order(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++)
+   {
+      glob_edge_order[i] = (std::int64_t(MyRank) << 32) + i;
+   }
+   for (int i = 0; i < shared_edges.Size(); i++)
+   {
+      const int sedge = group_sedge.GetJ()[i];
+      const int *v = shared_edges[sedge]->GetVertices();
+      glob_edge_order[v_to_v(v[0], v[1])] =
+         (std::int64_t(sedge_master_rank[i]) << 32) + sedge_master_index[i];
+   }
 
    // use the lengths to mark the tets, the boundary triangles, and the shared
    // triangle faces
@@ -1768,7 +1789,8 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths, gidx);
+         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths,
+                                                            glob_edge_order);
       }
    }
 
@@ -1776,13 +1798,14 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths, gidx);
+         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths,
+                                                         glob_edge_order);
       }
    }
 
    for (int i = 0; i < shared_trias.Size(); i++)
    {
-      Triangle::MarkEdge(shared_trias[i].v, v_to_v, lengths, gidx);
+      Triangle::MarkEdge(shared_trias[i].v, v_to_v, lengths, glob_edge_order);
    }
 }
 

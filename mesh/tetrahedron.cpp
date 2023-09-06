@@ -13,6 +13,8 @@
 
 #include "mesh_headers.hpp"
 
+#include <cstdint>
+
 namespace mfem
 {
 
@@ -362,7 +364,7 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
 template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
                                     const Array<int> &);
 template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
-                                    const Array<long long> &);
+                                    const Array<std::int64_t> &);
 
 // @endcond
 

@@ -11,6 +11,8 @@
 
 #include "mesh_headers.hpp"
 
+#include <cstdint>
+
 namespace mfem
 {
 
@@ -164,7 +166,7 @@ void Triangle::GetVertices(Array<int> &v) const
 template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
                                  const Array<int> &);
 template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
-                                 const Array<long long> &);
+                                 const Array<std::int64_t> &);
 
 // @endcond
 

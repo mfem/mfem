@@ -334,7 +334,7 @@ protected:
 
    void GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const;
    void MarkForRefinement();
-   virtual void MarkTriMeshForRefinement(const DSTable &v_to_v);
+   void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming
