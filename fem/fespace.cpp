@@ -2816,9 +2816,15 @@ void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   if (i < 0 || !mesh->GetNE()) { return NULL; }
-   MFEM_VERIFY(i < mesh->GetNE(),
-               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+   if (i < 0 || i >= mesh->GetNE())
+   {
+      if (mesh->GetNE() == 0)
+      {
+         MFEM_ABORT("Empty MPI partitions are not permitted!");
+      }
+      MFEM_ABORT("Invalid element id:" << i << "; minimum allowed:" << 0 <<
+                 ", maximum allowed:" << mesh->GetNE()-1);
+   }
 
    const FiniteElement *FE =
       fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
