@@ -17,7 +17,7 @@
 //               remainder of the foil section. The aim is to create a mesh with the highest
 //               quality close to the boundary of the foil section and the wake.
 //
-//               The example returns a visit data structure for visualisation. Note that
+//               The example returns a visit data structure for visualization. Note that
 //               one will need to increase the multiress-control to inspect the shape of the
 //               NURBS.
 //
@@ -74,7 +74,7 @@ void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf,
 // number of control points @a ncp.
 KnotVector *UniformKnotVector(int order, int ncp);
 
-// Function that returns a knot vector which is stretched with stretch @s
+// Function that returns a knot vector that is stretched with stretch @s
 // with the form x^s based on the @a order and the number of control points @a ncp.
 // Special case @a s = 0 will give a uniform knot vector.
 KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0);
@@ -88,7 +88,7 @@ KnotVector *TanhKnotVector(int order, int ncp, double c);
 KnotVector *DoubleTanhKnotVector(int order, int ncp, double c);
 
 // Function that evaluates a linear function which describes the boundary distance
-// based on the flair angle @a flair, smallest boundary bistance @a bd and
+// based on the flair angle @a flair, smallest boundary distance @a bd and
 // coordinate @a x. The flair angle is mainly used to be able to enforce inflow on
 // the top and bottom boundary and to create an elegant mesh.
 double FlairBoundDist(double flair, double bd, double x);
@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
                   "Enable or disable VisIt visualization in output Naca_cmesh.");
 
-   // Parse and print commandline options
+   // Parse and print command line options
    args.Parse();
    if (!args.Good())
    {
@@ -567,7 +567,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
    mesh->PrintInfo();
 
-   // Print mesh to file for visualisation
+   // Print mesh to file for visualization
    if (visit)
    {
       VisItDataCollection dc = VisItDataCollection("mesh", mesh);
