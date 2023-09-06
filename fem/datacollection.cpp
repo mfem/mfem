@@ -1204,7 +1204,7 @@ void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
    }
    if (pv_data_format != VTKFormat::ASCII)
    {
-      WriteBase64WithSizeAndClear(os, buf, compression);
+      WriteBase64WithSizeAndClear(os, buf, GetCompressionLevel());
    }
    os << "</DataArray>" << std::endl;
 }
