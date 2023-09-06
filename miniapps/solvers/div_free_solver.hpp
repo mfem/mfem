@@ -253,7 +253,7 @@ class BlockHybridizationSolver : public DarcySolver
 {
    ParFiniteElementSpace trial_space, test_space;
    ParFiniteElementSpace *c_fes;
-   Array<int> hat_offsets, test_offsets, data_offsets, ipiv_offsets;
+   Array<int> hat_offsets, test_offsets, data_offsets, ipiv_offsets, mixed_dofs;
    double *data;
    int *ipiv;
    bool elimination_;
@@ -261,6 +261,18 @@ class BlockHybridizationSolver : public DarcySolver
    HypreBoomerAMG *M;
    OperatorPtr pH;
    CGSolver solver_;
+
+   void Init(const int ne);
+   void ConstructCt(const ParFiniteElementSpace &c_space);
+   void ConstructH(const std::shared_ptr<ParBilinearForm> &a,
+                   const std::shared_ptr<ParMixedBilinearForm> &b,
+                   const Array<int> &marker,
+                   const ParFiniteElementSpace &c_space);
+   void ReduceRHS(const Vector &b, const Vector &sol, BlockVector &rhs, Vector &b_r) const;
+   void ComputeSolution(Vector &y,
+                     BlockVector &rhs,
+                     const Vector &rhs_r,
+                     Array<int> &block_offsets) const;
 public:
    BlockHybridizationSolver(const std::shared_ptr<ParBilinearForm> &a,
                             const std::shared_ptr<ParMixedBilinearForm> &b,
