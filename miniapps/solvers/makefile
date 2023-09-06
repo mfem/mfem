@@ -28,7 +28,7 @@ BLOCK_SOLVERS_SRC = bramble_pasciak.cpp div_free_solver.cpp block-solvers.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lor_solvers
-PAR_MINIAPPS = block-solvers plor_solvers elast-block-solvers
+PAR_MINIAPPS = block-solvers plor_solvers
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
