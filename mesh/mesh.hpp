@@ -27,6 +27,7 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include <iostream>
+#include <memory>
 
 namespace mfem
 {
@@ -74,8 +75,10 @@ protected:
        visualization purpose in GLVis. */
    mutable int nbInteriorFaces, nbBoundaryFaces;
 
-   int meshgen; // see MeshGenerator()
-   int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
+   // see MeshGenerator(); global in parallel
+   int meshgen;
+   // sum of (1 << geom) for all geom of all dimensions; local in parallel
+   int mesh_geoms;
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -297,11 +300,11 @@ protected:
    void Destroy();         // Delete all owned data.
    void ResetLazyData();
 
-   Element *ReadElementWithoutAttr(std::istream &);
-   static void PrintElementWithoutAttr(const Element *, std::ostream &);
+   Element *ReadElementWithoutAttr(std::istream &input);
+   static void PrintElementWithoutAttr(const Element *el, std::ostream &os);
 
-   Element *ReadElement(std::istream &);
-   static void PrintElement(const Element *, std::ostream &);
+   Element *ReadElement(std::istream &input);
+   static void PrintElement(const Element *el, std::ostream &os);
 
    // Readers for different mesh formats, used in the Load() method.
    // The implementations of these methods are in mesh_readers.cpp.
@@ -432,7 +435,7 @@ protected:
 
    void UpdateNURBS();
 
-   void PrintTopo(std::ostream &out, const Array<int> &e_to_k) const;
+   void PrintTopo(std::ostream &os, const Array<int> &e_to_k) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &, int);
@@ -541,7 +544,7 @@ protected:
    // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
-   void Printer(std::ostream &out = mfem::out,
+   void Printer(std::ostream &os = mfem::out,
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -835,7 +838,7 @@ public:
 
    int AddBdrPoint(int v, int attr = 1);
 
-   void GenerateBoundaryElements();
+   virtual void GenerateBoundaryElements();
    /// Finalize the construction of a triangular Mesh.
    void FinalizeTriMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
@@ -2063,7 +2066,7 @@ public:
                                std::ostream &os, int elem_attr = 0) const;
 
    void PrintElementsWithPartitioning (int *partitioning,
-                                       std::ostream &out,
+                                       std::ostream &os,
                                        int interior_faces = 0);
 
    /// Print set of disjoint surfaces:
@@ -2071,13 +2074,13 @@ public:
     * If Aface_face(i,j) != 0, print face j as a boundary
     * element with attribute i+1.
     */
-   void PrintSurfaces(const Table &Aface_face, std::ostream &out) const;
+   void PrintSurfaces(const Table &Aface_face, std::ostream &os) const;
 
    /// Auxiliary method used by PrintCharacteristics().
    /** It is also used in the `mesh-explorer` miniapp. */
    static void PrintElementsByGeometry(int dim,
                                        const Array<int> &num_elems_by_geom,
-                                       std::ostream &out);
+                                       std::ostream &os);
 
    /** @brief Compute and print mesh characteristics such as number of vertices,
        number of elements, number of boundary elements, minimal and maximal
@@ -2097,7 +2100,7 @@ public:
 
 #ifdef MFEM_DEBUG
    /// Output an NCMesh-compatible debug dump.
-   void DebugDump(std::ostream &out) const;
+   void DebugDump(std::ostream &os) const;
 #endif
 
    /// @}
@@ -2176,9 +2179,194 @@ public:
    /// @}
 };
 
-/** Overload operator<< for std::ostream and Mesh; valid also for the derived
-    class ParMesh */
-std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
+
+// Class containing a minimal description of a part (a subset of the elements)
+// of a Mesh and its connectivity to other parts. The main purpose of this class
+// is to be communicated between MPI ranks for repartitioning purposes. It can
+// also be used to implement parallel mesh I/O functions with partitionings that
+// have number of parts different from the number of MPI tasks.
+//
+// Note: parts of NURBS or non-conforming meshes cannot be fully described by
+// this class alone.
+class MeshPart
+{
+protected:
+   struct Entity { int geom; int num_verts; const int *verts; };
+   struct EntityHelper
+   {
+      int dim, num_entities;
+      int geom_offsets[Geometry::NumGeom+1];
+      typedef const Array<int> entity_to_vertex_type[Geometry::NumGeom];
+      entity_to_vertex_type &entity_to_vertex;
+
+      EntityHelper(int dim_,
+                   const Array<int> (&entity_to_vertex_)[Geometry::NumGeom]);
+      Entity FindEntity(int bytype_entity_id);
+   };
+
+public:
+   // Reference space dimension of the elements
+   int dimension;
+
+   // Dimension of the physical space into which the MeshPart is embedded.
+   int space_dimension;
+
+   // Number of vertices
+   int num_vertices;
+
+   // Number of elements with reference space dimension equal to 'dimension'.
+   int num_elements;
+
+   // Number of boundary elements with reference space dimension equal to
+   // 'dimension'-1.
+   int num_bdr_elements;
+
+   // Each 'entity_to_vertex[geom]' describes the entities of Geometry::Type
+   // 'geom' in terms of their vertices. The number of entities of type 'geom'
+   // is:
+   //    num_entities[geom] = size('entity_to_vertex[geom]')/num_vertices[geom]
+   // The number of all elements, 'num_elements', is:
+   //    'num_elements' = sum_{dim[geom]=='dimension'} num_entities[geom]
+   // and the number of all boundary elements, 'num_bdr_elements' is:
+   //    'num_bdr_elements' = sum_{dim[geom]=='dimension'-1} num_entities[geom]
+   // Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
+   // part (i.e. all 'dimension'-1 entities) but only the boundary elements.
+   Array<int> entity_to_vertex[Geometry::NumGeom];
+
+   // Store the refinement flags for tetraheral elements. If all tets have zero
+   // refinement flags then this array is empty, i.e. has size 0.
+   Array<int> tet_refine_flags;
+
+   // "By-type" element/boundary ordering: ordered by Geometry::Type and within
+   // each Geometry::Type 'geom' ordered as in 'entity_to_vertex[geom]'.
+
+   // Optional re-ordering of the elements that will be used by (Par)Mesh
+   // objects constructed from this MeshPart. This array maps "natural" element
+   // ids (used by the Mesh/ParMesh objects) to "by-type" element ids (see
+   // above):
+   //    "by-type" element id = element_map["natural" element id]
+   // The size of the array is either 'num_elements' or 0 when no re-ordering is
+   // needed (then "by-type" id == "natural" id).
+   Array<int> element_map;
+
+   // Optional re-ordering for the boundary elements, similar to 'element_map'.
+   Array<int> boundary_map;
+
+   // Element attributes. Ordered using the "natural" element ordering defined
+   // by the array 'element_map'. The size of this array is 'num_elements'.
+   Array<int> attributes;
+
+   // Boundary element attributes. Ordered using the "natural" boundary element
+   // ordering defined by the array 'boundary_map'. The size of this array is
+   // 'num_bdr_elements'.
+   Array<int> bdr_attributes;
+
+   // Optional vertex coordinates. The size of the array is either
+   //    size = 'space_dimension' * 'num_vertices'
+   // or 0 when the vertex coordinates are not used, i.e. when the MeshPart uses
+   // a nodal GridFunction to describe its location in physical space. This
+   // array uses Ordering::byVDIM: "X0,Y0,Z0, X1,Y1,Z1, ...".
+   Array<double> vertex_coordinates;
+
+   // Optional serial Mesh object constructed on demand using the method
+   // GetMesh(). One use case for it is when one wants to construct FE spaces
+   // and GridFunction%s on the MeshPart for saving or MPI communication.
+   std::unique_ptr<Mesh> mesh;
+
+   // Nodal FE space defined on 'mesh' used by the GridFunction 'nodes'. Uses
+   // the FE collection from the global nodal FE space.
+   std::unique_ptr<FiniteElementSpace> nodal_fes;
+
+   // 'nodes': pointer to a GridFunction describing the physical location of the
+   // MeshPart. Used for describing high-order and periodic meshes. This
+   // GridFunction is defined on the FE space 'nodal_fes' which, in turn, is
+   // defined on the Mesh 'mesh'.
+   std::unique_ptr<GridFunction> nodes;
+
+   // Connectivity to other MeshPart objects
+   // --------------------------------------
+
+   // Total number of MeshParts
+   int num_parts;
+
+   // Index of the part described by this MeshPart:
+   //    0 <= 'my_part_id' < 'num_parts'
+   int my_part_id;
+
+   // A group G is a subsets of the set { 0, 1, ..., 'num_parts'-1 } for which
+   // there is a mesh entity E (of any dimension) in the global mesh such that
+   // G is the set of the parts assigned to the elements adjacent to E. The
+   // MeshPart describes only the "neighbor" groups, i.e. the groups that
+   // contain 'my_part_id'. The Table 'my_groups' defines the "neighbor" groups
+   // in terms of their part ids. In other words, it maps "neighbor" group ids
+   // to a (sorted) list of part ids. In particular, the number of "neighbor"
+   // groups is given by 'my_groups.Size()'. The "local" group { 'my_part_id' }
+   // has index 0 in 'my_groups'.
+   Table my_groups;
+
+   // Shared entities for this MeshPart are mesh entities of all dimensions less
+   // than 'dimension' that are generated by the elements of this MeshPart and
+   // at least one other MeshPart.
+   //
+   // The Table 'group__shared_entity_to_vertex[geom]' defines, for each group,
+   // the shared entities of Geometry::Type 'geom'. Each row (corresponding to a
+   // "neighbor" group, as defined by 'my_groups') in the Table defines the
+   // shared entities in a way similar to the arrays 'entity_to_vertex[geom]'.
+   // The "local" group (with index 0) does not have any shared entities, so the
+   // 0-th row in the Table is always empty.
+   //
+   // IMPORTANT: the desciptions of the groups in this MeshPart must match their
+   // descriptions in all neighboring MeshParts. This includes the ordering of
+   // the shared entities within the group, as well as the vertex ordering of
+   // each shared entity.
+   Table group__shared_entity_to_vertex[Geometry::NumGeom];
+
+   // Write the MeshPart to a stream using the parallel format "MFEM mesh v1.2".
+   void Print(std::ostream &os) const;
+
+   // Construct a serrial Mesh object from the MeshPart. The nodes of 'mesh' are
+   // NOT initialized by this method, however, the nodal FE space and nodal
+   // GridFunction can be created and then attached to the 'mesh'. The Mesh is
+   // constructed only if 'mesh' is empty, otherwise the method simply returns
+   // the object held by 'mesh'.
+   Mesh &GetMesh();
+};
+
+
+// TODO: documentation
+class MeshPartitioner
+{
+protected:
+   Mesh &mesh;
+   int *partitioning;
+   bool own_partitioning;
+   Table part_to_element;
+   Table part_to_boundary;
+   Table edge_to_element;
+   Table vertex_to_element;
+
+public:
+   // TODO: documentation
+   MeshPartitioner(Mesh &mesh_, int num_parts_, int *partitioning_ = NULL,
+                   int part_method = 1);
+
+   // TODO: documentation
+   void ExtractPart(int part_id, MeshPart &mesh_part) const;
+
+   // TODO: documentation
+   std::unique_ptr<FiniteElementSpace>
+   ExtractFESpace(MeshPart &mesh_part,
+                  const FiniteElementSpace &global_fespace) const;
+
+   // TODO: documentation
+   std::unique_ptr<GridFunction>
+   ExtractGridFunction(MeshPart &mesh_part,
+                       const GridFunction &global_gf,
+                       FiniteElementSpace &local_fespace) const;
+
+   // Destructor
+   ~MeshPartitioner();
+};
 
 
 /** @brief Structure for storing mesh geometric factors: coordinates, Jacobians,
@@ -2187,7 +2375,6 @@ std::ostream &operator<<(std::ostream &out, const Mesh &mesh);
     Mesh. See Mesh::GetGeometricFactors(). */
 class GeometricFactors
 {
-
 private:
    void Compute(const GridFunction &nodes,
                 MemoryType d_mt = MemoryType::DEFAULT);
@@ -2234,6 +2421,7 @@ public:
        - NE = number of elements in the mesh. */
    Vector detJ;
 };
+
 
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,
     determinants of the Jacobians, and normal vectors. */
@@ -2289,6 +2477,7 @@ public:
    Vector normal;
 };
 
+
 /// Class used to extrude the nodes of a mesh
 class NodeExtrudeCoefficient : public VectorCoefficient
 {
@@ -2320,8 +2509,12 @@ inline void ShiftRight(int &a, int &b, int &c)
    a = c;  c = b;  b = t;
 }
 
+/** Overload operator<< for std::ostream and Mesh; valid also for the derived
+    class ParMesh */
+std::ostream &operator<<(std::ostream &os, const Mesh &mesh);
+
 /// @brief Print function for Mesh::FaceInformation.
-std::ostream& operator<<(std::ostream& os, const Mesh::FaceInformation& info);
+std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
 
 }
 

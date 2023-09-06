@@ -238,6 +238,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
       delete vert_element;
 
+      // FIXME: the next two lines are already done above! Any reason to do them
+      //        again?
       SetMeshGen();
       meshgen = mesh.meshgen; // copy the global 'meshgen'
    }
@@ -1516,6 +1518,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
 
@@ -6339,6 +6342,7 @@ void ParMesh::ParPrint(ostream &os) const
    {
       os << "total_shared_faces " << sface_lface.Size() << '\n';
    }
+   os << "\n# group 0 has no shared entities\n";
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {

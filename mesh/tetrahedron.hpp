@@ -58,12 +58,13 @@ public:
    /// Return element's type.
    virtual Type GetType() const { return Element::TETRAHEDRON; }
 
-   void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
+   void  ParseRefinementFlag(int refinement_edges[2], int &type,
+                             int &flag) const;
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
-   void GetMarkedFace(const int face, int *fv);
+   void GetMarkedFace(const int face, int *fv) const;
 
-   int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() const { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 

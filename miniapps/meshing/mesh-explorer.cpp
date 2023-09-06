@@ -308,6 +308,7 @@ int main (int argc, char *argv[])
       partitioning = 0;
       bdr_partitioning.SetSize(mesh->GetNBE());
       bdr_partitioning = 0;
+      np = 1;
    }
    else
    {
@@ -382,7 +383,8 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "o) Reorder elements\n"
-           "S) Save in MFEM format\n"
+           "S) Save in MFEM serial format\n"
+           "D) Save in MFEM parallel format using the current partitioning\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
            "D) Save as a DataCollection\n"
            "q) Quit\n"
@@ -971,9 +973,8 @@ int main (int argc, char *argv[])
                      cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
-               int *part = mesh->CartesianPartitioning(nxyz);
-               partitioning = Array<int>(part, mesh->GetNE());
-               delete [] part;
+               partitioning.MakeRef(mesh->CartesianPartitioning(nxyz),
+                                    mesh->GetNE(), true);
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
@@ -984,7 +985,7 @@ int main (int argc, char *argv[])
                partitioning.SetSize(mesh->GetNE());
                for (int i = 0; i < mesh->GetNE(); i++)
                {
-                  partitioning[i] = i * np / mesh->GetNE();
+                  partitioning[i] = (long long)i * np / mesh->GetNE();
                }
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
@@ -997,9 +998,8 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               int *part = mesh->GeneratePartitioning(np, part_method);
-               partitioning = Array<int>(part, mesh->GetNE());
-               delete [] part;
+               partitioning.MakeRef(mesh->GeneratePartitioning(np, part_method),
+                                    mesh->GetNE(), true);
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
@@ -1195,6 +1195,25 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << omesh_file << endl;
+      }
+
+      if (mk == 'D')
+      {
+         const char mesh_prefix[] = "mesh-explorer.mesh.";
+         MeshPartitioner partitioner(*mesh, np, partitioning);
+         MeshPart mesh_part;
+         int precision;
+         cout << "Enter desired precision: " << flush;
+         cin >> precision;
+         for (int i = 0; i < np; i++)
+         {
+            partitioner.ExtractPart(i, mesh_part);
+
+            ofstream omesh(MakeParFilename(mesh_prefix, i));
+            omesh.precision(precision);
+            mesh_part.Print(omesh);
+         }
+         cout << "New parallel mesh files: " << mesh_prefix << "<rank>" << endl;
       }
 
       if (mk == 'V')

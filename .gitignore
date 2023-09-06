@@ -227,7 +227,7 @@ miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
 miniapps/meshing/twist-*.mesh
-miniapps/meshing/mesh-explorer.mesh
+miniapps/meshing/mesh-explorer.mesh*
 miniapps/meshing/partitioning.txt
 miniapps/meshing/mesh-explorer-visit*
 miniapps/meshing/mesh-explorer-paraview/
