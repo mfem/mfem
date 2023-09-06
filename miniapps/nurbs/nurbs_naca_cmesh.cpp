@@ -19,7 +19,9 @@
 //
 //               The example returns a visit data structure for visualization. Note that
 //               one will need to increase the multiress-control to inspect the shape of the
-//               NURBS.
+//               NURBS. The multiress-control allows for evaluating the NURBS at more intervals
+//               than only the controlpoints. In this waythe tip of the foil is also shown
+//               correctly for small amounts of control points.
 //
 //               Possible improvements:
 //               - Implement optimization with TMOP
