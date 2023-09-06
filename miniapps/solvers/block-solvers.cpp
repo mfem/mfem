@@ -173,7 +173,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
 
    Mform_ = make_shared<ParBilinearForm>(u_fes);
    Mform_->AddDomainIntegrator(new VectorFEMassIntegrator(*mass_coeff_));
-//   Mform_->ComputeElementMatrices();
+   Mform_->ComputeElementMatrices();
    Mform_->Assemble();
    Mform_->Finalize();
 
