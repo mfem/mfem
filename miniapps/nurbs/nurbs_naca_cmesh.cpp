@@ -98,9 +98,7 @@ int main(int argc, char *argv[])
    int mdim = 2;
    int order = 2;
 
-   //
    // 1. Parse command-line options.
-   //
    OptionsParser args(argc, argv);
    const char *msh_path = "";
    const char *msh_filename = "naca-cmesh";
@@ -186,9 +184,7 @@ int main(int argc, char *argv[])
    double deg2rad = M_PI/180;
    aoa = aoa*deg2rad;
 
-   //
    // 2. Create knot vectors
-   //
    KnotVector *kv0 = TanhKnotVector(order, ncp_wake, str_wake);
    kv0->Flip();
    KnotVector *kv4 = new KnotVector(*kv0);
@@ -209,9 +205,7 @@ int main(int argc, char *argv[])
    xyf[0] = new Vector();
    xyf[1] = new Vector();
 
-   //
    // 3. Create required (variables for) curves: foil_section and flair
-   //
    NACA4 foil_section(foil_thickness, foil_length);
 
    // The default flair angle is defined to be the same as the angle of the curve of the
@@ -221,13 +215,11 @@ int main(int argc, char *argv[])
       flair = atan(foil_section.dydx(tip_fraction*foil_length));
    }
 
-   //
    // 4. We map coordinates in patches, apply refinement and interpolate the foil section in
    //    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
    //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
    //    for other patches as homogeneous coordinates and cartesian coordinates are the same
    //    for patches with unity weight.
-   //
 
    // Patch 0: lower wake part behind foil section.
    NURBSPatch patch0(kv_o1, kv_o1, 3);
@@ -451,9 +443,7 @@ int main(int argc, char *argv[])
    patch3.Rotate2D(-aoa);
    patch4.Rotate2D(-aoa);
 
-   //
    // 5. Print mesh to file
-   //
 
    // Open mesh output file
    string mesh_file;
