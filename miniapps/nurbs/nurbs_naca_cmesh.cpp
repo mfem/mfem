@@ -582,22 +582,22 @@ NACA4::NACA4(double t_, double c_)
 
 double NACA4::y(double x)
 {
-   double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2) + D*pow(x/c,3) - E*pow(x/c,
-                                                                             4));
+   double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2)
+                   + D*pow(x/c,3) - E*pow(x/c,4));
    return y*c;
 }
 
 double NACA4::dydx(double x)
 {
-   double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c + 3* D*pow(x/c,
-                                                              2) - 4* E*pow(x/c,3));
+   double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c
+                   + 3* D*pow(x/c,2) - 4* E*pow(x/c,3));
    return y*c;
 }
 
 double NACA4::len(double x)
 {
-   double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2) + D*pow(x/c,
-                                                                3) - E * pow(x/c,4)) + x/c;
+   double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2)
+                       + D*pow(x/c,3) - E * pow(x/c,4)) + x/c;
    return l*c;
 }
 
