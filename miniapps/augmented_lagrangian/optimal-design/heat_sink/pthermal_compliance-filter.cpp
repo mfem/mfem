@@ -432,7 +432,10 @@ int main(int argc, char *argv[])
    // Setup SPDE for random load generation
    spde::Boundary bc;
    spde::Boundary bc1;
-   bc1.AddHomogeneousBoundaryCondition(4,spde::BoundaryType::kDirichlet);
+   if (mirror)
+   {
+      bc1.AddHomogeneousBoundaryCondition(4,spde::BoundaryType::kDirichlet);
+   }
 
    if (Mpi::Root()) 
    {

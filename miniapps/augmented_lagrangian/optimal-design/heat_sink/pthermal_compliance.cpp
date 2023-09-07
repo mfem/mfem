@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    int iprob = 0;
    int igeom = 0;
-   int solver_ranks = 2;
+   int solver_ranks = world_size;
    // save design to a file
    bool save_to_file = false;
    // restore precomputed design from file
@@ -552,6 +552,7 @@ int main(int argc, char *argv[])
    FilterSolver->SetOrder(filter_fec.GetOrder());
    FilterSolver->SetDiffusionCoefficient(&eps2_cf);
    FilterSolver->SetMassCoefficient(&one);
+   // FilterSolver->SetEssentialBoundary(ess_bdr);
 
    Array<int> ess_bdr_filter;
    if (pmesh.bdr_attributes.Size())
@@ -636,7 +637,7 @@ int main(int argc, char *argv[])
    {
       // A. Form state equation
       if (k > 1) { tol_rho *= (double (k-1))/(double (k)) ; }
-      double ratio_avg = 0.0;
+      // double ratio_avg = 0.0;
       for (int l = 1; l <= max_it; l++)
       {
          step++;
@@ -646,7 +647,7 @@ int main(int argc, char *argv[])
          if (world_rank == 0)
          {
             cout << "\nStep = " << l << endl;
-            cout << "Batch Size   = " << batch_size << endl;
+            cout << "Batch Size   = " << global_adaptive_batch_size << endl;
             cout << "Cum. Samples = " << cumulative_samples << endl;
          }
          // Step 2 -  Filter Solve
@@ -790,10 +791,10 @@ int main(int argc, char *argv[])
                  << lambda << endl;
          }
          MFEM_VERIFY(IsFinite(ratio), "ratio not finite");
-         if (world_rank == 0)
-         {
-            mfem::out << "ratio_avg = " << ratio_avg << std::endl;
-         }
+         // if (world_rank == 0)
+         // {
+         //    mfem::out << "ratio_avg = " << ratio_avg << std::endl;
+         // }
          if (ratio > theta && !first_iteration)
          {
             global_adaptive_batch_size = max((int)(pow(ratio / theta,2) * global_adaptive_batch_size),global_adaptive_batch_size); 
