@@ -119,6 +119,12 @@ public:
         af->SetRotationAngles(angle_x, angle_y, angle_z);
     }
 
+    void SetMaternParameter(double nu)
+    {
+        gf->SetMaternParameter(nu);
+        af->SetMaternParameter(nu);
+    }
+
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
     {
         dfes=fes;
@@ -263,6 +269,7 @@ int main(int argc, char *argv[])
    int restart=0;
    double volume_fraction = 0.35;
    int igeom = 0;
+   double nu = 4.0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -332,6 +339,8 @@ int main(int argc, char *argv[])
                   "Rotation angle in y direction");             
    args.AddOption(&angle_z, "-e3", "--e3",
                   "Rotation angle in z direction");   
+   args.AddOption(&nu, "-nu", "--nu",
+                  "Matern Parameter (Smoothness of random field)");                     
    args.AddOption(&igeom, "-g", "--geom", "Geometry type"
                   "0: square, 1: sphere");                                                                                   
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
@@ -425,8 +434,8 @@ int main(int argc, char *argv[])
    // 'ref_levels' to be the largest number that gives a final mesh with no
    // more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels = ser_ref_levels;
+        //  (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
 
       for (int l = 0; l < ref_levels; l++)
       {
@@ -478,6 +487,7 @@ int main(int argc, char *argv[])
    sink->SetDensity(vdens);
    sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
    sink->SetRotationAngles(angle_x, angle_y, angle_z);
+   sink->SetMaternParameter(nu);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -544,7 +554,9 @@ int main(int argc, char *argv[])
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
                                          << "_volume_fraction_" << volume_fraction
-                                         << "_radius_" << fradius;
+                                         << "_radius_" << fradius
+                                         << "_maternparam_" << nu
+                                         << "_geom_" << igeom;
       mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
          paraview_dc.SetPrefixPath("ParaView");

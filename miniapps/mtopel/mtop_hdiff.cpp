@@ -120,6 +120,12 @@ public:
         af->SetRotationAngles(angle_x, angle_y, angle_z);
     }
 
+    void SetMaternParameter(double nu)
+    {
+        gf->SetMaternParameter(nu);
+        af->SetMaternParameter(nu);
+    }
+
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
     {
         dfes=fes;
@@ -341,6 +347,7 @@ int main(int argc, char *argv[])
    const char *petscrc_file = "";
    int restart=0;
    double volume_fraction = 0.35;
+   double nu = 4.0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -409,7 +416,9 @@ int main(int argc, char *argv[])
    args.AddOption(&angle_y, "-e2", "--e2",
                   "Rotation angle in y direction");             
    args.AddOption(&angle_z, "-e3", "--e3",
-                  "Rotation angle in z direction");                                                                    
+                  "Rotation angle in z direction");     
+   args.AddOption(&nu, "-nu", "--nu",
+                  "Matern Parameter (Smoothness of random field)");                                                                                      
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -542,6 +551,7 @@ int main(int argc, char *argv[])
    sink->SetDensity(vdens);
    sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
    sink->SetRotationAngles(angle_x, angle_y, angle_z);
+   sink->SetMaternParameter(nu);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -608,6 +618,7 @@ int main(int argc, char *argv[])
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
                                          << "_volume_fraction_" << volume_fraction
+                                         << "_maternparam_" << nu
                                          << "_radius_" << fradius;
       mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
