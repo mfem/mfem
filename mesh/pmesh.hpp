@@ -584,8 +584,6 @@ public:
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;
 
-
-
    /** @brief Returns the number of local faces according to the requested type,
        does not count master non-conforming faces.
 

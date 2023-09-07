@@ -910,7 +910,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    bool face_nbr_w_tri_faces = false;
 
    // go over all shared faces and collect face neighbor elements
-   for (int i = 0; i < shared.conforming.Size(); ++i)
+   for (int i = 0; i < shared.conforming.Size(); i++)
    {
       const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
