@@ -19,6 +19,7 @@ using namespace mfem;
 enum FECType
 {
    H1,
+   ND,
    L2
 };
 enum FieldType
@@ -39,6 +40,9 @@ FiniteElementCollection *create_fec(FECType fec_type, int p, int dim)
       case H1:
          return new H1_FECollection(p, dim);
          break;
+      case ND:
+         return new ND_FECollection(p, dim);
+         break;
       case L2:
          return new L2_FECollection(p, dim, BasisType::GaussLobatto);
          break;
@@ -56,7 +60,8 @@ void test_2d(Element::Type element_type,
              SubMesh::From from)
 {
    constexpr int dim = 2;
-   const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
+   const int vdim = (field_type == FieldType::SCALAR ||
+                     fec_type == ND) ? 1 : dim;
    double Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian2D(5, 5, element_type, true, 1.0, Hy, false);
 
@@ -176,7 +181,7 @@ void test_2d(Element::Type element_type,
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -188,6 +193,8 @@ void test_2d(Element::Type element_type,
       }
       SubMesh::Transfer(parent_gf, sub_gf);
 
+      REQUIRE(sub_gf.Norml2() != 0.0);
+
       sub_gf -= sub_ex_gf;
       REQUIRE(sub_gf.Norml2() < 1e-10);
    }
@@ -195,7 +202,7 @@ void test_2d(Element::Type element_type,
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -209,6 +216,8 @@ void test_2d(Element::Type element_type,
       }
 
       SubMesh::Transfer(sub_gf, parent_gf);
+
+      REQUIRE(parent_gf.Norml2() != 0.0);
 
       parent_gf -= parent_ex_gf;
       REQUIRE(parent_gf.Norml2() < 1e-10);
@@ -227,7 +236,8 @@ void test_3d(Element::Type element_type,
              SubMesh::From from)
 {
    constexpr int dim = 3;
-   const int vdim = (field_type == FieldType::SCALAR) ? 1 : dim;
+   const int vdim = (field_type == FieldType::SCALAR ||
+                     fec_type == ND) ? 1 : dim;
    double Hy = 1.0;
    Mesh mesh = Mesh::MakeCartesian3D(5, 5, 5, element_type, 1.0, Hy, 1.0, false);
 
@@ -351,7 +361,7 @@ void test_3d(Element::Type element_type,
    {
       GridFunction sub_ex_gf(&sub_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_ex_gf.ProjectCoefficient(coeff);
@@ -372,7 +382,7 @@ void test_3d(Element::Type element_type,
    {
       GridFunction parent_ex_gf(&parent_fes);
 
-      if (vdim == 1)
+      if (vdim == 1 && (fec_type == H1 || fec_type == L2))
       {
          parent_gf.ProjectCoefficient(coeff);
          sub_gf.ProjectCoefficient(coeff);
@@ -401,13 +411,17 @@ TEST_CASE("SubMesh", "[SubMesh]")
 {
    int polynomial_order = 4;
    int mesh_polynomial_order = 2;
-   auto fec_type = GENERATE(FECType::H1, FECType::L2);
+   auto fec_type = GENERATE(FECType::H1, FECType::ND, FECType::L2);
    auto field_type = GENERATE(FieldType::SCALAR, FieldType::VECTOR);
    auto transfer_type = GENERATE(TransferType::ParentToSub,
                                  TransferType::SubToParent);
    auto from = GENERATE(SubMesh::From::Domain,
                         SubMesh::From::Boundary);
 
+   if (fec_type == FECType::ND && field_type == FieldType::VECTOR)
+   {
+      return;
+   }
    SECTION("2D")
    {
       auto element = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
@@ -421,7 +435,8 @@ TEST_CASE("SubMesh", "[SubMesh]")
 
    SECTION("3D")
    {
-      auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+      auto element = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                              Element::WEDGE);
       if (fec_type == FECType::L2 &&
           from == SubMesh::From::Boundary && false)
       {

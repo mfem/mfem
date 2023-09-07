@@ -17,6 +17,7 @@
 #include "pncmesh.hpp"
 #include "../general/binaryio.hpp"
 
+#include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
 
@@ -434,25 +435,21 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    entity_group = 0;
 
    CommGroup group;
-   group.reserve(128);
 
-   int begin = 0, end = 0;
-   while (begin < index_rank.Size())
+   for (auto begin = index_rank.begin(); begin != index_rank.end(); /* nothing */)
    {
-      int index = index_rank[begin].from;
-      if (index >= nentities)
-      {
-         break; // probably creating entity_conf_group (no ghosts)
-      }
-      while (end < index_rank.Size() && index_rank[end].from == index)
-      {
-         end++;
-      }
-      group.resize(end - begin);
-      for (int i = begin; i < end; i++)
-      {
-         group[i - begin] = index_rank[i].to;
-      }
+      const auto &index = begin->from;
+      if (index >= nentities) { break; }
+
+      // Locate the next connection that is not from this index
+      const auto end = std::find_if(begin, index_rank.end(),
+      [&index](const mfem::Connection &c) { return c.from != index;});
+
+      // For each connection from this index, collect the ranks connected.
+      group.resize(std::distance(begin, end));
+      std::transform(begin, end, group.begin(), [](const mfem::Connection &c) { return c.to; });
+
+      // assign this entity's group and advance the search start
       entity_group[index] = GetGroupId(group);
       begin = end;
    }
@@ -460,9 +457,9 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
 
 void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 {
-   for (int i = 0; i < ranks.Size(); i++)
+   for (auto rank : ranks)
    {
-      entity_index_rank[entity].Append(Connection(index, ranks[i]));
+      entity_index_rank[entity].Append(Connection(index, rank));
    }
 }
 
@@ -479,9 +476,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    ranks.Reserve(256);
 
    // connect slave edges to master edges and their vertices
-   for (int i = 0; i < shared_edges.masters.Size(); i++)
+   for (const auto &master_edge : shared_edges.masters)
    {
-      const Master &master_edge = shared_edges.masters[i];
       ranks.SetSize(0);
       for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
       {
@@ -501,9 +497,8 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 
    // connect slave faces to master faces and their edges and vertices
-   for (int i = 0; i < shared_faces.masters.Size(); i++)
+   for (const auto &master_face : shared_faces.masters)
    {
-      const Master &master_face = shared_faces.masters[i];
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
@@ -893,7 +888,15 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    Array<Element*> fnbr;
    Array<Connection> send_elems;
 
-   int bound = shared.conforming.Size() + shared.slaves.Size();
+   // Counts the number of slave faces of a master. This may be larger than the
+   // number of shared slaves if there exist degenerate slave-faces from face-edge constraints.
+   auto count_slaves = [&](int i, const Master& x)
+   {
+      return i + (x.slaves_end - x.slaves_begin);
+   };
+
+   const int bound = shared.conforming.Size() + std::accumulate(
+                        shared.masters.begin(), shared.masters.end(), 0, count_slaves);
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);
@@ -928,7 +931,11 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
          bool loc0 = (e[0]->rank == MyRank);
          bool loc1 = (e[1]->rank == MyRank);
-         if (loc0 == loc1) { continue; }
+         if (loc0 == loc1)
+         {
+            // neither or both of these elements are on this rank.
+            continue;
+         }
          if (loc0) { std::swap(e[0], e[1]); }
 
          fnbr.Append(e[0]);
@@ -936,7 +943,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   MFEM_ASSERT(fnbr.Size() <= bound, "oops, bad upper bound");
+   MFEM_ASSERT(fnbr.Size() <= bound,
+               "oops, bad upper bound. fnbr.Size(): " << fnbr.Size() << ", bound: " << bound);
 
    // remove duplicate face neighbor elements and sort them by rank & index
    // (note that the send table is sorted the same way and the order is also the
@@ -957,7 +965,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          pmesh.face_nbr_group.Append(fnbr[i]->rank);
       }
    }
-   int nranks = pmesh.face_nbr_group.Size();
+   const int nranks = pmesh.face_nbr_group.Size();
 
    // create a new mfem::Element for each face neighbor element
    pmesh.face_nbr_elements.SetSize(0);
@@ -972,7 +980,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    std::map<int, int> vert_map;
    for (int i = 0; i < fnbr.Size(); i++)
    {
-      Element* elem = fnbr[i];
+      NCMesh::Element* elem = fnbr[i];
       mfem::Element* fne = NewMeshElement(elem->geom);
       fne->SetAttribute(elem->attribute);
       pmesh.face_nbr_elements.Append(fne);
@@ -1001,10 +1009,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (coordinates.Size())
       {
          tmp_vertex = new TmpVertex[nodes.NumIds()]; // TODO: something cheaper?
-         for (auto it = vert_map.begin(); it != vert_map.end(); ++it)
+         for (const auto &v : vert_map)
          {
-            pmesh.face_nbr_vertices[it->second-1].SetCoords(
-               spaceDim, CalcVertexPos(it->first));
+            pmesh.face_nbr_vertices[v.second-1].SetCoords(
+               spaceDim, CalcVertexPos(v.first));
          }
          delete [] tmp_vertex;
       }
@@ -1031,11 +1039,9 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    pmesh.send_face_nbr_elements.MakeFromList(nranks, send_elems);
 
    // go over the shared faces again and modify their Mesh::FaceInfo
-   for (int i = 0; i < shared.conforming.Size(); i++)
+   for (const auto& cf : shared.conforming)
    {
-      const MeshId &cf = shared.conforming[i];
       Face* face = GetFace(elements[cf.element], cf.local);
-
       Element* e[2] = { &elements[face->elem[0]], &elements[face->elem[1]] };
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
 
@@ -1054,6 +1060,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
+   // If there are shared slaves, they will also need to be updated.
    if (shared.slaves.Size())
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
@@ -1088,8 +1095,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 
             bool sloc = (sfe.rank == MyRank);
             bool mloc = (mfe.rank == MyRank);
-            if (sloc == mloc) { continue; }
+            if (sloc == mloc // both or neither face is owned by this processor
+                || sf.index < 0) // the face is degenerate (i.e. a face-edge constraint)
+            {
+               continue;
+            }
 
+            // This is a genuine slave face, the info associated with it must
+            // be updated.
             Mesh::FaceInfo &fi = pmesh.faces_info[sf.index];
             fi.Elem1No = sfe.index;
             fi.Elem2No = mfe.index;
@@ -1119,12 +1132,18 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
             {
-               // TODO: does this handle triangle faces correctly?
-
                // ghost slave in 3D needs flipping orientation
                DenseMatrix* pm2 = new DenseMatrix(*pm);
-               std::swap((*pm2)(0,1), (*pm2)(0,3));
-               std::swap((*pm2)(1,1), (*pm2)(1,3));
+               if (sf.geom == Geometry::Type::SQUARE)
+               {
+                  std::swap((*pm2)(0, 1), (*pm2)(0, 3));
+                  std::swap((*pm2)(1, 1), (*pm2)(1, 3));
+               }
+               else if (sf.geom == Geometry::Type::TRIANGLE)
+               {
+                  std::swap((*pm2)(0, 0), (*pm2)(0, 1));
+                  std::swap((*pm2)(1, 0), (*pm2)(1, 1));
+               }
                aux_pm_store.Append(pm2);
 
                fi.Elem2Inf ^= 1;
@@ -1149,7 +1168,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // Mesh::ApplyLocalSlaveTransformation.
             }
 
-            MFEM_ASSERT(fi.NCFace < 0, "");
+            MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
             fi.NCFace = pmesh.nc_faces_info.Size();
             pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
          }

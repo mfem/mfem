@@ -437,6 +437,17 @@ public:
    /// be used for ASCII output.
    virtual void Save(const char *fname, int precision=16) const;
 
+   /// Returns a GridFunction on MPI rank @a save_rank that does not have any
+   /// duplication of vertices/nodes at processor boundaries.
+   /// serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
+   /// Note that the @ save_rank argument must match for the
+   /// ParMesh::GetSerialMesh and GetSerialGridFunction method.
+   GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
+
+   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// The given @a precision will be used for ASCII output.
+   void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
+
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of

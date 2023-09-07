@@ -16,6 +16,7 @@
 #include "array.hpp"
 #include "globals.hpp"
 #include <type_traits>
+#include <cstdint>
 
 namespace mfem
 {

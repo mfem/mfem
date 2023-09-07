@@ -87,6 +87,8 @@ public:
    ///
    /// If @ref iterative_mode is @a true, @a u is used as an initial guess.
    void Mult(const Vector &b, Vector &u) const;
+   /// Same as Mult() since the mass matrix is symmetric.
+   void MultTranspose(const Vector &b, Vector &u) const { Mult(b, u); }
    /// Not implemented. Aborts.
    void SetOperator(const Operator &op);
    /// Set the relative tolerance.

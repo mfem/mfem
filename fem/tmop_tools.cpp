@@ -419,7 +419,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
+      GetSurfaceFittingError(x_out_loc, avg_surf_fit_err, max_surf_fit_err);
       if (max_surf_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
@@ -519,7 +519,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       double avg_fit_err, max_fit_err = 0.0;
       if (surf_fit_max_threshold > 0.0)
       {
-         GetSurfaceFittingError(avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
       }
       if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
       {
@@ -662,7 +662,8 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+                                              double &err_avg,
                                               double &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -680,7 +681,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
             err_avg = std::fmax(err_avg_loc, err_avg);
             err_max = std::fmax(err_max_loc, err_max);
          }
@@ -693,7 +694,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
                err_avg = std::fmax(err_avg_loc, err_avg);
                err_max = std::fmax(err_max_loc, err_max);
             }
@@ -732,85 +733,52 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
    }
 
+   Vector x_loc;
+   const FiniteElementSpace *x_fes = nullptr;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
-      Vector x_loc(pfesc->GetVSize());
-      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
-         {
-            ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
-            ti->ComputeFDh(x_loc, *pfesc);
-            if (compute_metric_quantile_flag)
-            {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-            }
-            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
-               ati[j]->ComputeFDh(x_loc, *pfesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-               }
-               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
-            }
-         }
-      }
+
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetVSize());
+      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
 #endif
    }
    else
    {
-      const FiniteElementSpace *fesc = nlf->FESpace();
+      x_fes = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
-      Vector x_loc;
       if (P)
       {
          x_loc.SetSize(P->Height());
          P->Mult(x,x_loc);
       }
-      else
+      else { x_loc = x; }
+   }
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
       {
-         x_loc = x;
-      }
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
+         ti->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+         if (compute_metric_quantile_flag)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
-            ti->ComputeFDh(x_loc, *fesc);
+            ti->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->UpdateAfterMeshPositionChange(x_loc, *x_fes);
             if (compute_metric_quantile_flag)
             {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-            }
-            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
-               ati[j]->ComputeFDh(x_loc, *fesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-               }
-               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
+               ati[j]->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
             }
          }
       }
@@ -823,7 +791,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    if (update_surf_fit_coeff)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
       Array<double> weights;
       GetSurfaceFittingWeight(weights);
@@ -852,24 +820,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
       update_surf_fit_coeff = false;
-   }
-}
-
-void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new,
-                                        int x_ordering) const
-{
-   const bool update_flag = true;
-   DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
-   if (discrtc)
-   {
-      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
-      if (ti.GetFDFlag())
-      {
-         double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
-      }
    }
 }
 
