@@ -701,8 +701,8 @@ The specific libraries and their options are:
                 --download-mumps=yes --download-suitesparse=yes \
                 --with-hypre-dir=../hypre/src/hypre \
                 --with-shared-libraries=0
-  When building PETSc with HIP, one needs to add a flag like -std=c2x to CFLAGS
-  to allow proper parsing of the hipsparse header under C.
+  When building PETSc with HIP, one may need to add a flag like -std=c2x to
+  CFLAGS to allow proper parsing of the hipsparse header under C.
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
   Versions: PETSc >= 3.8.0   (PETSc build without CUDA/HIP)
