@@ -66,7 +66,9 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TESTNAME = Parallel PETSc example
+TESTNAME      = Parallel PETSc example
+TESTNAME_CUDA = Parallel CUDA PETSc example
+TESTNAME_HIP  = Parallel HIP PETSc example
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME))
 
@@ -108,12 +110,12 @@ ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_W))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_P))
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_CUDA))
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_CUDAAMG))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_CUDA),$(EX1_ARGS_CUDA))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_CUDA),$(EX1_ARGS_CUDAAMG))
 endif
 ifeq ($(MFEM_USE_HIP),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_HIP))
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX1_ARGS_HIPAMG))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_HIP),$(EX1_ARGS_HIP))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_HIP),$(EX1_ARGS_HIPAMG))
 endif
 ex2p-test-par: ex2p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX2_ARGS))
@@ -136,10 +138,10 @@ ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ES_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_IS_ARGS))
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ES_ARGS_CUDA))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_CUDA),$(EX9_ES_ARGS_CUDA))
 endif
 ifeq ($(MFEM_USE_HIP),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ES_ARGS_HIP))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_HIP),$(EX9_ES_ARGS_HIP))
 endif
 ex10p-test-par: ex10p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX10_ARGS))
@@ -151,11 +153,11 @@ ex11p-test-par: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_SINV))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG))
 ifeq ($(MFEM_USE_CUDA),YES)
-	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG_CUDA))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_CUDA),$(EX11_ARGS_LOBPCG_CUDA))
 endif
 # SLEPc does not support BVSVEC with HIP
 #ifeq ($(MFEM_USE_HIP),YES)
-#	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_LOBPCG_HIP))
+#	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME_HIP),$(EX11_ARGS_LOBPCG_HIP))
 #endif
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX11_ARGS_GD))
 endif
