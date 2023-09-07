@@ -2122,6 +2122,7 @@ void ParMesh::ExchangeFaceNbrData()
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
+      ExchangeFaceNbrNodes();
       return;
    }
 
