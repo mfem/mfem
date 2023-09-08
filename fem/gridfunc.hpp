@@ -800,7 +800,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
-                        bool with_coeff = false);
+                        bool with_flux = false);
 
 /// Defines the global tensor product polynomial space used by NewZZErorrEstimator
 /**
@@ -851,7 +851,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           GridFunction &u,                      // input
                           Vector &error_estimates,              // output
                           bool subdomain_reconstruction = true, // input (optional)
-                          bool with_coeff = false,              // input (optional)
+                          bool with_flux = false,              // input (optional)
                           double tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.

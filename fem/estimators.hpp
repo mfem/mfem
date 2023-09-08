@@ -100,7 +100,7 @@ protected:
 
    FiniteElementSpace *flux_space; /**< @brief Ownership based on own_flux_fes.
       Its Update() method is called automatically by this class when needed. */
-   bool with_coeff;
+   bool with_flux;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
    /// Check if the mesh of the solution was modified.
@@ -131,7 +131,7 @@ public:
         integ(integ),
         solution(sol),
         flux_space(flux_fes),
-        with_coeff(false),
+        with_flux(false),
         own_flux_fes(true)
    { }
 
@@ -151,13 +151,13 @@ public:
         integ(integ),
         solution(sol),
         flux_space(&flux_fes),
-        with_coeff(false),
+        with_flux(false),
         own_flux_fes(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
        the fluxes for the error estimator.*/
-   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
+   void SetWithCoeff(bool w_coeff = true) { with_flux = w_coeff; }
 
    /** @brief Enable/disable anisotropic estimates. To enable this option, the
        BilinearFormIntegrator must support the 'd_energy' parameter in its
@@ -249,7 +249,7 @@ protected:
 
    BilinearFormIntegrator &integ;
    GridFunction &solution;
-   bool with_coeff;
+   bool with_flux;
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -275,12 +275,12 @@ public:
         tichonov_coeff(0.0),
         integ(integ),
         solution(sol),
-        with_coeff(false)
+        with_flux(false)
    { }
 
    /** @brief Consider the coefficient in BilinearFormIntegrator to calculate
        the fluxes for the error estimator.*/
-   void SetWithCoeff(bool w_coeff = true) { with_coeff = w_coeff; }
+   void SetWithCoeff(bool w_coeff = true) { with_flux = w_coeff; }
 
    /** @brief Disable reconstructing the flux in patches spanning different
     *         subdomains. */
@@ -598,7 +598,7 @@ private:
    flux_space; /**< @brief Ownership based on own_flux_fes. */
    bool own_flux_fespace; ///< Ownership flag for flux_space.
 
-   bool with_coef; ///< Whether the flux or gradient should be used.
+   bool with_flux; ///< Whether the flux or gradient should be used.
 
 #ifdef MFEM_USE_MPI
    const bool isParallel;
@@ -631,12 +631,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
-      @param with_coef_   Whether the flux coefficient should be used or not.
+      @param with_flux_   Whether the flux coefficient should be used or not.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace& flux_fes_,
                        const Array<int> &attributes_ = Array<int>(),
-                       bool with_coef_ = true);
+                       bool with_flux_ = true);
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
        @param di_         The bilinearform to compute the interface flux.
@@ -645,12 +645,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
-      @param with_coef_   Whether the flux coefficient should be used or not.
+      @param with_flux_   Whether the flux coefficient should be used or not.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace* flux_fes_,
                        const Array<int> &attributes_ = Array<int>(),
-                       bool with_coef_ = true);
+                       bool with_flux_ = true);
 
    ~KellyErrorEstimator();
 

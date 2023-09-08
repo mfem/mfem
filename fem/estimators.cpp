@@ -25,7 +25,7 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
                                   flux_averaging,
-                                  with_coeff);
+                                  with_flux);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
@@ -36,7 +36,7 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     solution,
                                     error_estimates,
                                     subdomain_reconstruction,
-                                    with_coeff,
+                                    with_flux,
                                     tichonov_coeff);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
@@ -65,13 +65,13 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace& flux_fespace_,
                                          const Array<int> &attributes_,
-                                         bool with_coef_)
+                                         bool with_flux_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(&flux_fespace_)
    , own_flux_fespace(false)
-   , with_coef(with_coef_)
+   , with_flux(with_flux_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -83,13 +83,13 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace* flux_fespace_,
                                          const Array<int> &attributes_,
-                                         bool with_coef_)
+                                         bool with_flux_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(flux_fespace_)
    , own_flux_fespace(true)
-   , with_coef(with_coef_)
+   , with_flux(with_flux_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -211,7 +211,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ElementTransformation* Transf = xfes->GetElementTransformation(e);
       flux_integrator->ComputeElementFlux(*xfes->GetFE(e), *Transf, el_x,
-                                          *flux_space->GetFE(e), el_f, with_coef);
+                                          *flux_space->GetFE(e), el_f, with_flux);
 
       flux_space->GetElementVDofs(e, fdofs);
       flux->AddElementVector(fdofs, el_f);
