@@ -31,6 +31,7 @@ CMakeFiles/
 config/_config.hpp
 config/config.mk
 config/sample-runs-build.log
+config/user.cmake
 config/user.mk
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
@@ -114,6 +115,12 @@ examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
 examples/flux.*
+examples/dsol.*
+examples/cond.*
+examples/cond_j.*
+examples/cond_mesh.*
+examples/port_mesh.*
+examples/port_mode.*
 
 examples/amgx/ex1
 examples/amgx/ex1p
@@ -208,6 +215,7 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
@@ -216,6 +224,7 @@ miniapps/meshing/pmesh-fitting
 miniapps/meshing/minimal-surface
 miniapps/meshing/pminimal-surface
 miniapps/meshing/polar-nc
+miniapps/meshing/mesh-quality
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh
@@ -259,11 +268,15 @@ miniapps/navier/*_output
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_patch_ex1
+miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+miniapps/nurbs/sin-fit.mesh
+miniapps/nurbs/CurveInt
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -286,6 +299,7 @@ miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
+miniapps/tools/plor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
 miniapps/tools/tmop-metric-magnitude
@@ -318,6 +332,9 @@ miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
 
+miniapps/hdiv-linear-solver/darcy
+miniapps/hdiv-linear-solver/grad_div
+
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
@@ -334,6 +351,9 @@ miniapps/dpg/maxwell
 miniapps/dpg/pmaxwell
 miniapps/dpg/ParaView
 
+miniapps/spde/generate_random_field
+miniapps/spde/ParaView
+
 # Unit test binary and outputs
 tests/unit/output_meshes
 tests/unit/unit_tests
@@ -346,6 +366,8 @@ tests/unit/tmop_pa_tests_*
 tests/unit/ptmop_pa_tests_*
 tests/unit/ceed_tests
 tests/unit/debug_device_tests
+tests/unit/parallel_in_serial.mesh
+tests/unit/parallel_in_serial.gf
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

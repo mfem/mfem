@@ -583,6 +583,7 @@ void TMOPHRSolver::Mult()
 {
    Vector b(0);
    int myid = 0;
+   MFEM_CONTRACT_VAR(myid);
    if (serial)
    {
       tmopns->SetOperator(*nlf);
@@ -597,10 +598,6 @@ void TMOPHRSolver::Mult()
    if (!hradaptivity)
    {
       tmopns->Mult(b, x->GetTrueVector());
-      if (tmopns->GetConverged() == false)
-      {
-         if (myid == 0) { mfem::out << "Nonlinear solver: rtol not achieved.\n"; }
-      }
       x->SetFromTrueVector();
       return;
    }
