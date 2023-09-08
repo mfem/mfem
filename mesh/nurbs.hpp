@@ -259,6 +259,9 @@ protected:
    std::vector<std::vector<int>> masterEdgeSlaves;
    std::vector<std::vector<int>> masterEdgeVerts;
 
+   bool nonconforming = false;
+   std::map<int,int> e2nce;
+
    inline int         KnotInd(int edge) const;
    /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
@@ -355,6 +358,7 @@ protected:
 private:
    void GetVertexDofs(int index, Array<int> &dofs) const;
    int GetEdgeDofs(int index, Array<int> &dofs) const;
+
 
 public:
    /// Copy constructor: deep copy

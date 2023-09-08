@@ -5321,11 +5321,12 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
    skip_comment_lines(input, '#');
 
    string ident;
+   int inputNumOfEdges = -1;
 
    input >> ident; // 'edges'
-   input >> NumOfEdges;
+   input >> inputNumOfEdges;
 
-   MFEM_VERIFY(NumOfEdges == this->GetNEdges(), "");
+   MFEM_VERIFY(NumOfEdges == inputNumOfEdges, "");
 
    edge_to_knot.SetSize(NumOfEdges);
    for (int j = 0; j < NumOfEdges; j++)
