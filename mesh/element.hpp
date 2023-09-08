@@ -13,10 +13,9 @@
 #define MFEM_ELEMENT
 
 #include "../config/config.hpp"
+#include "../fem/geom.hpp"
 #include "../general/array.hpp"
 #include "../general/table.hpp"
-#include "../linalg/densemat.hpp"
-#include "../fem/geom.hpp"
 #include "../general/hash.hpp"
 
 namespace mfem
@@ -28,7 +27,6 @@ class Mesh;
 class Element
 {
 protected:
-
    /// Element's attribute (specifying material property, etc).
    int attribute;
 
@@ -36,7 +34,6 @@ protected:
    Geometry::Type base_geom;
 
 public:
-
    /// Constants for the classes derived from Element.
    enum Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
                TETRAHEDRON, HEXAHEDRON, WEDGE, PYRAMID
@@ -75,26 +72,20 @@ public:
 
    virtual const int *GetEdgeVertices(int) const = 0;
 
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const = 0;
-
    virtual int GetNFaces() const = 0;
 
    virtual int GetNFaceVertices(int fi) const = 0;
 
    virtual const int *GetFaceVertices(int fi) const = 0;
 
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length) {}
-
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const { return 0; }
 
    /// Set current coarse-fine transformation number.
-   virtual void ResetTransform(int tr) {}
+   virtual void ResetTransform(int tr) { }
 
    /// Add 'tr' to the current chain of coarse-fine transformations.
-   virtual void PushTransform(int tr) {}
+   virtual void PushTransform(int tr) { }
 
    /// Return current coarse-fine transformation.
    virtual unsigned GetTransform() const { return 0; }

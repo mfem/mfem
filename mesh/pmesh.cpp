@@ -20,6 +20,7 @@
 #include "../general/text.hpp"
 #include "../general/globals.hpp"
 
+#include <cstdint>
 #include <iostream>
 #include <fstream>
 
@@ -753,8 +754,10 @@ void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
             sface_lface[stria_counter] = lface;
             if (meshgen == 1) // Tet-only mesh
             {
-               Tetrahedron *tet = dynamic_cast<Tetrahedron *>
-                                  (elements[faces_info[lface].Elem1No]);
+               Element *elem = elements[faces_info[lface].Elem1No];
+               MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elem),
+                           "Unexpected non-Tetrahedron element")
+               auto *tet = static_cast<Tetrahedron *>(elem);
                // mark the shared face for refinement by reorienting
                // it according to the refinement flag in the tetrahedron
                // to which this shared face belongs to.
@@ -923,22 +926,21 @@ void ParMesh::FinalizeParTopo()
    }
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, int generate_edges,
+                 int refine, bool fix_orientation)
    : face_nbr_el_to_face(NULL)
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
+   , pncmesh(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+   Load(input, generate_edges, refine, fix_orientation);
+
    have_face_nbr_data = false;
-   pncmesh = NULL;
-
-   const int gen_edges = 1;
-
-   Load(input, gen_edges, refine, true);
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
@@ -1733,99 +1735,61 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
-void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
+void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order); // local edge ordering
+   Array<double> lengths;
+   GetEdgeLengths(v_to_v, lengths);
 
-   // create a GroupCommunicator on the shared edges
+   // create a GroupCommunicator over shared edges
    GroupCommunicator sedge_comm(gtopo);
-   GetSharedEdgeCommunicator(sedge_comm);
+   GetSharedEdgeCommunicator(0, sedge_comm);
 
-   Array<int> sedge_ord(shared_edges.Size());
-   Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
-   for (int k = 0; k < shared_edges.Size(); k++)
+   // communicate the local index of each shared edge from the group master to
+   // other ranks in the group
+   Array<int> sedge_master_rank(shared_edges.Size());
+   Array<int> sedge_master_index(shared_edges.Size());
+   for (int i = 0; i < group_sedge.Size(); i++)
    {
-      // sedge_ledge may be undefined -- use shared_edges and v_to_v instead
-      const int sedge = group_sedge.GetJ()[k];
+      int rank = gtopo.GetGroupMasterRank(i+1);
+      for (int j = 0; j < group_sedge.RowSize(i); j++)
+      {
+         sedge_master_rank[group_sedge.GetRow(i)[j]] = rank;
+      }
+   }
+   for (int i = 0; i < shared_edges.Size(); i++)
+   {
+      // sedge_ledge may be undefined so use shared_edges and v_to_v instead
+      const int sedge = group_sedge.GetJ()[i];
       const int *v = shared_edges[sedge]->GetVertices();
-      sedge_ord[k] = order[v_to_v(v[0], v[1])];
+      sedge_master_index[i] = v_to_v(v[0], v[1]);
    }
+   sedge_comm.Bcast(sedge_master_index);
 
-   sedge_comm.Bcast<int>(sedge_ord, 1);
-
-   for (int k = 0, gr = 1; gr < GetNGroups(); gr++)
+   // the pairs (master rank, master local index) define a globally consistent
+   // edge ordering
+   Array<std::int64_t> glob_edge_order(NumOfEdges);
+   for (int i = 0; i < NumOfEdges; i++)
    {
-      const int n = group_sedge.RowSize(gr-1);
-      if (n == 0) { continue; }
-      sedge_ord_map.SetSize(n);
-      for (int j = 0; j < n; j++)
-      {
-         sedge_ord_map[j].one = sedge_ord[k+j];
-         sedge_ord_map[j].two = j;
-      }
-      SortPairs<int, int>(sedge_ord_map, n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_from = group_sedge.GetJ()[k+j];
-         const int *v = shared_edges[sedge_from]->GetVertices();
-         sedge_ord[k+j] = order[v_to_v(v[0], v[1])];
-      }
-      std::sort(&sedge_ord[k], &sedge_ord[k] + n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
-         const int *v = shared_edges[sedge_to]->GetVertices();
-         order[v_to_v(v[0], v[1])] = sedge_ord[k+j];
-      }
-      k += n;
+      glob_edge_order[i] = (std::int64_t(MyRank) << 32) + i;
    }
-
-#ifdef MFEM_DEBUG
+   for (int i = 0; i < shared_edges.Size(); i++)
    {
-      Array<Pair<int, double> > ilen_len(order.Size());
-
-      for (int i = 0; i < NumOfVertices; i++)
-      {
-         for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
-         {
-            int j = it.Index();
-            ilen_len[j].one = order[j];
-            ilen_len[j].two = GetLength(i, it.Column());
-         }
-      }
-
-      SortPairs<int, double>(ilen_len, order.Size());
-
-      double d_max = 0.;
-      for (int i = 1; i < order.Size(); i++)
-      {
-         d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
-      }
-
-#if 0
-      // Debug message from every MPI rank.
-      mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-                << endl;
-#else
-      // Debug message just from rank 0.
-      double glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
-      if (MyRank == 0)
-      {
-         mfem::out << "glob_d_max = " << glob_d_max << endl;
-      }
-#endif
+      const int sedge = group_sedge.GetJ()[i];
+      const int *v = shared_edges[sedge]->GetVertices();
+      glob_edge_order[v_to_v(v[0], v[1])] =
+         (std::int64_t(sedge_master_rank[i]) << 32) + sedge_master_index[i];
    }
-#endif
 
-   // use 'order' to mark the tets, the boundary triangles, and the shared
+   // use the lengths to mark the tets, the boundary triangles, and the shared
    // triangle faces
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths,
+                                                           glob_edge_order);
       }
    }
 
@@ -1833,13 +1797,16 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths,
+                                                        glob_edge_order);
       }
    }
 
    for (int i = 0; i < shared_trias.Size(); i++)
    {
-      Triangle::MarkEdge(shared_trias[i].v, v_to_v, order);
+      Triangle::MarkEdge(shared_trias[i].v, v_to_v, lengths, glob_edge_order);
    }
 }
 
@@ -2058,6 +2025,7 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -2078,6 +2046,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
+   DeleteFaceNbrData();
    ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
    if (npfes)
    {
@@ -2091,6 +2060,7 @@ void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
 {
+   DeleteFaceNbrData();
    ParGridFunction *nodes = new ParGridFunction(npfes);
    SetNodalGridFunction(nodes, true);
 }
@@ -2099,19 +2069,17 @@ void ParMesh::EnsureParNodes()
 {
    if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
    {
+      DeleteFaceNbrData();
       ParFiniteElementSpace *pfes =
          new ParFiniteElementSpace(*Nodes->FESpace(), *this);
       ParGridFunction *new_nodes = new ParGridFunction(pfes);
-
       *new_nodes = *Nodes;
-
       if (Nodes->OwnFEC())
       {
          new_nodes->MakeOwner(Nodes->OwnFEC());
          Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
          delete Nodes->FESpace();
       }
-
       delete Nodes;
       Nodes = new_nodes;
    }
@@ -3288,23 +3256,21 @@ void ParMesh::ReorientTetMesh()
 
    // create a GroupCommunicator over shared vertices
    GroupCommunicator svert_comm(gtopo);
-   GetSharedVertexCommunicator(svert_comm);
+   GetSharedVertexCommunicator(0, svert_comm);
 
    // communicate the local index of each shared vertex from the group master to
    // other ranks in the group
    Array<int> svert_master_rank(svert_lvert.Size());
    Array<int> svert_master_index(svert_lvert);
+   for (int i = 0; i < group_svert.Size(); i++)
    {
-      for (int i = 0; i < group_svert.Size(); i++)
+      int rank = gtopo.GetGroupMasterRank(i+1);
+      for (int j = 0; j < group_svert.RowSize(i); j++)
       {
-         int rank = gtopo.GetGroupMasterRank(i+1);
-         for (int j = 0; j < group_svert.RowSize(i); j++)
-         {
-            svert_master_rank[group_svert.GetRow(i)[j]] = rank;
-         }
+         svert_master_rank[group_svert.GetRow(i)[j]] = rank;
       }
-      svert_comm.Bcast(svert_master_index);
    }
+   svert_comm.Bcast(svert_master_index);
 
    // the pairs (master rank, master local index) define a globally consistent
    // vertex ordering
@@ -3370,22 +3336,8 @@ void ParMesh::ReorientTetMesh()
    {
       // create a GroupCommunicator on the shared triangles
       GroupCommunicator stria_comm(gtopo);
-      {
-         // initialize stria_comm
-         Table &gr_stria = stria_comm.GroupLDofTable();
-         // gr_stria differs from group_stria - the latter does not store gr. 0
-         gr_stria.SetDims(GetNGroups(), shared_trias.Size());
-         gr_stria.GetI()[0] = 0;
-         for (int gr = 1; gr <= GetNGroups(); gr++)
-         {
-            gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
-         }
-         for (int k = 0; k < shared_trias.Size(); k++)
-         {
-            gr_stria.GetJ()[k] = group_stria.GetJ()[k];
-         }
-         stria_comm.Finalize();
-      }
+      GetSharedTriCommunicator(0, stria_comm);
+
       Array<int> stria_flag(shared_trias.Size());
       for (int i = 0; i < stria_flag.Size(); i++)
       {

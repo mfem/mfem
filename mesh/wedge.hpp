@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-/// Data type Wedge element
+/// Data type wedge element
 class Wedge : public Element
 {
 protected:
@@ -53,9 +53,6 @@ public:
 
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
-
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const;
 
    virtual int GetNFaces() const { return 5; }
 

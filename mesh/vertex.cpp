@@ -9,13 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
 #include "vertex.hpp"
 
 namespace mfem
 {
 
-Vertex::Vertex (double *xx, int dim)
+Vertex::Vertex(const double *xx, int dim)
 {
    for (int i = 0; i < dim; i++)
    {

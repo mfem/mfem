@@ -77,7 +77,9 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length);
+   template <typename T1, typename T2>
+   void MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
+                 const Array<T2> &length2);
 
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
@@ -96,14 +98,10 @@ public:
 
    virtual int GetNVertices() const { return 4; }
 
-   virtual int GetNEdges() const { return (6); }
+   virtual int GetNEdges() const { return 6; }
 
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
-
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
-   { nFaceVertices = 3; return 4; }
 
    virtual int GetNFaces() const { return 4; }
 
@@ -117,7 +115,6 @@ public:
    virtual ~Tetrahedron() { }
 };
 
-// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
 extern MFEM_EXPORT class Linear3DFiniteElement TetrahedronFE;
 
 }

@@ -9,16 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Finite Element classes
-
 #include "fe.hpp"
-
-#include <cmath>
 
 namespace mfem
 {
-
-using namespace std;
 
 // Global object definitions
 
@@ -27,13 +21,29 @@ using namespace std;
 Array2D<int> Poly_1D::binom;
 Poly_1D poly1d;
 
+// Object declared in mesh/point.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+PointFiniteElement PointFE;
+
+// Object declared in mesh/segment.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+Linear1DFiniteElement SegmentFE;
+
 // Object declared in mesh/triangle.hpp.
 // Defined here to ensure it is constructed before 'Geometries'.
 Linear2DFiniteElement TriangleFE;
 
+// Object declared in mesh/quadrilateral.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+BiLinear2DFiniteElement QuadrilateralFE;
+
 // Object declared in mesh/tetrahedron.hpp.
 // Defined here to ensure it is constructed before 'Geometries'.
 Linear3DFiniteElement TetrahedronFE;
+
+// Object declared in mesh/hexahedron.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+TriLinear3DFiniteElement HexahedronFE;
 
 // Object declared in mesh/wedge.hpp.
 // Defined here to ensure it is constructed before 'Geometries'.
@@ -44,8 +54,6 @@ LinearWedgeFiniteElement WedgeFE;
 LinearPyramidFiniteElement PyramidFE;
 
 // Object declared in geom.hpp.
-// Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', 'WedgeFE', and
-// PyramidFE.
 Geometry Geometries;
 
 }

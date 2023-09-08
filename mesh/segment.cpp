@@ -9,22 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
-#include "mesh_headers.hpp"
+#include "segment.hpp"
 
 namespace mfem
 {
 
-Segment::Segment( const int *ind, int attr ) : Element(Geometry::SEGMENT)
+Segment::Segment(const int *ind, int attr) : Element(Geometry::SEGMENT)
 {
    attribute = attr;
-   for (int i=0; i<2; i++)
+   for (int i = 0; i < 2; i++)
    {
       indices[i] = ind[i];
    }
 }
 
-Segment::Segment( int ind1, int ind2, int attr ) : Element(Geometry::SEGMENT)
+Segment::Segment(int ind1, int ind2, int attr) : Element(Geometry::SEGMENT)
 {
    attribute  = attr;
    indices[0] = ind1;
@@ -37,15 +36,13 @@ void Segment::SetVertices(const int *ind)
    indices[1] = ind[1];
 }
 
-void Segment::GetVertices( Array<int> &v ) const
+void Segment::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 2 );
-   for (int i=0; i<2; i++)
+   v.SetSize(2);
+   for (int i = 0; i < 2; i++)
    {
       v[i] = indices[i];
    }
 }
-
-Linear1DFiniteElement SegmentFE;
 
 }

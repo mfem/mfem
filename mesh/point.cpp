@@ -9,24 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
-#include "mesh_headers.hpp"
+#include "point.hpp"
 
 namespace mfem
 {
 
-Point::Point( const int *ind, int attr ) : Element(Geometry::POINT)
+Point::Point(const int *ind, int attr) : Element(Geometry::POINT)
 {
    attribute = attr;
    indices[0] = ind[0];
 }
 
-void Point::GetVertices( Array<int> &v ) const
+void Point::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 1 );
+   v.SetSize(1);
    v[0] = indices[0];
 }
-
-PointFiniteElement PointFE;
 
 }

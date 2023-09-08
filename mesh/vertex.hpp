@@ -13,7 +13,6 @@
 #define MFEM_VERTEX
 
 #include "../config/config.hpp"
-#include "../general/globals.hpp"
 
 namespace mfem
 {
@@ -29,24 +28,19 @@ public:
 
    // Trivial copy constructor and trivial copy assignment operator
 
-   Vertex (double *xx, int dim);
-   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
-   Vertex( double x, double y, double z)
+   Vertex(const double *xx, int dim);
+   Vertex(double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex(double x, double y, double z)
    { coord[0] = x; coord[1] = y; coord[2] = z; }
 
    /// Returns pointer to the coordinates of the vertex.
-   inline double * operator() () const { return (double*)coord; }
+   inline double *operator()() const { return (double *)coord; }
 
    /// Returns the i'th coordinate of the vertex.
-   inline double & operator() (int i) { return coord[i]; }
+   inline double &operator()(int i) { return coord[i]; }
 
    /// Returns the i'th coordinate of the vertex.
-   inline const double & operator() (int i) const { return coord[i]; }
-
-   /// (DEPRECATED) Set the coordinates of the Vertex.
-   /** @deprecated This old version of SetCoords is not always memory safe. */
-   MFEM_DEPRECATED void SetCoords(const double *p)
-   { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
+   inline const double &operator()(int i) const { return coord[i]; }
 
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const double *p)

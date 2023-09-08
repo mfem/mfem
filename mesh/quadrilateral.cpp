@@ -9,24 +9,23 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
-#include "mesh_headers.hpp"
+#include "quadrilateral.hpp"
 
 namespace mfem
 {
 
-Quadrilateral::Quadrilateral( const int *ind, int attr )
+Quadrilateral::Quadrilateral(const int *ind, int attr)
    : Element(Geometry::SQUARE)
 {
    attribute = attr;
-   for (int i=0; i<4; i++)
+   for (int i = 0; i < 4; i++)
    {
       indices[i] = ind[i];
    }
 }
 
-Quadrilateral::Quadrilateral( int ind1, int ind2, int ind3, int ind4,
-                              int attr ) : Element(Geometry::SQUARE)
+Quadrilateral::Quadrilateral(int ind1, int ind2, int ind3, int ind4, int attr)
+   : Element(Geometry::SQUARE)
 {
    attribute  = attr;
    indices[0] = ind1;
@@ -37,21 +36,19 @@ Quadrilateral::Quadrilateral( int ind1, int ind2, int ind3, int ind4,
 
 void Quadrilateral::SetVertices(const int *ind)
 {
-   for (int i=0; i<4; i++)
+   for (int i = 0; i < 4; i++)
    {
       indices[i] = ind[i];
    }
 }
 
-void Quadrilateral::GetVertices( Array<int> &v ) const
+void Quadrilateral::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 4 );
-   for (int i=0; i<4; i++)
+   v.SetSize(4);
+   for (int i = 0; i < 4; i++)
    {
       v[i] = indices[i];
    }
 }
-
-BiLinear2DFiniteElement QuadrilateralFE;
 
 }

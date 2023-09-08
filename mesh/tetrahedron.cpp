@@ -9,9 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of class Tetrahedron
+#include "tetrahedron.hpp"
 
-#include "mesh_headers.hpp"
+#include "../mesh/mesh.hpp"
+#include "../linalg/densemat.hpp"
+
+#include <cstdint>
 
 namespace mfem
 {
@@ -185,19 +188,30 @@ void Tetrahedron::SetVertices(const int *ind)
    }
 }
 
-void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
+template <typename T1, typename T2>
+void Tetrahedron::MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
+                           const Array<T2> &length2)
 {
-   int ind[4], i, j, l, L, type;
+   int e, j, ind[4], type;
+   T1 l, L;
+   T2 l2, L2;
+   auto Compare = [&length, &length2, &l, &l2, &L, &L2](int e)
+   {
+      constexpr T1 rtol = 1.0e-6;
+      l = length[e];
+      l2 = length2[e];
+      MFEM_ASSERT(l2 != L2, "Tie-breaking lengths should be unique for MarkEdge");
+      return (l > L * (1.0 + rtol) || (l > L * (1.0 - rtol) && l2 > L2));
+   };
 
-   // determine the longest edge
-   L = length[v_to_v(indices[0], indices[1])]; j = 0;
-   if ((l = length[v_to_v(indices[1], indices[2])]) > L) { L = l; j = 1; }
-   if ((l = length[v_to_v(indices[2], indices[0])]) > L) { L = l; j = 2; }
-   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; j = 3; }
-   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; j = 4; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { j = 5; }
+   e = v_to_v(indices[0], indices[1]); L = length[e]; L2 = length2[e]; j = 0;
+   if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
+   if (Compare(v_to_v(indices[2], indices[0]))) { L = l; L2 = l2; j = 2; }
+   if (Compare(v_to_v(indices[0], indices[3]))) { L = l; L2 = l2; j = 3; }
+   if (Compare(v_to_v(indices[1], indices[3]))) { L = l; L2 = l2; j = 4; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { j = 5; }
 
-   for (i = 0; i < 4; i++)
+   for (int i = 0; i < 4; i++)
    {
       ind[i] = indices[i];
    }
@@ -229,13 +243,14 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
    // Determine the two longest edges for the other two faces and
    // store them in ind[0] and ind[1]
    ind[0] = 2; ind[1] = 1;
-   L = length[v_to_v(indices[0], indices[2])];
-   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; ind[0] = 3; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { ind[0] = 5; }
 
-   L = length[v_to_v(indices[1], indices[2])];
-   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; ind[1] = 4; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { ind[1] = 5; }
+   e = v_to_v(indices[0], indices[2]); L = length[e]; L2 = length2[e];
+   if (Compare(v_to_v(indices[0], indices[3]))) { L = l; L2 = l2; ind[0] = 3; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { L = l; L2 = l2; ind[0] = 5; }
+
+   e = v_to_v(indices[1], indices[2]); L = length[e]; L2 = length2[e];
+   if (Compare(v_to_v(indices[1], indices[3]))) { L = l; L2 = l2; ind[1] = 4; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { L = l; L2 = l2; ind[1] = 5; }
 
    j = 0;
    switch (ind[0])
@@ -345,5 +360,14 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
    tet->SetRefinementFlag(refinement_flag);
    return tet;
 }
+
+// @cond DOXYGEN_SKIP
+
+template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
+                                    const Array<int> &);
+template void Tetrahedron::MarkEdge(const DSTable &, const Array<double> &,
+                                    const Array<std::int64_t> &);
+
+// @endcond
 
 }

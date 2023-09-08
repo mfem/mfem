@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-/// Data type Pyramid element
+/// Data type pyramid element
 class Pyramid : public Element
 {
 protected:
@@ -54,13 +54,10 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const;
-
    virtual int GetNFaces() const { return 5; }
 
    virtual int GetNFaceVertices(int fi) const
-   { return ( ( fi < 1 ) ? 4 : 3); }
+   { return (fi < 1) ? 4 : 3; }
 
    virtual const int *GetFaceVertices(int fi) const
    { return geom_t::FaceVert[fi]; }
@@ -71,7 +68,7 @@ public:
    virtual ~Pyramid() { }
 };
 
-extern class LinearPyramidFiniteElement PyramidFE;
+extern MFEM_EXPORT class LinearPyramidFiniteElement PyramidFE;
 
 }
 

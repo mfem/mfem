@@ -9,7 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "mesh_headers.hpp"
+#include "triangle.hpp"
+
+#include "../linalg/densemat.hpp"
+
+#include <cstdint>
 
 namespace mfem
 {
@@ -50,63 +54,28 @@ void Triangle::SetVertices(const int *ind)
    }
 }
 
-void Triangle::MarkEdge(DenseMatrix &pmat)
+// static method
+template <typename T1, typename T2>
+void Triangle::MarkEdge(int indices[3], const DSTable &v_to_v,
+                        const Array<T1> &length, const Array<T2> &length2)
 {
-   double d[3];
-   int shift, v;
-
-   d[0] = ( (pmat(0,1)-pmat(0,0))*(pmat(0,1)-pmat(0,0)) +
-            (pmat(1,1)-pmat(1,0))*(pmat(1,1)-pmat(1,0)) );
-   d[1] = ( (pmat(0,2)-pmat(0,1))*(pmat(0,2)-pmat(0,1)) +
-            (pmat(1,2)-pmat(1,1))*(pmat(1,2)-pmat(1,1)) );
-   d[2] = ( (pmat(0,2)-pmat(0,0))*(pmat(0,2)-pmat(0,0)) +
-            (pmat(1,2)-pmat(1,0))*(pmat(1,2)-pmat(1,0)) );
-
-   // if pmat has 3 rows, then use extra term in each sum
-   if (pmat.Height()==3)
+   int e, j, ind[3];
+   T1 l, L;
+   T2 l2, L2;
+   auto Compare = [&length, &length2, &l, &l2, &L, &L2](int e)
    {
-      d[0] += (pmat(2,1)-pmat(2,0))*(pmat(2,1)-pmat(2,0));
-      d[1] += (pmat(2,2)-pmat(2,1))*(pmat(2,2)-pmat(2,1));
-      d[2] += (pmat(2,2)-pmat(2,0))*(pmat(2,2)-pmat(2,0));
-   }
+      constexpr T1 rtol = 1.0e-6;
+      l = length[e];
+      l2 = length2[e];
+      MFEM_ASSERT(l2 != L2, "Tie-breaking lengths should be unique for MarkEdge");
+      return (l > L * (1.0 + rtol) || (l > L * (1.0 - rtol) && l2 > L2));
+   };
 
-   if (d[0] >= d[1])
-   {
-      if (d[0] >= d[2]) { shift = 0; }
-      else { shift = 2; }
-   }
-   else if (d[1] >= d[2]) { shift = 1; }
-   else { shift = 2; }
+   e = v_to_v(indices[0], indices[1]); L = length[e]; L2 = length2[e]; j = 0;
+   if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
+   if (Compare(v_to_v(indices[2], indices[0]))) { j = 2; }
 
-   switch (shift)
-   {
-      case 0:
-         break;
-      case 1:
-         v = indices[0];
-         indices[0] = indices[1];
-         indices[1] = indices[2];
-         indices[2] = v;
-         break;
-      case 2:
-         v = indices[0];
-         indices[0] = indices[2];
-         indices[2] = indices[1];
-         indices[1] = v;
-         break;
-   }
-}
-
-// Static method
-void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
-{
-   int l, L, j, ind[3], i;
-
-   L = length[ v_to_v(indices[0], indices[1]) ]; j = 0;
-   if ( (l = length[ v_to_v(indices[1], indices[2]) ]) > L ) { L = l; j = 1; }
-   if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { j = 2; }
-
-   for (i = 0; i < 3; i++)
+   for (int i = 0; i < 3; i++)
    {
       ind[i] = indices[i];
    }
@@ -194,4 +163,13 @@ void Triangle::GetVertices(Array<int> &v) const
    }
 }
 
-} // namespace mfem
+// @cond DOXYGEN_SKIP
+
+template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
+                                 const Array<int> &);
+template void Triangle::MarkEdge(int *, const DSTable &, const Array<double> &,
+                                 const Array<std::int64_t> &);
+
+// @endcond
+
+}

@@ -9,8 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-
-#include "mesh_headers.hpp"
+#include "hexahedron.hpp"
 
 namespace mfem
 {
@@ -27,7 +26,8 @@ Hexahedron::Hexahedron(const int *ind, int attr)
 
 Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
                        int ind5, int ind6, int ind7, int ind8,
-                       int attr) : Element(Geometry::CUBE)
+                       int attr)
+   : Element(Geometry::CUBE)
 {
    attribute  = attr;
    indices[0] = ind1;
@@ -48,7 +48,5 @@ void Hexahedron::GetVertices(Array<int> &v) const
       v[i] = indices[i];
    }
 }
-
-TriLinear3DFiniteElement HexahedronFE;
 
 }

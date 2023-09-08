@@ -24,6 +24,7 @@
 
 namespace mfem
 {
+
 #ifdef MFEM_USE_PUMI
 class ParPumiMesh;
 #endif
@@ -31,9 +32,16 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-protected:
+   friend class ParNCMesh;
    friend class ParSubMesh;
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
 
+protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -104,7 +112,7 @@ protected:
 
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
-   void MarkTetMeshForRefinement(DSTable &v_to_v) override;
+   void MarkTetMeshForRefinement(const DSTable &v_to_v) override;
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
@@ -311,7 +319,8 @@ public:
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a refine parameter is passed to the method Mesh::Finalize(). */
-   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
+   ParMesh(MPI_Comm comm, std::istream &input, int generate_edges = 0,
+           int refine = 1, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
@@ -668,14 +677,6 @@ public:
    void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
-
-   friend class ParNCMesh;
-#ifdef MFEM_USE_PUMI
-   friend class ParPumiMesh;
-#endif
-#ifdef MFEM_USE_ADIOS2
-   friend class adios2stream;
-#endif
 };
 
 }

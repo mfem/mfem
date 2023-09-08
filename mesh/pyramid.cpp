@@ -9,9 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementation of class Pyramid
-
-#include "mesh_headers.hpp"
+#include "pyramid.hpp"
 
 namespace mfem
 {
@@ -52,13 +50,6 @@ void Pyramid::GetVertices(Array<int> &v) const
    {
       v[i] = indices[i];
    }
-}
-
-int Pyramid::GetNFaces(int &nFaceVertices) const
-{
-   MFEM_ABORT("this method is not valid for Pyramid elements");
-   nFaceVertices = 4;
-   return 5;
 }
 
 }

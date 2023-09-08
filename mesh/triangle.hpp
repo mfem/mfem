@@ -13,7 +13,6 @@
 #define MFEM_TRIANGLE
 
 #include "../config/config.hpp"
-#include "../fem/fe.hpp"
 #include "element.hpp"
 
 namespace mfem
@@ -50,13 +49,14 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   void MarkEdge(DenseMatrix & pmat);
+   template <typename T1, typename T2>
+   void MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
+                 const Array<T2> &length2)
+   { MarkEdge(indices, v_to_v, length, length2); }
 
-   static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(const DSTable &v_to_v, const int *length)
-   { MarkEdge(indices, v_to_v, length); }
+   template <typename T1, typename T2>
+   static void MarkEdge(int *indices, const DSTable &v_to_v,
+                        const Array<T1> &length, const Array<T2> &length2);
 
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
@@ -75,21 +75,16 @@ public:
 
    virtual int GetNVertices() const { return 3; }
 
-   virtual int GetNEdges() const { return (3); }
+   virtual int GetNEdges() const { return 3; }
 
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
-
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
-   { nFaceVertices = 0; return 0; }
 
    virtual int GetNFaces() const { return 0; }
 
    virtual int GetNFaceVertices(int) const { return 0; }
 
-   virtual const int *GetFaceVertices(int fi) const
-   { MFEM_ABORT("not implemented"); return NULL; }
+   virtual const int *GetFaceVertices(int fi) const { return NULL; }
 
    virtual Element *Duplicate(Mesh *m) const
    { return new Triangle(indices, attribute); }
@@ -97,8 +92,7 @@ public:
    virtual ~Triangle() { }
 };
 
-// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
-extern MFEM_EXPORT Linear2DFiniteElement TriangleFE;
+extern MFEM_EXPORT class Linear2DFiniteElement TriangleFE;
 
 }
 

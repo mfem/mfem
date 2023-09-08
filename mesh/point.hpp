@@ -30,25 +30,21 @@ public:
    Point() : Element(Geometry::POINT) {}
 
    /// Constructs point by specifying the indices and the attribute.
-   Point( const int *ind, int attr = -1 );
+   Point(const int *ind, int attr = 1);
 
    /// Return element's type.
    virtual Type GetType() const { return Element::POINT; }
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices( Array<int> &v ) const;
+   /// Returns the indices of the element's vertices.
+   virtual void GetVertices(Array<int> &v) const;
 
-   virtual int * GetVertices () { return indices; }
+   virtual int *GetVertices() { return indices; }
 
    virtual int GetNVertices() const { return 1; }
 
-   virtual int GetNEdges() const { return (0); }
+   virtual int GetNEdges() const { return 0; }
 
    virtual const int *GetEdgeVertices(int ei) const { return NULL; }
-
-   /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const
-   { nFaceVertices = 0; return 0; }
 
    virtual int GetNFaces() const { return 0; }
 
@@ -62,8 +58,7 @@ public:
    virtual ~Point() { }
 };
 
-class PointFiniteElement;
-extern MFEM_EXPORT PointFiniteElement PointFE;
+extern MFEM_EXPORT class PointFiniteElement PointFE;
 
 }
 

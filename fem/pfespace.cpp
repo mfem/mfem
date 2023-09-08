@@ -43,7 +43,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
-   ParMesh *pm, const FiniteElementSpace *global_fes, const int *partitioning,
+   ParMesh *pm, const FiniteElementSpace *global_fes,
    const FiniteElementCollection *f)
    : FiniteElementSpace(pm, MakeLocalNURBSext(global_fes->GetNURBSext(),
                                               pm->NURBSext),
