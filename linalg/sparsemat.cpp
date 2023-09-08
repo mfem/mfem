@@ -3928,7 +3928,7 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
 }
 
 SparseMatrix * Add(double a, const SparseMatrix & A, double b,
-                   const SparseMatrix & B)
+                   const SparseMatrix & B, bool set)
 {
    int nrows = A.Height();
    int ncols = A.Width();
@@ -3999,7 +3999,7 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
             marker[jcol] = pos;
             pos++;
          }
-         else
+         else if (!set)
          {
             C_data[marker[jcol]] += b*B_data[ib];
          }
@@ -4010,12 +4010,12 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
    return new SparseMatrix(C_i, C_j, C_data, nrows, ncols);
 }
 
-SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
+SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B, bool set)
 {
-   return Add(1.,A,1.,B);
+   return Add(1., A, 1., B, set);
 }
 
-SparseMatrix * Add(Array<SparseMatrix *> & Ai)
+SparseMatrix * Add(Array<SparseMatrix *> & Ai, bool set)
 {
    MFEM_ASSERT(Ai.Size() > 0, "invalid size Ai.Size() = " << Ai.Size());
 
@@ -4024,7 +4024,7 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 
    for (int i=1; i < Ai.Size(); ++i)
    {
-      result = Add(*accumulate, *Ai[i]);
+      result = Add(*accumulate, *Ai[i], set);
       if (i != 1)
       {
          delete accumulate;

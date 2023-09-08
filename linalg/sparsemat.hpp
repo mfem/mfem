@@ -764,12 +764,13 @@ SparseMatrix *Mult_AtDA(const SparseMatrix &A, const Vector &D,
 
 
 /// Matrix addition result = A + B.
-SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B);
+SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B,
+                   bool set = false);
 /// Matrix addition result = a*A + b*B
 SparseMatrix * Add(double a, const SparseMatrix & A, double b,
-                   const SparseMatrix & B);
+                   const SparseMatrix & B, bool set = false);
 /// Matrix addition result = sum_i A_i
-SparseMatrix * Add(Array<SparseMatrix *> & Ai);
+SparseMatrix * Add(Array<SparseMatrix *> & Ai, bool set = false);
 
 /// B += alpha * A
 void Add(const SparseMatrix &A, double alpha, DenseMatrix &B);

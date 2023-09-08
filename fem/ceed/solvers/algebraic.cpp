@@ -33,12 +33,22 @@ namespace ceed
 
 #ifdef MFEM_USE_CEED
 
+int CeedInternalCallocArray(size_t n, size_t unit, void *p)
+{
+   *(void **)p = calloc(n, unit);
+   MFEM_ASSERT(!n || !unit || *(void **)p,
+               "calloc failed to allocate " << n << " members of size " << unit "\n");
+   return 0;
+}
+
 int CeedInternalFree(void *p)
 {
    free(*(void **)p);
    *(void **)p = NULL;
    return 0;
 }
+
+#define CeedInternalCalloc(n, p) CeedInternalCallocArray((n), sizeof(**(p)), p)
 
 /** Wraps a CeedOperator in an mfem::Operator, with essential boundary
     conditions and a prolongation operator for parallel application. */
@@ -117,7 +127,7 @@ Solver *BuildSmootherFromCeed(ConstrainedOperator &op, bool chebyshev)
    ierr = CeedVectorCreate(internal::ceed, length, &diagceed); PCeedChk(ierr);
    CeedMemType mem;
    ierr = CeedGetPreferredMemType(internal::ceed, &mem); PCeedChk(ierr);
-   if (!Device::Allows(Backend::CUDA) || mem != CEED_MEM_DEVICE)
+   if (!Device::Allows(Backend::DEVICE_MASK) || mem != CEED_MEM_DEVICE)
    {
       mem = CEED_MEM_HOST;
    }
@@ -341,7 +351,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
          ceed_operators[ilevel], *essentialTrueDofs[ilevel], P);
       Solver *smoother;
 #ifdef MFEM_USE_MPI
-      if (ilevel == 0 && !Device::Allows(Backend::CUDA))
+      if (ilevel == 0 && !Device::Allows(Backend::DEVICE_MASK))
       {
          HypreParMatrix *P_mat = NULL;
          if (nlevels == 1)
@@ -404,7 +414,7 @@ int AlgebraicInterpolation::Initialize(
    ierr = CeedOperatorCreate(ceed, qf_restrict, CEED_QFUNCTION_NONE,
                              CEED_QFUNCTION_NONE, &op_restrict); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_restrict, "input", erestrictu_fine,
-                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
+                               CEED_BASIS_NONE, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_restrict, "output", erestrictu_coarse,
                                basisctof, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
 
@@ -415,7 +425,7 @@ int AlgebraicInterpolation::Initialize(
    ierr =  CeedOperatorSetField(op_interp, "input", erestrictu_coarse,
                                 basisctof, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_interp, "output", erestrictu_fine,
-                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
+                               CEED_BASIS_NONE, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
 
    ierr = CeedElemRestrictionGetMultiplicity(erestrictu_fine,
                                              c_fine_multiplicity); PCeedChk(ierr);
@@ -1034,7 +1044,7 @@ SparseMatrix *CeedOperatorFullAssemble(BilinearForm &form, bool set)
                "currently supported in CeedOperatorFullAssemble.");
 
    // This method frees all the no longer used memory from mat_i
-   return Add(mat_i);
+   return Add(mat_i, set);
 }
 
 SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set)
@@ -1054,7 +1064,7 @@ SparseMatrix *CeedOperatorFullAssemble(MixedBilinearForm &form, bool set)
                "currently supported in CeedOperatorFullAssemble.");
 
    // This method frees all the no longer used memory from mat_i
-   return Add(mat_i);
+   return Add(mat_i, set);
 }
 
 SparseMatrix *CeedOperatorFullAssemble(CeedOperator op, bool set)
@@ -1067,6 +1077,7 @@ SparseMatrix *CeedOperatorFullAssemble(CeedOperator op, bool set)
    ierr = CeedOperatorGetActiveVectorLengths(op, &l_in, &l_out); PCeedChk(ierr);
    MFEM_VERIFY((int)l_in == l_in && (int)l_out == l_out, "Size overflow.");
 
+   // rows, cols are always host pointers
    CeedSize nnz;
    CeedInt *rows, *cols;
    ierr = CeedOperatorLinearAssembleSymbolic(op, &nnz, &rows, &cols);
@@ -1076,30 +1087,125 @@ SparseMatrix *CeedOperatorFullAssemble(CeedOperator op, bool set)
    ierr = CeedVectorCreate(ceed, nnz, &vals); PCeedChk(ierr);
    ierr = CeedOperatorLinearAssemble(op, vals); PCeedChk(ierr);
 
-   mfem::SparseMatrix *mat = new SparseMatrix(l_out, l_in);
-
-   const CeedScalar *val_array;
-   ierr = CeedVectorGetArrayRead(vals, CEED_MEM_HOST, &val_array); PCeedChk(ierr);
-   for (CeedSize k = 0; k < nnz; ++k)
+   CeedMemType mem;
+   ierr = CeedGetPreferredMemType(ceed, &mem); PCeedChk(ierr);
+   if (!Device::Allows(Backend::DEVICE_MASK) || mem != CEED_MEM_DEVICE)
    {
+      mem = CEED_MEM_HOST;
+   }
+
+   // Preallocate CSR memory on host (like PETSc MatSetValuesCOO)
+   SparseMatrix *mat = new SparseMatrix;
+   mat->OverrideSize(l_out, l_in);
+   mat->GetMemoryI().New(l_out + 1);
+   auto *I = mat->GetI();
+
+   Array<int> J(nnz), perm(nnz), Jmap(nnz + 1);
+   Array<int> perm2, backup_perm, backup_cols;
+
+   for (int i = 0; i < l_out + 1; i++) { I[i] = 0; }
+   for (int k = 0; k < nnz; k++) { perm[k] = k; }
+   std::sort(perm.begin(), perm.end(),
+   [&](const int &i, const int &j) { return (rows[i] < rows[j]); });
+
+   int q = -1;  // True nnz index
+   for (int k = 0; k < nnz;)
+   {
+      const int row = rows[perm[k]];
+      const int start = k;
+      while (k < nnz && rows[perm[k]] == row) { k++; }
+      const int row_nnz = k - start;
+
+      // Sort column entries in the row
+      perm2.SetSize(row_nnz);
+      backup_perm.SetSize(row_nnz);
+      backup_cols.SetSize(row_nnz);
+      for (int p = 0; p < row_nnz; p++)
+      {
+         perm2[p] = p;
+         backup_perm[p] = perm[start + p];
+         backup_cols[p] = cols[perm[start + p]];
+      }
+      std::sort(perm2.begin(), perm2.end(),
+                [&](const int &i, const int &j)
+      { return (backup_cols[i] < backup_cols[j]); });
+      for (int p = 0; p < row_nnz; p++)
+      {
+         perm[start + p] = backup_perm[perm2[p]];
+         cols[perm[start + p]] = backup_cols[perm2[p]];
+      }
+
+      q++;
+      I[row + 1] = 1;
+      J[q] = cols[perm[start]];
+      Jmap[q + 1] = 1;
+      for (int p = start + 1; p < k; p++)
+      {
+         if (cols[perm[p]] != cols[perm[p - 1]])
+         {
+            // New nonzero
+            q++;
+            I[row + 1]++;
+            J[q] = cols[perm[p]];
+            Jmap[q + 1] = 1;
+         }
+         else
+         {
+            Jmap[q + 1]++;
+         }
+      }
+   }
+   const int nnz_new = q + 1;
+
+   // Finalize I, Jmap
+   I[0] = 0;
+   for (int i = 0; i < l_out; i++) { I[i + 1] += I[i]; }
+   Jmap[0] = 0;
+   for (int k = 0; k < nnz; k++) { Jmap[k + 1] += Jmap[k]; }
+
+   mat->GetMemoryJ().New(nnz_new, mat->GetMemoryJ().GetMemoryType());
+   mat->GetMemoryData().New(nnz_new, mat->GetMemoryJ().GetMemoryType());
+   {
+      const auto *d_J_old = J.Read();
+      auto *d_J = mfem::Write(mat->GetMemoryJ(), nnz_new);
+      mfem::forall(nnz_new, [=] MFEM_HOST_DEVICE (int k)
+      {
+         d_J[k] = d_J_old[k];
+      });
+   }
+
+   // Fill the values (on device)
+   const CeedScalar *vals_array;
+   ierr = CeedVectorGetArrayRead(vals, mem, &vals_array); PCeedChk(ierr);
+   {
+      const auto *d_perm = perm.Read();
+      const auto *d_Jmap = Jmap.Read();
+      auto *d_A = mfem::Write(mat->GetMemoryData(), nnz_new);
       if (set)
       {
-         mat->Set(rows[k], cols[k], val_array[k]);
+         mfem::forall(nnz_new, [=] MFEM_HOST_DEVICE (int k)
+         {
+            d_A[k] = vals_array[d_perm[d_Jmap[k]]];
+         });
       }
       else
       {
-         mat->Add(rows[k], cols[k], val_array[k]);
+         mfem::forall(nnz_new, [=] MFEM_HOST_DEVICE (int k)
+         {
+            double sum = 0.0;
+            for (int p = d_Jmap[k]; p < d_Jmap[k + 1]; p++)
+            {
+               sum += vals_array[d_perm[p]];
+            }
+            d_A[k] = sum;
+         });
       }
    }
-   ierr = CeedVectorRestoreArrayRead(vals, &val_array); PCeedChk(ierr);
+   ierr = CeedVectorRestoreArrayRead(vals, &vals_array); PCeedChk(ierr);
 
    ierr = CeedVectorDestroy(&vals); PCeedChk(ierr);
    ierr = CeedInternalFree(&rows); PCeedChk(ierr);
    ierr = CeedInternalFree(&cols); PCeedChk(ierr);
-
-   // Enforce structurally symmetric for later elimination
-   const int skip_zeros = 0;
-   mat->Finalize(skip_zeros);
 
    return mat;
 }
