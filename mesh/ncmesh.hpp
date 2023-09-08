@@ -282,6 +282,10 @@ public:
       }
    }
 
+   const Array<int>& GetVertexToKnot() const
+   {
+      return vertex_to_knot;
+   }
 
    // coarse/fine transforms
 
@@ -969,6 +973,8 @@ protected: // implementation
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 
+   void LoadVertexToKnot(std::istream &input);
+
    /** Print the "boundary" section of the mesh file.
        If out == NULL, only return the number of boundary elements. */
    int PrintBoundary(std::ostream *out) const;
@@ -979,6 +985,8 @@ protected: // implementation
    void PrintCoordinates(std::ostream &out) const;
    /// Load the "coordinates" section of the mesh file.
    void LoadCoordinates(std::istream &input);
+
+   void PrintVertexToKnot(std::ostream &os) const;
 
    /// Count root elements and initialize root_state.
    void InitRootElements();
@@ -1010,6 +1018,8 @@ protected: // implementation
    };
 
    static GeomInfo GI[Geometry::NumGeom];
+
+   Array<int> vertex_to_knot;
 
 #ifdef MFEM_DEBUG
 public:

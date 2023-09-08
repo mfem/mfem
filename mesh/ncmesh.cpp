@@ -5504,6 +5504,30 @@ void NCMesh::LoadVertexParents(std::istream &input)
    }
 }
 
+void NCMesh::LoadVertexToKnot(std::istream &input)
+{
+   int nv;
+   input >> nv;
+   MFEM_VERIFY(0 <= nv, "Invalid vertex-to-knot data");
+   vertex_to_knot.SetSize(4 * nv);
+   for (int i=0; i<nv; ++i)
+   {
+      int id, p1, p2, k;
+      input >> id >> k >> p1 >> p2;
+      MFEM_VERIFY(input, "problem reading vertex parents.");
+
+      MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
+      MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
+      MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
+      MFEM_VERIFY(0 < k, "Invalid knot index");
+
+      vertex_to_knot[(4*i) + 0] = id;
+      vertex_to_knot[(4*i) + 1] = k;
+      vertex_to_knot[(4*i) + 2] = p1;
+      vertex_to_knot[(4*i) + 3] = p2;
+   }
+}
+
 int NCMesh::PrintBoundary(std::ostream *os) const
 {
    static const int nfv2geom[5] =
@@ -5596,6 +5620,22 @@ void NCMesh::PrintCoordinates(std::ostream &os) const
       for (int j = 1; j < spaceDim; j++)
       {
          os << " " << coordinates[3*i + j];
+      }
+      os << "\n";
+   }
+}
+
+void NCMesh::PrintVertexToKnot(std::ostream &os) const
+{
+   const int nv = vertex_to_knot.Size() / 4;
+   os << nv << "\n";
+
+   for (int i = 0; i < nv; i++)
+   {
+      os << vertex_to_knot[4*i];
+      for (int j = 1; j < 4; j++)
+      {
+         os << " " << vertex_to_knot[4*i + j];
       }
       os << "\n";
    }
@@ -5704,6 +5744,12 @@ void NCMesh::Print(std::ostream &os, bool nurbs) const
       {
          os << root_state[i] << "\n";
       }
+   }
+
+   if (nurbs && vertex_to_knot.Size())
+   {
+      os << "\nvertex_to_knot\n";
+      PrintVertexToKnot(os);
    }
 
    if (coordinates.Size())
@@ -5886,6 +5932,15 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    if (ident == "vertex_parents")
    {
       LoadVertexParents(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   // load map from hanging patch vertices to patch edge knots
+   if (ident == "vertex_to_knot")
+   {
+      LoadVertexToKnot(input);
 
       skip_comment_lines(input, '#');
       input >> ident;
