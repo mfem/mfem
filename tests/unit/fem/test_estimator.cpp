@@ -225,7 +225,6 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(2, 3);
-   // const auto element = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
    const auto element = Element::HEXAHEDRON;
    CAPTURE(order, element);
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
