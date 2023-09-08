@@ -61,6 +61,7 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
    // Setup
    const auto order = GENERATE(1, 3, 5);
    const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
@@ -145,6 +146,7 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
    ConstantCoefficient one(1.0);
    const auto order = GENERATE(1, 2, 3, 4);
    const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
@@ -225,6 +227,7 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
    const auto order = GENERATE(2, 3);
    // const auto element = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
    const auto element = Element::HEXAHEDRON;
+   CAPTURE(order, element);
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
 
    // Make the mesh NC
@@ -346,6 +349,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
    // Setup
    const auto order = GENERATE(1, 3, 5);
    const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
@@ -446,6 +450,7 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
+   CAPTURE(order);
 
    // Manually construct embedded mesh
    std::array<double, 4*3> vertices =
@@ -593,6 +598,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
    const auto order = GENERATE(1, 4, 5);
    const auto element = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
    const auto nrefs = GENERATE(0, 1);
+   CAPTURE(order, element, nrefs);
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
 
    // Make the mesh NC
