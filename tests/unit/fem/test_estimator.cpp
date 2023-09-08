@@ -83,9 +83,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")
@@ -100,9 +100,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -117,9 +117,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -134,9 +134,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 }
 
@@ -217,8 +217,8 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
       x.Update();
 
    }
-   REQUIRE(rate < order/2.0 + 1e-1);
-   REQUIRE(rate > order/2.0 - 1e-1);
+   CHECK(rate < order/2.0 + 1e-1);
+   CHECK(rate > order/2.0 - 1e-1);
 }
 
 TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
@@ -248,9 +248,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")
@@ -265,9 +265,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Z")
@@ -282,9 +282,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -299,9 +299,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -316,9 +316,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Z")
@@ -333,9 +333,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
 }
@@ -379,9 +379,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Y")
@@ -398,9 +398,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -417,9 +417,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -436,9 +436,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    delete pmesh;
@@ -525,9 +525,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Y")
@@ -544,9 +544,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -563,9 +563,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -582,9 +582,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    delete pmesh;
@@ -658,7 +658,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
    }
 
@@ -676,7 +676,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
    }
 
@@ -694,7 +694,7 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
    }
 
@@ -714,10 +714,10 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
       // Jump is 2 by construction (so jump squared is constant 4) and we have 2 elements per face.
-      REQUIRE(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
+      CHECK(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -736,10 +736,10 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
       // Jump is 2 by construction (so jump squared is constant 4) and we have 2 elements per face.
-      REQUIRE(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
+      CHECK(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
    }
 
    SECTION("Nonsmooth Approximation Z")
@@ -758,10 +758,10 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
       // Jump is 2 by construction (so jump squared is constant 4) and we have 2 elements per face.
-      REQUIRE(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
+      CHECK(estimator.GetTotalError()== MFEM_Approx(sqrt(4*2)));
    }
 
    delete pmesh;
