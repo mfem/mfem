@@ -9,11 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifdef _WIN32
-#define _USE_MATH_DEFINES
-#include <cmath>
-#endif
-
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
@@ -90,9 +85,9 @@ double div_non_solenoidal_field3d(const Vector &x)
    return 2*(x(0) + x(1) + x(2));
 }
 
-double pa_divergence_testnd(int dim,
-                            void (*f1)(const Vector &, Vector &),
-                            double (*divf1)(const Vector &))
+void pa_divergence_testnd(int dim,
+                          void (*f1)(const Vector &, Vector &),
+                          double (*divf1)(const Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -124,7 +119,44 @@ double pa_divergence_testnd(int dim,
    lf.Assemble();
    field2 -= lf;
 
-   return field2.Norml2();
+   REQUIRE(field2.Normlinf() == MFEM_Approx(0.0));
+}
+
+void pa_divergence_transpose_testnd(int dim)
+{
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 4;
+
+   // Scalar
+   H1_FECollection fec1(order, dim);
+   FiniteElementSpace fes1(&mesh, &fec1);
+
+   // Vector valued
+   H1_FECollection fec2(order, dim);
+   FiniteElementSpace fes2(&mesh, &fec2, dim);
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+
+   MixedBilinearForm d_pa(&fes1, &fes2);
+   d_pa.AddDomainIntegrator(
+      new TransposeIntegrator(new VectorDivergenceIntegrator));
+   d_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   d_pa.Assemble();
+
+   MixedBilinearForm d_fa(&fes1, &fes2);
+   d_fa.AddDomainIntegrator(
+      new TransposeIntegrator(new VectorDivergenceIntegrator));
+   d_fa.Assemble();
+   d_fa.Finalize();
+
+   x.Randomize(1);
+
+   d_pa.Mult(x, y_pa);
+   d_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
 }
 
 TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
@@ -132,29 +164,21 @@ TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
    SECTION("2D")
    {
       // Check if div([y, -x]) == 0
-      REQUIRE(pa_divergence_testnd(2, solenoidal_field2d, zero_field)
-              == MFEM_Approx(0.0));
-
+      pa_divergence_testnd(2, solenoidal_field2d, zero_field);
       // Check if div([x*y, -x+y]) == 1 + y
-      REQUIRE(pa_divergence_testnd(2,
-                                   non_solenoidal_field2d,
-                                   div_non_solenoidal_field2d)
-              == MFEM_Approx(0.0));
+      pa_divergence_testnd(2, non_solenoidal_field2d, div_non_solenoidal_field2d);
+      // Check transpose
+      pa_divergence_transpose_testnd(2);
    }
 
    SECTION("3D")
    {
-      // Check if
-      // div([-x^2, xy, xz]) == 0
-      REQUIRE(pa_divergence_testnd(3, solenoidal_field3d, zero_field)
-              == MFEM_Approx(0.0));
-
-      // Check if
-      // div([x^2, y^2, z^2]) == 2(x + y + z)
-      REQUIRE(pa_divergence_testnd(3,
-                                   non_solenoidal_field3d,
-                                   div_non_solenoidal_field3d)
-              == MFEM_Approx(0.0));
+      // Check if div([-x^2, xy, xz]) == 0
+      pa_divergence_testnd(3, solenoidal_field3d, zero_field);
+      // Check if div([x^2, y^2, z^2]) == 2(x + y + z)
+      pa_divergence_testnd(3, non_solenoidal_field3d, div_non_solenoidal_field3d);
+      // Check transpose
+      pa_divergence_transpose_testnd(3);
    }
 }
 
@@ -520,17 +544,17 @@ static void test_pa_integrator()
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(M_PI);
+   FunctionCoefficient coeff(f1);
 
    BilinearForm blf_fa(&fes);
-   blf_fa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(coeff,ir));
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddDomainIntegrator(new INTEGRATOR(pi,ir));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(coeff,ir));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
@@ -548,5 +572,40 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
+
+TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   FunctionCoefficient coeff(f1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
 
 } // namespace pa_kernels

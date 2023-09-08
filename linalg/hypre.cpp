@@ -2996,10 +2996,7 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    for (int i = 0; i < nprocs; ++i)
    {
       globalNum += all_num_loc[i];
-      if (rank == 0)
-      {
-         MFEM_VERIFY(globalNum >= 0, "overflow in global size");
-      }
+      MFEM_VERIFY(globalNum >= 0, "overflow in global size");
       if (i < rank)
       {
          firstLocal += all_num_loc[i];
@@ -3064,9 +3061,6 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             const int nrows = blocks(i,j)->NumRows();
             const int ncols = blocks(i,j)->NumCols();
 
-            MFEM_VERIFY(nrows > 0 &&
-                        ncols > 0, "Invalid block in HypreParMatrixFromBlocks");
-
             if (rowOffsets[i+1] == 0)
             {
                rowOffsets[i+1] = nrows;
@@ -3088,14 +3082,11 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
             }
          }
       }
-
-      MFEM_VERIFY(rowOffsets[i+1] > 0, "Invalid input blocks");
       rowOffsets[i+1] += rowOffsets[i];
    }
 
    for (int j=0; j<numBlockCols; ++j)
    {
-      MFEM_VERIFY(colOffsets[j+1] > 0, "Invalid input blocks");
       colOffsets[j+1] += colOffsets[j];
    }
 
@@ -5147,7 +5138,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    double filterA_tol = 0.0;
 
    // Set relaxation on specified grid points
-   int ns_down, ns_up, ns_coarse;
+   int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
       ns_down = prerelax.length();
@@ -5349,20 +5340,8 @@ void HypreAMS::MakeGradientAndInterpolation(
    rt_trace_space = dynamic_cast<const RT_Trace_FECollection*>(edge_fec);
    trace_space = trace_space || rt_trace_space;
 
-   int p = 1;
-   if (edge_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = edge_fespace->GetFaceOrder(0);
-         if (dim == 2) { p++; }
-      }
-      else
-      {
-         p = edge_fespace->GetElementOrder(0);
-      }
-   }
+   MFEM_VERIFY(!edge_fespace->IsVariableOrder(), "");
+   int p = edge_fec->GetOrder();
 
    ParMesh *pmesh = edge_fespace->GetParMesh();
    if (rt_trace_space)
@@ -5751,19 +5730,9 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    const FiniteElementCollection *face_fec = face_fespace->FEColl();
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
-   int p = 1;
-   if (face_fespace->GetNE() > 0)
-   {
-      MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
-      if (trace_space)
-      {
-         p = face_fespace->GetFaceOrder(0) + 1;
-      }
-      else
-      {
-         p = face_fespace->GetElementOrder(0);
-      }
-   }
+
+   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
+   int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace
    ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();

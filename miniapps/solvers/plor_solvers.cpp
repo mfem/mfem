@@ -72,8 +72,6 @@
 using namespace std;
 using namespace mfem;
 
-bool grad_div_problem = false;
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -112,7 +110,6 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   if (RT) { grad_div_problem = true; }
    double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
    Mesh serial_mesh(mesh_file, 1, 1);
@@ -126,8 +123,8 @@ int main(int argc, char *argv[])
    if (mesh.ncmesh && (RT || ND))
    { MFEM_ABORT("LOR AMS and ADS solvers are not supported with AMR meshes."); }
 
-   FunctionCoefficient f_coeff(f), u_coeff(u);
-   VectorFunctionCoefficient f_vec_coeff(dim, f_vec), u_vec_coeff(dim, u_vec);
+   FunctionCoefficient f_coeff(f(1.0)), u_coeff(u);
+   VectorFunctionCoefficient f_vec_coeff(dim, f_vec(RT)), u_vec_coeff(dim, u_vec);
 
    int b1 = BasisType::GaussLobatto, b2 = BasisType::IntegratedGLL;
    unique_ptr<FiniteElementCollection> fec;
