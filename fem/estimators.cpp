@@ -258,7 +258,7 @@ void KellyErrorEstimator::ComputeEstimates()
             // i.e. the numerical integration of ∫ flux ⋅ n dS₁
             for (int i = 0; i < nip; i++)
             {
-               // Setup integration point
+               // Set up integration point
                auto &fip = int_rule.IntPoint(i);
                FT->Face->SetIntPoint(&fip);
 
@@ -362,7 +362,7 @@ void KellyErrorEstimator::ComputeEstimates()
       // i.e. the numerical integration of ∫ flux ⋅ n dS₁
       for (int i = 0; i < nip; i++)
       {
-         // Setup integration point
+         // Set up integration point
          auto &fip = int_rule.IntPoint(i);
          FT->Face->SetIntPoint(&fip);
 
