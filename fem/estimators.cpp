@@ -247,9 +247,7 @@ void KellyErrorEstimator::ComputeEstimates()
             auto FT = mesh->GetFaceElementTransformations(fi);
 
             // TODO Refactor this computation into a user-facing function.
-            // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi)); // NOTE: This fails for DG
-            auto &int_rule = IntRules.Get(FT->FaceGeom,
-                                          2 * xfes->GetElementOrder(FT->Elem1No));
+            auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi));
             const auto nip = int_rule.GetNPoints();
 
             double jump_integral = 0.0;
@@ -351,9 +349,8 @@ void KellyErrorEstimator::ComputeEstimates()
       }
 
       // TODO Refactor this computation into a user-facing function.
-      // auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(0)); // NOTE: This fails for DG
-      auto &int_rule = IntRules.Get(FT->FaceGeom,
-                                    2 * xfes->GetElementOrder(FT->Elem1No));
+      const int lfi = pmesh->GetSharedFace(sfi);
+      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(lfi));
       const auto nip = int_rule.GetNPoints();
 
       double jump_integral = 0.0;
