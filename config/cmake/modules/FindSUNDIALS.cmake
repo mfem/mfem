@@ -22,8 +22,8 @@ mfem_find_package(SUNDIALS SUNDIALS SUNDIALS_DIR
     "include" nvector/nvector_serial.h "lib" sundials_nvecserial
   ADD_COMPONENT NVector_Cuda
     "include" nvector/nvector_cuda.h "lib" sundials_nveccuda
-  ADD_COMPONENT NVector_ParHyp
-    "include" nvector/nvector_parhyp.h "lib" sundials_nvecparhyp
+  ADD_COMPONENT NVector_Hip
+    "include" nvector/nvector_hip.h "lib" sundials_nvechip
   ADD_COMPONENT NVector_Parallel
     "include" nvector/nvector_parallel.h "lib" sundials_nvecparallel
   ADD_COMPONENT NVector_MPIPlusX

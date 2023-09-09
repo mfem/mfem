@@ -160,6 +160,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MKL_PARDISO   = NO
 MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
@@ -265,6 +266,9 @@ ifeq ($(MFEM_USE_MPI),YES)
 endif
 ifeq ($(MFEM_USE_CUDA),YES)
    SUNDIALS_LIB += -lsundials_nveccuda
+endif
+ifeq ($(MFEM_USE_HIP),YES)
+   SUNDIALS_LIB += -lsundials_nvechip
 endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
@@ -484,7 +488,6 @@ ifdef GOTCHA_DIR
    CALIPER_LIB += $(XLINKER)-rpath,$(GOTCHA_DIR)/lib64 $(XLINKER)-rpath,$(GOTCHA_DIR)/lib -L$(GOTCHA_DIR)/lib64 -L$(GOTCHA_DIR)/lib -lgotcha
 endif
 
-
 # BLITZ library configuration
 BLITZ_DIR = @MFEM_DIR@/../blitz
 BLITZ_OPT = -I$(BLITZ_DIR)/include
@@ -537,6 +540,14 @@ MKL_LIBRARY_SUBDIR ?= lib
 MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
+   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# MKL Pardiso library configuration
+MKL_PARDISO_DIR ?=
+MKL_LIBRARY_SUBDIR ?= lib
+MKL_PARDISO_OPT = -I$(MKL_PARDISO_DIR)/include
+MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+   -L$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # PARELAG library configuration

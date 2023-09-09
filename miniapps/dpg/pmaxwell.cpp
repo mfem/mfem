@@ -728,7 +728,7 @@ int main(int argc, char *argv[])
 
    double res0 = 0.;
    double err0 = 0.;
-   int dof0;
+   int dof0 = 0; // init to suppress gcc warning
 
    Array<int> elements_to_refine;
 
