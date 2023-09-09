@@ -52,6 +52,11 @@ void ParLinearForm::Assemble()
       pfes->ExchangeFaceNbrData();
       AssembleSharedFaces();
    }
+   if (interiorsklfi.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedHDGFaces();
+   }
 }
 
 bool ParLinearForm::SupportsDevice()
@@ -89,6 +94,36 @@ void ParLinearForm::AssembleSharedFaces()
             }
          }
       }
+   }
+}
+
+void ParLinearForm::AssembleSharedHDGFaces()
+{
+   Array<int> vdofs;
+   Vector elemvect;
+
+   if (interiorsklfi.Size())
+   {
+	  ParMesh *pmesh = pfes->GetParMesh();
+
+	  for (int k = 0; k < interiorsklfi.Size(); k++)
+	  {
+	     for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+		 {
+			FaceElementTransformations *tr = NULL;
+            tr = pmesh->GetSharedFaceTransformations(i);
+			if (tr != NULL)
+			{
+			   int face_idx = pmesh->GetSharedFace(i);
+			   fes->GetFaceVDofs(face_idx, vdofs);   // the degrees of freedom related to the face
+
+			   interiorsklfi[k]->
+			   AssembleRHSElementVect(*fes->GetFaceElement(face_idx),
+									  *tr, elemvect);
+			   AddElementVector (vdofs, elemvect);
+			}
+		 }
+	  }
    }
 }
 

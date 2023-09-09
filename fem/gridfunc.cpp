@@ -2505,6 +2505,8 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
    {
       Mesh *mesh = fes->GetMesh();
       int nfaces = mesh->GetNumFaces();
+      int nbdrfaces = mesh->GetNBE();
+
       Array<int> vdofs;
       Vector vals;
 
@@ -2513,6 +2515,16 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
          fes->GetFaceVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
          fes->GetFaceElement(i)->Project(coeff, *mesh->GetFaceElementTransformations(i),
+                                         vals);
+         SetSubVector(vdofs, vals);
+      }
+
+      // fix the BDR elements
+      for (int i = 0; i < nbdrfaces; i++)
+      {
+         fes->GetBdrElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(i)->Project(coeff, *mesh->GetBdrFaceTransformations(i),
                                          vals);
          SetSubVector(vdofs, vals);
       }
@@ -2531,6 +2543,7 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
 {
    Mesh *mesh = fes->GetMesh();
    int nfaces = mesh->GetNumFaces();
+   int nbdrfaces = mesh->GetNBE();
    Array<int> vdofs;
    Vector vals;
 
@@ -2546,7 +2559,81 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
                                       vals);
       SetSubVector(vdofs, vals);
    }
+
+   // fix the BDR elements
+   for (int i = 0; i < nbdrfaces; i++)
+   {
+      fes->GetBdrElementVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetBdrFaceTransformations(i),
+                                      vals);
+      SetSubVector(vdofs, vals);
+   }
+
 }
+
+void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
+{
+   DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+
+   bool hdg_space, edg_space;
+
+   const FiniteElementCollection *fe_coll = fes->FEColl();
+   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
+   edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
+
+   bool hdg_space_no_const = dynamic_cast<DG_Interface_FECollection*>(fec);
+   bool edg_space_no_const = dynamic_cast<H1_Trace_FECollection*>(fec);
+
+   if (delta_c == NULL)
+   {
+      Mesh *mesh = fes->GetMesh();
+      int nbdrfaces = mesh->GetNBE();
+      Array<int> vdofs;
+      Vector vals;
+
+      for (int i = 0; i < nbdrfaces; i++)
+      {
+         fes->GetBdrElementVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(i)->Project(coeff, *mesh->GetBdrFaceTransformations(i),
+                                         vals);
+         SetSubVector(vdofs, vals);
+      }
+   }
+   else
+   {
+      double integral;
+
+      ProjectDeltaCoefficient(*delta_c, integral);
+
+      (*this) *= (delta_c->Scale() / integral);
+   }
+}
+
+void GridFunction::ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff)
+{
+   Mesh *mesh = fes->GetMesh();
+   int nbdrfaces = mesh->GetNBE();
+   Array<int> vdofs;
+   Vector vals;
+
+   bool hdg_space, edg_space;
+   hdg_space = dynamic_cast<DG_Interface_FECollection*>(fec);
+   edg_space = dynamic_cast<H1_Trace_FECollection*>(fec);
+
+   // fix the BDR elements
+   for (int i = 0; i < nbdrfaces; i++)
+   {
+      fes->GetBdrElementVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetBdrFaceTransformations(i),
+                                      vals);
+      SetSubVector(vdofs, vals);
+   }
+
+}
+
 /* HDG ends */
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff)

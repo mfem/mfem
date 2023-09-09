@@ -23,6 +23,13 @@ void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    MFEM_ABORT("Not supported.");
 }
 
+
+void LinearFormIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("LinearFormIntegrator::AssembleRHSElementVect(..., ElementTransformation, ...)");
+}
+
 void LinearFormIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
 {

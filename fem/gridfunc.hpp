@@ -380,6 +380,10 @@ public:
    /* HDG */
    void ProjectCoefficientSkeleton(Coefficient &coeff);
    void ProjectCoefficientSkeleton(VectorCoefficient &vcoeff);
+//   void ProjectCoefficientSkeletonBdr(Coefficient &coeff,
+//		   Array<int> &bdr_attr_marker);
+   void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
+   void ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection computation depends on the choice of the FiniteElementSpace
