@@ -17,10 +17,7 @@
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
-#include "../../linalg/tensor.hpp"
-#include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
-#include <cassert>
 
 namespace mfem
 {
@@ -28,21 +25,22 @@ namespace mfem
 namespace internal
 {
 
-#undef MFEM_SHARED_USE_CHAR
-#define MFEM_SHARED_EXTRA_LOAD 0 // 64*1024
-
-
-void DynamicSmemPADiffusionApply2DKernel(const int NE,
-                                         const bool symmetric,
-                                         const Array<double> &b_,
-                                         const Array<double> &g_,
-                                         const Vector &d_,
-                                         const Vector &x_,
-                                         Vector &y_,
-                                         const int d,
-                                         const int q,
-                                         const int z)
+template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+void DynaSmemPADiffApply2DKern(const int NE,
+                               const bool symmetric,
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               const int d1d = 0,
+                               const int q1d = 0,
+                               const int nbz = 0)
 {
+   const int d = T_D1D ? T_D1D : d1d;
+   const int q = T_Q1D ? T_Q1D : q1d;
+   const int z = T_NBZ ? T_NBZ : nbz;
+
    const auto b = Reshape(b_.Read(), q, d);
    const auto g = Reshape(g_.Read(), q, d);
    const auto D = Reshape(d_.Read(), q*q, symmetric ? 3 : 4, NE);
@@ -50,41 +48,24 @@ void DynamicSmemPADiffusionApply2DKernel(const int NE,
 
    auto Y = Reshape(y_.ReadWrite(), d, d, NE);
 
-   const size_t smem_size = (MFEM_SHARED_EXTRA_LOAD + 4*q*d + z*
-                             (d*d + 2*d*q+ 2*q*q));
-   //dbg("smem_size:%d", smem_size);
+   const size_t smem_size = 2*q*d + z*(d*d + 2*d*q+ 2*q*q);
 
-#ifdef MFEM_SHARED_USE_CHAR
-   const size_t smem_size_char = sizeof(double) * smem_size;
-   dbg("smem_size_char:%d", smem_size_char);
-   mfem::internal::forall_2D_batch_smem<char>(NE, q,q,z, smem_size_char,
-                                              [=] MFEM_HOST_DEVICE(int e, char *sm)
-#else
-   mfem::forall_2D_batch_smem(NE, q,q,z, smem_size,
-                              [=] MFEM_HOST_DEVICE(int e, double *sm)
-#endif
+   mfem::forall_2D_batch(NE, q,q,z, smem_size,
+                         [=] MFEM_HOST_DEVICE(int e, double *sm)
    {
       const int tz = MFEM_THREAD_ID(z);
-      const decltype(sm) base = sm;
 
-      mdsmem<3> X(sm, d,d,z);
+      constexpr int QD = T_D1D*T_Q1D;
+      auto sB = GetSmem<QD>(sm, q*d), sG = GetSmem<QD>(sm, q*d);
+      DeviceMatrix B(sB, q,d), Bt(sB, d,q);
+      DeviceMatrix G(sG, q,d), Gt(sG, d,q);
 
-      mdsmem<2> B(sm, q,d), G(sm, q,d);
+      auto sX = GetSmem<T_D1D*T_D1D*T_NBZ>(sm, d*d*z);
+      auto sDQ = GetSmem<2*T_D1D*T_Q1D*T_NBZ>(sm, 2*d*q*z);
+      auto sQQ = GetSmem<2*T_Q1D*T_Q1D*T_NBZ>(sm, 2*q*q*z);
 
-      //assert(q==3 && d==3); // if using tensor, TMatrix for shared variables
-      //MFEM_STATIC_SHARED_VAR(B, tensor<double,3,3>); // q==3, d==3 !!
-      //MFEM_STATIC_SHARED_VAR(G, tensor<double,3,3>); // q==3, d==3 !!
-
-      //MFEM_DYNAMIC_SHARED_VAR(B, sm, TMatrix<3,3>); // q==3, d==3 !!
-      //MFEM_DYNAMIC_SHARED_VAR(B, sm, tensor<double,3,3>); // q==3, d==3 !!
-
-      mdsmem<2> Bt(sm, d,q), Gt(sm, d,q);
-      mdsmem<4> DQ(sm, d,q,z,2), QQ(sm, q,q,z,2);
-
-      mdsmem<1> Extra(sm, MFEM_SHARED_EXTRA_LOAD);
-
-      // can be less if there are some static shared
-      assert(sm <= base + smem_size*sizeof(double)/sizeof(*sm));
+      DeviceTensor<3> X(sX, d,d,z);
+      DeviceTensor<4> DQ(sDQ, d,q,z,2), QQ(sQQ, q,q,z,2);
 
       MFEM_FOREACH_THREAD(dy,y,d)
       {
@@ -211,22 +192,38 @@ void DynamicSmemPADiffusionApply2D(const int NE,
                                    const int z)
 {
    const int id = (d << 4) | q;
-   static int cid = 0;
-   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
 
-   DynamicSmemPADiffusionApply2DKernel(NE,symm,B,G,D,X,Y,d,q,z);
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+
+   switch (id)
+   {
+      case 0x22: return DynaSmemPADiffApply2DKern<2,2,16>(NE,symm,B,G,D,X,Y);
+      case 0x23: return DynaSmemPADiffApply2DKern<2,3,16>(NE,symm,B,G,D,X,Y);
+      case 0x33: return DynaSmemPADiffApply2DKern<3,3,16>(NE,symm,B,G,D,X,Y);
+      case 0x34: return DynaSmemPADiffApply2DKern<3,4,8>(NE,symm,B,G,D,X,Y);
+      case 0x44: return DynaSmemPADiffApply2DKern<4,4,8>(NE,symm,B,G,D,X,Y);
+      case 0x45: return DynaSmemPADiffApply2DKern<4,5,4>(NE,symm,B,G,D,X,Y);
+      //case 0x55: return DynaSmemPADiffApply2DKern<5,5,8>(NE,symm,B,G,D,X,Y);
+      //case 0x66: return DynaSmemPADiffApply2DKern<6,6,4>(NE,symm,B,G,D,X,Y);
+      //case 0x77: return DynaSmemPADiffApply2DKern<7,7,4>(NE,symm,B,G,D,X,Y);
+      //case 0x88: return DynaSmemPADiffApply2DKern<8,8,2>(NE,symm,B,G,D,X,Y);
+      //case 0x99: return DynaSmemPADiffApply2DKern<9,9,2>(NE,symm,B,G,D,X,Y);
+      default: return DynaSmemPADiffApply2DKern(NE,symm,B,G,D,X,Y,d,q,z);
+   }
+   MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
-void DynamicSmemPADiffusionApply3DKernel(const int NE,
-                                         const bool symmetric,
-                                         const Array<double> &b_,
-                                         const Array<double> &g_,
-                                         const Vector &d_,
-                                         const Vector &x_,
-                                         Vector &y_,
-                                         const int d1d = 0,
-                                         const int q1d = 0)
+void DynaSmemPADiffApply3DKern(const int NE,
+                               const bool symmetric,
+                               const Array<double> &b_,
+                               const Array<double> &g_,
+                               const Vector &d_,
+                               const Vector &x_,
+                               Vector &y_,
+                               const int d1d = 0,
+                               const int q1d = 0)
 {
    const int d = T_D1D ? T_D1D : d1d;
    const int q = T_Q1D ? T_Q1D : q1d;
@@ -238,37 +235,29 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
 
    auto y = Reshape(y_.ReadWrite(), d, d, d, NE);
 
-   const size_t smem_size = 4*q*d + // B,Bt,G,Gt
-                            3*d*d*q + // DDQs
-                            3*d*q*q + // DQQs
-                            3*q*q*q + // QQQs
-                            MFEM_SHARED_EXTRA_LOAD;
+   const size_t smem_size = 2*q*d + 6*q*q*q;
 
-#ifdef MFEM_SHARED_USE_CHAR
-   const size_t smem_size_char = sizeof(double) * smem_size;
-   mfem::internal::forall_3D_smem<char>(NE, q,q,q, smem_size_char,
-                                        [=] MFEM_HOST_DEVICE(int e, char *sm)
-#else
-   forall_3D_smem(NE, q,q,q, smem_size, [=] MFEM_HOST_DEVICE (int e, double *sm)
-#endif
+   mfem::forall_3D(NE, q,q,q, smem_size, [=] MFEM_HOST_DEVICE (int e, double *sm)
    {
-      //const decltype(sm) base = sm;
+      constexpr int QD = T_D1D*T_Q1D;
+      auto sB = GetSmem<QD>(sm, q*d), sG = GetSmem<QD>(sm, q*d);
+      DeviceMatrix B(sB, q,d), Bt(sB, d,q);
+      DeviceMatrix G(sG, q,d), Gt(sG, d,q);
 
-      mdsmem<2> B(sm, q,d), Bt(sm, d,q);
-      mdsmem<2> G(sm, q,d), Gt(sm, d,q);
+      constexpr int QQQ = T_Q1D*T_Q1D*T_Q1D;
+      auto sm0 = GetSmem<QQQ>(sm, q*q*q);
+      auto sm1 = GetSmem<QQQ>(sm, q*q*q);
+      auto sm2 = GetSmem<QQQ>(sm, q*q*q);
+      auto sm3 = GetSmem<QQQ>(sm, q*q*q);
+      auto sm4 = GetSmem<QQQ>(sm, q*q*q);
+      auto sm5 = GetSmem<QQQ>(sm, q*q*q);
 
-      mdsmem<3> DDQ0(sm, d,d,q), DDQ1(sm, d,d,q), DDQ2(sm, d,d,q);
-      mdview<3> QDD0(DDQ0, q,d,d), QDD1(DDQ1, q,d,d), QDD2(DDQ2, q,d,d);
-      mdview<3> X(DDQ2, d,d,d);
-
-      mdsmem<3> QQD0(sm,   q,q,d), QQD1(sm,   q,q,d), QQD2(sm,   q,q,d);
-      mdview<3> DQQ0(QQD0, d,q,q), DQQ1(QQD1, d,q,q), DQQ2(QQD2, d,q,q);
-
-      mdsmem<3> QQQ0(sm, q,q,q), QQQ1(sm, q,q,q), QQQ2(sm, q,q,q);
-
-      mdsmem<1> Extra(sm, MFEM_SHARED_EXTRA_LOAD);
-
-      //assert(sm == base + smem_size*sizeof(double)/sizeof(*sm));
+      DeviceCube X(sm0, d,d,d), qqq0(sm0, q,q,q), ddq0(sm0, d,d,q);
+      DeviceCube qdd0(sm1, q,d,d), qqq1(sm1, q,q,q), ddq1(sm1, d,d,q);
+      DeviceCube qdd1(sm2, q,d,d), qqq2(sm2, q,q,q), ddq2(sm2, d,d,q);
+      DeviceCube qqd0(sm3, q,q,d), dqq0(sm3, d,q,q);
+      DeviceCube qqd1(sm4, q,q,d), dqq1(sm4, d,q,q);
+      DeviceCube qqd2(sm5, q,q,d), dqq2(sm5, d,q,q);
 
       MFEM_FOREACH_THREAD(dz,z,d)
       {
@@ -299,15 +288,15 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int dx = 0; dx < d; ++dx)
                {
                   const double coords = X(dz,dy,dx);
                   u += coords * B(qx,dx);
                   v += coords * G(qx,dx);
                }
-               DDQ0(dz,dy,qx) = u;
-               DDQ1(dz,dy,qx) = v;
+               qdd0(qx,dy,dz) = u;
+               qdd1(qx,dy,dz) = v;
             }
          }
       }
@@ -319,16 +308,16 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int dy = 0; dy < d; ++dy)
                {
-                  u += DDQ1(dz,dy,qx) * B(qy,dy);
-                  v += DDQ0(dz,dy,qx) * G(qy,dy);
-                  w += DDQ0(dz,dy,qx) * B(qy,dy);
+                  u += qdd1(qx,dy,dz) * B(qy,dy);
+                  v += qdd0(qx,dy,dz) * G(qy,dy);
+                  w += qdd0(qx,dy,dz) * B(qy,dy);
                }
-               DQQ0(dz,qy,qx) = u;
-               DQQ1(dz,qy,qx) = v;
-               DQQ2(dz,qy,qx) = w;
+               qqd0(qx,qy,dz) = u;
+               qqd1(qx,qy,dz) = v;
+               qqd2(qx,qy,dz) = w;
             }
          }
       }
@@ -340,12 +329,12 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int dz = 0; dz < d; ++dz)
                {
-                  u += DQQ0(dz,qy,qx) * B(qz,dz);
-                  v += DQQ1(dz,qy,qx) * B(qz,dz);
-                  w += DQQ2(dz,qy,qx) * G(qz,dz);
+                  u += qqd0(qx,qy,dz) * B(qz,dz);
+                  v += qqd1(qx,qy,dz) * B(qz,dz);
+                  w += qqd2(qx,qy,dz) * G(qz,dz);
                }
                const double O11 = D(qx,qy,qz,0,e);
                const double O12 = D(qx,qy,qz,1,e);
@@ -359,9 +348,9 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
                const double gX = u;
                const double gY = v;
                const double gZ = w;
-               QQQ0(qz,qy,qx) = (O11*gX) + (O12*gY) + (O13*gZ);
-               QQQ1(qz,qy,qx) = (O21*gX) + (O22*gY) + (O23*gZ);
-               QQQ2(qz,qy,qx) = (O31*gX) + (O32*gY) + (O33*gZ);
+               qqq0(qx,qy,qz) = (O11*gX) + (O12*gY) + (O13*gZ);
+               qqq1(qx,qy,qz) = (O21*gX) + (O22*gY) + (O23*gZ);
+               qqq2(qx,qy,qz) = (O31*gX) + (O32*gY) + (O33*gZ);
             }
          }
       }
@@ -385,16 +374,16 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int qx = 0; qx < q; ++qx)
                {
-                  u += QQQ0(qz,qy,qx) * Gt(dx,qx);
-                  v += QQQ1(qz,qy,qx) * Bt(dx,qx);
-                  w += QQQ2(qz,qy,qx) * Bt(dx,qx);
+                  u += qqq0(qx,qy,qz) * Gt(dx,qx);
+                  v += qqq1(qx,qy,qz) * Bt(dx,qx);
+                  w += qqq2(qx,qy,qz) * Bt(dx,qx);
                }
-               QQD0(qz,qy,dx) = u;
-               QQD1(qz,qy,dx) = v;
-               QQD2(qz,qy,dx) = w;
+               dqq0(dx,qy,qz) = u;
+               dqq1(dx,qy,qz) = v;
+               dqq2(dx,qy,qz) = w;
             }
          }
       }
@@ -406,16 +395,16 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int qy = 0; qy < q; ++qy)
                {
-                  u += QQD0(qz,qy,dx) * Bt(dy,qy);
-                  v += QQD1(qz,qy,dx) * Gt(dy,qy);
-                  w += QQD2(qz,qy,dx) * Bt(dy,qy);
+                  u += dqq0(dx,qy,qz) * Bt(dy,qy);
+                  v += dqq1(dx,qy,qz) * Gt(dy,qy);
+                  w += dqq2(dx,qy,qz) * Bt(dy,qy);
                }
-               QDD0(qz,dy,dx) = u;
-               QDD1(qz,dy,dx) = v;
-               QDD2(qz,dy,dx) = w;
+               ddq0(dx,dy,qz) = u;
+               ddq1(dx,dy,qz) = v;
+               ddq2(dx,dy,qz) = w;
             }
          }
       }
@@ -427,12 +416,12 @@ void DynamicSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_DISABLED
+               MFEM_UNROLL_NVCC_DISABLED
                for (int qz = 0; qz < q; ++qz)
                {
-                  u += QDD0(qz,dy,dx) * Bt(dz,qz);
-                  v += QDD1(qz,dy,dx) * Bt(dz,qz);
-                  w += QDD2(qz,dy,dx) * Gt(dz,qz);
+                  u += ddq0(dx,dy,qz) * Bt(dz,qz);
+                  v += ddq1(dx,dy,qz) * Bt(dz,qz);
+                  w += ddq2(dx,dy,qz) * Gt(dz,qz);
                }
                y(dx,dy,dz,e) += (u + v + w);
             }
@@ -453,27 +442,29 @@ void DynamicSmemPADiffusionApply3D(const int NE,
 {
    const int id = (d << 4) | q;
 
-   static int cid = 0;
-   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+
+   // dynamic : SYCL, no instantiated kernels, smem_size to declare
+   //  -5% [GPU] dynamic
+   //   == [GPU] dynamic + JIT|switch
+   //   == [CPU] dynamic + JIT|switch p>=3
+   // -25% [CPU] slowdown if full dynamic p>=3
+
+   // layout CPU good static/2x_lo,20%_ho dynamic, GPU better static / good dynamic ∀p
 
    switch (id)
    {
-         // dynamic : SYCL, no instantiated kernels, smem_size to declare, +new smem tensors
-
-         //     5 % [GPU] slowdown if full dynamic
-
-         // 20~30 % [CPU] slowdown dynamic + JIT/switch
-
-         //      2x [CPU] slowdown if full dynamic
-#if 0
-      case 0x23: return DynamicSmemPADiffusionApply3DKernel<2,3>(NE,symm,B,G,D,X,Y);
-      case 0x34: return DynamicSmemPADiffusionApply3DKernel<3,4>(NE,symm,B,G,D,X,Y);
-      case 0x45: return DynamicSmemPADiffusionApply3DKernel<4,5>(NE,symm,B,G,D,X,Y);
-      case 0x56: return DynamicSmemPADiffusionApply3DKernel<5,6>(NE,symm,B,G,D,X,Y);
-      case 0x67: return DynamicSmemPADiffusionApply3DKernel<6,7>(NE,symm,B,G,D,X,Y);
-      case 0x78: return DynamicSmemPADiffusionApply3DKernel<7,8>(NE,symm,B,G,D,X,Y);
-#endif
-      default: return DynamicSmemPADiffusionApply3DKernel(NE,symm,B,G,D,X,Y,d,q);
+      case 0x22: return DynaSmemPADiffApply3DKern<2,2>(NE,symm,B,G,D,X,Y);
+      case 0x23: return DynaSmemPADiffApply3DKern<2,3>(NE,symm,B,G,D,X,Y);
+      case 0x33: return DynaSmemPADiffApply3DKern<3,3>(NE,symm,B,G,D,X,Y);
+      case 0x34: return DynaSmemPADiffApply3DKern<3,4>(NE,symm,B,G,D,X,Y);
+      case 0x44: return DynaSmemPADiffApply3DKern<4,4>(NE,symm,B,G,D,X,Y);
+      case 0x45: return DynaSmemPADiffApply3DKern<4,5>(NE,symm,B,G,D,X,Y);
+      case 0x56: return DynaSmemPADiffApply3DKern<5,6>(NE,symm,B,G,D,X,Y);
+      case 0x67: return DynaSmemPADiffApply3DKern<6,7>(NE,symm,B,G,D,X,Y);
+      case 0x78: return DynaSmemPADiffApply3DKern<7,8>(NE,symm,B,G,D,X,Y);
+      default: return DynaSmemPADiffApply3DKern(NE,symm,B,G,D,X,Y,d,q);
    }
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }

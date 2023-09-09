@@ -194,8 +194,8 @@ void StaticSmemPADiffusionApply2D(const int NE,
 {
    const int id = (D1D << 4) | Q1D;
 
-   static int cid = 0;
-   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
 
    switch (id)
    {
@@ -215,15 +215,20 @@ void StaticSmemPADiffusionApply2D(const int NE,
 }
 
 // Shared memory PA Diffusion Apply 3D kernel
-template<int D1D = 0, int Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 void StaticSmemPADiffusionApply3DKernel(const int NE,
                                         const bool symmetric,
                                         const Array<double> &b_,
                                         const Array<double> &g_,
                                         const Vector &d_,
                                         const Vector &x_,
-                                        Vector &y_)
+                                        Vector &y_,
+                                        const int d1d = 0,
+                                        const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
    const auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
@@ -233,13 +238,19 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_STATIC_SHARED_VAR(B, tensor<double,Q1D,D1D>);
-      MFEM_STATIC_SHARED_VAR(G, tensor<double,Q1D,D1D>);
-      MFEM_STATIC_SHARED_VAR(Bt, tensor<double,D1D,Q1D>);
-      MFEM_STATIC_SHARED_VAR(Gt, tensor<double,D1D,Q1D>);
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_STATIC_SHARED_VAR(sm0, tensor<double,3,Q1D,Q1D,Q1D>);
-      MFEM_STATIC_SHARED_VAR(sm1, tensor<double,3,Q1D,Q1D,Q1D>);
+      MFEM_STATIC_SHARED_VAR(B, tensor<double,MQ1,MD1>);
+      MFEM_STATIC_SHARED_VAR(G, tensor<double,MQ1,MD1>);
+      MFEM_STATIC_SHARED_VAR(Bt, tensor<double,MD1,MQ1>);
+      MFEM_STATIC_SHARED_VAR(Gt, tensor<double,MD1,MQ1>);
+
+      MFEM_STATIC_SHARED_VAR(sm0, tensor<double,3,MDQ,MDQ,MDQ>);
+      MFEM_STATIC_SHARED_VAR(sm1, tensor<double,3,MDQ,MDQ,MDQ>);
 
       auto &X = sm0[2], &DDQ0 = sm0[0], &DDQ1 = sm0[1];
       auto &DQQ0 = sm1[0], &DQQ1 = sm1[1], &DQQ2 = sm1[2];
@@ -276,7 +287,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0;
-               MFEM_UNROLL(D1D)
+               MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
                   const double coords = X[dz][dy][dx];
@@ -296,7 +307,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(D1D)
+               MFEM_UNROLL(MD1)
                for (int dy = 0; dy < D1D; ++dy)
                {
                   u += DDQ1[dz][dy][qx] * B[qy][dy];
@@ -317,7 +328,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(D1D)
+               MFEM_UNROLL(MD1)
                for (int dz = 0; dz < D1D; ++dz)
                {
                   u += DQQ0[dz][qy][qx] * B[qz][dz];
@@ -362,7 +373,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(Q1D)
+               MFEM_UNROLL(MQ1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   u += QQQ0[qz][qy][qx] * Gt[dx][qx];
@@ -383,7 +394,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(Q1D)
+               MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   u += QQD0[qz][qy][dx] * Bt[dy][qy];
@@ -404,7 +415,7 @@ void StaticSmemPADiffusionApply3DKernel(const int NE,
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL(Q1D)
+               MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u += QDD0[qz][dy][dx] * Bt[dz][qz];
@@ -430,8 +441,8 @@ void StaticSmemPADiffusionApply3D(const int NE,
 {
    const int id = (D1D << 4) | Q1D;
 
-   static int cid = 0;
-   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
+   //static int cid = 0;
+   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D); cid = id; }
 
    switch (id)
    {
@@ -441,12 +452,10 @@ void StaticSmemPADiffusionApply3D(const int NE,
       case 0x34: return StaticSmemPADiffusionApply3DKernel<3,4>(NE,symm,B,G,D,X,Y);
       case 0x44: return StaticSmemPADiffusionApply3DKernel<4,4>(NE,symm,B,G,D,X,Y);
       case 0x45: return StaticSmemPADiffusionApply3DKernel<4,5>(NE,symm,B,G,D,X,Y);
-      //case 0x46: return StaticSmemPADiffusionApply3DKernel<4,6>(NE,symm,B,G,D,X,Y);
       case 0x56: return StaticSmemPADiffusionApply3DKernel<5,6>(NE,symm,B,G,D,X,Y);
-      //case 0x58: return StaticSmemPADiffusionApply3DKernel<5,8>(NE,symm,B,G,D,X,Y);
       case 0x67: return StaticSmemPADiffusionApply3DKernel<6,7>(NE,symm,B,G,D,X,Y);
       case 0x78: return StaticSmemPADiffusionApply3DKernel<7,8>(NE,symm,B,G,D,X,Y);
-         //case 0x89: return StaticSmemPADiffusionApply3DKernel<8,9>(NE,symm,B,G,D,X,Y);
+         //default: return StaticSmemPADiffusionApply3DKernel<>(NE,symm,B,G,D,X,Y,D1D,Q1D);
    }
    MFEM_ABORT("Unknown kernel: 0x"<<std::hex << id << std::dec);
 }

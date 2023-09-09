@@ -12,7 +12,7 @@
 #include "occa.hpp"
 
 #ifdef MFEM_USE_OCCA
-#include "device.hpp"
+#include "../device.hpp"
 
 #if defined(MFEM_USE_CUDA) && OCCA_CUDA_ENABLED
 #include <occa/modes/cuda/utils.hpp>

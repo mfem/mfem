@@ -11,8 +11,12 @@
 
 list(APPEND SRCS
   array.cpp
+  backends/cuda.cpp
+  backends/hip.cpp
+  backends/occa.cpp
+  backends/raja.cpp
+  backends/sycl.cpp
   binaryio.cpp
-  cuda.cpp
   device.cpp
   error.cpp
   gecko.cpp
@@ -20,26 +24,28 @@ list(APPEND SRCS
   hash.cpp
   isockstream.cpp
   mem_manager.cpp
-  occa.cpp
   optparser.cpp
   osockstream.cpp
   sets.cpp
   socketstream.cpp
   stable3d.cpp
-  sycl.cpp
   table.cpp
   tic_toc.cpp
   tinyxml2.cpp
   version.cpp
-  hip.cpp
   )
 
 list(APPEND HDRS
   annotation.hpp
   array.hpp
   backends.hpp
+  backends/cuda.hpp
+  backends/hip.hpp
+  backends/occa.hpp
+  backends/openmp.hpp
+  backends/raja.hpp
+  backends/sycl.hpp
   binaryio.hpp
-  cuda.hpp
   device.hpp
   error.hpp
   gecko.hpp
@@ -49,7 +55,6 @@ list(APPEND HDRS
   isockstream.hpp
   mem_alloc.hpp
   mem_manager.hpp
-  occa.hpp
   forall.hpp
   optparser.hpp
   osockstream.hpp
@@ -57,14 +62,12 @@ list(APPEND HDRS
   socketstream.hpp
   sort_pairs.hpp
   stable3d.hpp
-  sycl.hpp
   table.hpp
   tassign.hpp
   tic_toc.hpp
   tinyxml2.h
   text.hpp
   version.hpp
-  hip.hpp
   )
 
 if (MFEM_USE_MPI)

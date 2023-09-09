@@ -12,11 +12,11 @@
 #ifndef MFEM_OCCA_HPP
 #define MFEM_OCCA_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
 #ifdef MFEM_USE_OCCA
-#include "mem_manager.hpp"
-#include "device.hpp"
+#include "../mem_manager.hpp"
+#include "../device.hpp"
 #include <occa.hpp>
 
 namespace mfem

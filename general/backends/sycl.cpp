@@ -12,11 +12,11 @@
 #include <vector>
 
 #include "sycl.hpp"
-#include "error.hpp"
-#include "globals.hpp"
-#include "device.hpp"
+#include "../error.hpp"
+#include "../globals.hpp"
+#include "../device.hpp"
 
-#include "debug.hpp"
+#include "../debug.hpp"
 
 namespace mfem
 {

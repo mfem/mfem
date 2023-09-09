@@ -12,7 +12,8 @@
 #ifndef MFEM_SYCL_HPP
 #define MFEM_SYCL_HPP
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
+#include "../error.hpp"
 #include  <cstddef>
 
 #ifdef MFEM_USE_SYCL
@@ -156,6 +157,9 @@ template <> struct SyclWrap<2>
          const int L = static_cast<int>(std::ceil(std::sqrt((N+BZ-1)/BZ)));
          const sycl::range<3> grid(L*BZ, L*Y, L*X), group(BZ, Y, X);
 #else // SYCL-HOST:
+         MFEM_CONTRACT_VAR(X);
+         MFEM_CONTRACT_VAR(Y);
+         MFEM_CONTRACT_VAR(BZ);
          const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
          h.parallel_for(sycl::nd_range<3>(grid,group), [=](sycl::nd_item<3> itm)
@@ -189,6 +193,10 @@ template <> struct SyclWrap<3>
          const int L = static_cast<int>(std::ceil(std::cbrt(G == 0 ? N : G)));
          const sycl::range<3> grid(L*Z, L*Y, L*X), group(Z, Y, X);
 #else // SYCL-HOST:
+         MFEM_CONTRACT_VAR(X);
+         MFEM_CONTRACT_VAR(Y);
+         MFEM_CONTRACT_VAR(Z);
+         MFEM_CONTRACT_VAR(G);
          const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
          h.parallel_for(sycl::nd_range<3>(grid, group), [=](sycl::nd_item<3> itm)

@@ -203,6 +203,7 @@ void PADiffusionSetup3D(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, symmetric ? 6 : 9, NE);
+
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -422,7 +423,6 @@ void PADiffusionApply(const int dim,
                       const Vector &X,
                       Vector &Y)
 {
-   dbg("NE:%d D1D:%d Q1D:%d",NE,D1D,Q1D);
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
@@ -449,7 +449,7 @@ void PADiffusionApply(const int dim,
       getenv("VERSION") ?
       static_cast<MFEM_KERNEL_TYPE>(std::stoi(getenv("VERSION"))) :
       MFEM_KERNEL_TYPE::LEGACY;
-   dbg("VERSION:%d",static_cast<int>(MFEM_KERNEL_T));
+   //dbg("VERSION:%d",static_cast<int>(MFEM_KERNEL_T));
 
    if (dim == 2)
    {

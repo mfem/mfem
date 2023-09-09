@@ -21,10 +21,10 @@
 
   See: ceed.exascaleproject.org/bps and github.com/CEED/benchmarks
 */
-
 struct BakeOff
 {
-   const int N, p, q, dim = 3;
+   const int p, c, q, n, nx, ny, nz, dim = 3;
+   const bool check_x, check_y, check_z, checked;
    Mesh mesh;
    H1_FECollection fec;
    FiniteElementSpace fes;
@@ -38,11 +38,19 @@ struct BakeOff
    BilinearForm a;
    double mdofs;
 
-   BakeOff(int p, int vdim, bool GLL):
-      N(Device::IsEnabled()?32:8),
+   BakeOff(int p, int side, int vdim, bool gll):
       p(p),
-      q(2*p + (GLL?-1:3)),
-      mesh(Mesh::MakeCartesian3D(N,N,N,Element::HEXAHEDRON)),
+      c(side),
+      q(2*p + (gll?-1:3)),
+      n((assert(c>=p),c/p)),
+      nx(n + (p*(n+1)*p*n*p*n < c*c*c ?1:0)),
+      ny(n + (p*(n+1)*p*(n+1)*p*n < c*c*c ?1:0)),
+      nz(n),
+      check_x(p*nx * p*ny * p*nz <= c*c*c),
+      check_y(p*(nx+1) * p*(ny+1) * p*nz > c*c*c),
+      check_z(p*(nx+1) * p*(ny+1) * p*(nz+1) > c*c*c),
+      checked((assert(check_x && check_y && check_z), true)),
+      mesh(Mesh::MakeCartesian3D(nx,ny,nz,Element::HEXAHEDRON)),
       fec(p, dim, BasisType::GaussLobatto),
       fes(&mesh, &fec, vdim),
       geom_type(fes.GetFE(0)->GetGeomType()),
@@ -78,8 +86,8 @@ struct Problem: public BakeOff
    Vector B, X;
    CGSolver cg;
 
-   Problem(int order):
-      BakeOff(order,VDIM,GLL),
+   Problem(int p, int side):
+      BakeOff(p, side, VDIM, GLL),
       ess_bdr(mesh.bdr_attributes.Max()),
       b(&fes)
    {
@@ -111,14 +119,50 @@ struct Problem: public BakeOff
    }
 };
 
+/// GenerateArgs /////////////////////////////////////////////////////////////
+#if 0 // GPU
+#define MAX_NDOFS 2*1024*1024
+
+static void OrderSideArgs(bmi::Benchmark *b)
+{
+   const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
+   for (int p = 16; p > 0; p-=1)
+   {
+      for (int c = std::max(8,p); est(c) <= MAX_NDOFS; c += 16)
+      {
+         b->Args({p, c});
+      }
+   }
+}
+#else // CPU
+#define MAX_NDOFS 16*1024
+
+static void OrderSideArgs(bmi::Benchmark *b)
+{
+   const auto est = [](int c) { return (c+1)*(c+1)*(c+1); };
+   for (int p = 16; p > 0; p-=1)
+   {
+      for (int c = std::max(8,p); est(c) <= MAX_NDOFS; c += 8)
+      {
+         b->Args({p, c});
+      }
+   }
+}
+#endif
+
 /// Bake-off Problems (BPs)
-#define BakeOff_Problem(i,Kernel,VDIM,p_eq_q)\
+#define BakeOff_Problem(i,Kernel,VDIM,GLL)\
 static void BP##i(bm::State &state){\
-   Problem<Kernel##Integrator,VDIM,p_eq_q> ker(state.range(0));\
+   const int p = state.range(0);\
+   const int side = state.range(1);\
+   Problem<Kernel##Integrator,VDIM,GLL> ker(p,side);\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   bm::Counter::Flags flags = bm::Counter::kIsRate;\
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs);\
+   state.counters["p"] = bm::Counter(p);\
    state.counters["VERSION"] = bm::Counter(getenv("VERSION")?std::stoi(getenv("VERSION")):0);}\
-BENCHMARK(BP##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
+BENCHMARK(BP##i)->Apply(OrderSideArgs)->Unit(bm::kMillisecond);
 
 /// BP1: scalar PCG with mass matrix, q=p+2
 BakeOff_Problem(1,Mass,1,false)
@@ -140,12 +184,12 @@ BakeOff_Problem(6,VectorDiffusion,3,true)
 
 
 /// Bake-off Kernels (BKs)
-template <typename BFI, int VDIM = 1, bool GLL = false>
+template <typename BFI, int VDIM, bool GLL>
 struct Kernel: public BakeOff
 {
    GridFunction y;
 
-   Kernel(int order): BakeOff(order,VDIM,GLL), y(&fes)
+   Kernel(int p, int side): BakeOff(p,side,VDIM,GLL), y(&fes)
    {
       x.Randomize(1);
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -166,10 +210,14 @@ struct Kernel: public BakeOff
 /// Generic CEED BKi
 #define BakeOff_Kernel(i,KER,VDIM,GLL)\
 static void BK##i(bm::State &state){\
-   Kernel<KER##Integrator,VDIM,GLL> ker(state.range(0));\
+   const int p = state.range(0);\
+   const int side = state.range(1);\
+   Kernel<KER##Integrator,VDIM,GLL> ker(p,side);\
    while (state.KeepRunning()) { ker.benchmark(); }\
-   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);}\
-BENCHMARK(BK##i)->DenseRange(1,6)->Unit(bm::kMillisecond);
+   state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
+   state.counters["Dofs"] = bm::Counter(ker.dofs);\
+   state.counters["p"] = bm::Counter(p);}\
+BENCHMARK(BK##i)->Apply(OrderSideArgs)->Unit(bm::kMillisecond);
 
 /// BK1: scalar E-vector-to-E-vector evaluation of mass matrix, q=p+2
 BakeOff_Kernel(1,Mass,1,false)

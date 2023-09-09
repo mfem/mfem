@@ -66,6 +66,8 @@ struct tensor<T, n0>
    MFEM_HOST_DEVICE const T& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i) { return values[i]; }
    MFEM_HOST_DEVICE const T& operator()(int i) const { return values[i]; }
+   MFEM_HOST_DEVICE inline operator T *() const { return &values[0]; }
+   MFEM_HOST_DEVICE inline operator T *() { return &values[0]; }
    T values[n0];
 };
 

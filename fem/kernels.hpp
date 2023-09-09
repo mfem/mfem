@@ -95,6 +95,27 @@ MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
    MFEM_SYNC_THREAD;
 }
 
+MFEM_HOST_DEVICE inline void LoadBG(const int D1D, const int Q1D,
+                                    const ConstDeviceMatrix &b,
+                                    const ConstDeviceMatrix &g,
+                                    double *sB, double *sG)
+{
+   DeviceMatrix B(sB, Q1D, D1D);
+   DeviceMatrix G(sG, Q1D, D1D);
+   if (MFEM_THREAD_ID(z) == 0)
+   {
+      MFEM_FOREACH_THREAD(d,y,D1D)
+      {
+         MFEM_FOREACH_THREAD(q,x,Q1D)
+         {
+            B(q,d) = b(q,d);
+            G(q,d) = g(q,d);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// Load Bt1d & Gt1d matrices into shared memory
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void LoadBGt(const int D1D, const int Q1D,
@@ -689,6 +710,14 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
 {
    DeviceCube X(sm, D1D, D1D, D1D);
    return LoadX<MD1>(e,D1D,c,x,X);
+}
+
+MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D, const int c,
+                                   const DeviceTensor<5, const double> &x,
+                                   double *sm)
+{
+   DeviceCube X(sm, D1D, D1D, D1D);
+   return LoadX(e,D1D,c,x,X);
 }
 
 /// 3D Scalar Evaluation, 1/3

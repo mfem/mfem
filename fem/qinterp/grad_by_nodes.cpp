@@ -12,6 +12,8 @@
 #include "dispatch.hpp"
 #include "grad.hpp"
 
+#include "../../general/forall.hpp"
+
 namespace mfem
 {
 
@@ -20,6 +22,108 @@ namespace internal
 
 namespace quadrature_interpolator
 {
+
+static void DynamicSmemDerivatives3D(const int NE,
+                                     const double *b_,
+                                     const double *g_,
+                                     const double *x_,
+                                     double *y_,
+                                     const int vdim,
+                                     const int d,
+                                     const int q)
+{
+   const auto b = Reshape(b_, q, d);
+   const auto g = Reshape(g_, q, d);
+   const auto x = Reshape(x_, d, d, d, vdim, NE);
+
+   auto y = Reshape(y_, q, q, q, vdim, 3, NE);
+
+   const size_t smem_size = 2*q*d + d*d*d + 2*d*d*q + 3*d*q*q;
+
+   mfem::forall_3D(NE, q,q,q, smem_size,
+                   [=] MFEM_HOST_DEVICE (int e, double *sm)
+   {
+      auto sB = GetSmem(sm, q*d), sG = GetSmem(sm, q*d);
+      DeviceMatrix B(sB, q, d), G(sG, q, d);
+      kernels::internal::LoadBG(d,q,b,g,B,G);
+
+      auto sm0 = GetSmem(sm, d*d*q), sm1 = GetSmem(sm, d*d*q);
+      auto sm2 = GetSmem(sm, d*d*d), sm3 = GetSmem(sm, d*q*q);
+      auto sm4 = GetSmem(sm, d*q*q), sm5 = GetSmem(sm, d*q*q);
+
+      DeviceCube DDQ0(sm0, d,d,q), DDQ1(sm1, d,d,q), X(sm2, d,d,d);
+      DeviceCube DQQ0(sm3, d,q,q), DQQ1(sm4, d,q,q), DQQ2(sm5, d,q,q);
+
+      for (int c = 0; c < vdim; ++c)
+      {
+         kernels::internal::LoadX(e,d,c,x,X);
+         MFEM_FOREACH_THREAD(dz,z,d)
+         {
+            MFEM_FOREACH_THREAD(dy,y,d)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < d; ++dx)
+                  {
+                     const double input = X(dx,dy,dz);
+                     u += input * B(qx,dx);
+                     v += input * G(qx,dx);
+                  }
+                  DDQ0(dz,dy,qx) = u;
+                  DDQ1(dz,dy,qx) = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(dz,z,d)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dy = 0; dy < d; ++dy)
+                  {
+                     u += DDQ1(dz,dy,qx) * B(qy,dy);
+                     v += DDQ0(dz,dy,qx) * G(qy,dy);
+                     w += DDQ0(dz,dy,qx) * B(qy,dy);
+                  }
+                  DQQ0(dz,qy,qx) = u;
+                  DQQ1(dz,qy,qx) = v;
+                  DQQ2(dz,qy,qx) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz,z,q)
+         {
+            MFEM_FOREACH_THREAD(qy,y,q)
+            {
+               MFEM_FOREACH_THREAD(qx,x,q)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  double w = 0.0;
+                  for (int dz = 0; dz < d; ++dz)
+                  {
+                     u += DQQ0(dz,qy,qx) * B(qz,dz);
+                     v += DQQ1(dz,qy,qx) * B(qz,dz);
+                     w += DQQ2(dz,qy,qx) * G(qz,dz);
+                  }
+                  y(qx,qy,qz,c,0,e) = u;
+                  y(qx,qy,qz,c,1,e) = v;
+                  y(qx,qy,qz,c,2,e) = w;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
 
 // Tensor-product evaluation of quadrature point derivatives: dispatch function.
 // Instantiation for the case QVectorLayout::byNODES.
@@ -113,6 +217,7 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x347: return Derivatives3D<L,P,3,4,7>(NE,B,G,J,X,Y);
          case 0x348: return Derivatives3D<L,P,3,4,8>(NE,B,G,J,X,Y);
          default:
+#if 0
          {
             constexpr int MD = 8;
             constexpr int MQ = 8;
@@ -123,6 +228,9 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
             Derivatives3D<L,P,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
             return;
          }
+#else
+         return DynamicSmemDerivatives3D(NE,B,G,X,Y,vdim,D1D,Q1D);
+#endif
       }
    }
    mfem::out << "Unknown kernel 0x" << std::hex << id << std::endl;

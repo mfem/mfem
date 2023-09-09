@@ -9,15 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "backends.hpp"
-#include "globals.hpp"
+#include "../backends.hpp"
+#include "../globals.hpp"
 
 namespace mfem
 {
-
-// Internal debug option, useful for tracking CUDA allocations, deallocations
-// and transfers.
-// #define MFEM_TRACK_CUDA_MEM
 
 #ifdef MFEM_USE_CUDA
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
@@ -30,6 +26,10 @@ void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
    mfem_error();
 }
 #endif
+
+// Internal debug option, useful for tracking CUDA allocations, deallocations
+// and transfers.
+// #define MFEM_TRACK_CUDA_MEM
 
 void* CuMemAlloc(void** dptr, size_t bytes)
 {
