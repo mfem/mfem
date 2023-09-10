@@ -10,6 +10,7 @@
 
 Version 4.5.3 (development)
 ===========================
+- Added curve interpolation method for NURBS.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -20,7 +21,10 @@ New and updated examples and miniapps
   skewness, and aspect-ratio computed from the Jacobian of the transformation.
 
 - Added a new miniapp for interface and boundary fitting to implicit domains
-  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp
+  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp.
+
+- Added a new miniapp for fitting of selected mesh nodes to specified positions,
+  while maintaining mesh quality. See miniapps/meshing/fit-node-position.cpp.
 
 - Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes serial
   and parallel examples for diffusion, convection-diffusion, acoustics and
@@ -28,6 +32,11 @@ New and updated examples and miniapps
   (Par)ComplexDPGWeakForm and (Complex)BlockStaticCondensation. Three new
   integrators are added in support of DPG systems: TraceIntegrator,
   NormalTraceIntegrator and TangentTraceIntegrator.
+
+- Added new SubMesh examples demonstrating source terms and boundary conditions
+  transferred from SubMesh objects.
+
+- Added a miniapp for interpolation of NURBS.
 
 - Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
   demonstrating the use of a matrix-free saddle-point solver methodology,
@@ -39,8 +48,20 @@ New and updated examples and miniapps
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
 
+- Added a new parallel LOR transfer miniapp, miniapps/tools/plor-transfer, which
+  mirrors the functionality of the serial LOR transfer miniapp,
+  miniapps/tools/lor-transfer
+
 Meshing improvements
 --------------------
+- Added support for free connectivity of NURBS patches allowing for more complex
+  patch configurations such as C-meshes. This is demonstrated in a new NURBS
+  miniapp.
+  
+- The edge to knot map for NURBS meshes can be determined automatically. It is no
+  longer needed to specify this in the NURBS mesh. A mesh in the NURBS miniapp
+  demonstrates this.
+
 - Added new methods in the Mesh class to set and get attributes on NURBS patches
   and patch boundaries.
 
@@ -55,9 +76,20 @@ Discretization improvements
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
   spaces are now supported through the ConformingFaceRestriction class.
 
+- SubMesh and ParSubMesh have been extended to support the transfer of
+  Nedelec and Raviart-Thomas finite element spaces.
+
 - VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
 
+- Added support for partial assembly on NURBS patches and NURBS patch sparse
+  matrix assembly. Patch matrix assembly includes the option to use reduced
+  approximate integration rules, computed by the newly implemented non-negative
+  least-squares (NNLS) solver.
+
 - Added support for p-refined meshes in FindPointsGSLIB.
+
+- Support for parallel transfer of H1 fields using the low-order refined (LOR)
+  transfer operators in L2ProjectionGridTransfer
 
 Linear and nonlinear solvers
 ----------------------------
@@ -85,6 +117,8 @@ Miscellaneous
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
+- FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
+  an empty partition.
 
 Version 4.5.2, released on March 23, 2023
 =========================================
