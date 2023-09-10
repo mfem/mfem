@@ -4001,7 +4001,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &flux, Vector &error_estimates,
                         Array<int>* aniso_flags,
                         int with_subdomains,
-                        bool with_coeff)
+                        bool with_flux)
 {
    FiniteElementSpace *ufes = u.FESpace();
    FiniteElementSpace *ffes = flux.FESpace();
@@ -4031,7 +4031,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    for (int s = 1; s <= nsd; s++)
    {
       // This calls the parallel version when u is a ParGridFunction
-      u.ComputeFlux(blfi, flux, with_coeff, (with_subdomains ? s : -1));
+      u.ComputeFlux(blfi, flux, with_flux, (with_subdomains ? s : -1));
 
       for (int i = 0; i < nfe; i++)
       {
@@ -4053,7 +4053,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          Transf = ufes->GetElementTransformation(i);
          blfi.ComputeElementFlux(*ufes->GetFE(i), *Transf, ul,
-                                 *ffes->GetFE(i), fl, with_coeff);
+                                 *ffes->GetFE(i), fl, with_flux);
 
          fl -= fla;
 
@@ -4257,7 +4257,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                           GridFunction &u,               // input
                           Vector &error_estimates,       // output
                           bool subdomain_reconstruction, // input (optional)
-                          bool with_coeff,               // input (optional)
+                          bool with_flux,               // input (optional)
                           double tichonov_coeff)         // input (optional)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
@@ -4353,7 +4353,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
          Transf = ufes->GetElementTransformation(ielem);
          FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
-                                 *dummy, fl, with_coeff, ir);
+                                 *dummy, fl, with_flux, ir);
 
          // 2.C.ii. Use global polynomial basis to construct normal
          //         equations
