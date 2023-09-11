@@ -5138,7 +5138,7 @@ void HypreBoomerAMG::SetAdvectiveOptions(int distanceR,
    double filterA_tol = 0.0;
 
    // Set relaxation on specified grid points
-   int ns_down, ns_up, ns_coarse;
+   int ns_down = 0, ns_up = 0, ns_coarse; // init to suppress gcc warnings
    if (distanceR > 0)
    {
       ns_down = prerelax.length();
