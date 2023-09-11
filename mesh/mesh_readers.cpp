@@ -2994,38 +2994,38 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       switch (num_node_per_el)
       {
-         case (4) :
+         case 4:
          {
             cubit_element_type = ELEMENT_TET4;
             cubit_face_type = FACE_TRI3;
             num_element_linear_nodes = 4;
             break;
          }
-         case (10) :
+         case 10:
          {
             cubit_element_type = ELEMENT_TET10;
             cubit_face_type = FACE_TRI6;
             num_element_linear_nodes = 4;
             break;
          }
-         case (8) :
+         case 8:
          {
             cubit_element_type = ELEMENT_HEX8;
             cubit_face_type = FACE_QUAD4;
             num_element_linear_nodes = 8;
             break;
          }
-         case (27) :
+         case 27:
          {
             cubit_element_type = ELEMENT_HEX27;
             cubit_face_type = FACE_QUAD9;
             num_element_linear_nodes = 8;
             break;
          }
-         default :
+         default:
          {
-            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
-                       " node 3D element\n");
+            MFEM_ABORT("Don't know what to do with a " << num_node_per_el << " node 3D element\n");
+            break;
          }
       }
    }
@@ -3033,6 +3033,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       MFEM_ABORT("Invalid dimension: num_dim = " << num_dim);
    }
+
 
    // Determine order of elements
    int order = 0;
@@ -3057,7 +3058,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // create array for number of sides in side sets
-   size_t *num_side_in_ss  = new size_t[num_side_sets];
+   std::vector<size_t> num_side_in_ss(num_side_sets);
+
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       snprintf(temp_string, NC_MAX_NAME + 1, "num_side_ss%d", i+1);
@@ -3187,6 +3189,11 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       {
          num_face_nodes = 9;
          num_face_linear_nodes = 4;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported cubit face type encountered.\n");
          break;
       }
    }
@@ -3335,13 +3342,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
    {
-      int NumNodePerEl = num_node_per_el;
       for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
       {
          for (int j = 0; j < num_element_linear_nodes; j++)
          {
             renumbered_vertex_ids[j] =
-               cubitToMFEMVertMap[elem_blk[iblk][i*NumNodePerEl+j]]-1;
+               cubitToMFEMVertMap[elem_blk[iblk][i*num_node_per_el+j]]-1;
          }
 
          switch (cubit_element_type)
@@ -3517,7 +3523,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    delete [] elem_ss;
    delete [] side_ss;
-   delete [] num_side_in_ss;
    delete [] coordx;
    delete [] coordy;
    delete [] coordz;
