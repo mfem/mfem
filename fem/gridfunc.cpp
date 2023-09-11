@@ -4975,8 +4975,4 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
    }
 }
 
-
-
-
-
 }

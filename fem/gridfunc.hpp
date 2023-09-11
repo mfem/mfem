@@ -986,7 +986,6 @@ public:
             maxbb[d]=elco(d,0);
          }
 
-
          for (int i=0; i<space->GetNE(); i++)
          {
             el=space->GetFE(i);
@@ -997,39 +996,18 @@ public:
             elco.SetSize(dim,ir->GetNPoints());
             trans->Transform(*ir,elco);
 
-            if (kdim==2)
+            for (int p=0; p<ir->GetNPoints(); p++)
             {
-               for (int p=0; p<ir->GetNPoints(); p++)
+               int bind=vdofs[p]/isca;
+               if (indt[bind]==true)
                {
-                  int bind=vdofs[p]/isca;
-                  if (indt[bind]==true)
-                  {
-                     kdt->AddPoint(elco(0,p),elco(1,p),bind);
-                     indt[bind]=false;
+                  kdt->AddPoint(elco.GetColumn(p),bind);
+                  indt[bind]=false;
 
-                     for (int d=0; d<2; d++)
-                     {
-                        if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
-                        if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
-                     }
-                  }
-               }
-            }
-            else if (kdim==3)
-            {
-               for (int p=0; p<ir->GetNPoints(); p++)
-               {
-                  int bind=vdofs[p]/isca;
-                  if (indt[bind]==true)
+                  for (int d=0; d<kdim; d++)
                   {
-                     kdt->AddPoint(elco(0,p),elco(1,p),elco(2,p),bind);
-                     indt[bind]=false;
-
-                     for (int d=0; d<3; d++)
-                     {
-                        if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
-                        if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
-                     }
+                     if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
+                     if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
                   }
                }
             }
