@@ -180,7 +180,7 @@ public:
    void AddPoint(Tfloat* xx,Tindex ii)
    {
       NodeND nd;
-      for (int i=0; i<ndim; i++)
+      for (size_t i=0; i<ndim; i++)
       {
          nd.pt.xx[i]=xx[i];
       }
