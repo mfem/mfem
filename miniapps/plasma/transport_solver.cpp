@@ -4429,6 +4429,9 @@ void DGTransportTDO::TransportOp::Update()
       cout << "Entering DGTransportTDO::TransportOp::Update" << endl;
    }
 
+   NLOperator::Update();
+
+   coefGF_.Update();
    flux_vis_.Update();
 }
 
