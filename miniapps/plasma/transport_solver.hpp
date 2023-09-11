@@ -1036,7 +1036,6 @@ class DGTransportTDO : public TimeDependentOperator
 {
    // friend class TransportPrec;
 private:
-   const MPI_Session & mpi_;
    int logging_;
    int op_flag_;
 
@@ -1061,7 +1060,6 @@ private:
    class NLOperator : public Operator
    {
    protected:
-      const MPI_Session &mpi_;
       const DGParams &dg_;
 
       int logging_;
@@ -1139,7 +1137,7 @@ private:
       // Sockets used to communicate with GLVis
       std::map<std::string, socketstream*> socks_;
 
-      NLOperator(const MPI_Session & mpi, const DGParams & dg,
+      NLOperator(const DGParams & dg,
                  int index,
                  const std::string &eqn_name,
                  const std::string &field_name,
@@ -1262,7 +1260,7 @@ private:
 
       ParFluxVectors flux_vis_;
 
-      TransportOp(const MPI_Session & mpi, const DGParams & dg,
+      TransportOp(const DGParams & dg,
                   const PlasmaParams & plasma, int index,
                   const std::string &eqn_name,
                   const std::string &field_name,
@@ -1371,7 +1369,7 @@ private:
       GridFunctionCoefficient hContCoef_;
       SoundSpeedCoef          CsCoef_;
 
-      AdvTransportOp(const MPI_Session & mpi, const DGParams & dg,
+      AdvTransportOp(const DGParams & dg,
                      const PlasmaParams & plasma, int index,
                      const std::string &eqn_name,
                      const std::string &field_name,
@@ -1489,7 +1487,7 @@ private:
    public:
       friend class NeutralDensityTerms;
 
-      NeutralDensityOp(const MPI_Session & mpi, const DGParams & dg,
+      NeutralDensityOp(const DGParams & dg,
                        const PlasmaParams & plasma,
                        ParFiniteElementSpace & h1_fes,
                        ParGridFunctionArray & yGF,
@@ -1603,7 +1601,7 @@ private:
    public:
       friend class IonDensityTerms;
 
-      IonDensityOp(const MPI_Session & mpi, const DGParams & dg,
+      IonDensityOp(const DGParams & dg,
                    const ArtViscParams & av,
                    const PlasmaParams & plasma,
                    ParFiniteElementSpace & vfes,
@@ -1754,7 +1752,7 @@ private:
    public:
       friend class IonMomentumTerms;
 
-      IonMomentumOp(const MPI_Session & mpi, const DGParams & dg,
+      IonMomentumOp(const DGParams & dg,
                     const ArtViscParams & av,
                     const PlasmaParams & plasma,
                     ParFiniteElementSpace & vfes,
@@ -1845,7 +1843,7 @@ private:
       ParGridFunction * SGF_;
 
    public:
-      IonStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
+      IonStaticPressureOp(const DGParams & dg,
                           const PlasmaParams & plasma,
                           ParGridFunctionArray & yGF,
                           ParGridFunctionArray & kGF,
@@ -1932,7 +1930,7 @@ private:
       ParGridFunction * SGF_;
 
    public:
-      ElectronStaticPressureOp(const MPI_Session & mpi, const DGParams & dg,
+      ElectronStaticPressureOp(const DGParams & dg,
                                const PlasmaParams & plasma,
                                ParGridFunctionArray & yGF,
                                ParGridFunctionArray & kGF,
@@ -1972,7 +1970,7 @@ private:
       StateVariableProductCoef kBphiIZCoef_;
       StateVariableStandardVecCoef BSVCoef_;
 
-      TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+      TotalEnergyOp(const DGParams & dg,
                     const PlasmaParams & plasma, int index,
                     const std::string &eqn_name,
                     const std::string &field_name,
@@ -2057,7 +2055,7 @@ private:
    public:
       friend class IonTotalEnergyTerms;
 
-      IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+      IonTotalEnergyOp(const DGParams & dg,
                        const PlasmaParams & plasma,
                        ParFiniteElementSpace & vfes,
                        ParFiniteElementSpace & h1_fes,
@@ -2139,7 +2137,7 @@ private:
    public:
       friend class ElectronTotalEnergyTerms;
 
-      ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+      ElectronTotalEnergyOp(const DGParams & dg,
                             const PlasmaParams & plasma,
                             ParFiniteElementSpace & vfes,
                             ParFiniteElementSpace & h1_fes,
@@ -2173,7 +2171,7 @@ private:
    class DummyOp : public TransportOp
    {
    public:
-      DummyOp(const MPI_Session & mpi, const DGParams & dg,
+      DummyOp(const DGParams & dg,
               const PlasmaParams & plasma,
               ParGridFunctionArray & yGF,
               ParGridFunctionArray & kGF,
@@ -2191,7 +2189,7 @@ private:
 
       virtual void SetTimeStep(double dt)
       {
-         if (mpi_.Root() && logging_ > 1)
+         if (Mpi::Root() && logging_ > 1)
          {
             std::cout << "Setting time step: " << dt << " in DummyOp\n";
          }
@@ -2208,7 +2206,6 @@ private:
    class CombinedOp : public Operator
    {
    private:
-      const MPI_Session & mpi_;
       int neq_;
       int logging_;
 
@@ -2239,7 +2236,7 @@ private:
       void updateOffsets();
 
    public:
-      CombinedOp(const MPI_Session & mpi, const DGParams & dg,
+      CombinedOp(const DGParams & dg,
                  const std::vector<ArtViscParams> & av,
                  const PlasmaParams & plasma, const Vector &eqn_weights,
                  ParFiniteElementSpace & vfes,
@@ -2297,7 +2294,6 @@ private:
    class TransportLeftPrec : public BlockDiagonalPreconditioner
    {
    private:
-      const MPI_Session & mpi_;
       int logging_;
 
       TransPrecParams p_;
@@ -2309,8 +2305,7 @@ private:
       DGTransportTDO::CombinedOp & comb_op_;
 
    public:
-      TransportLeftPrec(const MPI_Session & mpi,
-                        const TransPrecParams &p,
+      TransportLeftPrec(const TransPrecParams &p,
                         const Array<int> &offsets,
                         CombinedOp &combOp,
                         int logging = 0);
@@ -2393,7 +2388,6 @@ private:
    class TransportRightPrec : public RightBlockDiagonalPreconditioner
    {
    private:
-      const MPI_Session & mpi_;
       int logging_;
 
       TransPrecParams p_;
@@ -2401,14 +2395,13 @@ private:
       // DGTransportTDO::CombinedOp & comb_op_;
 
    public:
-      TransportRightPrec(const MPI_Session & mpi,
-                         const TransPrecParams &p,
+      TransportRightPrec(const TransPrecParams &p,
                          const Array<int> &offsets,
                          const Vector &scale_factors,
                          CombinedOp &combOp,
                          int logging = 0)
          : RightBlockDiagonalPreconditioner(offsets, scale_factors),
-           mpi_(mpi), logging_(logging), p_(p)
+           logging_(logging), p_(p)
       {}
 
       ~TransportRightPrec() {}
@@ -2472,7 +2465,7 @@ public:
    friend class IonTotalEnergyTerms;
    friend class ElectronTotalEnergyTerms;
 
-   DGTransportTDO(const MPI_Session & mpi, const DGParams & dg,
+   DGTransportTDO(const DGParams & dg,
                   const std::vector<ArtViscParams> & av,
                   const PlasmaParams & plasma,
                   const SolverParams & tol,
@@ -2559,7 +2552,7 @@ private:
    ParGridFunction * CsGF_;
 
 public:
-   VisualizationOp(const MPI_Session & mpi, const DGParams & dg,
+   VisualizationOp(const DGParams & dg,
                    const PlasmaParams & plasma,
                    ParFiniteElementSpace &vfes,
                    ParGridFunctionArray & yGF,
@@ -2578,7 +2571,7 @@ public:
 
    virtual void SetTimeStep(double dt)
    {
-      if (mpi_.Root() && logging_ > 1)
+      if (Mpi::Root() && logging_ > 1)
       {
          std::cout << "Setting time step: " << dt << " in VisualizationOp\n";
       }

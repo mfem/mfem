@@ -935,8 +935,7 @@ void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err);
 void UmanskyTestWidth(ParGridFunction &u);
 
 // Initial condition
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+void AdaptInitialMesh(ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
                       ParFiniteElementSpace &ffespace,
@@ -951,10 +950,10 @@ void record_cmd_line(int argc, char *argv[]);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi(argc, argv);
-   if (!mpi.Root()) { mfem::out.Disable(); mfem::err.Disable(); }
+   MPI::Init(argc, argv);
+   if (!Mpi::Root()) { mfem::out.Disable(); mfem::err.Disable(); }
 
-   if (mpi.Root()) { record_cmd_line(argc, argv); }
+   if (Mpi::Root()) { record_cmd_line(argc, argv); }
 
    SolverParams ttol;
    ttol.lin_abs_tol = 1e-10;
@@ -1309,7 +1308,7 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
 
@@ -1336,17 +1335,17 @@ int main(int argc, char *argv[])
          // Cache the equation term flags set on the command line
          Array<int> cmd_term_flags = term_flags;
 
-         if (mpi.Root() && cmd_op_flag == -1 && max_cmd_term_flag == -1)
+         if (Mpi::Root() && cmd_op_flag == -1 && max_cmd_term_flag == -1)
          {
             cout << "Reading enabled equations and their enabled terms from "
                  << et_file << endl << endl;
          }
-         else if (mpi.Root() && cmd_op_flag == -1)
+         else if (Mpi::Root() && cmd_op_flag == -1)
          {
             cout << "Reading enabled equations from "
                  << et_file << endl << endl;
          }
-         else if (mpi.Root() && max_cmd_term_flag == -1)
+         else if (Mpi::Root() && max_cmd_term_flag == -1)
          {
             cout << "Reading enabled equation terms from "
                  << et_file << endl << endl;
@@ -1452,12 +1451,12 @@ int main(int argc, char *argv[])
          t_final = 1.0;
       }
    }
-   if (mpi.Root()) { args.PrintOptions(cout); cout << '\n'; }
+   if (Mpi::Root()) { args.PrintOptions(cout); cout << '\n'; }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   if (mpi.Root()) { device.Print(); }
+   if (Mpi::Root()) { device.Print(); }
 
    G_EQDSK_Data *eqdsk = NULL;
    {
@@ -1465,7 +1464,7 @@ int main(int argc, char *argv[])
       if (ieqdsk)
       {
          eqdsk = new G_EQDSK_Data(ieqdsk);
-         if (mpi.Root() )
+         if (Mpi::Root() )
          {
             eqdsk->PrintInfo();
          }
@@ -1481,7 +1480,7 @@ int main(int argc, char *argv[])
 
    MFEM_ASSERT(dim == 2, "This miniapp is specialized to 2D geometries.");
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Number of elements in initial mesh: " << mesh->GetNE() << endl;
    }
@@ -1510,7 +1509,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Number of elements after serial refinement: "
            << mesh->GetNE() << endl;
@@ -1521,13 +1520,13 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   cout << mpi.WorldRank() << ": Number of elements in parallel mesh: " <<
+   cout << Mpi::WorldRank() << ": Number of elements in parallel mesh: " <<
         pmesh.GetNE() << endl;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
    }
-   cout << mpi.WorldRank() << ": Number of elements after parallel refinement: "
+   cout << Mpi::WorldRank() << ": Number of elements after parallel refinement: "
         << pmesh.GetNE() << endl;
 
    // 7. Define the discontinuous DG finite element space of the given
@@ -1586,14 +1585,14 @@ int main(int argc, char *argv[])
 
    Transport2DCoefFactory coefFact(field_names, yGF);
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Configuring initial conditions" << endl;
    }
    TransportICs ics(5);
    if (strncmp(ic_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Reading initial conditions from " << ic_file << endl;
       }
@@ -1613,14 +1612,14 @@ int main(int argc, char *argv[])
       { ics[4] = new FunctionCoefficient(TeFunc); ics.SetOwnership(4, true); }
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Configuring exact solutions" << endl;
    }
    TransportExactSolutions ess(5);
    if (strncmp(es_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Reading exact solutions from " << es_file << endl;
       }
@@ -1642,7 +1641,7 @@ int main(int argc, char *argv[])
       // Finite element space for a scalar (thermodynamic quantity)
       ParFiniteElementSpace err_fes(&pmesh, &fec_l2_o0);
 
-      AdaptInitialMesh(mpi, pmesh, err_fes, fes, vfes, ffes, coef_gf, coef,
+      AdaptInitialMesh(pmesh, err_fes, fes, vfes, ffes, coef_gf, coef,
                        amr_weights, 2, tol_init, visualization);
 
       u.SetSpace(&ffes);
@@ -1664,9 +1663,9 @@ int main(int argc, char *argv[])
 
    HYPRE_Int glob_size_sca = fes.GlobalTrueVSize();
    HYPRE_Int glob_size_tot = ffes.GlobalTrueVSize();
-   if (mpi.Root())
+   if (Mpi::Root())
    { cout << "Number of unknowns per field: " << glob_size_sca << endl; }
-   if (mpi.Root())
+   if (Mpi::Root())
    { cout << "Total number of unknowns:     " << glob_size_tot << endl; }
 
    // 8. Define the initial conditions, save the corresponding mesh and grid
@@ -1688,7 +1687,7 @@ int main(int argc, char *argv[])
       double dt_diff = hmin * hmin / chi_max_ratio;
       double dt_adv  = hmin / max(v_max_, DBL_MIN);
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Maximum advection time step: " << dt_adv << endl;
          cout << "Maximum diffusion time step: " << dt_diff << endl;
@@ -1847,7 +1846,7 @@ int main(int argc, char *argv[])
 
    if (strncmp(es_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          ofserr.open("transport2d_err.out");
          ofserr << t_init;
@@ -1862,27 +1861,27 @@ int main(int argc, char *argv[])
          {
             es->SetTime(t_init);
             double error = yGF[i]->ComputeL2Error(*es);
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                ofserr << '\t' << error;
             }
          }
          else
          {
-            if (mpi.Root()) { ofserr << '\t' << -1.0; }
+            if (Mpi::Root()) { ofserr << '\t' << -1.0; }
          }
       }
-      if (mpi.Root()) { ofserr << endl << flush; }
+      if (Mpi::Root()) { ofserr << endl << flush; }
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Configuring boundary conditions" << endl;
    }
    TransportBCs bcs(pmesh.bdr_attributes, 5);
    if (strncmp(bc_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Reading boundary conditions from " << bc_file << endl;
       }
@@ -1890,14 +1889,14 @@ int main(int argc, char *argv[])
       bcs.LoadBCs(coefFact, bcfs);
    }
    /*
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Configuring source terms" << endl;
    }
    TransportSRCs srcs(5);
    if (strncmp(src_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Reading source coefficients from " << src_file << endl;
       }
@@ -1905,14 +1904,14 @@ int main(int argc, char *argv[])
       srcs.LoadSRCs(coefFact, srcfs);
    }
    */
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Configuring equation coefficients" << endl;
    }
    TransportCoefs eqnCoefs(5);
    if (strncmp(ec_file,"",1) != 0)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Reading equation coefficients from " << ec_file << endl;
       }
@@ -1925,7 +1924,7 @@ int main(int argc, char *argv[])
    if (eqnCoefs(5).GetVectorCoefficient(
           CommonCoefs::MAGNETIC_FIELD_COEF) != NULL)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Using B field from " << ec_file << endl;
       }
@@ -1934,7 +1933,7 @@ int main(int argc, char *argv[])
    }
    else if (eqdsk)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Using B field from " << eqdsk_file << endl;
       }
@@ -1945,7 +1944,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Using B field from TotBFunc" << endl;
       }
@@ -2004,9 +2003,9 @@ int main(int argc, char *argv[])
       double niAvg = cnic / cMc;
       double neAvg = cnec / cMc;
 
-      if (mpi.Root()) { cout << "|mn| = " << mnAvg << endl; }
-      if (mpi.Root()) { cout << "|ni| = " << niAvg << endl; }
-      if (mpi.Root()) { cout << "|ne| = " << neAvg << endl << endl; }
+      if (Mpi::Root()) { cout << "|mn| = " << mnAvg << endl; }
+      if (Mpi::Root()) { cout << "|ni| = " << niAvg << endl; }
+      if (Mpi::Root()) { cout << "|ne| = " << neAvg << endl << endl; }
 
       ND_ParFESpace nd_fes(&pmesh, order, dim);
       ParLinearForm Mb(&nd_fes);
@@ -2062,15 +2061,15 @@ int main(int argc, char *argv[])
          m.Mult(bHat, Mb);
          bnXeb = Mb(bHat);
       }
-      if (mpi.Root()) { cout << "b.b      = " << bMb << endl; }
-      if (mpi.Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
-      if (mpi.Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
-      if (mpi.Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
-      if (mpi.Root()) { cout << "|nXi|    = " << bnXib / bMb << endl; }
-      if (mpi.Root()) { cout << "|nXe|    = " << bnXeb / bMb << endl << endl; }
-      if (mpi.Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
-      if (mpi.Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
-      if (mpi.Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
+      if (Mpi::Root()) { cout << "b.b      = " << bMb << endl; }
+      if (Mpi::Root()) { cout << "|Dn|     = " << bDnb / bMb << endl; }
+      if (Mpi::Root()) { cout << "|Di|     = " << bDib / bMb << endl; }
+      if (Mpi::Root()) { cout << "|Eta|    = " << bEtab / bMb << endl; }
+      if (Mpi::Root()) { cout << "|nXi|    = " << bnXib / bMb << endl; }
+      if (Mpi::Root()) { cout << "|nXe|    = " << bnXeb / bMb << endl << endl; }
+      if (Mpi::Root()) { cout << "|Eta/mn| = " << bEtab / bMb / mnAvg << endl; }
+      if (Mpi::Root()) { cout << "|nXi/ni| = " << bnXib / bMb / niAvg << endl; }
+      if (Mpi::Root()) { cout << "|nXe/ne| = " << bnXeb / bMb / neAvg << endl; }
 
       coefNrm[0] = bDnb / bMb;
       coefNrm[1] = bDib / bMb;
@@ -2080,13 +2079,13 @@ int main(int argc, char *argv[])
    }
    */
 
-   DGTransportTDO oper(mpi, dg, av, plasma, ttol, eqn_weights, fld_weights,
+   DGTransportTDO oper(dg, av, plasma, ttol, eqn_weights, fld_weights,
                        fes, vfes, ffes, fes_h1,
                        offsets, yGF, kGF,
                        bcs, eqnCoefs, Di_perp, Xi_perp, Xe_perp,
                        term_flags, vis_flags, imex, op_flag, logging);
 
-   oper.SetLogging(max(0, logging - (mpi.Root()? 0 : 1)));
+   oper.SetLogging(max(0, logging - (Mpi::Root()? 0 : 1)));
 
    if (check_grad)
    {
@@ -2121,7 +2120,7 @@ int main(int argc, char *argv[])
    if (ode_epus) { ode_controller.SetErrorPerUnitStep(); }
 
    ofstream ofs_controller;
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       ofs_controller.open("transport2d_cntrl.dat");
       ode_controller.SetOutput(ofs_controller);
@@ -2192,7 +2191,7 @@ int main(int argc, char *argv[])
 
       ErrorEstRange(estimator, glb_min_error, glb_max_error);
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Range of error estimates for initial condition: "
               << glb_min_error << " < elem err < " << glb_max_error << endl;
@@ -2254,13 +2253,13 @@ int main(int argc, char *argv[])
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Registering fields" << endl;
       }
       oper.RegisterDataFields(*dc);
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Preparing fields" << endl;
       }
@@ -2279,16 +2278,16 @@ int main(int argc, char *argv[])
 
    double t = t_init;
 
-   if (mpi.Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
+   if (Mpi::Root()) { cout << "\nBegin time stepping at t = " << t << endl; }
    while (t < t_final)
    {
       ode_controller.Run(u, t, t_final);
 
-      if (mpi.Root()) { cout << "Time stepping paused at t = " << t << endl; }
+      if (Mpi::Root()) { cout << "Time stepping paused at t = " << t << endl; }
 
       if (strncmp(es_file,"",1) != 0)
       {
-         if (mpi.Root()) { ofserr << t; }
+         if (Mpi::Root()) { ofserr << t; }
          for (int i=0; i<5; i++)
          {
             double nrm = yGF[i]->ComputeL2Error(zeroCoef);
@@ -2299,17 +2298,17 @@ int main(int argc, char *argv[])
             {
                es->SetTime(t);
                double error = yGF[i]->ComputeL2Error(*es);
-               if (mpi.Root())
+               if (Mpi::Root())
                {
                   ofserr << '\t' << error;
                }
             }
             else
             {
-               if (mpi.Root()) { ofserr << '\t' << -1.0; }
+               if (Mpi::Root()) { ofserr << '\t' << -1.0; }
             }
          }
-         if (mpi.Root()) { ofserr << endl << flush; }
+         if (Mpi::Root()) { ofserr << endl << flush; }
       }
 
       bool ss = false;
@@ -2318,7 +2317,7 @@ int main(int argc, char *argv[])
          ss = oper.CheckForSteadyState();
          if (ss)
          {
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "Steady State solution has been reached" << endl;
             }
@@ -2383,7 +2382,7 @@ int main(int argc, char *argv[])
          }
 
          // Make sure errors will be recomputed in the following.
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "\nEstimating errors." << endl;
          }
@@ -2399,7 +2398,7 @@ int main(int argc, char *argv[])
             double min_err, max_err;
             ErrorEstRange(estimator, min_err, max_err);
 
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "Range of error estimates at time " << t << ": "
                     << min_err << " < elem err < " << max_err << endl;
@@ -2424,7 +2423,7 @@ int main(int argc, char *argv[])
 
             if (refiner.Stop())
             {
-               if (mpi.Root())
+               if (Mpi::Root())
                {
                   cout << "No refinements necessary." << endl;
                }
@@ -2433,7 +2432,7 @@ int main(int argc, char *argv[])
             else
             {
                ref_it++;
-               if (mpi.Root())
+               if (Mpi::Root())
                {
                   cout << "Refining elements (iteration " << ref_it << ")" << endl;
                }
@@ -2472,7 +2471,7 @@ int main(int argc, char *argv[])
                if (pmesh.Nonconforming())
                {
                   reb_it++;
-                  if (mpi.Root())
+                  if (Mpi::Root())
                   {
                      cout << "Rebalancing elements (iteration " << reb_it << ")"
                           << endl;
@@ -2510,7 +2509,7 @@ int main(int argc, char *argv[])
             if (derefiner.Apply(pmesh))
             {
                dref_it++;
-               if (mpi.Root())
+               if (Mpi::Root())
                {
                   cout << "Derefining elements (iteration " << dref_it << ")" << endl;
                }
@@ -2548,7 +2547,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-               if (mpi.Root())
+               if (Mpi::Root())
                {
                   cout << "No derefinements needed." << endl;
                }
@@ -2557,7 +2556,7 @@ int main(int argc, char *argv[])
             amr_it++;
 
             global_dofs = fes.GlobalTrueVSize();
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "\nAMR iteration " << amr_it << endl;
                cout << "Number of unknowns: " << global_dofs << endl;
@@ -2565,7 +2564,7 @@ int main(int argc, char *argv[])
             if (amr_it == 23)
             {
                ostringstream oss;
-               oss << "bar_" << mpi.WorldRank() << ".ncmesh";
+               oss << "bar_" << Mpi::WorldRank() << ".ncmesh";
                ofstream ofs(oss.str().c_str());
                pmesh.ParPrint(ofs);
                ofs.close();
@@ -2576,10 +2575,10 @@ int main(int argc, char *argv[])
       if (ss) { break; }
    }
 
-   if (mpi.Root()) { ofserr.close(); }
+   if (Mpi::Root()) { ofserr.close(); }
 
    tic_toc.Stop();
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "\nTime stepping done after " << tic_toc.RealTime() << "s.\n";
    }
@@ -2594,7 +2593,7 @@ int main(int argc, char *argv[])
             ParGridFunction uk(&fes, u_block.GetBlock(k));
             ostringstream sol_name;
             sol_name << "species-" << i << "-field-" << j << "-final."
-                     << setfill('0') << setw(6) << mpi.WorldRank();
+                     << setfill('0') << setw(6) << Mpi::WorldRank();
             ofstream sol_ofs(sol_name.str().c_str());
             sol_ofs.precision(precision);
             sol_ofs << uk;
@@ -2609,7 +2608,7 @@ int main(int argc, char *argv[])
         strcmp(mesh_file, "../data/periodic-hexagon.mesh") == 0))
    {
       const double error = sol.ComputeLpError(2, u0);
-      if (mpi.Root()) { cout << "Solution error: " << error << endl; }
+      if (Mpi::Root()) { cout << "Solution error: " << error << endl; }
    }
    */
    if (umansky_test)
@@ -2617,7 +2616,7 @@ int main(int argc, char *argv[])
       UmanskyTestWidth(ion_energy);
    }
 
-   if (mpi.Root()) { ofs_controller.close(); }
+   if (Mpi::Root()) { ofs_controller.close(); }
    // Free the used memory.
    delete eqdsk;
    delete ode_solver;
@@ -2751,8 +2750,7 @@ void ErrorEstRange(ErrorEstimator & est, double &min_err, double &max_err)
 }
 
 // Initial condition
-void AdaptInitialMesh(MPI_Session &mpi,
-                      ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
+void AdaptInitialMesh(ParMesh &pmesh, ParFiniteElementSpace &err_fespace,
                       ParFiniteElementSpace &fespace,
                       ParFiniteElementSpace &vfespace,
                       ParFiniteElementSpace &ffespace,
@@ -2779,7 +2777,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
    for (int it = 0; ; it++)
    {
       HYPRE_Int global_dofs = fespace.GlobalTrueVSize();
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR iteration " << it << endl;
          cout << "Number of unknowns: " << global_dofs << endl;
@@ -2817,7 +2815,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
 
       if (global_dofs > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached the maximum number of dofs. Stop." << endl;
          }
@@ -2831,7 +2829,7 @@ void AdaptInitialMesh(MPI_Session &mpi,
       refiner.Apply(pmesh);
       if (refiner.Stop())
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Stopping criterion satisfied. Stop." << endl;
          }

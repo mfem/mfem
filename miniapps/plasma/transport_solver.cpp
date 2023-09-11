@@ -2374,13 +2374,11 @@ void DGAdvectionDiffusionTDO::Update()
 }
 
 DGTransportTDO::
-TransportLeftPrec::TransportLeftPrec(const MPI_Session & mpi,
-                                     const TransPrecParams &p,
+TransportLeftPrec::TransportLeftPrec(const TransPrecParams &p,
                                      const Array<int> &offsets,
                                      DGTransportTDO::CombinedOp &combOp,
                                      int logging)
    : BlockDiagonalPreconditioner(offsets),
-     mpi_(mpi),
      logging_(logging),
      p_(p),
      diag_prec_(5),
@@ -2408,7 +2406,7 @@ DGTransportTDO::TransportLeftPrec::~TransportLeftPrec()
 
 void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "TransportLeftPrec::SetOperator" << endl;
    }
@@ -2437,7 +2435,7 @@ void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
                delete slu_mat_[i];
                slu_mat_[i] = new SuperLURowLocMatrix(M);
 
-               if (mpi_.Root() && logging_ > 0)
+               if (Mpi::Root() && logging_ > 0)
                {
                   cout << "Building SuperLU solver for the " << i
                        << " diagonal block" << endl;
@@ -2454,7 +2452,7 @@ void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
             else
 #endif
             {
-               if (mpi_.Root() && logging_ > 0)
+               if (Mpi::Root() && logging_ > 0)
                {
                   cout << "Using CombinedOp precond solver for the " << i
                        << " diagonal block" << endl;
@@ -2469,7 +2467,7 @@ void DGTransportTDO::TransportLeftPrec::SetOperator(const Operator &op)
 
 void DGTransportTDO::TransportRightPrec::SetOperator(const Operator &op)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "TransportRightPrec::SetOperator" << endl;
    }
@@ -2985,7 +2983,7 @@ finish:
    }
 }
 
-DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
+DGTransportTDO::DGTransportTDO(const DGParams &dg,
                                const std::vector<ArtViscParams> & av,
                                const PlasmaParams &plasma,
                                const SolverParams & tol,
@@ -3005,7 +3003,6 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
                                const Array<int> &vis_flags,
                                bool imex, unsigned int op_flag, int logging)
    : TimeDependentOperator(ffes.GetVSize()),
-     mpi_(mpi),
      logging_(logging),
      op_flag_(op_flag),
      fes_(fes),
@@ -3014,16 +3011,16 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
      kGF_(kGF),
      offsets_(offsets),
      tol_(tol),
-     op_(mpi, dg, av, plasma, eqn_weights, vfes, h1_fes, yGF, kGF,
+     op_(dg, av, plasma, eqn_weights, vfes, h1_fes, yGF, kGF,
          bcs, coefs, offsets_,
          Di_perp, Xi_perp, Xe_perp,
          term_flags, vis_flags, op_flag, logging),
-     newton_op_l_prec_(mpi, tol.prec, offsets, op_, logging),
-     newton_op_r_prec_(mpi, tol.prec, offsets, fld_weights, op_),
+     newton_op_l_prec_(tol.prec, offsets, op_, logging),
+     newton_op_r_prec_(tol.prec, offsets, fld_weights, op_),
      newton_op_solver_(fes.GetComm()),
      newton_solver_(fes.GetComm())
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing DGTransportTDO" << endl;
    }
@@ -3055,7 +3052,7 @@ DGTransportTDO::DGTransportTDO(const MPI_Session &mpi, const DGParams &dg,
       ss_ = false;
    }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing DGTransportTDO" << endl;
    }
@@ -3072,7 +3069,7 @@ DGTransportTDO::~DGTransportTDO()
 
 void DGTransportTDO::SetTime(const double _t)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::SetTime with t = " << _t << endl;
    }
@@ -3081,7 +3078,7 @@ void DGTransportTDO::SetTime(const double _t)
 
    this->TimeDependentOperator::SetTime(_t);
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::SetTime" << endl;
    }
@@ -3149,7 +3146,7 @@ DGTransportTDO::PrepareDataFields()
 void
 DGTransportTDO::InitializeGLVis()
 {
-   if ( mpi_.Root() && logging_ > 0 )
+   if ( Mpi::Root() && logging_ > 0 )
    { cout << "Opening GLVis sockets." << endl << flush; }
    op_.InitializeGLVis();
 }
@@ -3157,18 +3154,18 @@ DGTransportTDO::InitializeGLVis()
 void
 DGTransportTDO::DisplayToGLVis()
 {
-   if ( mpi_.Root() && logging_ > 1 )
+   if ( Mpi::Root() && logging_ > 1 )
    { cout << "Sending data to GLVis ..." << flush; }
 
    op_.DisplayToGLVis();
 
-   if ( mpi_.Root() && logging_ > 1 ) { cout << " " << flush; }
+   if ( Mpi::Root() && logging_ > 1 ) { cout << " " << flush; }
 }
 
 void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
                                    Vector &k)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ImplicitSolve" << endl;
    }
@@ -3193,7 +3190,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
    }
    kGF_.ExchangeFaceNbrData();
 
-   if (mpi_.Root() && logging_ > 0)
+   if (Mpi::Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in DGTransportTDO" << endl;
    }
@@ -3238,7 +3235,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
       kGF_.ExchangeFaceNbrData();
    }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ImplicitSolve" << endl;
    }
@@ -3246,7 +3243,7 @@ void DGTransportTDO::ImplicitSolve(const double dt, const Vector &y,
 
 void DGTransportTDO::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::Update" << endl;
    }
@@ -3257,14 +3254,13 @@ void DGTransportTDO::Update()
 
    newton_solver_.SetOperator(op_);
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::Update" << endl;
    }
 }
 
-DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
-                                       const DGParams & dg,
+DGTransportTDO::NLOperator::NLOperator(const DGParams & dg,
                                        int index,
                                        const string & eqn_name,
                                        const string & field_name,
@@ -3276,7 +3272,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
                                        const string & log_prefix)
    : Operator(yGF[0]->ParFESpace()->GetVSize(),
               5*(yGF[0]->ParFESpace()->GetVSize())),
-     mpi_(mpi), dg_(dg),
+     dg_(dg),
      logging_(logging), log_prefix_(log_prefix),
      index_(index),
      eqn_name_(eqn_name),
@@ -3301,7 +3297,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
      vis_flag_(vis_flag),
      dc_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing NLOperator for " << eqn_name << endl;
    }
@@ -3324,7 +3320,7 @@ DGTransportTDO::NLOperator::NLOperator(const MPI_Session & mpi,
    blf_ = NULL;
    cgblf_ = NULL;
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing NLOperator for " << eqn_name << endl;
    }
@@ -3412,7 +3408,7 @@ void DGTransportTDO::NLOperator::SetTimeStep(double dt)
 
 void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << log_prefix_ << "DGTransportTDO::NLOperator::Mult" << endl;
    }
@@ -3452,7 +3448,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
       r.AddElementVector(vdofs_, elvec_);
    }
 
-   if (mpi_.Root() && logging_ > 2)
+   if (Mpi::Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
@@ -3505,7 +3501,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
       }
    }
 
-   if (mpi_.Root() && logging_ > 2)
+   if (Mpi::Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult element loop done" << endl;
@@ -3624,7 +3620,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
       }
    }
 
-   if (mpi_.Root() && logging_ > 2)
+   if (Mpi::Root() && logging_ > 2)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult face loop done" << endl;
@@ -3790,7 +3786,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
       }
    }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << log_prefix_
            << "DGTransportTDO::NLOperator::Mult done" << endl;
@@ -3799,7 +3795,7 @@ void DGTransportTDO::NLOperator::Mult(const Vector &, Vector &r) const
 
 void DGTransportTDO::NLOperator::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::NLOperator::Update" << endl;
    }
@@ -3819,7 +3815,7 @@ void DGTransportTDO::NLOperator::Update()
       }
    }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::NLOperator::Update" << endl;
    }
@@ -3827,7 +3823,7 @@ void DGTransportTDO::NLOperator::Update()
 
 Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::NLOperator::GetGradientBlock("
            << i << ") for equation " << index_ << endl;
@@ -3845,14 +3841,14 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
       /*
       if (index_ == i)  // Diagonal term
       {
-      if (mpi_.Root() && logging_ > 0)
+      if (Mpi::Root() && logging_ > 0)
       {
       cout << "Building diagonal block of the gradient "
       << "for equation " << i << endl;
       }
          if (cgblf_[i])
          {
-       if (mpi_.Root() && logging_ > 0)
+       if (Mpi::Root() && logging_ > 0)
        {
          cout << "Constructing Continuous Galerkin "
          << "operator and preconditioner" << endl;
@@ -3872,7 +3868,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
        // const bool algebraic = false;
             if (use_algebraic_D_cg) // Algebraic version
             {
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Algebraic version using RAP operation"
             << endl;
@@ -3883,7 +3879,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             }
             else // CG discretization version
             {
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Bilinear Form assembly version"
             << endl;
@@ -3901,7 +3897,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             // Set up the preconditioner in CG space
             if (use_lor_cg)
             {
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Building Low Order Refined preconditioner"
             << endl;
@@ -3911,7 +3907,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
                pmesh_.ExchangeFaceNbrNodes();
                if (use_air_cg)
                {
-        if (mpi_.Root() && logging_ > 0)
+        if (Mpi::Root() && logging_ > 0)
              {
           cout << "Using AIR preconditioner"
           << endl;
@@ -3922,7 +3918,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
                }
                else
                {
-        if (mpi_.Root() && logging_ > 0)
+        if (Mpi::Root() && logging_ > 0)
              {
           cout << "Using BoomerAMG preconditioner"
           << endl;
@@ -3934,7 +3930,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             {
                if (use_air_cg)
                {
-        if (mpi_.Root() && logging_ > 0)
+        if (Mpi::Root() && logging_ > 0)
              {
           cout << "Using AIR preconditioner"
           << endl;
@@ -3946,7 +3942,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
                }
                else
                {
-        if (mpi_.Root() && logging_ > 0)
+        if (Mpi::Root() && logging_ > 0)
              {
           cout << "Using BoomerAMG preconditioner"
           << endl;
@@ -3955,7 +3951,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
                }
             }
 
-       if (mpi_.Root() && logging_ > 0)
+       if (Mpi::Root() && logging_ > 0)
        {
          cout << "Building Jacobi Smoother"
          << endl;
@@ -3963,7 +3959,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             D_smoother_ = new HypreSmoother(*Dmat, HypreSmoother::Jacobi);
             if (use_schwarz)
             {
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Building Schwarz Smoother"
             << endl;
@@ -3978,7 +3974,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
 
                D_mult_->SetOperator(*D_cg_);
 
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Building DG preconditioner using CG LOR "
             << "with Jacobi and Schwarz Smoothers"
@@ -3990,7 +3986,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
             }
             else
             {
-          if (mpi_.Root() && logging_ > 0)
+          if (Mpi::Root() && logging_ > 0)
           {
        cout << "Building DG preconditioner using CG LOR "
             << "with Jacobi Smoother"
@@ -4001,7 +3997,7 @@ Operator *DGTransportTDO::NLOperator::GetGradientBlock(int i)
          }
          else
          {
-       if (mpi_.Root() && logging_ > 0)
+       if (Mpi::Root() && logging_ > 0)
        {
          cout << "Building DG preconditioner using diagonal scaling"
          << endl;
@@ -4025,7 +4021,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
    const int i = index_;
    if (cgblf_[i])
    {
-      if (mpi_.Root() && logging_ > 0)
+      if (Mpi::Root() && logging_ > 0)
       {
          cout << "Constructing Continuous Galerkin "
               << "operator and preconditioner" << endl;
@@ -4069,7 +4065,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       // const bool algebraic = false;
       if (use_algebraic_D_cg) // Algebraic version
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Algebraic version using RAP operation"
                  << endl;
@@ -4080,7 +4076,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       }
       else // CG discretization version
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Bilinear Form assembly version"
                  << endl;
@@ -4098,7 +4094,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       // Set up the preconditioner in CG space
       if (use_lor_cg)
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Building Low Order Refined preconditioner"
                  << endl;
@@ -4108,7 +4104,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
          pmesh_.ExchangeFaceNbrNodes();
          if (use_air_cg)
          {
-            if (mpi_.Root() && logging_ > 0)
+            if (Mpi::Root() && logging_ > 0)
             {
                cout << "Using AIR preconditioner"
                     << endl;
@@ -4119,7 +4115,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
          }
          else
          {
-            if (mpi_.Root() && logging_ > 0)
+            if (Mpi::Root() && logging_ > 0)
             {
                cout << "Using BoomerAMG preconditioner"
                     << endl;
@@ -4131,7 +4127,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       {
          if (use_air_cg)
          {
-            if (mpi_.Root() && logging_ > 0)
+            if (Mpi::Root() && logging_ > 0)
             {
                cout << "Using AIR preconditioner"
                     << endl;
@@ -4143,7 +4139,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
          }
          else
          {
-            if (mpi_.Root() && logging_ > 0)
+            if (Mpi::Root() && logging_ > 0)
             {
                cout << "Using BoomerAMG preconditioner"
                     << endl;
@@ -4152,7 +4148,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
          }
       }
 
-      if (mpi_.Root() && logging_ > 0)
+      if (Mpi::Root() && logging_ > 0)
       {
          cout << "Building Jacobi Smoother"
               << endl;
@@ -4160,7 +4156,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       D_smoother_ = new HypreSmoother(*Dmat_, HypreSmoother::Jacobi);
       if (use_schwarz)
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Building Schwarz Smoother"
                  << endl;
@@ -4170,7 +4166,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
                                           cgblf_[i]->ParFESpace(),
                                           D_cg_);  // TODO: delete this pointer
 
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Building Multiplicative Preconditioner"
                  << endl;
@@ -4180,7 +4176,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
 
          D_mult_->SetOperator(*D_cg_);
 
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Building DG preconditioner using CG LOR "
                  << "with Jacobi and Schwarz Smoothers"
@@ -4192,7 +4188,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
       }
       else
       {
-         if (mpi_.Root() && logging_ > 0)
+         if (Mpi::Root() && logging_ > 0)
          {
             cout << "Building DG preconditioner using CG LOR "
                  << "with Jacobi Smoother"
@@ -4203,7 +4199,7 @@ NLOperator::GetPreconditioner(const TransPrecParams &pparams)
    }
    else
    {
-      if (mpi_.Root() && logging_ > 0)
+      if (Mpi::Root() && logging_ > 0)
       {
          cout << "Building DG preconditioner using diagonal scaling"
               << endl;
@@ -4231,8 +4227,7 @@ DGTransportTDO::NLOperator::PrepareDataFields()
 {
 }
 
-DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
-                                         const DGParams & dg,
+DGTransportTDO::TransportOp::TransportOp(const DGParams & dg,
                                          const PlasmaParams & plasma, int index,
                                          const std::string &eqn_name,
                                          const std::string &field_name,
@@ -4249,7 +4244,7 @@ DGTransportTDO::TransportOp::TransportOp(const MPI_Session & mpi,
                                          int term_flag, int vis_flag,
                                          int logging,
                                          const std::string & log_prefix)
-   : NLOperator(mpi, dg, index, eqn_name, field_name,
+   : NLOperator(dg, index, eqn_name, field_name,
                 yGF, kGF, B3Coef, term_flag, vis_flag, logging, log_prefix),
      coefGF_(yGF[0]->ParFESpace()),
      vfes_(vfes),
@@ -4370,7 +4365,7 @@ DGTransportTDO::TransportOp::~TransportOp()
 
 void DGTransportTDO::TransportOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Setting time: " << t << " in TransportOp (" << eqn_name_ << ")"
            << endl;
@@ -4429,7 +4424,7 @@ void DGTransportTDO::TransportOp::SetTime(double t)
 
 void DGTransportTDO::TransportOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::TransportOp::Update" << endl;
    }
@@ -4439,7 +4434,7 @@ void DGTransportTDO::TransportOp::Update()
 
 void DGTransportTDO::TransportOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Setting time step: " << dt << " in TransportOp ("
            << eqn_name_ << ")"
@@ -4477,7 +4472,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
    {
       if (MCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding time derivative term proportional to d "
@@ -4517,7 +4512,7 @@ void DGTransportTDO::TransportOp::SetTimeDerivativeTerm(
 
 void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding isotropic diffusion term" << endl;
    }
@@ -4623,7 +4618,7 @@ void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableCoef &DCoef)
 
 void DGTransportTDO::TransportOp::SetDiffusionTerm(StateVariableMatCoef &DCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding anisotropic diffusion term v1" << endl;
    }
@@ -4732,7 +4727,7 @@ DGTransportTDO::TransportOp::SetAnisoDiffusionTerm(StateVariableMatCoef &DCoef,
                                                    double D_min,
                                                    double D_max)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding anisotropic diffusion term" << endl;
    }
@@ -4831,7 +4826,7 @@ DGTransportTDO::TransportOp::SetAnisotropicDiffusionTerm(
    Coefficient *DParaCoef,
    Coefficient *DPerpCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding anisotropic diffusion term v2" << endl;
    }
@@ -4964,7 +4959,7 @@ void
 DGTransportTDO::TransportOp::SetDiffusionTermGradient(
    StateVariableMatCoef &DCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding diffusion term to gradient" << endl;
    }
@@ -4977,7 +4972,7 @@ DGTransportTDO::TransportOp::SetDiffusionTermGradient(
    {
       if (DCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding diffusion term proportional to d "
@@ -5021,7 +5016,7 @@ DGTransportTDO::TransportOp::SetDiffusionTermGradient(
 void DGTransportTDO::TransportOp::SetSourceTerm(StateVariableCoef &SCoef,
                                                 double s)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding source term" << endl;
    }
@@ -5042,7 +5037,7 @@ void DGTransportTDO::TransportOp::SetSourceTermGradient(
    StateVariableCoef &SCoef,
    double s)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding source term to gradient" << endl;
    }
@@ -5051,7 +5046,7 @@ void DGTransportTDO::TransportOp::SetSourceTermGradient(
    {
       if (SCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding source term proportional to d "
@@ -5087,7 +5082,7 @@ void DGTransportTDO::TransportOp::SetSourceTermGradient(
 void DGTransportTDO::TransportOp::SetBdrSourceTerm(StateVariableCoef &SCoef,
                                                    StateVariableVecCoef &VCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding boundary source term" << endl;
    }
@@ -5099,7 +5094,7 @@ void DGTransportTDO::TransportOp::SetBdrSourceTerm(StateVariableCoef &SCoef,
    {
       if (SCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding boundary source term proportional to d "
@@ -5123,7 +5118,7 @@ void DGTransportTDO::TransportOp::SetBdrSourceTerm(StateVariableCoef &SCoef,
       }
       if (VCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding boundary source term proportional to d "
@@ -5153,7 +5148,7 @@ DGTransportTDO::TransportOp::SetOutflowBdrTerm(
    StateVariableVecCoef &VCoef,
    const Array<CoefficientByAttr*> & obc)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding outflow boundary term" << endl;
    }
@@ -5186,7 +5181,7 @@ DGTransportTDO::TransportOp::SetOutflowBdrTerm(
 void
 DGTransportTDO::TransportOp::SetRecyclingBdrSourceTerm(const RecyclingBC & rbc)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding recycling boundary source term" << endl;
    }
@@ -5230,7 +5225,7 @@ DGTransportTDO::TransportOp::SetRecyclingBdrSourceTerm(const RecyclingBC & rbc)
       {
          if (RSCoef->NonTrivialValue((FieldType)i))
          {
-            if ( mpi_.Root() && logging_ > 0)
+            if ( Mpi::Root() && logging_ > 0)
             {
                cout << eqn_name_
                     << ": Adding boundary source term proportional to d "
@@ -5254,7 +5249,7 @@ DGTransportTDO::TransportOp::SetRecyclingBdrSourceTerm(const RecyclingBC & rbc)
          }
          if (VCoefPtr->NonTrivialValue((FieldType)i))
          {
-            if ( mpi_.Root() && logging_ > 0)
+            if ( Mpi::Root() && logging_ > 0)
             {
                cout << eqn_name_
                     << ": Adding boundary source term proportional to d "
@@ -5321,8 +5316,7 @@ DGTransportTDO::TransportOp::DisplayToGLVis()
    */
 }
 
-DGTransportTDO::AdvTransportOp::AdvTransportOp(const MPI_Session & mpi,
-                                               const DGParams & dg,
+DGTransportTDO::AdvTransportOp::AdvTransportOp(const DGParams & dg,
                                                const PlasmaParams & plasma,
                                                int index,
                                                const std::string &eqn_name,
@@ -5340,7 +5334,7 @@ DGTransportTDO::AdvTransportOp::AdvTransportOp(const MPI_Session & mpi,
                                                int term_flag, int vis_flag,
                                                int logging,
                                                const std::string & log_prefix)
-   : TransportOp(mpi, dg, plasma, index, eqn_name, field_name, vfes, h1_fes,
+   : TransportOp(dg, plasma, index, eqn_name, field_name, vfes, h1_fes,
                  yGF, kGF, elOrdGF, hGF, bcs, cbcs, common_coefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
      advectionCoef_(NULL),
@@ -5376,7 +5370,7 @@ DGTransportTDO::AdvTransportOp::~AdvTransportOp()
 
 void DGTransportTDO::AdvTransportOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Setting time: " << t << " in AdvTransportOp (" << eqn_name_
            << ")"
@@ -5392,7 +5386,7 @@ void DGTransportTDO::AdvTransportOp::SetTime(double t)
 
 void DGTransportTDO::AdvTransportOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::AdvTransportOp::Update" << endl;
    }
@@ -5417,7 +5411,7 @@ DGTransportTDO::AdvTransportOp::SetAdvectionDiffusionTerm(
    Coefficient *DParaCoef,
    Coefficient *DPerpCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding advection-diffusion term" << endl;
    }
@@ -5589,7 +5583,7 @@ void DGTransportTDO::AdvTransportOp::SetAdvectionTerm(StateVariableVecCoef
                                                       &VCoef/*,
                               bool bc*/)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding advection term" << endl;
    }
@@ -5638,8 +5632,7 @@ void DGTransportTDO::AdvTransportOp::SetAdvectionTerm(StateVariableVecCoef
    */
 }
 
-DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
-                                       const DGParams & dg,
+DGTransportTDO::CombinedOp::CombinedOp(const DGParams & dg,
                                        const std::vector<ArtViscParams> & av,
                                        const PlasmaParams & plasma,
                                        const Vector &eqn_weights,
@@ -5656,8 +5649,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                                        const Array<int> & term_flags,
                                        const Array<int> & vis_flags,
                                        unsigned int op_flag, int logging)
-   : mpi_(mpi),
-     neq_(5),
+   : neq_(5),
      logging_(logging),
      fes_(*yGF[0]->ParFESpace()),
      // yGF_(yGF),
@@ -5677,7 +5669,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
      hDiscCoef_(&hDiscGF_),
      hContGF_(&h1_fes_1_)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing CombinedOp" << endl;
    }
@@ -5699,7 +5691,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 0) & 1)
    {
-      op_[0] = new NeutralDensityOp(mpi, dg, plasma, h1_fes, yGF, kGF,
+      op_[0] = new NeutralDensityOp(dg, plasma, h1_fes, yGF, kGF,
                                     elOrdContGF_, hContGF_,
                                     bcs[0], bcs.GetCoupledBCs(),
                                     coefs.GetNeutralDensityCoefs(),
@@ -5709,7 +5701,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[0] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[0] = new DummyOp(dg, plasma, yGF, kGF,
                            elOrdContGF_, hContGF_,
                            bcs[0], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), B3Coef_, 0,
@@ -5720,7 +5712,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 1) & 1)
    {
-      op_[1] = new IonDensityOp(mpi, dg, av[1], plasma, vfes, h1_fes, yGF, kGF,
+      op_[1] = new IonDensityOp(dg, av[1], plasma, vfes, h1_fes, yGF, kGF,
                                 elOrdContGF_, hContGF_,
                                 bcs[1], bcs.GetCoupledBCs(),
                                 coefs.GetIonDensityCoefs(),
@@ -5730,7 +5722,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[1] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[1] = new DummyOp(dg, plasma, yGF, kGF,
                            elOrdContGF_, hContGF_,
                            bcs[1], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), B3Coef_, 1,
@@ -5741,7 +5733,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 2) & 1)
    {
-      op_[2] = new IonMomentumOp(mpi, dg, av[2], plasma, vfes, h1_fes, yGF, kGF,
+      op_[2] = new IonMomentumOp(dg, av[2], plasma, vfes, h1_fes, yGF, kGF,
                                  elOrdContGF_, hContGF_,
                                  bcs[2], bcs.GetCoupledBCs(),
                                  coefs.GetIonMomentumCoefs(),
@@ -5751,7 +5743,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[2] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[2] = new DummyOp(dg, plasma, yGF, kGF,
                            elOrdContGF_, hContGF_,
                            bcs[2], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), B3Coef_, 2,
@@ -5762,7 +5754,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    /*
    if ((op_flag >> 3) & 1)
    {
-      op_[3] = new IonStaticPressureOp(mpi, dg, plasma, yGF, kGF,
+      op_[3] = new IonStaticPressureOp(dg, plasma, yGF, kGF,
                                        bcs[3], bcs.GetCoupledBCs(),
                                        coefs.GetIonStaticPressureCoefs(),
                                        coefs.GetCommonCoefs(), *B3Coef, XiPerp,
@@ -5771,7 +5763,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[3] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[3] = new DummyOp(dg, plasma, yGF, kGF,
                            bcs[3], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), *B3Coef, 3,
                            "Ion Static Pressure", "Ion Temperature",
@@ -5781,7 +5773,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 4) & 1)
    {
-      op_[4] = new ElectronStaticPressureOp(mpi, dg, plasma, yGF, kGF,
+      op_[4] = new ElectronStaticPressureOp(dg, plasma, yGF, kGF,
                                             bcs[4], bcs.GetCoupledBCs(),
                                             coefs.GetElectronStaticPressureCoefs(),
                                             coefs.GetCommonCoefs(), *B3Coef, XePerp,
@@ -5790,7 +5782,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[4] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[4] = new DummyOp(dg, plasma, yGF, kGF,
                            bcs[4], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), *B3Coef, 4,
                            "Electron Static Pressure", "Electron Temperature",
@@ -5800,7 +5792,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    */
    if ((op_flag >> 3) & 1)
    {
-      op_[3] = new IonTotalEnergyOp(mpi, dg, plasma, vfes, h1_fes, yGF, kGF,
+      op_[3] = new IonTotalEnergyOp(dg, plasma, vfes, h1_fes, yGF, kGF,
                                     elOrdContGF_, hContGF_,
                                     bcs[3], bcs.GetCoupledBCs(),
                                     coefs.GetIonTotalEnergyCoefs(),
@@ -5810,7 +5802,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[3] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[3] = new DummyOp(dg, plasma, yGF, kGF,
                            elOrdContGF_, hContGF_,
                            bcs[3], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), B3Coef_, 3,
@@ -5821,7 +5813,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    if ((op_flag >> 4) & 1)
    {
-      op_[4] = new ElectronTotalEnergyOp(mpi, dg, plasma, vfes, h1_fes,
+      op_[4] = new ElectronTotalEnergyOp(dg, plasma, vfes, h1_fes,
                                          yGF, kGF,
                                          elOrdContGF_, hContGF_,
                                          bcs[4], bcs.GetCoupledBCs(),
@@ -5832,7 +5824,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
    }
    else
    {
-      op_[4] = new DummyOp(mpi, dg, plasma, yGF, kGF,
+      op_[4] = new DummyOp(dg, plasma, yGF, kGF,
                            elOrdContGF_, hContGF_,
                            bcs[4], bcs.GetCoupledBCs(),
                            coefs.GetCommonCoefs(), B3Coef_, 4,
@@ -5841,7 +5833,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
                            logging, "T_e (dummy): ");
    }
 
-   op_[5] = new VisualizationOp(mpi, dg, plasma, vfes, yGF, kGF,
+   op_[5] = new VisualizationOp(dg, plasma, vfes, yGF, kGF,
                                 elOrdContGF_, hContGF_,
                                 bcs[0], bcs.GetCoupledBCs(),
                                 coefs.GetCommonCoefs(), B3Coef_,
@@ -5850,7 +5842,7 @@ DGTransportTDO::CombinedOp::CombinedOp(const MPI_Session & mpi,
 
    this->updateOffsets();
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing CombinedOp" << endl;
    }
@@ -5866,7 +5858,7 @@ DGTransportTDO::CombinedOp::~CombinedOp()
 
 void DGTransportTDO::CombinedOp::updateOffsets()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::CombinedOp::updateOffsets" << endl;
    }
@@ -5882,7 +5874,7 @@ void DGTransportTDO::CombinedOp::updateOffsets()
 
    height = width = offsets_[neq_];
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::CombinedOp::updateOffsets" << endl;
    }
@@ -5890,7 +5882,7 @@ void DGTransportTDO::CombinedOp::updateOffsets()
 
 void DGTransportTDO::CombinedOp::SetTime(double t)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << "Setting time: " << t << " in CombinedOp" << endl;
    }
@@ -5902,7 +5894,7 @@ void DGTransportTDO::CombinedOp::SetTime(double t)
 
 void DGTransportTDO::CombinedOp::SetTimeStep(double dt)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << "Setting time step: " << dt << " in CombinedOp" << endl;
    }
@@ -5982,7 +5974,7 @@ DGTransportTDO::CombinedOp::DisplayToGLVis()
 
 void DGTransportTDO::CombinedOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::CombinedOp::Update" << endl;
    }
@@ -6002,7 +5994,7 @@ void DGTransportTDO::CombinedOp::Update()
 
    this->updateOffsets();
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::CombinedOp::Update" << endl;
    }
@@ -6010,7 +6002,7 @@ void DGTransportTDO::CombinedOp::Update()
 
 void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient" << endl;
    }
@@ -6047,7 +6039,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
          Operator * gradIJ = op_[i]->GetGradientBlock(j);
          if (gradIJ)
          {
-            if ( mpi_.Root() && logging_ > 2)
+            if ( Mpi::Root() && logging_ > 2)
             {
                cout << "Grad has block " << i << ", " << j << endl;
             }
@@ -6065,7 +6057,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
       kGF_.ExchangeFaceNbrData();
    }
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::UpdateGradient done" << endl;
    }
@@ -6073,7 +6065,7 @@ void DGTransportTDO::CombinedOp::UpdateGradient(const Vector &k) const
 
 void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult" << endl;
    }
@@ -6097,7 +6089,7 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
       r_i *= wgts_[i];
 
       double norm_r = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
-      if (mpi_.Root())
+      if (Mpi::Root())
       {
          cout << "norm(r_" << i << ") " << norm_r << endl;
       }
@@ -6112,14 +6104,13 @@ void DGTransportTDO::CombinedOp::Mult(const Vector &k, Vector &r) const
       kGF_.ExchangeFaceNbrData();
    }
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "DGTransportTDO::CombinedOp::Mult done" << endl;
    }
 }
 
-DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
-                                                   const DGParams & dg,
+DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const DGParams & dg,
                                                    const PlasmaParams & plasma,
                                                    ParFiniteElementSpace & h1_fes,
                                                    ParGridFunctionArray & yGF,
@@ -6135,7 +6126,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
                                                    int vis_flag,
                                                    int logging,
                                                    const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, 0, "Neutral Density", "Neutral Density",
+   : TransportOp(dg, plasma, 0, "Neutral Density", "Neutral Density",
                  NULL, &h1_fes, yGF, kGF, elOrdGF, hGF,
                  bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix),
@@ -6150,7 +6141,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
      SizGF_(NULL),
      SGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing NeutralDensityOp" << endl;
       cout << "   Neutral mass:        " << m_n_kg_ << " kg"
@@ -6247,7 +6238,7 @@ DGTransportTDO::NeutralDensityOp::NeutralDensityOp(const MPI_Session & mpi,
    {
       flux_vis_.SetDiffusionCoef(DCoef_);
    }
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing NeutralDensityOp" << endl;
    }
@@ -6263,7 +6254,7 @@ DGTransportTDO::NeutralDensityOp::~NeutralDensityOp()
 
 void DGTransportTDO::NeutralDensityOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in NeutralDensityOp" << endl;
    }
@@ -6274,7 +6265,7 @@ void DGTransportTDO::NeutralDensityOp::SetTime(double t)
 
 void DGTransportTDO::NeutralDensityOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time step: " << dt << " in NeutralDensityOp" << endl;
    }
@@ -6368,7 +6359,7 @@ NeutralDensityOp::PrepareDataFields()
 
 void DGTransportTDO::NeutralDensityOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::NeutralDensityOp::Update" << endl;
    }
@@ -6380,14 +6371,13 @@ void DGTransportTDO::NeutralDensityOp::Update()
    if (SizGF_ != NULL) { SizGF_->Update(); }
    if (SGF_   != NULL) { SGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::NeutralDensityOp::Update" << endl;
    }
 }
 
-DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
-                                           const DGParams & dg,
+DGTransportTDO::IonDensityOp::IonDensityOp(const DGParams & dg,
                                            const ArtViscParams & av,
                                            const PlasmaParams & plasma,
                                            ParFiniteElementSpace & vfes,
@@ -6405,7 +6395,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
                                            int term_flag, int vis_flag,
                                            int logging,
                                            const string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, 1, "Ion Density", "Ion Density",
+   : AdvTransportOp(dg, plasma, 1, "Ion Density", "Ion Density",
                     &vfes, &h1_fes, yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, cmncoefs, B3Coef,
                     term_flag, vis_flag, logging, log_prefix),
@@ -6432,7 +6422,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
      SrcGF_(NULL),
      SGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing IonDensityOp" << endl;
       cout << "   Ion mass:   " << m_i_kg_ << " kg "
@@ -6534,7 +6524,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
    {
       flux_vis_.SetAdvectionCoef(ViCoef_);
    }
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing IonDensityOp" << endl;
    }
@@ -6543,7 +6533,7 @@ DGTransportTDO::IonDensityOp::IonDensityOp(const MPI_Session & mpi,
 
 void DGTransportTDO::IonDensityOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in IonDensityOp" << endl;
    }
@@ -6555,7 +6545,7 @@ void DGTransportTDO::IonDensityOp::SetTime(double t)
 
 void DGTransportTDO::IonDensityOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time step: " << dt << " in IonDensityOp" << endl;
    }
@@ -6697,7 +6687,7 @@ void DGTransportTDO::IonDensityOp::PrepareDataFields()
 
 void DGTransportTDO::IonDensityOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::IonDensityOp::Update" << endl;
    }
@@ -6711,14 +6701,13 @@ void DGTransportTDO::IonDensityOp::Update()
    if (SrcGF_   != NULL) { SrcGF_->Update(); }
    if (SGF_     != NULL) { SGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonDensityOp::Update" << endl;
    }
 }
 
-DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
-                                             const DGParams & dg,
+DGTransportTDO::IonMomentumOp::IonMomentumOp(const DGParams & dg,
                                              const ArtViscParams & av,
                                              const PlasmaParams & plasma,
                                              ParFiniteElementSpace & vfes,
@@ -6736,7 +6725,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
                                              int term_flag, int vis_flag,
                                              int logging,
                                              const string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, 2, "Ion Parallel Momentum",
+   : AdvTransportOp(dg, plasma, 2, "Ion Parallel Momentum",
                     "Ion Parallel Velocity", &vfes, &h1_fes,
                     yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
@@ -6795,7 +6784,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
      SCXGF_(NULL),
      SGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing IonMomentumOp" << endl;
    }
@@ -6892,7 +6881,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
          {
             if (negBPCoef_.NonTrivialValue((FieldType)i))
             {
-               if ( mpi_.Root() && logging_ > 0)
+               if ( Mpi::Root() && logging_ > 0)
                {
                   cout << eqn_name_
                        << ": Adding outflow BC for divergence term proportional to "
@@ -6983,7 +6972,7 @@ DGTransportTDO::IonMomentumOp::IonMomentumOp(const MPI_Session & mpi,
    {
       MomParaGF_ = new ParGridFunction(&vfes);
    }
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing IonMomentumOp" << endl;
    }
@@ -7017,7 +7006,7 @@ void DGTransportTDO::IonMomentumOp::SetDivergenceTerm(StateVariableVecCoef
    {
       if (VCoef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding divergence term proportional to "
@@ -7070,7 +7059,7 @@ void DGTransportTDO::IonMomentumOp::SetDivergenceTerm(StateVariableCoef &Coef,
    {
       if (Coef.NonTrivialValue((FieldType)i))
       {
-         if ( mpi_.Root() && logging_ > 0)
+         if ( Mpi::Root() && logging_ > 0)
          {
             cout << eqn_name_
                  << ": Adding divergence term proportional to "
@@ -7129,7 +7118,7 @@ void DGTransportTDO::IonMomentumOp::SetDivergenceTerm(StateVariableCoef &Coef,
 
 void DGTransportTDO::IonMomentumOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in IonMomentumOp" << endl;
    }
@@ -7148,7 +7137,7 @@ void DGTransportTDO::IonMomentumOp::SetTime(double t)
 
 void DGTransportTDO::IonMomentumOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time step: " << dt << " in IonMomentumOp" << endl;
    }
@@ -7319,7 +7308,7 @@ IonMomentumOp::PrepareDataFields()
 
 void DGTransportTDO::IonMomentumOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::IonMomentumOp::Update" << endl;
    }
@@ -7348,7 +7337,7 @@ void DGTransportTDO::IonMomentumOp::Update()
    if (SCXGF_     != NULL) { SCXGF_->Update(); }
    if (SGF_       != NULL) { SGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonMomentumOp::Update" << endl;
    }
@@ -7356,7 +7345,7 @@ void DGTransportTDO::IonMomentumOp::Update()
 
 void DGTransportTDO::IonMomentumOp::PrepareGradient()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::IonMomentumOp::PrepareGradient" << endl;
    }
@@ -7376,15 +7365,14 @@ void DGTransportTDO::IonMomentumOp::PrepareGradient()
    hContGF_->ProjectDiscCoefficient(hDiscCoef_, GridFunction::MAXIMUM);
    hContGF_->ExchangeFaceNbrData();
    */
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonMomentumOp::PrepareGradient" << endl;
    }
 }
 
 DGTransportTDO::IonStaticPressureOp::
-IonStaticPressureOp(const MPI_Session & mpi,
-                    const DGParams & dg,
+IonStaticPressureOp(const DGParams & dg,
                     const PlasmaParams & plasma,
                     ParGridFunctionArray & yGF,
                     ParGridFunctionArray & kGF,
@@ -7399,7 +7387,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
                     int term_flag, int vis_flag,
                     int logging,
                     const string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, 3, "Ion Static Pressure", "Ion Temperature",
+   : AdvTransportOp(dg, plasma, 3, "Ion Static Pressure", "Ion Temperature",
                     NULL, NULL, yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, cmncoefs, B3Coef,
                     term_flag, vis_flag, logging, log_prefix),
@@ -7426,7 +7414,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
      ChiPerpGF_(NULL),
      SGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing IonStaticPressureOp" << endl;
    }
@@ -7489,7 +7477,7 @@ IonStaticPressureOp(const MPI_Session & mpi,
       SGF_ = new ParGridFunction(&fes_);
    }
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing IonStaticPressureOp" << endl;
    }
@@ -7504,7 +7492,7 @@ DGTransportTDO::IonStaticPressureOp::~IonStaticPressureOp()
 
 void DGTransportTDO::IonStaticPressureOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time step: " << dt << " in IonStaticPressureOp"
            << endl;
@@ -7573,7 +7561,7 @@ IonStaticPressureOp::PrepareDataFields()
 
 void DGTransportTDO::IonStaticPressureOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::IonStaticPressureOp::Update" << endl;
    }
@@ -7584,15 +7572,14 @@ void DGTransportTDO::IonStaticPressureOp::Update()
    if (ChiPerpGF_) { ChiPerpGF_->Update(); }
    if (SGF_) { SGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonStaticPressureOp::Update" << endl;
    }
 }
 
 DGTransportTDO::ElectronStaticPressureOp::
-ElectronStaticPressureOp(const MPI_Session & mpi,
-                         const DGParams & dg,
+ElectronStaticPressureOp(const DGParams & dg,
                          const PlasmaParams & plasma,
                          ParGridFunctionArray & yGF,
                          ParGridFunctionArray & kGF,
@@ -7607,7 +7594,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
                          int term_flag, int vis_flag,
                          int logging,
                          const string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, 4, "Electron Static Pressure",
+   : AdvTransportOp(dg, plasma, 4, "Electron Static Pressure",
                     "Electron Temperature", NULL, NULL, yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, cmncoefs, B3Coef, term_flag, vis_flag,
                     logging, log_prefix),
@@ -7634,7 +7621,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
      ChiPerpGF_(NULL),
      SGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing ElectronStaticPressureOp" << endl;
    }
@@ -7697,7 +7684,7 @@ ElectronStaticPressureOp(const MPI_Session & mpi,
       SGF_ = new ParGridFunction(&fes_);
    }
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing ElectronStaticPressureOp" << endl;
    }
@@ -7712,7 +7699,7 @@ DGTransportTDO::ElectronStaticPressureOp::~ElectronStaticPressureOp()
 
 void DGTransportTDO::ElectronStaticPressureOp::SetTimeStep(double dt)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time step: " << dt << " in ElectronStaticPressureOp"
            << endl;
@@ -7778,7 +7765,7 @@ ElectronStaticPressureOp::PrepareDataFields()
 
 void DGTransportTDO::ElectronStaticPressureOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ElectronStaticPressureOp::Update"
            << endl;
@@ -7790,7 +7777,7 @@ void DGTransportTDO::ElectronStaticPressureOp::Update()
    if (ChiPerpGF_) { ChiPerpGF_->Update(); }
    if (SGF_) { SGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ElectronStaticPressureOp::Update"
            << endl;
@@ -7798,7 +7785,7 @@ void DGTransportTDO::ElectronStaticPressureOp::Update()
 }
 
 DGTransportTDO::TotalEnergyOp::
-TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+TotalEnergyOp(const DGParams & dg,
               const PlasmaParams & plasma, int index,
               const std::string &eqn_name,
               const std::string &field_name,
@@ -7815,7 +7802,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
               int term_flag, int vis_flag,
               int logging,
               const std::string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, index, eqn_name, field_name,
+   : AdvTransportOp(dg, plasma, index, eqn_name, field_name,
                     &vfes, &h1_fes, yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, common_coefs, B3Coef,
                     term_flag, vis_flag, logging, log_prefix),
@@ -7826,7 +7813,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      kBphiIZCoef_(kBCoef_, phiIZCoef_),
      BSVCoef_(BxyCoef_)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing TotalEnergyOp for the " << field_name << endl;
    }
@@ -7840,7 +7827,7 @@ TotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
 
 void DGTransportTDO::TotalEnergyOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in TotalEnergyOp (" << eqn_name_
            << ")" << endl;
@@ -7858,7 +7845,7 @@ void
 DGTransportTDO::TotalEnergyOp::
 SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef)
 {
-   if ( mpi_.Root() && logging_ > 0)
+   if ( Mpi::Root() && logging_ > 0)
    {
       cout << eqn_name_ << ": Adding kinetic energy advection term" << endl;
    }
@@ -7886,7 +7873,7 @@ SetKineticEnergyAdvectionTerm(StateVariableVecCoef &VCoef)
 }
 
 DGTransportTDO::IonTotalEnergyOp::
-IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+IonTotalEnergyOp(const DGParams & dg,
                  const PlasmaParams & plasma,
                  ParFiniteElementSpace & vfes,
                  ParFiniteElementSpace & h1_fes,
@@ -7903,7 +7890,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                  int term_flag, int vis_flag,
                  int logging,
                  const std::string & log_prefix)
-   : TotalEnergyOp(mpi, dg, plasma, 3, "Total Ion Energy", "Ion Temperature",
+   : TotalEnergyOp(dg, plasma, 3, "Total Ion Energy", "Ion Temperature",
                    vfes, h1_fes, yGF, kGF, elOrdGF, hGF,
                    bcs, cbcs, cmncoefs, B3Coef,
                    term_flag, vis_flag, logging, log_prefix),
@@ -7945,7 +7932,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      QiGF_(NULL),
      totEnergyGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing IonTotalEnergyOp" << endl;
    }
@@ -8069,7 +8056,7 @@ IonTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       flux_vis_.SetAdvectionCoef(ViCoef_);
    }
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing IonTotalEnergyOp" << endl;
    }
@@ -8090,7 +8077,7 @@ DGTransportTDO::IonTotalEnergyOp::~IonTotalEnergyOp()
 
 void DGTransportTDO::IonTotalEnergyOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in IonTotalEnergyOp" << endl;
    }
@@ -8117,7 +8104,7 @@ void DGTransportTDO::IonTotalEnergyOp::SetTime(double t)
 
 void DGTransportTDO::IonTotalEnergyOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::IonTotalEnergyOp::Update" << endl;
    }
@@ -8134,7 +8121,7 @@ void DGTransportTDO::IonTotalEnergyOp::Update()
    if (QiGF_        != NULL) { QiGF_->Update(); }
    if (totEnergyGF_ != NULL) { totEnergyGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::IonTotalEnergyOp::Update" << endl;
    }
@@ -8302,7 +8289,7 @@ void DGTransportTDO::IonTotalEnergyOp::PrepareDataFields()
 }
 
 DGTransportTDO::ElectronTotalEnergyOp::
-ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
+ElectronTotalEnergyOp(const DGParams & dg,
                       const PlasmaParams & plasma,
                       ParFiniteElementSpace & vfes,
                       ParFiniteElementSpace & h1_fes,
@@ -8319,7 +8306,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
                       int term_flag, int vis_flag,
                       int logging,
                       const std::string & log_prefix)
-   : TotalEnergyOp(mpi, dg, plasma, 4, "Total Electron Energy",
+   : TotalEnergyOp(dg, plasma, 4, "Total Electron Energy",
                    "Electron Temperature",
                    vfes, h1_fes, yGF, kGF, elOrdGF, hGF,
                    bcs, cbcs, cmncoefs, B3Coef,
@@ -8359,7 +8346,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
      QiGF_(NULL),
      totEnergyGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing ElectronTotalEnergyOp" << endl;
    }
@@ -8465,7 +8452,7 @@ ElectronTotalEnergyOp(const MPI_Session & mpi, const DGParams & dg,
    {
       totEnergyGF_ = new ParGridFunction(&fes_);
    }
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing ElectronTotalEnergyOp" << endl;
    }
@@ -8485,7 +8472,7 @@ DGTransportTDO::ElectronTotalEnergyOp::~ElectronTotalEnergyOp()
 
 void DGTransportTDO::ElectronTotalEnergyOp::SetTime(double t)
 {
-   if (mpi_.Root() && logging_)
+   if (Mpi::Root() && logging_)
    {
       cout << "Setting time: " << t << " in ElectronTotalEnergyOp" << endl;
    }
@@ -8511,7 +8498,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::SetTime(double t)
 
 void DGTransportTDO::ElectronTotalEnergyOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::ElectronTotalEnergyOp::Update" << endl;
    }
@@ -8527,7 +8514,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::Update()
    if (QiGF_        != NULL) { QiGF_->Update(); }
    if (totEnergyGF_ != NULL) { totEnergyGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::ElectronTotalEnergyOp::Update" << endl;
    }
@@ -8656,7 +8643,7 @@ void DGTransportTDO::ElectronTotalEnergyOp::PrepareDataFields()
    }
 }
 
-DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
+DGTransportTDO::DummyOp::DummyOp(const DGParams & dg,
                                  const PlasmaParams & plasma,
                                  ParGridFunctionArray & yGF,
                                  ParGridFunctionArray & kGF,
@@ -8671,12 +8658,12 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
                                  const string & field_name,
                                  int term_flag, int vis_flag, int logging,
                                  const string & log_prefix)
-   : TransportOp(mpi, dg, plasma, index, eqn_name, field_name,
+   : TransportOp(dg, plasma, index, eqn_name, field_name,
                  NULL, NULL, yGF, kGF, elOrdGF, hGF,
                  bcs, cbcs, cmncoefs, B3Coef,
                  term_flag, vis_flag, logging, log_prefix)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing DummyOp for equation " << index_ << endl;
    }
@@ -8689,7 +8676,7 @@ DGTransportTDO::DummyOp::DummyOp(const MPI_Session & mpi, const DGParams & dg,
    }
    blf_[index_]->AddDomainIntegrator(new MassIntegrator);
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing DummyOp" << endl;
    }
@@ -8700,8 +8687,7 @@ void DGTransportTDO::DummyOp::Update()
    NLOperator::Update();
 }
 
-DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
-                                                 const DGParams & dg,
+DGTransportTDO::VisualizationOp::VisualizationOp(const DGParams & dg,
                                                  const PlasmaParams & plasma,
                                                  ParFiniteElementSpace & vfes,
                                                  ParGridFunctionArray & yGF,
@@ -8715,7 +8701,7 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
                                                  int vis_flag,
                                                  int logging,
                                                  const string & log_prefix)
-   : AdvTransportOp(mpi, dg, plasma, 5, "N/A", "N/A",
+   : AdvTransportOp(dg, plasma, 5, "N/A", "N/A",
                     &vfes, NULL, yGF, kGF, elOrdGF, hGF,
                     bcs, cbcs, cmncoefs, B3Coef,
                     -1, vis_flag, logging, log_prefix),
@@ -8741,7 +8727,7 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
      SigmaCXGF_(NULL),
      CsGF_(NULL)
 {
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Constructing VisualizationOp" << endl;
    }
@@ -8789,7 +8775,7 @@ DGTransportTDO::VisualizationOp::VisualizationOp(const MPI_Session & mpi,
       CsGF_ = new ParGridFunction(&fes_);
    }
 
-   if ( mpi_.Root() && logging_ > 1)
+   if ( Mpi::Root() && logging_ > 1)
    {
       cout << "Done constructing VisualizationOp" << endl;
    }
@@ -8810,7 +8796,7 @@ DGTransportTDO::VisualizationOp::~VisualizationOp()
 
 void DGTransportTDO::VisualizationOp::Update()
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering DGTransportTDO::VisualizationOp::Update" << endl;
    }
@@ -8827,7 +8813,7 @@ void DGTransportTDO::VisualizationOp::Update()
    if (SigmaCXGF_  != NULL) { SigmaCXGF_->Update(); }
    if (CsGF_       != NULL) { CsGF_->Update(); }
 
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Leaving DGTransportTDO::VisualizationOp::Update" << endl;
    }
@@ -8835,14 +8821,14 @@ void DGTransportTDO::VisualizationOp::Update()
 
 void DGTransportTDO::VisualizationOp::RegisterDataFields(DataCollection & dc)
 {
-   if (mpi_.Root() && logging_ > 1)
+   if (Mpi::Root() && logging_ > 1)
    {
       cout << "Entering VisualizationOp::RegisterDataFields with vis_flag: "
            << vis_flag_ << endl;
    }
    if (this->CheckVisFlag(B_POLOIDAL))
    {
-      if (mpi_.Root() && logging_ > 1)
+      if (Mpi::Root() && logging_ > 1)
       {
          cout << "Registering B Poloidal" << endl;
       }
