@@ -12,8 +12,8 @@
 #include <mfem.hpp>
 #include <fstream>
 #include <iostream>
-#include "../common/mfem-common.hpp"
 #include <cmath>
+#include "../common/mfem-common.hpp"
 
 /// Generate second order mesh on 4 processes
 /// mpirun -np 4 ./nodal_transfer -rs 2 -rp 1 -gd 1 -o 2
@@ -34,7 +34,6 @@ class TestCoeff:public Coefficient
 public:
    TestCoeff()
    {
-
    }
 
    virtual
@@ -198,14 +197,21 @@ int main(int argc, char* argv[])
       // Map the src grid function
       {
          std::ifstream in;
-         KDTreeNodalProjection map(x);
+         BaseKDTreeNodalProjection* map;
+         if (dim==2)
+         {
+            map=new KDTreeNodalProjection<2>(x);
+         }
+         else
+         {
+            map=new KDTreeNodalProjection<3>(x);
+         }
          for (int p=0; p<src_num_procs; p++)
          {
             std::ostringstream oss;
             oss << std::setw(10) << std::setfill('0') << p;
             std::string mname="mesh_"+oss.str()+".msh";
             std::string gname="grid_func_"+oss.str()+".gf";
-
 
             // read the mesh
             Mesh lmesh;
@@ -218,8 +224,9 @@ int main(int argc, char* argv[])
             in.close();
 
             // project the grid function
-            map.Project(gf,1e-8);
+            map->Project(gf,1e-8);
          }
+         delete map;
       }
 
       // write the result into a ParaView file
