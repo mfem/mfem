@@ -27,7 +27,6 @@ using namespace mfem;
 #include "linalg/tensor.hpp"
 using mfem::internal::tensor;
 
-
 void sycl_lmem()
 {
    dbg();
@@ -47,22 +46,20 @@ void sycl_lmem()
       const int L = static_cast<int>(std::ceil(std::sqrt((N+BZ-1)/BZ)));
       const sycl::range<3> grid(L*BZ, L*Y, L*X), group(BZ, Y, X);
 #else // HOST
-      // Device("cpu")
+      MFEM_CONTRACT_VAR(X);
+      MFEM_CONTRACT_VAR(Y);
+      MFEM_CONTRACT_VAR(BZ);
+      MFEM_CONTRACT_VAR(G);
       const sycl::range<3> grid(1, 1, N), group(1, 1, 1);
 #endif
-      //sycl::accessor<double, 1, sycl::access_mode::read_write, sycl::access::target::local>
-      //slm(sycl::range<1>(1024), cgh);
       h.parallel_for(sycl::nd_range<3>(grid,group), [=](sycl::nd_item<3> itm)
       {
          int k =
             itm.get_group(2)*itm.get_local_range().get(0) + itm.get_local_id(0);
          if (k >= N) { return; }
 
-         sycl_out << "✅ ";
-
          /// ASSERT ARE NOT WORKING ///
 #ifdef __SYCL_DEVICE_ONLY__
-         //#warning SYCL-[C|G]PU
          sycl_out << "SYCL-[C|G]PU" << "\n";
 
          auto D = mfem_shared<double[8]>();
@@ -106,20 +103,15 @@ void sycl_lmem()
          // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc
          // sycl::ext::oneapi::experimental::work_group_local<int[16]> program_scope_array;
 #else // SYCL_HOST:
-         //#warning SYCL_HOST
          sycl_out << "SYCL_HOST" << "\n";
 
          auto J = mfem_shared<tensor<double,2,3>>();
          J[1][2] = M_PI;
          if (J[1][2] != M_PI) { sycl_out << "❌"; }
 
-         // MFEM_SHARED tensor<double,2,3> tensor_2_3_s;
-         // MFEM_SHARED(tensor<double,2,3>, tensor_2_3_s);
          auto tensor_2_3 = mfem_shared<tensor<double,2,3>>();
          tensor_2_3[0][1] = M_PI;
          if (tensor_2_3[0][1] != M_PI) { sycl_out << "❌"; }
-
-         //MFEM_SHARED((tensor<double,2,3>), tensor_2_3); // comma error
 
          sycl_out << tensor_2_3[0][1] << "\n";
          sycl_out << "SYCL-HOST" << "\n";
@@ -127,7 +119,6 @@ void sycl_lmem()
       });
    });
    Q.wait();
-   //Q.wait_and_throw();
 } // Pure SYCL, LocalMemory
 
 #endif // MFEM_USE_SYCL

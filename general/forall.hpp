@@ -33,7 +33,9 @@ const int MAX_D1D = 14;
 const int MAX_Q1D = 14;
 #endif
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
+// use DeviceVector which needs ../linalg/dtensor.hpp
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+     (defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)))
 template<int M = 0>
 MFEM_HOST_DEVICE auto GetSmem(double* &smem, std::size_t size)
 {
@@ -65,10 +67,13 @@ MFEM_HOST_DEVICE auto GetSmem(double* &smem, std::size_t size)
 // MFEM_UNROLL pragma macro that can be used inside MFEM_FORALL macros.
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
-#define MFEM_UNROLL_NVCC_DISABLED MFEM_PRAGMA(unroll(1))
+#define MFEM_UNROLL_DEV_DISABLED MFEM_PRAGMA(unroll(1))
+#elif defined(MFEM_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)
+#define MFEM_UNROLL(N) MFEM_PRAGMA(unroll(N))
+#define MFEM_UNROLL_DEV_DISABLED
 #else
 #define MFEM_UNROLL(N)
-#define MFEM_UNROLL_NVCC_DISABLED MFEM_PRAGMA(unroll)
+#define MFEM_UNROLL_DEV_DISABLED MFEM_PRAGMA(unroll)
 #endif
 
 // MFEM_GPU_FORALL: "parallel for" executed with CUDA or HIP based on the MFEM
@@ -215,8 +220,7 @@ inline void ForallWrapSmem(const bool use_dev, const int N, const int smem_size,
    // If Backend::SYCL_GPU or Backend::SYCL_CPU are allowed, use them
    if (Device::Allows(Backend::SYCL_GPU | Backend::SYCL_CPU))
    {
-      MFEM_ABORT("SYCL with dynamic shared memory not implemented");
-      //return SyclWrap<DIM>::run(N, d_body, X, Y, Z, G);
+      return SyclWrapSmem<DIM, Tsmem>::run(N, d_body, smem_size, X, Y, Z, G);
    }
 #endif
 
@@ -259,8 +263,7 @@ inline void ForallWrapSmem(const bool use_dev, const int N, const int smem_size,
    // If Backend::SYCL_HOST is allowed, use it
    if (Device::Allows(Backend::SYCL_HOST))
    {
-      MFEM_ABORT("SYCL with dynamic shared memory not implemented");
-      //return SyclWrap<DIM>::run(N, h_body, X, Y, Z, G);
+      return SyclWrapSmem<DIM,Tsmem>::run(N, h_body, smem_size, X, Y, Z, G);
    }
 #endif
 

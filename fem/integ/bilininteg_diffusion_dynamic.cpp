@@ -15,6 +15,7 @@
 #include "../../general/debug.hpp"
 
 #include "../../general/array.hpp"
+#include "../../general/backends.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
@@ -193,8 +194,8 @@ void DynamicSmemPADiffusionApply2D(const int NE,
 {
    const int id = (d << 4) | q;
 
-   //static int cid = 0;
-   //if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
+   static int cid = 0;
+   if (cid != id) { dbg("NE:%d D1D:%d Q1D:%d",NE,d,q); cid = id; }
 
    switch (id)
    {
@@ -288,7 +289,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int dx = 0; dx < d; ++dx)
                {
                   const double coords = X(dz,dy,dx);
@@ -308,7 +309,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int dy = 0; dy < d; ++dy)
                {
                   u += qdd1(qx,dy,dz) * B(qy,dy);
@@ -329,7 +330,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(qx,x,q)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int dz = 0; dz < d; ++dz)
                {
                   u += qqd0(qx,qy,dz) * B(qz,dz);
@@ -374,7 +375,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int qx = 0; qx < q; ++qx)
                {
                   u += qqq0(qx,qy,qz) * Gt(dx,qx);
@@ -395,7 +396,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int qy = 0; qy < q; ++qy)
                {
                   u += dqq0(dx,qy,qz) * Bt(dy,qy);
@@ -416,7 +417,7 @@ void DynaSmemPADiffApply3DKern(const int NE,
             MFEM_FOREACH_THREAD(dx,x,d)
             {
                double u = 0.0, v = 0.0, w = 0.0;
-               MFEM_UNROLL_NVCC_DISABLED
+               MFEM_UNROLL_DEV_DISABLED
                for (int qz = 0; qz < q; ++qz)
                {
                   u += ddq0(dx,dy,qz) * Bt(dz,qz);

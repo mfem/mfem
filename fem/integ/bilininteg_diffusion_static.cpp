@@ -14,12 +14,11 @@
 #include "../../general/debug.hpp"
 
 #include "../../general/array.hpp"
+#include "../../general/backends.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/tensor.hpp"
-//#include "../../linalg/ttensor.hpp"
 #include "../../linalg/vector.hpp"
-#include <cassert>
 
 namespace mfem
 {
@@ -47,11 +46,7 @@ void StaticSmemPADiffusionApply2DKernel(const int NE,
    {
       const int tidz = MFEM_THREAD_ID(z);
 
-      // could also use DeviceTensor to be able to use as 'fallback'
-
-      // MFEM_STATIC_SHARED_VAR(tB, TMatrix<Q1D,D1D>); // operator()
-
-      MFEM_STATIC_SHARED_VAR(B, tensor<double,Q1D,D1D>); // operator[]
+      MFEM_STATIC_SHARED_VAR(B, tensor<double,Q1D,D1D>);
       MFEM_STATIC_SHARED_VAR(G, tensor<double,Q1D,D1D>);
 
       MFEM_STATIC_SHARED_VAR(Bt, tensor<double,D1D,Q1D>);

@@ -22,12 +22,13 @@ using namespace mfem;
 
 void sycl_diffusion()
 {
-   //setenv("VERSION","0",1);
-   dbg("Diffusion");
-   const int p = 2;
-   const auto mesh_filename = "../../data/star-q3.mesh";
-   //GENERATE("../../data/star-q3.mesh"); // 2D
-   // "../../data/fichera-q3.mesh"); // 3D
+   // #warning Diffusion kernel version set to 2!
+   setenv("VERSION","2",1);
+   const int p = GENERATE(1,2);
+   const auto mesh_filename =
+      GENERATE("../../data/star-q3.mesh", // 2D
+               "../../data/fichera-q3.mesh"); // 3D
+   dbg("[SYCL] Diffusion p=%d %s",p,mesh_filename);
    Mesh mesh = Mesh::LoadFromFile(mesh_filename);
 
    H1_FECollection fec(p, mesh.Dimension());
@@ -51,9 +52,7 @@ void sycl_diffusion()
    x.Randomize(1);
 
    a_pa.Mult(x, y_pa);
-   //(dbg("y_pa:"), y_pa.Print());
    a_fa.Mult(x, y_fa);
-   //(dbg("y_fa:"), y_fa.Print());
    y_pa -= y_fa;
    REQUIRE(y_pa.Norml2() == MFEM_Approx(0.0));
 }
