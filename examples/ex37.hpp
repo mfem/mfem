@@ -772,4 +772,63 @@ LinearElasticitySolver::~LinearElasticitySolver()
    delete fec; fec = nullptr;
    delete b;
 }
-}
+
+class AndersonAccelerator
+{
+public:
+   AndersonAccelerator(const int max_size, Operator *A,
+                       std::__1::function<double(const int)> beta_generator): m(max_size), f(A),
+      beta_fun(beta_generator), k(0), xk(0), Gk(0), size(-1)
+   {
+#ifndef MFEM_USE_LAPACK
+      mfem_error("LAPACK unavailable. Please compile mfem with LAPACK by adding ""MFEM_USE_PAKAC=yes"".");
+#endif
+   }
+   Vector Step(Vector &x)
+   {
+      // check input size
+      if (size == -1) { size = x.Size(); }
+      else { MFEM_ASSERT(size == x.Size(), "Size mismatch. x should not change its size during the iteration"); }
+
+      k++;
+      const int mk = std::min(m, k);
+
+      xk.push_back(new Vector(x));
+      Gk.push_back(new Vector(size));
+      Vector *curGk = *Gk.end();
+      f->Mult(x, *curGk);
+      *curGk -= x;
+      if (mk == m)
+      {
+         delete[] *xk.erase(xk.begin());
+         delete[] *Gk.erase(Gk.begin());
+      }
+
+      Vector new_xk(x);
+      if (mk == 1)
+      {
+         return new_xk;
+      }
+      new_xk += *curGk;
+
+      Vector theta(mk);
+      DenseMatrix DGk(size, mk - 1);
+      for (int i=0; i<mk - 1; i++)
+      {
+         Vector DGk_i(DGk.GetColumn(i), size);
+         DGk_i = *Gk[i] - *curGk;
+      }
+
+   }
+
+protected:
+   int m;
+   Operator* f;
+   std::__1::function<double(const int)> beta_fun;
+private:
+   std::vector<Vector*> xk;
+   std::vector<Vector*> Gk;
+   int k;
+   int size;
+};
+} // end of namespace mfem
