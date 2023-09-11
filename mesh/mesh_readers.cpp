@@ -2889,10 +2889,11 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    Dim = num_dim;
 
    // create arrays for element blocks
-   size_t *num_el_in_blk   = new size_t[num_el_blk];
+   std::vector<std::size_t> num_el_in_blk(num_el_blk);
+   
    size_t num_node_per_el;
+   size_t previous_num_node_per_el = 0;
 
-   int previous_num_node_per_el = 0;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
       snprintf(temp_string, NC_MAX_NAME + 1, "num_el_in_blk%d", i+1);
@@ -2918,6 +2919,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             MFEM_ABORT("Element blocks of different element types not supported");
          }
       }
+
       previous_num_node_per_el = num_node_per_el;
    }
 
@@ -2946,6 +2948,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
    CubitFaceType cubit_face_type = FACE_EDGE2; // suppress a warning
+   
    int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
@@ -3040,7 +3043,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
    else if (cubit_element_type == ELEMENT_TRI6 ||
             cubit_element_type == ELEMENT_QUAD9 ||
-            cubit_element_type == ELEMENT_TET10 || cubit_element_type == ELEMENT_HEX27)
+            cubit_element_type == ELEMENT_TET10 || 
+            cubit_element_type == ELEMENT_HEX27)
    {
       order = 2;
    }
@@ -3050,6 +3054,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_side_sets; i++)
    {
       snprintf(temp_string, NC_MAX_NAME + 1, "num_side_ss%d", i+1);
+
       if ((netcdf_status = nc_inq_dimid(ncid, temp_string, &temp_id)) ||
           (netcdf_status = nc_inq_dim(ncid, temp_id, dummy_string, &num_side_in_ss[i])))
       {
@@ -3081,6 +3086,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // read the element blocks
    int **elem_blk = new int*[num_el_blk];
+
    for (int i = 0; i < (int) num_el_blk; i++)
    {
       elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
@@ -3261,7 +3267,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // we need another node ID mapping since MFEM needs contiguous vertex IDs
-   std::vector<int> uniqueVertexID;
+   std::vector<int> unique_vertex_ids;
 
    for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
    {
@@ -3269,40 +3275,40 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       {
          for (int j = 0; j < num_element_linear_nodes; j++)
          {
-            uniqueVertexID.push_back(elem_blk[iblk][i*num_node_per_el + j]);
+            unique_vertex_ids.push_back(elem_blk[iblk][i*num_node_per_el + j]);
          }
       }
    }
-   std::sort(uniqueVertexID.begin(), uniqueVertexID.end());
-   std::vector<int>::iterator newEnd;
-   newEnd = std::unique(uniqueVertexID.begin(), uniqueVertexID.end());
-   uniqueVertexID.resize(std::distance(uniqueVertexID.begin(), newEnd));
+   std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
+   std::vector<int>::iterator new_end;
+   new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
+   unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 
-   // OK at this point uniqueVertexID contains a list of all the nodes that are
+   // OK at this point unique_vertex_ids contains a list of all the nodes that are
    // actually used by the mesh, 1-based, and sorted. We need to invert this
    // list, the inverse is a map
 
    std::map<int,int> cubitToMFEMVertMap;
-   for (int i = 0; i < (int) uniqueVertexID.size(); i++)
+   for (int i = 0; i < (int) unique_vertex_ids.size(); i++)
    {
-      cubitToMFEMVertMap[uniqueVertexID[i]] = i+1;
+      cubitToMFEMVertMap[unique_vertex_ids[i]] = i+1;
    }
-   MFEM_ASSERT(cubitToMFEMVertMap.size() == uniqueVertexID.size(),
+   MFEM_ASSERT(cubitToMFEMVertMap.size() == unique_vertex_ids.size(),
                "This should never happen\n");
 
    // OK now load up the MFEM mesh structures
 
    // load up the vertices
 
-   NumOfVertices = uniqueVertexID.size();
+   NumOfVertices = unique_vertex_ids.size();
    vertices.SetSize(NumOfVertices);
-   for (int i = 0; i < (int) uniqueVertexID.size(); i++)
+   for (int i = 0; i < (int) unique_vertex_ids.size(); i++)
    {
-      vertices[i](0) = coordx[uniqueVertexID[i] - 1];
-      vertices[i](1) = coordy[uniqueVertexID[i] - 1];
+      vertices[i](0) = coordx[unique_vertex_ids[i] - 1];
+      vertices[i](1) = coordy[unique_vertex_ids[i] - 1];
       if (Dim == 3)
       {
-         vertices[i](2) = coordz[uniqueVertexID[i] - 1];
+         vertices[i](2) = coordz[unique_vertex_ids[i] - 1];
       }
    }
 
@@ -3492,7 +3498,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    delete [] elem_ss;
    delete [] side_ss;
-   delete [] num_el_in_blk;
    delete [] num_side_in_ss;
    delete [] coordx;
    delete [] coordy;
@@ -3510,6 +3515,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       delete [] ss_node_id[i];
    }
+   
    delete [] ss_node_id;
    delete [] ebprop;
    delete [] ssprop;
