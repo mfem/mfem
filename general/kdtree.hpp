@@ -176,31 +176,15 @@ public:
       data.push_back(nd);
    }
 
-   /// Adds a new node by 3 coordinates and an associated index
-   void AddPoint(Tfloat x, Tfloat y, Tfloat z, Tindex ii)
+   /// Adds a new node by coordinates and an associated index
+   void AddPoint(Tfloat* xx,Tindex ii)
    {
-      MFEM_ASSERT(ndim==3,"The spatial dimension for the KDTree should be 3!")
-      NodeND nd;
-      nd.pt.xx[0]=x;  nd.pt.xx[1]=y; nd.pt.xx[2]=z; nd.ind=ii;
-      data.push_back(nd);
-   }
-
-   /// Adds a new node by 2 coordinates and an associated index
-   void AddPoint(Tfloat x, Tfloat y, Tindex ii)
-   {
-      MFEM_ASSERT(ndim==2,"The spatial dimension for the KDTree should be 2!")
-      NodeND nd;
-      nd.pt.xx[0]=x;  nd.pt.xx[1]=y; nd.ind=ii;
-      data.push_back(nd);
-   }
-
-   /// Adds a new node by 1 coordinate and an associated index
-   void AddPoint(Tfloat x, Tindex ii)
-   {
-      MFEM_ASSERT(ndim==1,"The spatial dimension for the KDTree should be 1!")
-      NodeND nd;
-      nd.pt.xx[0]=x; nd.ind=ii;
-      data.push_back(nd);
+       NodeND nd;
+       for(int i=0;i<ndim;i++){
+           nd.pt.xx[i]=xx[i];
+       }
+       nd.ind=ii;
+       data.push_back(nd);
    }
 
    /// Finds the nearest neighbour index
