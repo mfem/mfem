@@ -2850,9 +2850,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    const size_t buffer_size = NC_MAX_NAME + 1;
 
    char dummy_string[buffer_size];
-   char temp_string[buffer_size];
+   char variable_name_buffer[buffer_size];
 
-   int temp_id;
+   int variable_id;
 
    // open the file.
    int ncid;
@@ -2864,7 +2864,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // read important dimensions
 
    int id;
-   size_t num_dim=0, num_nodes=0, num_elem=0, num_el_blk=0, num_side_sets=0;
+   size_t num_dim=0, num_nodes=0, num_elem=0, num_element_blocks=0, num_side_sets=0;
 
    if ((netcdf_status = nc_inq_dimid(ncid, "num_dim", &id)) ||
        (netcdf_status = nc_inq_dim(ncid, id, dummy_string, &num_dim)) ||
@@ -2876,7 +2876,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
        (netcdf_status = nc_inq_dim(ncid, id, dummy_string, &num_elem)) ||
 
        (netcdf_status = nc_inq_dimid(ncid, "num_el_blk", &id)) ||
-       (netcdf_status = nc_inq_dim(ncid, id, dummy_string, &num_el_blk)))
+       (netcdf_status = nc_inq_dim(ncid, id, dummy_string, &num_element_blocks)))
    {
       MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
    }
@@ -2889,23 +2889,23 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    Dim = num_dim;
 
    // create arrays for element blocks
-   std::vector<std::size_t> num_el_in_blk(num_el_blk);
+   std::vector<std::size_t> num_elements_for_block(num_element_blocks);
 
-   size_t num_node_per_el;
+   size_t num_nodes_per_element;
    size_t previous_num_node_per_el = 0;
 
-   for (int i = 0; i < (int) num_el_blk; i++)
+   for (int i = 0; i < (int) num_element_blocks; i++)
    {
-      snprintf(temp_string, NC_MAX_NAME + 1, "num_el_in_blk%d", i+1);
-      if ((netcdf_status = nc_inq_dimid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, temp_id, dummy_string, &num_el_in_blk[i])))
+      snprintf(variable_name_buffer, NC_MAX_NAME + 1, "num_el_in_blk%d", i+1);
+      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
+          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_elements_for_block[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
 
-      snprintf(temp_string, NC_MAX_NAME + 1, "num_nod_per_el%d", i+1);
-      if ((netcdf_status = nc_inq_dimid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, temp_id, dummy_string, &num_node_per_el)))
+      snprintf(variable_name_buffer, NC_MAX_NAME + 1, "num_nod_per_el%d", i+1);
+      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
+          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_nodes_per_element)))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
@@ -2914,13 +2914,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       // which is not currently supported
       if (i != 0)
       {
-         if ((int) num_node_per_el != previous_num_node_per_el)
+         if ((int) num_nodes_per_element != previous_num_node_per_el)
          {
             MFEM_ABORT("Element blocks of different element types not supported");
          }
       }
 
-      previous_num_node_per_el = num_node_per_el;
+      previous_num_node_per_el = num_nodes_per_element;
    }
 
    // Determine CUBIT element and face type
@@ -2953,7 +2953,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    if (num_dim == 2)
    {
-      switch (num_node_per_el)
+      switch (num_nodes_per_element)
       {
          case (3) :
          {
@@ -2985,14 +2985,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
          default :
          {
-            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
+            MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element <<
                        " node 2D element\n");
          }
       }
    }
    else if (num_dim == 3)
    {
-      switch (num_node_per_el)
+      switch (num_nodes_per_element)
       {
          case 4:
          {
@@ -3024,7 +3024,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
          default:
          {
-            MFEM_ABORT("Don't know what to do with a " << num_node_per_el << " node 3D element\n");
+            MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element << " node 3D element\n");
             break;
          }
       }
@@ -3062,10 +3062,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    for (int i = 0; i < (int) num_side_sets; i++)
    {
-      snprintf(temp_string, NC_MAX_NAME + 1, "num_side_ss%d", i+1);
+      snprintf(variable_name_buffer, NC_MAX_NAME + 1, "num_side_ss%d", i+1);
 
-      if ((netcdf_status = nc_inq_dimid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, temp_id, dummy_string, &num_side_in_ss[i])))
+      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
+          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_side_in_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
@@ -3093,24 +3093,39 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       }
    }
 
-   // read the element blocks
-   int **elem_blk = new int*[num_el_blk];
+   // Read the element blocks.
+   int **element_blocks = new int*[num_element_blocks];
 
-   for (int i = 0; i < (int) num_el_blk; i++)
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
-      snprintf(temp_string, NC_MAX_NAME + 1, "connect%d", i+1);
-      if ((netcdf_status = nc_inq_varid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_get_var_int(ncid, temp_id, elem_blk[i])))
+      element_blocks[iblock] = new int[num_elements_for_block[iblock] * num_nodes_per_element];
+
+      // Write variable name to buffer.
+      snprintf(variable_name_buffer, buffer_size, "connect%d", iblock + 1);
+
+      // Get variable ID and then set all nodes of element in block.
+      netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(ncid, variable_id, element_blocks[iblock]);
+
+      if (netcdf_status != NC_NOERR)   // Something went wrong!
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
    }
-   int *ebprop = new int[num_el_blk];
-   if ((netcdf_status = nc_inq_varid(ncid, "eb_prop1", &id)) ||
-       (netcdf_status = nc_get_var_int(ncid, id, ebprop)))
+
+   // Read the block IDs.
+   int *block_ids = new int[num_element_blocks];
+
    {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
+      const char *block_id_variable_name = "eb_prop1";
+
+      netcdf_status = nc_inq_varid(ncid, block_id_variable_name, &id);
+      netcdf_status = nc_get_var_int(ncid, id, block_ids);
+
+      if (netcdf_status != NC_NOERR)
+      {
+         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
+      }
    }
 
    // read the side sets, a side is is given by (element, face) pairs
@@ -3123,16 +3138,16 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       elem_ss[i] = new int[num_side_in_ss[i]];
       side_ss[i] = new int[num_side_in_ss[i]];
 
-      snprintf(temp_string, NC_MAX_NAME + 1, "elem_ss%d", i+1);
-      if ((netcdf_status = nc_inq_varid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_get_var_int(ncid, temp_id, elem_ss[i])))
+      snprintf(variable_name_buffer, NC_MAX_NAME + 1, "elem_ss%d", i+1);
+      if ((netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id)) ||
+          (netcdf_status = nc_get_var_int(ncid, variable_id, elem_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
 
-      snprintf(temp_string, NC_MAX_NAME + 1,"side_ss%d",i+1);
-      if ((netcdf_status = nc_inq_varid(ncid, temp_string, &temp_id)) ||
-          (netcdf_status = nc_get_var_int(ncid, temp_id, side_ss[i])))
+      snprintf(variable_name_buffer, NC_MAX_NAME + 1,"side_ss%d",i+1);
+      if ((netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id)) ||
+          (netcdf_status = nc_get_var_int(ncid, variable_id, side_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
       }
@@ -3200,12 +3215,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // given a global element number, determine the element block and local
    // element number
-   int *start_of_block = new int[num_el_blk+1];
+   int *start_of_block = new int[num_element_blocks+1];
 
    start_of_block[0] = 0;
-   for (int i = 1; i < (int) num_el_blk+1; i++)
+   for (int i = 1; i < num_element_blocks + 1; i++)
    {
-      start_of_block[i] = start_of_block[i-1] + num_el_in_blk[i-1];
+      start_of_block[i] = start_of_block[i-1] + num_elements_for_block[i-1];
    }
 
    int **ss_node_id = new int*[num_side_sets];
@@ -3220,18 +3235,18 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          int iblk = 0;
          int loc_ind;
 
-         while (iblk < (int) num_el_blk && glob_ind >= start_of_block[iblk+1])
+         while (iblk < (int) num_element_blocks && glob_ind >= start_of_block[iblk+1])
          {
             iblk++;
          }
 
-         if (iblk >= (int) num_el_blk)
+         if (iblk >= (int) num_element_blocks)
          {
             MFEM_ABORT("Sideset element does not exist");
          }
          loc_ind = glob_ind - start_of_block[iblk];
          int this_side = side_ss[i][j];
-         int ielem = loc_ind*num_node_per_el;
+         int ielem = loc_ind*num_nodes_per_element;
 
          for (int k = 0; k < num_face_nodes; k++)
          {
@@ -3281,8 +3296,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
                }
             }
 
-            ss_node_id[i][j*num_face_nodes+k] =
-               elem_blk[iblk][ielem + inode - 1];
+            ss_node_id[i][j*num_face_nodes+k] = element_blocks[iblk][ielem + inode - 1];
          }
       }
    }
@@ -3290,16 +3304,17 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // we need another node ID mapping since MFEM needs contiguous vertex IDs
    std::vector<int> unique_vertex_ids;
 
-   for (int iblk = 0; iblk < num_el_blk; iblk++)
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      for (int i = 0; i < num_el_in_blk[iblk]; i++)
+      for (int i = 0; i < num_elements_for_block[iblock]; i++)
       {
          for (int j = 0; j < num_element_linear_nodes; j++)
          {
-            unique_vertex_ids.push_back(elem_blk[iblk][i*num_node_per_el + j]);
+            unique_vertex_ids.push_back(element_blocks[iblock][i * num_nodes_per_element + j]);
          }
       }
    }
+
    std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
    std::vector<int>::iterator new_end;
    new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
@@ -3308,13 +3323,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // OK at this point unique_vertex_ids contains a list of all the nodes that are
    // actually used by the mesh, 1-based, and sorted. We need to invert this
    // list, the inverse is a map
-   std::map<int,int> cubitToMFEMVertMap;
+   std::map<int,int> cubit_to_mfem_vertex_map;
    for (int i = 0; i < (int) unique_vertex_ids.size(); i++)
    {
-      cubitToMFEMVertMap[unique_vertex_ids[i]] = i+1;
+      cubit_to_mfem_vertex_map[unique_vertex_ids[i]] = i + 1;
    }
 
-   MFEM_ASSERT(cubitToMFEMVertMap.size() == unique_vertex_ids.size(),
+   MFEM_ASSERT(cubit_to_mfem_vertex_map.size() == unique_vertex_ids.size(),
                "This should never happen\n");
 
    // OK now load up the MFEM mesh structures
@@ -3327,6 +3342,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       vertices[i](0) = coordx[unique_vertex_ids[i] - 1];
       vertices[i](1) = coordy[unique_vertex_ids[i] - 1];
+      
       if (Dim == 3)
       {
          vertices[i](2) = coordz[unique_vertex_ids[i] - 1];
@@ -3340,14 +3356,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    int renumbered_vertex_ids[8];
 
-   for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
+      for (int jelement = 0; jelement < (int) num_elements_for_block[iblock]; jelement++)
       {
-         for (int j = 0; j < num_element_linear_nodes; j++)
+         for (int knode = 0; knode < num_element_linear_nodes; knode++)
          {
-            renumbered_vertex_ids[j] =
-               cubitToMFEMVertMap[elem_blk[iblk][i*num_node_per_el+j]]-1;
+            renumbered_vertex_ids[knode] =
+               cubit_to_mfem_vertex_map[element_blocks[iblock][jelement*num_nodes_per_element+knode]]-1;
          }
 
          switch (cubit_element_type)
@@ -3355,13 +3371,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             case (ELEMENT_TRI3):
             case (ELEMENT_TRI6):
             {
-               elements[ielement] = new Triangle(renumbered_vertex_ids, ebprop[iblk]);
+               elements[ielement] = new Triangle(renumbered_vertex_ids, block_ids[iblock]);
                break;
             }
             case (ELEMENT_QUAD4):
             case (ELEMENT_QUAD9):
             {
-               elements[ielement] = new Quadrilateral(renumbered_vertex_ids, ebprop[iblk]);
+               elements[ielement] = new Quadrilateral(renumbered_vertex_ids, block_ids[iblock]);
                break;
             }
             case (ELEMENT_TET4):
@@ -3370,17 +3386,16 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 #ifdef MFEM_USE_MEMALLOC
                elements[ielement] = TetMemory.Alloc();
                elements[ielement]->SetVertices(renumbered_vertex_ids);
-               elements[ielement]->SetAttribute(ebprop[iblk]);
+               elements[ielement]->SetAttribute(block_ids[iblock]);
 #else
-               elements[ielement] = new Tetrahedron(renumbered_vertex_ids,
-                                                    ebprop[iblk]);
+               elements[ielement] = new Tetrahedron(renumbered_vertex_ids, ebprop[iblock]);
 #endif
                break;
             }
             case (ELEMENT_HEX8):
             case (ELEMENT_HEX27):
             {
-               elements[ielement] = new Hexahedron(renumbered_vertex_ids,ebprop[iblk]);
+               elements[ielement] = new Hexahedron(renumbered_vertex_ids,block_ids[iblock]);
                break;
             }
          }
@@ -3398,7 +3413,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
    boundary.SetSize(NumOfBdrElements);
 
-   int sidecount = 0;
+   int side_count = 0;
    for (int iss = 0; iss < (int) num_side_sets; iss++)
    {
       for (int i = 0; i < (int) num_side_in_ss[iss]; i++)
@@ -3406,30 +3421,31 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          for (int j = 0; j < num_face_linear_nodes; j++)
          {
             renumbered_vertex_ids[j] =
-               cubitToMFEMVertMap[ss_node_id[iss][i*num_face_nodes+j]] - 1;
+               cubit_to_mfem_vertex_map[ss_node_id[iss][i*num_face_nodes+j]] - 1;
          }
          switch (cubit_face_type)
          {
             case (FACE_EDGE2):
             case (FACE_EDGE3):
             {
-               boundary[sidecount] = new Segment(renumbered_vertex_ids,sideset_ids[iss]);
+               boundary[side_count] = new Segment(renumbered_vertex_ids, sideset_ids[iss]);
                break;
             }
             case (FACE_TRI3):
             case (FACE_TRI6):
             {
-               boundary[sidecount] = new Triangle(renumbered_vertex_ids,sideset_ids[iss]);
+               boundary[side_count] = new Triangle(renumbered_vertex_ids, sideset_ids[iss]);
                break;
             }
             case (FACE_QUAD4):
             case (FACE_QUAD9):
             {
-               boundary[sidecount] = new Quadrilateral(renumbered_vertex_ids,sideset_ids[iss]);
+               boundary[side_count] = new Quadrilateral(renumbered_vertex_ids, sideset_ids[iss]);
                break;
             }
          }
-         sidecount++;
+
+         side_count++;
       }
    }
 
@@ -3496,11 +3512,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          fes->DofsToVDofs(vdofs);
          int iblk = 0;
          int loc_ind;
-         while (iblk < (int) num_el_blk && i >= start_of_block[iblk+1]) { iblk++; }
+
+         while (iblk < (int) num_element_blocks && i >= start_of_block[iblk+1]) { iblk++; }
          loc_ind = i - start_of_block[iblk];
+
          for (int j = 0; j < dofs.Size(); j++)
          {
-            int point_id = elem_blk[iblk][loc_ind*num_node_per_el + mymap[j] - 1] - 1;
+            int point_id = element_blocks[iblk][loc_ind*num_nodes_per_element + mymap[j] - 1] - 1;
             (*Nodes)(vdofs[j])   = coordx[point_id];
             (*Nodes)(vdofs[j]+1) = coordy[point_id];
             if (Dim == 3)
@@ -3527,12 +3545,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    delete [] coordy;
    delete [] coordz;
 
-   for (int i = 0; i < (int) num_el_blk; i++)
+   for (int i = 0; i < (int) num_element_blocks; i++)
    {
-      delete [] elem_blk[i];
+      delete [] element_blocks[i];
    }
 
-   delete [] elem_blk;
+   delete [] element_blocks;
    delete [] start_of_block;
 
    for (int i = 0; i < (int) num_side_sets; i++)
@@ -3541,9 +3559,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    delete [] ss_node_id;
-   delete [] ebprop;
+   delete [] block_ids;
    delete [] sideset_ids;
-
 }
 #endif // #ifdef MFEM_USE_NETCDF
 
