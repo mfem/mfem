@@ -179,12 +179,13 @@ public:
    /// Adds a new node by coordinates and an associated index
    void AddPoint(Tfloat* xx,Tindex ii)
    {
-       NodeND nd;
-       for(int i=0;i<ndim;i++){
-           nd.pt.xx[i]=xx[i];
-       }
-       nd.ind=ii;
-       data.push_back(nd);
+      NodeND nd;
+      for (int i=0; i<ndim; i++)
+      {
+         nd.pt.xx[i]=xx[i];
+      }
+      nd.ind=ii;
+      data.push_back(nd);
    }
 
    /// Finds the nearest neighbour index
