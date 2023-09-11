@@ -4583,109 +4583,9 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    return sol2d;
 }
 
-KDTreeNodalProjection::KDTreeNodalProjection(GridFunction& dest_)
-{
-   dest=&dest_;
-   FiniteElementSpace* space=dest->FESpace();
-
-   MFEM_VERIFY(
-      dynamic_cast<const H1_FECollection*>(space->FEColl()) != nullptr ||
-      dynamic_cast<const L2_FECollection*>(space->FEColl()) != nullptr,
-      "Error!");
-
-   Mesh* mesh=space->GetMesh();
-   const int dim=mesh->SpaceDimension();
-
-   if (dim==2) { kdt2D=std::unique_ptr<KDTree2D>(new KDTree2D());}
-   if (dim==3) { kdt3D=std::unique_ptr<KDTree3D>(new KDTree3D());}
-
-
-   std::vector<bool> indt; indt.resize(space->GetVSize()/space->GetVDim(), true);
-
-   minbb.SetSize(dim);
-   maxbb.SetSize(dim);
-
-   //set the loocal coordinates
-   {
-      ElementTransformation *trans;
-      const IntegrationRule* ir=nullptr;
-      Array<int> vdofs;
-      DenseMatrix elco;
-      int isca=1;
-      if (space->GetOrdering()==Ordering::byVDIM) {isca=space->GetVDim();}
-
-      //intialize the bounding box
-      const FiniteElement* el=space->GetFE(0);
-      trans = space->GetElementTransformation(0);
-      ir=&(el->GetNodes());
-      space->GetElementVDofs(0,vdofs);
-      elco.SetSize(dim,ir->GetNPoints());
-      trans->Transform(*ir,elco);
-      for (int d=0; d<dim; d++)
-      {
-         minbb[d]=elco(d,0);
-         maxbb[d]=elco(d,0);
-      }
-
-
-      for (int i=0; i<space->GetNE(); i++)
-      {
-         el=space->GetFE(i);
-         //get the element transformation
-         trans = space->GetElementTransformation(i);
-         ir=&(el->GetNodes());
-         space->GetElementVDofs(i,vdofs);
-         elco.SetSize(dim,ir->GetNPoints());
-         trans->Transform(*ir,elco);
-
-         if (dim==2)
-         {
-            for (int p=0; p<ir->GetNPoints(); p++)
-            {
-               int bind=vdofs[p]/isca;
-               if (indt[bind]==true)
-               {
-                  kdt2D->AddPoint(elco(0,p),elco(1,p),bind);
-                  indt[bind]=false;
-
-                  for (int d=0; d<2; d++)
-                  {
-                     if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
-                     if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
-                  }
-               }
-            }
-         }
-         else if (dim==3)
-         {
-            for (int p=0; p<ir->GetNPoints(); p++)
-            {
-               int bind=vdofs[p]/isca;
-               if (indt[bind]==true)
-               {
-                  kdt3D->AddPoint(elco(0,p),elco(1,p),elco(2,p),bind);
-                  indt[bind]=false;
-
-                  for (int d=0; d<3; d++)
-                  {
-                     if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
-                     if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
-                  }
-
-               }
-            }
-         }
-      }
-   }
-
-   // build the KDTree
-   if (dim==2) { kdt2D->Sort();}
-   else {kdt3D->Sort();}
-}
-
-void KDTreeNodalProjection::Project(const Vector& coords,
-                                    const Vector& src,
-                                    int ordering,double lerr)
+template<>
+void KDTreeNodalProjection<2>::Project(const Vector& coords,const Vector& src,
+                                       int ordering,double lerr)
 {
    const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
    const int vd=dest->VectorDim(); //dimension of the vector field
@@ -4694,7 +4594,6 @@ void KDTreeNodalProjection::Project(const Vector& coords,
    double dist;
    bool pt_inside_bbox;
 
-   if (dim==2)
    {
       KDTree2D::PointND pnd;
       for (int i=0; i<np; i++)
@@ -4711,7 +4610,7 @@ void KDTreeNodalProjection::Project(const Vector& coords,
 
          if (pt_inside_bbox)
          {
-            kdt2D->FindClosestPoint(pnd,ind,dist);
+            kdt->FindClosestPoint(pnd,ind,dist);
             if (dist<lerr)
             {
                if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
@@ -4752,7 +4651,18 @@ void KDTreeNodalProjection::Project(const Vector& coords,
          }
       }
    }
-   else if (dim==3)
+}
+
+template<>
+void KDTreeNodalProjection<3>::Project(const Vector& coords,const Vector& src,
+                                       int ordering,double lerr)
+{
+   const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
+   const int vd=dest->VectorDim(); //dimension of the vector field
+   const int np=src.Size()/vd; // number of points
+   int ind;
+   double dist;
+   bool pt_inside_bbox;
    {
       KDTree3D::PointND pnd;
       for (int i=0; i<np; i++)
@@ -4770,7 +4680,7 @@ void KDTreeNodalProjection::Project(const Vector& coords,
 
          if (pt_inside_bbox)
          {
-            kdt3D->FindClosestPoint(pnd,ind,dist);
+            kdt->FindClosestPoint(pnd,ind,dist);
             if (dist<lerr)
             {
                if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
@@ -4813,7 +4723,133 @@ void KDTreeNodalProjection::Project(const Vector& coords,
    }
 }
 
-void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
+template<>
+void KDTreeNodalProjection<2>::Project(const GridFunction& gf, double lerr)
+{
+   int ordering = gf.FESpace()->GetOrdering();
+   Vector coo;
+   int np=gf.FESpace()->GetVSize()/gf.FESpace()->GetVDim();
+   coo.SetSize(np*2);
+   int vd=dest->VectorDim();
+   int ind;
+   double dist;
+
+   Vector maxbb_src(2);
+   Vector minbb_src(2);
+
+   // extract the nodal coordinates from gf
+   {
+      ElementTransformation *trans;
+      const IntegrationRule* ir=nullptr;
+      Array<int> vdofs;
+      DenseMatrix elco;
+      int isca=1;
+      if (gf.FESpace()->GetOrdering()==Ordering::byVDIM)
+      {
+         isca=gf.FESpace()->GetVDim();
+      }
+
+      // initialize bbmax and bbmin
+      const FiniteElement* el=gf.FESpace()->GetFE(0);
+      trans = gf.FESpace()->GetElementTransformation(0);
+      ir=&(el->GetNodes());
+      gf.FESpace()->GetElementVDofs(0,vdofs);
+      elco.SetSize(2,ir->GetNPoints());
+      trans->Transform(*ir,elco);
+      for (int d=0; d<2; d++)
+      {
+         maxbb_src(d)=elco(d,0);
+         minbb_src(d)=elco(d,0);
+      }
+
+      for (int i=0; i<gf.FESpace()->GetNE(); i++)
+      {
+         el=gf.FESpace()->GetFE(i);
+         //get the element transformation
+         trans = gf.FESpace()->GetElementTransformation(i);
+         ir=&(el->GetNodes());
+         gf.FESpace()->GetElementVDofs(i,vdofs);
+         elco.SetSize(2,ir->GetNPoints());
+         trans->Transform(*ir,elco);
+         for (int p=0; p<ir->GetNPoints(); p++)
+         {
+            for (int d=0; d<2; d++)
+            {
+               coo[vdofs[p]*2/isca+d]=elco(d,p);
+
+               if (maxbb_src(d)<elco(d,p)) {maxbb_src(d)=elco(d,p);}
+               if (minbb_src(d)>elco(d,p)) {minbb_src(d)=elco(d,p);}
+            }
+         }
+      }
+   }
+
+   maxbb_src+=lerr;
+   minbb_src-=lerr;
+
+   //check for intersection
+   bool flag;
+   {
+      flag=true;
+      for (int i=0; i<2; i++)
+      {
+         if (minbb_src(i)>maxbb(i)) {flag=false;}
+         if (maxbb_src(i)<minbb(i)) {flag=false;}
+      }
+      if (flag==false) {return;}
+   }
+
+   {
+      KDTree2D::PointND pnd;
+      for (int i=0; i<np; i++)
+      {
+         pnd.xx[0]=coo(i*2+0);
+         pnd.xx[1]=coo(i*2+1);
+
+         kdt->FindClosestPoint(pnd,ind,dist);
+         if (dist<lerr)
+         {
+            if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di*np+ind]=gf[di+i*vd];
+                  }
+               }
+            }
+            else
+            {
+               if (ordering==Ordering::byNODES)
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di*np+i];
+                  }
+               }
+               else
+               {
+                  for (int di=0; di<vd; di++)
+                  {
+                     (*dest)[di+ind*vd]=gf[di+i*vd];
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+template<>
+void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
 {
    int ordering = gf.FESpace()->GetOrdering();
    int dim=dest->FESpace()->GetMesh()->SpaceDimension();
@@ -4823,7 +4859,6 @@ void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
    int vd=dest->VectorDim();
    int ind;
    double dist;
-
 
    Vector maxbb_src(dim);
    Vector minbb_src(dim);
@@ -4890,55 +4925,6 @@ void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
       if (flag==false) {return;}
    }
 
-   if (dim==2)
-   {
-      KDTree2D::PointND pnd;
-      for (int i=0; i<np; i++)
-      {
-         pnd.xx[0]=coo(i*dim+0);
-         pnd.xx[1]=coo(i*dim+1);
-
-         kdt2D->FindClosestPoint(pnd,ind,dist);
-         if (dist<lerr)
-         {
-            if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
-            {
-               if (ordering==Ordering::byNODES)
-               {
-                  for (int di=0; di<vd; di++)
-                  {
-                     (*dest)[di*np+ind]=gf[di*np+i];
-                  }
-               }
-               else
-               {
-                  for (int di=0; di<vd; di++)
-                  {
-                     (*dest)[di*np+ind]=gf[di+i*vd];
-                  }
-               }
-            }
-            else
-            {
-               if (ordering==Ordering::byNODES)
-               {
-                  for (int di=0; di<vd; di++)
-                  {
-                     (*dest)[di+ind*vd]=gf[di*np+i];
-                  }
-               }
-               else
-               {
-                  for (int di=0; di<vd; di++)
-                  {
-                     (*dest)[di+ind*vd]=gf[di+i*vd];
-                  }
-               }
-            }
-         }
-      }
-   }
-   else if (dim==3)
    {
       KDTree3D::PointND pnd;
       for (int i=0; i<np; i++)
@@ -4947,7 +4933,7 @@ void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
          pnd.xx[1]=coo(i*dim+1);
          pnd.xx[2]=coo(i*dim+2);
 
-         kdt3D->FindClosestPoint(pnd,ind,dist);
+         kdt->FindClosestPoint(pnd,ind,dist);
          if (dist<lerr)
          {
             if (dest->FESpace()->GetOrdering()==Ordering::byNODES)
@@ -4987,7 +4973,10 @@ void KDTreeNodalProjection::Project(const GridFunction& gf, double lerr)
          }
       }
    }
-
 }
+
+
+
+
 
 }

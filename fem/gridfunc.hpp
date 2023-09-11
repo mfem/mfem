@@ -13,6 +13,7 @@
 #define MFEM_GRIDFUNC
 
 #include "../config/config.hpp"
+#include "../general/kdtree.hpp"
 #include "fespace.hpp"
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
@@ -22,7 +23,7 @@
 #include <limits>
 #include <ostream>
 #include <string>
-#include "../general/kdtree.hpp"
+
 
 namespace mfem
 {
@@ -878,6 +879,35 @@ public:
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
+/// Base class for KDTreeNodalProjection.
+class BaseKDTreeNodalProjection
+{
+
+public:
+   virtual ~BaseKDTreeNodalProjection()
+   {}
+
+   /// The projection method can be called as many time as necessary with
+   /// different sets of coordinates and corresponding values. For vector
+   /// grid function, users have to specify the data ordering and for all
+   /// cases the user can modify the error tolerance err to smaller or
+   /// bigger value. A node in the target grid function is matching
+   /// a point with coordinates specified in the vector coords if the
+   /// distance between them is smaller than lerr.
+   virtual
+   void Project(const Vector& coords,const Vector& src,
+                int ordering,double lerr)=0;
+
+   /// The project method can be called as many times as necessary with
+   /// different grid functions gf. A node in the target grid function is
+   /// matching a node from the source grid function if the distance
+   /// between them is smaller than lerr.
+   virtual
+   void Project(const GridFunction& gf, double lerr)=0;
+};
+
+
+
 /// The class provides methods for projecting function values evaluated on a
 /// set of points to a grid function. The values are directly copied to the
 /// nodal values of the target grid function if any of the points is matching
@@ -886,17 +916,13 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
 /// and mapped to a local grid function that does not have the same structure
 /// as the original one. The functionality is based on a kd-tree search in a
 /// cloud of points.
-class KDTreeNodalProjection
+template<int kdim=3>
+class KDTreeNodalProjection:public BaseKDTreeNodalProjection
 {
 private:
 
-   /// Pointer to the KDTree for the 3D case
-   //KDTree3D* kdt3D;
-   std::unique_ptr<KDTree3D> kdt3D;
-
-   /// Pointer to the KDTree for the 2D case
-   //KDTree2D* kdt2D;
-   std::unique_ptr<KDTree2D> kdt2D;
+   /// Pointer to the KDTree
+   std::unique_ptr<KDTree<int,double,kdim>> kdt;
 
    /// Pointer to the target grid function
    GridFunction* dest;
@@ -909,12 +935,110 @@ private:
 
 public:
    /// The constructor takes as input an L2 or H1 grid function (it can be
-   /// a vector grid function). The Project method coppies a set of values
+   /// a vector grid function). The Project method copies a set of values
    /// to the grid function.
-   KDTreeNodalProjection(GridFunction& dest_);
+   KDTreeNodalProjection(GridFunction& dest_)
+   {
+      dest=&dest_;
+      FiniteElementSpace* space=dest->FESpace();
 
-   /// Frees the memory allocated for the transfer
-   ~KDTreeNodalProjection() {}
+      MFEM_VERIFY(
+         dynamic_cast<const H1_FECollection*>(space->FEColl()) != nullptr ||
+         dynamic_cast<const L2_FECollection*>(space->FEColl()) != nullptr,
+         "Error!");
+
+      Mesh* mesh=space->GetMesh();
+
+      const int dim=mesh->SpaceDimension();
+      MFEM_VERIFY(kdim==dim, "GridFunction dimension does not match!");
+
+      kdt=std::unique_ptr<KDTree<int,double,kdim>>(
+             new KDTree<int,double,kdim>());
+
+      std::vector<bool> indt;
+      indt.resize(space->GetVSize()/space->GetVDim(), true);
+
+      minbb.SetSize(dim);
+      maxbb.SetSize(dim);
+
+      //set the loocal coordinates
+      {
+         ElementTransformation *trans;
+         const IntegrationRule* ir=nullptr;
+         Array<int> vdofs;
+         DenseMatrix elco;
+         int isca=1;
+         if (space->GetOrdering()==Ordering::byVDIM)
+         {
+            isca=space->GetVDim();
+         }
+
+         //intialize the bounding box
+         const FiniteElement* el=space->GetFE(0);
+         trans = space->GetElementTransformation(0);
+         ir=&(el->GetNodes());
+         space->GetElementVDofs(0,vdofs);
+         elco.SetSize(dim,ir->GetNPoints());
+         trans->Transform(*ir,elco);
+         for (int d=0; d<dim; d++)
+         {
+            minbb[d]=elco(d,0);
+            maxbb[d]=elco(d,0);
+         }
+
+
+         for (int i=0; i<space->GetNE(); i++)
+         {
+            el=space->GetFE(i);
+            //get the element transformation
+            trans = space->GetElementTransformation(i);
+            ir=&(el->GetNodes());
+            space->GetElementVDofs(i,vdofs);
+            elco.SetSize(dim,ir->GetNPoints());
+            trans->Transform(*ir,elco);
+
+            if (kdim==2)
+            {
+               for (int p=0; p<ir->GetNPoints(); p++)
+               {
+                  int bind=vdofs[p]/isca;
+                  if (indt[bind]==true)
+                  {
+                     kdt->AddPoint(elco(0,p),elco(1,p),bind);
+                     indt[bind]=false;
+
+                     for (int d=0; d<2; d++)
+                     {
+                        if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
+                        if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
+                     }
+                  }
+               }
+            }
+            else if (kdim==3)
+            {
+               for (int p=0; p<ir->GetNPoints(); p++)
+               {
+                  int bind=vdofs[p]/isca;
+                  if (indt[bind]==true)
+                  {
+                     kdt->AddPoint(elco(0,p),elco(1,p),elco(2,p),bind);
+                     indt[bind]=false;
+
+                     for (int d=0; d<3; d++)
+                     {
+                        if (minbb[d]>elco(d,p)) {minbb[d]=elco(d,p);}
+                        if (maxbb[d]<elco(d,p)) {maxbb[d]=elco(d,p);}
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      // build the KDTree
+      kdt->Sort();
+   }
 
    /// The projection method can be called as many time as necessary with
    /// different sets of coordinates and corresponding values. For vector
@@ -923,6 +1047,7 @@ public:
    /// bigger value. A node in the target grid function is matching
    /// a point with coordinates specified in the vector coords if the
    /// distance between them is smaller than lerr.
+   virtual
    void Project(const Vector& coords,const Vector& src,
                 int ordering=Ordering::byNODES,double lerr=1e-8);
 
@@ -930,8 +1055,8 @@ public:
    /// different grid functions gf. A node in the target grid function is
    /// matching a node from the source grid function if the distance
    /// between them is smaller than lerr.
+   virtual
    void Project(const GridFunction& gf, double lerr=1e-8);
-
 };
 
 } // namespace mfem
