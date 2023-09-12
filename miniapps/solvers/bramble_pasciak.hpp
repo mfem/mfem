@@ -132,7 +132,7 @@ class BramblePasciakSolver : public DarcySolver
    ProductOperator *mop_;
    SumOperator *map_;
    ProductOperator *ppc_;
-   BlockDiagonalPreconditioner *cpc_, *hpc_;
+   BlockDiagonalPreconditioner *cpc_;
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
