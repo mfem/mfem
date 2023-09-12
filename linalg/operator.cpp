@@ -380,22 +380,22 @@ SumOperator::SumOperator(const Operator *A, const double alpha,
                "incompatible Operators: different heights\n"
                << "A->Height() = " << A->Height()
                << ", B->Height() = " << B->Height() );
-   /*
-    * {
-    *    const Solver* SolverA = dynamic_cast<const Solver*>(A);
-    *    const Solver* SolverB = dynamic_cast<const Solver*>(B);
-    *    if (SolverA)
-    *    {
-    *       MFEM_VERIFY(!(SolverA->iterative_mode),
-    *                   "Operator A of a SumOperator should not be in iterative mode");
-    *    }
-    *    if (SolverB)
-    *    {
-    *       MFEM_VERIFY(!(SolverB->iterative_mode),
-    *                   "Operator B of a SumOperator should not be in iterative mode");
-    *    }
-    * }
-    */
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(A);
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of a SumOperator should not be in iterative mode");
+      }
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a SumOperator should not be in iterative mode");
+      }
+   }
+
 }
 
 SumOperator::~SumOperator()
