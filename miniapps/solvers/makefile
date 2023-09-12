@@ -63,9 +63,9 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-sr 1 -pr 1)
 block-solvers-anisotropic: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-sr 1 -pr 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
 lor_solvers-test-seq: lor_solvers
