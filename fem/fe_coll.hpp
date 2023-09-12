@@ -89,7 +89,7 @@ public:
    int GetMapType(int dim) const;
    int GetDerivType(int dim) const;
    int GetDerivMapType(int dim) const;
-   int GetInterpDim(int dim) const;
+   int GetRangeDim(int dim) const;
    /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;

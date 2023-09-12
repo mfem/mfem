@@ -5297,7 +5297,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
 
-   int vdim = edge_fespace->FEColl()->GetInterpDim(trace_space ? dim - 1 : dim);
+   int vdim = edge_fespace->FEColl()->GetRangeDim(trace_space ? dim - 1 : dim);
 
    MakeSolver(std::max(sdim, vdim), cycle_type);
    MakeGradientAndInterpolation(edge_fespace, cycle_type);
@@ -5368,7 +5368,7 @@ void HypreAMS::MakeGradientAndInterpolation(
    ParMesh *pmesh = edge_fespace->GetParMesh();
    int dim = pmesh->Dimension();
    int sdim = pmesh->SpaceDimension();
-   int vdim = edge_fespace->FEColl()->GetInterpDim(trace_space ? dim - 1 : dim);
+   int vdim = edge_fespace->FEColl()->GetRangeDim(trace_space ? dim - 1 : dim);
 
    // For dim = 1, ND_FECollection::GetOrder() returns p - 1
    MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
