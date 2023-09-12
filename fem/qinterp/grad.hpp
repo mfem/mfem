@@ -62,19 +62,21 @@ static void Derivatives1D(const int NE,
                else if (sdim == 2)
                {
                   const double Jloc[2] = {j(q,0,e), j(q,1,e)};
-                  const double t = 1.0 / (Jloc[0]*Jloc[0] + Jloc[1]*Jloc[1]);
-                  const double U = t*Jloc[0]*du[0];
-                  const double V = t*Jloc[1]*du[0];
+                  double Jinv[3];
+                  kernels::CalcLeftInverse<2,1>(Jloc, Jinv);
+                  const double U = Jinv[0]*du[0];
+                  const double V = Jinv[1]*du[0];
                   du[0] = U;
                   du[1] = V;
                }
                else // sdim == 3
                {
                   const double Jloc[3] = {j(q,0,e), j(q,1,e), j(q,2,e)};
-                  const double t = 1.0/(Jloc[0]*Jloc[0] + Jloc[1]*Jloc[1] + Jloc[2]*Jloc[2]);
-                  const double U = t*Jloc[0]*du[0];
-                  const double V = t*Jloc[1]*du[0];
-                  const double W = t*Jloc[2]*du[0];
+                  double Jinv[3];
+                  kernels::CalcLeftInverse<3,1>(Jloc, Jinv);
+                  const double U = Jinv[0]*du[0];
+                  const double V = Jinv[1]*du[0];
+                  const double W = Jinv[2]*du[0];
                   du[0] = U;
                   du[1] = V;
                   du[2] = W;
@@ -194,25 +196,10 @@ static void Derivatives2D(const int NE,
                      Jloc[3] = j(qx,qy,0,1,e);
                      Jloc[4] = j(qx,qy,1,1,e);
                      Jloc[5] = j(qx,qy,2,1,e);
-
-                     double ee, gg, ff;
-                     ee = Jloc[0]*Jloc[0] + Jloc[1]*Jloc[1] + Jloc[2]*Jloc[2];
-                     gg = Jloc[3]*Jloc[3] + Jloc[4]*Jloc[4] + Jloc[5]*Jloc[5];
-                     ff = Jloc[0]*Jloc[3] + Jloc[1]*Jloc[4] + Jloc[2]*Jloc[5];
-                     const double t = 1.0 / (ee*gg - ff*ff);
-                     ee *= t; gg *= t; ff *= t;
-
-                     Jinv[0] = Jloc[0]*gg - Jloc[3]*ff;
-                     Jinv[1] = Jloc[3]*ee - Jloc[0]*ff;
-                     Jinv[2] = Jloc[1]*gg - Jloc[4]*ff;
-                     Jinv[3] = Jloc[4]*ee - Jloc[1]*ff;
-                     Jinv[4] = Jloc[2]*gg - Jloc[5]*ff;
-                     Jinv[5] = Jloc[5]*ee - Jloc[2]*ff;
-
+                     kernels::CalcLeftInverse<3,2>(Jloc, Jinv);
                      const double U = Jinv[0]*du[0] + Jinv[1]*du[1];
                      const double V = Jinv[2]*du[0] + Jinv[3]*du[1];
                      const double W = Jinv[4]*du[0] + Jinv[5]*du[1];
-
                      du[0] = U;
                      du[1] = V;
                      du[2] = W;
