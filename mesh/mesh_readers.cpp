@@ -2763,6 +2763,28 @@ void Mesh::HandleNetCDFError(const int error)
 }
 
 
+void Mesh::ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx, double *coordy, double *coordz)
+{
+   if (!coordx || !coordy) return;  // Only allow coordz to be NULL if dimensions < 3.
+
+   int variable_id, netcdf_status;
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordx", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordx);
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordy", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordy);
+
+   if (coordz)
+   {
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "coordz", &variable_id);
+      netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordz);
+   }
+
+   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
+}
+
+
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
    read_gf = 0;
@@ -3076,24 +3098,12 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
-   // Read the coordinates.
+   // Read the xyz coordinates.
    double *coordx = new double[num_nodes];
    double *coordy = new double[num_nodes];
-   double *coordz = new double[num_nodes];
+   double *coordz = (num_dim == 3 ? new double[num_nodes] : nullptr);   // Only allocate memory if required!
 
-   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordx", &variable_id);
-   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordx);
-
-   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordy", &variable_id);
-   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordy);
-
-   if (num_dim == 3)
-   {
-      netcdf_status = nc_inq_varid(netcdf_descriptor, "coordz", &variable_id);
-      netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordz);
-   }
-
-   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
+   ReadCubitNodeCoordinates(netcdf_descriptor, coordx, coordy, coordz);
 
    // Read the element blocks.
    int **element_blocks = new int*[num_element_blocks];
@@ -3143,7 +3153,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, variable_name_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, side_ss[isideset]);
-      
+
       if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 

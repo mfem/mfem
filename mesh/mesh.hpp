@@ -325,6 +325,7 @@ protected:
     /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
    void HandleNetCDFError(const int error);
+   void ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx, double *coordy, double *coordz);
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
 
