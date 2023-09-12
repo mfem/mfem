@@ -17,7 +17,6 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
-#include "kernels.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
