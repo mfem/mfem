@@ -326,6 +326,7 @@ protected:
 #ifdef MFEM_USE_NETCDF
    void HandleNetCDFError(const int error);
    void ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx, double *coordy, double *coordz);
+   void ReadCubitNumElementsInBlock(const int netcdf_descriptor, const int num_element_blocks, std::vector<std::size_t> & num_elements_for_block);
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
 
