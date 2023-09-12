@@ -108,6 +108,31 @@ SubMesh::SubMesh(const Mesh &parent, From from,
    }
    else if (Dim == 2)
    {
+      if (from == From::Domain)
+      {
+         parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
+                                                       parent_element_ids_);
+         Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+         int max_bdr_attr = parent.bdr_attributes.Max();
+
+         for (int i = 0; i < NumOfBdrElements; i++)
+         {
+            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrFace(i)]];
+            if (pbeid != -1)
+            {
+               int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+               GetBdrElement(i)->SetAttribute(attr);
+            }
+            else
+            {
+               // This case happens when a domain is extracted, but the root parent
+               // mesh didn't have a boundary element on the surface that defined
+               // it's boundary. It still creates a valid mesh, so we allow it.
+               GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
+            }
+         }
+      }
+
       parent_face_ori_.SetSize(NumOfElements);
 
       for (int i = 0; i < NumOfElements; i++)
