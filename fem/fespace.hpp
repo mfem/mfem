@@ -1115,7 +1115,9 @@ public:
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
-        associated with i'th element in the mesh object. */
+        associated with i'th element in the mesh object.
+        Note: The method has been updated to abort instead of returning NULL for
+        an empty partition. */
    virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
