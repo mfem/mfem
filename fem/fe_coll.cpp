@@ -87,12 +87,12 @@ int FiniteElementCollection::GetDerivMapType(int dim) const
    return FiniteElement::UNKNOWN_MAP_TYPE;
 }
 
-int FiniteElementCollection::GetInterpDim(int dim) const
+int FiniteElementCollection::GetRangeDim(int dim) const
 {
    const FiniteElement *fe = FiniteElementForDim(dim);
    if (fe)
    {
-      return fe->GetInterpDim();
+      return fe->GetRangeDim();
    }
    return 0;
 }

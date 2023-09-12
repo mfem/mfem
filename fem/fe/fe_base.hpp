@@ -312,7 +312,7 @@ public:
 
    /** @brief Returns the vector dimension for vector-valued finite elements,
        which is also the dimension of the interpolation operatrion. */
-   int GetInterpDim() const { return vdim; }
+   int GetRangeDim() const { return vdim; }
 
    /// Returns the dimension of the curl for vector-valued finite elements.
    int GetCurlDim() const { return cdim; }
