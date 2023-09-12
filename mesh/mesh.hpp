@@ -330,7 +330,37 @@ protected:
    void ReadCubitNumNodesPerElement(const int netcdf_descriptor, const int num_element_blocks, size_t &num_nodes_per_element);
    void ReadCubitDimensions(const int netcdf_descriptor, size_t &num_dim, size_t &num_nodes, size_t &num_elem, size_t &num_el_blk, size_t &num_side_sets);
    void ReadCubitSideSets(const int netcdf_descriptor, const int num_sidesets, std::vector<size_t> &num_sides_in_sideset);
+   void ReadCubitElementBlocks(const int netcdf_descriptor, const int num_element_blocks, const int num_nodes_per_element, const std::vector<std::size_t> & num_elements_for_block, int **element_blocks);
    void ReadCubit(const char *filename, int &curved, int &read_gf);
+   
+   enum CubitElementType
+   {
+      ELEMENT_TRI3,
+      ELEMENT_TRI6,
+      ELEMENT_QUAD4,
+      ELEMENT_QUAD9,
+      ELEMENT_TET4,
+      ELEMENT_TET10,
+      ELEMENT_HEX8,
+      ELEMENT_HEX27
+   };
+
+   enum CubitFaceType
+   {
+      FACE_EDGE2,
+      FACE_EDGE3,
+      FACE_TRI3,
+      FACE_TRI6,
+      FACE_QUAD4,
+      FACE_QUAD9
+   };
+
+   void SetCubitElementAndFaceType(const int num_dim, const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes);
+   void SetCubitElementAndFaceType2D(const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes);
+   void SetCubitElementAndFaceType3D(const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes);
+
+   int OrderFromCubitElementType(const CubitElementType element_type);
+
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
