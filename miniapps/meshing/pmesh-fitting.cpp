@@ -598,8 +598,7 @@ int main (int argc, char *argv[])
       if (!surf_bg_mesh)
       {
          tmop_integ->EnableSurfaceFitting(surf_fit_gf0, surf_fit_marker,
-                                          surf_fit_coeff,
-                                          *adapt_surface);
+                                          surf_fit_coeff, *adapt_surface);
       }
       else
       {
@@ -841,7 +840,7 @@ int main (int argc, char *argv[])
                                 "Surface DOFs", 600, 400, 300, 300);
       }
       double err_avg, err_max;
-      tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+      tmop_integ->GetSurfaceFittingErrors(x, err_avg, err_max);
       if (myid == 0)
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl
