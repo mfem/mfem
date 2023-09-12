@@ -135,10 +135,10 @@ void BramblePasciakSolver::Init(
 }
 
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
-   ParBilinearForm &mVarf, double alpha)
+   ParBilinearForm &mVarf, double q_scaling)
 {
-   MFEM_ASSERT((param.q_scaling > 0.0) && (param.q_scaling < 1.0),
-               "Invalid Q-scaling factor: param.q_scaling " << param.q_scaling );
+   MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
+               "Invalid Q-scaling factor: q_scaling = " << q_scaling );
    ParBilinearForm qVarf(mVarf.ParFESpace());
    for (int i = 0; i < mVarf.ParFESpace()->GetNE(); ++i)
    {
@@ -153,7 +153,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
       // M_i x = ev diag(M_i) x
       M_i.Eigenvalues(eval, evec);
 
-      scaling = alpha*eval.Min();
+      scaling = q_scaling*eval.Min();
       diag_i.Set(scaling, diag_i);
       Q_i.Diag(diag_i.GetData(), diag_i.Size());
       qVarf.AssembleElementMatrix(i, Q_i, 1);
