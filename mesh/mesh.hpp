@@ -328,6 +328,8 @@ protected:
    void ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx, double *coordy, double *coordz);
    void ReadCubitNumElementsInBlock(const int netcdf_descriptor, const int num_element_blocks, std::vector<std::size_t> & num_elements_for_block);
    void ReadCubitNumNodesPerElement(const int netcdf_descriptor, const int num_element_blocks, size_t &num_nodes_per_element);
+   void ReadCubitDimensions(const int netcdf_descriptor, size_t &num_dim, size_t &num_nodes, size_t &num_elem, size_t &num_el_blk, size_t &num_side_sets);
+   void ReadCubitSideSets(const int netcdf_descriptor, const int num_sidesets, std::vector<size_t> &num_sides_in_sideset);
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
 
