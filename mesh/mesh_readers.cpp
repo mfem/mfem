@@ -2909,6 +2909,166 @@ void Mesh::ReadCubitSideSets(const int netcdf_descriptor, const int num_sidesets
    if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 }
 
+void Mesh::ReadCubitElementBlocks(const int netcdf_descriptor, const int num_element_blocks, const int num_nodes_per_element, const std::vector<std::size_t> & num_elements_for_block, int **element_blocks)
+{
+   int netcdf_status, variable_id;
+
+   const int buffer_size = NC_MAX_NAME + 1;  // NB: need to add 1 for '\0' terminating character.
+
+   char string_buffer[buffer_size]; 
+
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   {
+      element_blocks[iblock] = new int[num_elements_for_block[iblock] * num_nodes_per_element];
+
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "connect%d", iblock + 1);
+
+      // Get variable ID and then set all nodes of element in block.
+      netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, element_blocks[iblock]);
+
+      if (netcdf_status != NC_NOERR) break;
+   }
+
+   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
+}
+
+void Mesh::SetCubitElementAndFaceType(const int num_dim, const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes)
+{
+   switch (num_dim)
+   {
+      case 2:
+      {
+         SetCubitElementAndFaceType2D(num_nodes_per_element, cubit_element_type, cubit_face_type, num_element_linear_nodes);
+         break;
+      }
+      case 3:
+      {
+         SetCubitElementAndFaceType3D(num_nodes_per_element, cubit_element_type, cubit_face_type, num_element_linear_nodes);
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Invalid dimension: num_dim = " << num_dim);
+         break;
+      }
+   }
+}
+
+void Mesh::SetCubitElementAndFaceType2D(const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes)
+{
+   switch (num_nodes_per_element)
+   {
+      case 3:
+      {
+         cubit_element_type = ELEMENT_TRI3;
+         cubit_face_type = FACE_EDGE2;
+         num_element_linear_nodes = 3;
+         break;
+      }
+      case 6:
+      {
+         cubit_element_type = ELEMENT_TRI6;
+         cubit_face_type = FACE_EDGE3;
+         num_element_linear_nodes = 3;
+         break;
+      }
+      case 4:
+      {
+         cubit_element_type = ELEMENT_QUAD4;
+         cubit_face_type = FACE_EDGE2;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 9:
+      {
+         cubit_element_type = ELEMENT_QUAD9;
+         cubit_face_type = FACE_EDGE3;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element << " node 2D element\n");
+         break;
+      }
+   }
+}
+
+
+
+void Mesh::SetCubitElementAndFaceType3D(const int num_nodes_per_element, CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type, int & num_element_linear_nodes)
+{
+   switch (num_nodes_per_element)
+   {
+      case 4:
+      {
+         cubit_element_type = ELEMENT_TET4;
+         cubit_face_type = FACE_TRI3;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 10:
+      {
+         cubit_element_type = ELEMENT_TET10;
+         cubit_face_type = FACE_TRI6;
+         num_element_linear_nodes = 4;
+         break;
+      }
+      case 8:
+      {
+         cubit_element_type = ELEMENT_HEX8;
+         cubit_face_type = FACE_QUAD4;
+         num_element_linear_nodes = 8;
+         break;
+      }
+      case 27:
+      {
+         cubit_element_type = ELEMENT_HEX27;
+         cubit_face_type = FACE_QUAD9;
+         num_element_linear_nodes = 8;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element << " node 3D element\n");
+         break;
+      }
+   }
+}
+
+int Mesh::OrderFromCubitElementType(const CubitElementType element_type)
+{
+   int order;
+
+   switch (element_type)
+   {
+      case ELEMENT_TRI3:
+      case ELEMENT_QUAD4:
+      case ELEMENT_TET4:
+      case ELEMENT_HEX8:
+      {
+         order = 1;
+         break;
+      }
+      case ELEMENT_TRI6:
+      case ELEMENT_QUAD9:
+      case ELEMENT_TET10:
+      case ELEMENT_HEX27:
+      {
+         order = 2;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported cubit element type encountered.\n");
+         break;
+      }
+   }
+
+   return order;
+}
 
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
@@ -3029,144 +3189,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    ReadCubitNumNodesPerElement(netcdf_descriptor, num_element_blocks, num_nodes_per_element);
 
    // Determine CUBIT element and face type
-   enum CubitElementType
-   {
-      ELEMENT_TRI3,
-      ELEMENT_TRI6,
-      ELEMENT_QUAD4,
-      ELEMENT_QUAD9,
-      ELEMENT_TET4,
-      ELEMENT_TET10,
-      ELEMENT_HEX8,
-      ELEMENT_HEX27
-   };
+   CubitElementType cubit_element_type;
+   CubitFaceType cubit_face_type;
+   int num_element_linear_nodes;
 
-   enum CubitFaceType
-   {
-      FACE_EDGE2,
-      FACE_EDGE3,
-      FACE_TRI3,
-      FACE_TRI6,
-      FACE_QUAD4,
-      FACE_QUAD9
-   };
-
-   CubitElementType cubit_element_type = ELEMENT_TRI3;   // Suppress a warning.
-   CubitFaceType cubit_face_type = FACE_EDGE2;           // Suppress a warning.
-
-   int num_element_linear_nodes = 0; // Initialize to suppress a warning.
-
-   if (num_dim == 2)
-   {
-      switch (num_nodes_per_element)
-      {
-         case 3:
-         {
-            cubit_element_type = ELEMENT_TRI3;
-            cubit_face_type = FACE_EDGE2;
-            num_element_linear_nodes = 3;
-            break;
-         }
-         case 6:
-         {
-            cubit_element_type = ELEMENT_TRI6;
-            cubit_face_type = FACE_EDGE3;
-            num_element_linear_nodes = 3;
-            break;
-         }
-         case 4:
-         {
-            cubit_element_type = ELEMENT_QUAD4;
-            cubit_face_type = FACE_EDGE2;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case 9:
-         {
-            cubit_element_type = ELEMENT_QUAD9;
-            cubit_face_type = FACE_EDGE3;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         default:
-         {
-            MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element << " node 2D element\n");
-            break;
-         }
-      }
-   }
-   else if (num_dim == 3)
-   {
-      switch (num_nodes_per_element)
-      {
-         case 4:
-         {
-            cubit_element_type = ELEMENT_TET4;
-            cubit_face_type = FACE_TRI3;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case 10:
-         {
-            cubit_element_type = ELEMENT_TET10;
-            cubit_face_type = FACE_TRI6;
-            num_element_linear_nodes = 4;
-            break;
-         }
-         case 8:
-         {
-            cubit_element_type = ELEMENT_HEX8;
-            cubit_face_type = FACE_QUAD4;
-            num_element_linear_nodes = 8;
-            break;
-         }
-         case 27:
-         {
-            cubit_element_type = ELEMENT_HEX27;
-            cubit_face_type = FACE_QUAD9;
-            num_element_linear_nodes = 8;
-            break;
-         }
-         default:
-         {
-            MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element << " node 3D element\n");
-            break;
-         }
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Invalid dimension: num_dim = " << num_dim);
-   }
-
+   SetCubitElementAndFaceType(num_dim, num_nodes_per_element, cubit_element_type, cubit_face_type, num_element_linear_nodes);
 
    // Determine order of elements.
-   int order;
-
-   switch (cubit_element_type)
-   {
-      case ELEMENT_TRI3:
-      case ELEMENT_QUAD4:
-      case ELEMENT_TET4:
-      case ELEMENT_HEX8:
-      {
-         order = 1;
-         break;
-      }
-      case ELEMENT_TRI6:
-      case ELEMENT_QUAD9:
-      case ELEMENT_TET10:
-      case ELEMENT_HEX27:
-      {
-         order = 2;
-         break;
-      }
-      default:
-      {
-         MFEM_ABORT("Unsupported cubit element type encountered.\n");
-         break;
-      }
-   }
+   int order = OrderFromCubitElementType(cubit_element_type);
 
    // Create the array for number of sides in side sets.
    std::vector<size_t> num_sides_in_ss(num_side_sets);
@@ -3181,20 +3211,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // Read the element blocks.
    int **element_blocks = new int*[num_element_blocks];
-
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
-   {
-      element_blocks[iblock] = new int[num_elements_for_block[iblock] * num_nodes_per_element];
-
-      // Write variable name to buffer.
-      snprintf(variable_name_buffer, buffer_size, "connect%d", iblock + 1);
-
-      // Get variable ID and then set all nodes of element in block.
-      netcdf_status = nc_inq_varid(netcdf_descriptor, variable_name_buffer, &variable_id);
-      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, element_blocks[iblock]);
-
-      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
-   }
+   ReadCubitElementBlocks(netcdf_descriptor, num_element_blocks, num_nodes_per_element, num_elements_for_block, element_blocks);
 
    // Read the block IDs.
    int *ebprop = new int[num_element_blocks];
@@ -3206,14 +3223,16 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
-   // Read the side sets, a side is is given by (element, face) pairs
+   // Read the sidesets, a side is given by (element, face) pairs.
    int **elem_ss = new int*[num_side_sets];
    int **side_ss = new int*[num_side_sets];
 
    for (int isideset = 0; isideset < num_side_sets; isideset++)
    {
-      elem_ss[isideset] = new int[num_sides_in_ss[isideset]];
-      side_ss[isideset] = new int[num_sides_in_ss[isideset]];   // Side that 
+      const int num_sides = num_sides_in_ss[isideset];
+
+      elem_ss[isideset] = new int[num_sides];
+      side_ss[isideset] = new int[num_sides];
 
       // Write variable name to buffer.
       snprintf(variable_name_buffer, buffer_size, "elem_ss%d", isideset + 1);
@@ -3497,18 +3516,18 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // Load up the boundary elements.
    NumOfBdrElements = 0;
-   for (int iss = 0; iss < (int) num_side_sets; iss++)
+   for (int iss = 0; iss < num_side_sets; iss++)
    {
       NumOfBdrElements += num_sides_in_ss[iss];
    }
    boundary.SetSize(NumOfBdrElements);
 
    int side_count = 0;
-   for (int iss = 0; iss < (int) num_side_sets; iss++)
+   for (int iss = 0; iss < num_side_sets; iss++)
    {
       const int *node_ids_for_sideset = ss_node_id[iss];
 
-      for (int i = 0; i < (int) num_sides_in_ss[iss]; i++)
+      for (int i = 0; i < num_sides_in_ss[iss]; i++)
       {
          for (int j = 0; j < num_face_linear_nodes; j++)
          {
