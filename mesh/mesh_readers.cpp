@@ -2754,6 +2754,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
 
 #ifdef MFEM_USE_NETCDF
+
+void Mesh::HandleNetCDFError(const int error)
+{
+   if (error == NC_NOERR) return;
+
+   MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(error));
+}
+
+
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
    read_gf = 0;
@@ -2842,7 +2851,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    const int mfemToGenesisTri6[6]   = {1,2,3,4,5,6};
    const int mfemToGenesisQuad9[9]  = {1,2,3,4,5,6,7,8,9};
 
-
    // error handling.
    int netcdf_status;
 
@@ -2855,33 +2863,30 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int variable_id;
 
    // open the file.
-   int ncid;
+   int netcdf_descriptor;
    
-   netcdf_status = nc_open(filename, NC_NOWRITE, &ncid);
-   if (netcdf_status != NC_NOERR)
-   {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-   }
+   netcdf_status = nc_open(filename, NC_NOWRITE, &netcdf_descriptor);
+   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 
    // read important dimensions
    size_t num_dim=0, num_nodes=0, num_elem=0, num_element_blocks=0, num_side_sets=0;
 
-   if ((netcdf_status = nc_inq_dimid(ncid, "num_dim", &variable_id)) ||
-       (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_dim)) ||
+   if ((netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_dim", &variable_id)) ||
+       (netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_dim)) ||
 
-       (netcdf_status = nc_inq_dimid(ncid, "num_nodes", &variable_id)) ||
-       (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_nodes)) ||
+       (netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_nodes", &variable_id)) ||
+       (netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_nodes)) ||
 
-       (netcdf_status = nc_inq_dimid(ncid, "num_elem", &variable_id)) ||
-       (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_elem)) ||
+       (netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_elem", &variable_id)) ||
+       (netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_elem)) ||
 
-       (netcdf_status = nc_inq_dimid(ncid, "num_el_blk", &variable_id)) ||
-       (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_element_blocks)))
+       (netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_el_blk", &variable_id)) ||
+       (netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_element_blocks)))
    {
       MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
    }
-   if ((netcdf_status = nc_inq_dimid(ncid, "num_side_sets", &variable_id)) ||
-       (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_side_sets)))
+   if ((netcdf_status = nc_inq_dimid(netcdf_descriptor, "num_side_sets", &variable_id)) ||
+       (netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_side_sets)))
    {
       num_side_sets = 0;
    }
@@ -2894,21 +2899,19 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    size_t num_nodes_per_element;
    size_t previous_num_node_per_el = 0;
 
-   for (int i = 0; i < (int) num_element_blocks; i++)
+   for (int i = 0; i < num_element_blocks; i++)
    {
       snprintf(variable_name_buffer, buffer_size, "num_el_in_blk%d", i + 1);
-      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_elements_for_block[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_elements_for_block[i]);
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 
-      snprintf(variable_name_buffer, buffer_size, "num_nod_per_el%d", i+1);
-      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_nodes_per_element)))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      snprintf(variable_name_buffer, buffer_size, "num_nod_per_el%d", i + 1);
+
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_nodes_per_element);
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 
       // check for different element types in each block
       // which is not currently supported
@@ -3067,11 +3070,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       snprintf(variable_name_buffer, NC_MAX_NAME + 1, "num_side_ss%d", i + 1);
 
-      if ((netcdf_status = nc_inq_dimid(ncid, variable_name_buffer, &variable_id)) ||
-          (netcdf_status = nc_inq_dim(ncid, variable_id, dummy_string, &num_sides_in_ss[i])))
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_sides_in_ss[i]);
+
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
    // Read the coordinates.
@@ -3079,22 +3081,19 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    double *coordy = new double[num_nodes];
    double *coordz = new double[num_nodes];
 
-   netcdf_status = nc_inq_varid(ncid, "coordx", &variable_id);
-   netcdf_status = nc_get_var_double(ncid, variable_id, coordx);
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordx", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordx);
 
-   netcdf_status = nc_inq_varid(ncid, "coordy", &variable_id);
-   netcdf_status = nc_get_var_double(ncid, variable_id, coordy);
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "coordy", &variable_id);
+   netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordy);
 
    if (num_dim == 3)
    {
-      netcdf_status = nc_inq_varid(ncid, "coordz", &variable_id);
-      netcdf_status = nc_get_var_double(ncid, variable_id, coordz);
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "coordz", &variable_id);
+      netcdf_status = nc_get_var_double(netcdf_descriptor, variable_id, coordz);
    }
 
-   if (netcdf_status != NC_NOERR)
-   {
-      MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-   }
+   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 
    // Read the element blocks.
    int **element_blocks = new int*[num_element_blocks];
@@ -3107,26 +3106,20 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       snprintf(variable_name_buffer, buffer_size, "connect%d", iblock + 1);
 
       // Get variable ID and then set all nodes of element in block.
-      netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id);
-      netcdf_status = nc_get_var_int(ncid, variable_id, element_blocks[iblock]);
+      netcdf_status = nc_inq_varid(netcdf_descriptor, variable_name_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, element_blocks[iblock]);
 
-      if (netcdf_status != NC_NOERR)   // Something went wrong!
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
    // Read the block IDs.
    int *ebprop = new int[num_element_blocks];
 
    {
-      netcdf_status = nc_inq_varid(ncid, "eb_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(ncid, variable_id, ebprop);
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "eb_prop1", &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, ebprop);
 
-      if (netcdf_status != NC_NOERR)
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
    // read the side sets, a side is is given by (element, face) pairs
@@ -3141,18 +3134,17 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       // Write variable name to buffer.
       snprintf(variable_name_buffer, buffer_size, "elem_ss%d", isideset + 1);
 
-      netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id); // Get variable name ID.
-      netcdf_status = nc_get_var_int(ncid, variable_id, elem_ss[isideset]);   // Set elements for sideset.
+      netcdf_status = nc_inq_varid(netcdf_descriptor, variable_name_buffer, &variable_id); // Get variable name ID.
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, elem_ss[isideset]);   // Set elements for sideset.
+
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 
       snprintf(variable_name_buffer, buffer_size,"side_ss%d", isideset + 1);
 
-      netcdf_status = nc_inq_varid(ncid, variable_name_buffer, &variable_id);
-      netcdf_status = nc_get_var_int(ncid, variable_id, side_ss[isideset]);
-
-      if (netcdf_status != NC_NOERR)
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      netcdf_status = nc_inq_varid(netcdf_descriptor, variable_name_buffer, &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, side_ss[isideset]);
+      
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
    // Read sideset IDs.
@@ -3162,13 +3154,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       sideset_ids = new int[num_side_sets];
 
-      netcdf_status = nc_inq_varid(ncid, "ss_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(ncid, variable_id, sideset_ids);
-
-      if (netcdf_status != NC_NOERR)
-      {
-         MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(netcdf_status));
-      }
+      netcdf_status = nc_inq_varid(netcdf_descriptor, "ss_prop1", &variable_id);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, sideset_ids);
+      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
    // convert (elem,side) pairs to 2D elements
@@ -3178,37 +3166,37 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    switch (cubit_face_type)
    {
-      case (FACE_EDGE2):
+      case FACE_EDGE2:
       {
          num_face_nodes = 2;
          num_face_linear_nodes = 2;
          break;
       }
-      case (FACE_EDGE3):
+      case FACE_EDGE3:
       {
          num_face_nodes = 3;
          num_face_linear_nodes = 2;
          break;
       }
-      case (FACE_TRI3):
+      case FACE_TRI3:
       {
          num_face_nodes = 3;
          num_face_linear_nodes = 3;
          break;
       }
-      case (FACE_TRI6):
+      case FACE_TRI6:
       {
          num_face_nodes = 6;
          num_face_linear_nodes = 3;
          break;
       }
-      case (FACE_QUAD4):
+      case FACE_QUAD4:
       {
          num_face_nodes = 4;
          num_face_linear_nodes = 4;
          break;
       }
-      case (FACE_QUAD9):
+      case FACE_QUAD9:
       {
          num_face_nodes = 9;
          num_face_linear_nodes = 4;
@@ -3233,11 +3221,11 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    int **ss_node_id = new int*[num_side_sets];
 
-   for (int i = 0; i < (int) num_side_sets; i++)
+   for (int i = 0; i < num_side_sets; i++)
    {
       ss_node_id[i] = new int[num_sides_in_ss[i] * num_face_nodes];
 
-      for (int j = 0; j < (int) num_sides_in_ss[i]; j++)
+      for (int j = 0; j < num_sides_in_ss[i]; j++)
       {
          const int global_index = elem_ss[i][j] - 1;
 
@@ -3253,10 +3241,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             MFEM_ABORT("Sideset element does not exist");
          }
 
-         int loc_ind = global_index - start_of_block[iblock];
+         const int loc_ind = global_index - start_of_block[iblock];
 
-         int this_side = side_ss[i][j];
-         int ielem = loc_ind*num_nodes_per_element;
+         const int this_side = side_ss[i][j];
+         const int ielem = loc_ind * num_nodes_per_element;
 
          for (int k = 0; k < num_face_nodes; k++)
          {
@@ -3563,7 +3551,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // Clean up all netcdf stuff.
-   nc_close(ncid);
+   nc_close(netcdf_descriptor);
 
    for (int i = 0; i < num_side_sets; i++)
    {
