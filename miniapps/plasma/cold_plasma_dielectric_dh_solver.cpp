@@ -1764,7 +1764,7 @@ CPDSolverDH::Solve()
          gmres.SetKDim(400);
          gmres.SetRelTol(5e-5);
          gmres.SetAbsTol(5e-5);
-         gmres.SetMaxIter(1000);
+         gmres.SetMaxIter(500);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 
@@ -1969,8 +1969,8 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
    Vector E, RHS1;
 
    m1_->FormLinearSystem(sbc_nd_tdofs_, e, *rhs1_, M1, E, RHS1);
-   /*
-   bool minres = false;
+ 
+   bool minres = true;
    if (minres)
    {
      HypreDiagScale diag_r(M1.As<ComplexHypreParMatrix>()->real());
@@ -1982,7 +1982,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
      diag.owns_blocks = 0;
 
      MINRESSolver minres(HCurlFESpace_->GetComm());
-     // minres.SetPreconditioner(diag);
+     //minres.SetPreconditioner(diag);
      minres.SetOperator(*M1.Ptr());
      minres.SetRelTol(solOpts_.relTol);
      minres.SetMaxIter(solOpts_.maxIter);
@@ -2002,7 +2002,8 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
 
      gmres.Mult(RHS1, E);
    }
-   */
+
+/*
 #ifdef MFEM_USE_MUMPS
    {
       bool dmumps = true;
@@ -2052,7 +2053,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
    }
 #endif
 #endif
-
+*/
    m1_->RecoverFEMSolution(E, *rhs1_, e);
 
    if (logging_ > 0)

@@ -43,6 +43,7 @@ inline double omega_p(double number /* particles / m^3 */,
                       double charge /* electron charge */,
                       double mass   /* AMU */)
 {
+   if (number < 0.0){number = -1.0*number;}
    return fabs(charge * q_) * 1.0 * sqrt(number / (epsilon0_ * mass * amu_));
 }
 inline std::complex<double> omega_p(double number, double charge,

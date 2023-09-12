@@ -177,7 +177,7 @@ complex<double> L_cold_plasma(double omega,
    }
    return val;
 }
-
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -227,8 +227,7 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-
-/*
+*/
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -272,10 +271,11 @@ complex<double> S_cold_plasma(double omega,
 
       if (i == 0)
       {
-         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c));
+         suscept_particle = (-1.0 * w_p * w_p) / ((omega + w_c)*(omega - w_c)) + complex<double>(0,nui/omega);
       }
       // SPARC Case 1: D-T (He3 Minority)
       // First Harmonic:
+      
       else if (i == 1 || i == 3)
       {
          // Z function:
@@ -292,9 +292,9 @@ complex<double> S_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm)
-                                 + complex<double>(0.0,nui);
+                                 2.0)/omega)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm);
       }
+
       // Second Harmonic:
       else if (i == 2)
       {
@@ -311,8 +311,10 @@ complex<double> S_cold_plasma(double omega,
          complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(0.5)*(1.0/(kparallel*vth))*(Zp2+Zm2);
 
          // Total particle susceptibility contribution:
-         suscept_particle = first_harm + second_harm + complex<double>(0.0,nui);
+         suscept_particle = first_harm + second_harm;
       }
+
+      /*
       // SPARC Case 2: D (H Minority)
       else if (i == 1)
       {
@@ -328,16 +330,15 @@ complex<double> S_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm)
-                                 + complex<double>(0.0,nui);
+                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm);
       }
-
+      */
       val += suscept_particle;
    }
    return val;
 }
-*/
 
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -387,8 +388,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -423,7 +424,7 @@ complex<double> D_cold_plasma(double omega,
       double q = charge[i];
       double m = mass[i];
       complex<double> m_eff = m;
-      if (i == 0) { m_eff = m * collision_correction; }
+      //if (i == 0) { m_eff = m * collision_correction; }
       complex<double> w_c = omega_c(Bmag, q, m_eff);
       complex<double> w_p = omega_p(n, q, m_eff);
       double T = Te;
@@ -432,7 +433,7 @@ complex<double> D_cold_plasma(double omega,
 
       if (i == 0)
       {
-         suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega);
+         suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)+complex<double>(0,nui/omega);
       }
       // SPARC Case 1: D-T (He3 Minority)
       // First Harmonic:
@@ -452,8 +453,7 @@ complex<double> D_cold_plasma(double omega,
 
          // Total particle susceptibility contribution:
          suscept_particle = (pow(w_p,
-                                 2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm)
-                                 + complex<double>(0.0,nui);
+                                 2.0)/omega)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm);
       }
       // Second Harmonic:
       else if (i == 2)
@@ -471,9 +471,9 @@ complex<double> D_cold_plasma(double omega,
          complex<double> second_harm = (pow(w_p,2.0)/omega)*lambda*(-0.5)*(1.0/(kparallel*vth))*(Zp2-Zm2);
 
          // Total particle susceptibility contribution:
-         suscept_particle = first_harm + second_harm 
-                            + complex<double>(0.0,nui);
+         suscept_particle = first_harm + second_harm;
       }
+      /*
       // SPARC Case 2: D (H Minority)
       else if (i == 1)
       {
@@ -492,12 +492,13 @@ complex<double> D_cold_plasma(double omega,
                                  2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm)
                                  - complex<double>(0.0,nui);
       }
+      */
       val += suscept_particle;
    }
    return val;
 }
-*/
 
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -532,8 +533,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
+*/
 
-/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -563,21 +564,21 @@ complex<double> P_cold_plasma(double omega,
       double q = charge[i];
       double m = mass[i];
       complex<double> m_eff = m;
-      if (i == 0) { m_eff = m*collision_correction; }
+      //if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_p = omega_p(n, q, m_eff);
       
       if (i == 0)
       {
          complex<double> vth = vthermal(Te, m_eff);
          complex<double> Z = Zfunction(omega/(kparallel*vth));
-         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2*(1+(omega/(kparallel*vth))*Z));
+         suscept_particle = (pow(w_p,2.0)/pow(kparallel*vth, 2.0))*(2*(1+(omega/(kparallel*vth))*Z))+complex<double>(0,nuei/omega);
       }
       else { suscept_particle = -1.0*(w_p * w_p) / (omega * omega); }
       val += suscept_particle;
    }
    return val;
 }
-*/
+
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
 double gabsANY(double x)
@@ -773,6 +774,7 @@ complex<double> ytot(double w, double wci, double bx, double xi,
 double debye(double Te, double n0)
 {
    //return (7.43e2*pow((Te/n0_cm),0.5));
+   if (n0 < 0.0){n0 = -1.0*n0;}
    return sqrt((epsilon0_*Te*q_)/(n0*q_*q_));
 }
 
@@ -935,7 +937,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
    double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
-   if (density_val < 0){ density_val = -1.0*density_val;}
+   if (density_val < 0.0){ density_val = -1.0*density_val;}
    double temp_val = 10.0; //EvalElectronTemp(T, ip);        // Units: eV
 
    //density_val = 1e18;
@@ -971,13 +973,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                            masses_[0], masses_[1]);
 
+
    // Jim's old parametrization (Kohno et al 2017):
    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
    // Fixed sheath impedance:
    //complex<double> zsheath_norm(0.6, 0.4);
 
-   /*
    if (isnan(zsheath_norm.real()))
    {
       zsheath_norm = complex<double>(0.0, zsheath_norm.imag());
@@ -986,7 +988,6 @@ double SheathImpedance::Eval(ElementTransformation &T,
    {
       zsheath_norm = complex<double>(zsheath_norm.real(), 0.0);
    }
-   */
 
    // If bn is < the minimum angle of sheath formation
    if (bn < min_angle){zsheath_norm = complex<double>(0.0, 0.0);}
@@ -997,11 +998,13 @@ double SheathImpedance::Eval(ElementTransformation &T,
    if (realPart_)
    {
       return (zsheath_norm.real()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
+      //return 1.0;
 
    }
    else
    {
       return (zsheath_norm.imag()*debye_length)/(epsilon0_*wpi); // Units: Ohm m^2
+      //return 1.0;
    }
 }
 
@@ -1980,10 +1983,19 @@ double PlasmaProfile::EvalByType(Type type,
 
          // 1.044 -> 0.99
          //return nu0*exp(-pow(sqrt(val)-location, 2)/width); //+ nu0*exp(-pow(r-sincfunc, 2.0)/width);
-         double nu = nu0*exp(-pow(sqrt(val)-0.99, 2)/0.001);
 
-         if (val < 1.0 && params[1] == 0) {nu = 0.0;}
-         else if (val >= 1.0 && params[1] == 0){nu = nu0;}
+         // IONS: N_||^2 = R and S = 0
+         double nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.001);
+
+         //if (val < 1.0 && params[1] == 0) {nu = 0.0;}
+         //else if (val >= 1.0 && params[1] == 0){nu = nu0;}
+
+         // ELECTRONS: P = 0
+         if (width == 0.0)
+            {
+               nu = 0.0;
+               if ( r > 1.56) {nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.0001); }
+            }
          return nu;
       }
       break;
@@ -2206,15 +2218,17 @@ double PlasmaProfile::EvalByType(Type type,
          if (val < 1.0 && bool_limits == 1){pval = pmax;}
 
          // VALUE NEAR TOP/BOTTOM DIVERTOR:
-         else if (val < 1.0 && bool_limits == 0) {pval = pmin;}
+         else if (val < 1.0 && bool_limits == 0) {pval = pmax;}
 
          // SOL VALUE:
          else if ( val >= 1.0)
          {
             // Scale lengths:
-            double sl1 = 0.006; // 0.015; 0.006;
-            double sl2 = 0.002; // 0.006; 0.002;
+            double sl1 = 0.01; //0.006;
+            double sl2 = 0.006; //0.002;
             double sl3 = 0.001;
+
+            /*
             double Olim = pmax*exp(-(2.425 - 2.415)/sl1);
             double FR = Olim*exp(-(2.445 - 2.425)/sl2);
 
@@ -2233,6 +2247,21 @@ double PlasmaProfile::EvalByType(Type type,
             {
                pval = FR*exp(-(tempr-2.445)/sl3);
                if (pval < pmin) {pval = pmin;}
+            }
+         }
+         */
+         if (sqrt(val) > 1.0 && sqrt(val) <= 1.01)
+            {
+               pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
+            }
+         else if (sqrt(val) > 1.01 && sqrt(val) <= 1.036)
+           {
+               pval = (pmax*exp(-(1.01 - 1.0)/sl1))*exp(-(sqrt(val) - 1.01)/sl2);
+           }
+         else
+           {
+               pval = ((pmax*exp(-(1.01 - 1.0)/sl1))*exp(-(1.036 - 1.01)/sl2))*exp(-(sqrt(val) - 1.036)/sl3);
+               if (pval < 1e14){pval = 1e14;}
             }
          }
          return pval;
