@@ -380,7 +380,7 @@ SumOperator::SumOperator(const Operator *A, const double alpha,
                "incompatible Operators: different heights\n"
                << "A->Height() = " << A->Height()
                << ", B->Height() = " << B->Height() );
-   /* 
+   /*
     * {
     *    const Solver* SolverA = dynamic_cast<const Solver*>(A);
     *    const Solver* SolverB = dynamic_cast<const Solver*>(B);
