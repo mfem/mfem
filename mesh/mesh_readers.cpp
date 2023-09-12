@@ -2810,6 +2810,53 @@ void Mesh::ReadCubitNumElementsInBlock(const int netcdf_descriptor, const int nu
 }
 
 
+void Mesh::ReadCubitNumNodesPerElement(const int netcdf_descriptor, const int num_element_blocks, size_t &num_nodes_per_element)
+{
+   int netcdf_status, variable_id;
+
+   const int buffer_size = NC_MAX_NAME + 1;  // NB: need to add 1 for '\0' terminating character.
+
+   char string_buffer[buffer_size]; 
+
+   size_t new_num_nodes_per_element, last_num_nodes_per_element;
+
+   bool different_element_types_detected = false;
+
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   {
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock + 1);
+
+      // Set variable ID.
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, string_buffer, &variable_id);
+
+      // Set name and length. We discard the name.
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer, &new_num_nodes_per_element);
+      if (netcdf_status != NC_NOERR) break;
+
+      if (iblock > 0 && new_num_nodes_per_element != last_num_nodes_per_element)
+      {
+         different_element_types_detected = true;
+         break;
+      }
+
+      last_num_nodes_per_element = new_num_nodes_per_element;
+   }
+
+   if (netcdf_status != NC_NOERR) 
+   {
+      HandleNetCDFError(netcdf_status);
+   }
+   else if (different_element_types_detected)
+   {
+      MFEM_ABORT("Element blocks of different types are not supported!\n");
+   }
+
+   // Set:
+   num_nodes_per_element = new_num_nodes_per_element;
+}
+
+
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
    read_gf = 0;
@@ -2942,29 +2989,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // create arrays for element blocks
    std::vector<std::size_t> num_elements_for_block(num_element_blocks);
-
    ReadCubitNumElementsInBlock(netcdf_descriptor, num_element_blocks, num_elements_for_block);
 
    size_t num_nodes_per_element;
-   size_t previous_num_node_per_el = 0;
-
-   for (int i = 0; i < num_element_blocks; i++)
-   {
-      snprintf(variable_name_buffer, buffer_size, "num_nod_per_el%d", i + 1);
-
-      netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
-      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_nodes_per_element);
-      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
-
-      // check for different element types in each block
-      // which is not currently supported
-      if (i != 0 && num_nodes_per_element != previous_num_node_per_el)
-      {
-         MFEM_ABORT("Element blocks of different element types not supported");
-      }
-
-      previous_num_node_per_el = num_nodes_per_element;
-   }
+   ReadCubitNumNodesPerElement(netcdf_descriptor, num_element_blocks, num_nodes_per_element);
 
    // Determine CUBIT element and face type
    enum CubitElementType
