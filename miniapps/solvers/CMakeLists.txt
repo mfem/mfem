@@ -26,13 +26,13 @@ if (MFEM_USE_MPI)
     add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -r 2 -no-vis
+      $<TARGET_FILE:block-solvers> -sr 1 -pr 1 -no-vis
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME block-solvers-anisotropic_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -r 2
+      $<TARGET_FILE:block-solvers> -sr 1 -pr 1
       -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
       -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
       -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
