@@ -90,7 +90,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void SetPreconditioner(const Operator &pc)
+   virtual void SetPreconditioner(Solver &pc)
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner does NO effect to BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
