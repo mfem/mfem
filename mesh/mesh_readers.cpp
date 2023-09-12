@@ -2784,6 +2784,31 @@ void Mesh::ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx,
    if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
 }
 
+void Mesh::ReadCubitNumElementsInBlock(const int netcdf_descriptor, const int num_element_blocks, std::vector<std::size_t> & num_elements_for_block)
+{
+   int netcdf_status, variable_id;
+
+   const int buffer_size = NC_MAX_NAME + 1;  // NB: need to add 1 for '\0' terminating character.
+
+   char string_buffer[buffer_size]; 
+
+   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   {
+      // Write variable name to buffer.
+      snprintf(string_buffer, buffer_size, "num_el_in_blk%d", iblock + 1);
+
+      // Set variable ID for variable name.
+      netcdf_status = nc_inq_dimid(netcdf_descriptor, string_buffer, &variable_id);
+
+      // Sets name and length for variable ID. We discard the name (just write to our string buffer).
+      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, string_buffer, &num_elements_for_block[iblock]);
+
+      if (netcdf_status != NC_NOERR) break;
+   }
+
+   if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
+}
+
 
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
@@ -2918,17 +2943,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // create arrays for element blocks
    std::vector<std::size_t> num_elements_for_block(num_element_blocks);
 
+   ReadCubitNumElementsInBlock(netcdf_descriptor, num_element_blocks, num_elements_for_block);
+
    size_t num_nodes_per_element;
    size_t previous_num_node_per_el = 0;
 
    for (int i = 0; i < num_element_blocks; i++)
    {
-      snprintf(variable_name_buffer, buffer_size, "num_el_in_blk%d", i + 1);
-      
-      netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
-      netcdf_status = nc_inq_dim(netcdf_descriptor, variable_id, dummy_string, &num_elements_for_block[i]);
-      if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
-
       snprintf(variable_name_buffer, buffer_size, "num_nod_per_el%d", i + 1);
 
       netcdf_status = nc_inq_dimid(netcdf_descriptor, variable_name_buffer, &variable_id);
@@ -3098,7 +3119,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       if (netcdf_status != NC_NOERR) HandleNetCDFError(netcdf_status);
    }
 
-   // Read the xyz coordinates.
+   // Read the xyz coordinates for each node.
    double *coordx = new double[num_nodes];
    double *coordy = new double[num_nodes];
    double *coordz = (num_dim == 3 ? new double[num_nodes] : nullptr);   // Only allocate memory if required!
