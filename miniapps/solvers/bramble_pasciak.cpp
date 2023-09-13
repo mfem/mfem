@@ -165,6 +165,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    MFEM_CONTRACT_VAR(mVarf);
    MFEM_CONTRACT_VAR(q_scaling);
    mfem_error("BramblePasciakSolver::ConstructMassPreconditioner: Compiled without LAPACK");
+   return nullptr;
 #endif
 }
 
