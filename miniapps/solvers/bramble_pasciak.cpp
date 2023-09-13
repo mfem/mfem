@@ -137,6 +137,7 @@ void BramblePasciakSolver::Init(
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    ParBilinearForm &mVarf, double q_scaling)
 {
+#ifdef MFEM_USE_LAPACK
    MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
                "Invalid Q-scaling factor: q_scaling = " << q_scaling );
    ParBilinearForm qVarf(mVarf.ParFESpace());
@@ -160,6 +161,11 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    }
    qVarf.Finalize();
    return qVarf.ParallelAssemble();
+#else
+   MFEM_CONTRACT_VAR(mVarf);
+   MFEM_CONTRACT_VAR(q_scaling);
+   mfem_error("BramblePasciakSolver::ConstructMassPreconditioner: Compiled without LAPACK");
+#endif
 }
 
 void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
