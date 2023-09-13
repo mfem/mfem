@@ -54,6 +54,8 @@ New and updated examples and miniapps
 
 Meshing improvements
 --------------------
+- Rewrote ReadCubit Genesis importer to improve readability.
+
 - Added support for free connectivity of NURBS patches allowing for more complex
   patch configurations such as C-meshes. This is demonstrated in a new NURBS
   miniapp.
