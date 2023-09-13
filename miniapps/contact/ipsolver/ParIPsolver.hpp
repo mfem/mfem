@@ -49,6 +49,7 @@ protected:
     HypreParMatrix * JmT = nullptr;
 
     Array<int> cgnum_iterations;
+    ParFiniteElementSpace *pfes = nullptr;
     
     int jOpt;
     bool converged;
@@ -89,6 +90,10 @@ public:
     void SetLinearSolver(int);
     void SetLinearSolveTol(double);
     void SetLinearSolveRelaxType(int);
+    void SetFiniteElementSpace(ParFiniteElementSpace * pfes_)
+    {
+        pfes = pfes_;
+    }
     virtual ~ParInteriorPointSolver();
 };
 

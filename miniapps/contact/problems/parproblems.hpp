@@ -22,9 +22,11 @@ private:
    HypreParMatrix A;
    Vector B,X;
    void Init();
+   bool own_mesh;
 public:
    ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, int order_ = 1) : comm(comm_), order(order_) 
    {
+      own_mesh = true;
       Mesh * mesh = new Mesh(mesh_file,1,1);
       for (int i = 0; i<sref; i++)
       {
@@ -36,6 +38,13 @@ public:
       {
          pmesh->UniformRefinement();
       }
+      Init();
+   }
+
+   ParElasticityProblem(ParMesh * pmesh_, int order_ = 1) : order(order_), pmesh(pmesh_)
+   {
+      own_mesh = false;
+      comm = pmesh->GetComm();
       Init();
    }
 
@@ -84,7 +93,10 @@ public:
       delete a;
       delete fes;
       delete fec;
-      delete pmesh;
+      if (own_mesh)
+      {
+         delete pmesh;
+      }
    }
 };
 

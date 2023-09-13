@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
    double linsolvertol = 1e-6;
    int relax_type = 8;
    double optimizer_tol = 1e-6;
+   bool elasticity_options;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
@@ -48,9 +49,13 @@ int main(int argc, char *argv[])
    args.AddOption(&linsolvertol, "-stol", "--solver-tol",
                   "Linear Solver Tolerance.");
    args.AddOption(&optimizer_tol, "-otol", "--optimizer-tol",
-                  "Interior Point Solver Tolerance.");                  
+                  "Interior Point Solver Tolerance.");
    args.AddOption(&relax_type, "-rt", "--relax-type",
                   "Selection of Smoother for AMG");
+   args.AddOption(&elasticity_options, "-elast", "--elasticity-options",
+                  "-no-elast",
+                  "--no-elasticity-options",
+                  "Enable or disable Elasticity options for the AMG preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -71,12 +76,81 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   ParElasticityProblem * prob1 = new ParElasticityProblem(MPI_COMM_WORLD,
-                                                           mesh_file1,sref,pref,order);
+   ParElasticityProblem * prob1 = nullptr;
+   ParElasticityProblem * prob2 = nullptr;
+
+   ParMesh * pmesh1 = nullptr;
+   ParMesh * pmesh2 = nullptr;
+   ParMesh * pmesh  = nullptr;
+
+   bool own_mesh = true;
+   if (own_mesh)
+   {
+      Mesh * mesh1 = new Mesh(mesh_file1,1);
+      Mesh * mesh2 = new Mesh(mesh_file2,1);
+
+      for (int i = 0; i<mesh1->GetNE(); i++)
+      {
+         mesh1->SetAttribute(i,1);
+      }
+      mesh1->SetAttributes();
+      for (int i = 0; i<mesh2->GetNE(); i++)
+      {
+         mesh2->SetAttribute(i,2);
+      }
+      mesh2->SetAttributes();
+
+      Mesh * mesh_array[2];
+      mesh_array[0] = mesh1;
+      mesh_array[1] = mesh2;
+      Mesh * mesh = new Mesh(mesh_array, 2);
+
+
+
+      for (int i = 0; i<sref; i++)
+      {
+         mesh1->UniformRefinement();
+         mesh2->UniformRefinement();
+         mesh->UniformRefinement();
+      }
+
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+
+      Array<int> attr1(1); attr1 = 1;
+      Array<int> attr2(1); attr2 = 2;
+
+      ParSubMesh * pmesh_1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
+                                                                         attr1));
+      ParSubMesh * pmesh_2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
+                                                                         attr2));
+
+      pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
+      pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
+
+
+      // pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1);
+      delete mesh1;
+      // pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2);
+      delete mesh2;
+      for (int i = 0; i<pref; i++)
+      {
+         pmesh1->UniformRefinement();
+         pmesh2->UniformRefinement();
+         pmesh->UniformRefinement();
+      }
+
+      prob1 = new ParElasticityProblem(pmesh1,order);
+      prob2 = new ParElasticityProblem(pmesh2,order);
+   }
+   else
+   {
+      prob1 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file1,sref,pref,order);
+      prob2 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file2,sref,pref,order);
+   }
+
+
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
    Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
-   ParElasticityProblem * prob2 = new ParElasticityProblem(MPI_COMM_WORLD,
-                                                           mesh_file2,sref,pref,order);
    Vector lambda2(prob2->GetMesh()->attributes.Max()); lambda2 = 57.6923076923;
    Vector mu2(prob2->GetMesh()->attributes.Max()); mu2 = 38.4615384615;
 
@@ -88,6 +162,12 @@ int main(int argc, char *argv[])
    int numconstr = contact.GetGlobalNumConstraints();
 
    ParInteriorPointSolver optimizer(&qpopt);
+   ParFiniteElementSpace *pfes=nullptr;
+   if (elasticity_options)
+   {
+      pfes = new ParFiniteElementSpace(pmesh,prob1->GetFECol(),3,Ordering::byVDIM);
+      optimizer.SetFiniteElementSpace(pfes);
+   }
 
    optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(50);
@@ -197,8 +277,11 @@ int main(int argc, char *argv[])
       }
    }
 
-   delete prob1;
+   delete pfes;
    delete prob2;
+   delete prob1;
+   delete pmesh2;
+   delete pmesh1;
 
    return 0;
 }

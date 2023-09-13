@@ -479,7 +479,14 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          AreducedSolver.SetMaxIter(1000);
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
-         amg.SetSystemsOptions(3,false);
+         if (pfes)
+         {
+            amg.SetElasticityOptions(pfes);
+         }
+         else
+         {
+            amg.SetSystemsOptions(3,false);
+         }
          amg.SetRelaxType(relax_type);
 
          AreducedSolver.SetPreconditioner(amg);
