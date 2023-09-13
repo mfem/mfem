@@ -322,77 +322,38 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
-   void HandleNetCDFError(const int error);
-   void ReadCubitNodeCoordinates(const int netcdf_descriptor, double *coordx,
-                                 double *coordy, double *coordz);
-   void ReadCubitNumElementsInBlock(const int netcdf_descriptor,
-                                    const int num_element_blocks,
-                                    std::vector<std::size_t> & num_elements_for_block);
-   void ReadCubitNumNodesPerElement(const int netcdf_descriptor,
-                                    const int num_element_blocks, size_t &num_nodes_per_element);
-   void ReadCubitDimensions(const int netcdf_descriptor, size_t &num_dim,
-                            size_t &num_nodes, size_t &num_elem, size_t &num_el_blk, size_t &num_side_sets);
 
-   void ReadCubitSideSets(const int netcdf_descriptor,
-                          const int num_sidesets, std::vector<size_t> &num_sides_in_sideset,
-                          int **elem_ss, int **side_ss);
-
-   void ReadCubitElementBlocks(const int netcdf_descriptor,
-                               const int num_element_blocks, const int num_nodes_per_element,
-                               const std::vector<std::size_t> & num_elements_for_block, int **element_blocks);
+   /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 
-   enum CubitElementType
-   {
-      ELEMENT_TRI3,
-      ELEMENT_TRI6,
-      ELEMENT_QUAD4,
-      ELEMENT_QUAD9,
-      ELEMENT_TET4,
-      ELEMENT_TET10,
-      ELEMENT_HEX8,
-      ELEMENT_HEX27
-   };
+   /// @brief The final step in constructing the mesh from a Genesis file. This
+   /// is only called if the mesh order == 2 (determined internally from the 
+   /// cubit element type).
+   void FinalizeCubitSecondOrderMesh(const int cubit_element_type,
+                                     const int num_element_blocks,
+                                     const int num_nodes_per_element,
+                                     const int *start_of_block,
+                                     const double *coordx,
+                                     const double *coordy,
+                                     const double *coordz,
+                                     const int **element_blocks);
 
-   enum CubitFaceType
-   {
-      FACE_EDGE2,
-      FACE_EDGE3,
-      FACE_TRI3,
-      FACE_TRI6,
-      FACE_QUAD4,
-      FACE_QUAD9
-   };
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit element type. This is used internally to create the mesh elements
+   /// from a Genesis file.
+   Element *CreateCubitElement(const int cubit_element_type,
+                               const int *vertex_ids,
+                               const int block_id);
 
-   void SetCubitElementAndFaceType(const int num_dim,
-                                   const int num_nodes_per_element, CubitElementType &cubit_element_type,
-                                   CubitFaceType & cubit_face_type, int & num_element_linear_nodes);
-   void SetCubitElementAndFaceType2D(const int num_nodes_per_element,
-                                     CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type,
-                                     int & num_element_linear_nodes);
-   void SetCubitElementAndFaceType3D(const int num_nodes_per_element,
-                                     CubitElementType &cubit_element_type, CubitFaceType & cubit_face_type,
-                                     int & num_element_linear_nodes);
-
-   void SetCubitFaceInfo(const CubitFaceType cubit_face_type, int & num_face_nodes,
-                         int & num_face_linear_nodes);
-
-   int OrderFromCubitElementType(const CubitElementType element_type);
-
-   void HandleCubitSecondOrder(const CubitElementType cubit_element_type,
-                               const int num_element_blocks, const int num_nodes_per_element,
-                               const int *start_of_block, const double *coordx, const double *coordy,
-                               const double *coordz, const int **element_blocks,
-                               int & curved);
-
-
-   mfem::Element *CubitElement(const CubitElementType cubit_element_type,
-                               const int *vertex_ids, const int block_id);
-   mfem::Element *CubitSideset(const CubitFaceType cubit_face_type,
-                               const int *vertex_ids, const int sideset_id);
-
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit face type. This is used internally to create the boundary elements
+   /// from a Genesis file.
+   Element *CreateCubitBoundaryElement(const int cubit_face_type,
+                                       const int *vertex_ids,
+                                       const int sideset_id) const;
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
