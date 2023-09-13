@@ -336,7 +336,8 @@ protected:
                             size_t &num_nodes, size_t &num_elem, size_t &num_el_blk, size_t &num_side_sets);
 
    void ReadCubitSideSets(const int netcdf_descriptor,
-                             const int num_sidesets, std::vector<size_t> &num_sides_in_sideset, int **elem_ss, int **side_ss);
+                          const int num_sidesets, std::vector<size_t> &num_sides_in_sideset,
+                          int **elem_ss, int **side_ss);
 
    void ReadCubitElementBlocks(const int netcdf_descriptor,
                                const int num_element_blocks, const int num_nodes_per_element,
