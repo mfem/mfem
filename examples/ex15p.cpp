@@ -22,8 +22,8 @@
 //               Different estimators:
 //
 //               mpirun -np 4 ex15p -est 0 -e 1e-4
-//               mpirun -np 4 ex15p -est 1 -e 1e-6
-//               mpirun -np 4 ex15p -est 1 -o 3 -tf 0.3
+//               mpirun -np 4 ex15p -est 1 -e 0.5
+//               mpirun -np 4 ex15p -est 1 -e 0.2 -o 3 -tf 0.3
 //               mpirun -np 4 ex15p -est 2 -o 2
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.

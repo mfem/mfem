@@ -21,11 +21,11 @@
 //
 //               Kelly estimator:
 //
-//               ex15 -est 1 -e 0.0001
-//               ex15 -est 1 -o 1 -y 0.4
-//               ex15 -est 1 -o 4 -y 0.1
-//               ex15 -est 1 -n 5
-//               ex15 -est 1 -p 1 -n 3
+//               ex15 -est 1 -e 0.5
+//               ex15 -est 1 -e 2.0 -o 1 -y 0.4
+//               ex15 -est 1 -e 0.1 -o 4 -y 0.1
+//               ex15 -est 1 -e 0.5 -n 5
+//               ex15 -est 1 -e 2.0 -p 1 -n 3
 //
 // Description:  Building on Example 6, this example demonstrates dynamic AMR.
 //               The mesh is adapted to a time-dependent solution by refinement
