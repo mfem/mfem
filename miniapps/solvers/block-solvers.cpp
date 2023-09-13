@@ -264,7 +264,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    DFSParameters param;
+#ifdef MFEM_USE_LAPACK
    BPSParameters bps_param;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
