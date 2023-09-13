@@ -309,6 +309,12 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
+void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
+{
+   GetPatchDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
 {
    GetFaceDofs(i, vdofs);
@@ -2825,11 +2831,24 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    return DoFTrans[mesh->GetElementBaseGeometry(elem)];
 }
 
+void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
+{
+   MFEM_ASSERT(NURBSext,
+               "FiniteElementSpace::GetPatchDofs needs a NURBSExtension");
+   NURBSext->GetPatchDofs(patch, dofs);
+}
+
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   if (i < 0 || !mesh->GetNE()) { return NULL; }
-   MFEM_VERIFY(i < mesh->GetNE(),
-               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+   if (i < 0 || i >= mesh->GetNE())
+   {
+      if (mesh->GetNE() == 0)
+      {
+         MFEM_ABORT("Empty MPI partitions are not permitted!");
+      }
+      MFEM_ABORT("Invalid element id:" << i << "; minimum allowed:" << 0 <<
+                 ", maximum allowed:" << mesh->GetNE()-1);
+   }
 
    const FiniteElement *FE =
       fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
