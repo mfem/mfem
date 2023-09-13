@@ -369,7 +369,7 @@ SumOperator::SumOperator(const Operator *A, const double alpha,
                          const Operator *B, const double beta,
                          bool ownA, bool ownB)
    : Operator(A->Height(), A->Width()),
-     A(A), alpha(alpha), B(B), beta(beta), ownA(ownA), ownB(ownB),
+     A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),
      a(A->Width()), b(B->Width())
 {
    MFEM_VERIFY(A->Width() == B->Width(),
@@ -380,18 +380,22 @@ SumOperator::SumOperator(const Operator *A, const double alpha,
                "incompatible Operators: different heights\n"
                << "A->Height() = " << A->Height()
                << ", B->Height() = " << B->Height() );
-   /*
-    * TODO
-    * I think the operators can be iterative, as there is no composition but addition...
-    * {
-    *    const Solver* SolverB = dynamic_cast<const Solver*>(B);
-    *    if (SolverB)
-    *    {
-    *       MFEM_VERIFY(!(SolverB->iterative_mode),
-    *                   "Operator B of a ProductOperator should not be in iterative mode");
-    *    }
-    * }
-   */
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(A);
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of a SumOperator should not be in iterative mode");
+      }
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a SumOperator should not be in iterative mode");
+      }
+   }
+
 }
 
 SumOperator::~SumOperator()

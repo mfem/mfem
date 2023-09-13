@@ -28,8 +28,6 @@ BramblePasciakSolver::BramblePasciakSolver(
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize())
 {
-   MFEM_ASSERT((param.q_scaling > 0.0) && (param.q_scaling < 1.0),
-               "Invalid Q-scaling factor: param.q_scaling " << param.q_scaling );
    M_.reset(mVarf->ParallelAssemble());
    B_.reset(bVarf->ParallelAssemble());
    Q_.reset(ConstructMassPreconditioner(*mVarf, param.q_scaling));
@@ -47,7 +45,6 @@ BramblePasciakSolver::BramblePasciakSolver(
    Init(*M_, *B_, *Q_, *M0_.As<Solver>(), *M1_.As<Solver>(), param);
 }
 
-// TODO To test it!
 BramblePasciakSolver::BramblePasciakSolver(
    HypreParMatrix &M, HypreParMatrix &B, HypreParMatrix &Q,
    Solver &M0, Solver &M1,
@@ -138,8 +135,11 @@ void BramblePasciakSolver::Init(
 }
 
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
-   ParBilinearForm &mVarf, double alpha)
+   ParBilinearForm &mVarf, double q_scaling)
 {
+#ifdef MFEM_USE_LAPACK
+   MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
+               "Invalid Q-scaling factor: q_scaling = " << q_scaling );
    ParBilinearForm qVarf(mVarf.ParFESpace());
    for (int i = 0; i < mVarf.ParFESpace()->GetNE(); ++i)
    {
@@ -154,13 +154,19 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
       // M_i x = ev diag(M_i) x
       M_i.Eigenvalues(eval, evec);
 
-      scaling = alpha*eval.Min();
+      scaling = q_scaling*eval.Min();
       diag_i.Set(scaling, diag_i);
       Q_i.Diag(diag_i.GetData(), diag_i.Size());
       qVarf.AssembleElementMatrix(i, Q_i, 1);
    }
    qVarf.Finalize();
    return qVarf.ParallelAssemble();
+#else
+   MFEM_CONTRACT_VAR(mVarf);
+   MFEM_CONTRACT_VAR(q_scaling);
+   mfem_error("BramblePasciakSolver::ConstructMassPreconditioner: Compiled without LAPACK");
+   return nullptr;
+#endif
 }
 
 void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
@@ -187,7 +193,6 @@ void BPCGSolver::UpdateVectors()
    p.SetSize(width, mt); p.UseDevice(true);
    g.SetSize(width, mt); g.UseDevice(true);
    t.SetSize(width, mt); t.UseDevice(true);
-   // r_hat.SetSize(width, mt); r_hat.UseDevice(true);
    r_bar.SetSize(width, mt); r_bar.UseDevice(true);
    r_red.SetSize(width, mt); r_red.UseDevice(true);
    g_red.SetSize(width, mt); g_red.UseDevice(true);
@@ -205,8 +210,6 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    {
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
-      // tra_->Mult(r,r_hat); // r_hat = X r
-      // map_->Mult(r,r_tem); // r_tem = S r
    }
    else
    {
@@ -214,19 +217,18 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
       x = 0.0;
    }
 
-   pprec->Mult(r,r_bar); // r_bar = P r
+   pprec->Mult(r,r_bar);  // r_bar = P r
    p = r_bar;
-   oper->Mult(p, g); // g = A p
-   oper->Mult(r_bar, t); // t = A r_bar
+   oper->Mult(p, g);      // g = A p
+   oper->Mult(r_bar, t);  // t = A r_bar
    iprec->Mult(r, r_red); // r_red = N r
 
-   // Initial norms
-   delta = delta0 = Dot(t, r_red) - Dot(r_bar, r); // Dot(r_bar, r_hat)
+   delta = delta0 = Dot(t, r_red) - Dot(r_bar, r); // Dot(Pr, r)
    if (delta0 >= 0.0) { initial_norm = sqrt(delta0); }
-   MFEM_ASSERT(IsFinite(delta), "nom = " << delta);
+   MFEM_ASSERT(IsFinite(delta), "norm = " << delta);
    if (print_options.iterations || print_options.first_and_last)
    {
-      mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  (P r, r) = "
                 << delta << (print_options.first_and_last ? " ...\n" : "\n");
    }
    Monitor(0, delta, r, x);
@@ -235,7 +237,7 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    {
       if (print_options.warnings)
       {
-         mfem::out << "BPCG: The preconditioner is not positive definite. (Br, r) = "
+         mfem::out << "BPCG: The preconditioner is not positive definite. (Pr, r) = "
                    << delta << '\n';
       }
       converged = false;
@@ -253,11 +255,9 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   // MFEM checks some system properties before running the loop
-   // Step 0.1: Compute (p,XAp), p = r_bar
    iprec->Mult(g, g_red);
-   gamma = Dot(g, g_red) - Dot(g,p);
-   MFEM_ASSERT(IsFinite(gamma), "den = " << gamma);
+   gamma = Dot(g, g_red) - Dot(g,p); // Dot(Ap, p)
+   MFEM_ASSERT(IsFinite(gamma), "den (gamma) = " << gamma);
    if (gamma <= 0.0)
    {
       if (Dot(r_bar, r_bar) > 0.0 && print_options.warnings)
@@ -279,24 +279,22 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
-      // Step 2: Get new step in the search direction p
       alpha = delta0/gamma;
-      // Step 3: Update solution (and residual) in the search direction
-      add(x,  alpha, p, x);     // x = x + alpha p
-      add(r, -alpha, g, r);     // r = r - alpha g
-      // map_->Mult(r, r_tem);     // r_tem = S r
+      add(x,  alpha, p, x);  // x = x + alpha p
+      add(r, -alpha, g, r);  // r = r - alpha g
+
       pprec->Mult(r, r_bar); // r_bar = P r
-      // Step 4: Compute (HXr,Xr) = (r_bar, r_hat)
-      iprec->Mult(r, r_red);     // r_red = N r
-      oper->Mult(r_bar, t);     // t = A r_bar
+      iprec->Mult(r, r_red); // r_red = N r
+      oper->Mult(r_bar, t);  // t = A r_bar
       delta = Dot(t, r_red) - Dot(r_bar,r);
+
       // Check
-      MFEM_ASSERT(IsFinite(delta), "betanom = " << delta);
+      MFEM_ASSERT(IsFinite(delta), "norm = " << delta);
       if (delta < 0.0)
       {
          if (print_options.warnings)
          {
-            mfem::out << "BPCG: The preconditioner is not positive definite. (Br, r) = "
+            mfem::out << "BPCG: The preconditioner is not positive definite. (Pr, r) = "
                       << delta << '\n';
          }
          converged = false;
@@ -305,7 +303,7 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
       }
       if (print_options.iterations)
       {
-         mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+         mfem::out << "   Iteration : " << setw(3) << i << "  (Pr, r) = "
                    << delta << std::endl;
       }
       Monitor(i, delta, r, x);
@@ -319,18 +317,16 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
       {
          break;
       }
-      // End checks
-      // Step 5: Update search direction
+      // End check
+
       beta = delta/delta0;
-      add(r_bar, beta, p, p);
-      // Step 6: Update remaining directions
-      // oper->Mult(r_bar, t);     // t = A r_bar
-      add(t, beta, g, g);
+      add(r_bar, beta, p, p); // p = r_bar + beta p
+      add(t, beta, g, g);     // g = t + beta g
+
       delta0 = delta;
-      // Step 1: Compute (p,XAp)
       iprec->Mult(g, g_red);
-      gamma = Dot(g, g_red) - Dot(g,p);
-      MFEM_ASSERT(IsFinite(gamma), "den = " << gamma);
+      gamma = Dot(g, g_red) - Dot(g,p); // Dot(Ap, p)
+      MFEM_ASSERT(IsFinite(gamma), "den (gamma) = " << gamma);
       if (gamma <= 0.0)
       {
          if (Dot(r_bar, r_bar) > 0.0 && print_options.warnings)
@@ -348,7 +344,7 @@ void BPCGSolver::Mult(const Vector &b, Vector &x) const
 
    if (print_options.first_and_last && !print_options.iterations)
    {
-      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (Pr, r) = "
                 << delta << '\n';
    }
    if (print_options.summary || (print_options.warnings && !converged))

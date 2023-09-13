@@ -21,13 +21,13 @@
 //        B = -\int_\Omega (div_h u_h) q_h dx,
 //        u_h, v_h \in R_h (Raviart-Thomas finite element space),
 //        q_h \in W_h (piecewise discontinuous polynomials),
-// with a block transformation of the form X = AN - Id
+// with a block transformation of the form X = A*N - Id
 //                  X = [ M*invQ - Id    0   ]
 //                      [     B*invQ    -Id  ]
 // where N is defined by
 //                  N = [ invQ    0 ]
 //                      [   0     0 ]
-// and Q is constructed such that Q and M-Q are both s.p.d.
+// and Q is constructed such that Q and M-Q are both s.p.d..
 //
 // The solution x is then obtained by solving XAx = Xb with PCG as XA is s.p.d.
 //
@@ -90,7 +90,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   virtual void SetPreconditioner(const Operator &pc)
+   virtual void SetPreconditioner(Solver &pc)
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner does NO effect to BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
@@ -132,7 +132,7 @@ class BramblePasciakSolver : public DarcySolver
    ProductOperator *mop_;
    SumOperator *map_;
    ProductOperator *ppc_;
-   BlockDiagonalPreconditioner *cpc_, *hpc_;
+   BlockDiagonalPreconditioner *cpc_;
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;

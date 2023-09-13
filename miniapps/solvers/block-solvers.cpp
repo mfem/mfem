@@ -281,7 +281,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    DFSParameters param;
+#ifdef MFEM_USE_LAPACK
    BPSParameters bps_param;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -408,6 +410,7 @@ int main(int argc, char *argv[])
    bh.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bh] = chrono.RealTime();
 
+#ifdef MFEM_USE_LAPACK
    ResetTimer();
    BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_bpcg] = chrono.RealTime();
@@ -416,14 +419,19 @@ int main(int argc, char *argv[])
    bps_param.use_bpcg = false;
    BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_pcg] = chrono.RealTime();
+#else
+   MFEM_WARNING("BramblePasciakSolver class unavailable: Compiled without LAPACK");
+#endif
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
    solver_to_name[&bh] = "Block hybridization";
+#ifdef MFEM_USE_LAPACK
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
+#endif
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)

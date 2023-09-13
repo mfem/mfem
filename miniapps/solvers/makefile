@@ -21,10 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-DARCY_SOLVERS_SRC = darcy_solver.cpp
-DARCY_SOLVERS_OBJ = $(DARCY_SOLVERS_SRC:.cpp=.o)
-
-BLOCK_SOLVERS_SRC = bramble_pasciak.cpp div_free_solver.cpp block-solvers.cpp
+BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp bramble_pasciak.cpp div_free_solver.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lor_solvers
@@ -56,9 +53,6 @@ plor_solvers.o: $(SRC)lor_mms.hpp
 block-solvers: $(BLOCK_SOLVERS_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
 
-$(BLOCK_SOLVERS_OBJ): $(DARCY_SOLVERS_OBJ)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $(BLOCK_SOLVERS_SRC) $< -o $@
-
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
@@ -69,9 +63,9 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-sr 1 -pr 1)
 block-solvers-anisotropic: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-sr 1 -pr 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
 lor_solvers-test-seq: lor_solvers
