@@ -2979,13 +2979,17 @@ double FindYVal(ParGridFunction &u, double u_target, double x,
 
    double a = y0;
    double b = y1;
-   double c = 0.5 * (a + b);
+
    double ua = 1.0 - u_target;
    double ub = 0.0 - u_target;
-   double uc = 1.0;
+   double uc = 0.5 - u_target;
 
-   while (std::abs(uc) > tol)
+   const int nmax = 20;
+   int n = 0;
+   while (n < nmax)
    {
+      double c = 0.5 * (a + b);
+
       point_mat(1,0) = c;
       int nfound = pmesh->FindPoints(point_mat, elem, ips);
 
@@ -3014,6 +3018,11 @@ double FindYVal(ParGridFunction &u, double u_target, double x,
          }
       }
 
+      if (std::abs(uc) < tol || 0.5 * (b - a) < tol)
+      {
+         return c;
+      }
+
       if (ua * uc < 0.0)
       {
          b = c;
@@ -3025,9 +3034,9 @@ double FindYVal(ParGridFunction &u, double u_target, double x,
          ua = uc;
       }
 
-      c = 0.5 * (a + b);
+      n++;
    }
-   return c;
+   return -1.0;
 }
 
 void UmanskyTestWidth(ParGridFunction &u)
