@@ -330,7 +330,7 @@ protected:
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 
    /// @brief The final step in constructing the mesh from a Genesis file. This
-   /// is only called if the mesh order == 2 (determined internally from the 
+   /// is only called if the mesh order == 2 (determined internally from the
    /// cubit element type).
    void FinalizeCubitSecondOrderMesh(const int cubit_element_type,
                                      const int num_element_blocks,
