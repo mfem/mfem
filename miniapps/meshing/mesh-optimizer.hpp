@@ -259,10 +259,16 @@ public:
          double small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
          const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         double zc;
-         if (dim == 3) { zc = pos(2) - 0.5; }
-         double r = sqrt(xc*xc + yc*yc);
-         if (dim == 3) { r = sqrt(xc*xc + yc*yc + zc*zc); }
+         double r;
+         if (dim == 2)
+         {
+            r = sqrt(xc*xc + yc*yc);
+         }
+         else
+         {
+            const double zc = pos(2) - 0.5;
+            r = sqrt(xc*xc + yc*yc + zc*zc);
+         }
          double r1 = 0.15; double r2 = 0.35; double sf=30.0;
 
          const double tan1 = std::tanh(sf*(r-r1)),
