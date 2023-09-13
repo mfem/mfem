@@ -29,10 +29,12 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 
    // Copy the pointers to the integrators
    domain_integs = lf->domain_integs;
+   domain_integs_marker = lf->domain_integs_marker;
 
    domain_delta_integs = lf->domain_delta_integs;
 
    boundary_integs = lf->boundary_integs;
+   boundary_integs_marker = lf->boundary_integs_marker;
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
