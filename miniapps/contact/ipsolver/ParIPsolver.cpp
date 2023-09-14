@@ -443,6 +443,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
 
+      Areduced->DropSmallEntries(1e-16);
+
       /* prepare the reduced rhs */
       // breduced = bu + Ju^T (bm + Wmm bl)
       Vector breduced(dimU); breduced = 0.0;
@@ -472,11 +474,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       else
       {
-         // Vector XX(Xhat.GetBlock(0));
-         CGSolver AreducedSolver(MPI_COMM_WORLD);
-	      AreducedSolver.SetOperator(*Areduced);
-         AreducedSolver.SetRelTol(linSolveTol);
-         AreducedSolver.SetMaxIter(1000);
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
          if (pfes)
@@ -488,11 +485,32 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             amg.SetSystemsOptions(3,false);
          }
          amg.SetRelaxType(relax_type);
+         int n;
 
+
+         // CGSolver AreducedSolver(MPI_COMM_WORLD);
+	      // AreducedSolver.SetOperator(*Areduced);
+         // AreducedSolver.SetRelTol(linSolveTol);
+         // AreducedSolver.SetMaxIter(1000);
+         // AreducedSolver.SetPreconditioner(amg);
+	      // AreducedSolver.SetPrintLevel(3);
+         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         // n = AreducedSolver.GetNumIterations();
+
+         Areduced->Print("Areduced");
+
+         HyprePCG AreducedSolver(*Areduced);
+         AreducedSolver.SetTol(linSolveTol);
+         AreducedSolver.SetMaxIter(1000);
          AreducedSolver.SetPreconditioner(amg);
-	      AreducedSolver.SetPrintLevel(3);
+	      AreducedSolver.SetPrintLevel(2);
+         // AreducedSolver.SetResidualConvergenceOptions();
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         cgnum_iterations.Append(AreducedSolver.GetNumIterations());
+         AreducedSolver.GetNumIterations(n);
+
+         cgnum_iterations.Append(n);
+
+
       }
 
       // now propagate solved uhat to obtain mhat and lhat

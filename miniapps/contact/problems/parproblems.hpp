@@ -33,6 +33,7 @@ public:
          mesh->UniformRefinement();
       }
       pmesh = new ParMesh(comm,*mesh);
+      MFEM_VERIFY(pmesh->GetNE(), "ParElasticityProblem::Empty partition");
       delete mesh;
       for (int i = 0; i<pref; i++)
       {
@@ -41,7 +42,7 @@ public:
       Init();
    }
 
-   ParElasticityProblem(ParMesh * pmesh_, int order_ = 1) : order(order_), pmesh(pmesh_)
+   ParElasticityProblem(ParMesh * pmesh_, int order_ = 1) :  pmesh(pmesh_), order(order_)
    {
       own_mesh = false;
       comm = pmesh->GetComm();

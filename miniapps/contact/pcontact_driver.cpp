@@ -83,11 +83,25 @@ int main(int argc, char *argv[])
    ParMesh * pmesh2 = nullptr;
    ParMesh * pmesh  = nullptr;
 
-   bool own_mesh = true;
+   bool own_mesh = false;
+   if (elasticity_options) { own_mesh = true; }
+
    if (own_mesh)
    {
       Mesh * mesh1 = new Mesh(mesh_file1,1);
       Mesh * mesh2 = new Mesh(mesh_file2,1);
+
+      for (int i = 0; i<sref; i++)
+      {
+         mesh1->UniformRefinement();
+         mesh2->UniformRefinement();
+      }
+
+      int * part1 = mesh1->GeneratePartitioning(num_procs);
+      int * part2 = mesh2->GeneratePartitioning(num_procs);
+
+      Array<int> part_array1(part1, mesh1->GetNE());
+      Array<int> part_array2(part2, mesh2->GetNE());
 
       for (int i = 0; i<mesh1->GetNE(); i++)
       {
@@ -107,37 +121,26 @@ int main(int argc, char *argv[])
 
 
 
-      for (int i = 0; i<sref; i++)
-      {
-         mesh1->UniformRefinement();
-         mesh2->UniformRefinement();
-         mesh->UniformRefinement();
-      }
+      Array<int> part_array;
+      part_array.Append(part_array1);
+      part_array.Append(part_array2);
 
-      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part_array.GetData());
+      MFEM_VERIFY(pmesh->GetNE(), "Empty partition");
+      for (int i = 0; i<pref; i++)
+      {
+         pmesh->UniformRefinement();
+      }
 
       Array<int> attr1(1); attr1 = 1;
       Array<int> attr2(1); attr2 = 2;
 
-      ParSubMesh * pmesh_1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
-                                                                         attr1));
-      ParSubMesh * pmesh_2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh,
-                                                                         attr2));
 
       pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
       pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
 
-
-      // pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1);
-      delete mesh1;
-      // pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2);
-      delete mesh2;
-      for (int i = 0; i<pref; i++)
-      {
-         pmesh1->UniformRefinement();
-         pmesh2->UniformRefinement();
-         pmesh->UniformRefinement();
-      }
+      MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
+      MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
 
       prob1 = new ParElasticityProblem(pmesh1,order);
       prob2 = new ParElasticityProblem(pmesh2,order);
@@ -162,11 +165,16 @@ int main(int argc, char *argv[])
    int numconstr = contact.GetGlobalNumConstraints();
 
    ParInteriorPointSolver optimizer(&qpopt);
-   ParFiniteElementSpace *pfes=nullptr;
-   if (elasticity_options)
+   ParFiniteElementSpace *pfes = nullptr;
+   if (pmesh)
    {
       pfes = new ParFiniteElementSpace(pmesh,prob1->GetFECol(),3,Ordering::byVDIM);
-      optimizer.SetFiniteElementSpace(pfes);
+      pmesh->SetNodalFESpace(pfes);
+      if (elasticity_options)
+      {
+
+         optimizer.SetFiniteElementSpace(pfes);
+      }
    }
 
    optimizer.SetTol(optimizer_tol);
@@ -234,6 +242,18 @@ int main(int argc, char *argv[])
       mesh1->MoveNodes(x1_gf);
       mesh2->MoveNodes(x2_gf);
 
+
+      ParGridFunction * xgf = nullptr;
+      if (pmesh)
+      {
+         xgf = new ParGridFunction(pfes);
+         *xgf = 0.0;
+         auto map1 = ParSubMesh::CreateTransferMap(x1_gf, *xgf);
+         auto map2 = ParSubMesh::CreateTransferMap(x2_gf, *xgf);
+         map1.Transfer(x1_gf,*xgf);
+         map2.Transfer(x2_gf,*xgf);
+         pmesh->MoveNodes(*xgf);
+      }
       if (paraview)
       {
          ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
@@ -255,7 +275,22 @@ int main(int argc, char *argv[])
          paraview_dc2.SetTime(0.0);
          paraview_dc2.RegisterField("Body2", &x2_gf);
          paraview_dc2.Save();
+
+         if (pmesh)
+         {
+            ParaViewDataCollection paraview_dc("QPContact2Bodies", pmesh);
+            paraview_dc.SetPrefixPath("ParaView");
+            paraview_dc.SetLevelsOfDetail(1);
+            paraview_dc.SetDataFormat(VTKFormat::BINARY);
+            paraview_dc.SetHighOrderOutput(true);
+            paraview_dc.SetCycle(0);
+            paraview_dc.SetTime(0.0);
+            paraview_dc.RegisterField("BothBodies", xgf);
+            paraview_dc.Save();
+         }
       }
+
+
 
       if (visualization)
       {
@@ -274,7 +309,15 @@ int main(int argc, char *argv[])
             sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
                      << "solution\n" << *mesh2 << x2_gf << flush;
          }
+         if (pmesh)
+         {
+            socketstream sol_sock1(vishost, visport);
+            sol_sock1.precision(8);
+            sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
+                      << "solution\n" << *pmesh << *xgf << flush;
+         }
       }
+      delete xgf;
    }
 
    delete pfes;
