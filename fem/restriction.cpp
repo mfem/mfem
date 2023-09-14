@@ -18,7 +18,7 @@
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
 
-#include <limits>
+#include <climits>
 
 namespace mfem
 {
@@ -293,7 +293,7 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
    // Find the minimal element index found in both my_elts[] and nbr_elts[]
-   int min_el = std::numeric_limits<int>::max();
+   int min_el = INT_MAX;
    for (int i = 0; i < nbElts; i++)
    {
       const int e_i = my_elts[i];
