@@ -144,7 +144,7 @@ public:
       T.Transform(ip, uvw_);
 
       const double r   = uvw_[0];
-      const double phi = hphi_rad_ * uvw_[2];
+      const double phi = hphi_rad_ * (1.0 - uvw_[2]);
       const double z   = uvw_[1];
 
       xyz[0] = r * cos(phi);
