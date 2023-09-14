@@ -37,7 +37,7 @@ void TensorPhysDerivatives<QVectorLayout::byNODES>(const int NE,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
 
-   MFEM_ASSERT(geom.mesh->SpaceDimension() == dim, "");
+   const int sdim = geom.mesh->SpaceDimension();
 
    const double *B = maps.B.Read();
    const double *G = maps.G.Read();
@@ -52,25 +52,25 @@ void TensorPhysDerivatives<QVectorLayout::byNODES>(const int NE,
 
    if (dim == 1)
    {
-      return Derivatives1D<L,P>(NE,G,J,X,Y,vdim,D1D,Q1D);
+      return Derivatives1D<L,P>(NE,G,J,X,Y,sdim,vdim,D1D,Q1D);
    }
    if (dim == 2)
    {
       switch (id)
       {
-         case 0x133: return Derivatives2D<L,P,1,3,3,8>(NE,B,G,J,X,Y);
-         case 0x134: return Derivatives2D<L,P,1,3,4,8>(NE,B,G,J,X,Y);
-         case 0x143: return Derivatives2D<L,P,1,4,3,4>(NE,B,G,J,X,Y);
-         case 0x144: return Derivatives2D<L,P,1,4,4,4>(NE,B,G,J,X,Y);
-         case 0x146: return Derivatives2D<L,P,1,4,6,4>(NE,B,G,J,X,Y);
-         case 0x158: return Derivatives2D<L,P,1,5,8,2>(NE,B,G,J,X,Y);
+         case 0x133: return Derivatives2D<L,P,1,3,3,8>(NE,B,G,J,X,Y,sdim);
+         case 0x134: return Derivatives2D<L,P,1,3,4,8>(NE,B,G,J,X,Y,sdim);
+         case 0x143: return Derivatives2D<L,P,1,4,3,4>(NE,B,G,J,X,Y,sdim);
+         case 0x144: return Derivatives2D<L,P,1,4,4,4>(NE,B,G,J,X,Y,sdim);
+         case 0x146: return Derivatives2D<L,P,1,4,6,4>(NE,B,G,J,X,Y,sdim);
+         case 0x158: return Derivatives2D<L,P,1,5,8,2>(NE,B,G,J,X,Y,sdim);
 
-         case 0x233: return Derivatives2D<L,P,2,3,3,8>(NE,B,G,J,X,Y);
-         case 0x234: return Derivatives2D<L,P,2,3,4,8>(NE,B,G,J,X,Y);
-         case 0x243: return Derivatives2D<L,P,2,4,3,4>(NE,B,G,J,X,Y);
-         case 0x244: return Derivatives2D<L,P,2,4,4,4>(NE,B,G,J,X,Y);
-         case 0x246: return Derivatives2D<L,P,2,4,6,4>(NE,B,G,J,X,Y);
-         case 0x258: return Derivatives2D<L,P,2,5,8,2>(NE,B,G,J,X,Y);
+         case 0x233: return Derivatives2D<L,P,2,3,3,8>(NE,B,G,J,X,Y,sdim);
+         case 0x234: return Derivatives2D<L,P,2,3,4,8>(NE,B,G,J,X,Y,sdim);
+         case 0x243: return Derivatives2D<L,P,2,4,3,4>(NE,B,G,J,X,Y,sdim);
+         case 0x244: return Derivatives2D<L,P,2,4,4,4>(NE,B,G,J,X,Y,sdim);
+         case 0x246: return Derivatives2D<L,P,2,4,6,4>(NE,B,G,J,X,Y,sdim);
+         case 0x258: return Derivatives2D<L,P,2,5,8,2>(NE,B,G,J,X,Y,sdim);
          default:
          {
             constexpr int MD = MAX_D1D;
@@ -79,7 +79,7 @@ void TensorPhysDerivatives<QVectorLayout::byNODES>(const int NE,
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,sdim,vdim,D1D,Q1D);
             return;
          }
       }
