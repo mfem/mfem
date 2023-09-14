@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "normal_deriv_restriction.hpp"
+#include "fespace.hpp"
 #include "pgridfunc.hpp"
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
