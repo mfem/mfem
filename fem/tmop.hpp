@@ -1743,6 +1743,7 @@ protected:
    // Custom integration rules.
    IntegrationRules *IntegRules;
    int integ_order;
+   bool integ_over_target = true;
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
@@ -1771,10 +1772,14 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf;       // Owned, Updated by surf_fit_eval.
-   const Array<bool> *surf_fit_marker;  // Not owned.
-   Coefficient *surf_fit_coeff;         // Not owned.
-   AdaptivityEvaluator *surf_fit_eval;  // Not owned.
+   const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
+   Coefficient *surf_fit_coeff;             // Not owned. Fitting term scaling.
+   // Fitting to a discrete level set.
+   GridFunction *surf_fit_gf;               // Owned. Updated by surf_fit_eval.
+   AdaptivityEvaluator *surf_fit_eval;      // Not owned.
+   // Fitting to given physical positions.
+   TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
+   const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
@@ -1975,9 +1980,10 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
-        surf_fit_gf(NULL), surf_fit_marker(NULL),
-        surf_fit_coeff(NULL),
-        surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_marker(NULL), surf_fit_coeff(NULL),
+        surf_fit_gf(NULL), surf_fit_eval(NULL),
+        surf_fit_limiter(NULL), surf_fit_pos(NULL),
+        surf_fit_normal(1.0),
         surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
@@ -1999,6 +2005,18 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   /// The TMOP integrals can be computed over the reference element or the
+   /// target elements. This function is used to switch between the two options.
+   /// By default integratioin is performed over the target elements.
+   void IntegrateOverTarget(bool integ_over_target_)
+   {
+      MFEM_VERIFY(metric_normal == 1.0 && lim_normal == 1.0,
+                  "This function must be called before EnableNormalization, as "
+                  "the normalization computations must know how to integrate.");
+
+      integ_over_target = integ_over_target_;
    }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
@@ -2067,7 +2085,7 @@ public:
                              AdaptivityEvaluator &ae);
 
 #ifdef MFEM_USE_MPI
-   /// Parallel support for surface fitting.
+   /// Parallel support for surface fitting to the zero level set of a function.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
@@ -2105,8 +2123,27 @@ public:
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 #endif
-   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
-   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+   /** @brief Fitting of certain DOFs to given positions in physical space.
+
+       Having a set S of marked nodes (or DOFs) and their target positions in
+       physical space x_t, we move these nodes to the target positions during
+       the optimization process.
+       This function adds to the TMOP functional the term
+       @f$ \sum_{i \in S} c \frac{1}{2} (x_i - x_{t,i})^2 @f$,
+       where @f$c@f$ corresponds to @a coeff below and is evaluated at the
+       DOF locations.
+
+       @param[in] pos     The desired positions for the mesh nodes.
+       @param[in] smarker Indicates which DOFs will be aligned.
+       @param[in] coeff   Coefficient c for the above integral. */
+   void EnableSurfaceFitting(const GridFunction &pos,
+                             const Array<bool> &smarker, Coefficient &coeff);
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled()
+   {
+      return surf_fit_gf != NULL || surf_fit_pos != NULL;
+   }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }

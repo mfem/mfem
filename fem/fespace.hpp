@@ -377,17 +377,6 @@ protected:
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
 
-   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
-   static inline int EncodeDof(int entity_base, int idx)
-   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
-
-   /// Helpers to remove encoded sign from a DOF
-   static inline int DecodeDof(int dof)
-   { return (dof >= 0) ? dof : (-1 - dof); }
-
-   static inline int DecodeDof(int dof, double& sign)
-   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
-
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
                      Geometry::Type master_geom = Geometry::INVALID,
@@ -822,6 +811,11 @@ public:
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
+   /** @brief Returns indices of degrees of freedom for NURBS patch index
+    @a patch. Cartesian ordering is used, for the tensor-product degrees of
+    freedom. */
+   void GetPatchDofs(int patch, Array<int> &dofs) const;
+
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
    ///
@@ -985,6 +979,18 @@ public:
    /// well on sets of @ref ldof "Local Dofs".
    static void AdjustVDofs(Array<int> &vdofs);
 
+   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
+   static inline int EncodeDof(int entity_base, int idx)
+   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
+
+   /// Helper to return the DOF associated with a sign encoded DOF
+   static inline int DecodeDof(int dof)
+   { return (dof >= 0) ? dof : (-1 - dof); }
+
+   /// Helper to determine the DOF and sign of a sign encoded DOF
+   static inline int DecodeDof(int dof, double& sign)
+   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
+
    /// @anchor getvdof @name Local Vector DoF Access Members
    /// These member functions produce arrays of local vector degree of freedom
    /// indices, see @ref ldof and @ref vdof. These indices can be used to
@@ -994,7 +1000,7 @@ public:
 
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
-   /// not necessarily equal to 1. The returned indexes are always ordered
+   /// not necessarily equal to 1. The returned indices are always ordered
    /// byNODES, irrespective of whether the space is byNODES or byVDIM.
    /// See also GetElementDofs().
    ///
@@ -1022,6 +1028,9 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+
+   /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
+   void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
@@ -1106,7 +1115,9 @@ public:
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
-        associated with i'th element in the mesh object. */
+        associated with i'th element in the mesh object.
+        Note: The method has been updated to abort instead of returning NULL for
+        an empty partition. */
    virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection

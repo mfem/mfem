@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_curveint
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -58,12 +58,18 @@ EX1_ARGS_2 := -r 0 -o 4
 EX1_ARGS_3 := -r 2
 EX1_ARGS_4 := -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 EX1_ARGS_5 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 0
-EX1_ARGS_6 := -m ../..//data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
+EX1_ARGS_6 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp -r 2
 EX1_ARGS_7 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_8 := -m ../../data/pipe-nurbs-2d.mesh -o 2 --weak-bc -r 2
 EX1_ARGS_9 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_10 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1_ARGS_11 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+EX1_ARGS_12 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_13 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-rot.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_14 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares.ref
+EX1_ARGS_15 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_16 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_17 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -77,12 +83,36 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_9))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_10))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_11))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_12))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_13))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_14))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
+
+EX1PATCH_ARGS_1 := -incdeg 3 -ref 2 -iro 8 -patcha
+EX1PATCH_ARGS_2 := -incdeg 3 -ref 2 -iro 8 -patcha -pa
+EX1PATCH_ARGS_3 := -incdeg 3 -ref 2 -iro 8 -patcha -fint
+nurbs_patch_ex1-test-seq: nurbs_patch_ex1
+ifeq ($(MFEM_USE_LAPACK),YES)
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_1))
+endif
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1PATCH_ARGS_3))
+
+CI_ARGS_1 := -uw -n 9 -no-visit
+CI_ARGS_2 := -nw -n 9 -no-visit
+
+nurbs_curveint-test-seq: nurbs_curveint
+	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(CI_ARGS_2))
 
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
 EX1P_ARGS_4 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 0
 EX1P_ARGS_5 := -m ../../data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1
+EX1P_ARGS_6 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/square-nurbs.mesh -r 4  -pm "1" -ps "2"
 
 nurbs_ex1p-test-par: nurbs_ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_1))
@@ -90,6 +120,7 @@ nurbs_ex1p-test-par: nurbs_ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_3))
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_4))
 	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_5))
+	@$(call mfem-test,$<, $(RUN_MPI), NURBS miniapp,$(EX1P_ARGS_6))
 
 EX11P_ARGS_1 :=
 
@@ -109,5 +140,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh mesh.* sol.* mode_*
+	@rm -f refined.mesh sin-fit.mesh mesh.* sol.* mode_*
 	@rm -rf Example1*
+	@rm -rf CurveInt

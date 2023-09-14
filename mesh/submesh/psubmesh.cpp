@@ -84,7 +84,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       GetEdgeVertices(i, lv);
 
       // Find vertices/edge in parent mesh
-      int parent_edge_id = v2v(parent_vertex_ids_[lv[0]], parent_vertex_ids_[lv[1]]);
+      int parent_edge_id = v2v(parent_vertex_ids_[lv[0]],
+                               parent_vertex_ids_[lv[1]]);
       parent_edge_ids_.Append(parent_edge_id);
    }
 
@@ -105,6 +106,73 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       for (int i = 0; i < parent_face_ids_.Size(); i++)
       {
          parent_to_submesh_face_ids_[parent_face_ids_[i]] = i;
+      }
+
+      parent_face_ori_.SetSize(NumOfFaces);
+
+      for (int i = 0; i < NumOfFaces; i++)
+      {
+         Array<int> sub_vert;
+         GetFaceVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         parent.GetFaceVertices(parent_face_ids_[i], par_vert);
+
+         if (par_vert.Size() == 3)
+         {
+            parent_face_ori_[i] = GetTriOrientation(par_vert, sub_par_vert);
+         }
+         else
+         {
+            parent_face_ori_[i] = GetQuadOrientation(par_vert, sub_par_vert);
+         }
+      }
+   }
+   else if (Dim == 2)
+   {
+      parent_face_ori_.SetSize(NumOfElements);
+
+      for (int i = 0; i < NumOfElements; i++)
+      {
+         Array<int> sub_vert;
+         GetElementVertices(i, sub_vert);
+
+         Array<int> sub_par_vert(sub_vert.Size());
+         for (int j = 0; j < sub_vert.Size(); j++)
+         {
+            sub_par_vert[j] = parent_vertex_ids_[sub_vert[j]];
+         }
+
+         Array<int> par_vert;
+         int be_ori = 0;
+         if (from == SubMesh::From::Boundary)
+         {
+            parent.GetBdrElementVertices(parent_element_ids_[i], par_vert);
+
+            int f = -1;
+            parent.GetBdrElementFace(parent_element_ids_[i], &f, &be_ori);
+         }
+         else
+         {
+            parent.GetElementVertices(parent_element_ids_[i], par_vert);
+         }
+
+         if (par_vert.Size() == 3)
+         {
+            int se_ori = GetTriOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeTriOrientations(be_ori, se_ori);
+         }
+         else
+         {
+            int se_ori = GetQuadOrientation(par_vert, sub_par_vert);
+            parent_face_ori_[i] = ComposeQuadOrientations(be_ori, se_ori);
+         }
       }
    }
 
@@ -145,7 +213,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       BuildFaceGroup(ngroups, rht, nstrias, rhq, nsquads);
    }
-   else
+   else if (Dim == 2)
    {
       group_stria.MakeI(ngroups);
       group_stria.MakeJ();
@@ -167,7 +235,9 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
-      int num_of_faces_or_edges = (Dim == 2) ? NumOfEdges : NumOfFaces;
+      int num_of_faces_or_edges =
+         (Dim == 3) ? NumOfFaces :
+         ((Dim == 2) ? NumOfEdges : NumOfVertices);
       Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
 
       if (Dim == 3)
@@ -189,27 +259,24 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       boundary.SetSize(NumOfBdrElements);
       be2face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be;
-      if (Dim == 3)
-      {
-         parent_face_to_be = parent.GetFaceToBdrElMap();
-      }
+      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      int max_bdr_attr = parent.bdr_attributes.Max();
       for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
             boundary[j] = faces[i]->Duplicate(this);
-
-            if (Dim == 3)
+            if (from == SubMesh::From::Domain && Dim >= 2)
             {
-               int pbeid = parent_face_to_be[parent_face_ids_[i]];
+               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
+                           parent_face_to_be[parent_edge_ids_[i]];
                if (pbeid != -1)
                {
                   boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
                }
                else
                {
-                  boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
+                  boundary[j]->SetAttribute(max_bdr_attr + 1);
                }
             }
             else
@@ -743,9 +810,14 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
          else
          {
             Array<int> vert;
-            GetEdgeVertices(submesh_edge_id, vert);
+            parent_.GetEdgeVertices(ple, vert);
+            // Swap order of vertices if orientation in parent group is -1
+            int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
+            int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            shared_edges.Append(new Segment(vert[0], vert[1], 1));
+            // The orienation of the shared edge relative to the local edge
+            // will be determined by whether v0 < v1 or v1 < v0
+            shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
          }
       }
@@ -759,6 +831,53 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    shared_trias.Reserve(nstrias);
    shared_quads.Reserve(nsquads);
    sface_lface.Reserve(nstrias + nsquads);
+
+   // sface_lface should list the triangular shared faces first
+   // followed by the quadrilateral shared faces.
+
+   for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
+   {
+      for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
+      {
+         int plt, o;
+         parent_.GroupTriangle(g, gt, plt, o);
+         int submesh_face_id = parent_to_submesh_face_ids_[plt];
+         if ((submesh_face_id == -1) || rht[st] == -1)
+         {
+            // parent shared face is not in SubMesh or is not shared
+         }
+         else
+         {
+            Array<int> vert;
+
+            GetFaceVertices(submesh_face_id, vert);
+
+            int v0 = vert[0];
+            int v1 = vert[1];
+            int v2 = vert[2];
+
+            // See Mesh::GetTriOrientation for info on interpretting "o"
+            switch (o)
+            {
+               case 1:
+                  std::swap(v0,v1);
+                  break;
+               case 3:
+                  std::swap(v2,v0);
+                  break;
+               case 5:
+                  std::swap(v1,v2);
+                  break;
+               default:
+                  // Do nothing
+                  break;
+            }
+
+            shared_trias.Append(Vert3(v0, v1, v2));
+            sface_lface.Append(submesh_face_id);
+         }
+      }
+   }
 
    for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
    {
@@ -776,29 +895,34 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             Array<int> vert;
             GetFaceVertices(submesh_face_id, vert);
 
-            shared_quads.Append(Vert4(vert[0], vert[1], vert[2], vert[3]));
-            sface_lface.Append(submesh_face_id);
-         }
-      }
-   }
+            int v0 = vert[0];
+            int v1 = vert[1];
+            int v2 = vert[2];
+            int v3 = vert[3];
 
-   for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
-   {
-      for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
-      {
-         int plt, o;
-         parent_.GroupTriangle(g, gt, plt, o);
-         int submesh_face_id = parent_to_submesh_face_ids_[plt];
-         if ((submesh_face_id == -1) || rht[st] == -1)
-         {
-            // parent shared face is not in SubMesh or is not shared
-         }
-         else
-         {
-            Array<int> vert;
-            GetFaceVertices(submesh_face_id, vert);
+            // See Mesh::GetQuadOrientation for info on interpretting "o"
+            switch (o)
+            {
+               case 1:
+                  std::swap(v1,v3);
+                  break;
+               case 3:
+                  std::swap(v0,v1);
+                  std::swap(v2,v3);
+                  break;
+               case 5:
+                  std::swap(v0,v2);
+                  break;
+               case 7:
+                  std::swap(v0,v3);
+                  std::swap(v1,v2);
+                  break;
+               default:
+                  // Do nothing
+                  break;
+            }
 
-            shared_trias.Append(Vert3(vert[0], vert[1], vert[2]));
+            shared_quads.Append(Vert4(v0, v1, v2, v3));
             sface_lface.Append(submesh_face_id);
          }
       }
