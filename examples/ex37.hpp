@@ -776,53 +776,81 @@ LinearElasticitySolver::~LinearElasticitySolver()
 class AndersonAccelerator
 {
 public:
-   AndersonAccelerator(const int max_size, Operator *A,
-                       std::__1::function<double(const int)> beta_generator): m(max_size), f(A),
-      beta_fun(beta_generator), k(0), xk(0), Gk(0), size(-1)
+   AndersonAccelerator(Operator *A, const int max_size, 
+                       std::__1::function<double(const int)> beta_generator,
+                       const double svd_tol=1.e-08): m(max_size), f(A),
+      beta_fun(beta_generator), k(0), xk(0), Gk(0), size(-1), svd_tolerance(svd_tol)
    {
 #ifndef MFEM_USE_LAPACK
       mfem_error("LAPACK unavailable. Please compile mfem with LAPACK by adding ""MFEM_USE_PAKAC=yes"".");
 #endif
    }
-   Vector Step(Vector &x)
+   double Step(Vector &x)
    {
       // check input size
       if (size == -1) { size = x.Size(); }
       else { MFEM_ASSERT(size == x.Size(), "Size mismatch. x should not change its size during the iteration"); }
 
+      // update step count and get current dimension
       k++;
       const int mk = std::min(m, k);
-
+      // store the new solution and residual
       xk.push_back(new Vector(x));
       Gk.push_back(new Vector(size));
       Vector *curGk = *Gk.end();
+      Vector *curxk = *xk.end();
       f->Mult(x, *curGk);
       *curGk -= x;
-      if (mk == m)
+
+      // if it is the initial step,
+      if (mk == 1)
+      {
+         return;
+      }
+
+      // remove the oldest information
+      if (mk == m) // only when the stack is full
       {
          delete[] *xk.erase(xk.begin());
          delete[] *Gk.erase(Gk.begin());
       }
 
-      Vector new_xk(x);
-      if (mk == 1)
-      {
-         return new_xk;
-      }
-      new_xk += *curGk;
-
-      Vector theta(mk);
+      // Solve the minimization problem
+      // theta = argmin ||g_k + DG*theta||_2
+      // via SVD where DG is N x mk matrix with
+      // DG_i = g_{k-i} - g_k
       DenseMatrix DGk(size, mk - 1);
       for (int i=0; i<mk - 1; i++)
       {
          Vector DGk_i(DGk.GetColumn(i), size);
          DGk_i = *Gk[i] - *curGk;
       }
+      DenseMatrixSVD svd(DGk, "S", "S");
+      svd.Eval(DGk);
+      Vector trunc_inv_svd(svd.Singularvalues());
+      for (auto &val:trunc_inv_svd)
+      {
+         val = val < svd_tolerance ? 0.0 : 1.0/val;
+      }
+      Vector theta(mk), temp_theta(mk);
+      svd.LeftSingularvectors().MultTranspose(*curGk, temp_theta);
+      svd.RightSingularvectors().MultTranspose(temp_theta, theta);
 
+      Vector direction(size);
+      Vector neg_xk_p_gk(x);
+      neg_xk_p_gk.Neg();
+      for(int i=0; i<mk; i++)
+      {
+         direction = neg_xk_p_gk;
+         direction += *xk[i];
+         direction += *Gk[i];
+         x.Add(theta[i], direction);
+      }
    }
 
 protected:
    int m;
+   double svd_tolerance;
    Operator* f;
    std::__1::function<double(const int)> beta_fun;
 private:
