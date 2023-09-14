@@ -2224,8 +2224,11 @@ public:
    void ComputeUntangleMetricQuantiles(const Vector &x,
                                        const FiniteElementSpace &fes);
 
+   void RemapSurfFittingGridFunction(const Vector &x_new,
+                                     const FiniteElementSpace &x_fes);
+
    /** @brief Copy the GridFunction values of surf_fit_gf in gf. */
-   void CopyGridFunction(GridFunction &gf);
+   void CopyFittingGridFunction(GridFunction &gf);
 };
 
 class TMOPComboIntegrator : public NonlinearFormIntegrator

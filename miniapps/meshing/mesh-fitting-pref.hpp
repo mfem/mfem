@@ -18,6 +18,161 @@ using namespace std;
 using namespace mfem;
 using namespace common;
 
+void MakeMaterialConsistentForElementGroups(GridFunction &mat,
+                                            int nel_per_group)
+{
+   FiniteElementSpace *fespace = mat.FESpace();
+   Mesh *mesh = fespace->GetMesh();
+   int nel = mesh->GetNE();
+   int ngroups = nel/nel_per_group;
+   MFEM_VERIFY(nel % nel_per_group == 0, "Invalid nel_per_group for custmo mesh.");
+
+   for (int g = 0; g < ngroups; g++)
+   {
+      double maxv = -1.0;
+      for (int i = 0; i < nel_per_group; i++)
+      {
+         int el_idx = g*nel_per_group + i;
+         int el_attr = mesh->GetAttribute(el_idx);
+         maxv = std::max(maxv, el_attr*1.0);
+      }
+
+      for (int i = 0; i < nel_per_group; i++)
+      {
+         int el_idx = g*nel_per_group + i;
+         mesh->SetAttribute(el_idx, int(maxv));
+      }
+   }
+
+   for (int e = 0; e < nel; e++)
+   {
+      mat(e) = mesh->GetAttribute(e)-1.0;
+   }
+   mesh->SetAttributes();
+}
+
+void GetMaterialInterfaceEdgeDofs(Mesh *mesh, GridFunction &mat,
+                                  GridFunction &surf_fit_gf0,
+                                  Array<Array<int> *> &edge_to_el, //edge to element mapping
+                                  Array<int> &inter_face_el_all, //list of all elements with faces on interface
+                                  Array<int> &intfdofs, //list of all dofs on interface
+                                  Array<int> &intedges, //edge index
+                                  Array<int> &intedgeels,  //elements with these edges
+                                  Array<Array<int> *> &el_to_el_edge_dep) //dependency
+{
+   intedges.SetSize(0);
+   intedgeels.SetSize(0);
+   const int NElem = mesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   int dim = mesh->Dimension();
+
+   GridFunction temp(surf_fit_gf0);
+   temp = 0.0;
+   for (int ii = 0; ii < intfdofs.Size(); ii++)
+   {
+      temp(intfdofs[ii]) = 1.0;
+   }
+
+   Vector datavec;
+   Array<int> dofs;
+   //   for (int e = 0; e < mesh->GetNE(); e++)
+   //   {
+   //       surf_fit_gf0.FESpace()->GetElementDofs(e, dofs);
+   //       temp.GetSubVector(dofs, datavec);
+   //       if (datavec.Max() == 1.0) { intedgeels.Append(e); }
+   //   }
+
+   for (int f = 0; f < mesh->GetNEdges(); f++ )
+   {
+      surf_fit_gf0.FESpace()->GetEdgeDofs(f, dofs);
+      temp.GetSubVector(dofs, datavec);
+      if (datavec.Min() == 1.0)
+      {
+         intedges.Append(f);
+      }
+   }
+   intedges.Sort();
+   intedges.Unique();
+
+   // Now we want to identify edges that have elements on the interface
+   // that are not marked
+   for (int f = 0; f < intedges.Size(); f++)
+   {
+      int edgnum = intedges[f];
+      Array<int> *edge_els = edge_to_el[edgnum];
+      Array<int> edge_el_need_to_be_marked;
+      Array<int> edge_el_already_marked;
+      for (int e = 0; e < edge_els->Size(); e++)
+      {
+         int elnum = (*edge_els)[e];
+         bool el_exists = inter_face_el_all.Find(elnum) != -1;
+         if (!el_exists)
+         {
+            edge_el_need_to_be_marked.Append(elnum);
+         }
+         else
+         {
+            edge_el_already_marked.Append(elnum);
+         }
+      }
+
+      // at this point, every element in need_to_be_marked
+      // depends on already_marked.
+      for (int e = 0; e < edge_el_need_to_be_marked.Size(); e++)
+      {
+         int elnum = edge_el_need_to_be_marked[e];
+         if (!el_to_el_edge_dep[elnum])
+         {
+            Array<int> *temp = new Array<int>;
+            el_to_el_edge_dep[elnum] = temp;
+         }
+         el_to_el_edge_dep[elnum]->Append(edge_el_already_marked);
+         //           el_to_el_edge_dep[elnum]->Print();
+      }
+   }
+}
+
+void GetMaterialInterfaceFaceDofs(Mesh *mesh, GridFunction &mat,
+                                  GridFunction &surf_fit_gf0,
+                                  Array<int> &inter_faces,
+                                  Array<int> &intdofs)
+{
+   inter_faces.SetSize(0);
+   intdofs.SetSize(0);
+   const int NElem = mesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   int dim = mesh->Dimension();
+   for (int f = 0; f < mesh->GetNumFaces(); f++ )
+   {
+      Array<int> els;
+      mesh->GetFaceAdjacentElements(f, els);
+      if (els.Size() == 2)
+      {
+         int mat1 = mat(els[0]);
+         int mat2 = mat(els[1]);
+         Array<int> dofs;
+         if (mat1 != mat2)
+         {
+            inter_faces.Append(f);
+            if (dim == 2)
+            {
+               surf_fit_gf0.FESpace()->GetEdgeDofs(f, dofs);
+            }
+            else
+            {
+               surf_fit_gf0.FESpace()->GetFaceDofs(f, dofs);
+            }
+            intdofs.Append(dofs);
+         }
+      }
+   }
+   intdofs.Sort();
+   intdofs.Unique();
+}
+
+
 double GetMinDet(Mesh *mesh, FiniteElementSpace *fespace,
                  IntegrationRules *irules, int quad_order)
 {
@@ -98,7 +253,7 @@ void PropogateOrdersAcrossInterFace(const GridFunction
             int elem_neighbor_index = elem_neighbor_indices[n];
             if (order_propogated[elem_neighbor_index]) { continue; }
             int current_order = new_orders[elem_neighbor_index];
-            int maxdiff = n > diff.Size()-1 ? 1 : diff[n];
+            int maxdiff = diff.Size() == 0 ? 100 : (n > diff.Size()-1 ? 1 : diff[n]);
             propogate_list_new.Append(elem_neighbor_index);
             // if this element has already been visited in this loop, then
             // keep its current order as we might need it.
@@ -109,6 +264,10 @@ void PropogateOrdersAcrossInterFace(const GridFunction
             // the neighbor has to be atleast 3 (i.e. 3 || 4 || 5 || 6)
             if (approach == 0)
             {
+               std::cout << i << " " << n << " " << maxdiff << " " <<
+                         current_order << " " << elem_order-maxdiff <<
+                         std::endl;
+
                if (current_order < elem_order-maxdiff)
                {
                   int set_order = std::max(1, elem_order-maxdiff);
@@ -124,7 +283,7 @@ void PropogateOrdersAcrossInterFace(const GridFunction
             // the neighbor has to be exactly 3
             else if (approach == 1)
             {
-               if (current_order != elem_order-maxdiff)
+               if (maxdiff != 100 & current_order != elem_order-maxdiff)
                {
                   int set_order = std::max(1, elem_order-maxdiff);
                   if (temp_set_order != -1)
@@ -210,7 +369,7 @@ void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
             int elem_neighbor_index = elem_neighbor_indices[n];
             if (order_propogated[elem_neighbor_index]) { continue; }
             int current_order = new_orders[elem_neighbor_index];
-            int maxdiff = n > diff.Size()-1 ? 1 : diff[n];
+            int maxdiff = diff.Size() == 0 ? 100 : (n > diff.Size()-1 ? 1 : diff[n]);
             // approach = 0; If the interface element is 5, max diff = 2,
             // the neighbor has to be atleast 3 (i.e. 3 || 4 || 5 || 6)
             if (approach == 0)
@@ -226,7 +385,7 @@ void PropogateOrdersByMax(const GridFunction &ordergf, //current orders
             // the neighbor has to be exactly 3
             else if (approach == 1)
             {
-               if (current_order != elem_order-maxdiff)
+               if (maxdiff != 100 & current_order != elem_order-maxdiff)
                {
                   int set_order = std::max(1, elem_order-maxdiff);
                   new_orders[elem_neighbor_index] = set_order;
@@ -514,7 +673,8 @@ double ComputeIntegrateError(const FiniteElementSpace* fes, GridFunction* lss,
 double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
                                GridFunction* ls_bg,
                                const int el, GridFunction *lss,
-                               FindPointsGSLIB &finder)
+                               FindPointsGSLIB &finder,
+                               int etype = 0)
 {
    double error = 0.0;
    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
@@ -557,7 +717,47 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
       error += ip.weight*transf->Face->Weight() * std::pow(level_set_value, 2.0);
       length += ip.weight*transf->Face->Weight();
    }
-   return error;
+   double return_val = error;
+   if (etype == 0)
+   {
+      return_val = error;
+   }
+   else if (etype == 1)
+   {
+      return_val = length;
+   }
+   else if (etype == 2)
+   {
+      error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
+      return_val = error;
+   }
+   else if (etype == 3)
+   {
+      error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
+      return_val = error/length;
+   }
+   else
+   {
+      MFEM_ABORT("Invalid errortype requested.");
+   }
+   return return_val;
+}
+
+
+void ComputeIntegratedErrorBGonFaces(const FiniteElementSpace* fes,
+                                     GridFunction* ls_bg,
+                                     Array<int> &inter_faces,
+                                     GridFunction *lss,
+                                     FindPointsGSLIB &finder,
+                                     Vector &error_list,
+                                     int etype = 0)
+{
+   error_list.SetSize(inter_faces.Size());
+   for (int f = 0; f < inter_faces.Size(); f++)
+   {
+      error_list(f) = ComputeIntegrateErrorBG(fes, ls_bg, inter_faces[f],
+                                              lss, finder, etype);
+   }
 }
 
 bool CheckElementValidityAtOrder(Mesh *mesh,
@@ -709,21 +909,30 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
       size += ip.weight*seltrans->Weight();
    }
 
-   double orig_size = 0.0;
-   if (etype == 1)
+   double return_val = 0.0;
+   if (etype == 0)
    {
-      for (int i=0; i<ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         transf->SetAllIntPoints(&ip);
-         orig_size += ip.weight*transf->Face->Weight();
-      }
-      MFEM_VERIFY(orig_size > 0, "Non-positive size of element");
-      size -= orig_size;
-      size = std::fabs(size);
-      size *= 1.0/orig_size;
+      return_val = error;
    }
-   double return_val = etype == 0 ? error : size;
+   else if (etype == 1)
+   {
+      return_val = size;
+   }
+   else if (etype == 2)
+   {
+      error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
+      return_val = error;
+   }
+   else if (etype == 3)
+   {
+      error = error > 0.0 ? std::pow(error, 0.5) : 0.0;
+      return_val = error/size;
+   }
+   else
+   {
+      MFEM_ABORT("Invalid errortype requested.");
+   }
+
 
    delete seltrans;
    delete fecInt;

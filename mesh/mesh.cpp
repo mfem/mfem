@@ -1882,6 +1882,184 @@ void Mesh::AddHexAsPyramids(const int *vi, int attr)
    }
 }
 
+void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
+{
+   int num_faces = 4;
+   static const int quad_to_tri[4][2] =
+   {
+      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+   };
+   Array<int> plist(vi, 4);
+   int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
+
+   int ti[3];
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         ti[j] = vi[quad_to_tri[i][j]];
+      }
+      ti[2] = elem_center_index;
+      AddTri(ti, attr);
+   }
+}
+
+void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
+{
+   int num_faces = 4;
+   static const int quad_faces[4][2] =
+   {
+      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+   };
+
+   Vector px(4), py(4);
+   Array<int> plist(vi, 4);
+   for (int i = 0; i < 4; i++)
+   {
+      double *vp = vertices[plist[i]]();
+      px(i) = vp[0];
+      py(i) = vp[1];
+   }
+
+   int vnew_index[4];
+   double vnew[2];
+   double r = 0.25, s = 0.25;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[0] = NumOfVertices-1;
+
+   r = 0.75, s = 0.25;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[1] = NumOfVertices-1;
+
+   r = 0.75, s = 0.75;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[2] = NumOfVertices-1;
+
+   r = 0.25, s = 0.75;
+   vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
+   vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
+   AddVertex(vnew);
+   vnew_index[3] = NumOfVertices-1;
+
+   static const int quad_faces_new[4][2] =
+   {
+      { 1, 0}, { 2, 1}, { 3, 2}, { 0, 3}
+   };
+
+   int ti[4];
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         ti[j] = vi[quad_faces[i][j]];
+         ti[j+2] = vnew_index[quad_faces_new[i][j]];
+      }
+      AddQuad(ti, attr);
+   }
+   AddQuad(vnew_index, attr);
+}
+
+void Mesh::AddHexAs24TetsWithPoints(int *vi, int attr)
+{
+   auto get4tuple = [&](Array<int> v)
+   {
+      return std::tuple<int, int, int, int>(v[0], v[1], v[2], v[3]);
+   };
+   int num_faces = 6;
+   static const int hex_to_tet[6][4] =
+   {
+      { 0, 1, 2, 3 }, { 1, 2, 6, 5 }, { 5, 4, 7, 6},
+      { 0, 1, 5, 4 }, { 2, 3, 7, 6 }, { 0,3, 7, 4}
+   };
+   int ti[4];
+   Array<int> plist(vi, 8);
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
+   Array<int> flist(&ti[0], 4);
+
+   static const int tet_face[4][2] =
+   {
+      {0, 1}, {1, 2}, {3, 2}, {3, 0}
+   };
+
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         ti[j] = vi[hex_to_tet[i][j]];
+      }
+      int face_center_index;
+      Array<int> flistcopy(flist);
+      flistcopy.Sort();
+      auto t = get4tuple(flistcopy);
+      auto it = hex_face_to_center.find(t);
+      if (it == hex_face_to_center.end())
+      {
+         face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
+         hex_face_to_center.insert((std::pair<std::tuple<int, int, int, int>,int>
+                                    (t, face_center_index)));
+      }
+      else
+      {
+         face_center_index = it->second;
+      }
+      //      int face_center_index = AddVertexAtMidPoint(flist) - 1;
+      int fti[4];
+      for (int j = 0; j < 4; j++)
+      {
+         for (int k = 0; k < 2; k++)
+         {
+            fti[k] = ti[tet_face[j][k]];
+         }
+         fti[2] = face_center_index;
+         fti[3] = elem_center_index;
+         AddTet(fti, attr);
+      }
+   }
+}
+
+void Mesh::AddHexAs12TetsWithPoints(int *vi, int attr)
+{
+   int num_faces = 6;
+   static const int hex_to_tet[6][4] =
+   {
+      { 0, 1, 2, 3 }, { 1, 2, 6, 5 }, { 4, 5, 6, 7},
+      { 0, 1, 5, 4 }, { 3, 2, 6, 7 }, { 0,3, 7, 4}
+   };
+   int ti[4];
+   Array<int> plist(vi, 8);
+   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
+   Array<int> flist(&ti[0], 4);
+
+   static const int tet_face[2][3] =
+   {
+      {0, 1, 2}, {0, 3, 2}
+   };
+
+   int fti[4];
+   for (int i = 0; i < num_faces; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         ti[j] = vi[hex_to_tet[i][j]];
+      }
+      for (int j = 0; j < 2; j++)
+      {
+         for (int k = 0; k < 3; k++)
+         {
+            fti[k] = ti[tet_face[j][k]];
+         }
+         fti[3] = elem_center_index;
+         AddTet(fti, attr);
+      }
+   }
+}
+
 int Mesh::AddElement(Element *elem)
 {
    CheckEnlarge(elements, NumOfElements);
@@ -3452,6 +3630,307 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    // Finalize(...) can be called after this method, if needed
 }
 
+int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
+{
+   double vi[dim];
+   for (int j = 0; j < dim; j++) { vi[j] = 0.0; }
+   for (int i = 0; i < plist.Size(); i++)
+   {
+      double *vp = vertices[plist[i]]();
+      for (int j = 0; j < dim; j++)
+      {
+         vi[j] += vp[j];
+      }
+   }
+   for (int j = 0; j < dim; j++)
+   {
+      vi[j] *= 1.0/plist.Size();
+   }
+   AddVertex(vi);
+   return NumOfVertices;
+}
+
+
+void Mesh::MakeTetMeshFromHex(int nx, int ny, int nz,
+                              double sx, double sy, double sz,
+                              int type)
+{
+   int NVert, NElem, NBdrElem;
+   NVert = (nx+1) * (ny+1) * (nz+1);
+   NElem = nx * ny * nz;
+   NBdrElem = 2*(nx*ny+nx*nz+ny*nz);
+   int x, y, z;
+   if (type == 1)
+   {
+      NElem *= 12;
+      NBdrElem *= 2;
+   }
+   else
+   {
+      NElem *= 24;
+      NBdrElem *= 4;
+
+   }
+
+   InitMesh(3, 3, NVert, NElem, NBdrElem);
+
+   double coord[3];
+   int ind[9];
+
+   // Sets vertices and the corresponding coordinates
+   for (z = 0; z <= nz; z++)
+   {
+      coord[2] = ((double) z / nz) * sz;
+      for (y = 0; y <= ny; y++)
+      {
+         coord[1] = ((double) y / ny) * sy;
+         for (x = 0; x <= nx; x++)
+         {
+            coord[0] = ((double) x / nx) * sx;
+            AddVertex(coord);
+         }
+      }
+   }
+
+#define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
+   for (z = 0; z < nz; z++)
+   {
+      for (y = 0; y < ny; y++)
+      {
+         for (x = 0; x < nx; x++)
+         {
+            // *INDENT-OFF*
+            ind[0] = VTX(x  , y  , z  );
+            ind[1] = VTX(x+1, y  , z  );
+            ind[2] = VTX(x+1, y+1, z  );
+            ind[3] = VTX(x  , y+1, z  );
+            ind[4] = VTX(x  , y  , z+1);
+            ind[5] = VTX(x+1, y  , z+1);
+            ind[6] = VTX(x+1, y+1, z+1);
+            ind[7] = VTX(  x, y+1, z+1);
+            if (type == 1) {
+                AddHexAs12TetsWithPoints(ind, 1);
+            }
+            else {
+                AddHexAs24TetsWithPoints(ind, 1);
+            }
+         }
+      }
+   }
+
+   hex_face_to_center.clear();
+   CheckElementOrientation(true);
+
+   // Done adding Tets
+   // Now figure out elements that are on the boundary
+   GetElementToFaceTable(false);
+   GenerateFaces();
+
+   std::map<std::tuple<int, int, int>, int> edgemap;
+   std::map<std::tuple<int, int, int>, int> face_count_map;
+
+   auto get3tuple = [&](Array<int> v) {
+       return std::tuple<int, int, int>(v[0], v[1], v[2]);
+   };
+
+   Array<int> el_faces;
+   Array<int> ori;
+   Array<int> vertidxs;
+   for (int i = 0; i < el_to_face->Size(); i++) {
+       el_to_face->GetRow(i, el_faces);
+       for (int j = 0; j < el_faces.Size(); j++)
+       {
+           GetFaceVertices(el_faces[j], vertidxs);
+           vertidxs.Sort();
+           auto t = get3tuple(vertidxs);
+           auto it = edgemap.find(t);
+           if (it == edgemap.end()) { //edge does not already exist
+               edgemap.insert(std::pair<std::tuple<int, int, int>,int>
+                              (t, 1));
+               face_count_map.insert(std::pair<std::tuple<int, int, int>,int>
+                                     (t, el_faces[j]));
+           }
+           else {
+               it->second++; //increase edge count value by 1.
+           }
+       }
+   }
+
+   for(auto it = edgemap.cbegin(); it != edgemap.cend(); ++it)
+   {
+       if (it->second == 1) { //if this only appears once, it is a boundary edge
+           int facenum = (face_count_map.find(it->first))->second;
+           GetFaceVertices(facenum, vertidxs);
+           AddBdrTriangle(vertidxs, 1);
+       }
+   }
+
+#undef VTX
+
+#if 0
+   ofstream test_stream("debug.mesh");
+   Print(test_stream);
+   test_stream.close();
+#endif
+
+   FinalizeTopology();
+   // Finalize(...) can be called after this method, if needed
+}
+
+void Mesh::MakeTriMeshFromQuad(int nx, int ny,
+                               double sx, double sy)
+{
+    SetEmpty();
+
+    Dim = 2;
+    spaceDim = 2;
+
+   int i, j, k;
+   NumOfVertices = (nx+1) * (ny+1);
+   NumOfElements = nx * ny * 4;
+   NumOfBdrElements =  (2 * nx + 2 * ny );
+   vertices.SetSize(NumOfVertices);
+   elements.SetSize(NumOfElements);
+   boundary.SetSize(NumOfBdrElements);
+   NumOfElements = 0;
+   int x, y;
+
+   double cx, cy;
+   int ind[4];
+
+   // Sets vertices and the corresponding coordinates
+   k = 0;
+   for (j = 0; j < ny+1; j++)
+   {
+      cy = ((double) j / ny) * sy;
+      for (i = 0; i < nx+1; i++)
+      {
+         cx = ((double) i / nx) * sx;
+         vertices[k](0) = cx;
+         vertices[k](1) = cy;
+         k++;
+      }
+   }
+
+   for (y = 0; y < ny; y++)
+   {
+      for (x = 0; x < nx; x++)
+      {
+         ind[0] = x + y*(nx+1);
+         ind[1] = x + 1 +y*(nx+1);
+         ind[2] = x + 1 + (y+1)*(nx+1);
+         ind[3] = x + (y+1)*(nx+1);
+         AddQuadAs4TrisWithPoints(ind, 1);
+      }
+   }
+
+   int m = (nx+1)*ny;
+   for (i = 0; i < nx; i++)
+   {
+      boundary[i] = new Segment(i, i+1, 1);
+      boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+   }
+   m = nx+1;
+   for (j = 0; j < ny; j++)
+   {
+      boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+      boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+   }
+
+   SetMeshGen();
+   CheckElementOrientation(true);
+
+   el_to_edge = new Table;
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   GenerateFaces();
+   CheckBdrElementOrientation();
+
+   NumOfFaces = 0;
+
+   attributes.Append(1);
+   bdr_attributes.Append(1); bdr_attributes.Append(2);
+   bdr_attributes.Append(3); bdr_attributes.Append(4);
+
+   FinalizeTopology();
+}
+
+void Mesh::Make5QuadMeshFromQuad(int nx, int ny,
+                                 double sx, double sy)
+{
+    SetEmpty();
+
+    Dim = 2;
+    spaceDim = 2;
+
+   int i, j, k;
+   NumOfElements = nx * ny * 5;
+   NumOfVertices = (nx+1) * (ny+1); //it will be enlarged later on
+   NumOfBdrElements =  (2 * nx + 2 * ny );
+   vertices.SetSize(NumOfVertices);
+   elements.SetSize(NumOfElements);
+   boundary.SetSize(NumOfBdrElements);
+   NumOfElements = 0;
+   int x, y;
+
+   double cx, cy;
+   int ind[4];
+
+   // Sets vertices and the corresponding coordinates
+   k = 0;
+   for (j = 0; j < ny+1; j++)
+   {
+      cy = ((double) j / ny) * sy;
+      for (i = 0; i < nx+1; i++)
+      {
+         cx = ((double) i / nx) * sx;
+         vertices[k](0) = cx;
+         vertices[k](1) = cy;
+         k++;
+      }
+   }
+
+   for (y = 0; y < ny; y++)
+   {
+      for (x = 0; x < nx; x++)
+      {
+         ind[0] = x + y*(nx+1);
+         ind[1] = x + 1 +y*(nx+1);
+         ind[2] = x + 1 + (y+1)*(nx+1);
+         ind[3] = x + (y+1)*(nx+1);
+         AddQuadAs5QuadsWithPoints(ind, 1);
+      }
+   }
+
+   int m = (nx+1)*ny;
+   for (i = 0; i < nx; i++)
+   {
+      boundary[i] = new Segment(i, i+1, 1);
+      boundary[nx+i] = new Segment(m+i+1, m+i, 3);
+   }
+   m = nx+1;
+   for (j = 0; j < ny; j++)
+   {
+      boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
+      boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
+   }
+
+   SetMeshGen();
+   CheckElementOrientation(true);
+
+   el_to_edge = new Table;
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   GenerateFaces();
+   CheckBdrElementOrientation();
+
+   NumOfFaces = 0;
+
+   attributes.Append(1);
+   bdr_attributes.Append(1); bdr_attributes.Append(2);
+   bdr_attributes.Append(3); bdr_attributes.Append(4);
+
+   FinalizeTopology();
+}
+
 void Mesh::Make2D(int nx, int ny, Element::Type type,
                   double sx, double sy,
                   bool generate_edges, bool sfc_ordering)
@@ -3844,6 +4323,33 @@ Mesh Mesh::MakeCartesian3D(
    Mesh mesh;
    mesh.Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
    mesh.Finalize(true); // refine = true
+   return mesh;
+}
+
+Mesh Mesh::MakeHexTo24or12TetMesh(int nx, int ny, int nz,
+                              double sx, double sy, double sz, int type)
+{
+   Mesh mesh;
+   mesh.MakeTetMeshFromHex(nx, ny, nz, sx, sy, sz, type);
+   mesh.Finalize(false, false); // refine = true
+   return mesh;
+}
+
+Mesh Mesh::MakeQuadTo4TriMesh(int nx, int ny,
+                              double sx, double sy)
+{
+   Mesh mesh;
+   mesh.MakeTriMeshFromQuad(nx, ny, sx, sy);
+   mesh.Finalize(false, false);
+   return mesh;
+}
+
+Mesh Mesh::MakeQuadTo5QuadMesh(int nx, int ny,
+                               double sx, double sy)
+{
+   Mesh mesh;
+   mesh.Make5QuadMeshFromQuad(nx, ny, sx, sy);
+   mesh.Finalize(false, false);
    return mesh;
 }
 

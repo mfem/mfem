@@ -4296,6 +4296,16 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    dx = detv_avg_min / dxscale;
 }
 
+void TMOP_Integrator::RemapSurfFittingGridFunction(const Vector &x_new,
+                                                   const FiniteElementSpace &x_fes)
+{
+   if (surf_fit_gf)
+   {
+      Ordering::Type ordering = x_fes.GetOrdering();
+      surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
+   }
+}
+
 void TMOP_Integrator::
 UpdateAfterMeshPositionChange(const Vector &x_new,
                               const FiniteElementSpace &x_fes)
@@ -4329,6 +4339,7 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
    {
       if (surf_fit_gf_bg)
       {
+         //         surf_fit_eval->ComputeAtNewPosition(x_new, *surf_fit_gf, ordering);
          // Interpolate information for only DOFs marked for fitting.
          const int dim = surf_fit_gf->FESpace()->GetMesh()->Dimension();
          const int cnt = surf_fit_marker_dof_index.Size();
@@ -4637,7 +4648,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    wcuo->SetMaxMuT(max_muT_all);
 }
 
-void TMOP_Integrator::CopyGridFunction(GridFunction &gf)
+void TMOP_Integrator::CopyFittingGridFunction(GridFunction &gf)
 {
    for (int i=0; i < gf.Size(); i++)
    {

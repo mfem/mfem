@@ -28,7 +28,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	mesh-fitting mesh-quality
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting pgetdistance
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else

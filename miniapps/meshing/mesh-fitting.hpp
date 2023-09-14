@@ -40,13 +40,13 @@ double squircle_level_set(const Vector &x)
    if (dim == 2)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.25, 4.0);
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
    }
    else
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
       return std::pow(xc, 4.0) + std::pow(yc, 4.0) + std::pow(zc,
-                                                              4.0) - std::pow(0.25, 4.0);
+                                                              4.0) - std::pow(0.24, 4.0);
    }
 }
 
@@ -471,6 +471,76 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
    std::cout<<"number of element with more than 1 face for fitting: "<<counter<<std::endl;
 }
 
+void ModifyBoundaryAttributesForNodeMovement(Mesh *mesh, GridFunction &x)
+{
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      mfem::Array<int> dofs;
+      mesh->GetNodalFESpace()->GetBdrElementDofs(i, dofs);
+      mfem::Vector bdr_xy_data;
+      mfem::Vector dof_xyz(dim);
+      mfem::Vector dof_xyz_compare;
+      mfem::Array<int> xyz_check(dim);
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            dof_xyz(d) = x(mesh->GetNodalFESpace()->DofToVDof(dofs[j], d));
+         }
+         if (j == 0)
+         {
+            dof_xyz_compare = dof_xyz;
+            xyz_check = 1;
+         }
+         else
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               if (std::fabs(dof_xyz(d)-dof_xyz_compare(d)) < 1.e-10)
+               {
+                  xyz_check[d] += 1;
+               }
+            }
+         }
+      }
+      if (dim == 2)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+         }
+         else
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+         }
+      }
+      else if (dim == 3)
+      {
+         if (xyz_check[0] == dofs.Size())
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 1);
+         }
+         else if (xyz_check[1] == dofs.Size())
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 2);
+         }
+         else if (xyz_check[2] == dofs.Size())
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 3);
+         }
+         else
+         {
+            mesh->GetNodalFESpace()->GetMesh()->SetBdrAttribute(i, 4);
+         }
+      }
+   }
+}
+
 #ifdef MFEM_USE_MPI
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
@@ -622,7 +692,8 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
                                            int amr_iter,
                                            ParGridFunction &distance_s,
                                            const int quad_order = 5,
-                                           Array<ParGridFunction *> *pgf_to_update = NULL)
+                                           Array<ParGridFunction *> *pgf_to_update = NULL,
+                                           int ref_neighbors = 2)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -663,7 +734,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
       }
 
       // Refine an element if its neighbor will be refined
-      for (int inner_iter = 0; inner_iter < 2; inner_iter++)
+      for (int inner_iter = 0; inner_iter < ref_neighbors; inner_iter++)
       {
          el_to_refine.ExchangeFaceNbrData();
          GridFunctionCoefficient field_in_dg(&el_to_refine);
@@ -757,7 +828,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    filter.Filter(ls_coeff, filt_gf);
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver.ComputeScalarDistance(ls_filt_coeff, distance_s);
+   dist_solver.ComputeScalarDistance(ls_filt_coeff, &distance_s);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
