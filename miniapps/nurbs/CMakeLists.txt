@@ -135,6 +135,13 @@ if (MFEM_USE_MPI)
       -m ${PROJECT_SOURCE_DIR}/data/ball-nurbs.mesh -o 2 --weak-bc -r 0
       ${MPIEXEC_POSTFLAGS})
 
+    add_test(NAME nurbs_ex1p_periodic_np=4
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
+      -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/square-nurbs.mesh
+      -r 4  -pm "1" -ps "2"
+      ${MPIEXEC_POSTFLAGS})
+
     add_test(NAME nurbs_ex1_weak_patch_format_np=4
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis

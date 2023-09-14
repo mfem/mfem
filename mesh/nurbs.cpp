@@ -4374,7 +4374,7 @@ Table *ParNURBSExtension::Get1DGlobalElementDofTable()
             Connection conn(el,0);
             for (int ii = 0; ii <= ord0; ii++)
             {
-               conn.to = p2g(i+ii);
+               conn.to = DofMap(p2g(i+ii));
                gel_dof_list.Append(conn);
             }
             el++;
@@ -4412,7 +4412,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
                   {
                      for (int ii = 0; ii <= ord0; ii++)
                      {
-                        conn.to = p2g(i+ii,j+jj);
+                        conn.to = DofMap(p2g(i+ii,j+jj));
                         gel_dof_list.Append(conn);
                      }
                   }
@@ -4460,7 +4460,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
                            {
                               for (int ii = 0; ii <= ord0; ii++)
                               {
-                                 conn.to = p2g(i+ii,j+jj,k+kk);
+                                 conn.to = DofMap(p2g(i+ii,j+jj,k+kk));
                                  gel_dof_list.Append(conn);
                               }
                            }
