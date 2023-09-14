@@ -433,6 +433,7 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -468,7 +469,6 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                elmat_p = &elmat;
             }
-            doftrans = fes->GetElementVDofs(i, vdofs);
             if (doftrans)
             {
                doftrans->TransformDual(elmat);
