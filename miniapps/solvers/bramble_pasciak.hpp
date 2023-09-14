@@ -136,6 +136,7 @@ class BramblePasciakSolver : public DarcySolver
    std::unique_ptr<HypreParMatrix> M_;
    std::unique_ptr<HypreParMatrix> B_;
    std::unique_ptr<HypreParMatrix> Q_;
+   std::unique_ptr<HypreParMatrix> Q_e_;
    OperatorPtr M0_;
    OperatorPtr M1_;
    Array<int> ess_zero_dofs_;
@@ -145,6 +146,14 @@ class BramblePasciakSolver : public DarcySolver
              Solver &M0, Solver &M1,
              const BPSParameters &param);
 public:
+   /// System and mass preconditioner are constructed from bilinear forms.
+   /// Elimination done internally.
+   BramblePasciakSolver(
+      const std::shared_ptr<ParBilinearForm> &mVarf,
+      const std::shared_ptr<ParMixedBilinearForm> &bVarf,
+      const Array<int>& ess_tdof_list,
+      const BPSParameters &param);
+
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
       const std::shared_ptr<ParBilinearForm> &mVarf,

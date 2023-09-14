@@ -24,6 +24,35 @@ namespace blocksolvers
 BramblePasciakSolver::BramblePasciakSolver(
    const std::shared_ptr<ParBilinearForm> &mVarf,
    const std::shared_ptr<ParMixedBilinearForm> &bVarf,
+   const Array<int>& ess_tdof_list,
+   const BPSParameters &param)
+   : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
+                 bVarf->TestFESpace()->GetTrueVSize())
+{
+   // Cf. DarcyProblem::GetParallelSystems
+   M_.reset(mVarf->ParallelAssemble());
+   M_e_.reset(M_->EliminateRowsCols(ess_tdof_list));
+   B_.reset(bVarf->ParallelAssemble());
+   B_e_.reset(B_->EliminateCols(ess_tdof_list));
+   Q_.reset(ConstructMassPreconditioner(*mVarf, param.q_scaling));
+   Q_e_.reset(Q_->EliminateRowsCols(ess_tdof_list));
+
+   Vector diagM;
+   M_->GetDiag(diagM);
+   auto BT = B_->Transpose();
+   auto invDBt = new HypreParMatrix(*BT);
+   invDBt->InvScaleRows(diagM);
+   auto S = ParMult(B_.get(), invDBt);
+   M0_.Reset(new HypreDiagScale(*M_));
+   M1_.Reset(new HypreBoomerAMG(*S));
+   M1_.As<HypreBoomerAMG>()->SetPrintLevel(0);
+
+   Init(*M_, *B_, *Q_, *M0_.As<Solver>(), *M1_.As<Solver>(), param);
+}
+
+BramblePasciakSolver::BramblePasciakSolver(
+   const std::shared_ptr<ParBilinearForm> &mVarf,
+   const std::shared_ptr<ParMixedBilinearForm> &bVarf,
    const BPSParameters &param)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize())
@@ -171,15 +200,17 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
 
 void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
 {
+   Vector x_e(x);
+   if (rhs_needs_elimination_) { EliminateEssentialBC(y, x_e);}
    if (!use_bpcg)
    {
-      Vector transformed_rhs(x.Size());
-      map_->Mult(x, transformed_rhs);
+      Vector transformed_rhs(x_e.Size());
+      map_->Mult(x_e, transformed_rhs);
       solver_->Mult(transformed_rhs, y);
    }
    else
    {
-      solver_->Mult(x, y);
+      solver_->Mult(x_e, y);
    }
    for (int dof : ess_zero_dofs_) { y[dof] = 0.0; }
 }

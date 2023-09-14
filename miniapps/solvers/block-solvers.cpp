@@ -412,12 +412,16 @@ int main(int argc, char *argv[])
 
 #ifdef MFEM_USE_LAPACK
    ResetTimer();
-   BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), ess_tdof_list,
+                                bps_param);
+   bp_bpcg.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bp_bpcg] = chrono.RealTime();
 
    ResetTimer();
    bps_param.use_bpcg = false;
-   BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
+   BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), ess_tdof_list,
+                               bps_param);
+   bp_pcg.SetEliminatedSystems(M_e, B_e, ess_tdof_list);
    setup_time[&bp_pcg] = chrono.RealTime();
 #else
    MFEM_WARNING("BramblePasciakSolver class unavailable: Compiled without LAPACK");
