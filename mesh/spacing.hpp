@@ -51,6 +51,8 @@ public:
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
    virtual void Print(std::ostream &os) = 0;
 
+   virtual SpacingFunction *Clone() const;
+
    virtual ~SpacingFunction() { }
 
 protected:
@@ -82,6 +84,11 @@ public:
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << UNIFORM << " 2 0 " << n << " " << (int) reverse << "\n";
+   }
+
+   virtual SpacingFunction *Clone() const
+   {
+      return new UniformSpacingFunction(n);
    }
 
 private:
@@ -132,6 +139,11 @@ public:
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << LINEAR << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
+   }
+
+   virtual SpacingFunction *Clone() const
+   {
+      return new LinearSpacingFunction(n, reverse, s, scale);
    }
 
 private:
@@ -192,6 +204,11 @@ public:
          << (int) scale << " " << s << "\n";
    }
 
+   virtual SpacingFunction *Clone() const
+   {
+      return new GeometricSpacingFunction(n, reverse, s, scale);
+   }
+
 private:
    double s;  // Initial spacing
    double r;  // Ratio
@@ -204,6 +221,12 @@ class BellSpacingFunction : public SpacingFunction
 public:
    BellSpacingFunction(int n_, bool r_, double s0_, double s1_, bool scale_)
       : SpacingFunction(n_, r_, scale_), s0(s0_), s1(s1_)
+   {
+      CalculateSpacing();
+   }
+
+   BellSpacingFunction(const BellSpacingFunction &sf)
+      : SpacingFunction(sf.n, sf.reverse, sf.scale), s0(sf.s0), s1(sf.s1)
    {
       CalculateSpacing();
    }
@@ -235,6 +258,11 @@ public:
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << BELL << " 3 2 " << n << " " << (int) reverse << " " << (int) scale
          << " " << s0 << " " << s1 << "\n";
+   }
+
+   virtual SpacingFunction *Clone() const
+   {
+      return new BellSpacingFunction(n, reverse, s0, s1, scale);
    }
 
 private:
@@ -284,6 +312,11 @@ public:
          << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
+   virtual SpacingFunction *Clone() const
+   {
+      return new GaussianSpacingFunction(n, reverse, s0, s1, scale);
+   }
+
 private:
    double s0, s1;
    Vector s;
@@ -317,6 +350,11 @@ public:
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << LOGARITHMIC << " 3 1 " << n << " " << (int) reverse << " "
          << (int) sym << " " << logBase << "\n";
+   }
+
+   virtual SpacingFunction *Clone() const
+   {
+      return new LogarithmicSpacingFunction(n, reverse, sym, logBase);
    }
 
 private:

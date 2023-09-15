@@ -58,6 +58,12 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
    return nullptr;
 }
 
+SpacingFunction *SpacingFunction::Clone() const
+{
+   MFEM_ABORT("Base class SpacingFunction should not be cloned");
+   return NULL;
+}
+
 void GeometricSpacingFunction::CalculateSpacing()
 {
    MFEM_VERIFY(n > 1, "GeometricSpacingFunction requires more than 1 interval");
@@ -196,7 +202,8 @@ void BellSpacingFunction::CalculateSpacing()
 
       s = s_new;
 
-      if (sqrt(wk[6] / wk[5]) < convTol)
+      const double res = sqrt(wk[6] / wk[5]);
+      if (res < convTol)
       {
          converged = true;
          break;
