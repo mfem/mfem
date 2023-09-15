@@ -75,7 +75,11 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    NumOfControlPoints = kv.NumOfControlPoints;
    NumOfElements = kv.NumOfElements;
    knot = kv.knot;
-   spacing = kv.spacing;
+   if (kv.spacing)
+   {
+      spacing.reset(kv.spacing->Clone());
+   }
+
    // alternatively, re-compute NumOfElements
    // GetElements();
 
