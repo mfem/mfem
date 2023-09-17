@@ -138,3 +138,13 @@ jobs:
         git remote add origin https://github.com/mfem/mfem.git
         git checkout -b gh-actions-branch-history
         ./config/githooks/pre-push --history
+
+  codespell:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Codespell with annotations
+      uses: codespell-project/actions-codespell@master
+      with:
+        check_filenames: true
+        check_hidden: true
+        ignore_words_list: allright,ba,equil,esy,fo,hda,lod,nd,ned,numer,ot,pres,ro,seh,shat,solfes,strat,tbe,te,warmup
