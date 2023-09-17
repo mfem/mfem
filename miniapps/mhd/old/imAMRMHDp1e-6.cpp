@@ -18,7 +18,6 @@
 #include "InitialConditions.hpp"
 #include "AMRupdate.hpp"
 #include "checkpoint.hpp"
-#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -30,7 +29,9 @@ double beta;
 double Lx;  
 double lambda;
 double resiG;
+double x_factor=5.0;
 double ep=.2;
+double L0=1.0;
 int icase = 1;
 ParMesh *pmesh;
 
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
    bool initial_refine = false;
    bool compute_pressure = false;
    bool compute_tau = false;
+   bool view_mpi = false;
    const char *petscrc_file = "";
 
    //----amr coefficients----
@@ -133,14 +135,13 @@ int main(int argc, char *argv[])
                   "supg options in explicit formulation");
    args.AddOption(&itau_, "-itau", "--itau",
                   "tau options in supg.");
-   args.AddOption(&visc, "-visc", "--viscosity",
-                  "Viscosity coefficient.");
-   args.AddOption(&resi, "-resi", "--resistivity",
-                  "Resistivity coefficient.");
+   args.AddOption(&visc, "-visc", "--viscosity", "Viscosity coefficient.");
+   args.AddOption(&resi, "-resi", "--resistivity", "Resistivity coefficient.");
+   args.AddOption(&x_factor,"-x-factor","--x-factor", "spatial perturbation factor in x.");
+   args.AddOption(&L0,"-L0","--L0", "current sheet width.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
-   args.AddOption(&beta, "-beta", "--perturb",
-                  "Pertubation coefficient in initial conditions.");
+   args.AddOption(&beta, "-beta", "--perturb", "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
    args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
@@ -183,16 +184,15 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
+   args.AddOption(&view_mpi, "-view-mpi", "--view-mpi", "-no-view-mpi",
+                  "--no-view-mpi", "Save MPI rank in MPI.");
    args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
-   args.AddOption(&ytop, "-ytop", "--y-top",
-                  "The top of yrange for AMR refinement.");
-   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
-                  "--no-petsc",
+   args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
+   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc", "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
-   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell",
-                  "--no-shell",
+   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell", "--no-shell",
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
@@ -284,10 +284,11 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
    Array<int> ordering;
-   mesh->GetHilbertElementOrdering(ordering);
-   mesh->ReorderElements(ordering);
-   mesh->EnsureNCMesh();    //note after this call all the mesh_level=0!!
-
+   if (mesh->Conforming()){
+      mesh->GetHilbertElementOrdering(ordering);
+      mesh->ReorderElements(ordering);
+      mesh->EnsureNCMesh();    //note after this call all the mesh_level=0!!
+   }
    //amr_levels+=ser_ref_levels; this is not needed any more
 
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -367,18 +368,18 @@ int main(int argc, char *argv[])
       }
       else if (icase==2)
       {
-           FunctionCoefficient psiInit2(InitialPsi2);
-           psiTmp.ProjectCoefficient(psiInit2);
+           FunctionCoefficient psiInit(InitialPsi2);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       else if (icase==3)
       {
-           FunctionCoefficient psiInit3(InitialPsi3);
-           psiTmp.ProjectCoefficient(psiInit3);
+           FunctionCoefficient psiInit(InitialPsi3);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       else if (icase==4)
       {
-           FunctionCoefficient psiInit4(InitialPsi4);
-           psiTmp.ProjectCoefficient(psiInit4);
+           FunctionCoefficient psiInit(InitialPsi4);
+           psiTmp.ProjectCoefficient(psiInit);
       }
       psiTmp.SetTrueVector();
 
@@ -460,17 +461,18 @@ int main(int argc, char *argv[])
    }
    else if (icase==2)
    {
-        FunctionCoefficient psiInit2(InitialPsi2);
-        psi.ProjectCoefficient(psiInit2);
+        FunctionCoefficient psiInit(InitialPsi2);
+        psi.ProjectCoefficient(psiInit);
    }
    else if (icase==3)
    {
-        FunctionCoefficient psiInit3(InitialPsi3);
-        psi.ProjectCoefficient(psiInit3);
-   }else if (icase==4)
+        FunctionCoefficient psiInit(InitialPsi3);
+        psi.ProjectCoefficient(psiInit);
+   }
+   else if (icase==4)
    {
-        FunctionCoefficient psiInit4(InitialPsi4);
-        psi.ProjectCoefficient(psiInit4);
+        FunctionCoefficient psiInit(InitialPsi4);
+        psi.ProjectCoefficient(psiInit);
    }
    psi.SetTrueVector();
    psi.SetFromTrueVector(); 
@@ -491,15 +493,21 @@ int main(int argc, char *argv[])
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient *jptr=NULL;
    if (icase==1)
-       jptr=&jInit1;
+       jptr=new FunctionCoefficient(InitialJ);
    else if (icase==2)
-       jptr=&jInit2;
+       jptr=new FunctionCoefficient(InitialJ2);
    else if (icase==3)
-       jptr=&jInit3;
+       jptr=new FunctionCoefficient(InitialJ3);
    else if (icase==4)
-       jptr=&jInit4;
+       jptr=new FunctionCoefficient(InitialJ4);
+   else if (icase==7)
+       jptr=new FunctionCoefficient(InitialJ7);
+   else if (icase==8)
+       jptr=new FunctionCoefficient(InitialJ8);
+   else if (icase==9)
+       jptr=new FunctionCoefficient(InitialJ9);
    j.ProjectCoefficient(*jptr);
    j.SetTrueVector();
    oper.SetInitialJ(*jptr);
@@ -672,7 +680,7 @@ int main(int argc, char *argv[])
    HypreSmoother *M_prec;
    HypreBoomerAMG *K_amg;
    CGSolver *K_pcg;
-   mfem::navier::OrthoSolver *SpInvOrthoPC;
+   OrthoSolver *SpInvOrthoPC;
    Vector vtrue, rhs, vJxB;
    VectorDomainLFIntegrator *domainJxB;
    bool vfes_match=false;
@@ -795,8 +803,8 @@ int main(int argc, char *argv[])
       K_amg = new HypreBoomerAMG(*KMat);
       K_amg->SetPrintLevel(0);
       K_pcg = new CGSolver(MPI_COMM_WORLD);
-      SpInvOrthoPC = new mfem::navier::OrthoSolver();
-      SpInvOrthoPC->SetOperator(*K_amg);
+      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC->SetSolver(*K_amg);
       K_pcg->SetOperator(*KMat);
       K_pcg->iterative_mode = false;
       K_pcg->SetRelTol(1e-7);
@@ -850,7 +858,7 @@ int main(int argc, char *argv[])
       pd->RegisterField("phi", &phi);
       pd->RegisterField("omega", &w);
       pd->RegisterField("current", &j);
-      pd->RegisterField("MPI rank", &mpi_rank_gf);
+      if (view_mpi) pd->RegisterField("MPI rank", &mpi_rank_gf);
       if (compute_pressure){
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
@@ -957,15 +965,13 @@ int main(int argc, char *argv[])
       }
 
       //update J and psi as it is needed in the refine or derefine step
-      if (refineMesh || derefineMesh)
-      {
+      if (refineMesh || derefineMesh){
           phi.SetFromTrueDofs(vx.GetBlock(0));
           psi.SetFromTrueDofs(vx.GetBlock(1));
           w.SetFromTrueDofs(vx.GetBlock(2));
       }
 
-      if (myid == 0)
-      {
+      if (myid == 0){
           global_size = fespace.GlobalTrueVSize();
           cout << "Number of total scalar unknowns: " << global_size << endl;
           cout << "step " << ti << ", t = " << t <<endl;
@@ -1002,8 +1008,10 @@ int main(int argc, char *argv[])
            }
            if (paraview) 
            {
-               pw_const_fes.Update();
-               mpi_rank_gf.Update();
+               if (view_mpi){
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+               }
                if (compute_tau) tau_value.Update();
            }
 
@@ -1011,8 +1019,10 @@ int main(int argc, char *argv[])
 
            if (paraview) 
            {
-               pw_const_fes.Update();
-               mpi_rank_gf.Update();
+               if (view_mpi){
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+               }
                if (compute_tau) tau_value.Update();
            }
 
@@ -1086,8 +1096,10 @@ int main(int argc, char *argv[])
 
              if (paraview) 
              {
-                 pw_const_fes.Update();
-                 mpi_rank_gf.Update();
+                 if (view_mpi){
+                   pw_const_fes.Update();
+                   mpi_rank_gf.Update();
+                 }
                  if (compute_tau) tau_value.Update();
              }
 
@@ -1095,8 +1107,10 @@ int main(int argc, char *argv[])
 
              if (paraview) 
              {
-                 pw_const_fes.Update();
-                 mpi_rank_gf.Update();
+                 if (view_mpi){
+                   pw_const_fes.Update();
+                   mpi_rank_gf.Update();
+                 }
                  if (compute_tau) tau_value.Update();
              }
 
@@ -1231,8 +1245,8 @@ int main(int argc, char *argv[])
                 K_amg = new HypreBoomerAMG(*KMat);
                 K_amg->SetPrintLevel(0);
                 K_pcg = new CGSolver(MPI_COMM_WORLD);
-                SpInvOrthoPC = new mfem::navier::OrthoSolver();
-                SpInvOrthoPC->SetOperator(*K_amg);
+                SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+                SpInvOrthoPC->SetSolver(*K_amg);
                 K_pcg->SetOperator(*KMat);
                 K_pcg->iterative_mode = false;
                 K_pcg->SetRelTol(1e-7);
@@ -1356,7 +1370,7 @@ int main(int argc, char *argv[])
               tau_value.SetFromTrueDofs(*tauv);
            }
  
-           mpi_rank_gf = myid_rand;
+           if (view_mpi) mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
            pd->Save();

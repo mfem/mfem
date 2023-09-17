@@ -144,8 +144,10 @@ int main(int argc, char *argv[])
                   "AMR component ratio.");
    args.AddOption(&err_fraction, "-err-fraction", "--err-fraction",
                   "AMR error fraction in estimator.");
+   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
+                  "--no-derefine-mesh", "Derefine the mesh in AMR.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
-                  "AMR derefine error ratio.");
+                  "AMR derefine error ratio of total_err_goal.");
    args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
                   "AMR derefine error fraction of total error (derefine if error is less than portion of total error).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -178,13 +180,9 @@ int main(int argc, char *argv[])
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.AddOption(&view_mpi, "-view-mpi", "--view-mpi", "-no-view-mpi",
                   "--no-view-mpi", "Save MPI rank in MPI.");
-   args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
-                  "--no-derefine-mesh",
-                  "Derefine the mesh in AMR.");
-   args.AddOption(&error_norm, "-error-norm", "--error-norm",
-                  "AMR error norm (in both refine and derefine).");
-   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange",
-                  "--no-y-refine-range", "Refine only in the y range of [-ytop, ytop] in AMR.");
+   args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
+   args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range", 
+                  "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc", "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
@@ -520,10 +518,12 @@ int main(int argc, char *argv[])
    psi.SetFromTrueVector(); 
 
    FunctionCoefficient wInit(InitialW), wInit9(InitialW9);
-   if (icase!=9)
+   if (icase!=9){
       w.ProjectCoefficient(wInit);
-   else
+   }
+   else{
       w.ProjectCoefficient(wInit9);
+   }
    w.SetTrueVector();
    w.SetFromTrueVector();
    
@@ -993,8 +993,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(vx, t, dt_real);
 
       last_step = (t >= t_final - 1e-8*dt);
-      if (last_step)
-      {
+      if (last_step){
           refineMesh=false;
           derefineMesh=false;
       }
@@ -1011,7 +1010,6 @@ int main(int argc, char *argv[])
           cout << "Number of total scalar unknowns: " << global_size << endl;
           cout << "step " << ti << ", t = " << t <<endl;
       }
-
       //----------------------------AMR---------------------------------
       
       //++++++Refine step++++++
