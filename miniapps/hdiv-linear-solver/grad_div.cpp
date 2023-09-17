@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    bool use_ams = false;
    bool use_lor_ams = false;
    bool use_hybridization = false;
+   bool visualization = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -77,6 +78,8 @@ int main(int argc, char *argv[])
    args.AddOption(&use_hybridization,
                   "-hb", "--hybridization", "-no-hb", "--no-hybridization",
                   "Enable or disable hybridization solver.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis", "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    if (!use_saddle_point && !use_ams && !use_lor_ams && !use_hybridization)
@@ -96,6 +99,12 @@ int main(int argc, char *argv[])
    RT_FECollection fec_rt(order-1, dim, b1, b2);
    ParFiniteElementSpace fes_rt(&mesh, &fec_rt);
 
+   HYPRE_Int size = fes_rt.GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      cout << "Number of finite element unknowns: " << size << endl;
+      cout << "Local number of elements: "<<mesh.GetNE()<<endl;
+   }
    Array<int> ess_rt_dofs;
    fes_rt.GetBoundaryTrueDofs(ess_rt_dofs);
 
@@ -249,6 +258,20 @@ int main(int argc, char *argv[])
       if (Mpi::Root()) { cout << "L2 error: " << error << endl; }
    }
 
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;   
+      int num_procs, myid;
+      MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+      MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+      socketstream sol_sock(vishost, visport);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << x << flush;
+   }
+
+
    return 0;
 }
 
@@ -268,7 +291,7 @@ void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X)
    cg.SetAbsTol(0.0);
    cg.SetRelTol(1e-12);
    cg.SetMaxIter(500);
-   cg.SetPrintLevel(0);
+   cg.SetPrintLevel(1);
    cg.SetOperator(A);
    cg.SetPreconditioner(P);
    X = 0.0;
