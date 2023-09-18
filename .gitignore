@@ -301,10 +301,9 @@ miniapps/tools/plor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
 miniapps/tools/tmop-metric-magnitude
-miniapps/tools/coeff_shift_test
-miniapps/tools/nodal_transfer
+miniapps/tools/nodal-transfer
 miniapps/tools/ParaView
-miniapps/tools/grid_func_*
+miniapps/tools/gridfunc_*
 miniapps/tools/mesh_*
 
 miniapps/toys/automata

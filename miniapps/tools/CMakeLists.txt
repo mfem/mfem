@@ -37,6 +37,6 @@ add_mfem_miniapp(check-tmop-metric
   MAIN check-tmop-metric.cpp LIBRARIES mfem)
 
 if (MFEM_USE_MPI)
-   add_mfem_miniapp(nodal_transfer
-     MAIN nodal_transfer.cpp LIBRARIES mfem)
+   add_mfem_miniapp(nodal-transfer
+     MAIN nodal-transfer.cpp LIBRARIES mfem)
 endif()

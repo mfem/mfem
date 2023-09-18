@@ -8,6 +8,17 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
+//
+// Generate second order mesh on 4 processes
+//    mpirun -np 4 ./nodal-transfer -rs 2 -rp 1 -gd 1 -o 2
+// Read the generated data and map it to a grid function defined on two processes
+//    mpirun -np 2 ./nodal-transfer -rs 2 -rp 0 -gd 0 -snp 4 -o 2
+//
+// Generate first order grid function on 8 processes
+//    mpirun -np 8 ./nodal-transfer -rs 2 -rp 2 -gd 1 -o 1 -m ../../data/star.mesh
+// Read the generated data on 4 processes and coarser mesh
+//    mpirun -np 4 ./nodal-transfer -rs 2 -rp 0 -gd 0 -snp 8 -o 1 -m ../../data/star.mesh
+//
 
 #include <mfem.hpp>
 #include <fstream>
@@ -15,26 +26,12 @@
 #include <cmath>
 #include "../common/mfem-common.hpp"
 
-/// Generate second order mesh on 4 processes
-/// mpirun -np 4 ./nodal_transfer -rs 2 -rp 1 -gd 1 -o 2
-/// Read the generated data and map it to a grid function
-/// defined on two processes
-/// mpirun -np 2 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 4 -o 2
-///
-/// Generate first order grid function on 8 processes
-/// mpirun -np 8 ./nodal_transfer -rs 2 -rp 2 -gd 1 -o 1 -m ../../data/star.mesh
-/// Read the generated data on 4 processes and coarser mesh
-/// mpirun -np 4 ./nodal_transfer -rs 2 -rp 0 -gd 0 -snp 8 -o 1 -m ../../data/star.mesh
-///
-
 using namespace mfem;
 
-class TestCoeff:public Coefficient
+class TestCoeff : public Coefficient
 {
 public:
-   TestCoeff()
-   {
-   }
+   TestCoeff() {}
 
    virtual
    double Eval(ElementTransformation &T,
@@ -164,20 +161,20 @@ int main(int argc, char* argv[])
 
       // Save the grid function
       {
-         // save the mesh and the data
+         // Save the mesh and the data
          std::ostringstream oss;
          oss << std::setw(10) << std::setfill('0') << myrank;
          std::string mname="mesh_"+oss.str()+".msh";
-         std::string gname="grid_func_"+oss.str()+".gf";
+         std::string gname="gridfunc_"+oss.str()+".gf";
          std::ofstream sout;
 
-         // save the mesh
+         // Save the mesh
          sout.open(mname.c_str(),std::ios::out);
          sout.precision(20);
          pmesh.ParPrint(sout);
          sout.close();
 
-         // save the grid function data
+         // Save the grid function data
          sout.open(gname.c_str(),std::ios::out);
          sout.precision(20);
          x.Save(sout);
@@ -186,9 +183,9 @@ int main(int argc, char* argv[])
    }
    else
    {
-      // read the grid function written to files
-      // and map it to the current partition scheme
-      // x-grid function will be the target of the transfer
+      // Read the grid function written to files and map it to the current
+      // partition scheme.
+      // x grid function will be the target of the transfer
       // y will be utilized later for comparison
       ParGridFunction y(&fespace);
       Coefficient* coef[2]; coef[0]=&prco; coef[1]=&prco;
@@ -200,20 +197,20 @@ int main(int argc, char* argv[])
          BaseKDTreeNodalProjection* map;
          if (dim==2)
          {
-            map=new KDTreeNodalProjection<2>(x);
+            map = new KDTreeNodalProjection<2>(x);
          }
          else
          {
-            map=new KDTreeNodalProjection<3>(x);
+            map = new KDTreeNodalProjection<3>(x);
          }
          for (int p=0; p<src_num_procs; p++)
          {
             std::ostringstream oss;
             oss << std::setw(10) << std::setfill('0') << p;
             std::string mname="mesh_"+oss.str()+".msh";
-            std::string gname="grid_func_"+oss.str()+".gf";
+            std::string gname="gridfunc_"+oss.str()+".gf";
 
-            // read the mesh
+            // Read the mesh
             Mesh lmesh;
             in.open(mname.c_str(),std::ios::in);
             lmesh.Load(in);
@@ -223,13 +220,13 @@ int main(int argc, char* argv[])
             GridFunction gf(&lmesh,in);
             in.close();
 
-            // project the grid function
+            // Project the grid function
             map->Project(gf,1e-8);
          }
          delete map;
       }
 
-      // write the result into a ParaView file
+      // Write the result into a ParaView file
       if (visualization)
       {
          ParaViewDataCollection paraview_dc("GridFunc", &pmesh);
@@ -243,10 +240,10 @@ int main(int argc, char* argv[])
          paraview_dc.Save();
       }
 
-      // compare the results
-      Vector tmpv=x;
-      tmpv-=y;
-      double l2err=mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
+      // Compare the results
+      Vector tmpv = x;
+      tmpv -= y;
+      double l2err = mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
       if (myrank==0)
       {
          std::cout<<"|l2 error|="<<sqrt(l2err)<<std::endl;
