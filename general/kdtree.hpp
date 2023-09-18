@@ -19,8 +19,6 @@
 #include <cmath>
 #include <tuple>
 
-#include "../linalg/vector.hpp"
-
 namespace mfem
 {
 
@@ -623,11 +621,12 @@ private:
 /// Defines KDTree in 3D
 typedef KDTree<int,double,3> KDTree3D;
 
-/// Defines Contructs KDTree in 2D
+/// Defines KDTree in 2D
 typedef KDTree<int,double,2> KDTree2D;
 
 /// Defines KDTree in 1D
 typedef KDTree<int,double,1> KDTree1D;
 
-}
-#endif
+} // namespace mfem
+
+#endif // MFEM_KDTREE_HPP
