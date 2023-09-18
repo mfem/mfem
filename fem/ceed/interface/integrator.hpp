@@ -238,7 +238,7 @@ public:
                InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                       &quad_coeff->restr);
                CeedOperatorSetField(build_oper, "coeff1", quad_coeff->restr,
-                                    CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
+                                    CEED_BASIS_NONE, quad_coeff->coeff_vector);
             }
             else
             {
@@ -264,7 +264,7 @@ public:
                InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                       &quad_coeff->restr);
                CeedOperatorSetField(build_oper, "coeff2", quad_coeff->restr,
-                                    CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
+                                    CEED_BASIS_NONE, quad_coeff->coeff_vector);
             }
             else
             {
@@ -276,7 +276,7 @@ public:
          CeedOperatorSetField(build_oper, "weights", CEED_ELEMRESTRICTION_NONE,
                               mesh_basis, CEED_VECTOR_NONE);
          CeedOperatorSetField(build_oper, "qdata", qdata_restr,
-                              CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                              CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
          CeedOperatorCheckReady(build_oper);
 
          // Compute the quadrature data for the operator.
@@ -395,7 +395,7 @@ public:
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "u", trial_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "u", trial_restr, trial_basis, CEED_VECTOR_ACTIVE);
@@ -443,7 +443,7 @@ public:
                InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                       &quad_coeff->restr);
                CeedOperatorSetField(oper, "coeff1", quad_coeff->restr,
-                                    CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
+                                    CEED_BASIS_NONE, quad_coeff->coeff_vector);
             }
             else
             {
@@ -469,7 +469,7 @@ public:
                InitStridedRestriction(*mesh_fes, nelem, nqpts, ncomp, strides, ceed,
                                       &quad_coeff->restr);
                CeedOperatorSetField(oper, "coeff2", quad_coeff->restr,
-                                    CEED_BASIS_COLLOCATED, quad_coeff->coeff_vector);
+                                    CEED_BASIS_NONE, quad_coeff->coeff_vector);
             }
             else
             {
@@ -482,13 +482,13 @@ public:
       }
       else
       {
-         CeedOperatorSetField(oper, "qdata", qdata_restr, CEED_BASIS_COLLOCATED, qdata);
+         CeedOperatorSetField(oper, "qdata", qdata_restr, CEED_BASIS_NONE, qdata);
       }
       switch (info.test_op)
       {
          case EvalMode::None:
             CeedOperatorSetField(oper, "v", test_restr,
-                                 CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE);
+                                 CEED_BASIS_NONE, CEED_VECTOR_ACTIVE);
             break;
          case EvalMode::Interp:
             CeedOperatorSetField(oper, "v", test_restr, test_basis, CEED_VECTOR_ACTIVE);
@@ -625,13 +625,13 @@ public:
       CeedOperatorCreate(ceed, apply_qfunc, NULL, NULL, &oper);
       CeedOperatorSetField(oper, "input", trial_restr, basis_ctof,
                            CEED_VECTOR_ACTIVE);
-      CeedOperatorSetField(oper, "output", test_restr, CEED_BASIS_COLLOCATED,
+      CeedOperatorSetField(oper, "output", test_restr, CEED_BASIS_NONE,
                            CEED_VECTOR_ACTIVE);
       CeedOperatorCheckReady(oper);
 
       // Create the transpose operator
       CeedOperatorCreate(ceed, apply_qfunc_t, NULL, NULL, &oper_t);
-      CeedOperatorSetField(oper_t, "input", test_restr, CEED_BASIS_COLLOCATED,
+      CeedOperatorSetField(oper_t, "input", test_restr, CEED_BASIS_NONE,
                            CEED_VECTOR_ACTIVE);
       CeedOperatorSetField(oper_t, "output", trial_restr, basis_ctof,
                            CEED_VECTOR_ACTIVE);

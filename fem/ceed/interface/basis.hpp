@@ -113,18 +113,10 @@ inline void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
                                   Ceed ceed,
                                   CeedBasis *basis)
 {
-   const mfem::FiniteElement *trial_fe, *test_fe;
-   if (indices)
-   {
-      trial_fe = trial_fes.GetFE(indices[0]);
-      test_fe = test_fes.GetFE(indices[0]);
-   }
-   else
-   {
-      trial_fe = trial_fes.GetFE(0);
-      test_fe = test_fes.GetFE(0);
-   }
-   InitInterpolatorBasis(trial_fes, test_fes, *trial_fe, *test_fe, ceed, basis);
+   const int first_index = indices ? indices[0] : 0;
+   const mfem::FiniteElement &trial_fe = *trial_fes.GetFE(first_index);
+   const mfem::FiniteElement &test_fe = *test_fes.GetFE(first_index);
+   InitInterpolatorBasis(trial_fes, test_fes, trial_fe, test_fe, ceed, basis);
 }
 
 inline void InitInterpolatorBasis(const FiniteElementSpace &trial_fes,
