@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
    ParMesh * pmesh2 = nullptr;
    ParMesh * pmesh  = nullptr;
 
-   bool own_mesh = false;
+   bool own_mesh = true;
    if (elasticity_options) { own_mesh = true; }
 
    if (own_mesh)
@@ -136,8 +136,16 @@ int main(int argc, char *argv[])
       Array<int> attr2(1); attr2 = 2;
 
 
-      pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
-      pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
+      // pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
+      // pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
+      pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1, part1);
+      pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2, part2);
+
+      for (int i = 0; i<pref; i++)
+      {
+         pmesh1->UniformRefinement();
+         pmesh2->UniformRefinement();
+      }
 
       MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
       MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
@@ -172,7 +180,6 @@ int main(int argc, char *argv[])
       pmesh->SetNodalFESpace(pfes);
       if (elasticity_options)
       {
-
          optimizer.SetFiniteElementSpace(pfes);
       }
    }
@@ -248,10 +255,14 @@ int main(int argc, char *argv[])
       {
          xgf = new ParGridFunction(pfes);
          *xgf = 0.0;
-         auto map1 = ParSubMesh::CreateTransferMap(x1_gf, *xgf);
-         auto map2 = ParSubMesh::CreateTransferMap(x2_gf, *xgf);
-         map1.Transfer(x1_gf,*xgf);
-         map2.Transfer(x2_gf,*xgf);
+         // auto map1 = ParSubMesh::CreateTransferMap(x1_gf, *xgf);
+         // auto map2 = ParSubMesh::CreateTransferMap(x2_gf, *xgf);
+         // map1.Transfer(x1_gf,*xgf);
+         // map2.Transfer(x2_gf,*xgf);
+         xgf->SetVector(x1_gf,0);
+         xgf->SetVector(x2_gf,x1_gf.Size());
+         ParFiniteElementSpace * pfes1 = x1_gf.ParFESpace();
+         ParFiniteElementSpace * pfes2 = x2_gf.ParFESpace();
          pmesh->MoveNodes(*xgf);
       }
       if (paraview)

@@ -497,8 +497,6 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          // n = AreducedSolver.GetNumIterations();
 
-         Areduced->Print("Areduced");
-
          HyprePCG AreducedSolver(*Areduced);
          AreducedSolver.SetTol(linSolveTol);
          AreducedSolver.SetMaxIter(1000);
