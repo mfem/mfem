@@ -264,12 +264,14 @@ void KellyErrorEstimator::ComputeEstimates()
                if (mesh->Dimension() == mesh->SpaceDimension())
                {
                   CalcOrtho(FT->Face->Jacobian(), normal);
+                  normal /= FT->Face->Weight();
                }
                else
                {
                   FT->Loc1.Transf.SetIntPoint(&fip);
                   FT->Loc1.Transform(fip, ip);
                   CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+                  ref_normal /= FT->Face->Weight();
                   auto &e1 = FT->GetElement1Transformation();
                   e1.SetIntPoint(&ip);
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
@@ -292,7 +294,7 @@ void KellyErrorEstimator::ComputeEstimates()
 
                // Finalize integral
                // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
-               jump_integral += jump*jump*fip.weight / FT->Face->Weight();
+               jump_integral += jump*jump*fip.weight * FT->Face->Weight();
             }
 
             // A local face is shared between two local elements, so we
@@ -372,12 +374,14 @@ void KellyErrorEstimator::ComputeEstimates()
          if (mesh->Dimension() == mesh->SpaceDimension())
          {
             CalcOrtho(FT->Face->Jacobian(), normal);
+            normal /= FT->Face->Weight();
          }
          else
          {
             FT->Loc1.Transf.SetIntPoint(&fip);
             FT->Loc1.Transform(fip, ip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
+            ref_normal /= FT->Face->Weight();
             auto &e1 = FT->GetElement1Transformation();
             e1.SetIntPoint(&ip);
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
@@ -387,18 +391,20 @@ void KellyErrorEstimator::ComputeEstimates()
          }
 
          // Evaluate flux jump at IP on element 1
+         FT->Loc1.Transf.SetIntPoint(&fip);
          FT->Loc1.Transform(fip, ip);
          flux->GetVectorValue(FT->Elem1No, ip, val);
          double jump = val * normal;
 
          // Evaluate flux jump at IP on element 2
+         FT->Loc2.Transf.SetIntPoint(&fip);
          FT->Loc2.Transform(fip, ip);
          flux->GetVectorValue(FT->Elem2No, ip, val);
          jump -= val * normal;
 
          // Finalize integral
          // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
-         jump_integral += jump*jump*fip.weight / FT->Face->Weight();
+         jump_integral += jump*jump*fip.weight * FT->Face->Weight();
       }
 
       auto h_k_face = compute_face_coefficient(mesh, sfi, true);
