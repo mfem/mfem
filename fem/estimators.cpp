@@ -260,14 +260,16 @@ void KellyErrorEstimator::ComputeEstimates()
                auto &fip = int_rule.IntPoint(i);
                FT->Face->SetIntPoint(&fip);
 
-               // Compute weighted normal - note that the normals match at each face integration point up to the sign!
+               // Compute normal - note that the normals match at each face integration point up to the sign!
                if (mesh->Dimension() == mesh->SpaceDimension())
                {
+                  // This computes a weighted normal, so we divide by the weight to get back the normal.
                   CalcOrtho(FT->Face->Jacobian(), normal);
                   normal /= FT->Face->Weight();
                }
                else
                {
+                  // This computes a weighted normal, so we divide by the weight to get back the normal.
                   FT->Loc1.Transf.SetIntPoint(&fip);
                   FT->Loc1.Transform(fip, ip);
                   CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
@@ -293,7 +295,6 @@ void KellyErrorEstimator::ComputeEstimates()
                jump -= val * normal;
 
                // Finalize integral
-               // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
                jump_integral += jump*jump*fip.weight * FT->Face->Weight();
             }
 
@@ -370,14 +371,16 @@ void KellyErrorEstimator::ComputeEstimates()
          auto &fip = int_rule.IntPoint(i);
          FT->Face->SetIntPoint(&fip);
 
-         // Compute weighted normal - note that the normals match at each face integration point up to the sign!
+         // Compute normal - note that the normals match at each face integration point up to the sign!
          if (mesh->Dimension() == mesh->SpaceDimension())
          {
+            // This computes a weighted normal, so we divide by the weight to get back the normal.
             CalcOrtho(FT->Face->Jacobian(), normal);
             normal /= FT->Face->Weight();
          }
          else
          {
+            // This computes a weighted normal, so we divide by the weight to get back the normal.
             FT->Loc1.Transf.SetIntPoint(&fip);
             FT->Loc1.Transform(fip, ip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
@@ -403,7 +406,6 @@ void KellyErrorEstimator::ComputeEstimates()
          jump -= val * normal;
 
          // Finalize integral
-         // Since the jump is squared and the normal is weighted we have to cancel one normal weight here.
          jump_integral += jump*jump*fip.weight * FT->Face->Weight();
       }
 
