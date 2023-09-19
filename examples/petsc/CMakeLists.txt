@@ -24,13 +24,13 @@ if (MFEM_USE_MPI)
     ex10p.cpp
     )
   list(APPEND PETSC_RC_FILES
-    rc_ex1p
-    rc_ex2p
+    rc_ex1p rc_ex1p_device rc_ex1p_deviceamg
+    rc_ex2p rc_ex2p_bddc rc_ex2p_asm
     rc_ex3p rc_ex3p_bddc
     rc_ex4p rc_ex4p_bddc
     rc_ex5p_bddc rc_ex5p_fieldsplit
-    rc_ex9p_expl rc_ex9p_impl
-    rc_ex10p
+    rc_ex9p_expl rc_ex9p_expl_device rc_ex9p_impl
+    rc_ex10p rc_ex10p_mf rc_ex10p_mfop rc_ex10p_jfnk
     )
 endif()
 
@@ -39,7 +39,7 @@ if (MFEM_USE_SLEPC)
     ex11p.cpp
     )
   list(APPEND PETSC_RC_FILES
-    rc_ex11p_lobpcg rc_ex11p_gd
+    rc_ex11p_lobpcg rc_ex11p_lobpcg_device rc_ex11p_gd
     )
 endif()
 
