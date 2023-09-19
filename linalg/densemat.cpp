@@ -4207,7 +4207,7 @@ void DenseMatrixSVD::Init()
    work = new double[lwork];
 }
 
-void DenseMatrixSVD::Eval(DenseMatrix &M)
+void DenseMatrixSVD::Eval(const DenseMatrix &M)
 {
 #ifdef MFEM_DEBUG
    if (M.Height() != m || M.Width() != n)

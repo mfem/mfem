@@ -1055,7 +1055,7 @@ public:
 
     @param [in] M DenseMatrix the SVD should be evaluated for
     */
-   void Eval(DenseMatrix &M);
+   void Eval(const DenseMatrix &M);
 
    /**
     @brief Return singular values
