@@ -2146,7 +2146,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
    if (p2g0.ny() != p2g1.ny()) { compatible = false; }
 
    if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
-   if (kv0[1]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[1]->GetNKS() != kv1[1]->GetNKS()) { compatible = false; }
 
    if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
    if (kv0[1]->GetOrder() != kv1[1]->GetOrder()) { compatible = false; }
@@ -2157,7 +2157,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
       mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
 
       mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[1]->GetNKS()<<endl;
 
       mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
       mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
