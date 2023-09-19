@@ -144,7 +144,7 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
          auto fip1 = vtx_intrule->IntPoint(i);
          FT->Transform(fip1, p1);
 
-         for (int j = 0; j < nip; j++)
+         for (int j = i+1; j < nip; j++)
          {
             auto fip2 = vtx_intrule->IntPoint(j);
             FT->Transform(fip2, p2);
@@ -268,8 +268,10 @@ void KellyErrorEstimator::ComputeEstimates()
                else
                {
                   FT->Loc1.Transf.SetIntPoint(&fip);
+                  FT->Loc1.Transform(fip, ip);
                   CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
                   auto &e1 = FT->GetElement1Transformation();
+                  e1.SetIntPoint(&ip);
                   e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
                   // We have to cancel the additional weighting from the
                   // reference to spatial transformation in the line above.
@@ -277,11 +279,13 @@ void KellyErrorEstimator::ComputeEstimates()
                }
 
                // Evaluate flux jump at IP on element 1
+               FT->Loc1.Transf.SetIntPoint(&fip);
                FT->Loc1.Transform(fip, ip);
                flux->GetVectorValue(FT->Elem1No, ip, val);
                double jump = val * normal;
 
                // Evaluate flux jump at IP on element 2
+               FT->Loc2.Transf.SetIntPoint(&fip);
                FT->Loc2.Transform(fip, ip);
                flux->GetVectorValue(FT->Elem2No, ip, val);
                jump -= val * normal;
@@ -295,8 +299,9 @@ void KellyErrorEstimator::ComputeEstimates()
             // can get away with integrating the jump only once and add
             // it to both elements. To minimize communication, the jump
             // of shared faces is computed locally by each process.
-            error_estimates(FT->Elem1No) += jump_integral;
-            error_estimates(FT->Elem2No) += jump_integral;
+            auto h_k_face = compute_face_coefficient(mesh, fi, false);
+            error_estimates(FT->Elem1No) += h_k_face*jump_integral;
+            error_estimates(FT->Elem2No) += h_k_face*jump_integral;
          }
       }
       else     // We area t a boundary face
@@ -363,10 +368,6 @@ void KellyErrorEstimator::ComputeEstimates()
          auto &fip = int_rule.IntPoint(i);
          FT->Face->SetIntPoint(&fip);
 
-         // Evaluate flux at IP on element 1
-         FT->Loc1.Transform(fip, ip);
-         flux->GetVectorValue(FT->Elem1No, ip, val);
-
          // Compute weighted normal - note that the normals match at each face integration point up to the sign!
          if (mesh->Dimension() == mesh->SpaceDimension())
          {
@@ -375,8 +376,10 @@ void KellyErrorEstimator::ComputeEstimates()
          else
          {
             FT->Loc1.Transf.SetIntPoint(&fip);
+            FT->Loc1.Transform(fip, ip);
             CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
             auto &e1 = FT->GetElement1Transformation();
+            e1.SetIntPoint(&ip);
             e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
             // We have to cancel the additional weighting from the
             // reference to spatial transformation in the line above.
@@ -398,8 +401,9 @@ void KellyErrorEstimator::ComputeEstimates()
          jump_integral += jump*jump*fip.weight / FT->Face->Weight();
       }
 
-      error_estimates(FT->Elem1No) += jump_integral;
-      // We skip "error_estimates(FT->Elem2No) += jump_integral"
+      auto h_k_face = compute_face_coefficient(mesh, sfi, true);
+      error_estimates(FT->Elem1No) += h_k_face*jump_integral;
+      // We skip "error_estimates(FT->Elem2No) += h_k_face*jump_integral"
       // because the error is stored on the remote process and
       // recomputed there.
    }
