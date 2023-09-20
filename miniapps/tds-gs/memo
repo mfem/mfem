@@ -1,3 +1,444 @@
+--- AMG ---
+303 seconds
+
+AMR iteration 0
+Number of unknowns: 7231
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = -1.030885e+07
+psi_x = 1.856956e-01; r_x = 5.065037e+00; z_x = -3.346317e+00
+psi_ma = -1.217401e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+alpha = 0.100000
+objective test: yKy=2.934722e-02, formula=2.934722e-02, diff=1.040834e-16
+i:   0, nonl_res: 1.172e+01, ratio          , res: [2.225e-06, 2.405e+01, 0.000e+00, 3.180e+01], loss: 2.654e+03, obj: 2.935e-02, reg: 2.654e+03
+
+GMRES converged in 171 iterations with a residual norm of 6.03978e-07.
+currents: [7.371e+07 8.095e+07 1.334e+08 6.895e+07 8.351e+07 2.945e+07 5.171e+06 4.042e+06 7.202e+05 1.847e+07 -9.156e+05 ]
+plasma_current = 1.587148e+07
+psi_x = 5.923644e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.273683e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.149207
+objective test: yKy=1.896861e-01, formula=1.896861e-01, diff=1.378619e-11
+i:   1, nonl_res: 7.046e-03, ratio 1.664e+03, res: [4.006e-06, 2.912e-13, 1.011e-01, 1.095e+00], loss: 4.277e+04, obj: 1.897e-01, reg: 4.277e+04
+
+GMRES converged in 179 iterations with a residual norm of 4.53432e-08.
+currents: [8.235e+07 8.666e+07 1.466e+08 7.452e+07 9.300e+07 3.285e+07 5.250e+06 4.279e+06 8.867e+05 1.815e+07 3.464e+06 ]
+plasma_current = 1.500163e+07
+psi_x = 6.603324e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.926828e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141087
+objective test: yKy=1.544942e-01, formula=1.544942e-01, diff=1.075213e-10
+i:   2, nonl_res: 1.770e-03, ratio 3.982e+00, res: [3.902e-11, 3.020e-13, 3.707e-02, 2.049e-03], loss: 5.146e+04, obj: 1.545e-01, reg: 5.146e+04
+
+GMRES converged in 257 iterations with a residual norm of 9.97845e-11.
+currents: [8.152e+07 8.566e+07 1.450e+08 7.371e+07 9.181e+07 3.237e+07 5.238e+06 4.256e+06 8.881e+05 1.811e+07 3.027e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.514875e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838457e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=-1.384395e-10
+i:   3, nonl_res: 1.520e-10, ratio 1.164e+07, res: [4.484e-14, 8.089e-14, 1.274e-04, 8.214e-09], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+GMRES converged in 231 iterations with a residual norm of 1.00233e-14.
+currents: [8.152e+07 8.566e+07 1.450e+08 7.371e+07 9.181e+07 3.237e+07 5.238e+06 4.256e+06 8.881e+05 1.811e+07 3.027e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.514874e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838456e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=-4.955314e-12
+i:   4, nonl_res: 5.684e-14, ratio 2.674e+03, res: [9.232e-19, 2.588e-13, 9.611e-10, 3.553e-15], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+Refining mesh, i=0
+AMR iteration 1
+Number of unknowns: 8499
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.500000e+07
+psi_x = 6.514874e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838456e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=-4.955314e-12
+i:   0, nonl_res: 1.643e+01, ratio          , res: [1.062e-08, 4.503e-13, 9.611e-10, 3.553e-15], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+GMRES converged in 128 iterations with a residual norm of 7.48328e-09.
+currents: [8.177e+07 8.601e+07 1.458e+08 7.401e+07 9.228e+07 3.252e+07 5.268e+06 4.253e+06 9.048e+05 1.806e+07 3.323e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.546939e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870520e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=-1.312242e-10
+i:   1, nonl_res: 2.176e-09, ratio 7.553e+09, res: [1.782e-16, 3.235e-13, 1.963e-05, 4.267e-12], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+GMRES converged in 289 iterations with a residual norm of 1.2662e-17.
+currents: [8.177e+07 8.601e+07 1.458e+08 7.401e+07 9.228e+07 3.252e+07 5.268e+06 4.253e+06 9.048e+05 1.806e+07 3.323e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.546940e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870521e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=3.302122e-11
+i:   2, nonl_res: 6.828e-14, ratio 3.187e+04, res: [1.067e-19, 2.211e-13, 7.512e-11, 1.421e-14], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+Refining mesh, i=1
+AMR iteration 2
+Number of unknowns: 14927
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.500000e+07
+psi_x = 6.546940e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870521e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=3.302122e-11
+i:   0, nonl_res: 9.994e+00, ratio          , res: [2.422e-08, 1.746e-13, 7.512e-11, 1.421e-14], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+GMRES converged in 83 iterations with a residual norm of 7.39792e-09.
+currents: [8.158e+07 8.610e+07 1.458e+08 7.406e+07 9.226e+07 3.253e+07 5.274e+06 4.251e+06 9.092e+05 1.803e+07 3.449e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.549248e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872829e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=4.438022e-11
+i:   1, nonl_res: 6.704e-09, ratio 1.491e+09, res: [3.179e-17, 2.871e-13, 1.921e-05, 8.313e-13], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+GMRES converged in 317 iterations with a residual norm of 9.21442e-17.
+currents: [8.158e+07 8.610e+07 1.458e+08 7.406e+07 9.226e+07 3.253e+07 5.274e+06 4.251e+06 9.092e+05 1.803e+07 3.449e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.549248e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872829e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=9.894169e-12
+i:   2, nonl_res: 7.494e-14, ratio 8.946e+04, res: [6.759e-20, 2.157e-13, 6.821e-11, 4.974e-14], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+Refining mesh, i=2
+AMR iteration 3
+Number of unknowns: 39422
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.494402e+07
+psi_x = 6.549248e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872829e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=8.806733e-12
+i:   0, nonl_res: 5.126e+00, ratio          , res: [3.075e-08, 5.115e-12, 2.449e-02, 7.035e-02], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+GMRES converged in 262 iterations with a residual norm of 4.68892e-09.
+currents: [7.328e+07 8.204e+07 1.359e+08 6.938e+07 8.576e+07 2.920e+07 5.230e+06 4.152e+06 9.603e+05 1.754e+07 1.731e+06 ]
+plasma_current = 1.500525e+07
+psi_x = 6.024515e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.345132e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141588
+objective test: yKy=1.517061e-01, formula=1.517061e-01, diff=3.039324e-11
+i:   1, nonl_res: 2.194e-03, ratio 2.336e+03, res: [2.316e-11, 4.961e-13, 3.720e-02, 6.602e-03], loss: 4.394e+04, obj: 1.517e-01, reg: 4.394e+04
+
+GMRES converged in 321 iterations with a residual norm of 2.5999e-10.
+currents: [7.234e+07 8.120e+07 1.344e+08 6.867e+07 8.469e+07 2.877e+07 5.217e+06 4.130e+06 9.658e+05 1.746e+07 1.498e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 5.945762e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266622e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471986e-01, formula=1.471986e-01, diff=1.141880e-10
+i:   2, nonl_res: 4.539e-10, ratio 4.835e+06, res: [1.380e-13, 4.197e-13, 6.348e-05, 8.605e-08], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+GMRES converged in 319 iterations with a residual norm of 5.51634e-15.
+currents: [7.234e+07 8.120e+07 1.344e+08 6.867e+07 8.469e+07 2.877e+07 5.217e+06 4.130e+06 9.658e+05 1.746e+07 1.498e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 5.945757e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266617e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471987e-01, formula=1.471987e-01, diff=1.166033e-10
+i:   3, nonl_res: 1.023e-13, ratio 4.438e+03, res: [1.808e-18, 1.853e-13, 2.842e-09, 6.395e-14], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+Refining mesh, i=3
+AMR iteration 4
+Number of unknowns: 102055
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.443996e+07
+psi_x = 5.945757e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266617e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471987e-01, formula=1.471987e-01, diff=-4.523695e-11
+i:   0, nonl_res: 3.163e+00, ratio          , res: [7.091e-08, 1.020e-11, 5.201e-02, 7.038e-01], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+GMRES converged in 291 iterations with a residual norm of 3.50746e-08.
+currents: [7.317e+07 8.745e+07 1.396e+08 7.242e+07 8.883e+07 3.019e+07 5.588e+06 4.287e+06 1.054e+06 1.696e+07 4.786e+06 ]
+plasma_current = 1.503852e+07
+psi_x = 6.304499e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.599082e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146886
+objective test: yKy=1.710815e-01, formula=1.710815e-01, diff=-3.425393e-11
+i:   1, nonl_res: 2.980e-03, ratio 1.061e+03, res: [1.489e-06, 3.496e-13, 2.668e-02, 4.841e-02], loss: 4.689e+04, obj: 1.711e-01, reg: 4.689e+04
+
+GMRES converged in 298 iterations with a residual norm of 1.76826e-08.
+currents: [7.646e+07 9.016e+07 1.449e+08 7.460e+07 9.329e+07 3.165e+07 5.630e+06 4.344e+06 1.072e+06 1.692e+07 6.595e+06 ]
+plasma_current = 1.500571e+07
+psi_x = 6.589134e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.885791e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146523
+objective test: yKy=1.773014e-01, formula=1.773014e-01, diff=-6.482742e-11
+i:   2, nonl_res: 2.395e-03, ratio 1.244e+00, res: [1.263e-11, 4.696e-13, 1.679e-02, 7.180e-03], loss: 5.062e+04, obj: 1.773e-01, reg: 5.062e+04
+
+GMRES converged in 357 iterations with a residual norm of 2.6819e-10.
+currents: [7.723e+07 9.028e+07 1.455e+08 7.484e+07 9.377e+07 3.181e+07 5.636e+06 4.350e+06 1.073e+06 1.693e+07 6.676e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.620816e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.917747e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146468
+objective test: yKy=1.793988e-01, formula=1.793988e-01, diff=-1.628319e-10
+i:   3, nonl_res: 1.778e-10, ratio 1.347e+07, res: [8.149e-14, 5.635e-13, 1.331e-04, 1.093e-07], loss: 5.108e+04, obj: 1.794e-01, reg: 5.108e+04
+
+GMRES converged in 310 iterations with a residual norm of 9.45732e-14.
+currents: [7.723e+07 9.028e+07 1.455e+08 7.484e+07 9.376e+07 3.181e+07 5.636e+06 4.350e+06 1.073e+06 1.693e+07 6.675e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.620810e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.917741e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146468
+objective test: yKy=1.793988e-01, formula=1.793988e-01, diff=3.473966e-11
+i:   4, nonl_res: 9.454e-14, ratio 1.880e+03, res: [2.179e-18, 6.287e-13, 3.739e-09, 0.000e+00], loss: 5.108e+04, obj: 1.794e-01, reg: 5.108e+04
+
+Reached the maximum number of dofs. Stop.
+
+1 cycle
+time elapsed: 303.741636 seconds
+
+2 cycles
+time elapsed: 282.868996 seconds
+
+3 cycles
+time elapsed: 291.799661 seconds
+
+10 cycles
+time elapsed: 406.430427 seconds
+
+
+
+-----------------------------
+
+--- GSSmoother ---
+1918 seconds
+
+AMR iteration 0
+Number of unknowns: 7231
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = -1.030885e+07
+psi_x = 1.856956e-01; r_x = 5.065037e+00; z_x = -3.346317e+00
+psi_ma = -1.217401e+01; r_ma = 6.287527e+00; z_ma = 7.766544e-01
+alpha = 0.100000
+objective test: yKy=2.934722e-02, formula=2.934722e-02, diff=1.040834e-16
+i:   0, nonl_res: 1.172e+01, ratio          , res: [2.225e-06, 2.405e+01, 0.000e+00, 3.180e+01], loss: 2.654e+03, obj: 2.935e-02, reg: 2.654e+03
+
+GMRES converged in 101 iterations with a residual norm of 4.36595e-07.
+currents: [7.371e+07 8.095e+07 1.334e+08 6.895e+07 8.351e+07 2.945e+07 5.171e+06 4.042e+06 7.202e+05 1.847e+07 -9.156e+05 ]
+plasma_current = 1.587148e+07
+psi_x = 5.923646e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.273685e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.149207
+objective test: yKy=1.896860e-01, formula=1.896860e-01, diff=-8.927226e-11
+i:   1, nonl_res: 7.046e-03, ratio 1.664e+03, res: [4.006e-06, 2.480e-13, 1.011e-01, 1.095e+00], loss: 4.277e+04, obj: 1.897e-01, reg: 4.277e+04
+
+GMRES converged in 134 iterations with a residual norm of 3.24443e-08.
+currents: [8.235e+07 8.666e+07 1.466e+08 7.452e+07 9.300e+07 3.285e+07 5.250e+06 4.279e+06 8.867e+05 1.815e+07 3.464e+06 ]
+plasma_current = 1.500163e+07
+psi_x = 6.603326e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.926830e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141087
+objective test: yKy=1.544942e-01, formula=1.544942e-01, diff=1.550440e-10
+i:   2, nonl_res: 1.770e-03, ratio 3.982e+00, res: [3.902e-11, 2.265e-13, 3.707e-02, 2.049e-03], loss: 5.146e+04, obj: 1.545e-01, reg: 5.146e+04
+
+GMRES converged in 192 iterations with a residual norm of 3.10654e-11.
+currents: [8.152e+07 8.566e+07 1.450e+08 7.371e+07 9.181e+07 3.237e+07 5.238e+06 4.256e+06 8.881e+05 1.811e+07 3.027e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.514875e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838457e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=3.042169e-11
+i:   3, nonl_res: 6.791e-11, ratio 2.606e+07, res: [4.485e-14, 2.480e-13, 1.274e-04, 8.224e-09], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+GMRES converged in 171 iterations with a residual norm of 7.81051e-15.
+currents: [8.152e+07 8.566e+07 1.450e+08 7.371e+07 9.181e+07 3.237e+07 5.238e+06 4.256e+06 8.881e+05 1.811e+07 3.027e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.514874e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838456e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=-7.660961e-11
+i:   4, nonl_res: 6.306e-14, ratio 1.077e+03, res: [4.022e-19, 6.687e-13, 9.605e-10, 3.197e-14], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+Refining mesh, i=0
+AMR iteration 1
+Number of unknowns: 8499
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.500000e+07
+psi_x = 6.514874e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.838456e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.498308e-01, formula=1.498308e-01, diff=-7.660961e-11
+i:   0, nonl_res: 1.643e+01, ratio          , res: [1.062e-08, 6.687e-13, 9.605e-10, 3.197e-14], loss: 5.031e+04, obj: 1.498e-01, reg: 5.031e+04
+
+GMRES converged in 61 iterations with a residual norm of 9.74329e-09.
+currents: [8.177e+07 8.601e+07 1.458e+08 7.401e+07 9.228e+07 3.252e+07 5.268e+06 4.253e+06 9.048e+05 1.806e+07 3.323e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.546939e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870521e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=-3.770056e-11
+i:   1, nonl_res: 2.930e-09, ratio 5.610e+09, res: [1.583e-16, 3.424e-13, 1.961e-05, 2.952e-12], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+GMRES converged in 222 iterations with a residual norm of 1.14686e-16.
+currents: [8.177e+07 8.601e+07 1.458e+08 7.401e+07 9.228e+07 3.252e+07 5.268e+06 4.253e+06 9.048e+05 1.806e+07 3.323e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.546940e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870521e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=9.438963e-11
+i:   2, nonl_res: 7.072e-14, ratio 4.142e+04, res: [9.156e-19, 3.883e-13, 6.738e-11, 5.329e-14], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+Refining mesh, i=1
+AMR iteration 2
+Number of unknowns: 14927
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.500000e+07
+psi_x = 6.546940e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.870521e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.492328e-01, formula=1.492328e-01, diff=9.438963e-11
+i:   0, nonl_res: 9.994e+00, ratio          , res: [2.422e-08, 5.079e-13, 6.738e-11, 5.329e-14], loss: 5.077e+04, obj: 1.492e-01, reg: 5.077e+04
+
+GMRES converged in 69 iterations with a residual norm of 6.38542e-09.
+currents: [8.158e+07 8.610e+07 1.458e+08 7.406e+07 9.226e+07 3.253e+07 5.274e+06 4.251e+06 9.092e+05 1.803e+07 3.449e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.549246e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872826e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=1.050063e-10
+i:   1, nonl_res: 2.162e-10, ratio 4.623e+10, res: [6.552e-17, 3.074e-13, 1.920e-05, 1.013e-11], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+GMRES converged in 346 iterations with a residual norm of 8.18085e-17.
+currents: [8.158e+07 8.610e+07 1.458e+08 7.406e+07 9.226e+07 3.253e+07 5.274e+06 4.251e+06 9.092e+05 1.803e+07 3.449e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.549248e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872829e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=6.660519e-11
+i:   2, nonl_res: 7.716e-14, ratio 2.802e+03, res: [4.277e-19, 2.480e-13, 7.385e-10, 1.066e-14], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+Refining mesh, i=2
+AMR iteration 3
+Number of unknowns: 39422
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.494402e+07
+psi_x = 6.549248e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.872829e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141072
+objective test: yKy=1.487278e-01, formula=1.487278e-01, diff=6.745512e-11
+i:   0, nonl_res: 5.126e+00, ratio          , res: [3.075e-08, 4.933e-12, 2.449e-02, 7.035e-02], loss: 5.076e+04, obj: 1.487e-01, reg: 5.076e+04
+
+GMRES converged in 516 iterations with a residual norm of 3.65722e-09.
+currents: [7.328e+07 8.204e+07 1.359e+08 6.938e+07 8.576e+07 2.920e+07 5.230e+06 4.152e+06 9.603e+05 1.754e+07 1.731e+06 ]
+plasma_current = 1.500525e+07
+psi_x = 6.024514e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.345132e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141588
+objective test: yKy=1.517061e-01, formula=1.517061e-01, diff=-7.208281e-11
+i:   1, nonl_res: 2.194e-03, ratio 2.336e+03, res: [2.316e-11, 4.233e-13, 3.720e-02, 6.602e-03], loss: 4.394e+04, obj: 1.517e-01, reg: 4.394e+04
+
+GMRES converged in 588 iterations with a residual norm of 4.66546e-11.
+currents: [7.234e+07 8.120e+07 1.344e+08 6.867e+07 8.469e+07 2.877e+07 5.217e+06 4.130e+06 9.658e+05 1.746e+07 1.498e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 5.945762e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266622e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471986e-01, formula=1.471986e-01, diff=4.499262e-11
+i:   2, nonl_res: 4.516e-10, ratio 4.858e+06, res: [1.381e-13, 3.829e-13, 6.348e-05, 8.597e-08], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+GMRES converged in 477 iterations with a residual norm of 2.49169e-14.
+currents: [7.234e+07 8.120e+07 1.344e+08 6.867e+07 8.469e+07 2.877e+07 5.217e+06 4.130e+06 9.658e+05 1.746e+07 1.498e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 5.945757e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266617e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471987e-01, formula=1.471987e-01, diff=-7.871123e-11
+i:   3, nonl_res: 7.256e-14, ratio 6.224e+03, res: [1.822e-18, 2.804e-13, 2.854e-09, 1.421e-14], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+Refining mesh, i=3
+AMR iteration 4
+Number of unknowns: 102055
+stride: 9.270000
+nbbbs:  927
+Nc:     100
+size: 100
+plasma_current = 1.443996e+07
+psi_x = 5.945757e+01; r_x = 4.967949e+00; z_x = -3.453967e+00
+psi_ma = 5.266617e+01; r_ma = 6.245160e+00; z_ma = 5.220054e-01
+alpha = -0.141539
+objective test: yKy=1.471987e-01, formula=1.471987e-01, diff=-2.260500e-11
+i:   0, nonl_res: 3.163e+00, ratio          , res: [7.091e-08, 1.025e-11, 5.201e-02, 7.038e-01], loss: 4.297e+04, obj: 1.472e-01, reg: 4.297e+04
+
+GMRES converged in 1011 iterations with a residual norm of 3.41805e-09.
+currents: [7.317e+07 8.745e+07 1.396e+08 7.242e+07 8.883e+07 3.019e+07 5.588e+06 4.287e+06 1.054e+06 1.696e+07 4.786e+06 ]
+plasma_current = 1.503852e+07
+psi_x = 6.304499e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.599082e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146886
+objective test: yKy=1.710815e-01, formula=1.710815e-01, diff=5.379089e-11
+i:   1, nonl_res: 2.980e-03, ratio 1.061e+03, res: [1.489e-06, 4.617e-13, 2.668e-02, 4.841e-02], loss: 4.689e+04, obj: 1.711e-01, reg: 4.689e+04
+
+GMRES converged in 793 iterations with a residual norm of 4.56586e-09.
+currents: [7.646e+07 9.016e+07 1.449e+08 7.460e+07 9.329e+07 3.165e+07 5.630e+06 4.344e+06 1.072e+06 1.692e+07 6.595e+06 ]
+plasma_current = 1.500571e+07
+psi_x = 6.589134e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.885792e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146523
+objective test: yKy=1.773014e-01, formula=1.773014e-01, diff=1.146343e-10
+i:   2, nonl_res: 2.395e-03, ratio 1.244e+00, res: [1.263e-11, 3.195e-13, 1.679e-02, 7.180e-03], loss: 5.062e+04, obj: 1.773e-01, reg: 5.062e+04
+
+GMRES converged in 1069 iterations with a residual norm of 7.38186e-11.
+currents: [7.723e+07 9.028e+07 1.455e+08 7.484e+07 9.377e+07 3.181e+07 5.636e+06 4.350e+06 1.073e+06 1.693e+07 6.676e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.620816e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.917747e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146468
+objective test: yKy=1.793988e-01, formula=1.793988e-01, diff=8.316231e-11
+i:   3, nonl_res: 1.669e-10, ratio 1.435e+07, res: [8.136e-14, 4.156e-13, 1.331e-04, 1.094e-07], loss: 5.108e+04, obj: 1.794e-01, reg: 5.108e+04
+
+GMRES converged in 940 iterations with a residual norm of 4.01048e-14.
+currents: [7.723e+07 9.028e+07 1.455e+08 7.484e+07 9.376e+07 3.181e+07 5.636e+06 4.350e+06 1.073e+06 1.693e+07 6.675e+06 ]
+plasma_current = 1.500000e+07
+psi_x = 6.620810e+01; r_x = 4.919405e+00; z_x = -3.507792e+00
+psi_ma = 5.917741e+01; r_ma = 6.266344e+00; z_ma = 6.493299e-01
+alpha = -0.146468
+objective test: yKy=1.793988e-01, formula=1.793988e-01, diff=-8.482512e-11
+i:   4, nonl_res: 7.846e-14, ratio 2.127e+03, res: [1.435e-18, 4.971e-13, 3.740e-09, 3.553e-15], loss: 5.108e+04, obj: 1.794e-01, reg: 5.108e+04
+
+Reached the maximum number of dofs. Stop.
+time elapsed: 1918.495253 seconds
+
+
+--------------------
+
+
+
+
 
 0, 1e-10, 1.0
 GMRES converged in 56 iterations with a residual norm of 6.65494e-14.

@@ -4,6 +4,8 @@
 #include "field.hpp"
 #include "double_integrals.hpp"
 #include <stdio.h>
+#include <chrono>
+
 
 using namespace std;
 using namespace mfem;
@@ -377,6 +379,22 @@ void DefineLHS(PlasmaModelBase & model, double rho_gamma, BilinearForm & diff_op
 }
 
 
+HypreParMatrix * convert_to_hypre(SparseMatrix *P) {
+
+  // Define the partition
+  HYPRE_BigInt col_starts[2], row_starts[2];
+  row_starts[0] = 0;
+  row_starts[1] = P->Height();
+  col_starts[0] = 0;
+  col_starts[1] = P->Height();
+
+  return new HypreParMatrix(MPI_COMM_WORLD, P->Height(), (HYPRE_BigInt) P->Height(), (HYPRE_BigInt) P->Width(),
+                            P->GetI(), P->GetJ(), P->GetData(),
+                            row_starts, col_starts); 
+
+}
+
+
 void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & x, int & kdim,
            int & max_newton_iter, int & max_krylov_iter,
            double & newton_tol, double & krylov_tol, 
@@ -393,6 +411,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
            Vector * uv,
            double & alpha) {
 
+   Mpi::Init();
+   Hypre::Init();
+  
    // 9. Connect to GLVis.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -437,8 +458,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
   visit_dc.RegisterField("Bp", &Bp_field);
   visit_dc.RegisterField("Bz", &Bz_field);
 
-  int max_levels = 4;
-  int max_dofs = 12000;
+  int max_levels = 8;
+  int max_dofs = 100000;
 
   if (do_control) {
     // solve the optimization problem of determining currents to fit desired plasma shape
@@ -500,8 +521,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
     estimator = new LSZienkiewiczZhuEstimator(*integ, x);
     ThresholdRefiner refiner(*estimator);
-    refiner.SetTotalErrorFraction(0.7);
+    refiner.SetTotalErrorFraction(0.3);
 
+    auto t_init = std::chrono::high_resolution_clock::now();
+    
     // *** AMR LOOP *** //
     for (int it_amr = 0; ; ++it_amr) {
       int cdofs = fespace.GetTrueVSize();
@@ -567,7 +590,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // *** NEWTON LOOP *** //
       double error_old;
       double error;
-      for (int i = 0; i < max_newton_iter; ++i) {
+      for (int i = 0; i <= max_newton_iter; ++i) {
         // print out objective function and regularization
 
         // -b3 = eq_res = B(y^n) - F u^n
@@ -578,7 +601,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         double Ca = op.get_Ca();
         Vector Cy = op.get_Cy();
         Vector Ba = op.get_Ba();
-        cout << "plasma current " << C / op.get_mu() << endl;
+        printf("plasma_current = %e\n", C / op.get_mu());
 
         char name_eq_res[60];
         sprintf(name_eq_res, "gf/eq_res_amr%d_i%d.gf", it_amr, i);
@@ -603,8 +626,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
         SparseMatrix * K = op.compute_hess_obj(x);
 
-        printf("K: %d %d\n", K->Height(), K->ActualWidth());
-        printf("xv size: %d\n", x.Size());
+        // printf("K: %d %d\n", K->Height(), K->ActualWidth());
+        // printf("xv size: %d\n", x.Size());
       
         Vector g = op.compute_grad_obj(x);
 
@@ -619,7 +642,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         F->AddMultTranspose(pv, reg_res, -1.0);
 
         if (add_alpha) {
-          cout << "alpha: " << alpha << endl;
+          printf("alpha = %f\n", alpha);
         }
 
         // b4 = B_a^T p^n + C_a l^n
@@ -655,6 +678,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         printf("\n");
 
         if (error < newton_tol) {
+          break;
+        }
+        if (i == max_newton_iter) {
           break;
         }
 
@@ -760,13 +786,53 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
         Solver *inv_ByT, *inv_By;
         int its = 60;
-        inv_ByT = new GSSmoother(*ByT, 0, its);
-        inv_By = new GSSmoother(By, 0, its);
 
+        if (false) {
+          inv_ByT = new GSSmoother(*ByT, 0, its);
+          inv_By = new GSSmoother(By, 0, its);
+        } else {
+          HypreParMatrix * By_Hypre = convert_to_hypre(&By);
+          HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT);
+
+          // HypreBoomerAMG *hba_solver_1;
+          // HypreBoomerAMG *hba_solver_2;
+
+          // hba_solver_1->SetOperator(*By_Hypre);
+          // hba_solver_1->SetPrintLevel(0);
+
+          // hba_solver_1->SetOperator(*ByT_Hypre);
+          // hba_solver_2->SetPrintLevel(0);
+          
+          // inv_By = hba_solver_1;
+          // inv_ByT = hba_solver_2;
+
+          //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
+          HypreBoomerAMG *By_AMG = new HypreBoomerAMG(*By_Hypre);
+          HypreBoomerAMG *ByT_AMG = new HypreBoomerAMG(*ByT_Hypre);
+
+          // 1: V cycle
+          // 2: W cycle
+          By_AMG->SetPrintLevel(0);
+          By_AMG->SetCycleType(1);
+          By_AMG->SetCycleNumSweeps(3, 3);
+
+          ByT_AMG->SetPrintLevel(0);
+          ByT_AMG->SetCycleType(1);
+          ByT_AMG->SetCycleNumSweeps(3, 3);
+
+          inv_By = By_AMG;
+          inv_ByT = ByT_AMG;
+
+        }
+        
         Prec.SetDiagonalBlock(0, inv_By);
         Prec.SetDiagonalBlock(1, inv_ByT);
         Prec.SetDiagonalBlock(2, inv_Ca_);
         Prec.SetDiagonalBlock(3, inv_Ca_);
+
+        // HypreParMatrix *Mat_hypre = convert_to_hypre(Mat);
+        // HypreBoomerAMG *Mat_AMG = new HypreBoomerAMG(*Mat_hypre);
+        // Solver *prec = Mat_AMG;
 
         // *******************************************************************
         // create block rhs vector
@@ -786,6 +852,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         solver.SetMaxIter(max_krylov_iter);
         solver.SetOperator(Mat);
         solver.SetPreconditioner(Prec);
+        // solver.SetPreconditioner(*prec);
         solver.SetKDim(kdim);
         solver.SetPrintLevel(0);
 
@@ -891,7 +958,16 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       // dx_.Update();
       // dp_.Update();
 
+      printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
+
+
     }
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> ms_double = t_end - t_init;
+    printf("time elapsed: %f seconds\n", ms_double.count() / 1000.0);
+
      
   } else {
     // for given currents, solve the GS equations
@@ -989,6 +1065,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     printf("final max residual: %.3e, ratio %.3e\n", error, error_old / error);
     printf("********************************\n\n");
   }
+
+  
   
 }
 

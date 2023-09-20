@@ -3,9 +3,9 @@
 #
 
 # coefficient of ff' term
-alpha=1.0
+alpha=0.1
 # coefficient of p' term
-beta=1.0
+beta=0.0
 # unused?
 gamma=0.0
 
@@ -16,9 +16,8 @@ gamma=0.0
 model=2
 
 # plasma current
-# Ip=1.5e+7
+Ip=1.5e+7
 # Ip=1.2e+7
-Ip=1.2e+7
 
 R0=2.4
 rho_gamma=16
@@ -66,8 +65,8 @@ ur_coeff=1.0
 N_control=100
 
 do_control=1
-weight_coils=1e-14
-weight_solenoids=1e-14
+weight_coils=1e-12
+weight_solenoids=1e-12
 weight_obj=1.0
 optimize_alpha=1
 
@@ -84,7 +83,7 @@ obj_option=2
                         -no-vis
 
 # lldb -- main.o \
-./main.o \
+mpirun -np 1 main.o \
     -m $mesh_file \
     -o 1 \
     -d $data_file \
@@ -125,5 +124,4 @@ obj_option=2
     --optimize_alpha $optimize_alpha
 
 
-
-
+# ./../gslib/field-interp -m1 mesh.mesh -m2 meshes/geqdsk.msh -s1 final.gf -no-vis

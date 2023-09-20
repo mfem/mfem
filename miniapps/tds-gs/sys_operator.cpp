@@ -428,10 +428,22 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
 
   // contribution from LHS
   diff_operator->Mult(psi, res);
+  
   add(res, -1.0, *coil_term, res);
   if (include_plasma) {
     add(res, -1.0, plasma_term, res);
   }
+  GridFunction ffp(fespace);
+  ffp = 0;
+  add(ffp, 1.0, plasma_term, ffp);
+
+  GridFunction outres(fespace);
+  diff_operator->Mult(psi, outres);
+  outres.Save("diff_operator.gf");
+  ffp.Save("plasma_term.gf");
+  GridFunction plascoeff(fespace);
+  plascoeff.ProjectCoefficient(nlgcoeff1);
+  plascoeff.Save("plascoeff.gf");
 
   // contribution from currents
   F->AddMult(*currents, res, -model->get_mu());

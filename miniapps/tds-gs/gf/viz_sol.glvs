@@ -1,0 +1,24 @@
+# Visualization window geometry
+window 0 0 400 400
+
+# Initial solution
+solution mesh_amr0.mesh xtmp_amr0_i7.gf
+
+# Setup the GLVis scene. Executed after pressing the space bar.
+{
+perspective off
+view 0 0
+viewcenter 0 0
+zoom 1.5
+levellines 0 120 80
+keys Rmm
+}
+
+# Take multiple screenshots. Executed after pressing the space bar.
+{
+solution mesh_amr0.mesh xtmp_amr0_i7.gf screenshot sol.00.png
+solution mesh_amr1.mesh xtmp_amr1_i7.gf screenshot sol.01.png
+solution mesh_amr2.mesh xtmp_amr2_i7.gf screenshot sol.02.png
+solution mesh_amr3.mesh xtmp_amr3_i7.gf screenshot sol.03.png
+solution mesh_amr4.mesh xtmp_amr4_i7.gf screenshot sol.04.png
+}

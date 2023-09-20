@@ -218,6 +218,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
   // gamma: multiplier for S_{ff'} term
   double f_ma = model->get_f_ma();
   double f_x = model->get_f_x();
+
   double alpha_bar = model->get_alpha_bar();
   double alpha = alpha_bar;
   double beta = model->get_beta();
@@ -243,7 +244,7 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     switch_ff = 0.0;
   } else if (model_choice == 2) {
     switch_beta = 0.0;
-    switch_taylor = 1.0;
+    switch_taylor = - 1.0; // 8/31/22 DAS - sign error...
     switch_ff = 0.0;
   } else if (model_choice == 3) {
     switch_beta = 0.0;
@@ -257,6 +258,8 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     //                       + S_{ff'}(\psi_N) / (\mu r)
     //                       + \bar{S}_{ff'}(\psi)       ) v dr dz
 
+    // double check!!!
+    
     double S_bar_ffprime =
       + switch_beta * alpha * (f_x + alpha * (model->f_bar(psi_N))) * (model->f_bar_prime(psi_N)) / (psi_bdp - psi_max)
       + switch_taylor * alpha * (f_x + alpha * (psi_bdp - psi_val))
