@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "qspace.hpp"
+#include "../general/forall.hpp"
 
 namespace mfem
 {
@@ -33,6 +34,31 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
    {
       int_rule[geom] = &IntRules.Get(geom, order);
    }
+}
+
+void QuadratureSpaceBase::ConstructWeights() const
+{
+   // First get the Jacobian determinants (without the quadrature weight
+   // contributions).
+   weights = GetGeometricFactorWeights();
+
+   // Then scale by the quadrature weights.
+   const IntegrationRule &ir = GetIntRule(0);
+   const int N = size;
+   const int n = ir.Size();
+   double *d_weights = weights.ReadWrite();
+   const double *d_w = ir.GetWeights().Read();
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_weights[i] *= d_w[i%n];
+   });
+}
+
+const Vector &QuadratureSpaceBase::GetWeights() const
+{
+   if (weights.Size() == 0) { ConstructWeights(); }
+   return weights;
 }
 
 void QuadratureSpace::ConstructOffsets()
@@ -92,6 +118,17 @@ void QuadratureSpace::Save(std::ostream &os) const
    os << "QuadratureSpace\n"
       << "Type: default_quadrature\n"
       << "Order: " << order << '\n';
+}
+
+const Vector &QuadratureSpace::GetGeometricFactorWeights() const
+{
+   auto flags = GeometricFactors::DETERMINANTS;
+   // TODO: assumes only one integration rule. This should be fixed once
+   // Mesh::GetGeometricFactors acceps a QuadratureSpace instead of
+   // IntegrationRule.
+   const IntegrationRule &ir = GetIntRule(0);
+   auto *geom = mesh.GetGeometricFactors(ir, flags);
+   return geom->detJ;
 }
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
@@ -166,6 +203,17 @@ void FaceQuadratureSpace::Save(std::ostream &os) const
    os << "FaceQuadratureSpace\n"
       << "Type: default_quadrature\n"
       << "Order: " << order << '\n';
+}
+
+const Vector &FaceQuadratureSpace::GetGeometricFactorWeights() const
+{
+   auto flags = FaceGeometricFactors::DETERMINANTS;
+   // TODO: assumes only one integration rule. This should be fixed once
+   // Mesh::GetFaceGeometricFactors acceps a QuadratureSpace instead of
+   // IntegrationRule.
+   const IntegrationRule &ir = GetIntRule(0);
+   auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
+   return geom->detJ;
 }
 
 } // namespace mfem
