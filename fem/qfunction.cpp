@@ -240,4 +240,10 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
    SaveVTU(f, format, compression_level, field_name);
 }
 
+double QuadratureFunction::Integrate() const
+{
+   MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
+   return (*this)*qspace->GetWeights();
+}
+
 }
