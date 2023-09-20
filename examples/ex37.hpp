@@ -776,87 +776,92 @@ LinearElasticitySolver::~LinearElasticitySolver()
 class AndersonAccelerator
 {
 public:
-   AndersonAccelerator(Operator *A, const int max_size, 
-                       std::__1::function<double(const int)> beta_generator,
-                       const double svd_tol=1.e-08): m(max_size), f(A),
-      beta_fun(beta_generator), k(0), xk(0), Gk(0), size(-1), svd_tolerance(svd_tol)
+   AndersonAccelerator(const int truncation_size,
+                       const int N,
+                       const int max_iteration=100,
+                       const double relaxation_parameter=1.0,
+                       const double svd_tol=1.e-04):
+      m(truncation_size), size(N), max_it(max_iteration),
+      beta(relaxation_parameter), svd_tolerance(svd_tol), k(0), Xk(N, m + 1), Gk(N,
+                                                                                 m + 1)
    {
 #ifndef MFEM_USE_LAPACK
       mfem_error("LAPACK unavailable. Please compile mfem with LAPACK by adding ""MFEM_USE_PAKAC=yes"".");
 #endif
    }
-   double Step(Vector &x)
+   void Step(const Vector &x, Vector &x_next)
    {
-      // check input size
-      if (size == -1) { size = x.Size(); }
-      else { MFEM_ASSERT(size == x.Size(), "Size mismatch. x should not change its size during the iteration"); }
-
       // update step count and get current dimension
-      k++;
       const int mk = std::min(m, k);
-      // store the new solution and residual
-      xk.push_back(new Vector(x));
-      Gk.push_back(new Vector(size));
-      Vector *curGk = *Gk.end();
-      Vector *curxk = *xk.end();
-      f->Mult(x, *curGk);
-      *curGk -= x;
-
-      // if it is the initial step,
-      if (mk == 1)
+      Xk.SetCol(k % (m + 1), x);
+      Gk.SetCol(k % (m + 1), x_next);
+      Vector gk;
+      Gk.GetColumnReference(k % (m + 1), gk);
+      gk -= x;
+      if (k++==0) { return; }
+      Dk.SetSize(size, mk);
+      Vector dk, gk_prev;
+      for (int i=0; i<mk; i++)
       {
-         return;
+         Dk.GetColumnReference(i, dk);
+         Gk.GetColumnReference((k - mk + i) % (m + 1), gk_prev);
+         dk = gk_prev;
+         dk -= gk;
       }
-
-      // remove the oldest information
-      if (mk == m) // only when the stack is full
+      Vector theta = solve_pseudoinv(Dk, gk);
+      theta.Neg();
+      Dk.AddMult(theta, x_next);
+      x_next.Add(-theta.Sum(), x);
+      Vector tmp;
+      for (int i=0; i<mk; i++)
       {
-         delete[] *xk.erase(xk.begin());
-         delete[] *Gk.erase(Gk.begin());
-      }
-
-      // Solve the minimization problem
-      // theta = argmin ||g_k + DG*theta||_2
-      // via SVD where DG is N x mk matrix with
-      // DG_i = g_{k-i} - g_k
-      DenseMatrix DGk(size, mk - 1);
-      for (int i=0; i<mk - 1; i++)
-      {
-         Vector DGk_i(DGk.GetColumn(i), size);
-         DGk_i = *Gk[i] - *curGk;
-      }
-      DenseMatrixSVD svd(DGk, "S", "S");
-      svd.Eval(DGk);
-      Vector trunc_inv_svd(svd.Singularvalues());
-      for (auto &val:trunc_inv_svd)
-      {
-         val = val < svd_tolerance ? 0.0 : 1.0/val;
-      }
-      Vector theta(mk), temp_theta(mk);
-      svd.LeftSingularvectors().MultTranspose(*curGk, temp_theta);
-      svd.RightSingularvectors().MultTranspose(temp_theta, theta);
-
-      Vector direction(size);
-      Vector neg_xk_p_gk(x);
-      neg_xk_p_gk.Neg();
-      for(int i=0; i<mk; i++)
-      {
-         direction = neg_xk_p_gk;
-         direction += *xk[i];
-         direction += *Gk[i];
-         x.Add(theta[i], direction);
+         Xk.GetColumnReference((k - mk + i) % (m + 1), tmp);
+         x_next.Add(theta[i], tmp);
       }
    }
 
+   Vector solve_pseudoinv(const DenseMatrix &A, const Vector &b)
+   {
+      const int n = A.Width();
+      DenseMatrixSVD svd(A.Height(), A.Width(), 'S', 'S');
+      svd.Eval(A);
+
+      DenseMatrix &U = svd.LeftSingularvectors();
+      DenseMatrix &VT = svd.RightSingularvectors();
+      Vector &D = svd.Singularvalues();
+      int diag_idx = 0;
+      if (D[diag_idx++] > svd_tolerance)
+      {
+         const double svd_rel_tol = svd_tolerance * D[0];
+         D[0] = 1.0 / D[0];
+         for (; diag_idx < n; diag_idx++)
+         {
+            if (D[diag_idx] < svd_rel_tol) { break; }
+            D[diag_idx] = 1.0 / D[diag_idx];
+         }
+         for (; diag_idx < n; diag_idx++)
+         {
+            D[diag_idx] = 0.0;
+         }
+      }
+      Vector temp(U.Width()), theta(n);
+      U.MultTranspose(b, temp);
+      temp *= D;
+      VT.MultTranspose(temp, theta);
+      return theta;
+   }
+
+
 protected:
-   int m;
+   const int m;
+   const int size;
+   const int max_it;
+   const double beta;
    double svd_tolerance;
-   Operator* f;
-   std::__1::function<double(const int)> beta_fun;
 private:
-   std::vector<Vector*> xk;
-   std::vector<Vector*> Gk;
+   DenseMatrix Xk;
+   DenseMatrix Gk;
+   DenseMatrix Dk;
    int k;
-   int size;
 };
 } // end of namespace mfem
