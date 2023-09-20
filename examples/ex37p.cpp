@@ -4,10 +4,10 @@
 // Compile with: make ex37p
 //
 // Sample runs:
-// mpirun -np 4 ex37p -alpha 10 -pv
-// mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
-// mpirun -np 4 ex37p -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
-// mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -ntol 1e-5
+//    mpirun -np 4 ex37p -alpha 10 -pv
+//    mpirun -np 4 ex37p -lambda 0.1 -mu 0.1
+//    mpirun -np 4 ex37p -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
+//    mpirun -np 4 ex37p -r 6 -o 2 -alpha 10.0 -epsilon 0.02 -mi 50 -ntol 1e-5
 //
 //
 // Description: This example code demonstrates the use of MFEM to solve a
