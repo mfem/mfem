@@ -195,6 +195,10 @@ public:
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
                 int compression_level=0, const std::string &field_name="u") const;
 
+
+   /// Return the integral of the quadrature function (vdim = 1 only).
+   double Integrate() const;
+
    virtual ~QuadratureFunction()
    {
       if (own_qspace) { delete qspace; }
