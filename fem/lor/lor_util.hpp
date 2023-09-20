@@ -158,7 +158,7 @@ template <> MFEM_HOST_DEVICE inline void Jacobian2D<3>(
    J(2,1) = -(1-x)*v[2][0] - x*v[2][1] + x*v[2][2] + (1-x)*v[2][3];
 }
 
-template <int ORDER, int SDIM=2>
+template <int ORDER, int SDIM, bool RT, bool ND>
 MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
    const double *X, int iel_ho, int kx, int ky, DeviceTensor<3> &Q, bool piola)
 {
@@ -183,23 +183,25 @@ MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
          {
             const double detJ = Det2D(J);
             const double w_detJ = w/detJ;
-
-            Q(0,iqy,iqx) = w_detJ * (J(0,1)*J(0,1) + J(1,1)*J(1,1)); // 1,1
-            Q(1,iqy,iqx) = -w_detJ * (J(0,1)*J(0,0) + J(1,1)*J(1,0)); // 1,2
-            Q(2,iqy,iqx) = w_detJ * (J(0,0)*J(0,0) + J(1,0)*J(1,0)); // 2,2
-            Q(3,iqy,iqx) = piola ? w_detJ : w*detJ;
+            const double E = J(0,0)*J(0,0) + J(1,0)*J(1,0);
+            const double F = J(0,0)*J(0,1) + J(1,0)*J(1,1);
+            const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1);
+            Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
+            Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
+            Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
+            Q(3,iqy,iqx) = (ND || RT) ? w_detJ : w*detJ;
          }
          else
          {
             const double E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
-            const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
             const double F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
+            const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
             const double detJ = sqrt(E*G - F*F);
             const double w_detJ = w/detJ;
-            Q(0,iqy,iqx) =  w_detJ * G; // 1,1
-            Q(1,iqy,iqx) = -w_detJ * F; // 1,2
-            Q(2,iqy,iqx) =  w_detJ * E; // 2,2
-            Q(3,iqy,iqx) =  piola ? w_detJ : w*detJ;
+            Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
+            Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
+            Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
+            Q(3,iqy,iqx) =  (ND || RT) ? w_detJ : w*detJ;
          }
       }
    }
