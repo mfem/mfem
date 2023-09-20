@@ -29,6 +29,7 @@ protected:
    Mesh &mesh; ///< The underlying mesh.
    int order; ///< The order of integration rule.
    int size; ///< Total number of quadrature points.
+   mutable Vector weights; ///< Integration weights.
 
    /// @brief Entity quadrature point offset array, of size num_entities + 1.
    ///
@@ -48,6 +49,12 @@ protected:
 
    /// Fill the @ref int_rule array for each geometry type using @ref order.
    void ConstructIntRules(int dim);
+
+   /// Compute the det(J) (volume or faces, depending on the type).
+   virtual const Vector &GetGeometricFactorWeights() const = 0;
+
+   /// Compute the integration weights.
+   void ConstructWeights() const;
 
 public:
    /// Return the total number of quadrature points.
@@ -84,6 +91,9 @@ public:
    /// Write the QuadratureSpace to the stream @a out.
    virtual void Save(std::ostream &out) const = 0;
 
+   /// Return the integration weights (including geometric factors).
+   const Vector &GetWeights() const;
+
    virtual ~QuadratureSpaceBase() { }
 };
 
@@ -92,6 +102,7 @@ public:
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 public:
@@ -143,6 +154,7 @@ class FaceQuadratureSpace : public QuadratureSpaceBase
    /// Map from boundary or interior face indices to mesh face indices.
    Array<int> face_indices;
 
+   const Vector &GetGeometricFactorWeights() const override;
    void ConstructOffsets();
    void Construct();
 
