@@ -3897,6 +3897,136 @@ public:
    }
 };
 
+/** Background magnetic field with a single null located at the point:
+       ((x1+x2)/2, (y1+y2)/2)
+    The points (x1,y1) and (x2,y2) are centers around which the magnetic
+    field circulate.
+
+    This particular field profile is taken from eqn 10, section 2.6.1 of
+    “Mesh refinement for anisotropic diffusion in magnetized plasmas”,
+    Vogl et. al 2023, Computers and Mathematics with Applications.
+*/
+class SingleNullBField : public VectorCoefficient
+{
+private:
+   Vector x1_;
+   Vector x2_;
+
+   mutable Vector x_;
+
+public:
+   SingleNullBField()
+      : VectorCoefficient(3), x1_(2), x2_(2), x_(2)
+   { x1_[0] = 0.5; x1_[1] = -0.25; x2_[0] = 0.5; x2_[1] = 0.75; }
+
+   SingleNullBField(double x1, double x2, double y1, double y2)
+      : VectorCoefficient(3), x1_(2), x2_(2), x_(2)
+   { x1_[0] = x1; x1_[1] = y1; x2_[0] = x2; x2_[1] = y2; }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      V.SetSize(3);
+
+      const double dx1 = x_[0] - x1_[0];
+      const double dx2 = x_[0] - x2_[0];
+      const double dy1 = x_[1] - x1_[1];
+      const double dy2 = x_[1] - x2_[1];
+
+      const double s1 = dx1 * dx1 + dy1 * dy1;
+      const double s2 = dx2 * dx2 + dy2 * dy2;
+
+      V[0] = 2.0 * (dy1 / s1 + dy2 / s2);
+      V[1] = -2.0 * (dx1 / s1 + dx2 / s2);
+      V[2] =  1.0;
+   }
+};
+
+/** Background magnetic field with a double null located at the points:
+       (x0, y0 +/- 1/4)
+    This particular field profile is taken from eqn 12, section 2.6.2 of
+    “Mesh refinement for anisotropic diffusion in magnetized plasmas”,
+    Vogl et. al 2023, Computers and Mathematics with Applications.
+*/
+class DoubleNullBField : public VectorCoefficient
+{
+private:
+   Vector x0_;
+
+   mutable Vector x_;
+
+public:
+   DoubleNullBField()
+      : VectorCoefficient(3), x0_(2), x_(2)
+   { x0_[0] = 0.5; x0_[1] = 0.5; }
+
+   DoubleNullBField(double x0, double y0)
+      : VectorCoefficient(3), x0_(2), x_(2)
+   { x0_[0] = x0; x0_[1] = y0; }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      V.SetSize(3);
+
+      const double dx0 = x_[0] - x0_[0];
+      const double dy0 = x_[1] - x0_[1];
+
+      V[0] = 0.0625 * M_PI * std::sin(4.0 * M_PI * dy0);
+      V[1] = -dx0;
+      V[2] =  1.0;
+   }
+};
+
+/** Background magnetic field with a double null located at the points:
+       (x0, y0 +/- 1/4)
+    In this field the x-component vanishes at x = 0 and x = L.
+
+    This particular field profile is taken from eqn 14, section 2.6.3 of
+    “Mesh refinement for anisotropic diffusion in magnetized plasmas”,
+    Vogl et. al 2023, Computers and Mathematics with Applications.
+*/
+class DoubleNullIslandBField : public VectorCoefficient
+{
+private:
+   double L_;
+   Vector x0_;
+
+   mutable Vector x_;
+
+public:
+   DoubleNullIslandBField()
+      : VectorCoefficient(3), L_(1.0), x0_(2), x_(2)
+   { x0_[0] = 0.5; x0_[1] = 0.5; }
+
+   DoubleNullIslandBField(double x0, double y0, double L)
+      : VectorCoefficient(3), L_(L), x0_(2), x_(2)
+   { x0_[0] = x0; x0_[1] = y0; }
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+
+      V.SetSize(3);
+
+      const double dx0 = x_[0] - x0_[0];
+      const double dy0 = x_[1] - x0_[1];
+
+      const double Lp = L_ + 2.0 * dx0;
+      const double Lm = L_ - 2.0 * dx0;
+      const double Ln4 = std::pow(L_, -4);
+
+      const double cy = std::cos(2.0 * M_PI * dy0);
+      const double sy = std::sin(2.0 * M_PI * dy0);
+
+      V[0] = 0.125 * M_PI * Lp * Lp * Lm * Lm * Ln4 * sy * cy;
+      V[1] = -dx0 * (1.0 - 0.5 * Ln4 * Lp * Lm * sy * sy);
+      V[2] =  1.0;
+   }
+};
+
 class UmanskyTestDBC : public Coefficient
 {
 private:
@@ -4141,6 +4271,24 @@ Transport2DCoefFactory::GetVectorCoef(std::string &name, std::istream &input)
       input >> a >> b >> v;
       std::cout << "read in " << a << " " << b << " " << v << std::endl;
       coef_idx = vCoefs.Append(new EllipticBField(a, b, v));
+   }
+   else if (name == "SingleNullBField")
+   {
+      double x1, x2, y1, y2;
+      input >> x1 >> y1 >> x2 >> y2;
+      coef_idx = vCoefs.Append(new SingleNullBField(x1, y1, x2, y2));
+   }
+   else if (name == "DoubleNullBField")
+   {
+      double x0, y0;
+      input >> x0 >> y0;
+      coef_idx = vCoefs.Append(new DoubleNullBField(x0, y0));
+   }
+   else if (name == "DoubleNullIslandBField")
+   {
+      double x0, y0, L;
+      input >> x0 >> y0 >> L;
+      coef_idx = vCoefs.Append(new DoubleNullIslandBField(x0, y0, L));
    }
    else
    {
