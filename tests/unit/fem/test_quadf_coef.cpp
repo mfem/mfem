@@ -17,8 +17,7 @@ using namespace mfem;
 namespace qf_coeff
 {
 
-TEST_CASE("Quadrature Function Coefficients",
-          "[Quadrature Function Coefficients]")
+TEST_CASE("Quadrature Function Coefficients", "[QuadratureFunctionCoefficient]")
 {
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
@@ -35,7 +34,7 @@ TEST_CASE("Quadrature Function Coefficients",
 
    REQUIRE(quadf_coeff.UseDevice());
 
-   const IntegrationRule ir = qspace.GetElementIntRule(0);
+   const IntegrationRule &ir = qspace.GetElementIntRule(0);
 
    const GeometricFactors *geom_facts =
       mesh.GetGeometricFactors(ir, GeometricFactors::COORDINATES);
@@ -154,7 +153,59 @@ TEST_CASE("Quadrature Function Coefficients",
 
       REQUIRE(output.Norml2() < tol);
    }
+}
 
+TEST_CASE("Quadrature Function Integration", "[QuadratureFunctionCoefficient]")
+{
+   auto fname = GENERATE(
+                   "../../data/star.mesh",
+                   "../../data/star-q3.mesh",
+                   "../../data/fichera.mesh",
+                   "../../data/fichera-q3.mesh"
+                );
+   const int order = GENERATE(1, 2, 3);
+
+   Mesh mesh = Mesh::LoadFromFile(fname);
+   L2_FECollection fec(0, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   int int_order = 2*order + 1;
+
+   SECTION("QuadratureSpace")
+   {
+      QuadratureSpace qs(&mesh, int_order);
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs);
+      qf.Randomize(1);
+      QuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(qf_coeff, &ir));
+      lf.Assemble();
+      const double integ_1 = lf.Sum();
+      const double integ_2 = qf.Integrate();
+      REQUIRE(integ_1 == MFEM_Approx(integ_2));
+   }
+
+   SECTION("FaceQuadratureSpace")
+   {
+      FaceQuadratureSpace qs(mesh, int_order, FaceType::Boundary);
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs);
+      qf.Randomize(1);
+      QuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes);
+      auto *integ = new BoundaryLFIntegrator(qf_coeff);
+      integ->SetIntRule(&ir);
+      lf.AddDomainIntegrator(integ);
+      lf.Assemble();
+      const double integ_1 = lf.Sum();
+      const double integ_2 = qf.Integrate();
+      REQUIRE(integ_1 == MFEM_Approx(integ_2));
+   }
 }
 
 } // namespace qf_coeff
