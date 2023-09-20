@@ -78,7 +78,7 @@ void BatchedLOR_RT::Assemble2D()
             // local_mat is the local (dense) stiffness matrix
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            SetupLORQuadData2D<ORDER,SDIM>(X, iel_ho, kx, ky, Q, true);
+            SetupLORQuadData2D<ORDER,SDIM,true,false>(X, iel_ho, kx, ky, Q, true);
 
             for (int iqx=0; iqx<2; ++iqx)
             {
