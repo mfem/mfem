@@ -16,33 +16,50 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
    BlockVector y(yb.GetData(), nav.offsets);
 
    const Vector &xu = x.GetBlock(0);
+   const Vector &xp = x.GetBlock(1);
    Vector &zu = z.GetBlock(0);
    Vector &zp = z.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
-   nav.A->Mult(x, y);
+   nav.K->Mult(xu, yu);
+   yu *= dt;
 
    if (nav.convection && !nav.convection_explicit)
    {
-      // ParNonlinearForm::Mult can be applied to a T-vector.
       nav.n_form->Mult(xu, zu);
-      add(yu, zu, yu);
+      zu *= dt;
+      yu += zu;
    }
 
+   nav.G->Mult(xp, zu);
+   zu *= dt;
+   yu += zu;
+  
+   nav.D->Mult(xu, yp);
+      
    nav.Mv->Mult(xu, zu);
+   yu += zu;
 
-   subtract(-dt, yu, nav.fu_rhs, yu);
-   add(yu, zu, yu);
+   zu = nav.fu_rhs;
+   zu.Neg();
+   zu *= dt;
+   yu += zu;
 
    yu.SetSubVector(nav.vel_ess_tdofs, 0.0);
 }
 
 Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
 {
-   fd_linearized.reset(new FDJacobian(*this, x));
-   return *fd_linearized;
-   // return linearized;
+   // Build preconditioner
+
+   if (nav.Amonoe == nullptr) {
+      nav.RebuildPC(x);
+   }
+   return *nav.Amonoe;
+
+   // fd_linearized.reset(new FDJacobian(*this, x));
+   // return *fd_linearized;
 }
 
 void TransientNewtonResidual::Setup(const double dt)
