@@ -782,8 +782,8 @@ public:
                        const double relaxation_parameter=1.0,
                        const double svd_tol=1.e-04):
       m(truncation_size), size(N), max_it(max_iteration),
-      beta(relaxation_parameter), svd_tolerance(svd_tol), k(0), Xk(N, m + 1), Gk(N,
-                                                                                 m + 1)
+      beta(relaxation_parameter), svd_tolerance(svd_tol), k(0),
+      Xk(N, m + 1), Gk(N, m + 1)
    {
 #ifndef MFEM_USE_LAPACK
       mfem_error("LAPACK unavailable. Please compile mfem with LAPACK by adding ""MFEM_USE_PAKAC=yes"".");
@@ -791,25 +791,41 @@ public:
    }
    void Step(const Vector &x, Vector &x_next)
    {
-      // update step count and get current dimension
+      // 1. Store the current information
+      // X_k = [x_{k-mk + 1}, ... , x_k]
+      // G_k = [g_{k-mk + 1}, ... , g_k]
+      // where x_next = f(x_k)
+      // and g_k = f(x_k) - x_k = x_next - x_k
+      // We reorder X_k and G_k in a cyclic manner
+      // to avoid data shifting
       const int mk = std::min(m, k);
       Xk.SetCol(k % (m + 1), x);
       Gk.SetCol(k % (m + 1), x_next);
       Vector gk;
       Gk.GetColumnReference(k % (m + 1), gk);
       gk -= x;
-      if (k++==0) { return; }
-      Dk.SetSize(size, mk);
+
+      // 2. Optimization problem, min_θ ||g_k + D_k θ||
+      // where D_k = [g_{k-mk + 1} - g_k, ..., g_{k-1} - g_k]
+      if (k++==0) { return; } // increase step count and return if no prev info
+      Dk.SetSize(size, mk); // Initialize system
       Vector dk, gk_prev;
       for (int i=0; i<mk; i++)
       {
          Dk.GetColumnReference(i, dk);
          Gk.GetColumnReference((k - mk + i) % (m + 1), gk_prev);
+         // dk = [D_k]_i = g_{k - mk + i} - g_k
          dk = gk_prev;
          dk -= gk;
       }
+      // Solve g_k + D_k θ = 0 using pseudo-inverse
       Vector theta = solve_pseudoinv(Dk, gk);
-      theta.Neg();
+      theta.Neg(); // because we did not negate gk, theta should be negated
+      
+      // 3. Update x_{k+1} = x_k + g_k + ∑ θ_i (x_{k - mk + i} - x_k + g_{k - mk + i} - g_k)
+      //    x_k + g_k = x_k + (f(x_k) - x_k) = f(x_k) = x_next
+      //    ∑ θ_i (g_{k-i} - g_k) = D_k θ
+      //    
       Dk.AddMult(theta, x_next);
       x_next.Add(-theta.Sum(), x);
       Vector tmp;
