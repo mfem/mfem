@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
    double linsolvertol = 1e-6;
    int relax_type = 8;
    double optimizer_tol = 1e-6;
-   bool elasticity_options;
+   bool elasticity_options = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file1, "-m1", "--mesh1",
