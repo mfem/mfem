@@ -781,59 +781,64 @@ public:
                        const int max_iteration=100,
                        const double relaxation_parameter=1.0,
                        const double svd_tol=1.e-04):
-      m(truncation_size), size(N), max_it(max_iteration),
+      m(truncation_size), size(N),
       beta(relaxation_parameter), svd_tolerance(svd_tol), k(0),
-      Xk(N, m + 1), Gk(N, m + 1)
+      DXk(N, m), DGk(N, m), gk(N)
    {
+      DXk = 0.0;
+      DGk = 0.0;
 #ifndef MFEM_USE_LAPACK
       mfem_error("LAPACK unavailable. Please compile mfem with LAPACK by adding ""MFEM_USE_PAKAC=yes"".");
 #endif
    }
+   /// @brief Anderson acceleration step
+   /// @param[in] x Current step solution
+   /// @param[in,out] x_next Next step solution, f(x). Will be modified using the Anderson acceleration
    void Step(const Vector &x, Vector &x_next)
    {
       // 1. Store the current information
-      // X_k = [x_{k-mk + 1}, ... , x_k]
-      // G_k = [g_{k-mk + 1}, ... , g_k]
-      // where x_next = f(x_k)
-      // and g_k = f(x_k) - x_k = x_next - x_k
-      // We reorder X_k and G_k in a cyclic manner
+      // DX_k = [Δx_{k - m + 1}, ..., Δx_k]
+      // DG_k = [Δg_{k - m + 1}, ..., Δg_k]
+      // where Δx_k = x_k - x_{k - 1},
+      //        g_k = f(x_k) - x_k = x_next - x_k
+      // negative indices will be treated as zero.
+      // We reorder DX_k and DG_k in a cyclic manner
       // to avoid data shifting
-      const int mk = std::min(m, k);
-      Xk.SetCol(k % (m + 1), x);
-      Gk.SetCol(k % (m + 1), x_next);
-      Vector gk;
-      Gk.GetColumnReference(k % (m + 1), gk);
-      gk -= x;
 
-      // 2. Optimization problem, min_θ ||g_k + D_k θ||
-      // where D_k = [g_{k-mk + 1} - g_k, ..., g_{k-1} - g_k]
-      if (k++==0) { return; } // increase step count and return if no prev info
-      Dk.SetSize(size, mk); // Initialize system
-      Vector dk, gk_prev;
-      for (int i=0; i<mk; i++)
+      Vector dxk(DXk.GetColumn(k % m), size); // Δx_k
+      Vector dgk(DGk.GetColumn(k % m), size); // Δg_k
+      gk = x_next;
+      gk -= x;
+      if (k == 0) // if initial step, store the current information and return
       {
-         Dk.GetColumnReference(i, dk);
-         Gk.GetColumnReference((k - mk + i) % (m + 1), gk_prev);
-         // dk = [D_k]_i = g_{k - mk + i} - g_k
-         dk = gk_prev;
-         dk -= gk;
+         dxk.Set(-1.0, x);
+         dgk.Set(-1.0, gk);
+         k++;
+         return;
       }
-      // Solve g_k + D_k θ = 0 using pseudo-inverse
-      Vector theta = solve_pseudoinv(Dk, gk);
-      theta.Neg(); // because we did not negate gk, theta should be negated
-      
-      // 3. Update x_{k+1} = x_k + g_k + ∑ θ_i (x_{k - mk + i} - x_k + g_{k - mk + i} - g_k)
-      //    x_k + g_k = x_k + (f(x_k) - x_k) = f(x_k) = x_next
-      //    ∑ θ_i (g_{k-i} - g_k) = D_k θ
-      //    
-      Dk.AddMult(theta, x_next);
-      x_next.Add(-theta.Sum(), x);
-      Vector tmp;
-      for (int i=0; i<mk; i++)
-      {
-         Xk.GetColumnReference((k - mk + i) % (m + 1), tmp);
-         x_next.Add(theta[i], tmp);
-      }
+      // Previous information is already stored at k'th column with negating.
+      // See at the end of this function
+      // So it is enough to add the current information
+      dxk += x;
+      dgk += gk;
+
+      // Weight for previous Δ's by solving argmin ||g_k - DG_kθ||_2
+      Vector theta = solve_pseudoinv(DGk, gk);
+
+      // x_{k+1} = x_k + g_k - (ΔX_k + ΔG_k)θ
+      //         = x_next - (ΔX_k + ΔG_k)θ
+      x_next = x;
+      x_next += gk;
+      DXk.AddMult_a(-1.0, theta, x_next);
+      DGk.AddMult_a(-1.0, theta, x_next);
+      // Iteration done.
+
+      // Store the current information for the next iteration
+      k++; // increase the step counter
+      dxk.SetData(DXk.GetColumn(k % m));
+      dxk.Set(-1.0, x);
+      dgk.SetData(DGk.GetColumn(k % m));
+      dgk.Set(-1.0, gk);
    }
 
    Vector solve_pseudoinv(const DenseMatrix &A, const Vector &b)
@@ -860,24 +865,25 @@ public:
             D[diag_idx] = 0.0;
          }
       }
-      Vector temp(U.Width()), theta(n);
-      U.MultTranspose(b, temp);
-      temp *= D;
-      VT.MultTranspose(temp, theta);
-      return theta;
+      // x = V*D†*Uᵀ*b
+      //   = V*(DUTb)
+      Vector DUTb(U.Width()), x(n);
+      U.MultTranspose(b, DUTb);
+      DUTb *= D;
+      VT.MultTranspose(DUTb, x);
+      return x;
    }
 
 
 protected:
-   const int m;
-   const int size;
-   const int max_it;
-   const double beta;
-   double svd_tolerance;
+   const int m; // Truncation
+   const int size; // Problem size
+   const double beta; // relaxation parameter. NOT YET USED
+   double svd_tolerance; // tolerance for inverse
 private:
-   DenseMatrix Xk;
-   DenseMatrix Gk;
-   DenseMatrix Dk;
-   int k;
+   DenseMatrix DXk; // [Δx_k]
+   DenseMatrix DGk; // [Δg_k]
+   Vector gk; // f(x_k) - x_k = x_next - x
+   int k; // step counter
 };
 } // end of namespace mfem
