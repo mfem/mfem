@@ -362,10 +362,6 @@ int main(int argc, char *argv[])
    double domain_volume = vol_form(onegf);
    const double target_volume = domain_volume * vol_fraction;
 
-   SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
-   ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
-   ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
-
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -374,11 +370,6 @@ int main(int argc, char *argv[])
    {
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      GridFunction r_gf(&filter_fes);
-      r_gf.ProjectCoefficient(SIMP_cf);
-      sout_r << "solution\n" << mesh << r_gf
-             << "window_title 'Design density r(ρ̃)'\n"
-             << "keys jRmm*****************\n" << flush;
    }
 
    mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);
@@ -398,8 +389,6 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   out << psi.Size() << std::endl;
-   AndersonAccelerator acc(10, psi.Size());
    for (int k = 1; k <= max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
@@ -414,6 +403,9 @@ int main(int argc, char *argv[])
 
       // Step 2 - State solve
       // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
+      SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
+      ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
+      ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
       ElasticitySolver->SetLameCoefficients(&lambda_SIMP_cf,&mu_SIMP_cf);
       ElasticitySolver->Solve();
       u = *ElasticitySolver->GetFEMSolution();
@@ -436,7 +428,6 @@ int main(int argc, char *argv[])
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      acc.Step(psi_old, psi);
       const double material_volume = proj(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
