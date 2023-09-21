@@ -56,6 +56,7 @@
 #include "mfem.hpp"
 #include "bramble_pasciak.hpp"
 #include "div_free_solver.hpp"
+#include "block_hybridization.hpp"
 #include <fstream>
 #include <iostream>
 #include <memory>
