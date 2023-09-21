@@ -71,13 +71,13 @@ public:
 
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2, 0.2,0.2);
-        gf->SetMaternParameter(4.0);
+        gf->SetMaternParameter(1.0);
         gf->SetScale(1.0);
         gf->Sample(seed);
 
         af=new mfem::RandFieldCoefficient(pmesh_,vorder);
         af->SetCorrelationLen(0.2, 0.2, 0.2);
-        af->SetMaternParameter(4.0);
+        af->SetMaternParameter(1.0);
         af->SetScale(1.0);
         af->SetZeroDirichletBC(2);
         af->Sample(seed+1347);
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
    int restart=0;
    double volume_fraction = 0.35;
    int igeom = 0;
-   double nu = 4.0;
+   double nu = 1.0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -540,7 +540,10 @@ int main(int argc, char *argv[])
       CoeffHoles cf;
       oddens.ProjectCoefficient(cf);
       oddens.GetTrueDofs(vtmpv);
-      vtmpv=0.2;
+      if (geom == geom_type::square)
+      {
+        vtmpv=0.2;
+      }
       fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
 
@@ -550,6 +553,7 @@ int main(int argc, char *argv[])
                                          << "_par_ref_" << par_ref_levels 
                                          << "_order_" << order 
                                          << "_num_samples_" << num_samples
+                                         << "_max_it_" << max_it
                                          << "_crlx_" << corr_len_x 
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
@@ -580,14 +584,14 @@ int main(int argc, char *argv[])
               sink->SetDensity(vdens,0.5,2.0,3.0);
               sink->SetSIMP(true);
           }else{
-              vobj->SetProjection(0.3,8.0);
-              sink->SetDensity(vdens,0.7,8.0,1.0);
-              sink->SetSIMP(false);
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,4.0);
+              sink->SetSIMP(true);
           }
 
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
-          //cpl=sink->Compliance(ograd);
+        //   cpl=sink->Compliance(ograd);
           cpl=sink->MeanCompl(ograd);
 
 
