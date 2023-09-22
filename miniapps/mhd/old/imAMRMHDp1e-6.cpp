@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    bool compute_tau = false;
    bool view_mpi = false;
    const char *petscrc_file = "";
+   double t=0.;
 
    //----amr coefficients----
    int amr_levels=0;
@@ -86,6 +87,9 @@ int main(int argc, char *argv[])
    int    t_refs_steps=4;
    bool     yRange = false; //fix a refinement region along y direction
    double   ytop =.6;       //top of the fixed yrange
+   bool     xRange = false; //fix a refinement region along x direction
+   double   xright =.5;     //right of the fixed xrange
+   int      xlevels=0;
    double error_norm=infinity();
    //----end of amr----
    
@@ -94,7 +98,6 @@ int main(int argc, char *argv[])
    Lx=3.0;
    lambda=5.0;
 
-   bool saveOne=false;
    bool checkpt=false;
    bool visualization = true;
    int vis_steps = 10;
@@ -106,25 +109,19 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refineP",
                   "Number of times to refine the mesh uniformly in parallel.");
-   args.AddOption(&amr_levels, "-amrl", "--amr-levels",
-                  "AMR refine level.");
-   args.AddOption(&order, "-o", "--order",
-                  "Order (degree) of the finite elements.");
+   args.AddOption(&amr_levels, "-amrl", "--amr-levels", "AMR refine level.");
+   args.AddOption(&order, "-o", "--order", "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Backward Euler, 3 - L-stable SDIRK23, 4 - L-stable SDIRK33,\n\t"
                   "            22 - Implicit Midpoint, 23 - SDIRK23, 24 - SDIRK34.");
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&t_change, "-tchange", "--t-change",
-                  "dt change time; reduce to half.");
-   args.AddOption(&t_refs, "-t-refs", "--t-refs",
-                  "Time a quick refine/derefine is turned on.");
+   args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
+   args.AddOption(&t_change, "-tchange", "--t-change", "dt change time; reduce to half.");
+   args.AddOption(&t_refs, "-t-refs", "--t-refs", "Time a quick refine/derefine is turned on.");
    args.AddOption(&t_refs_steps, "-t-refs-steps", "--t-refs-steps",
                   "Refine steps for a quick refine/derefine after t_refs.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
+   args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&icase, "-i", "--icase",
-                  "Icase: 1 - wave propagation; 2 - Tearing mode.");
+                  "Icase: 1 - wave propagation; 2 - Tearing mode; 3 - Island coleasence.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -172,6 +169,7 @@ int main(int argc, char *argv[])
                   "Use max-tau in supg.");
    args.AddOption(&dtfactor, "-dtfactor", "--dt-factor",
                   "Tau supg scales like dt/dtfactor.");
+   args.AddOption(&factormin, "-factormin", "--factor-min", "Min factor in tau");
    args.AddOption(&useFull, "-useFull", "--useFull",
                   "version of Full preconditioner");
    args.AddOption(&usefd, "-fd", "--use-fd", "-no-fd",
@@ -190,6 +188,12 @@ int main(int argc, char *argv[])
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
    args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
+   args.AddOption(&xRange, "-xrange", "--x-refine-range", "-no-xrange", "--no-x-refine-range",
+                  "Refine only in the x range of [-xright, xright] in AMR.");
+   args.AddOption(&xright, "-xright", "--x-right",
+                  "The right of xrange for AMR refinement.");
+   args.AddOption(&xlevels, "-xlevels", "--x-levels",
+                  "The minimal level for xRange being effective. Default is 0");
    args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc", "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
    args.AddOption(&use_factory, "-shell", "--shell", "-no-shell", "--no-shell",
@@ -200,8 +204,7 @@ int main(int argc, char *argv[])
                   "UpdateJ: 0 - no boundary condition used; 1/2 - Dirichlet used on J boundary (2: lumped mass matrix).");
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
-   args.AddOption(&saveOne, "-saveOne", "--save-One",  "-no-saveOne", "--no-save-One",
-                  "Save solution/mesh as one file");
+   args.AddOption(&t, "-t0", "--time", "Initial Time (for restart).");
    args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
                   "Save check point");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
@@ -216,8 +219,7 @@ int main(int argc, char *argv[])
    args.AddOption(&deref_its, "-deref-its", "--deref-its","refinement iterations.");
    args.Parse();
 
-   if (!args.Good())
-   {
+   if (!args.Good()){
       if (myid == 0)
       {
          args.PrintUsage(cout);
@@ -293,11 +295,11 @@ int main(int argc, char *argv[])
 
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
+   for (int lev = 0; lev < par_ref_levels; lev++){
       pmesh->UniformRefinement();
    }
    amr_levels+=par_ref_levels;
+   if (xlevels>0) xlevels+=par_ref_levels;
 
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
@@ -538,19 +540,21 @@ int main(int argc, char *argv[])
      estimator_used=L2estimator;
    }
 
-   int levels3=par_ref_levels+3, levels4=par_ref_levels+4;
+   int levels3=par_ref_levels+3, 
+       levels4=par_ref_levels+4;
    ThresholdRefiner refiner(*estimator_used);
    refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
    refiner.SetTotalErrorGoal(0.0);       // total error goal (stop criterion)
    refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
    refiner.SetMaxElements(10000000);
-   if (levels3<amr_levels)
+   if (amr_levels>levels3)
       refiner.SetMaximumRefinementLevel(levels3);
    else
       refiner.SetMaximumRefinementLevel(amr_levels);
    refiner.SetNCLimit(nc_limit);
    if (yRange) refiner.SetYRange(-ytop, ytop);
+   if (xRange) refiner.SetXRange(-xright, xright, xlevels);
 
    ThresholdDerefiner derefiner(*estimator_used);
    derefiner.SetThreshold(derefine_ratio*ltol_amr);
@@ -617,7 +621,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   double t = 0.0, told=0.;
+   double told=0.;
    oper.SetTime(t);
    ode_solver->Init(oper);
 
@@ -867,7 +871,6 @@ int main(int argc, char *argv[])
           pd->RegisterField("grad mag pre", gradBP);
           pd->RegisterField("B.gradB", BgradB);
       }
-
       if (compute_tau){
           //visualize Tau value
           MyCoefficient velocity(&phi, 2);
@@ -899,6 +902,7 @@ int main(int argc, char *argv[])
    int current_amr_level=levels3;
    for (int ti = 1; !last_step; ti++)
    {
+      //change time step by user
       if (t_change>0. && t>=t_change)
       {
         dt=dt/2.;
@@ -921,16 +925,14 @@ int main(int argc, char *argv[])
           current_amr_level=amr_levels;
       }
 
-      if ((ti % ref_steps) == 0)
-      {
+      if ((ti % ref_steps) == 0){
           refiner.SetMaximumRefinementLevel(current_amr_level);
           refineMesh=true;
           refiner.Reset();
           derefineMesh=true;
           derefiner.Reset();
       }
-      else
-      {
+      else{
           refineMesh=false;
           derefineMesh=false;
       }
@@ -941,9 +943,8 @@ int main(int argc, char *argv[])
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
 
-      //reduce time step by half if problem is too stiff
-      if (!oper.getConverged())
-      {
+      //reduce time step by half if the problem is too stiff
+      if (!oper.getConverged()){
          t=told;
          dt=dt/2.;
          dt_real = min(dt, t_final - t);
