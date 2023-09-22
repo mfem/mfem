@@ -70,6 +70,7 @@ EX1_ARGS_14 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-squares-nurbs-autoedge.m
 EX1_ARGS_15 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 EX1_ARGS_16 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
 EX1_ARGS_17 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf $(MFEM_DIR)/miniapps/nurbs/meshes/two-cubes.ref
+EX1_ARGS_18 := -m $(MFEM_DIR)/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf $(MFEM_DIR)/miniapps/nurbs/meshes/cube.ref
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -89,6 +90,7 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_15))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_18))
 
 EX1PATCH_ARGS_1 := -incdeg 3 -ref 2 -iro 8 -patcha
 EX1PATCH_ARGS_2 := -incdeg 3 -ref 2 -iro 8 -patcha -pa
