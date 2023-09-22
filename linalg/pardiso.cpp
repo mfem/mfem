@@ -36,6 +36,9 @@ PardisoSolver::PardisoSolver()
    iparm[26] = 1;
    // 0-based indexing in CSR data structure
    iparm[34] = 1;
+   // in-core (0, 1) or out-of-core (2) https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html
+   // remember to set MKL_PARDISO_OOC_MAX_CORE_SIZE=XXXXXXX in the environment variable
+   iparm[59] = 1;
    // Maximum number of numerical factorizations
    maxfct = 1;
    // Which factorization to use. This parameter is ignored and always assumed
