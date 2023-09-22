@@ -18,7 +18,7 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
 # Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -600,6 +600,7 @@ if (MINGW)
 endif()
 if (MSVC)
   target_compile_options(mfem PUBLIC "/wd4819")
+  add_compile_options(/MP)
 endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
