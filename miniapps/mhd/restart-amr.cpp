@@ -1,9 +1,6 @@
-//                                MFEM modified from Example 10 and 16
+//                                imAMRMHDp restart solver
 //
-// Compile with: make imAMRMHDp
-//
-// Sample runs:
-// mpirun -n 4 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -tf 1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine
+// Compile with: make restart-amr
 //
 // Description:  this function only supports amr and implicit solvers
 // Author: QT
@@ -18,7 +15,6 @@
 #include "InitialConditions.hpp"
 #include "AMRupdate.hpp"
 #include "checkpoint.hpp"
-#include "../navier/ortho_solver.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -30,7 +26,9 @@ double beta;
 double Lx;  
 double lambda;
 double resiG;
+double x_factor=5.0;
 double ep=.2;
+double L0=1.0;
 int icase = 1;
 ParMesh *pmesh;
 
@@ -53,7 +51,7 @@ int main(int argc, char *argv[])
    double t_final = 5.0;
    double t_change = 0.;
    double dt = 0.0001;
-   double dt_min=0.0002;
+   double dt_min=0.0001;
    double visc = 1e-3;
    double resi = 1e-3;
    bool visit = false;
@@ -64,6 +62,7 @@ int main(int argc, char *argv[])
    bool initial_refine = false;
    bool compute_pressure = false;
    bool compute_tau = false;
+   bool view_mpi = false;
    const char *petscrc_file = "";
    double t=0.;
 
@@ -86,7 +85,7 @@ int main(int argc, char *argv[])
    double t_refs=1e10;
    int    t_refs_steps=4;
    bool     yRange = false; //fix a refinement region along y direction
-   double   ytop =.5;       //top of the fixed yrange
+   double   ytop =.6;       //top of the fixed yrange
    bool     xRange = false; //fix a refinement region along x direction
    double   xright =.5;     //right of the fixed xrange
    int      xlevels=0;
@@ -123,7 +122,7 @@ int main(int argc, char *argv[])
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&dt_min, "-dt-min", "--minimal-time-step", "Minimal time step.");
    args.AddOption(&icase, "-i", "--icase",
-                  "Icase: 1 - wave propagation; 2 - Tearing mode; 3 - Island coleasence");
+                  "Icase: 1 - wave propagation; 2 - Tearing mode; 3 - Island coleasence.");
    args.AddOption(&ijacobi, "-ijacobi", "--ijacobi",
                   "Number of jacobi iteration in preconditioner");
    args.AddOption(&im_supg, "-im_supg", "--im_supg",
@@ -134,14 +133,13 @@ int main(int argc, char *argv[])
                   "supg options in explicit formulation");
    args.AddOption(&itau_, "-itau", "--itau",
                   "tau options in supg.");
-   args.AddOption(&visc, "-visc", "--viscosity",
-                  "Viscosity coefficient.");
-   args.AddOption(&resi, "-resi", "--resistivity",
-                  "Resistivity coefficient.");
+   args.AddOption(&visc, "-visc", "--viscosity", "Viscosity coefficient.");
+   args.AddOption(&resi, "-resi", "--resistivity", "Resistivity coefficient.");
+   args.AddOption(&x_factor,"-x-factor","--x-factor", "spatial perturbation factor in x.");
+   args.AddOption(&L0,"-L0","--L0", "current sheet width.");
    args.AddOption(&ALPHA, "-alpha", "--hyperdiff",
                   "Numerical hyprediffusion coefficient.");
-   args.AddOption(&beta, "-beta", "--perturb",
-                  "Pertubation coefficient in initial conditions.");
+   args.AddOption(&beta, "-beta", "--perturb", "Pertubation coefficient in initial conditions.");
    args.AddOption(&ltol_amr, "-ltol", "--local-tol",
                   "Local AMR tolerance.");
    args.AddOption(&err_ratio, "-err-ratio", "--err-ratio",
@@ -149,7 +147,7 @@ int main(int argc, char *argv[])
    args.AddOption(&err_fraction, "-err-fraction", "--err-fraction",
                   "AMR error fraction in estimator.");
    args.AddOption(&derefine, "-derefine", "--derefine-mesh", "-no-derefine",
-                  "--no-derefine-mesh","Derefine the mesh in AMR.");
+                  "--no-derefine-mesh", "Derefine the mesh in AMR.");
    args.AddOption(&derefine_ratio, "-derefine-ratio", "--derefine-ratio",
                   "AMR derefine error ratio of total_err_goal.");
    args.AddOption(&derefine_fraction, "-derefine-fraction", "--derefine-fraction",
@@ -159,6 +157,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_steps, "-refs", "--refine-steps",
+                  "Refine or derefine every n-th timestep.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&usesupg, "-supg", "--implicit-supg", "-no-supg",
@@ -181,22 +181,21 @@ int main(int argc, char *argv[])
                   "--no-visit-datafiles", "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview-datafiles", "-no-paraivew",
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
-   args.AddOption(&error_norm, "-error-norm", "--error-norm","AMR error norm (in both refine and derefine).");
+   args.AddOption(&view_mpi, "-view-mpi", "--view-mpi", "-no-view-mpi",
+                  "--no-view-mpi", "Save MPI rank in MPI.");
+   args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
-   args.AddOption(&ytop, "-ytop", "--y-top",
-                  "The top of yrange for AMR refinement.");
+   args.AddOption(&ytop, "-ytop", "--y-top", "The top of yrange for AMR refinement.");
    args.AddOption(&xRange, "-xrange", "--x-refine-range", "-no-xrange", "--no-x-refine-range",
                   "Refine only in the x range of [-xright, xright] in AMR.");
    args.AddOption(&xright, "-xright", "--x-right",
                   "The right of xrange for AMR refinement.");
    args.AddOption(&xlevels, "-xlevels", "--x-levels",
                   "The minimal level for xRange being effective. Default is 0");
-   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc",
-                  "--no-petsc",
+   args.AddOption(&use_petsc, "-usepetsc", "--usepetsc", "-no-petsc", "--no-petsc",
                   "Use or not PETSc to solve the nonlinear system.");
-   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell",
-                  "--no-shell",
+   args.AddOption(&use_factory, "-shell", "--shell", "-no-shell", "--no-shell",
                   "Use user-defined preconditioner factory (PCSHELL).");
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                   "PetscOptions file to use.");
@@ -205,7 +204,7 @@ int main(int argc, char *argv[])
    args.AddOption(&BgradJ, "-BgradJ", "--BgradJ",
                   "BgradJ: 1 - (B.grad J, phi); 2 - (-J, B.grad phi); 3 - (-B J, grad phi).");
    args.AddOption(&t, "-t0", "--time", "Initial Time (for restart).");
-   args.AddOption(&restart_count, "-restart_count", "--restart_count", "number of restarts have been performed");
+   args.AddOption(&restart_count, "-restart-count", "--restart-count", "number of restarts have been performed");
    args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
                   "Save check point");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
@@ -255,7 +254,6 @@ int main(int argc, char *argv[])
        MPI_Finalize();
        return 3;
    }
-
    if (use_petsc)
    {
       MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
@@ -285,16 +283,18 @@ int main(int argc, char *argv[])
    }
 
    //---- Load the mesh from checkpoint ----
-   string mesh_name, phi_name, psi_name, w_name;
+   string mesh_name, phi_name, psi_name, w_name, prefix="imMHDp-checkpoint/";
    string rstr = to_string(restart_count-1);
    ifstream *ifs;
    if (restart_count==0){
-       ifs = new ifstream(MakeParFilename("checkpt-mesh.", myid));
+       mesh_name = "checkpt-mesh.";
    }
    else{
-       string mesh_name = "restart-mesh" + rstr + ".";
-       ifs = new ifstream(MakeParFilename(mesh_name, myid));
+       mesh_name = "restart-mesh" + rstr + ".";
    }
+   mesh_name = prefix+mesh_name;
+   if (myid == 0) cout << "...Load mesh: " << mesh_name << endl;
+   ifs = new ifstream(MakeParFilename(mesh_name, myid));
    MFEM_VERIFY(ifs->good(), "Mesh file not found.");
    pmesh = new ParMesh(MPI_COMM_WORLD, *ifs);
    delete ifs;
@@ -306,8 +306,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(pmesh, &fe_coll); 
 
    HYPRE_Int global_size = fespace.GlobalTrueVSize();
-   if (myid == 0)
-      cout << "Number of total scalar unknowns: " << global_size << endl;
+   if (myid == 0) cout << "Number of total scalar unknowns: " << global_size << endl;
 
    //this is a periodic boundary condition in x and Direchlet in y 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
@@ -342,14 +341,16 @@ int main(int argc, char *argv[])
    //                                 >1: restart from the new restart solver
    ifstream *ifs1, *ifs2, *ifs3;
    if (restart_count==0){
-       ifs1 = new ifstream(MakeParFilename("checkpt-psi.", myid));
-       ifs2 = new ifstream(MakeParFilename("checkpt-phi.", myid));
-       ifs3 = new ifstream(MakeParFilename("checkpt-w."  , myid));
+       if (myid == 0) cout << "...Load solution: imMHDp-checkpoint/checkpt-*"<<endl;
+       ifs1 = new ifstream(MakeParFilename(prefix+"checkpt-psi.", myid));
+       ifs2 = new ifstream(MakeParFilename(prefix+"checkpt-phi.", myid));
+       ifs3 = new ifstream(MakeParFilename(prefix+"checkpt-w."  , myid));
    }
    else{
-       string phi_name = "restart-phi" + rstr + ".";
-       string psi_name = "restart-psi" + rstr + ".";
-       string   w_name = "restart-w"   + rstr + ".";
+       if (myid == 0) cout << "...Load solution: imMHDp-checkpoint/restart-*"<<rstr<<endl;
+       string phi_name = prefix + "restart-phi" + rstr + ".";
+       string psi_name = prefix + "restart-psi" + rstr + ".";
+       string   w_name = prefix + "restart-w"   + rstr + ".";
        ifs1 = new ifstream(MakeParFilename(psi_name, myid));
        ifs2 = new ifstream(MakeParFilename(phi_name, myid));
        ifs3 = new ifstream(MakeParFilename(  w_name, myid));
@@ -388,19 +389,25 @@ int main(int argc, char *argv[])
    }
 
    //set initial J
-   FunctionCoefficient jInit1(InitialJ), jInit2(InitialJ2), jInit3(InitialJ3), jInit4(InitialJ4), *jptr;
+   FunctionCoefficient *jptr=NULL;
    if (icase==1)
-       jptr=&jInit1;
+       jptr=new FunctionCoefficient(InitialJ);
    else if (icase==2)
-       jptr=&jInit2;
+       jptr=new FunctionCoefficient(InitialJ2);
    else if (icase==3)
-       jptr=&jInit3;
+       jptr=new FunctionCoefficient(InitialJ3);
    else if (icase==4)
-       jptr=&jInit4;
+       jptr=new FunctionCoefficient(InitialJ4);
+   else if (icase==7)
+       jptr=new FunctionCoefficient(InitialJ7);
+   else if (icase==8)
+       jptr=new FunctionCoefficient(InitialJ8);
+   else if (icase==9)
+       jptr=new FunctionCoefficient(InitialJ9);
    j.ProjectCoefficient(*jptr);
    j.SetTrueVector();
    oper.SetInitialJ(*jptr);
-   oper.UpdateJ(vx, &j);
+   oper.UpdateJ(vx, &j);        //compute J since this is a restart; jptr is needed as boundary condition
 
    //-----------------------------------AMR for the real computation---------------------------------
    ErrorEstimator *estimator_used;
@@ -577,7 +584,7 @@ int main(int argc, char *argv[])
    HypreSmoother *M_prec;
    HypreBoomerAMG *K_amg;
    CGSolver *K_pcg;
-   mfem::navier::OrthoSolver *SpInvOrthoPC;
+   OrthoSolver *SpInvOrthoPC;
    Vector vtrue, rhs, vJxB;
    VectorDomainLFIntegrator *domainJxB;
    bool vfes_match=false;
@@ -701,8 +708,8 @@ int main(int argc, char *argv[])
       K_amg = new HypreBoomerAMG(*KMat);
       K_amg->SetPrintLevel(0);
       K_pcg = new CGSolver(MPI_COMM_WORLD);
-      SpInvOrthoPC = new mfem::navier::OrthoSolver();
-      SpInvOrthoPC->SetOperator(*K_amg);
+      SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+      SpInvOrthoPC->SetSolver(*K_amg);
       K_pcg->SetOperator(*KMat);
       K_pcg->iterative_mode = false;
       K_pcg->SetRelTol(1e-7);
@@ -759,7 +766,7 @@ int main(int argc, char *argv[])
       pd->RegisterField("phi", phi);
       pd->RegisterField("omega", w);
       pd->RegisterField("current", &j);
-      pd->RegisterField("MPI rank", &mpi_rank_gf);
+      if (view_mpi) pd->RegisterField("MPI rank", &mpi_rank_gf);
       if (compute_pressure){
           pd->RegisterField("V", vel);
           pd->RegisterField("B", mag);
@@ -793,6 +800,7 @@ int main(int argc, char *argv[])
    double start = MPI_Wtime();
    bool reduced_step=false, meshChanged=false;
    int  success_step=0;
+   int  ref_steps_user=ref_steps;
    cout.precision(16);
 
    if (myid == 0) cout<<"Start time stepping..."<<endl;
@@ -817,7 +825,7 @@ int main(int argc, char *argv[])
           ref_steps=8;
       }
       else {
-          ref_steps=4;
+          ref_steps=ref_steps_user;
       }
 
       //increase time step when problem becomes nicer
@@ -831,18 +839,11 @@ int main(int argc, char *argv[])
           }
       }
 
-      if (t>=5.2)
-      {
-          refiner.SetMaximumRefinementLevel(amr_levels);
-      }
-
       double dt_real = min(dt, t_final - t);
-      if (meshChanged)
-      {
-          dt_real*=0.25;
-      }
+      if (meshChanged) dt_real*=0.25;
 
       if ((ti % ref_steps) == 0){
+          if (t>=5.2) refiner.SetMaximumRefinementLevel(amr_levels);
           refineMesh=true;
           refiner.Reset();
           derefineMesh=true;
@@ -859,7 +860,7 @@ int main(int argc, char *argv[])
       //---the main solve step---
       ode_solver->Step(vx, t, dt_real);
 
-      //---reduce time step by half if it is too stiff---
+      //reduce time step by half if the problem is too stiff
       if (!oper.getConverged()){
          t=told;
          if (dt<=dt_min)
@@ -950,8 +951,10 @@ int main(int argc, char *argv[])
            }
            if (paraview) 
            {
-               pw_const_fes.Update();
-               mpi_rank_gf.Update();
+               if (view_mpi){
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+               }
                if (compute_tau) tau_value.Update();
            }
 
@@ -959,8 +962,10 @@ int main(int argc, char *argv[])
 
            if (paraview) 
            {
-               pw_const_fes.Update();
-               mpi_rank_gf.Update();
+               if (view_mpi){
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+               }
                if (compute_tau) tau_value.Update();
            }
 
@@ -1045,8 +1050,10 @@ int main(int argc, char *argv[])
 
              if (paraview) 
              {
-                 pw_const_fes.Update();
-                 mpi_rank_gf.Update();
+                 if (view_mpi){
+                   pw_const_fes.Update();
+                   mpi_rank_gf.Update();
+                 }
                  if (compute_tau) tau_value.Update();
              }
 
@@ -1054,8 +1061,10 @@ int main(int argc, char *argv[])
 
              if (paraview) 
              {
-                 pw_const_fes.Update();
-                 mpi_rank_gf.Update();
+                 if (view_mpi){
+                   pw_const_fes.Update();
+                   mpi_rank_gf.Update();
+                 }
                  if (compute_tau) tau_value.Update();
              }
 
@@ -1205,8 +1214,8 @@ int main(int argc, char *argv[])
                 K_amg = new HypreBoomerAMG(*KMat);
                 K_amg->SetPrintLevel(0);
                 K_pcg = new CGSolver(MPI_COMM_WORLD);
-                SpInvOrthoPC = new mfem::navier::OrthoSolver();
-                SpInvOrthoPC->SetOperator(*K_amg);
+                SpInvOrthoPC = new OrthoSolver(MPI_COMM_WORLD);
+                SpInvOrthoPC->SetSolver(*K_amg);
                 K_pcg->SetOperator(*KMat);
                 K_pcg->iterative_mode = false;
                 K_pcg->SetRelTol(1e-7);
@@ -1330,7 +1339,7 @@ int main(int argc, char *argv[])
               tau_value.SetFromTrueDofs(*tauv);
            }
  
-           mpi_rank_gf = myid_rand;
+           if (view_mpi) mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
            pd->Save();

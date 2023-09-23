@@ -63,7 +63,7 @@ void checkpoint(int myid, const double time,
     if (myid==0) cout << " Save checkpoints at t = "<<time<< endl;
 
     //create a directory
-    string dir_name="imMHD-checkpoint";
+    string dir_name="imMHDp-checkpoint";
     int error_code = create_directory(dir_name, &pmesh, myid);
     if (error_code){
        MFEM_WARNING("Error creating directory: " << dir_name);
@@ -99,7 +99,7 @@ void checkpoint_rs(int myid, const double time,
                       <<" restart count = "<<restart_count<<endl;
 
     //create a directory
-    string dir_name="imMHD-checkpoint";
+    string dir_name="imMHDp-checkpoint";
     int error_code = create_directory(dir_name, &pmesh, myid);
     if (error_code){
        MFEM_WARNING("Error creating directory: " << dir_name);

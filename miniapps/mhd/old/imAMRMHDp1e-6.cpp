@@ -1,9 +1,6 @@
 //                                MFEM modified from Example 10 and 16
 //
-// Compile with: make imAMRMHDp
-//
-// Sample runs:
-// mpirun -n 4 imAMRMHDp -m Meshes/xperiodic-new.mesh -rs 4 -rp 0 -o 3 -i 3 -tf 1 -dt .1 -usepetsc --petscopts petscrc/rc_debug -s 3 -shell -amrl 3 -ltol 1e-3 -derefine
+// Compile with: make imAMRMHDp1e-6
 //
 // Description:  this function only supports amr and implicit solvers
 // Author: QT
