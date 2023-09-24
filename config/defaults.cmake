@@ -66,6 +66,8 @@ option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" 
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
+option(MFEM_USE_COMSOL "Enable COMSOL usage" ON)
+option(MFEM_GMSH_BIN "Enable GMSH BIN" ON)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")

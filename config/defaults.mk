@@ -167,6 +167,7 @@ MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_ENZYME        = NO
+MFEM_USE_COMSOL        = YES
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -570,6 +571,8 @@ ENZYME_DIR ?= @MFEM_DIR@/../enzyme
 ENZYME_VERSION ?= 14
 ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
 ENZYME_LIB = ""
+
+MFEM_GMSH_BIN = YES
 
 # If YES, enable some informational messages
 VERBOSE = NO

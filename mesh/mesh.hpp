@@ -326,7 +326,6 @@ protected:
 #ifdef MFEM_USE_NETCDF
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 #endif
-
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
@@ -656,6 +655,14 @@ public:
    ///
    /// @note Data is copied from the meshes in @a mesh_array.
    Mesh(Mesh *mesh_array[], int num_pieces);
+
+#ifdef MFEM_USE_COMSOL
+   // Convert a binary or ASCII COMSOL (.mphbin/.mphtxt) mesh to Gmsh v2.2.
+   void ConvertMeshComsol(const std::string& filename, std::ostream& buffer);
+
+   // Convert an ASCII NASTRAN (.nas/.bdf) mesh to Gmsh v2.2.
+   void ConvertMeshNastran(const std::string& filename, std::ostream& buffer);
+#endif
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data

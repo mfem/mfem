@@ -366,6 +366,13 @@ if (MFEM_USE_NETCDF)
   find_package(NetCDF REQUIRED)
 endif()
 
+#COMSOL
+if (MFEM_USE_COMSOL)
+  # Commands to be executed if MFEM_USE_COMSOL is true
+  # Set GMSH_BIN to ON
+  set(MFEM_GMSH_BIN ON)
+endif()
+
 # MPFR
 if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
@@ -593,6 +600,9 @@ set(MFEM_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} CACHE PATH
 
 # Declaring the library
 mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+if (MSVC)
+  target_compile_options(mfem PRIVATE /MP)
+endif()
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)

@@ -201,4 +201,10 @@
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 
+// Enable functionality based on the NetCDF library (reading CUBIT files).
+// #define MFEM_USE_COMSOL
+
+// Enable Gmsh bin
+// #define MFEM_GMSH_BIN
+
 #endif // MFEM_CONFIG_HEADER

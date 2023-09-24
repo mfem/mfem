@@ -201,4 +201,10 @@
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
 
+// Enable COMSOL for mph and nas
+#cmakedefine MFEM_USE_COMSOL
+
+// Enable GMSH BIN format
+#cmakedefine MFEM_GMSH_BIN
+
 #endif // MFEM_CONFIG_HEADER
