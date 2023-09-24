@@ -511,7 +511,7 @@ int main(int argc, char* argv[])
             {
                 bool found = false;
                 for (int j = 0; j < pmls.Size(); j++) {
-                    if (i == pmls[j]) {
+                    if (i == pmls[j]-1) {
                         found = true;
                         break;
                     }
