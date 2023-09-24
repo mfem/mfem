@@ -2141,6 +2141,12 @@ public:
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
 
+   /** @brief Find Vertex ID
+   */
+   virtual int FindVertex(Vector& point_mat, Array<int>& elem_ids,
+       Array<IntegrationPoint>& ips, bool warn = true,
+       InverseElementTransformation* inv_trans = NULL);
+
    /** @brief Computes geometric parameters associated with a Jacobian matrix
        in 2D/3D. These parameters are
        (1) Area/Volume,

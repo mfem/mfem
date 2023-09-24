@@ -379,20 +379,23 @@ void LinearForm::AssembleDelta()
                      "Point dim " << center.Size() <<
                      " does not match space dim " << sdim);
       }
-      fes->GetMesh()->FindPoints(centers, domain_delta_integs_elem_id,
-                                 domain_delta_integs_ip);
+      /*fes->GetMesh()->FindPoints(centers, domain_delta_integs_elem_id,
+                                 domain_delta_integs_ip);*/
+      fes->GetMesh()->FindVertex(center, domain_delta_integs_elem_id,
+                                 domain_delta_integs_ip); // only support one center now, needs to fix
    }
 
    Array<int> vdofs;
    Vector elemvect;
-   for (int i = 0; i < domain_delta_integs.Size(); i++)
+   for (int i = 0; i < domain_delta_integs.Size(); i++) // needs to fix to accept more than one delta source
+    for (int j = 0; j < domain_delta_integs_elem_id.Size(); j++)
    {
-      int elem_id = domain_delta_integs_elem_id[i];
+      int elem_id = domain_delta_integs_elem_id[j];
       // The delta center may be outside of this sub-domain, or
       // (Par)Mesh::FindPoints() failed to find this point:
       if (elem_id < 0) { continue; }
 
-      const IntegrationPoint &ip = domain_delta_integs_ip[i];
+      const IntegrationPoint &ip = domain_delta_integs_ip[j];
       ElementTransformation &Trans = *fes->GetElementTransformation(elem_id);
       Trans.SetIntPoint(&ip);
 

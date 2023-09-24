@@ -12313,6 +12313,58 @@ std::ostream &operator<<(std::ostream &os, const Mesh &mesh)
    return os;
 }
 
+int Mesh::FindVertex(Vector& point, Array<int>& elem_ids,
+    Array<IntegrationPoint>& ips, bool warn,
+    InverseElementTransformation* inv_trans)
+{
+    const int dim = point.Size();
+    if (!dim) { return 0; }
+    MFEM_VERIFY(dim == spaceDim, "Invalid point coordinate");
+
+    std::vector<int> elementsWithVertex;
+    int elems_found = 0;
+    InverseElementTransformation* inv_tr = inv_trans;
+    inv_tr = inv_tr ? inv_tr : new InverseElementTransformation;
+
+    // Iterate over all elements
+    for (int i = 0; i < NumOfElements; i++)
+    {
+        Array<int> vertex_indices;
+        GetElementVertices(i, vertex_indices);
+
+        // Iterate over the vertices of the current element
+        for (int j = 0; j < vertex_indices.Size(); j++)
+        {
+            double* coord = GetVertex(vertex_indices[j]);
+            Vector v_coord(coord, spaceDim);
+
+            // Check if the current vertex matches the given vertex_coord
+            if (v_coord.DistanceTo(point) < 1e-12)  // Use a tolerance for comparison
+            {
+                elem_ids.Append(i);
+                elems_found++;
+                break; // Break out of the inner loop once a match is found
+            }
+        }
+    }
+    if (elems_found)
+    {
+        ips.SetSize(elems_found);
+        for (int j = 0; j < elems_found; j++)
+        {
+            inv_tr->SetTransformation(*GetElementTransformation(elem_ids[j]));
+            int res = inv_tr->Transform(point, ips[j]);
+            MFEM_VERIFY(res == InverseElementTransformation::Inside, "Point is not inside element");
+        }
+    }
+    else
+    {
+        MFEM_VERIFY(elems_found > 0, "No valid element is found!");
+    }
+
+    return elems_found;
+}
+
 int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
                      Array<IntegrationPoint>& ips, bool warn,
                      InverseElementTransformation *inv_trans)
