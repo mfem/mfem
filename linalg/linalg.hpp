@@ -51,6 +51,7 @@
 
 #ifdef MFEM_USE_MKL_PARDISO
 #include "pardiso.hpp"
+#include "pardisocomp.hpp"
 #endif
 
 #ifdef MFEM_USE_MPI

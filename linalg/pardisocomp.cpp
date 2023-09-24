@@ -18,26 +18,36 @@
 namespace mfem
 {
 
-PardisoCompSolver::PardisoCompSolver()
+PardisoCompSolver::PardisoCompSolver(MatType mat_type)
 {
    // Indicate that default parameters are changed
    iparm[0] = 1;
    // Use METIS for fill-in reordering
-   iparm[1] = 2;
+   iparm[1] = 3;
+   // Preconditioned CGS/CG.
+   iparm[3] = 0;
    // Write the solution into the x vector data
    iparm[5] = 0;
    // Maximum number of iterative refinement steps
-   iparm[7] = 2;
+   iparm[7] = 20;
    // Perturb the pivot elements with 1E-13
    iparm[9] = 13;
-   // Use nonsymmetric permutation
+   // Scaling vectors.
    iparm[10] = 1;
    // Maximum weighted matching algorithm is switched-on (default for non-symmetric)
    iparm[12] = 1;
+   //Pivoting for symmetric indefinite matrices.
+   iparm[20] = 1;
+   //Parallel factorization control.
+   iparm[23] = 1;
+   //Parallel forward/backward solve control.
+   iparm[24] = 0;
    // Perform a check on the input data
    iparm[26] = 1;
    // 0-based indexing in CSR data structure
    iparm[34] = 1;
+   // Enable low rank update 
+   iparm[38] = 0;
    // in-core (0, 1) or out-of-core (2) https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html
    // remember to set MKL_PARDISO_OOC_MAX_CORE_SIZE=XXXXXXX in the environment variable
    iparm[59] = 1;
@@ -50,8 +60,8 @@ PardisoCompSolver::PardisoCompSolver()
    msglvl = 0;
    // Initialize error flag
    error = 0;
-   // Real nonsymmetric matrix
-   mtype = MatType::COMPLEX_UNSYMMETRIC;
+   // complex nonsymmetric matrix
+   mtype = mat_type;
    // Number of right hand sides
    nrhs = 1;
 }
@@ -94,7 +104,12 @@ void PardisoCompSolver::SetOperator(const Operator &op)
 
    MFEM_ASSERT(height==width, "Must pass ComplexSparseMatrix as a square matrix");
 
+   m = height/2;
+
    // returns a new complex array
+   // Pardiso expects the column indices to be sorted for each row
+   mat->real().SortColumnIndices();
+   mat->imag().SortColumnIndices();
    CSRRealToComplex(&mat->real(), &mat->imag());
 
    nnz = complexCSR->numNonZeros;
@@ -111,9 +126,6 @@ void PardisoCompSolver::SetOperator(const Operator &op)
    {
       csr_rowptr[i] = Ap[i];
    }
-
-   // Pardiso expects the column indices to be sorted for each row
-   //mat->SortColumnIndices();
 
    for (int i = 0; i < nnz; i++)
    {
@@ -140,13 +152,28 @@ void PardisoCompSolver::SetOperator(const Operator &op)
 
 void PardisoCompSolver::Mult(const Vector &b, Vector &x) const
 {
+   const int mb = b.Size() / 2;
+   std::vector<std::complex<double>> b_comp(mb);
+   std::vector<std::complex<double>> x_comp(mb);
+
+   const double *bp = b.GetData();
+   for (std::size_t i = 0; i < b_comp.size(); ++i) {
+       b_comp[i] = std::complex<double>(bp[i], bp[i+mb]);
+   }
+
    // Solve
    phase = 33;
    PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
-           reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, b.GetData(), x.GetData(), &error);
+       reordered_csr_colind, &idum, &nrhs,
+       iparm, &msglvl, b_comp.data(), x_comp.data(), &error);
 
    MFEM_ASSERT(error == 0, "Pardiso solve error");
+
+   double* xp = x.GetData();
+   for (std::size_t i = 0; i < x_comp.size(); ++i) {
+       xp[i] = x_comp[i].real();
+       xp[i+mb] = x_comp[i].imag();
+   }
 }
 
 void PardisoCompSolver::GetResidual(const Vector& b, const Vector& x) const // to refine
@@ -179,7 +206,7 @@ PardisoCompSolver::~PardisoCompSolver()
    delete[] csr_rowptr;
    delete[] reordered_csr_colind;
    delete[] reordered_csr_nzval;
-   delete[] complexCSR;
+   delete complexCSR;
 }
 
 } // namespace mfem

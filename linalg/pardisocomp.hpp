@@ -55,7 +55,7 @@ public:
     * @brief Construct a new PardisoCompSolver object
     *
     */
-   PardisoCompSolver();
+   PardisoCompSolver(MatType mat_type = MatType::COMPLEX_UNSYMMETRIC);
 
    /**
     * @brief Set the Operator object and perform factorization
