@@ -125,8 +125,12 @@ if (MFEM_USE_MKL_CPARDISO)
 endif()
 
 if (MFEM_USE_MKL_PARDISO)
-  list(APPEND SRCS pardiso.cpp)
-  list(APPEND HDRS pardiso.hpp)
+  list(APPEND SRCS 
+  pardiso.cpp
+  pardisocomp.cpp)
+  list(APPEND HDRS 
+  pardiso.hpp
+  pardisocomp.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)
