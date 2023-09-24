@@ -57,7 +57,6 @@
 // add Laplace B.C. from ex27
 
 #include "mfem.hpp"
-#include "meshio.hpp"
 #include "mkl.h"
 
 #include <fstream>
@@ -200,8 +199,13 @@ Array2D<double> domain_bdr;
 
 int dim;
 
+#define MKL_NUM_THREADS 20
+
 int main(int argc, char* argv[])
 {
+    std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+    mkl_set_dynamic(0);
+    mkl_set_num_threads(20);
     std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
 
     // 1. Parse command-line options.
@@ -210,12 +214,13 @@ int main(int argc, char* argv[])
     //const char* mesh_file = "../data/simple_cube.mphtxt";
     //const char* mesh_file = "../data/cube_comsol_pml.mphtxt";
      //const char* mesh_file = "../data/cube_comsol_coarse.mphtxt";
-    const char* mesh_file = "../data/cube_comsol_ex_coarse.mphtxt";
+    //const char* mesh_file = "../data/cube_comsol_ex_coarse.mphtxt";
+    const char* mesh_file = "../data/cube_comsol_rf1.mphtxt";
     //const char* mesh_file = "../data/inline-tet.mesh";
     int ref_levels = 0;
-    int order = 1;
+    int order = 2;
     int prob = 1;
-    double freq = 60.0e6;
+    double freq = 600.0e6;
     double a_coef = 0.0;
     bool visualization = 1;
     bool herm_conv = true;
@@ -227,6 +232,8 @@ int main(int argc, char* argv[])
     double rbc_a_val = 1.0; // du/dn + a * u = b
     double rbc_b_val = 1.0;
     int logging_ = 1;
+    bool comp_solver = true;
+    int bprint = 1;
 
     std::vector<int> values = {1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 14, \
         17, 20, 21, 23, 24, 27, 30, 31, 32, 33, 35, 36, 38, \
@@ -288,6 +295,8 @@ int main(int argc, char* argv[])
         "Absorbing Boundary Condition Surfaces");
     args.AddOption(&pmls, "-pmls", "--pml-region",
         "Perfectly Matched Layer Regions");
+    args.AddOption(&comp_solver, "-complex-sol", "--complex-solver",
+        "-no-complex-sol", "--no-complex-solver", "Enable complex solver");
     args.Parse();
     if (!args.Good())
     {
@@ -408,9 +417,9 @@ int main(int argc, char* argv[])
     else if (dim == 3)
     {
         Vector dir(3);
-        dir[0] = 1;
-        dir[1] = 2;
-        dir[2] = 3;
+        dir[0] = 0;
+        dir[1] = 0;
+        dir[2] = 1;
         delta_one = new VectorDeltaCoefficient(dir, position, position, position, src_scalar);
     }
     ComplexLinearForm b(fespace, conv);
@@ -426,11 +435,8 @@ int main(int argc, char* argv[])
     b.Assemble();
 
     // Access and print the real part
-    const Vector& imagPart = b.imag();
-    imagPart.Print();
-
-    
-
+    //const Vector& imagPart = b.imag();
+    //imagPart.Print();
 
     // 8. Define the solution vector u as a complex finite element grid function
     //    corresponding to fespace. Initialize u with initial guess of 1+0i or
@@ -532,7 +538,6 @@ int main(int argc, char* argv[])
     std::cout << "domain_bdr:" << std::endl;
     PrintArray2D(domain_bdr);
 
-    attr = 1; // set all to computation domain
     ConstantCoefficient muinv(1.0 / mu_ / mu0_);
     ConstantCoefficient omeg(-pow(omega_, 2) * epsilon_ * epsilon0_);
     ConstantCoefficient loss(omega_ * sigma_);
@@ -571,10 +576,10 @@ int main(int argc, char* argv[])
         a->AddDomainIntegrator(new VectorFEMassIntegrator(restr_omeg),
             new VectorFEMassIntegrator(restr_loss));
         // Integrators inside the PML region
-        //a->AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
-                                //new CurlCurlIntegrator(restr_c1_Im));
-        //a->AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
-                                //new VectorFEMassIntegrator(restr_c2_Im));
+        a->AddDomainIntegrator(new CurlCurlIntegrator(restr_c1_Re),
+                                new CurlCurlIntegrator(restr_c1_Im));
+        a->AddDomainIntegrator(new VectorFEMassIntegrator(restr_c2_Re),
+                                new VectorFEMassIntegrator(restr_c2_Im));
         // if (etaInvCoef_)
         // {
         //     if (logging_ > 0)
@@ -757,14 +762,27 @@ int main(int argc, char* argv[])
     }
 #else //defined MKL Pardiso
     {
-        timer.Start();
-        PardisoSolver pardiso_solver;
-        pardiso_solver.SetPrintLevel(1); // set to 1 if want to see details
-        pardiso_solver.SetOperator(*Asp);
-        pardiso_solver.Mult(B, U);
-        timer.Stop();
-        double elapsed_time = timer.RealTime();
-        mfem::out << "Pardiso solver took " << elapsed_time << " seconds." << std::endl;
+        if (!comp_solver) {
+            timer.Start();
+            PardisoSolver pardiso_solver;
+            pardiso_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_solver.SetOperator(*Asp);
+            pardiso_solver.Mult(B, U);
+            timer.Stop();
+            double elapsed_time = timer.RealTime();
+            mfem::out << "Pardiso real solver took " << elapsed_time << " seconds." << std::endl;
+        }
+        else {
+            timer.Start();
+            PardisoCompSolver pardiso_comp_solver;
+            //pardiso_comp_solver.SetMatrixType(PardisoCompSolver::MatType::COMPLEX_SYMMETRIC); // MKL needs only the upper triangular part of the system
+            pardiso_comp_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_comp_solver.SetOperator(*Asp_blk);
+            pardiso_comp_solver.Mult(B, U);
+            timer.Stop();
+            double elapsed_time = timer.RealTime();
+            mfem::out << "Pardiso complex solver took " << elapsed_time << " seconds." << std::endl;
+        }
     }
 #endif
 
@@ -884,10 +902,10 @@ int main(int argc, char* argv[])
     ParaViewDataCollection paraview_dc("ex99_test_PML", mesh);
     paraview_dc.SetDataFormat(VTKFormat::ASCII);
     paraview_dc.SetPrefixPath("ParaView");
-    paraview_dc.SetLevelsOfDetail(order+1);
+    paraview_dc.SetLevelsOfDetail(order);
     //paraview_dc.SetCycle(0);
     paraview_dc.SetDataFormat(VTKFormat::BINARY);
-    paraview_dc.SetHighOrderOutput(true);
+    //paraview_dc.SetHighOrderOutput(true);
     paraview_dc.SetTime(0.0); // set the time
     paraview_dc.RegisterField("real", &u.real());
     paraview_dc.RegisterField("imag", &u.imag());
@@ -1001,15 +1019,15 @@ Mesh* LoadMeshNew(const std::string& path)
         fi << std::scientific;
         fi.precision(MSH_FLT_PRECISION);
 
+        Mesh* tempmesh = new Mesh();
+
         if (mfile.extension() == ".mphtxt" || mfile.extension() == ".mphbin")
         {
-            palace::mesh::ConvertMeshComsol(path, fi);
-            // mesh::ConvertMeshComsol(path, fo);
+            tempmesh->ConvertMeshComsol(path, fi);
         }
         else
         {
-            palace::mesh::ConvertMeshNastran(path, fi);
-            // mesh::ConvertMeshNastran(path, fo);
+            tempmesh->ConvertMeshNastran(path, fi);
         }
 
         return new Mesh(fi, 1, 1, true);
@@ -1315,7 +1333,7 @@ void PML::StretchFunction(const Vector &x,
 {
    complex<double> zi = complex<double>(0., 1.);
 
-   double n = 3.0;
+   double n = 2.0;
    double c = 5.0;
    double coeff;
    double k = omega_ * sqrt(epsilon0_ * epsilon_ * mu_ * mu0_);
