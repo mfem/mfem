@@ -213,7 +213,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       BuildFaceGroup(ngroups, rht, nstrias, rhq, nsquads);
    }
-   else if (Dim == 2)
+   else
    {
       group_stria.MakeI(ngroups);
       group_stria.MakeJ();
@@ -259,22 +259,17 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       boundary.SetSize(NumOfBdrElements);
       be2face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be;
-      int max_bdr_attr = -1;
-      if (Dim == 3)
-      {
-         parent_face_to_be = parent.GetFaceToBdrElMap();
-         max_bdr_attr = parent.bdr_attributes.Max();
-      }
+      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      int max_bdr_attr = parent.bdr_attributes.Max();
       for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
             boundary[j] = faces[i]->Duplicate(this);
-
-            if (Dim == 3)
+            if (from == SubMesh::From::Domain && Dim >= 2)
             {
-               int pbeid = parent_face_to_be[parent_face_ids_[i]];
+               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
+                           parent_face_to_be[parent_edge_ids_[i]];
                if (pbeid != -1)
                {
                   boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
