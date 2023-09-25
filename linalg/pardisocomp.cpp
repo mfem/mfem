@@ -36,11 +36,11 @@ PardisoCompSolver::PardisoCompSolver(MatType mat_type)
    iparm[10] = 1;
    // Maximum weighted matching algorithm is switched-on (default for non-symmetric)
    iparm[12] = 1;
-   //Pivoting for symmetric indefinite matrices.
+   // Pivoting for symmetric indefinite matrices.
    iparm[20] = 1;
-   //Parallel factorization control.
+   // Parallel factorization control.
    iparm[23] = 1;
-   //Parallel forward/backward solve control.
+   // Parallel forward/backward solve control.
    iparm[24] = 0;
    // Perform a check on the input data
    iparm[26] = 1;
