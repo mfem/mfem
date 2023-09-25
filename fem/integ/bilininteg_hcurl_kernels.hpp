@@ -59,10 +59,10 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
                                               const Vector &pa_data,
                                               Vector &diag)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -220,10 +220,10 @@ inline void SmemPAHcurlMassApply3D(const int d1d,
                                    const Vector &x,
                                    Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -445,10 +445,10 @@ inline void PACurlCurlAssembleDiagonal3D(const int d1d,
                                          const Vector &pa_data,
                                          Vector &diag)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -641,10 +641,10 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                                              const Vector &pa_data,
                                              Vector &diag)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -856,10 +856,10 @@ inline void PACurlCurlApply3D(const int d1d,
                               const Vector &x,
                               Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -1379,10 +1379,10 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                                   const Vector &x,
                                   Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -1750,10 +1750,10 @@ inline void PAHcurlL2Apply3D(const int d1d,
                              const Vector &x,
                              Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -2121,10 +2121,10 @@ inline void SmemPAHcurlL2Apply3D(const int d1d,
                                  const Vector &x,
                                  Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -2441,10 +2441,10 @@ inline void PAHcurlL2ApplyTranspose3D(const int d1d,
                                       Vector &y)
 {
    // See PAHcurlL2Apply3D for comments.
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -2809,10 +2809,10 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                                           const Vector &x,
                                           Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
