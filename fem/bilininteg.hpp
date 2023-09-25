@@ -20,17 +20,6 @@
 namespace mfem
 {
 
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-#ifdef MFEM_USE_HIP
-constexpr int HCURL_MAX_Q1D = 5;
-#else
-constexpr int HCURL_MAX_Q1D = 6;
-#endif
-
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
-
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
