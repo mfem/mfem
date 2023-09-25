@@ -38,7 +38,7 @@ static void EAConvectionAssemble1D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double r_Gi[MQ1];
       double r_Bj[MQ1];
       for (int q = 0; q < Q1D; q++)
