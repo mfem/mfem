@@ -1,4 +1,4 @@
-//                 MFEM Ultraweal DPG parallel example for diffusion
+//                 MFEM ultraweak DPG parallel example for diffusion
 //
 // Compile with: make pdiffusion
 //

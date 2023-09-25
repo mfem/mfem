@@ -3451,7 +3451,7 @@ private:
    void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
    {
       int dim = x.Size();
-      MFEM_VERIFY(Y.Width() == dim, "Size missmatch");
+      MFEM_VERIFY(Y.Width() == dim, "Size mismatch");
       int dimc = dim == 3 ? dim : 1;
       int h = Y.Height();
       Z.SetSize(h,dimc);
