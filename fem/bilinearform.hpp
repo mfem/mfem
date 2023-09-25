@@ -254,6 +254,12 @@ public:
    /// Access all the integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
+   /// @brief Access all boundary markers added with AddDomainIntegrator().
+   ///
+   /// If no marker was specified when the integrator was added, the
+   /// corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetDBFI_Marker() { return &domain_integs_marker; }
+
    /// Access all the integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
