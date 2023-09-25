@@ -28,9 +28,9 @@
 // It solves the following kinds of problems
 // 1) Known exact solutions with error convergence rates
 //    a) f̃ = 0 and p₀ is a plane wave
-//    b) A manufactured solution problem where p_exact is a gaussian beam
+//    b) A manufactured solution problem where p_exact is a Gaussian beam
 // 2) PML problems
-//    a) Gausian beam scattering from a square
+//    a) Gaussian beam scattering from a square
 //    b) Plane wave scattering from a square
 //    c) Point Source
 
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
    a->StoreMatrices(); // needed for AMR
 
-   // Trial itegrators
+   // Trial integrators
    // Integrators not in PML
    // i ω (p,q)
    a->AddTrialIntegrator(nullptr,new MixedScalarMassIntegrator(*omeg_cf),

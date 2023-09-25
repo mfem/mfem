@@ -223,7 +223,7 @@ void HdivSaddlePointSolver::Setup()
       });
    }
 
-   // Reassmble the RT mass operator with the new coefficient
+   // Reassemble the RT mass operator with the new coefficient
    mass_rt.Update();
    mass_rt.Assemble();
    mass_rt.FormSystemMatrix(ess_rt_dofs, R);

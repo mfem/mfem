@@ -162,7 +162,7 @@ int main (int argc, char *argv[])
                   "1 - Interface (DEFAULT), 2 - Boundary attribute.");
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
                   "-fix-bndr-attr", "--fix-boundary-attribute",
-                  "Change boundary attribue based on alignment with Cartesian axes.");
+                  "Change boundary attribute based on alignment with Cartesian axes.");
    args.AddOption(&material, "-mat", "--mat",
                   "-no-mat","--no-mat", "Use default material attributes.");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
