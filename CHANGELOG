@@ -90,13 +90,14 @@ New and updated examples and miniapps
   * Fit-Node-Position fits selected mesh nodes to specified positions, while
     maintaining overall mesh quality.
 
-- Added 5 new example codes:
+- Added 4 new example codes:
   * Example 34/34p solves a simple magnetostatic problem where source terms and
     boundary conditions are transferred with SubMesh objects.
   * Example 35p implements H1, H(curl) and H(div) variants of a damped harmonic
     oscillator with field transfer using SubMesh objects.
-  * Example 36/36p, demonstrates the solution of the obstacle problem with a new
+  * Example 36/36p demonstrates the solution of the obstacle problem with a new
     finite element method (proximal Galerkin).
+  * Example 37/37p demonstrates topology optimization with MFEM.
 
 - Added a random refinement option to the mesh-explorer miniapp to assist users
   in experimenting with nonconforming meshes.
@@ -117,6 +118,8 @@ Miscellaneous
 
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.
+
+- Various other simplifications, extensions, and bugfixes in the code.
 
 
 Version 4.5.2, released on March 23, 2023
