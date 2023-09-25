@@ -97,7 +97,7 @@ class IntegrationRule : public Array<IntegrationPoint>
 {
 private:
    friend class IntegrationRules;
-   int Order;
+   int Order = 0;
    /** @brief The quadrature weights gathered as a contiguous array. Created
        by request with the method GetWeights(). */
    mutable Array<double> weights;
@@ -218,11 +218,11 @@ private:
 
 public:
    IntegrationRule() :
-      Array<IntegrationPoint>(), Order(0) { }
+      Array<IntegrationPoint>() { }
 
    /// Construct an integration rule with given number of points
    explicit IntegrationRule(int NP) :
-      Array<IntegrationPoint>(NP), Order(0)
+      Array<IntegrationPoint>(NP)
    {
       for (int i = 0; i < this->Size(); i++)
       {
