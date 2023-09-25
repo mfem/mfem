@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "fespace.hpp"
+#include <unordered_map>
 
 namespace mfem
 {
@@ -81,6 +82,14 @@ public:
    /// returns @a iq.
    virtual int GetPermutedIndex(int idx, int iq) const = 0;
 
+   /// @brief Returns the index in the quadrature space of the entity associated
+   /// with the transformation @a T.
+   ///
+   /// For a QuadratureSpace defined on elements, this just returns the element
+   /// index. For FaceQuadratureSpace, the returned index depends on the chosen
+   /// FaceType.
+   virtual int GetEntityIndex(const ElementTransformation &T) const = 0;
+
    /// Write the QuadratureSpace to the stream @a out.
    virtual void Save(std::ostream &out) const = 0;
 
@@ -128,6 +137,9 @@ public:
    /// iq, the permutation is only nontrivial for FaceQuadratureSpace.
    int GetPermutedIndex(int idx, int iq) const override { return iq; }
 
+   /// Returns the element index of @a T.
+   int GetEntityIndex(const ElementTransformation &T) const override { return T.ElementNo; }
+
    /// Write the QuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const override;
 };
@@ -142,6 +154,9 @@ class FaceQuadratureSpace : public QuadratureSpaceBase
 
    /// Map from boundary or interior face indices to mesh face indices.
    Array<int> face_indices;
+
+   /// Inverse of the map @a face_indices.
+   std::unordered_map<int,int> face_indices_inv;
 
    void ConstructOffsets();
    void Construct();
@@ -179,6 +194,12 @@ public:
    /// For tensor-product faces, returns the lexicographic index of the
    /// quadrature point, oriented relative to "element 1".
    int GetPermutedIndex(int idx, int iq) const override;
+
+   /// @brief Returns the index associated with the face described by @a T.
+   ///
+   /// The index may differ from the mesh face or boundary element index
+   /// depending on the FaceType used to construct the FaceQuadratureSpace.
+   int GetEntityIndex(const ElementTransformation &T) const override;
 
    /// Write the FaceQuadratureSpace to the stream @a out.
    void Save(std::ostream &out) const override;
