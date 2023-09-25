@@ -366,6 +366,8 @@ void LinearForm::AssembleDelta()
 {
    if (domain_delta_integs.Size() == 0) { return; }
 
+   int elems_found = 0;
+
    if (!HaveDeltaLocations())
    {
       int sdim = fes->GetMesh()->SpaceDimension();
@@ -379,10 +381,10 @@ void LinearForm::AssembleDelta()
                      "Point dim " << center.Size() <<
                      " does not match space dim " << sdim);
       }
-      /*fes->GetMesh()->FindPoints(centers, domain_delta_integs_elem_id,
-                                 domain_delta_integs_ip);*/
-      fes->GetMesh()->FindVertex(center, domain_delta_integs_elem_id,
-                                 domain_delta_integs_ip); // only support one center now, needs to fix
+      //fes->GetMesh()->FindPoints(centers, domain_delta_integs_elem_id,
+                                 //domain_delta_integs_ip); // old version: find only one element
+       elems_found = fes->GetMesh()->FindVertex(center, domain_delta_integs_elem_id,
+                                  domain_delta_integs_ip); // only support one center point, needs to fix
    }
 
    Array<int> vdofs;
@@ -402,6 +404,7 @@ void LinearForm::AssembleDelta()
       fes->GetElementVDofs(elem_id, vdofs);
       domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id),
                                                        Trans, elemvect);
+      elemvect /= elems_found; //scale vector
       AddElementVector(vdofs, elemvect);
    }
 }

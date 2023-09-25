@@ -12349,6 +12349,7 @@ int Mesh::FindVertex(Vector& point, Array<int>& elem_ids,
     }
     if (elems_found)
     {
+        std::cout << "found " << elems_found << " elements in FindVertex" << std::endl;
         ips.SetSize(elems_found);
         for (int j = 0; j < elems_found; j++)
         {
