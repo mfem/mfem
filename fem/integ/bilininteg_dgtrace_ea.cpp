@@ -84,7 +84,7 @@ static void EADGTraceAssemble2DInt(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, 2, NF);
@@ -139,7 +139,7 @@ static void EADGTraceAssemble2DBdr(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, NF);
@@ -182,7 +182,7 @@ static void EADGTraceAssemble3DInt(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_int = Reshape(eadata_int.ReadWrite(), D1D, D1D, D1D, D1D, 2, NF);
@@ -279,7 +279,7 @@ static void EADGTraceAssemble3DBdr(const int NF,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, 2, NF);
    auto A_bdr = Reshape(eadata_bdr.ReadWrite(), D1D, D1D, D1D, D1D, NF);

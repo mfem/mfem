@@ -204,7 +204,7 @@ void TensorDeterminants(const int NE,
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
                   "Orders higher than " << DeviceDofQuadLimits::Get().MAX_D1D-1
                   << " are not supported!");
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
                   "Quadrature rules with more than "
                   << DeviceDofQuadLimits::Get().MAX_Q1D << " 1D points are not supported!");
       Det1D(NE, G, X, Y, D1D, Q1D);
