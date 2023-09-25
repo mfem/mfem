@@ -16,6 +16,7 @@
 #include <cstring> // std::memcpy, std::memcmp
 #include <unordered_map>
 #include <algorithm> // std::max
+#include <cstdint>
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -45,6 +46,10 @@
 #error "HIP is not enabled in Umpire!"
 #endif
 #endif // MFEM_USE_UMPIRE
+
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 // Internal debug option, useful for tracking some memory manager operations.
 // #define MFEM_TRACK_MEM_MANAGER
@@ -846,7 +851,8 @@ void *MemoryManager::Register_(void *ptr, void *h_tmp, size_t bytes,
 
 void MemoryManager::Register2_(void *h_ptr, void *d_ptr, size_t bytes,
                                MemoryType h_mt, MemoryType d_mt,
-                               bool own, bool alias, unsigned &flags)
+                               bool own, bool alias, unsigned &flags,
+                               unsigned valid_flags)
 {
    MFEM_CONTRACT_VAR(alias);
    MFEM_ASSERT(exists, "Internal error!");
@@ -866,7 +872,7 @@ void MemoryManager::Register2_(void *h_ptr, void *d_ptr, size_t bytes,
    mm.InsertDevice(d_ptr, h_ptr, bytes, h_mt, d_mt);
    flags = (own ? flags | (Mem::OWNS_HOST | Mem::OWNS_DEVICE) :
             flags & ~(Mem::OWNS_HOST | Mem::OWNS_DEVICE)) |
-           Mem::VALID_HOST;
+           valid_flags;
 
    CheckHostMemoryType_(h_mt, h_ptr, alias);
 }

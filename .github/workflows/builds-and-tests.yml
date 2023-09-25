@@ -72,6 +72,9 @@ jobs:
             codecov: NO
           - target: opt
             codecov: YES
+          - os: ubuntu-latest
+            target: dbg
+            config-opts: 'CPPFLAGS+=-Og'
           - os: windows-latest
             codecov: NO
           - os: windows-latest
@@ -162,7 +165,7 @@ jobs:
 
     - name: get hypre
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os != 'windows-latest'
-      uses: mfem/github-actions/build-hypre@v2.2
+      uses: mfem/github-actions/build-hypre@v2.4
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -171,7 +174,7 @@ jobs:
 
     - name: get hypre (Windows)
       if: matrix.mpi == 'par' && steps.hypre-cache.outputs.cache-hit != 'true' && matrix.os == 'windows-latest'
-      uses: mfem/github-actions/build-hypre@v2.2
+      uses: mfem/github-actions/build-hypre@v2.4
       with:
         archive: ${{ env.HYPRE_ARCHIVE }}
         dir: ${{ env.HYPRE_TOP_DIR }}
@@ -190,7 +193,7 @@ jobs:
 
     - name: install metis
       if: matrix.mpi == 'par' && matrix.os != 'windows-latest' && steps.metis-cache.outputs.cache-hit != 'true'
-      uses: mfem/github-actions/build-metis@v2.2
+      uses: mfem/github-actions/build-metis@v2.4
       with:
         archive: ${{ env.METIS_ARCHIVE }}
         dir: ${{ env.METIS_TOP_DIR }}
@@ -217,7 +220,7 @@ jobs:
 
     # MFEM build and test
     - name: build
-      uses: mfem/github-actions/build-mfem@v2.3
+      uses: mfem/github-actions/build-mfem@v2.4
       env:
         VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
       with:
@@ -230,7 +233,7 @@ jobs:
         metis-dir: ${{ env.METIS_TOP_DIR }}
         mfem-dir: ${{ env.MFEM_TOP_DIR }}
         config-options: ${{ matrix.config-opts }}
-        library-only: ${{ matrix.target == 'dbg' }}
+        library-only: ${{ matrix.target == 'dbg' && matrix.os != 'ubuntu-latest' }}
 
     # Run checks (and only checks) on debug targets
     - name: checks
@@ -240,7 +243,7 @@ jobs:
 
     # Note: 'tests' include the unit tests
     - name: tests
-      if: matrix.build-system == 'make' && matrix.target == 'opt'
+      if: matrix.build-system == 'make' && (matrix.target == 'opt' || matrix.os == 'ubuntu-latest')
       run: |
         cd ${{ env.MFEM_TOP_DIR }} && make test
 
@@ -271,7 +274,7 @@ jobs:
     # Code coverage (process and upload reports)
     - name: codecov
       if: matrix.codecov == 'YES'
-      uses: mfem/github-actions/upload-coverage@v2.2
+      uses: mfem/github-actions/upload-coverage@v2.4
       with:
         name: ${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}
         project_dir: ${{ env.MFEM_TOP_DIR }}
