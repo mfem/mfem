@@ -92,13 +92,12 @@ inline void PAHcurlHdivApply3D(const int d1d,
                                const Vector &x,
                                Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_D1D_TEST ||
-               d1dtest <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_D1D_TEST || d1dtest <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1dtest > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int D1Dtest = T_D1D_TEST ? T_D1D_TEST : d1dtest;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -462,13 +461,12 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
                                         const Vector &x,
                                         Vector &y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D, "Error: d1d > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_D1D_TEST ||
-               d1dtest <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+   MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: d1d > HCURL_MAX_D1D");
+   MFEM_VERIFY(T_D1D_TEST || d1dtest <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1dtest > HCURL_MAX_D1D");
-   MFEM_VERIFY(T_Q1D ||
-               q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D, "Error: q1d > HCURL_MAX_Q1D");
+   MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: q1d > HCURL_MAX_Q1D");
    const int D1D = T_D1D ? T_D1D : d1d;
    const int D1Dtest = T_D1D_TEST ? T_D1D_TEST : d1dtest;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

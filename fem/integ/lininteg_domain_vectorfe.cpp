@@ -22,10 +22,10 @@ static void HdivDLFAssemble2D(
    const double *bc, const double *j, const double *weights,
    const Vector &coeff, double *y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D, "Problem size too large.");
-   MFEM_VERIFY(T_Q1D ||
-               q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D, "Problem size too large.");
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Problem size too large.");
 
    static constexpr int vdim = 2;
    const auto F = coeff.Read();
@@ -123,10 +123,10 @@ static void HdivDLFAssemble3D(
    const double *bc, const double *j, const double *weights,
    const Vector &coeff, double *y)
 {
-   MFEM_VERIFY(T_D1D ||
-               d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D, "Problem size too large.");
-   MFEM_VERIFY(T_Q1D ||
-               q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D, "Problem size too large.");
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Problem size too large.");
 
    static constexpr int vdim = 3;
    const auto F = coeff.Read();
