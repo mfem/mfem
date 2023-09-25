@@ -53,17 +53,6 @@ protected:
    Array<int> indices;
    Array<int> gather_map;
 
-   friend class BatchedLORAssembly;
-   friend class BatchedLOR_ADS;
-   friend class BatchedLOR_AMS;
-
-   /// @name Low-level access to the underlying element-dof mappings
-   ///@{
-   const Array<int> &GatherMap() const { return gather_map; }
-   const Array<int> &Indices() const { return indices; }
-   const Array<int> &Offsets() const { return offsets; }
-   ///@}
-
 public:
    ElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
    void Mult(const Vector &x, Vector &y) const override;
@@ -102,6 +91,13 @@ public:
    /// Performs either MultTranspose or AddMultTranspose depending on the
    /// boolean template parameter @a ADD.
    template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
+
+   /// @name Low-level access to the underlying element-dof mappings
+   ///@{
+   const Array<int> &GatherMap() const { return gather_map; }
+   const Array<int> &Indices() const { return indices; }
+   const Array<int> &Offsets() const { return offsets; }
+   ///@}
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.
@@ -187,6 +183,14 @@ public:
    */
    virtual void AddMultTranspose(const Vector &x, Vector &y,
                                  const double a = 1.0) const override = 0;
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y ignoring the signs from DOF orientation. */
+   virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                         const double a = 1.0) const
+   {
+      AddMultTranspose(x, y, a);
+   }
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y. Perform the same computation as AddMultTranspose, but
@@ -289,6 +293,13 @@ public:
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector @b not taking into account signs from DOF orientations.
+
+       @sa AddMultTranspose(). */
+   void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                 const double a = 1.0) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets

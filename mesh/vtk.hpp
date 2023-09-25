@@ -12,6 +12,8 @@
 #ifndef MFEM_VTK
 #define MFEM_VTK
 
+#include <cstdint>
+
 #include "../fem/geom.hpp"
 #include "../general/binaryio.hpp"
 

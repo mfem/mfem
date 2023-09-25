@@ -45,6 +45,10 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 
+   if (dim == 1)
+   {
+      return Derivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D,Q1D);
+   }
    if (dim == 2)
    {
       switch (id)
@@ -79,7 +83,7 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
             {
                MFEM_ABORT("");
             }
-            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,dim,vdim,D1D,Q1D);
             return;
          }
       }
