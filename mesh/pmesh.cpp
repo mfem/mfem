@@ -1646,9 +1646,9 @@ void ParMesh::GetSharedEdgeCommunicator(int ordering,
    }
    for (int k = 0; k < shared_edges.Size(); k++)
    {
-      if (ordering == 1)
+      if (ordering == 0)
       {
-         gr_sedge.GetJ()[k] =k;
+         gr_sedge.GetJ()[k] = k;
       }
       else
       {
@@ -1670,7 +1670,7 @@ void ParMesh::GetSharedVertexCommunicator(int ordering,
    }
    for (int k = 0; k < svert_lvert.Size(); k++)
    {
-      if (ordering == 1)
+      if (ordering == 0)
       {
          gr_svert.GetJ()[k] = k;
       }
@@ -1694,7 +1694,7 @@ void ParMesh::GetSharedQuadCommunicator(int ordering,
    }
    for (int k = 0; k < shared_quads.Size(); k++)
    {
-      if (ordering == 1)
+      if (ordering == 0)
       {
          gr_squad.GetJ()[k] = k;
       }
@@ -1718,7 +1718,7 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    }
    for (int k = 0; k < shared_trias.Size(); k++)
    {
-      if (ordering == 1)
+      if (ordering == 0)
       {
          gr_stria.GetJ()[k] = k;
       }
