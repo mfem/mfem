@@ -159,8 +159,8 @@ static void PADGDiffusionSetup3D(const int Q1D,
    constexpr int _fid_ = 4; // offset in face_info for local face id
    constexpr int _or_ = 5; // offset in face_info for orientation
 
-   // (q, 1/h, J00, J01, J02, J10, J11, J12)
-   const auto pa = Reshape(pa_data.Write(), 8, Q1D, Q1D, NF);
+   // (J00, J01, J02, J10, J11, J12, q/h)
+   const auto pa = Reshape(pa_data.Write(), 7, Q1D, Q1D, NF);
 
    mfem::forall_2D(NF, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int f) -> void
    {
@@ -202,7 +202,6 @@ static void PADGDiffusionSetup3D(const int Q1D,
          {
             const double Qp = const_q ? Q(0,0,0) : Q(p1, p2, f);
             const double dJf = detJf(p1,p2,f);
-            pa(0, p1, p2, f) = kappa * Qp * W(p1, p2) * dJf;
 
             double hi = 0.0;
 
@@ -238,7 +237,7 @@ static void PADGDiffusionSetup3D(const int Q1D,
                {
                   const int idx = std::abs(perm[side][d]) - 1;
                   const int sgn = (perm[side][d] < 0) ? -1 : 1;
-                  pa(2+3*side + d, p1, p2, f) = sgn * val * nJi[idx];
+                  pa(3*side + d, p1, p2, f) = sgn * val * nJi[idx];
                }
 
                hi += factor * dJf / dJe;
@@ -246,12 +245,12 @@ static void PADGDiffusionSetup3D(const int Q1D,
 
             if (nsides == 1)
             {
+               pa(3, p1, p2, f) = 0.0;
+               pa(4, p1, p2, f) = 0.0;
                pa(5, p1, p2, f) = 0.0;
-               pa(6, p1, p2, f) = 0.0;
-               pa(7, p1, p2, f) = 0.0;
             }
 
-            pa(1, p1, p2, f) = hi;
+            pa(6, p1, p2, f) = kappa * hi * Qp * W(p1, p2) * dJf;
          }
       }
    });
@@ -483,7 +482,7 @@ void DGDiffusionIntegrator::SetupPA(const FiniteElementSpace &fes,
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
-   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (8 * q1d * q1d * nf);
+   const int pa_size = (dim == 2) ? (6 * q1d * nf) : (7 * q1d * q1d * nf);
    pa_data.SetSize(pa_size, Device::GetMemoryType());
 
    // Evaluate the coefficient at the face quadrature points.
@@ -531,7 +530,6 @@ void PADGDiffusionApply2D(const int NF,
                           const Array<double>& g,
                           const Array<double>& gt,
                           const double sigma,
-                          const double kappa,
                           const Vector &pa_data,
                           const Vector &x_,
                           const Vector &dxdn_,
@@ -711,7 +709,6 @@ static void PADGDiffusionApply3D(const int NF,
                                  const Array<double>& g,
                                  const Array<double>& gt,
                                  const double sigma,
-                                 const double kappa,
                                  const Vector& pa_data,
                                  const Vector& x_,
                                  const Vector& dxdn_,
@@ -728,8 +725,8 @@ static void PADGDiffusionApply3D(const int NF,
    auto B_ = Reshape(b.Read(), Q1D, D1D);
    auto G_ = Reshape(g.Read(), Q1D, D1D);
 
-   // (q, 1/h, J0[0], J0[1], J0[2], J1[0], J1[1], J1[2])
-   auto pa = Reshape(pa_data.Read(), 8, Q1D, Q1D, NF);
+   // (J0[0], J0[1], J0[2], J1[0], J1[1], J1[2], q/h)
+   auto pa = Reshape(pa_data.Read(), 7, Q1D, Q1D, NF);
 
    auto x =    Reshape(x_.Read(),         D1D, D1D, 2, NF);
    auto y =    Reshape(y_.ReadWrite(),    D1D, D1D, 2, NF);
@@ -752,43 +749,27 @@ static void PADGDiffusionApply3D(const int NF,
       MFEM_SHARED double Gu0[max_Q1D][max_D1D];
       MFEM_SHARED double Gu1[max_Q1D][max_D1D];
 
-      MFEM_SHARED double Bu0[max_Q1D][max_Q1D];
-      MFEM_SHARED double Bu1[max_Q1D][max_Q1D];
+      MFEM_SHARED double Bu0[max_Q1D][max_D1D];
+      MFEM_SHARED double Bu1[max_Q1D][max_D1D];
 
       MFEM_SHARED double Bdu0[max_Q1D][max_D1D];
       MFEM_SHARED double Bdu1[max_Q1D][max_D1D];
 
-      MFEM_SHARED double Jump[max_Q1D][max_Q1D];
+      MFEM_SHARED double kappa_Qh[max_Q1D][max_Q1D];
 
       MFEM_SHARED double nJe[2][max_Q1D][max_Q1D][3];
-      // MFEM_SHARED double qhi[max_Q1D][max_Q1D];
+      MFEM_SHARED double BG[2*max_D1D*max_Q1D];
 
-      double (*BBu0)[max_Q1D] = u0;
-      double (*BBu1)[max_Q1D] = u1;
-      double (*r)[max_Q1D] = Bu0;
-      double (*qhi)[max_Q1D] = Jump;
-      double (*Br)[max_Q1D] = Bu1;
-      double (*Bj0)[max_D1D] = Bdu0;
-      double (*Bj1)[max_D1D] = Bdu1;
+      // some buffers are reused multiple times, but for clarity have new names:
+      double (*Bj0)[max_D1D] = Bu0;
+      double (*Bj1)[max_D1D] = Bu1;
+      double (*Bjn0)[max_D1D] = Bdu0;
+      double (*Bjn1)[max_D1D] = Bdu1;
       double (*Gj0)[max_D1D] = Gu0;
       double (*Gj1)[max_D1D] = Gu1;
 
-      MFEM_SHARED double BG[2*max_D1D*max_Q1D];
       DeviceMatrix B(BG, Q1D, D1D);
       DeviceMatrix G(BG + D1D*Q1D, Q1D, D1D);
-
-      // if (MFEM_THREAD_ID(z) == 0)
-      // {
-      //    MFEM_FOREACH_THREAD(p, x, Q1D)
-      //    {
-      //       MFEM_FOREACH_THREAD(d, y, D1D)
-      //       {
-      //          B(p, d) = B_(p, d);
-      //          G(p, d) = G_(p, d);
-      //       }
-      //    }
-      // }
-      // MFEM_SYNC_THREAD;
 
       // copy face values to u0, u1 and copy normals to du0, du1
       MFEM_FOREACH_THREAD(side, z, 2)
@@ -811,12 +792,12 @@ static void PADGDiffusionApply3D(const int NF,
             {
                for (int l=0; l < 3; ++l)
                {
-                  nJe[side][p1][p2][l] = pa(2+3*side + l, p1, p2, f);
+                  nJe[side][p1][p2][l] = pa(3*side + l, p1, p2, f);
                }
 
                if (side == 0)
                {
-                  qhi[p1][p2] = pa(0, p1, p2, f) * pa(1, p1, p2, f);
+                  kappa_Qh[p1][p2] = pa(6, p1, p2, f);
                }
             }
          }
@@ -840,13 +821,13 @@ static void PADGDiffusionApply3D(const int NF,
       {
          double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
-         double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
+         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
 
-         MFEM_FOREACH_THREAD(p1, x, Q1D)
+         MFEM_FOREACH_THREAD(d2, x, D1D)
          {
-            MFEM_FOREACH_THREAD(d2, y, D1D)
+            MFEM_FOREACH_THREAD(p1, y, Q1D)
             {
                double bu = 0.0;
                double bdu = 0.0;
@@ -856,6 +837,7 @@ static void PADGDiffusionApply3D(const int NF,
                {
                   const double b = B(p1, d1);
                   const double g = G(p1, d1);
+
                   bu += b * u[d1][d2];
                   bdu += b * du[d1][d2];
                   gu += g * u[d1][d2];
@@ -871,8 +853,8 @@ static void PADGDiffusionApply3D(const int NF,
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
-         double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
-         double (*BBu)[max_Q1D] = (side == 0) ? BBu0 : BBu1;
+         double (*Bu)[max_D1D] = (side == 0) ? Bu0 : Bu1;
+         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*Gu)[max_D1D] = (side == 0) ? Gu0 : Gu1;
          double (*Bdu)[max_D1D] = (side == 0) ? Bdu0 : Bdu1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
@@ -881,13 +863,13 @@ static void PADGDiffusionApply3D(const int NF,
          {
             MFEM_FOREACH_THREAD(p2, y, Q1D)
             {
-               // const double Je[] = {pa(2+3*side + 0, p1, p2, f), pa(2+3*side + 1, p1, p2, f), pa(2+3*side + 2, p1, p2, f)};
                const double * Je = nJe[side][p1][p2];
 
                double bbu = 0.0;
                double bgu = 0.0;
                double gbu = 0.0;
                double bbdu = 0.0;
+
                for (int d2 = 0; d2 < D1D; ++d2)
                {
                   const double b = B(p2, d2);
@@ -898,91 +880,17 @@ static void PADGDiffusionApply3D(const int NF,
                   bbdu += b * Bdu[p1][d2];
                }
 
-               BBu[p1][p2] = bbu;
-               // du <- Q du/dn * w * det(J)
-               du[p1][p2] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
+               u[p1][p2] = bbu;
+               du[p1][p2] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu; // du <- Q du/dn * w * det(J)
             }
          }
       }
       MFEM_SYNC_THREAD;
-
-      // term: - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
-      if (MFEM_THREAD_ID(z) == 0)
-      {
-         MFEM_FOREACH_THREAD(p1, x, Q1D)
-         {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
-            {
-               // const double q = pa(0, p1, p2, f);
-               // const double hi = pa(1, p1, p2, f);
-               const double jump = BBu0[p1][p2] - BBu1[p1][p2];
-               const double avg = du0[p1][p2] + du1[p1][p2]; // {Q du/dn} * w * det(J)
-               // r[p1][p2] = -avg + hi * q * jump;
-               r[p1][p2] = -avg + qhi[p1][p2] * jump;
-               Jump[p1][p2] = jump;
-               
-               du0[p1][p2] = 0.0; // don't need this data anymore, need to reuse array
-               du1[p1][p2] = 0.0; 
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      // u0, u1 <- B' * r
-      if (MFEM_THREAD_ID(z) == 0)
-      {
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
-            {
-               double br = 0.0;
-               for (int p1 = 0; p1 < Q1D; ++p1)
-               {
-                  const double b = B(p1, d1);
-                  br += b * r[p1][p2];
-               }
-               Br[p2][d1] = br;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      if (MFEM_THREAD_ID(z) == 0)
-      {
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(d2, y, D1D)
-            {
-               double bbr = 0.0;
-               for (int p2 = 0; p2 < Q1D; ++p2)
-               {
-                  const double b = B(p2, d2);
-                  bbr += b * Br[p2][d1];
-               }
-
-               u0[d1][d2] =  bbr; // reuse u0, u1
-               u1[d1][d2] = -bbr;
-            }
-         }
-      }
-
-      // term: sigma * < [u], {Q dv/dn} >
-      // MFEM_FOREACH_THREAD(side, z, 2)
-      // {
-      //    double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
-
-      //    MFEM_FOREACH_THREAD(d1, x, D1D)
-      //    {
-      //       MFEM_FOREACH_THREAD(d2, y, D1D)
-      //       {
-      //          du[d1][d2] = 0.0;
-      //       }
-      //    }
-      // }
 
       MFEM_FOREACH_THREAD(side, z, 2)
       {
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
+         double (*Bjn)[max_D1D] = (side == 0) ? Bjn0 : Bjn1;
          double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
@@ -990,22 +898,36 @@ static void PADGDiffusionApply3D(const int NF,
             MFEM_FOREACH_THREAD(p2, y, Q1D)
             {
                double bj = 0.0;
+               double bjn = 0.0;
                double gj = 0.0;
+               double br = 0.0;
+               
                for (int p1 = 0; p1 < Q1D; ++p1)
                {
                   const double b = B(p1, d1);
-                  // const double Je0 = pa(2+3*side + 0, p1, p2, f);
-                  const double Je0 = nJe[side][p1][p2][0];
-                  bj += b * Je0 * Jump[p1][p2];
-
-                  // const double Je1 = pa(2+3*side + 1, p1, p2, f);
-                  const double Je1 = nJe[side][p1][p2][1];
                   const double g = G(p1, d1);
-                  gj += g * Je1 * Jump[p1][p2];
+
+                  const double * Je = nJe[side][p1][p2];
+
+                  const double jump = u0[p1][p2] - u1[p1][p2];
+                  const double avg = du0[p1][p2] + du1[p1][p2];
+
+                  // r = - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
+                  const double r = -avg + kappa_Qh[p1][p2] * jump;
+                  
+                  // bj, gj, bjn contribute to sigma term
+                  bj += b * Je[0] * jump;
+                  gj += g * Je[1] * jump;
+                  bjn += b * Je[2] * jump;
+
+                  br += b * r;
                }
 
-               Bj[p2][d1] = bj;
-               Gj[p2][d1] = gj;
+               Bj[p2][d1] = sigma * bj;
+               Bjn[p2][d1] = sigma * bjn;
+
+               const double sgn = (side == 0) ? 1.0 : -1.0;
+               Gj[p2][d1] = sgn * br + sigma * gj; // group br and gj together since we will multiply both by B and add them anyway
             }
          }
       }
@@ -1016,6 +938,7 @@ static void PADGDiffusionApply3D(const int NF,
          double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
          double (*du)[max_Q1D] = (side == 0) ? du0 : du1;
          double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
+         double (*Bjn)[max_D1D] = (side == 0) ? Bjn0 : Bjn1;
          double (*Gj)[max_D1D] = (side == 0) ? Gj0 : Gj1;
 
          MFEM_FOREACH_THREAD(d1, x, D1D)
@@ -1023,60 +946,21 @@ static void PADGDiffusionApply3D(const int NF,
             MFEM_FOREACH_THREAD(d2, y, D1D)
             {
                double bbj = 0.0;
+               double gbj = 0.0;
                double bgj = 0.0;
+
                for (int p2 = 0; p2 < Q1D; ++p2)
                {
                   const double b = B(p2, d2);
+                  const double g = G(p2, d2);
+                  
                   bbj += b * Bj[p2][d1];
                   bgj += b * Gj[p2][d1];
+                  gbj += g * Bjn[p2][d1];
                }
 
-               du[d1][d2] += sigma * bbj;
-               u[d1][d2] += sigma * bgj;
-            }
-         }
-      }
-
-      MFEM_FOREACH_THREAD(side, z, 2)
-      {
-         double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
-
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(p2, y, Q1D)
-            {
-               double bj = 0.0;
-               for (int p1 = 0; p1 < Q1D; ++p1)
-               {
-                  const double b = B(p1, d1);
-                  // const double Je2 = pa(2+3*side + 2, p1, p2, f);
-                  const double Je2 = nJe[side][p1][p2][2];
-                  bj += b * Je2 * Jump[p1][p2];
-               }
-
-               Bj[p2][d1] = bj;
-            }
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      MFEM_FOREACH_THREAD(side, z, 2)
-      {
-         double (*u)[max_Q1D] = (side == 0) ? u0 : u1;
-         double (*Bj)[max_D1D] = (side == 0) ? Bj0 : Bj1;
-
-         MFEM_FOREACH_THREAD(d1, x, D1D)
-         {
-            MFEM_FOREACH_THREAD(d2, y, D1D)
-            {
-               double gbj = 0.0;
-               for (int p2 = 0; p2 < Q1D; ++p2)
-               {
-                  const double g = G(p2, d2);
-                  gbj += g * Bj[p2][d1];
-               }
-
-               u[d1][d2] += sigma * gbj;
+               du[d1][d2] = bbj;
+               u[d1][d2] = bgj + gbj;
             }
          }
       }
@@ -1109,7 +993,6 @@ static void PADGDiffusionApply(const int dim,
                                const Array<double> &G,
                                const Array<double> &Gt,
                                const double sigma,
-                               const double kappa,
                                const Vector &pa_data,
                                const Vector &x,
                                const Vector &dxdn,
@@ -1130,7 +1013,7 @@ static void PADGDiffusionApply(const int dim,
          case 0x89: kernel = PADGDiffusionApply2D<8,9>; break;
          case 0x9A: kernel = PADGDiffusionApply2D<9,10>; break;
       }
-      kernel(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
+      kernel(NF, B, Bt, G, Gt, sigma, pa_data, x, dxdn, y, dydn, D1D, Q1D);
    }
    else if (dim == 3)
    {
@@ -1146,7 +1029,7 @@ static void PADGDiffusionApply(const int dim,
          case 0x8A: kernel = PADGDiffusionApply3D<8,10>; break;
          case 0x9B: kernel = PADGDiffusionApply3D<9,11>; break;
       }
-      kernel(NF, B, Bt, G, Gt, sigma, kappa, pa_data, x, dxdn, y, dydn, D1D, Q1D);
+      kernel(NF, B, Bt, G, Gt, sigma, pa_data, x, dxdn, y, dydn, D1D, Q1D);
    }
    else
    {
@@ -1159,7 +1042,7 @@ void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
 {
    PADGDiffusionApply(dim, dofs1D, quad1D, nf,
                       maps->B, maps->Bt, maps->G, maps->Gt,
-                      sigma, kappa, pa_data, x, dxdn, y, dydn);
+                      sigma, pa_data, x, dxdn, y, dydn);
 }
 
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
