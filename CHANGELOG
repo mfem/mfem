@@ -102,6 +102,7 @@ Linear and nonlinear solvers
   This interface provides a serial (OpenMP shared memory) version of Pardiso for
   use with SparseMatrix. This complements the existing parallel (MPI distributed
   memory) version already available through the CPardiso MFEM integration.
+- Added support for HIP for PETSc classes.
 
 Integrations, testing and documentation
 ---------------------------------------
