@@ -15,13 +15,6 @@
 #include "vector.hpp"
 #include "../general/forall.hpp"
 
-#if defined(MFEM_USE_SUNDIALS)
-#include "sundials.hpp"
-#if defined(MFEM_USE_MPI)
-#include <nvector/nvector_parallel.h>
-#endif
-#endif
-
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
 #endif
@@ -313,6 +306,14 @@ void Vector::Neg()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
 }
 
+void Vector::Reciprocal()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = 1.0/y[i]; });
+}
+
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
@@ -536,6 +537,19 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
       }
 #endif
    }
+}
+
+void Vector::cross3D(const Vector &vin, Vector &vout) const
+{
+   HostRead();
+   vin.HostRead();
+   vout.HostWrite();
+   MFEM_VERIFY(size == 3, "Only 3D vectors supported in cross.");
+   MFEM_VERIFY(vin.Size() == 3, "Only 3D vectors supported in cross.");
+   vout.SetSize(3);
+   vout(0) = data[1]*vin(2)-data[2]*vin(1);
+   vout(1) = data[2]*vin(0)-data[0]*vin(2);
+   vout(2) = data[0]*vin(1)-data[1]*vin(0);
 }
 
 void Vector::median(const Vector &lo, const Vector &hi)
