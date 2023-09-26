@@ -989,7 +989,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
    Vector r(n), w(n);
    Array<Vector *> v;
 
-   double resid;
    int i, j, k;
 
    if (iterative_mode)
@@ -1035,7 +1034,6 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       final_iter = 0;
       converged = true;
       j = 0;
-      resid = beta;
       goto finish;
    }
 
@@ -1089,7 +1087,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         resid = fabs(s(i+1));
+         const double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
@@ -1148,7 +1146,7 @@ finish:
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << final_iter
-                << "  ||B r|| = " << resid << '\n';
+                << "  ||B r|| = " << final_norm << '\n';
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
@@ -1175,7 +1173,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
    int i, j, k;
 
-
    if (iterative_mode)
    {
       oper->Mult(x, r);
@@ -1187,9 +1184,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       r = b;
    }
    double beta = initial_norm = Norm(r);  // beta = ||r||
-   // We need to preallocate this to report the correct result in the case of
-   // no convergence.
-   double resid;
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1264,7 +1258,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         resid = fabs(s(i+1));
+         const double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
@@ -1330,7 +1324,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    {
       mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
                 << "   Iteration : " << setw(3) << j-1
-                << "  || r || = " << resid << endl;
+                << "  || r || = " << final_norm << endl;
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
