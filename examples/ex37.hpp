@@ -173,14 +173,8 @@ public:
       u->GetVectorGradient(T, grad);
       double div_u = grad.Trace();
       double density = L*div_u*div_u;
-      int dim = T.GetSpaceDim();
-      for (int i=0; i<dim; i++)
-      {
-         for (int j=0; j<dim; j++)
-         {
-            density += M*grad(i,j)*(grad(i,j)+grad(j,i));
-         }
-      }
+      grad.Symmetrize();
+      density += 2*M*grad.FNorm2();
       double val = rho_filter->GetValue(T,ip);
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
