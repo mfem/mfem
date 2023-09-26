@@ -9,10 +9,17 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
-//   ./tmop-metric-magnitude -mid 7   -pv 2.0 -par 0.5 -ps 4.0
-//   ./tmop-metric-magnitude -mid 321 -pv 2.0 -par 0.5 -ps 4.0
+//         -------------------------------------------------------
+//         Metric Magnitude Miniapp: track changes in TMOP metrics
+//         -------------------------------------------------------
 //
+// This miniapp can be used to track how TMPOP metrics change under geometric
+// perturbations.
+//
+// Compile with: make tmop-metric-magnitude
+//
+// Sample runs:  tmop-metric-magnitude -mid 7   -pv 2.0 -par 0.5 -ps 4.0
+//               tmop-metric-magnitude -mid 321 -pv 2.0 -par 0.5 -ps 4.0
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -203,4 +210,3 @@ void Form3DJac(double perturb_v, double perturb_ar, double perturb_s,
           ar3  = pow(ar_1, 1.0/3.0) * pow(ar_2, 1.0/3.0) * pow(ar_3, 1.0/3.0);
    J *= pow(volume / (sin3 * ar3), 1.0/3.0);
 }
-

@@ -42,7 +42,7 @@ Discretization improvements
 - Support for parallel transfer of H1 fields using the low-order refined (LOR)
   transfer operators in L2ProjectionGridTransfer
 
-- Added support for p-refined meshes in FindPointsGSLIB.
+- Added support for p-refined meshes in GSLIB-FindPoints.
 
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
   spaces are now supported through the ConformingFaceRestriction class.
