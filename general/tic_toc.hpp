@@ -13,6 +13,7 @@
 #define MFEM_TIC_TOC
 
 #include "../config/config.hpp"
+#include <memory>
 
 #ifndef MFEM_TIMER_TYPE
 #ifndef _WIN32
@@ -34,9 +35,10 @@ class StopWatch;
 class StopWatch
 {
 private:
-   internal::StopWatch *M;
+   std::unique_ptr<internal::StopWatch> M; ///< Pointer to implementation.
 
 public:
+   /// Creates a new (stopped) StopWatch object.
    StopWatch();
 
    /// Clear the elapsed time on the stopwatch and restart it if it's running.
@@ -48,20 +50,26 @@ public:
    /// Stop the stopwatch.
    void Stop();
 
+   /// @brief Clears and restarts the stopwatch. Equivalent to Clear() followed by
+   /// Start().
+   void Restart();
+
    /// Return the time resolution available to the stopwatch.
    double Resolution();
 
-   /** Return the number of real seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of real seconds elapsed since the stopwatch was
+   /// started.
    double RealTime();
 
-   /** Return the number of user seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of user seconds elapsed since the stopwatch was
+   /// started.
    double UserTime();
 
-   /** Return the number of system seconds elapsed since the stopwatch was
-       started. */
+   /// @brief Return the number of system seconds elapsed since the stopwatch
+   /// was started.
    double SystTime();
+
+   /// Default destructor.
    ~StopWatch();
 };
 
