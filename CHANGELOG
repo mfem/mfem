@@ -14,6 +14,9 @@ Version 4.5.3 (development)
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new example code, Example 37/37p, to demonstrate topology optimization
+  with MFEM.
+
 - Added a new example code, Example 36/36p, to demonstrate the solution of
   the obstacle problem with a new finite element method.
 
@@ -101,6 +104,7 @@ Linear and nonlinear solvers
   This interface provides a serial (OpenMP shared memory) version of Pardiso for
   use with SparseMatrix. This complements the existing parallel (MPI distributed
   memory) version already available through the CPardiso MFEM integration.
+- Added support for HIP for PETSc classes.
 
 Integrations, testing and documentation
 ---------------------------------------
