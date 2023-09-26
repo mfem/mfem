@@ -19,7 +19,7 @@ void KDTreeNodalProjection<2>::Project(const Vector& coords,const Vector& src,
                                        int ordering, double lerr)
 {
    const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
-   const int vd=dest->VectorDim(); //dimension of the vector field
+   const int vd=dest->VectorDim(); // dimension of the vector field
    const int np=src.Size()/vd; // number of points
    int ind;
    double dist;
@@ -86,7 +86,7 @@ void KDTreeNodalProjection<3>::Project(const Vector& coords,const Vector& src,
                                        int ordering, double lerr)
 {
    const int dim=dest->FESpace()->GetMesh()->SpaceDimension();
-   const int vd=dest->VectorDim(); //dimension of the vector field
+   const int vd=dest->VectorDim(); // dimension of the vector field
    const int np=src.Size()/vd; // number of points
    int ind;
    double dist;
@@ -213,7 +213,7 @@ void KDTreeNodalProjection<2>::Project(const GridFunction& gf, double lerr)
    maxbb_src+=lerr;
    minbb_src-=lerr;
 
-   //check for intersection
+   // check for intersection
    bool flag;
    {
       flag=true;
@@ -317,7 +317,7 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
       for (int i=0; i<gf.FESpace()->GetNE(); i++)
       {
          el=gf.FESpace()->GetFE(i);
-         //get the element transformation
+         // get the element transformation
          trans = gf.FESpace()->GetElementTransformation(i);
          ir=&(el->GetNodes());
          gf.FESpace()->GetElementVDofs(i,vdofs);
@@ -339,7 +339,7 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, double lerr)
    maxbb_src+=lerr;
    minbb_src-=lerr;
 
-   //check for intersection
+   // check for intersection
    bool flag;
    {
       flag=true;

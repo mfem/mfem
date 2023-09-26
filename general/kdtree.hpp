@@ -349,7 +349,6 @@ private:
    /// The point cloud is stored in a vector.
    std::vector<NodeND> data;
 
-
    /// Finds the median for a sequence of nodes starting with itb
    /// and ending with ite. The current coordinate index is set by cdim.
    Tfloat FindMedian(typename std::vector<NodeND>::iterator itb,
@@ -424,7 +423,7 @@ private:
                      {
                         bc.dist=dd; bc.pos=mtb-data.begin(); bc.level=level;
                      }
-                  }// end central point check
+                  } // end central point check
                }
             }
             else
@@ -557,14 +556,13 @@ private:
          for (auto it=itb; it!=ite; it++)
          {
             dd=Dist(it->pt, pt);
-            if (dd<R) //update bc
+            if (dd<R) // update bc
             {
                res.push_back(it->ind);
             }
          }
       }
    }
-
 
    /// Finds the set of indices of points within a distance R of a point pt.
    void FindNeighborPoints(PointND& pt, Tfloat R,
