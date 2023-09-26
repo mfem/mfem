@@ -1,7 +1,6 @@
 name: "Docker"
 
 on:
-
   # Always have a base image ready to go - this is a nightly build
   schedule:
     - cron: 0 3 * * *
@@ -17,6 +16,8 @@ on:
   # Publish packages on release
   release:
     types: [published]
+
+  pull_request:  # TODO TESTING
 
 jobs:
   build:
@@ -57,23 +58,23 @@ jobs:
            docker build -f ${dockerfile} -t ${container} .
            echo "container=$container" >> $GITHUB_ENV
 
-      - name: GHCR Login
-        if: (github.event_name != 'pull_request')
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # - name: GHCR Login
+      #   if: (github.event_name != 'pull_request')
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy
-        if: (github.event_name != 'pull_request')
-        run: |
-            docker push ${container}
+      # - name: Deploy
+      #   if: (github.event_name != 'pull_request')
+      #   run: |
+      #       docker push ${container}
 
-      - name: Tag and Push Release
-        if: (github.event_name == 'release')
-        run: |
-            tag=${GITHUB_REF#refs/tags/}
-            echo "Tagging and releasing ${uri}:${tag}"
-            docker tag ${uri}:latest ${uri}:${tag}
-            docker push ${uri}:${tag}
+      # - name: Tag and Push Release
+      #   if: (github.event_name == 'release')
+      #   run: |
+      #       tag=${GITHUB_REF#refs/tags/}
+      #       echo "Tagging and releasing ${uri}:${tag}"
+      #       docker tag ${uri}:latest ${uri}:${tag}
+      #       docker push ${uri}:${tag}
