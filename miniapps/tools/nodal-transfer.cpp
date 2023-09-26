@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 //
-//   ----------------------
-//   Nodal Transfer Miniapp
-//   ----------------------
+//  -------------------------------------------------------------------------
+//  Nodal Transfer Miniapp: Map ParGridFunction to Different MPI Partitioning
+//  -------------------------------------------------------------------------
 //
 // The Nodal Transfer Miniapp maps partitioned parallel grid function to a 
 // parallel grid function partitioned on a different number of processes. The 
@@ -31,7 +31,6 @@
 //    mpirun -np 8 ./nodal-transfer -rs 2 -rp 2 -gd 1 -o 1 -m ../../data/star.mesh
 // Read the generated data on 4 processes and coarser mesh
 //    mpirun -np 4 ./nodal-transfer -rs 2 -rp 0 -gd 0 -snp 8 -o 1 -m ../../data/star.mesh
-//
 
 #include <mfem.hpp>
 #include <fstream>
