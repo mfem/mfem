@@ -61,7 +61,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
    SetPointIndices();
-   Order = std::min(std::min(irx.GetOrder(), iry.GetOrder()), irz.GetOrder());
+   Order = std::min({irx.GetOrder(), iry.GetOrder(), irz.GetOrder()});
 
    for (int iz = 0; iz < nz; ++iz)
    {
