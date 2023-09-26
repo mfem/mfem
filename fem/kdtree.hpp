@@ -108,7 +108,7 @@ public:
             isca=space->GetVDim();
          }
 
-         //intialize the bounding box
+         // intialize the bounding box
          const FiniteElement* el=space->GetFE(0);
          trans = space->GetElementTransformation(0);
          ir=&(el->GetNodes());
@@ -124,7 +124,7 @@ public:
          for (int i=0; i<space->GetNE(); i++)
          {
             el=space->GetFE(i);
-            //get the element transformation
+            // get the element transformation
             trans = space->GetElementTransformation(i);
             ir=&(el->GetNodes());
             space->GetElementVDofs(i,vdofs);
