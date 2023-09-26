@@ -9,9 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 //
-//   ----------------------
-//   Nodal Transfer Miniapp
-//   ----------------------
+//  -------------------------------------------------------------------------
+//  Nodal Transfer Miniapp: Map ParGridFunction to Different MPI Partitioning
+//  -------------------------------------------------------------------------
 //
 // The Nodal Transfer Miniapp maps partitioned parallel grid function to a 
 // parallel grid function partitioned on a different number of processes. The 
