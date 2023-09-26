@@ -53,7 +53,8 @@
 #include "mfem.hpp"
 #include <iostream>
 #include <fstream>
-#include "ex37.hpp"
+// #include "ex37.hpp"
+#include "ex38.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -304,54 +305,8 @@ int main(int argc, char *argv[])
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
 
-   // 6. Set-up the physics solver.
-   int maxat = mesh.bdr_attributes.Max();
-   Array<int> ess_bdr(maxat);
-   ess_bdr = 0;
-   ess_bdr[0] = 1;
-   ConstantCoefficient one(1.0);
-   ConstantCoefficient lambda_cf(lambda);
-   ConstantCoefficient mu_cf(mu);
-   LinearElasticitySolver * ElasticitySolver = new LinearElasticitySolver();
-   ElasticitySolver->SetMesh(&mesh);
-   ElasticitySolver->SetOrder(state_fec.GetOrder());
-   ElasticitySolver->SetupFEM();
-   Vector center(2); center(0) = 2.9; center(1) = 0.5;
-   Vector force(2); force(0) = 0.0; force(1) = -1.0;
-   double r = 0.05;
-   VolumeForceCoefficient vforce_cf(r,center,force);
-   ElasticitySolver->SetRHSCoefficient(&vforce_cf);
-   ElasticitySolver->SetEssentialBoundary(ess_bdr);
-
-   // 7. Set-up the filter solver.
-   ConstantCoefficient eps2_cf(epsilon*epsilon);
-   DiffusionSolver * FilterSolver = new DiffusionSolver();
-   FilterSolver->SetMesh(&mesh);
-   FilterSolver->SetOrder(filter_fec.GetOrder());
-   FilterSolver->SetDiffusionCoefficient(&eps2_cf);
-   FilterSolver->SetMassCoefficient(&one);
-   Array<int> ess_bdr_filter;
-   if (mesh.bdr_attributes.Size())
-   {
-      ess_bdr_filter.SetSize(mesh.bdr_attributes.Max());
-      ess_bdr_filter = 0;
-   }
-   FilterSolver->SetEssentialBoundary(ess_bdr_filter);
-   FilterSolver->SetupFEM();
-
-   BilinearForm mass(&control_fes);
-   mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
-   mass.Assemble();
-   SparseMatrix M;
-   Array<int> empty;
-   mass.FormSystemMatrix(empty,M);
-
-   // 8. Define the Lagrange multiplier and gradient functions
-   GridFunction grad(&control_fes);
-   GridFunction w_filter(&filter_fes);
-
    // 9. Define some tools for later
-   ConstantCoefficient zero(0.0);
+   ConstantCoefficient zero(0.0), one(1.0);
    GridFunction onegf(&control_fes);
    onegf = 1.0;
    GridFunction zerogf(&control_fes);
@@ -361,6 +316,57 @@ int main(int argc, char *argv[])
    vol_form.Assemble();
    double domain_volume = vol_form(onegf);
    const double target_volume = domain_volume * vol_fraction;
+
+   Vector center(2); center(0) = 2.9; center(1) = 0.5;
+   Vector force(2); force(0) = 0.0; force(1) = -1.0;
+   double r = 0.05;
+   auto volume_force = [center, force, r](const Vector &x, Vector &force)
+   {
+      Vector xx(x);
+      xx -= center;
+      const double cr = xx.Norml2();
+      force.SetSize(x.Size());
+      if (cr <= r)
+      {
+         force = force;
+      }
+      else
+      {
+         force = 0.0;
+      }
+   };
+   VectorFunctionCoefficient vforce_cf(dim, volume_force);
+
+   // 6. Set-up the physics solver.
+   int maxat = mesh.bdr_attributes.Max();
+   Array<int> ess_bdr(maxat);
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   MappedGridFunctionCoefficient simp_cf(&rho_filter, [rho_min](const double x) {return simp_rule(x, rho_min, 1.0, 3.0);});
+   ProductCoefficient lambda_SIMP_cf(lambda, simp_cf);
+   ProductCoefficient mu_SIMP_cf(mu, simp_cf);
+   // LinearElasticitySolver * ElasticitySolver = new LinearElasticitySolver();
+   ElasticitySolver elasticitySolver(state_fes, lambda_SIMP_cf, mu_SIMP_cf,
+                                     vforce_cf);
+   elasticitySolver.SetEssBdr(ess_bdr);
+
+   ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
+   StrainEnergyDensityCoefficient rhs_cf(&lambda_cf, &mu_cf,
+                                         &u, &rho_filter, rho_min, 3.0);
+
+   // 7. Set-up the filter solver.
+   ConstantCoefficient eps2_cf(epsilon*epsilon);
+   FilterSolver filterSolver(filter_fes, eps2_cf, one, rho);
+
+   BilinearForm mass(&control_fes);
+   mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
+   mass.Assemble();
+
+   // 8. Define the Lagrange multiplier and gradient functions
+   GridFunction w_filter(&filter_fes);
+   GridFunctionCoefficient w_cf(&w_filter);
+   LinearForm w_rhs(&control_fes);
+   w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -397,37 +403,28 @@ int main(int argc, char *argv[])
 
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
-      FilterSolver->SetRHSCoefficient(&rho);
-      FilterSolver->Solve();
-      rho_filter = *FilterSolver->GetFEMSolution();
+      // FilterSolver->SetRHSCoefficient(&rho);
+      // FilterSolver->Solve();
+      filterSolver.SetRho(rho);
+      filterSolver.AssembleRHS();
+      filterSolver.Solve(&rho_filter);
 
       // Step 2 - State solve
       // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
-      SIMPInterpolationCoefficient SIMP_cf(&rho_filter,rho_min, 1.0);
-      ProductCoefficient lambda_SIMP_cf(lambda_cf,SIMP_cf);
-      ProductCoefficient mu_SIMP_cf(mu_cf,SIMP_cf);
-      ElasticitySolver->SetLameCoefficients(&lambda_SIMP_cf,&mu_SIMP_cf);
-      ElasticitySolver->Solve();
-      u = *ElasticitySolver->GetFEMSolution();
+      elasticitySolver.AssembleLHS();
+      elasticitySolver.Solve(&u);
 
       // Step 3 - Adjoint filter solve
       // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
-      StrainEnergyDensityCoefficient rhs_cf(&lambda_cf,&mu_cf,&u, &rho_filter,
-                                            rho_min);
-      FilterSolver->SetRHSCoefficient(&rhs_cf);
-      FilterSolver->Solve();
-      w_filter = *FilterSolver->GetFEMSolution();
+      filterSolver.SetRho(rhs_cf);
+      filterSolver.Solve(&w_filter);
 
       // Step 4 - Compute gradient
-      // Solve G = M⁻¹w̃
-      GridFunctionCoefficient w_cf(&w_filter);
-      LinearForm w_rhs(&control_fes);
-      w_rhs.AddDomainIntegrator(new DomainLFIntegrator(w_cf));
+      // Solve ψ = ψ - α Π(w̃)
       w_rhs.Assemble();
-      M.Mult(w_rhs,grad);
+      mass.AddMult(w_rhs, psi, -alpha);
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
-      psi.Add(-alpha, grad);
       const double material_volume = proj(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
@@ -435,7 +432,7 @@ int main(int argc, char *argv[])
       double norm_reduced_gradient = norm_increment/alpha;
       psi_old = psi;
 
-      double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
+      double compliance = (*(elasticitySolver.GetLinearForm()))(u);
       mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient <<
                 std::endl;
       mfem::out << "norm of the increment = " << norm_increment << endl;
@@ -446,7 +443,7 @@ int main(int argc, char *argv[])
       if (glvis_visualization)
       {
          GridFunction r_gf(&filter_fes);
-         r_gf.ProjectCoefficient(SIMP_cf);
+         r_gf.ProjectCoefficient(simp_cf);
          sout_r << "solution\n" << mesh << r_gf
                 << "window_title 'Design density r(ρ̃)'" << flush;
       }
@@ -464,9 +461,6 @@ int main(int argc, char *argv[])
          break;
       }
    }
-
-   delete ElasticitySolver;
-   delete FilterSolver;
 
    return 0;
 }
