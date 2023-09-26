@@ -420,7 +420,6 @@ int main(int argc, char *argv[])
       //
       //      2) A vector H(Div) field
       //         -Grad(a Div) - omega^2 b + i omega c
-      //
       ParBilinearForm pcOp(&fespace);
       if (pa) { pcOp.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       switch (prob)

@@ -19,15 +19,19 @@
 // variational formulation of the Target-Matrix Optimization Paradigm (TMOP).
 // Boundary/interface alignment is weakly enforced using a penalization term
 // that moves a selected set of nodes towards the zero level set of a signed
-// smooth discrete function. See the following papers for more details:
-// (1) "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
+// smooth discrete function.
+//
+// See the following papers for more details:
+//
+// [1] "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
 //     Knupp, Kolev, Mittal, Tomov.
-// (2) "High-Order Mesh Morphing for Boundary and Interface Fitting to Implicit Geometries" by
+// [2] "High-Order Mesh Morphing for Boundary and Interface Fitting to Implicit Geometries" by
 //     Barrera, Kolev, Mittal, Tomov.
-// (3) "The target-matrix optimization paradigm for high-order meshes" by
+// [3] "The target-matrix optimization paradigm for high-order meshes" by
 //     Dobrev, Knupp, Kolev, Mittal, Tomov.
-
+//
 // Compile with: make pmesh-fitting
+//
 // Sample runs:
 //  Interface fitting:
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5

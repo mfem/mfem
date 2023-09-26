@@ -1,6 +1,5 @@
 //                                MFEM Example 36
 //
-//
 // Compile with: make ex36
 //
 // Sample runs: ex36 -o 2
@@ -60,7 +59,7 @@ public:
 class ExponentialGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
+   GridFunction *u;
    Coefficient *obstacle;
    double min_val;
    double max_val;
@@ -85,7 +84,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree)");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
