@@ -1018,6 +1018,8 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
                RealOrder++;
             }
             MFEM_VERIFY(RealOrder == ir->GetOrder(), "internal error");
+#else
+            MFEM_CONTRACT_VAR(ir);
 #endif
          }
       }
