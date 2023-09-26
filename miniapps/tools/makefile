@@ -28,7 +28,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	check-tmop-metric tmop-metric-magnitude
 
-PAR_MINIAPPS = nodal_transfer plor-transfer
+PAR_MINIAPPS = nodal-transfer plor-transfer
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -101,5 +101,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf mesh_* grid_func_*
+	@rm -rf mesh_* gridfunc_*
 	@true
