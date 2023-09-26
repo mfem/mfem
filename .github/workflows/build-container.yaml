@@ -26,7 +26,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-
         # Dockerfiles to build, a matrix supports future expanded builds
         container: [["config/docker/Dockerfile.base", "ghcr.io/mfem/mfem-ubuntu-base"],
                     ["config/docker/Dockerfile", "ghcr.io/mfem/mfem-ubuntu"]]
@@ -34,15 +33,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Build
     steps:
+      - name: Run Actions Cleaner
+        uses: rse-ops/actions-cleaner/ubuntu@main
+
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Make Space For Build
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-
-       # It's easier to reference named variables than indexes of the matrix
+      # It's easier to reference named variables than indexes of the matrix
       - name: Set Environment
         env:
           dockerfile: ${{ matrix.container[0] }}

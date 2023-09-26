@@ -42,8 +42,8 @@ inline void PAMassAssembleDiagonal2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
@@ -51,8 +51,8 @@ inline void PAMassAssembleDiagonal2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double QD[MQ1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
       {
@@ -90,10 +90,10 @@ inline void SmemPAMassAssembleDiagonal2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
@@ -103,8 +103,8 @@ inline void SmemPAMassAssembleDiagonal2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double QDZ[NBZ][MQ1][MD1];
       double (*QD)[MD1] = (double (*)[MD1])(QDZ + tidz);
@@ -156,8 +156,8 @@ inline void PAMassAssembleDiagonal3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
@@ -165,8 +165,8 @@ inline void PAMassAssembleDiagonal3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double QQD[MQ1][MQ1][MD1];
       double QDD[MQ1][MD1][MD1];
       for (int qx = 0; qx < Q1D; ++qx)
@@ -226,10 +226,10 @@ inline void SmemPAMassAssembleDiagonal3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
    auto b = Reshape(b_.Read(), Q1D, D1D);
    auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
@@ -238,8 +238,8 @@ inline void SmemPAMassAssembleDiagonal3D(const int NE,
       const int tidz = MFEM_THREAD_ID(z);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       MFEM_SHARED double B[MQ1][MD1];
       MFEM_SHARED double QQD[MQ1][MQ1][MD1];
       MFEM_SHARED double QDD[MQ1][MD1][MD1];
@@ -365,8 +365,8 @@ void PAMassApply2D_Element(const int e,
       }
    }
 
-   constexpr int max_D1D = MAX_D1D;
-   constexpr int max_Q1D = MAX_Q1D;
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
    double sol_xy[max_Q1D][max_Q1D];
    for (int qy = 0; qy < Q1D; ++qy)
    {
@@ -447,8 +447,8 @@ void SmemPAMassApply2D_Element(const int e,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -592,8 +592,8 @@ void PAMassApply3D_Element(const int e,
       }
    }
 
-   constexpr int max_D1D = MAX_D1D;
-   constexpr int max_Q1D = MAX_Q1D;
+   constexpr int max_D1D = DofQuadLimits::MAX_D1D;
+   constexpr int max_Q1D = DofQuadLimits::MAX_Q1D;
    double sol_xyz[max_Q1D][max_Q1D][max_Q1D];
    for (int qz = 0; qz < Q1D; ++qz)
    {
@@ -722,8 +722,8 @@ void SmemPAMassApply3D_Element(const int e,
 {
    constexpr int D1D = T_D1D ? T_D1D : d1d;
    constexpr int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+   constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
    auto b = ConstDeviceMatrix(b_, Q1D, D1D);
@@ -948,8 +948,8 @@ inline void PAMassApply2D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = b_.Read();
    const auto Bt = bt_.Read();
@@ -978,10 +978,10 @@ inline void SmemPAMassApply2D(const int NE,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    constexpr int NBZ = T_NBZ ? T_NBZ : 1;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= MD1, "");
-   MFEM_VERIFY(Q1D <= MQ1, "");
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
    const auto b = b_.Read();
    const auto D = d_.Read();
    const auto x = x_.Read();
@@ -1004,8 +1004,8 @@ inline void PAMassApply3D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= MAX_D1D, "");
-   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= MAX_Q1D, "");
+   MFEM_VERIFY(T_D1D ? T_D1D : d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(T_Q1D ? T_Q1D : q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = b_.Read();
    const auto Bt = bt_.Read();
@@ -1033,10 +1033,10 @@ inline void SmemPAMassApply3D(const int NE,
    MFEM_CONTRACT_VAR(bt_);
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int M1Q = T_Q1D ? T_Q1D : MAX_Q1D;
-   constexpr int M1D = T_D1D ? T_D1D : MAX_D1D;
-   MFEM_VERIFY(D1D <= M1D, "");
-   MFEM_VERIFY(Q1D <= M1Q, "");
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().MAX_D1D;
+   MFEM_VERIFY(D1D <= max_d1d, "");
+   MFEM_VERIFY(Q1D <= max_q1d, "");
    auto b = b_.Read();
    auto d = d_.Read();
    auto x = x_.Read();
