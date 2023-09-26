@@ -44,6 +44,12 @@ Discretization improvements
 
 - Added support for p-refined meshes in GSLIB-FindPoints.
 
+- Device kernels can now access device-specific DOF and quadrature limits using
+  the DofQuadLimits structure, allowing increased limits when executing on CPU.
+  The limits for the runtime selected device can be accessed in host code using
+  DeviceDofQuadLimits::Get(). The global constants MAX_D1D and MAX_Q1D are no
+  longer available.
+
 - Face restriction operators for Nedelec and Raviart-Thomas finite element
   spaces are now supported through the ConformingFaceRestriction class.
 
@@ -118,12 +124,6 @@ Miscellaneous
 
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.
-
-- mfem::forall kernels can now access device-specific DOF and quadrature limits
-  using the DofQuadLimits structure, allowing increased limits when executing on
-  CPU. The limits for the runtime selected device can be accessed in host code
-  using DeviceDofQuadLimits::Get(). The global constants MAX_D1D and MAX_Q1D are
-  no longer available.
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
