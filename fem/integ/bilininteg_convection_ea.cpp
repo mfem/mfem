@@ -28,8 +28,8 @@ static void EAConvectionAssemble1D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
@@ -38,7 +38,7 @@ static void EAConvectionAssemble1D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double r_Gi[MQ1];
       double r_Bj[MQ1];
       for (int q = 0; q < Q1D; q++)
@@ -80,8 +80,8 @@ static void EAConvectionAssemble2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, NE);
@@ -90,8 +90,8 @@ static void EAConvectionAssemble2D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double r_B[MQ1][MD1];
       double r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
@@ -157,8 +157,8 @@ static void EAConvectionAssemble3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 3, NE);
@@ -167,8 +167,8 @@ static void EAConvectionAssemble3D(const int NE,
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double r_B[MQ1][MD1];
       double r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
