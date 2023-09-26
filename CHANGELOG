@@ -125,7 +125,8 @@ Miscellaneous
   a function defined on an arbitrary set of points onto an MFEM grid
   function. The functionality is demonstrated in the nodal-transfer miniapp
   in the tools subdirectory. The KDTree class is templated and further
-  extensions can include search in arbitrary dimensional spaces.
+  extensions can include search in arbitrary dimensional spaces. The current
+  implementation is serial.
 
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.

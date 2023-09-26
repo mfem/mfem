@@ -9,6 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details
 //
+//   ----------------------
+//   Nodal Transfer Miniapp
+//   ----------------------
+//
+// The Nodal Transfer Miniapp maps partitioned parallel grid function to a 
+// parallel grid function partitioned on a different number of processes. The 
+// miniapp has two regimes: 1) Generates partitioned parallel grid function 
+// and saves it to a set of files; 2) Reads the partitioned grid function and 
+// maps it to the current partition. The map assumes that the position of the 
+// nodal DOFs does not change between the original grid function and the target 
+// grid function. The transfer does not perform any interpolation. It just 
+// copies the nodal values between the two grid functions. 
+//
 // Generate second order mesh on 4 processes
 //    mpirun -np 4 ./nodal-transfer -rs 2 -rp 1 -gd 1 -o 2
 // Read the generated data and map it to a grid function defined on two processes
