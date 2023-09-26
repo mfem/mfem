@@ -334,7 +334,7 @@ void ParSubMesh::FindSharedVerticesRanks(Array<int> &rhvtx)
 {
    // create a GroupCommunicator on the shared vertices
    GroupCommunicator svert_comm(parent_.gtopo);
-   parent_.GetSharedVertexCommunicator(0, svert_comm);
+   parent_.GetSharedVertexCommunicator(svert_comm);
    // Number of shared vertices
    int nsvtx = svert_comm.GroupLDofTable().Size_of_connections();
 
@@ -375,7 +375,7 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
 {
    // create a GroupCommunicator on the shared edges
    GroupCommunicator sedge_comm(parent_.gtopo);
-   parent_.GetSharedEdgeCommunicator(0, sedge_comm);
+   parent_.GetSharedEdgeCommunicator(sedge_comm);
 
    int nsedges = sedge_comm.GroupLDofTable().Size_of_connections();
 
@@ -418,7 +418,7 @@ void ParSubMesh::FindSharedEdgesRanks(Array<int> &rhe)
 void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
 {
    GroupCommunicator squad_comm(parent_.gtopo);
-   parent_.GetSharedQuadCommunicator(0, squad_comm);
+   parent_.GetSharedQuadCommunicator(squad_comm);
 
    int nsquad = squad_comm.GroupLDofTable().Size_of_connections();
 
@@ -446,7 +446,7 @@ void ParSubMesh::FindSharedFacesRanks(Array<int>& rht, Array<int> &rhq)
    squad_comm.Bcast<int>(rhq, 0);
 
    GroupCommunicator stria_comm(parent_.gtopo);
-   parent_.GetSharedTriCommunicator(0, stria_comm);
+   parent_.GetSharedTriCommunicator(stria_comm);
 
    int nstria = stria_comm.GroupLDofTable().Size_of_connections();
 
