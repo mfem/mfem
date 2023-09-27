@@ -1008,7 +1008,8 @@ public:
    {
       alpha0 = alpha;
    }
-   void Step()
+   
+   double Step()
    {
       double alpha(alpha0), L(0.0), U(infinity());
       GridFunction *psi_k = newGridFunction(control_fes);
@@ -1080,6 +1081,7 @@ public:
       delete psi_k;
       delete direction;
       delete directionalDer;
+      return alpha;
    }
 
    double GetCompliance()

@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
    ExBiSecLVPGTopOpt optimizer(&u,  &psi, &rho_filter,
                                vforce_cf, lambda, mu, target_volume,
                                epsilon, rho_min, 3.0,
-                               ess_bdr, ess_bdr_filter, 0.3, 0.6);
+                               ess_bdr, ess_bdr_filter, 0.1, 0.99);
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -319,18 +319,20 @@ int main(int argc, char *argv[])
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
 
       mfem::out << "\nStep = " << k << std::endl;
-      optimizer.Gradient();
-      psi.Add(-alpha, *(optimizer.GetGradient()));
-      double compliance = optimizer.Eval();
+      optimizer.SetAlpha0(alpha);
+      const double new_alpha = optimizer.Step();
+      // optimizer.Gradient();
+      // psi.Add(-alpha, *(optimizer.GetGradient()));
+      // double compliance = optimizer.Eval();
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       mfem::out << "volume fraction = " << optimizer.GetVolume() / domain_volume <<
                 std::endl;
-      mfem::out << "compliance = " <<  compliance << std::endl;
+      mfem::out << "compliance = " <<  optimizer.GetCompliance() << std::endl;
 
       // Compute ||ρ - ρ_old|| in control fes.
       double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
-      double norm_reduced_gradient = norm_increment/alpha;
+      double norm_reduced_gradient = norm_increment/new_alpha;
       psi_old = psi;
 
       mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient <<
