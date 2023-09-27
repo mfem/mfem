@@ -47,6 +47,18 @@ double der_sigmoid(const double x)
    return tmp*(1.0 - tmp);
 }
 
+double simp(const double x, const double rho_min=1e-06, const double exp=3.0,
+            const double rho_max=1.0)
+{
+   return rho_min + std::pow(x, exp) * (rho_max - rho_min);
+}
+
+double der_simp(const double x, const double rho_min=1e-06,
+                const double exp=3.0, const double rho_max=1.0)
+{
+   return (exp - 1.0) * std::pow(x, exp - 1) * (rho_max - rho_min);
+}
+
 
 /**
  * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
@@ -109,32 +121,6 @@ public:
       return value1 - value2;
    }
    void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
-};
-
-/**
- * @brief Solid isotropic material penalization (SIMP) coefficient
- *
- */
-class SIMPInterpolationCoefficient : public Coefficient
-{
-protected:
-   GridFunction *rho_filter; // grid function
-   double min_val;
-   double max_val;
-   double exponent;
-
-public:
-   SIMPInterpolationCoefficient(GridFunction *rho_filter_, double min_val_= 1e-6,
-                                double max_val_ = 1.0, double exponent_ = 3)
-      : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
-        exponent(exponent_) { }
-
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      double val = rho_filter->GetValue(T, ip);
-      double coeff = min_val + pow(val,exponent)*(max_val-min_val);
-      return coeff;
-   }
 };
 
 
@@ -894,12 +880,14 @@ public:
       state_fes(u->FESpace()), control_fes(psi->FESpace()),
       filter_fes(rho_filter->FESpace()), eps_squared(eps*eps), one(1.0), zero(0.0),
       v_force(v_force), target_volume(target_volume),
-      simp([rho_min, exponent](const double x) {return rho_min + std::pow(x, exponent)*(1.0 - rho_min); }),
-        simp_cf(rho_filter, simp), lambda_SIMP_cf(lambda_cf, simp_cf), mu_SIMP_cf(mu_cf,
-                                                                                  simp_cf), negDerSimpElasticityEnergy(&lambda_cf, &mu_cf, u, rho_filter,
-                                                                                        rho_min),
-        c1(c1), c2(c2), alpha0(1.0), grad_evaluated(false)
+      lambda_SIMP_cf(lambda_cf, simp_cf), mu_SIMP_cf(mu_cf, simp_cf),
+      negDerSimpElasticityEnergy(&lambda_cf, &mu_cf, u, rho_filter, rho_min),
+      c1(c1), c2(c2), alpha0(1.0), grad_evaluated(false)
    {
+      simp_fun = [rho_min, exponent](const double x) {return simp(x, rho_min, exponent, 1.0); };
+      simp_cf.SetFunction(simp_fun);
+      simp_cf.SetGridFunction(rho_filter);
+
       current_compliance = infinity();
       current_volume = infinity();
       isParallel = false;
@@ -1184,7 +1172,7 @@ protected:
    DiffusionSolver *filterSolver;
    BilinearForm *invmass;
    LinearForm *w_rhs;
-   std::function<double(const double)> simp;
+   std::function<double(const double)> simp_fun;
    MappedGridFunctionCoefficient simp_cf;
    ProductCoefficient lambda_SIMP_cf, mu_SIMP_cf;
    StrainEnergyDensityCoefficient negDerSimpElasticityEnergy;
@@ -1195,7 +1183,6 @@ protected:
 private:
    bool isParallel;
    bool grad_evaluated;
-   std::function<double(const double)> dsimp;
    double current_compliance, current_volume;
    GridFunction *newGridFunction(FiniteElementSpace *fes)
    {
