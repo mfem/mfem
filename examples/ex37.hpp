@@ -1029,9 +1029,10 @@ public:
       const double d = (*directionalDer)(*grad);
 
       const double compliance = current_compliance;
+      out << "(" << compliance << ", " << d << ")" << std::endl;
       int k = 0;
       int maxit = 15;
-      for(; k<maxit; k++)
+      for (; k<maxit; k++)
       {
          // update and evaluate F
          *psi = *psi_k;
@@ -1039,12 +1040,14 @@ public:
          proj();
          Eval();
 
-         out << "Test 1: (" << current_compliance << ", " << compliance + c1*d*alpha <<
-             "), ";
-         if (current_compliance > compliance + c1*d*alpha) // sufficient decreament condition failed
+         out << "Sufficient decrease condition: ";
+         out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
+         if (current_compliance > compliance + c1*d*alpha)
+            // sufficient decreament condition failed
          {
             // We moved too far so that the descent direction is no more valid
             out << "Failed. alpha:" << alpha << " -> ";
+            // Decrease upper bound
             U = alpha;
             alpha = (L + U) / 2.0;
             out << alpha << std::endl;
@@ -1058,25 +1061,24 @@ public:
             // So that the next direction is already evaluated
             Gradient();
             const double current_d = (*directionalDer)(*grad);
-            out << "Test 2: (" << current_d << ", " << c2*d << "), ";
-            if (current_d < c2*d)
+
+            out << "Direction update condition: ";
+            out << "(" << current_d << ", " << c2*d << "), ";
+            if (current_d < c2*d) // Current direction is still decent
             {
+               // Increase lower bound and try go further
                out << "Failed. alpha:" << alpha << " -> ";
                L = alpha;
                alpha = U == infinity() ? 2.0*L : (L + U) / 2.0;
                out << alpha << std::endl;
             }
-            else
+            else // objective decreased enough, and direction is sufficiently changed
             {
                out << "Success." << std::endl;
                out << "Final alpha: " << alpha << std::endl;
                break;
             }
          }
-      }
-      if (maxit == k)
-      {
-         Gradient();
       }
       delete psi_k;
       delete direction;
