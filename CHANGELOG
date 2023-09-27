@@ -42,10 +42,10 @@ Discretization improvements
 - Support for parallel transfer of H1 fields using the low-order refined (LOR)
   transfer operators in L2ProjectionGridTransfer
 
-- Added KDTree class for a 3D set or 2D set of points, which are utilized in
-  KDTreeNodalProjection to project a function defined on an arbitrary set of
-  points onto an MFEM grid function. This functionality is demonstrated in the
-  new nodal-transfer miniapp. The current implementation is serial only. Further
+- Added KDTree class for 2D/3D set of points, which is then utilized in the new
+  KDTreeNodalProjection class to project a function defined on an arbitrary set
+  of points onto an MFEM grid function. This functionality is demonstrated in
+  the nodal-transfer miniapp. The current implementation is serial only. Further
   extensions can include search in arbitrary dimensional spaces.
 
 - Added support for p-refined meshes in GSLIB-FindPoints.
