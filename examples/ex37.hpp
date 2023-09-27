@@ -43,8 +43,8 @@ double sigmoid(double x)
  */
 double der_sigmoid(double x)
 {
-   double tmp = sigmoid(-x);
-   return tmp - std::pow(tmp,2);
+   double tmp = sigmoid(x);
+   return tmp*(1.0 - tmp);
 }
 
 
@@ -447,7 +447,6 @@ void DiffusionSolver::Solve()
    OperatorPtr A;
    Vector B, X;
    Array<int> ess_tdof_list;
-
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
@@ -879,5 +878,369 @@ private:
    DenseMatrix DGk; // [Δg_k]
    Vector gk; // f(x_k) - x_k = x_next - x
    int k; // step counter
+};
+
+class ExBiSecLVPGTopOpt
+{
+public:
+   ExBiSecLVPGTopOpt(GridFunction *u, GridFunction *psi, GridFunction *rho_filter,
+                     VectorCoefficient &v_force, const double lambda, const double mu,
+                     const double target_volume, const double eps,
+                     const double rho_min, const double exponent,
+                     Array<int> &ess_bdr, Array<int> &ess_bdr_filter, const double c1,
+                     const double c2): u(u), psi(psi),
+      rho_filter(rho_filter),
+      lambda_cf(lambda), mu_cf(mu),
+      state_fes(u->FESpace()), control_fes(psi->FESpace()),
+      filter_fes(rho_filter->FESpace()), eps_squared(eps*eps), one(1.0), zero(0.0),
+      v_force(v_force), target_volume(target_volume),
+      simp([rho_min, exponent](const double x) {return rho_min + std::pow(x, exponent)*(1.0 - rho_min); }),
+        simp_cf(rho_filter, simp), lambda_SIMP_cf(lambda_cf, simp_cf), mu_SIMP_cf(mu_cf,
+                                                                                  simp_cf), negDerSimpElasticityEnergy(&lambda_cf, &mu_cf, u, rho_filter,
+                                                                                        rho_min),
+        c1(c1), c2(c2), alpha0(1.0)
+   {
+      current_compliance = infinity();
+      current_volume = infinity();
+      isParallel = false;
+      rho = new MappedGridFunctionCoefficient(psi, sigmoid);
+#ifdef MFEM_USE_MPI
+      if (dynamic_cast<ParGridFunction*>(u))
+      {
+         par_state_fes = dynamic_cast<ParGridFunction*>(u)->ParFESpace();
+         par_control_fes = dynamic_cast<ParGridFunction*>(psi)->ParFESpace();
+         par_filter_fes = dynamic_cast<ParGridFunction*>(rho_filter)->ParFESpace();
+         MFEM_VERIFY(par_state_fes && par_control_fes &&
+                     par_filter_fes, "The state variable is in parallel, but not others.");
+         isParallel = true;
+      }
+#endif
+      w_filter = newGridFunction(filter_fes);
+      grad = newGridFunction(control_fes);
+
+      elasticitySolver = new LinearElasticitySolver();
+      elasticitySolver->SetMesh(state_fes->GetMesh());
+      elasticitySolver->SetOrder(state_fes->FEColl()->GetOrder());
+      elasticitySolver->SetLameCoefficients(&lambda_SIMP_cf,&mu_SIMP_cf);
+      elasticitySolver->SetupFEM();
+      elasticitySolver->SetRHSCoefficient(&v_force);
+      elasticitySolver->SetEssentialBoundary(ess_bdr);
+
+      // 7. Set-up the filter solver.
+      filterSolver = new DiffusionSolver();
+      filterSolver->SetMesh(state_fes->GetMesh());
+      filterSolver->SetOrder(state_fes->FEColl()->GetOrder());
+      filterSolver->SetDiffusionCoefficient(&eps_squared);
+      filterSolver->SetMassCoefficient(&one);
+      filterSolver->SetupFEM();
+      filterSolver->SetEssentialBoundary(ess_bdr_filter);
+
+      invmass = newBilinearForm(control_fes);
+      invmass->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(one)));
+      invmass->Assemble();
+
+      // 8. Define the Lagrange multiplier and gradient functions
+      w_rhs = newLinearForm(control_fes);
+      w_cf = new GridFunctionCoefficient(w_filter);
+      w_rhs->AddDomainIntegrator(new DomainLFIntegrator(*w_cf));
+
+   }
+
+   double Eval()
+   {
+      // Step 1 - Filter solve
+      // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
+      filterSolver->SetRHSCoefficient(rho);
+      filterSolver->Solve();
+      *rho_filter = *filterSolver->GetFEMSolution();
+
+      // Step 2 - State solve
+      // Solve (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)
+      elasticitySolver->Solve();
+      *u = *elasticitySolver->GetFEMSolution();
+#ifdef MFEM_USE_MPI
+      if (isParallel)
+      {
+         ParGridFunction *par_u = dynamic_cast<ParGridFunction*>(u);
+         current_compliance = (*elasticitySolver->GetParLinearForm())(*par_u);
+      }
+      else
+      {
+         current_compliance = (*elasticitySolver->GetLinearForm())(*u);
+      }
+#elif
+      current_compliance = (*elasticitySolver->GetLinearForm())(*u);
+#endif
+      grad_evaluated = false;
+      volume_evaluated = false;
+      return current_compliance;
+   }
+
+   void Gradient()
+   {
+      if (grad_evaluated) { return; }
+      grad_evaluated = true;
+      // Step 3 - Adjoint filter solve
+      // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)
+      filterSolver->SetRHSCoefficient(&negDerSimpElasticityEnergy);
+      filterSolver->Solve();
+      *w_filter = *filterSolver->GetFEMSolution();
+
+      // Step 4 - Compute gradient
+      // Solve G = M⁻¹w̃
+      w_rhs->Assemble();
+      invmass->Mult(*w_rhs, *grad);
+      
+   }
+   GridFunction *GetGradient()
+   { return grad; }
+
+
+   void SetAlpha0(const double alpha)
+   {
+      alpha0 = alpha;
+   }
+   void Step()
+   {
+      double alpha(alpha0), L(0.0), U(infinity());
+      if (current_compliance == infinity())
+      {
+         Eval();
+         Gradient();
+      }
+      GridFunction *psi_k = newGridFunction(control_fes);
+      GridFunction *direction = newGridFunction(control_fes);
+      LinearForm *directionalDer = newLinearForm(control_fes);
+      *psi_k = *psi;
+      *direction = *grad;
+      direction->Neg();
+
+      MappedGridFunctionCoefficient der_sigmoid_psi_k(psi_k, der_sigmoid);
+      GridFunctionCoefficient direction_cf(direction);
+      ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi_k);
+      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
+                                             der_sigmoid_diff_psi));
+      directionalDer->Assemble();
+
+      const double d = (*directionalDer)(*grad);
+
+      const double compliance = current_compliance;
+      int k = 0;
+      int maxit = 15;
+      for(; k<maxit; k++)
+      {
+         // update and evaluate F
+         *psi = *psi_k;
+         psi->Add(alpha, *direction);
+         proj();
+         Eval();
+
+         out << "Test 1: (" << current_compliance << ", " << compliance + c1*d*alpha <<
+             "), ";
+         if (current_compliance > compliance + c1*d*alpha) // sufficient decreament condition failed
+         {
+            // We moved too far so that the descent direction is no more valid
+            out << "Failed. alpha:" << alpha << " -> ";
+            U = alpha;
+            alpha = (L + U) / 2.0;
+            out << alpha << std::endl;
+         }
+         else
+         {
+            out << "Success." << std::endl;
+
+            // compute gradient at the updated point
+            // Note that alpha is only selected after this
+            // So that the next direction is already evaluated
+            Gradient();
+            const double current_d = (*directionalDer)(*grad);
+            out << "Test 2: (" << current_d << ", " << c2*d << "), ";
+            if (current_d < c2*d)
+            {
+               out << "Failed. alpha:" << alpha << " -> ";
+               L = alpha;
+               alpha = U == infinity() ? 2.0*L : (L + U) / 2.0;
+               out << alpha << std::endl;
+            }
+            else
+            {
+               out << "Success." << std::endl;
+               out << "Final alpha: " << alpha << std::endl;
+               break;
+            }
+         }
+      }
+      if (maxit == k)
+      {
+         Gradient();
+      }
+      delete psi_k;
+      delete direction;
+      delete directionalDer;
+   }
+
+   double GetCompliance()
+   {
+      return current_compliance == infinity() ? Eval() : current_compliance;
+   }
+
+   double GetVolume()
+   {
+      if (!volume_evaluated)
+      {
+         proj();
+      }
+      return current_volume;
+   }
+
+   GridFunction GetSIMPrho()
+   {
+      GridFunction r_gf(filter_fes);
+      r_gf.ProjectCoefficient(simp_cf);
+      return r_gf;
+   }
+#ifdef MFEM_USE_MPI
+   ParGridFunction GetParSIMPrho()
+   {
+      ParGridFunction r_gf(par_filter_fes);
+      r_gf.ProjectCoefficient(simp_cf);
+      return r_gf;
+   }
+#endif
+
+   ~ExBiSecLVPGTopOpt()
+   {
+      delete rho;
+      delete w_cf;
+      delete elasticitySolver;
+      delete filterSolver;
+      delete invmass;
+      delete w_rhs;
+   }
+
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   void proj(double tol=1e-12, int max_its=10)
+   {
+      if (volume_evaluated) { return; }
+      volume_evaluated = true;
+      
+      MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
+      MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
+
+      LinearForm *int_sigmoid_psi = newLinearForm(control_fes);
+      int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
+      LinearForm *int_der_sigmoid_psi = newLinearForm(control_fes);
+      int_der_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(
+                                                  der_sigmoid_psi));
+      bool done = false;
+      for (int k=0; k<max_its; k++) // Newton iteration
+      {
+         int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
+         const double f = int_sigmoid_psi->Sum() - target_volume;
+
+         int_der_sigmoid_psi->Assemble(); // Recompute df(c) with updated ψ
+         const double df = int_der_sigmoid_psi->Sum();
+
+         const double dc = -f/df;
+         *psi += dc;
+         if (abs(dc) < tol) { done = true; break; }
+      }
+      if (!done)
+      {
+         mfem_warning("Projection reached maximum iteration without converging. Result may not be accurate.");
+      }
+      int_sigmoid_psi->Assemble();
+      current_volume = int_sigmoid_psi->Sum();
+   }
+
+
+
+protected:
+   GridFunction *u, *psi, *rho_filter, *w_filter, *grad;
+   MappedGridFunctionCoefficient *rho;
+   GridFunctionCoefficient *w_cf;
+   ConstantCoefficient lambda_cf, mu_cf;
+   FiniteElementSpace *state_fes, *control_fes, *filter_fes;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *par_state_fes, *par_control_fes, *par_filter_fes;
+#endif
+   ConstantCoefficient eps_squared, one, zero;
+   VectorCoefficient &v_force;
+   LinearElasticitySolver *elasticitySolver;
+   DiffusionSolver *filterSolver;
+   BilinearForm *invmass;
+   LinearForm *w_rhs;
+   std::function<double(const double)> simp;
+   MappedGridFunctionCoefficient simp_cf;
+   ProductCoefficient lambda_SIMP_cf, mu_SIMP_cf;
+   StrainEnergyDensityCoefficient negDerSimpElasticityEnergy;
+   const double c1;
+   const double c2;
+   double alpha0;
+   const double target_volume;
+private:
+   bool isParallel;
+   bool grad_evaluated, volume_evaluated;
+   std::function<double(const double)> dsimp;
+   double current_compliance, current_volume;
+   GridFunction *newGridFunction(FiniteElementSpace *fes)
+   {
+      GridFunction *x;
+      if (isParallel)
+      {
+#ifdef MFEM_USE_MPI
+         ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+         x = new ParGridFunction(pfes);
+#endif
+      }
+      {
+         x = new GridFunction(fes);
+      }
+      return x;
+   }
+   LinearForm *newLinearForm(FiniteElementSpace *fes)
+   {
+      LinearForm *b;
+      if (isParallel)
+      {
+#ifdef MFEM_USE_MPI
+         ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+         b = new ParLinearForm(pfes);
+#endif
+      }
+      {
+         b = new LinearForm(fes);
+      }
+      return b;
+   }
+   BilinearForm *newBilinearForm(FiniteElementSpace *fes)
+   {
+      BilinearForm *a;
+      if (isParallel)
+      {
+#ifdef MFEM_USE_MPI
+         ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+         a = new ParBilinearForm(pfes);
+#endif
+      }
+      {
+         a = new BilinearForm(fes);
+      }
+      return a;
+   }
 };
 } // end of namespace mfem
