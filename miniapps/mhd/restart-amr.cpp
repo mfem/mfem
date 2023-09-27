@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
    bool compute_pressure = false;
    bool compute_tau = false;
    bool view_mpi = false;
+   bool view_force = false;
    const char *petscrc_file = "";
    double t=0.;
 
@@ -183,6 +184,8 @@ int main(int argc, char *argv[])
                   "--no-paraview-datafiles", "Save data files for paraview visualization.");
    args.AddOption(&view_mpi, "-view-mpi", "--view-mpi", "-no-view-mpi",
                   "--no-view-mpi", "Save MPI rank in MPI.");
+   args.AddOption(&view_force, "-view-force", "--view-force", "-no-view-force",
+                  "--no-view-force", "Save different forces in Paraview.");
    args.AddOption(&error_norm, "-error-norm", "--error-norm", "AMR error norm (in both refine and derefine).");
    args.AddOption(&yRange, "-yrange", "--y-refine-range", "-no-yrange", "--no-y-refine-range",
                   "Refine only in the y range of [-ytop, ytop] in AMR.");
@@ -207,6 +210,7 @@ int main(int argc, char *argv[])
    args.AddOption(&restart_count, "-restart-count", "--restart-count", "number of restarts have been performed");
    args.AddOption(&checkpt, "-checkpt", "--check-pt",  "-no-checkpt", "--no-check-pt",
                   "Save check point");
+   args.AddOption(&check_steps, "-check-steps", "--check-steps","checkpoint frequency.");
    args.AddOption(&lumpedMass, "-lumpmass", "--lump-mass",  "-no-lumpmass", "--no-lump-mass",
                   "lumped mass for updatej=0");
    args.AddOption(&iestimator, "-iestimator", "--iestimator",
@@ -441,10 +445,11 @@ int main(int argc, char *argv[])
        levels5=par_ref_levels+5,
        levels6=par_ref_levels+6,
        levels7=par_ref_levels+7;
+   //Note threshold = max(total_err * err_fraction * pow(num_elements,-1.0/p),local_err_goal);
    ThresholdRefiner refiner(*estimator_used);
-   refiner.SetTotalErrorFraction(err_fraction);   // here 0.0 means we use local threshold; default is 0.5
-   refiner.SetTotalErrorGoal(0.0);       // this error goal is likely not used in the current example
-   refiner.SetLocalErrorGoal(ltol_amr);  // local error goal (stop criterion)
+   refiner.SetTotalErrorFraction(err_fraction); // here 0.0 means we use local threshold; default is 0.5
+   refiner.SetTotalErrorGoal(0.0);              // this error goal is likely not used in the current example
+   refiner.SetLocalErrorGoal(ltol_amr);         // local error goal (stop criterion)
    refiner.SetTotalErrorNormP(error_norm);
    refiner.SetMaxElements(10000000);
    if (amr_levels>levels7)
@@ -594,9 +599,11 @@ int main(int argc, char *argv[])
       vfes = new ParFiniteElementSpace(pmesh, fespace.FEColl(), 2);
       vel = new ParGridFunction(vfes);
       mag = new ParGridFunction(vfes);
-      gradP = new ParGridFunction(vfes);
-      BgradB = new ParGridFunction(vfes);
-      gradBP = new ParGridFunction(vfes);
+      if (view_force){
+        gradP = new ParGridFunction(vfes);
+        BgradB = new ParGridFunction(vfes);
+        gradBP = new ParGridFunction(vfes);
+      }
       gfv = new ParGridFunction(vfes);
       pre = new ParGridFunction(&fespace);
       dpsidt = new ParGridFunction(&fespace);
@@ -728,30 +735,31 @@ int main(int argc, char *argv[])
       pre->SetFromTrueDofs(zscalar2);
       *dpsidt = 0.0;
 
-      //compute grad P
-      zv=0.0;
-      grad->TrueAddMult(zscalar2, zv);
-      M_solver.Mult(zv, zv2);
-      gradP->SetFromTrueDofs(zv2);
+      if (view_force){
+        //compute grad P
+        zv=0.0;
+        grad->TrueAddMult(zscalar2, zv);
+        M_solver.Mult(zv, zv2);
+        gradP->SetFromTrueDofs(zv2);
 
-      //compute B.gradB
-      mag->GetTrueDofs(vtrue);
-      convect->Mult(vtrue, zv);  
-      M_solver.Mult(zv, zv2);
-      BgradB->SetFromTrueDofs(zv2);
+        //compute B.gradB
+        mag->GetTrueDofs(vtrue);
+        convect->Mult(vtrue, zv);  
+        M_solver.Mult(zv, zv2);
+        BgradB->SetFromTrueDofs(zv2);
 
-      //compute grad magnetic pressure
-      B2Coefficient B2Coeff(mag);
-      ParLinearForm B2int(&fespace);
-      B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
-      B2int.Assemble();
-      B2int.ParallelAssemble(zscalar);
-      Mscal_solver.Mult(zscalar, zscalar2);
-      zv=0.0;
-      grad->TrueAddMult(zscalar2, zv);
-      M_solver.Mult(zv, zv2);
-      gradBP->SetFromTrueDofs(zv2);
-
+        //compute grad magnetic pressure
+        B2Coefficient B2Coeff(mag);
+        ParLinearForm B2int(&fespace);
+        B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+        B2int.Assemble();
+        B2int.ParallelAssemble(zscalar);
+        Mscal_solver.Mult(zscalar, zscalar2);
+        zv=0.0;
+        grad->TrueAddMult(zscalar2, zv);
+        M_solver.Mult(zv, zv2);
+        gradBP->SetFromTrueDofs(zv2);
+      }
       vfes_match=true;
    }
 
@@ -772,9 +780,11 @@ int main(int argc, char *argv[])
           pd->RegisterField("B", mag);
           pd->RegisterField("pre", pre);
           pd->RegisterField("dpsidt", dpsidt);
-          pd->RegisterField("grad pre", gradP);
-          pd->RegisterField("grad mag pre", gradBP);
-          pd->RegisterField("B.gradB", BgradB);
+          if(view_force){
+            pd->RegisterField("grad pre", gradP);
+            pd->RegisterField("grad mag pre", gradBP);
+            pd->RegisterField("B.gradB", BgradB);
+          }
       }
       if(compute_tau){
           //visualize Tau value
@@ -943,9 +953,11 @@ int main(int argc, char *argv[])
                //update vector grid function
                vel->Update();
                mag->Update();
-               gradP->Update();
-               BgradB->Update();
-               gradBP->Update();
+               if (view_force){
+                 gradP->Update();
+                 BgradB->Update();
+                 gradBP->Update();
+               }
                gfv->Update();
                vfes->UpdatesFinished();
            }
@@ -958,16 +970,7 @@ int main(int argc, char *argv[])
                if (compute_tau) tau_value.Update();
            }
 
-           pmesh->Rebalance();
-
-           if (paraview) 
-           {
-               if (view_mpi){
-                 pw_const_fes.Update();
-                 mpi_rank_gf.Update();
-               }
-               if (compute_tau) tau_value.Update();
-           }
+           pmesh->Rebalance(); 
 
            //---Update solutions after rebalancing---
            AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
@@ -977,11 +980,21 @@ int main(int argc, char *argv[])
                //update vector grid function
                vel->Update();
                mag->Update();
-               gradP->Update();
-               BgradB->Update();
-               gradBP->Update();
+               if(view_force){
+                 gradP->Update();
+                 BgradB->Update();
+                 gradBP->Update();
+               }
                gfv->Update();
                vfes->UpdatesFinished();
+           }
+           if (paraview) 
+           {
+               if (view_mpi){
+                 pw_const_fes.Update();
+                 mpi_rank_gf.Update();
+               }
+               if (compute_tau) tau_value.Update();
            }
            oper.UpdateProblem(ess_bdr); 
            oper.SetInitialJ(*jptr);      //need to reset the current bounary
@@ -1041,13 +1054,14 @@ int main(int argc, char *argv[])
                 //update vector grid function
                 vel->Update();
                 mag->Update();
-                gradP->Update();
-                BgradB->Update();
-                gradBP->Update();
+                if(view_force){
+                  gradP->Update();
+                  BgradB->Update();
+                  gradBP->Update();
+                }
                 gfv->Update();
                 vfes->UpdatesFinished();
              }
-
              if (paraview) 
              {
                  if (view_mpi){
@@ -1059,15 +1073,6 @@ int main(int argc, char *argv[])
 
              pmesh->Rebalance();
 
-             if (paraview) 
-             {
-                 if (view_mpi){
-                   pw_const_fes.Update();
-                   mpi_rank_gf.Update();
-                 }
-                 if (compute_tau) tau_value.Update();
-             }
-
              //---Update solutions after rebalancing---
              AMRUpdateTrue(vx, fe_offset3, *phi, *psi, *w, j, pre, dpsidt);
              oper.UpdateGridFunction();
@@ -1076,11 +1081,21 @@ int main(int argc, char *argv[])
                 //update vector grid function
                 vel->Update();
                 mag->Update();
-                gradP->Update();
-                BgradB->Update();
-                gradBP->Update();
+                if(view_force){
+                  gradP->Update();
+                  BgradB->Update();
+                  gradBP->Update();
+                }
                 gfv->Update();
                 vfes->UpdatesFinished();
+             }
+             if (paraview) 
+             {
+                 if (view_mpi){
+                   pw_const_fes.Update();
+                   mpi_rank_gf.Update();
+                 }
+                 if (compute_tau) tau_value.Update();
              }
 
              //---assemble problem and update boundary condition---
@@ -1278,29 +1293,31 @@ int main(int argc, char *argv[])
               K_pcg->Mult(zscalar, zscalar2);
               pre->SetFromTrueDofs(zscalar2);
 
-              //compute grad P
-              zv=0.0;
-              grad->TrueAddMult(zscalar2, zv);
-              M_solver.Mult(zv, zv2);
-              gradP->SetFromTrueDofs(zv2);
+              if(view_force){
+                //compute grad P
+                zv=0.0;
+                grad->TrueAddMult(zscalar2, zv);
+                M_solver.Mult(zv, zv2);
+                gradP->SetFromTrueDofs(zv2);
 
-              //compute B.gradB
-              mag->GetTrueDofs(vtrue);
-              convect->Mult(vtrue, zv);  
-              M_solver.Mult(zv, zv2);
-              BgradB->SetFromTrueDofs(zv2);
+                //compute B.gradB
+                mag->GetTrueDofs(vtrue);
+                convect->Mult(vtrue, zv);  
+                M_solver.Mult(zv, zv2);
+                BgradB->SetFromTrueDofs(zv2);
 
-              //compute grad magnetic pressure
-              B2Coefficient B2Coeff(mag);
-              ParLinearForm B2int(&fespace);
-              B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
-              B2int.Assemble();
-              B2int.ParallelAssemble(zscalar);
-              Mscal_solver.Mult(zscalar, zscalar2);
-              zv=0.0;
-              grad->TrueAddMult(zscalar2, zv);
-              M_solver.Mult(zv, zv2);
-              gradBP->SetFromTrueDofs(zv2);
+                //compute grad magnetic pressure
+                B2Coefficient B2Coeff(mag);
+                ParLinearForm B2int(&fespace);
+                B2int.AddDomainIntegrator(new DomainLFIntegrator(B2Coeff, 2, 0));
+                B2int.Assemble();
+                B2int.ParallelAssemble(zscalar);
+                Mscal_solver.Mult(zscalar, zscalar2);
+                zv=0.0;
+                grad->TrueAddMult(zscalar2, zv);
+                M_solver.Mult(zv, zv2);
+                gradBP->SetFromTrueDofs(zv2);
+              }
            }
         }
 
@@ -1338,7 +1355,6 @@ int main(int argc, char *argv[])
               tauv=computeTau->ParallelAssemble();
               tau_value.SetFromTrueDofs(*tauv);
            }
- 
            if (view_mpi) mpi_rank_gf = myid_rand;
            pd->SetCycle(ti);
            pd->SetTime(t);
@@ -1381,9 +1397,11 @@ int main(int argc, char *argv[])
       delete vfes;
       delete vel;
       delete mag;
-      delete gradP;
-      delete gradBP;
-      delete BgradB;
+      if(view_force){
+        delete gradP;
+        delete gradBP;
+        delete BgradB;
+      }
       delete gfv;       
       delete zLFscalar; 
       delete pre;      
