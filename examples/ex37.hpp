@@ -948,6 +948,8 @@ public:
 
    double Eval()
    {
+      // Step 0 - Projection
+      proj();
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
       filterSolver->SetRHSCoefficient(rho);
@@ -972,7 +974,6 @@ public:
       current_compliance = (*elasticitySolver->GetLinearForm())(*u);
 #endif
       grad_evaluated = false;
-      volume_evaluated = false;
       return current_compliance;
    }
 
@@ -1086,10 +1087,6 @@ public:
 
    double GetVolume()
    {
-      if (!volume_evaluated)
-      {
-         proj();
-      }
       return current_volume;
    }
 
@@ -1135,9 +1132,6 @@ public:
     */
    void proj(double tol=1e-12, int max_its=10)
    {
-      if (volume_evaluated) { return; }
-      volume_evaluated = true;
-      
       MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
       MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
 
@@ -1194,7 +1188,7 @@ protected:
    const double target_volume;
 private:
    bool isParallel;
-   bool grad_evaluated, volume_evaluated;
+   bool grad_evaluated;
    std::function<double(const double)> dsimp;
    double current_compliance, current_volume;
    GridFunction *newGridFunction(FiniteElementSpace *fes)
