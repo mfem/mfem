@@ -1996,6 +1996,7 @@ double PlasmaProfile::EvalByType(Type type,
 
          // IONS: N_||^2 = R and S = 0
          double nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.001);
+	 if ( r < 1.56) {nu = nu0*exp(-pow(sqrt(val)-0.98, 2)/0.001); }
 
          //if (val < 1.0 && params[1] == 0) {nu = 0.0;}
          //else if (val >= 1.0 && params[1] == 0){nu = nu0;}
