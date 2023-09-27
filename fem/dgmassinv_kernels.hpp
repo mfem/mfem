@@ -172,7 +172,7 @@ double DGMassDot(const int e,
    return s_dot[0];
 }
 
-template<int T_D1D = 0, int MAX_D1D = 0>
+template<int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis2D(const int e,
                    const int NE,
@@ -213,7 +213,7 @@ void DGMassBasis2D(const int e,
    MFEM_SYNC_THREAD;
 }
 
-template<int T_D1D = 0, int MAX_D1D = 0>
+template<int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis3D(const int e,
                    const int NE,
@@ -260,7 +260,7 @@ void DGMassBasis3D(const int e,
    MFEM_SYNC_THREAD;
 }
 
-template<int DIM, int T_D1D = 0, int MAX_D1D = 0>
+template<int DIM, int T_D1D = 0>
 MFEM_HOST_DEVICE inline
 void DGMassBasis(const int e,
                  const int NE,
@@ -271,11 +271,11 @@ void DGMassBasis(const int e,
 {
    if (DIM == 2)
    {
-      DGMassBasis2D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+      DGMassBasis2D<T_D1D>(e, NE, b_, x_, y_, d1d);
    }
    else if (DIM == 3)
    {
-      DGMassBasis3D<T_D1D, MAX_D1D>(e, NE, b_, x_, y_, d1d);
+      DGMassBasis3D<T_D1D>(e, NE, b_, x_, y_, d1d);
    }
    else
    {

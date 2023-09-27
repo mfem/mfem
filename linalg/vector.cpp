@@ -1106,8 +1106,8 @@ static double hipVectorDot(const int N, const double *X, const double *Y)
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
-   cuda_reduce_buf.SetSize(dot_sz);
-   Memory<double> &buf = cuda_reduce_buf.GetMemory();
+   hip_reduce_buf.SetSize(dot_sz);
+   Memory<double> &buf = hip_reduce_buf.GetMemory();
    double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);
    MFEM_GPU_CHECK(hipGetLastError());
