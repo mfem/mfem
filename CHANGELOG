@@ -75,7 +75,7 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a new H(div) solvers miniapp demonstrating the use of a matrix-free
+- Added a new H(div) solver miniapp demonstrating the use of a matrix-free
   saddle-point solver methodology, suitable for high-order discretizations and
   for GPU acceleration. Examples illustrating the solution of Darcy and grad-div
   problems are included. See miniapps/hdiv-linear-solver.
