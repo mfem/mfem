@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,7 +12,9 @@
 // H1 Finite Element classes utilizing the Bernstein basis
 
 #include "fe_pos.hpp"
+#include "face_map_utils.hpp"
 #include "../bilininteg.hpp"
+#include "../lininteg.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -82,6 +84,12 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            Pow(p + 1, dims), p,
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
+
+void PositiveTensorFiniteElement::GetFaceMap(const int face_id,
+                                             Array<int> &face_map) const
+{
+   internal::GetTensorFaceMap(dim, order, face_id, face_map);
+}
 
 
 BiQuadPos2DFiniteElement::BiQuadPos2DFiniteElement()
@@ -212,7 +220,7 @@ void BiQuadPos2DFiniteElement::GetLocalInterpolation(
 void BiQuadPos2DFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
-   double *d = dofs;
+   double *d = dofs.GetData();
 
    for (int i = 0; i < 9; i++)
    {
@@ -382,8 +390,8 @@ void H1Pos_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.GetData() );
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.GetData() );
+   Poly_1D::CalcBernstein(p, ip.x, shape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y);
 
    // Reorder so that vertices are at the beginning of the list
    for (int o = 0, j = 0; j <= p; j++)
@@ -402,8 +410,8 @@ void H1Pos_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    Vector shape_x(p+1), shape_y(p+1), dshape_x(p+1), dshape_y(p+1);
 #endif
 
-   Poly_1D::CalcBernstein(p, ip.x, shape_x.GetData(), dshape_x.GetData() );
-   Poly_1D::CalcBernstein(p, ip.y, shape_y.GetData(), dshape_y.GetData() );
+   Poly_1D::CalcBernstein(p, ip.x, shape_x, dshape_x);
+   Poly_1D::CalcBernstein(p, ip.y, shape_y, dshape_y);
 
    // Reorder so that vertices are at the beginning of the list
    for (int o = 0, j = 0; j <= p; j++)

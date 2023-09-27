@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,6 +32,8 @@ TEST_CASE("Quadrature Function Coefficients",
    QuadratureSpace qspace(&mesh, intOrder);
    QuadratureFunction quadf_coeff(&qspace, 1);
    QuadratureFunction quadf_vcoeff(&qspace, dim);
+
+   REQUIRE(quadf_coeff.UseDevice());
 
    const IntegrationRule ir = qspace.GetElementIntRule(0);
 
@@ -77,9 +79,7 @@ TEST_CASE("Quadrature Function Coefficients",
 
    SECTION("Operators on VecQuadFuncCoeff")
    {
-      std::cout << "Testing VecQuadFuncCoeff: " << std::endl;
 #ifdef MFEM_USE_EXCEPTIONS
-      std::cout << " Setting Component" << std::endl;
       REQUIRE_THROWS(qfvc.SetComponent(3, 1));
       REQUIRE_THROWS(qfvc.SetComponent(-1, 1));
       REQUIRE_NOTHROW(qfvc.SetComponent(1, 2));
@@ -93,7 +93,6 @@ TEST_CASE("Quadrature Function Coefficients",
 
    SECTION("Operators on VectorQuadratureLFIntegrator")
    {
-      std::cout << "Testing VectorQuadratureLFIntegrator: " << std::endl;
       H1_FECollection    fec_h1(order_h1, dim);
       FiniteElementSpace fespace_h1(&mesh, &fec_h1, dim);
 
@@ -124,7 +123,6 @@ TEST_CASE("Quadrature Function Coefficients",
 
    SECTION("Operators on QuadratureLFIntegrator")
    {
-      std::cout << "Testing QuadratureLFIntegrator: " << std::endl;
       H1_FECollection    fec_h1(order_h1, dim);
       FiniteElementSpace fespace_h1(&mesh, &fec_h1, 1);
       FiniteElementSpace fespace_h3(&mesh, &fec_h1, 3);

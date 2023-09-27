@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,15 +12,15 @@
 #ifndef MFEM_HIOP
 #define MFEM_HIOP
 
-#include "linalg.hpp"
 #include "../config/config.hpp"
+
+#ifdef MFEM_USE_HIOP
 #include "../general/globals.hpp"
+#include "solvers.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
 #endif
-
-#ifdef MFEM_USE_HIOP
 
 #include "hiopInterface.hpp"
 #include "hiopNlpFormulation.hpp"
@@ -92,6 +92,8 @@ public:
     *  internally in HiOp. */
    virtual bool get_starting_point(const hiop::size_type &n, double *x0);
 
+   using hiop::hiopInterfaceBase::get_starting_point;
+
    virtual bool get_vars_info(const hiop::size_type &n, double *xlow, double* xupp,
                               NonlinearityType* type);
 
@@ -136,6 +138,8 @@ public:
                           const hiop::index_type *idx_cons,
                           const double *x, bool new_x, double *cons);
 
+   using hiop::hiopInterfaceBase::eval_cons;
+
    /** Evaluates the Jacobian of the subset of constraints indicated by
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
     *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
@@ -151,6 +155,8 @@ public:
                               const hiop::size_type &num_cons,
                               const hiop::index_type *idx_cons,
                               const double *x, bool new_x, double *Jac);
+
+   using hiop::hiopInterfaceDenseConstraints::eval_Jac_cons;
 
    /** Specifies column partitioning for distributed memory vectors.
     *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,

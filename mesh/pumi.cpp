@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1118,6 +1118,7 @@ int ParPumiMesh::RotationPUMItoMFEM(apf::Mesh2* apf_mesh,
                                     int elemId)
 {
    int type = apf_mesh->getType(ent);
+   MFEM_CONTRACT_VAR(type);
    MFEM_ASSERT(apf::isSimplex(type),
                "only implemented for simplex entity types");
    // get downward vertices of PUMI element

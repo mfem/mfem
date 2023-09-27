@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,14 +51,14 @@ Eliminator::Eliminator(const SparseMatrix& B, const Array<int>& lagrange_tdofs_,
 void Eliminator::Eliminate(const Vector& vin, Vector& vout) const
 {
    Bp.Mult(vin, vout);
-   Bsinverse.Solve(Bs.Height(), 1, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
    vout *= -1.0;
 }
 
 void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 {
    Vector work(vin);
-   BsTinverse.Solve(Bs.Height(), 1, work);
+   BsTinverse.Solve(Bs.Height(), 1, work.GetData());
    Bp.MultTranspose(work, vout);
    vout *= -1.0;
 }
@@ -66,14 +66,14 @@ void Eliminator::EliminateTranspose(const Vector& vin, Vector& vout) const
 void Eliminator::LagrangeSecondary(const Vector& vin, Vector& vout) const
 {
    vout = vin;
-   Bsinverse.Solve(Bs.Height(), 1, vout);
+   Bsinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
 void Eliminator::LagrangeSecondaryTranspose(const Vector& vin,
                                             Vector& vout) const
 {
    vout = vin;
-   BsTinverse.Solve(Bs.Height(), 1, vout);
+   BsTinverse.Solve(Bs.Height(), 1, vout.GetData());
 }
 
 void Eliminator::ExplicitAssembly(DenseMatrix& mat) const
@@ -319,6 +319,10 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    {
       prec = BuildPreconditioner();
    }
+   else
+   {
+      prec->SetOperator(*h_explicit_operator);
+   }
    if (!krylov)
    {
       krylov = BuildKrylov();
@@ -348,6 +352,7 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    reducedsol = 0.0;
    krylov->Mult(reducedrhs, reducedsol);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -356,23 +361,21 @@ void EliminationSolver::Mult(const Vector& rhs, Vector& sol) const
    sol += rtilde;
 }
 
-void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B)
+void PenaltyConstrainedSolver::Initialize(HypreParMatrix& A, HypreParMatrix& B,
+                                          HypreParMatrix& D)
 {
-   HypreParMatrix * hBT = B.Transpose();
-   HypreParMatrix * hBTB = ParMult(hBT, &B, true);
+   HypreParMatrix * hBTB = RAP(&D, &B);
    // this matrix doesn't get cleanly deleted?
    // (hypre comm pkg)
-   (*hBTB) *= penalty;
    penalized_mat = ParAdd(&A, hBTB);
    delete hBTB;
-   delete hBT;
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HypreParMatrix& A, SparseMatrix& B, double penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
-   penalty(penalty_),
+   penalty(B.Height()),
    constraintB(B),
    krylov(nullptr),
    prec(nullptr)
@@ -399,11 +402,33 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
                      row_starts, col_starts, &B);
    hB.CopyRowStarts();
    hB.CopyColStarts();
-   Initialize(A, hB);
+   penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(hB.GetComm(), hB.M(), hB.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, hB, hD);
 }
 
 PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    HypreParMatrix& A, HypreParMatrix& B, double penalty_)
+   :
+   ConstrainedSolver(A.GetComm(), A, B),
+   penalty(B.Height()),
+   constraintB(B),
+   krylov(nullptr),
+   prec(nullptr)
+{
+   penalty=penalty_;
+   SparseMatrix D(penalty);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
+}
+
+PenaltyConstrainedSolver::PenaltyConstrainedSolver(
+   HypreParMatrix& A, HypreParMatrix& B, Vector& penalty_)
    :
    ConstrainedSolver(A.GetComm(), A, B),
    penalty(penalty_),
@@ -411,7 +436,11 @@ PenaltyConstrainedSolver::PenaltyConstrainedSolver(
    krylov(nullptr),
    prec(nullptr)
 {
-   Initialize(A, B);
+   SparseMatrix D(penalty_);
+   HypreParMatrix hD(B.GetComm(), B.M(), B.RowPart(), &D);
+   hD.CopyRowStarts();
+   hD.CopyColStarts();
+   Initialize(A, B, hD);
 }
 
 PenaltyConstrainedSolver::~PenaltyConstrainedSolver()
@@ -427,6 +456,10 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    {
       prec = BuildPreconditioner();
    }
+   else
+   {
+      prec->SetOperator(*penalized_mat);
+   }
    if (!krylov)
    {
       krylov = BuildKrylov();
@@ -438,9 +471,11 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    Vector penalized_rhs(b);
    if (constraint_rhs.Size() > 0)
    {
+      Vector temp_rhs(constraint_rhs.Size());
+      SparseMatrix D(penalty);
+      D.Mult(constraint_rhs, temp_rhs);
       Vector temp(x.Size());
-      constraintB.MultTranspose(constraint_rhs, temp);
-      temp *= penalty;
+      constraintB.MultTranspose(temp_rhs, temp);
       penalized_rhs += temp;
    }
 
@@ -451,6 +486,7 @@ void PenaltyConstrainedSolver::Mult(const Vector& b, Vector& x) const
    krylov->SetPrintLevel(print_options);
    krylov->Mult(penalized_rhs, x);
    final_iter = krylov->GetNumIterations();
+   initial_norm = krylov->GetInitialNorm();
    final_norm = krylov->GetFinalNorm();
    converged = krylov->GetConverged();
 
@@ -581,6 +617,9 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 
    gmres->Mult(x, y);
    final_iter = gmres->GetNumIterations();
+   converged = gmres->GetConverged();
+   initial_norm = gmres->GetInitialNorm();
+   final_norm = gmres->GetFinalNorm();
    delete gmres;
 }
 
@@ -588,6 +627,7 @@ void SchurConstrainedSolver::LagrangeSystemMult(const Vector& x,
 SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
                                                          HypreParMatrix& hA_,
                                                          HypreParMatrix& hB_,
+                                                         Solver * prec,
                                                          int dimension,
                                                          bool reorder)
    :
@@ -595,13 +635,20 @@ SchurConstrainedHypreSolver::SchurConstrainedHypreSolver(MPI_Comm comm,
    hA(hA_),
    hB(hB_)
 {
-   auto h_primal_pc = new HypreBoomerAMG(hA);
-   h_primal_pc->SetPrintLevel(0);
-   if (dimension > 0)
+   if (prec == nullptr)
    {
-      h_primal_pc->SetSystemsOptions(dimension, reorder);
+      auto h_primal_pc = new HypreBoomerAMG(hA);
+      h_primal_pc->SetPrintLevel(0);
+      if (dimension > 0)
+      {
+         h_primal_pc->SetSystemsOptions(dimension, reorder);
+      }
+      primal_pc = h_primal_pc;
    }
-   primal_pc = h_primal_pc;
+   else
+   {
+      primal_pc = prec;
+   }
 
    HypreParMatrix * scaledB = new HypreParMatrix(hB);
    Vector diagA;

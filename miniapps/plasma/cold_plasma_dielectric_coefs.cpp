@@ -566,7 +566,7 @@ complex<double> P_cold_plasma(double omega,
       complex<double> m_eff = m;
       //if (i == 0) { m_eff = m*collision_correction; }
       complex<double> w_p = omega_p(n, q, m_eff);
-      
+
       if (i == 0)
       {
          complex<double> vth = vthermal(Te, m_eff);
@@ -937,7 +937,9 @@ double SheathImpedance::Eval(ElementTransformation &T,
    complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
    double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
+
    if (density_val < 0.0){ density_val = -1.0*density_val;}
+
    double temp_val = 10.0; //EvalElectronTemp(T, ip);        // Units: eV
 
    //density_val = 1e18;
@@ -971,7 +973,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    if (isnan(volt_norm)) {volt_norm = 0.0;}
 
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
-                                           masses_[0], masses_[1]);
+                                             masses_[0], masses_[1]);
 
 
    // Jim's old parametrization (Kohno et al 2017):
@@ -990,7 +992,7 @@ double SheathImpedance::Eval(ElementTransformation &T,
    }
 
    // If bn is < the minimum angle of sheath formation
-   if (bn < min_angle){zsheath_norm = complex<double>(0.0, 0.0);}
+   if (bn < min_angle) {zsheath_norm = complex<double>(0.0, 0.0);}
 
    //cout << zsheath_norm << endl;
 
@@ -1076,7 +1078,7 @@ double StixCoefBase::getBMagnitude(ElementTransformation &T,
 }
 
 double StixCoefBase::getKvecMagnitude(ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip)
 {
    k_.GetVectorValue(T.ElementNo, ip, KVec_);
 
@@ -1120,7 +1122,8 @@ StixLCoef::StixLCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1167,7 +1170,8 @@ StixRCoef::StixRCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1186,7 +1190,7 @@ double StixRCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> R = R_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_,
-                                     charges_, masses_, temp_vals_, 
+                                     charges_, masses_, temp_vals_,
                                      Ti_vals_, nuprof_);
 
    // Return the selected component
@@ -1215,7 +1219,8 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1263,7 +1268,8 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1311,7 +1317,8 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart)
-   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+   : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1420,7 +1427,8 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    double res_lim,
                                    bool realPart)
    : MatrixCoefficient(3),
-     StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+     StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                    omega,
                     charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1531,7 +1539,8 @@ InverseDielectricTensor::InverseDielectricTensor(
    double res_lim,
    bool realPart)
    : MatrixCoefficient(3),
-     StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+     StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                    omega,
                     charges, masses, nuprof, res_lim, realPart)
 {}
 
@@ -1592,7 +1601,8 @@ SPDDielectricTensor::SPDDielectricTensor(
    int nuprof,
    double res_lim)
    : MatrixCoefficient(3),
-     StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace, omega,
+     StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
+                  omega,
                   charges, masses, nuprof, res_lim, true)
 {}
 
@@ -1969,14 +1979,14 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ_edge = -0.387576;
 
          double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
-         
+
          double nu0 = params[0];
          double width = params[1];
          double location = params[2];
 
          // N_||^2 = L cutoff:
          double A = 9.56300019e-02;
-         double B = 4.2; 
+         double B = 4.2;
          double C = -1.47586242e-06;
          double D = 1.84; //1.81
          double sincfunc = A*(sin(B*z - C)/(B*z - C)) + D;
@@ -2121,13 +2131,15 @@ double PlasmaProfile::EvalByType(Type type,
          double pmax1 = 17.8;
          double lam1 = 0.36;
          double n1 = 1.08;
-         double te1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)), -1.0) + pmin1;
+         double te1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
+                                           -1.0) + pmin1;
 
          double pmin2 = -2.4;
          double pmax2 = 1.0;
          double lam2 = 0.978;
          double n2 = 90.0;
-         double te2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)), -1.0) + pmin2;
+         double te2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
+                                           -1.0) + pmin2;
          double Te = (te1 + te2)*1e3;
 
          return Te;
@@ -2161,15 +2173,17 @@ double PlasmaProfile::EvalByType(Type type,
          double pmax1 = (4.339e20 - 2e20);
          double lam1 = 0.46;
          double n1 = 0.89;
-         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)), -1.0) + pmin1;
+         double ne1 = (pmax1 - pmin1)* pow(cosh(pow((sqrt(val) / lam1), n1)),
+                                           -1.0) + pmin1;
 
          double pmin2 = 3.20449e19 - 5.9e19;
          double pmax2 = 2e20;
          double lam2 = 0.97;
          double n2 = 70.0;
-         double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)), -1.0) + pmin2;
+         double ne2 = (pmax2 - pmin2)* pow(cosh(pow((sqrt(val) / lam2), n2)),
+                                           -1.0) + pmin2;
          double pval = ne1 + ne2;
-         
+
          /*
          double pmax = params[0];
          double pmin = params[1];
@@ -2215,7 +2229,7 @@ double PlasmaProfile::EvalByType(Type type,
          double pval = pmin;
 
          // CORE VALUE:
-         if (val < 1.0 && bool_limits == 1){pval = pmax;}
+         if (val < 1.0 && bool_limits == 1) {pval = pmax;}
 
          // VALUE NEAR TOP/BOTTOM DIVERTOR:
          else if (val < 1.0 && bool_limits == 0) {pval = pmax;}
@@ -2271,21 +2285,23 @@ double PlasmaProfile::EvalByType(Type type,
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
-         
+
          double concentration = params[0]; // n_min/ne
          double mass = params[1]; // in amu
 
          double A = 9.56300019e-02;
-         double B = 4.2; 
+         double B = 4.2;
          double C = -1.47586242e-06;
          double D = 1.92; //2.02106; // Location of wave-particle resonance
          double sincfunc = A*(sin(B*z - C)/(B*z - C)) + D;
 
          double temp = 80e3*(0.05/concentration);
-         double doppler_width = 2*((18*vthermal(temp * q_, mass)*1.85)/(2.0*M_PI*120e6)); // [m]
+         double doppler_width = 2*((18*vthermal(temp * q_,
+                                                mass)*1.85)/(2.0*M_PI*120e6)); // [m]
          double width = 2*pow((doppler_width + 0.02)/(2*2.355),2.0);
 
-         return temp*exp(-pow(r-sincfunc, 2.0)/width) - 0.3*temp*pow(z,2.0)*exp(-pow(r-sincfunc, 2.0)/width);
+         return temp*exp(-pow(r-sincfunc, 2.0)/width) - 0.3*temp*pow(z,
+                                                                     2.0)*exp(-pow(r-sincfunc, 2.0)/width);
       }
       break;
       default:
@@ -2449,7 +2465,8 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             xyz_ -= x0;
             double rho = sqrt(pow(xyz_[0], 2) + pow(xyz_[1], 2));
             double coef = pow(rmin,2.0)/(qa-q0);
-            double bp_coef = (coef*((2*(qa-q0)*rho))/(pow(rmin,2.0)*q0 + (qa-q0)*pow(rho,2.0)));
+            double bp_coef = (coef*((2*(qa-q0)*rho))/(pow(rmin,2.0)*q0 + (qa-q0)*pow(rho,
+                                                                                     2.0)));
             double theta = atan2(xyz_[1],xyz_[0]);
 
             if (unit_)
@@ -2481,7 +2498,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
 
          if (!cyl_)
          {
-           // if ( xyz_[0] < 0.4){xyz_[0] = 0.4;}
+            // if ( xyz_[0] < 0.4){xyz_[0] = 0.4;}
 
             // Step 1: Compute coordinates in 3D the Tokamak geometry
             double x_tok = xyz_[0] - u0;
@@ -2667,8 +2684,8 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
 
 StixFrame::StixFrame(const ParGridFunction & B,
                      bool xdir, CoordSystem sys)
-   : VectorCoefficient(3), B_(B), xdir_(xdir), 
-   cyl_(sys == POLOIDAL), xyz_(3), rz_(2), BUnitVec_(3)
+   : VectorCoefficient(3), B_(B), xdir_(xdir),
+     cyl_(sys == POLOIDAL), xyz_(3), rz_(2), BUnitVec_(3)
 {
    xyz_ = 0.0;
    rz_  = 0.0;
@@ -2676,7 +2693,7 @@ StixFrame::StixFrame(const ParGridFunction & B,
 }
 
 void StixFrame::Eval(Vector &V, ElementTransformation &T,
-                         const IntegrationPoint &ip)
+                     const IntegrationPoint &ip)
 {
    V.SetSize(3); V = 0.0;
    T.SetIntPoint(&ip);

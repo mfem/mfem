@@ -201,9 +201,9 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
 
-   if ( mpi.Root() ) { display_banner(cout); }
+   if ( Mpi::Root() ) { display_banner(cout); }
 
    int logging = 1;
 
@@ -410,14 +410,14 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
    Device device(device_config);
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       device.Print();
    }
@@ -553,7 +553,7 @@ int main(int argc, char *argv[])
       phase_shift = true;
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -561,7 +561,7 @@ int main(int argc, char *argv[])
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       double lam0 = c0_ / freq;
       double Bmag = BVec.Norml2();
@@ -638,7 +638,7 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   if ( mpi.Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
+   if ( Mpi::Root() && logging > 0 ) { cout << "Building Mesh ..." << endl; }
 
    tic_toc.Clear();
    tic_toc.Start();
@@ -688,12 +688,12 @@ int main(int argc, char *argv[])
 
    tic_toc.Stop();
 
-   if (mpi.Root() && logging > 0 )
+   if (Mpi::Root() && logging > 0 )
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
 
-   if (mpi.Root() && logging > 0)
+   if (Mpi::Root() && logging > 0)
    {
       cout << "Initializing coefficients..." << endl;
    }
@@ -712,7 +712,7 @@ int main(int argc, char *argv[])
    */
    VectorConstantCoefficient kCoef(kVec);
 
-   if (mpi.Root() && logging > 0)
+   if (Mpi::Root() && logging > 0)
    {
       cout << "Building Finite Element Spaces..." << endl;
    }
@@ -738,7 +738,7 @@ int main(int argc, char *argv[])
 
    BField.ProjectCoefficient(BCoef);
 
-   if (mpi.Root() && logging > 0)
+   if (Mpi::Root() && logging > 0)
    {
       cout << "Setting up density and temperature..." << endl;
    }
@@ -766,17 +766,17 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<=numbers.Size(); i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(tempCoef);
    }
 
    for (int i=0; i<numbers.Size(); i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
-   if (mpi.Root() && logging > 0)
+   if (Mpi::Root() && logging > 0)
    {
       cout << "Initializing more coefficients..." << endl;
    }
@@ -839,7 +839,7 @@ int main(int argc, char *argv[])
 
    tic_toc.Stop();
 
-   if (mpi.Root() && logging > 0 )
+   if (Mpi::Root() && logging > 0 )
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
@@ -902,7 +902,7 @@ int main(int argc, char *argv[])
    }
 
    // Create the Magnetostatic solver
-   if (mpi.Root() && logging > 0)
+   if (Mpi::Root() && logging > 0)
    {
       cout << "Creating CPDSolver..." << endl;
    }
@@ -936,7 +936,7 @@ int main(int argc, char *argv[])
       // visit_dc.RegisterField("Exact_Re_E", &ExactReEField);
       // visit_dc.RegisterField("Exact_Im_E", &ExactImEField);
    }
-   if (mpi.Root()) { cout << "Initialization done." << endl; }
+   if (Mpi::Root()) { cout << "Initialization done." << endl; }
 
    // The main AMR loop. In each iteration we solve the problem on the current
    // mesh, visualize the solution, estimate the error on all elements, refine
@@ -946,7 +946,7 @@ int main(int argc, char *argv[])
    const int max_dofs = 10000000;
    for (int it = 1; it <= maxit; it++)
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "\nAMR Iteration " << it << endl;
       }
@@ -962,7 +962,7 @@ int main(int argc, char *argv[])
 
       // Compute error
       double glb_error = CPD.GetError(EReCoef, EImCoef);
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "Global L2 Error " << glb_error << endl;
          if ( convergence_test == true)
@@ -990,7 +990,7 @@ int main(int argc, char *argv[])
          CPD.DisplayToGLVis();
       }
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
       }
@@ -998,7 +998,7 @@ int main(int argc, char *argv[])
       // Check stopping criteria
       if (prob_size > max_dofs)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Reached maximum number of dofs, exiting..." << endl;
          }
@@ -1011,7 +1011,7 @@ int main(int argc, char *argv[])
 
       // Wait for user input. Ask every 10th iteration.
       char c = 'c';
-      if (mpi.Root() && (it % 10 == 0))
+      if (Mpi::Root() && (it % 10 == 0))
       {
          cout << "press (q)uit or (c)ontinue --> " << flush;
          cin >> c;
@@ -1036,7 +1036,7 @@ int main(int argc, char *argv[])
       // maximum element error.
       const double frac = 0.5;
       double threshold = frac * global_max_err;
-      if (mpi.Root()) { cout << "Refining ..." << endl; }
+      if (Mpi::Root()) { cout << "Refining ..." << endl; }
       {
          pmesh.RefineByError(errors, threshold);
       }
@@ -1050,9 +1050,9 @@ int main(int argc, char *argv[])
              BField, density_gf, temperature_gf, nue_gf, nui_gf);
       CPD.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
+      if (pmesh.Nonconforming() && Mpi::WorldSize() > 1 && false)
       {
-         if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
+         if (Mpi::Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
 
          // Update again after rebalancing
@@ -1117,7 +1117,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    density.Update(density_offsets);
    for (int i=0; i<density_offsets.Size()-1; i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i).GetMemory());
       density_gf.ProjectCoefficient(rhoCoef);
    }
 
@@ -1129,7 +1129,7 @@ void Update(ParFiniteElementSpace & H1FESpace,
    temperature.Update(temperature_offsets);
    for (int i=0; i<temperature_offsets.Size()-1; i++)
    {
-      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i).GetMemory());
       temperature_gf.ProjectCoefficient(TCoef);
    }
 }

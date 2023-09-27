@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 #include "../general/forall.hpp"
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
-#include "ceed/util.hpp"
+#include "ceed/interface/util.hpp"
 
 #include <cmath>
 #include <cstdarg>
@@ -309,6 +309,12 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
+void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
+{
+   GetPatchDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
 {
    GetFaceDofs(i, vdofs);
@@ -385,21 +391,38 @@ void FiniteElementSpace::BuildBdrElementToDofTable() const
    if (bdr_elem_dof) { return; }
 
    Table *bel_dof = new Table;
+   Table *bel_fos = (mesh->Dimension() == 3) ? (new Table) : NULL;
    Array<int> dofs;
+   int F, Fo;
    bel_dof->MakeI(mesh->GetNBE());
+   if (bel_fos) { bel_fos->MakeI(mesh->GetNBE()); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddColumnsInRow(i, dofs.Size());
+
+      if (bel_fos)
+      {
+         bel_fos->AddAColumnInRow(i);
+      }
    }
    bel_dof->MakeJ();
+   if (bel_fos) { bel_fos->MakeJ(); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+
+      if (bel_fos)
+      {
+         mesh->GetBdrElementFace(i, &F, &Fo);
+         bel_fos->AddConnection(i, Fo);
+      }
    }
    bel_dof->ShiftUpI();
+   if (bel_fos) { bel_fos->ShiftUpI(); }
    bdr_elem_dof = bel_dof;
+   bdr_elem_fos = bel_fos;
 }
 
 void FiniteElementSpace::BuildFaceToDofTable() const
@@ -1199,8 +1222,6 @@ void FiniteElementSpace::BuildConformingInterpolation() const
       MakeVDimMatrix(*cR);
       if (cR_hp) { MakeVDimMatrix(*cR_hp); }
    }
-
-   cP->EnsureMultTranspose();
 }
 
 void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
@@ -1258,7 +1279,7 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-const Operator *FiniteElementSpace::GetElementRestriction(
+const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    ElementDofOrdering e_ordering) const
 {
    // Check if we have a discontinuous space using the FE collection:
@@ -1273,7 +1294,7 @@ const Operator *FiniteElementSpace::GetElementRestriction(
          // The output E-vector layout is: ND x VDIM x NE.
          L2E_nat.Reset(new L2ElementRestriction(*this));
       }
-      return L2E_nat.Ptr();
+      return L2E_nat.Is<ElementRestrictionOperator>();
    }
    if (e_ordering == ElementDofOrdering::LEXICOGRAPHIC)
    {
@@ -1281,23 +1302,23 @@ const Operator *FiniteElementSpace::GetElementRestriction(
       {
          L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
       }
-      return L2E_lex.Ptr();
+      return L2E_lex.Is<ElementRestrictionOperator>();
    }
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
       L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
    }
-   return L2E_nat.Ptr();
+   return L2E_nat.Is<ElementRestrictionOperator>();
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering f_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -1310,16 +1331,16 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, e_ordering, type, m);
+            res = new L2FaceRestriction(*this, f_ordering, type, m);
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         res = new ConformingFaceRestriction(*this, f_ordering, type);
       }
       L2F[key] = res;
       return res;
@@ -1544,6 +1565,10 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
    delete old_elem_fos;
+   for (int i=0; i<old_DoFTrans.Size(); i++)
+   {
+      delete old_DoFTrans[i];
+   }
 }
 
 void FiniteElementSpace::RefinementOperator
@@ -1960,7 +1985,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          DenseMatrix &lM = localM[g](mi[s]);
          DenseMatrix &lR = localR[g](lR_offset+s);
          MultAtB(lP, lM, lR); // lR = lP^T lM
-         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+         mfem::AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
       }
       DenseMatrixInverse lPtMP_inv(lPtMP);
       for (int s = 0; s < nm; s++)
@@ -2007,7 +2032,7 @@ void FiniteElementSpace::DerefinementOperator
          x.GetSubVector(f_vdofs, loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
-         AddMult(lR, loc_x_mat, loc_y_mat);
+         mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
       y.SetSubVector(c_vdofs, loc_y);
    }
@@ -2058,10 +2083,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R = (elem_geoms.Size() != 1)
-                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                                        localR[elem_geoms[0]].SizeI());
+   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(R->Height());
    mark = 0;
@@ -2071,6 +2093,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
@@ -2093,10 +2116,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
-            if (!mark[m])
+            if (is_dg || !mark[m])
             {
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
+
                mark[m] = 1;
                num_marked++;
             }
@@ -2104,8 +2128,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   MFEM_VERIFY(num_marked == R->Height(),
-               "internal error: not all rows of R were set.");
+   if (!is_dg)
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -2780,6 +2807,13 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    return DoFTrans[mesh->GetElementBaseGeometry(elem)];
 }
 
+void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
+{
+   MFEM_ASSERT(NURBSext,
+               "FiniteElementSpace::GetPatchDofs needs a NURBSExtension");
+   NURBSext->GetPatchDofs(patch, dofs);
+}
+
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
    if (i < 0 || !mesh->GetNE()) { return NULL; }
@@ -3147,7 +3181,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
+         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
    }
 
    if (NURBSext)
@@ -3611,60 +3645,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;
-}
-
-
-void QuadratureSpace::Construct()
-{
-   // protected method
-   int offset = 0;
-   const int num_elem = mesh->GetNE();
-   element_offsets = new int[num_elem + 1];
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      int_rule[g] = NULL;
-   }
-   for (int i = 0; i < num_elem; i++)
-   {
-      element_offsets[i] = offset;
-      int geom = mesh->GetElementBaseGeometry(i);
-      if (int_rule[geom] == NULL)
-      {
-         int_rule[geom] = &IntRules.Get(geom, order);
-      }
-      offset += int_rule[geom]->GetNPoints();
-   }
-   element_offsets[num_elem] = size = offset;
-}
-
-QuadratureSpace::QuadratureSpace(Mesh *mesh_, std::istream &in)
-   : mesh(mesh_)
-{
-   const char *msg = "invalid input stream";
-   string ident;
-
-   in >> ident; MFEM_VERIFY(ident == "QuadratureSpace", msg);
-   in >> ident; MFEM_VERIFY(ident == "Type:", msg);
-   in >> ident;
-   if (ident == "default_quadrature")
-   {
-      in >> ident; MFEM_VERIFY(ident == "Order:", msg);
-      in >> order;
-   }
-   else
-   {
-      MFEM_ABORT("unknown QuadratureSpace type: " << ident);
-      return;
-   }
-
-   Construct();
-}
-
-void QuadratureSpace::Save(std::ostream &os) const
-{
-   os << "QuadratureSpace\n"
-      << "Type: default_quadrature\n"
-      << "Order: " << order << '\n';
 }
 
 } // namespace mfem

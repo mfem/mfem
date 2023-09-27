@@ -41,9 +41,10 @@ double GetScalarMax(const ParGridFunction &x);
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
-   MPI_Session mpi;
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -122,7 +123,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace_rt(&pmesh, fec_rt);
    HYPRE_Int size_nd = fespace_nd.GlobalTrueVSize();
    HYPRE_Int size_rt = fespace_rt.GlobalTrueVSize();
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Number of H(Curl) unknowns: " << size_nd << endl;
       cout << "Number of H(Div) unknowns: " << size_rt << endl;
@@ -164,7 +165,7 @@ int main(int argc, char *argv[])
          // closed surface.
          a.AddDomainIntegrator(new VectorFEMassIntegrator(epsilon));
          shift = 1.0;
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Computing eigenvalues shifted by " << shift << endl;
          }
@@ -287,7 +288,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -408,7 +409,7 @@ int main(int argc, char *argv[])
                MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
@@ -461,7 +462,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -565,7 +566,7 @@ int main(int argc, char *argv[])
                MPI_Barrier(MPI_COMM_WORLD);
             }
             char c;
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
@@ -591,7 +592,7 @@ int main(int argc, char *argv[])
 
          for (int i=0; i<nev; i++)
          {
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "Eigenmode " << i+1 << '/' << nev
                     << ", Lambda = " << eigenvalues[i] - shift << endl;
@@ -620,7 +621,7 @@ int main(int argc, char *argv[])
             MPI_Barrier(MPI_COMM_WORLD);
 
             char c;
-            if (mpi.Root())
+            if (Mpi::Root())
             {
                cout << "press (q)uit or (c)ontinue --> " << flush;
                cin >> c;
