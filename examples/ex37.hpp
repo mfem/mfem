@@ -1039,6 +1039,7 @@ public:
          psi->Add(alpha, *direction);
          proj();
          Eval();
+         return alpha;
 
          out << "Sufficient decrease condition: ";
          out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
