@@ -14,18 +14,18 @@ namespace mfem
  * @brief Inverse sigmoid function
  *
  */
-double inv_sigmoid(double x)
+double inv_sigmoid(const double x)
 {
-   double tol = 1e-12;
-   x = std::min(std::max(tol,x),1.0-tol);
-   return std::log(x/(1.0-x));
+   const double tol = 1e-12;
+   const double tmp = std::min(std::max(tol,x),1.0-tol);
+   return std::log(tmp/(1.0-tmp));
 }
 
 /**
  * @brief Sigmoid function
  *
  */
-double sigmoid(double x)
+double sigmoid(const double x)
 {
    if (x >= 0)
    {
@@ -41,7 +41,7 @@ double sigmoid(double x)
  * @brief Derivative of sigmoid function
  *
  */
-double der_sigmoid(double x)
+double der_sigmoid(const double x)
 {
    double tmp = sigmoid(x);
    return tmp*(1.0 - tmp);
@@ -59,7 +59,7 @@ protected:
 public:
    MappedGridFunctionCoefficient()
       :GridFunctionCoefficient(),
-       fun([](double x) {return x;}) {}
+       fun([](const double x) {return x;}) {}
    MappedGridFunctionCoefficient(const GridFunction *gf,
                                  std::function<double(const double)> fun_,
                                  int comp=1)
@@ -91,7 +91,7 @@ public:
       :GridFunctionCoefficient(),
        OtherGridF(nullptr),
        OtherGridF_cf(),
-       fun([](double x) {return x;}) {}
+       fun([](const double x) {return x;}) {}
    DiffMappedGridFunctionCoefficient(const GridFunction *gf,
                                      const GridFunction *other_gf,
                                      std::function<double(const double)> fun_,
