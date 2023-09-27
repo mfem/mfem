@@ -352,6 +352,7 @@ public:
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
+IntegrationRules IntRulesCGL(0, Quadrature1D::ClosedGL);
 
 // Defined with respect to the icf mesh.
 double weight_fun(const Vector &x)

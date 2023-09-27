@@ -861,7 +861,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                   {
                      //                     mfem::out << " k10-update pointwise surface fitting weight\n";
                   }
-                  UpdatePointWiseSurfaceFittingWeight(x_loc);
+                  if (update_surf_fit_coeff)
+                  {
+                     UpdatePointWiseSurfaceFittingWeight(x_loc);
+                  }
                }
             }
             UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
@@ -967,7 +970,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       SaveSurfaceFittingWeight();
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
-         if (fitweights.Max() < weights_max_limit)
+         if (fitweights.Max() < weights_max_limit && min_det > min_detJ_threshold)
          {
             if (print_options.iterations)
             {
@@ -975,7 +978,9 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                //                         surf_fit_scale_factor <<
                //                         " morm ratio-max weight-factor\n";
             }
-            UpdateSurfaceFittingWeight(surf_fit_scale_factor);
+            double scale_factor = std::min(surf_fit_scale_factor,
+                                           weights_max_limit/fitweights.Max());
+            UpdateSurfaceFittingWeight(scale_factor);
             adapt_inc_count += 1;
          }
       }

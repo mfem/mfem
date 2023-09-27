@@ -332,7 +332,9 @@ protected:
 
    /** Compute the Jacobian of the transformation from the perfect
        reference element at the center of the element. */
-   void GetElementJacobian(int i, DenseMatrix &J);
+   void GetElementJacobian(int i, DenseMatrix &J,
+                           const IntegrationPoint *ip = NULL);
+
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();

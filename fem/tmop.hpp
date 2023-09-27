@@ -82,8 +82,14 @@ public:
        mu =  0.5 X:d2mu/dT2:X at T=I
        dmu/dT =  X:d2mu/dT2 at T=I
        d2mu/dT2 = d2mu/dT2 at T=I */
-   virtual void EnableLinearization() { linear = true; }
-   virtual void DisableLinearization() { linear = false; }
+   virtual void EnableLinearization()
+   {
+      linear = true;
+   }
+   virtual void DisableLinearization()
+   {
+      linear = false;
+   }
 
    virtual void ComputeH(const DenseMatrix &Jpt) const
    { MFEM_ABORT("ComputeH not implemented."); }
@@ -1789,8 +1795,8 @@ protected:
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
    Array<double> surf_fit_weight_scale;
-   Vector point_jacobian_initial;
-   Vector point_jacobian_current;
+   Vector pjaci;
+   Vector pjacc;
    double last_active_surf_fit_const;
    bool fit_weight_point_wise = false;
 
@@ -2145,7 +2151,8 @@ public:
 
    // Sets initial fitting weight based on the magnitude of the norm of the
    // gradient of the metric term and the fitting term.
-   void SetInitialFittingWeightAutomatically(Vector &x_loc);
+   double GetInitialFittingWeightUsingGradientNorm(Vector &x_loc);
+   void SetFittingWeightScaleWithPointWiseJacobian(Vector &x_loc);
 
    void DisableSurfaceFitting();
 #endif
@@ -2169,6 +2176,11 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
+
+   virtual void AssembleElementEnergyVector(const FiniteElement &el,
+                                            ElementTransformation &T,
+                                            const Vector &elfun,
+                                            Vector &elvect);
 
    /** @brief Computes the mean of the energies of the given element's children.
 

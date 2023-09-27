@@ -16,6 +16,7 @@
 #include "densemat.hpp"
 #include "handle.hpp"
 #include <memory>
+#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -664,6 +665,11 @@ protected:
    double alpha;
    mutable int final_lin_iter = 0;
    mutable int total_lin_iter = 0;
+   mutable StopWatch TimeVector,
+           TimeGrad,
+           TimePrecMult,
+           TimeProcessNewState,
+           TimeComputeScaling;
 
    mutable double norm_ratio;
 
@@ -681,10 +687,24 @@ protected:
                                  const double fnorm) const;
 
 public:
-   NewtonSolver() { }
+   NewtonSolver()
+   {
+      TimeVector.Clear();
+      TimeGrad.Clear();
+      TimePrecMult.Clear();
+      TimeProcessNewState.Clear();
+      TimeComputeScaling.Clear();
+   }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+   NewtonSolver(MPI_Comm comm_) : IterativeSolver(comm_)
+   {
+      TimeVector.Clear();
+      TimeGrad.Clear();
+      TimePrecMult.Clear();
+      TimeProcessNewState.Clear();
+      TimeComputeScaling.Clear();
+   }
 #endif
    virtual void SetOperator(const Operator &op);
 
@@ -727,6 +747,12 @@ public:
    int GetTotalNumberOfLinearIterations() { return total_lin_iter; };
 
    int GetMostRecentNumberOfLinearIterations() { return final_lin_iter; };
+
+   virtual double GetAssembleElementVectorTime() { return TimeVector.RealTime(); }
+   virtual double GetAssembleElementGradTime() { return TimeGrad.RealTime(); }
+   virtual double GetPrecMultTime() { return TimePrecMult.RealTime(); }
+   virtual double GetProcessNewStateTime() { return TimeProcessNewState.RealTime(); }
+   virtual double GetComputeScalingTime() { return TimeComputeScaling.RealTime(); }
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing

@@ -522,7 +522,7 @@ int main (int argc, char *argv[])
                cout << "Kershaw transform factor, epsz in (0, 1]) ---> " << flush;
                cin >> epsz;
             }
-            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
+            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz, 2.0);
             mesh->Transform(kershawT);
          }
          else

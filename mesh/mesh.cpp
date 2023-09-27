@@ -57,11 +57,18 @@ using namespace std;
 namespace mfem
 {
 
-void Mesh::GetElementJacobian(int i, DenseMatrix &J)
+void Mesh::GetElementJacobian(int i, DenseMatrix &J, const IntegrationPoint *ip)
 {
    Geometry::Type geom = GetElementBaseGeometry(i);
    ElementTransformation *eltransf = GetElementTransformation(i);
-   eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   if (ip == NULL)
+   {
+      eltransf->SetIntPoint(&Geometries.GetCenter(geom));
+   }
+   else
+   {
+      eltransf->SetIntPoint(ip);
+   }
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 

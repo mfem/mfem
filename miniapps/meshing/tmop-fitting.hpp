@@ -16,6 +16,22 @@
 using namespace std;
 using namespace mfem;
 
+double r_intersect(double r1, double r2)
+{
+   return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+double r_union(double r1, double r2)
+{
+   return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
+}
+
+double r_remove(double r1, double r2)
+{
+   return r_intersect(r1, -r2);
+}
+
+
 // Used for exact surface alignment
 double circle_level_set(const Vector &x)
 {
@@ -24,7 +40,8 @@ double circle_level_set(const Vector &x)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
       const double r = sqrt(xc*xc + yc*yc);
-      return r-0.25; // circle of radius 0.1
+
+      return r-0.25;
    }
    else
    {
@@ -34,19 +51,57 @@ double circle_level_set(const Vector &x)
    }
 }
 
+double inclined_plane(const Vector &x)
+{
+   //   const int dim = x.Size();
+   //   return x(1) - (0.23 + 0.5*(x(0)));
+
+   double val = x(1) - (0.23 + 0.5*(x(0)));
+   return val;
+
+   double theta = 32.0*M_PI/180.0;
+   //   double ax = 0.0;
+   double ay = 0.23;
+   double tv = std::tan(theta);
+   return (x(1) - (ay + x(0)*tv))/(std::pow(1*1 + tv*tv, 0.5));
+}
+
+double flat_plane(const Vector &x)
+{
+   //   const int dim = x.Size();
+   //   return x(1) - (0.23 + 0.5*(x(0)));
+
+   double val = x(1) - 0.465;
+   return val;
+}
+
+double sinusoidal(const Vector &x)
+{
+   double f1 = 2,
+          f2 = 3,
+          m1 = 0.1,
+          m2 = 0.15;
+   double sine1 = m1*std::sin(M_PI*2.0*x(0)*f1);
+   double sine2 = m2*std::sin(M_PI*2.0*x(0)*f2);
+   double val = x(1) - (0.5 + sine1 + sine2);
+   return val;
+}
+
+
+
 double squircle_level_set(const Vector &x)
 {
    const int dim = x.Size();
    if (dim == 2)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.25, 4.0);
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
    }
    else
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc + zc*zc);
-      return r-0.3;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) + std::pow(zc,
+                                                              4.0) - std::pow(0.24, 4.0);
    }
 }
 
@@ -132,26 +187,45 @@ double csg_cubesph_smooth(const Vector &x)
    return std::max(dsph, dcube); // return here for sphere + cube
 }
 
+
+double cube_dist_smooth(const Vector &x, Vector &x_center, Vector &lengths)
+{
+   double xc = x_center(0);
+   double yc = x_center(1);
+   double zc = x_center(2);
+   double xv = x(0),
+          yv = x(1),
+          zv = x(2);
+   double lx = lengths(0);
+   double ly = lengths(1);
+   double lz = lengths(2);
+   double phi_vertical = std::pow(lx*0.5, 2.0) - std::pow(xv-xc, 2.0);
+   double phi_horizontal = std::pow(ly*0.5, 2.0) - std::pow(yv-yc, 2.0);
+   double phi_3 = std::pow(lz*0.5, 2.0) - std::pow(zv-zc, 2.0);
+
+   double phi_rectangle = r_intersect(phi_vertical, phi_horizontal);
+   return r_intersect(phi_rectangle, phi_3);
+}
 double csg_cubecylsph_smooth(const Vector &x)
 {
    //   double pwrr = 4.0;
    Vector xcc = x;
    xcc = 0.5;
    const int dim = x.Size();
+   //   const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
    MFEM_VERIFY(dim == 3, "Only 3D supported for this level set");
    Vector x2 = x;
    x2 -= xcc;
    double rsph = 0.375;
-   double rcube = 0.3;
-   double dsph = x2.Norml2() - rsph;;/*x2.Norml2()*x2.Norml2() - rsph*rsph;*/
-   //      return dsph; //return here for sphere
-   double dcube = cube_dist(x, xcc, rcube);
+   double rcube = 0.31;
+   double dsph = x2.Norml2() - rsph;
+   //   double dcube = std::pow(xc*xc + yc*yc + zc*zc, 0.5) - rcube;
+   Vector rcubel(3);
+   rcubel = 2*rcube;
+   double dcube = cube_dist_smooth(x, xcc, rcubel);
    //    return std::max(dsph, dcube); // return here for sphere + cube
-   double dist1 = std::max(dsph, dcube);
-
-   //   return std::max(dsph, -10*dcube);
-   //   double alpha = 10.0;
-   //   double dist1 = std::min(1.0*alpha*dcube, dsph);
+   double dist1 = r_union(dsph, -dcube);
+   //   return dist1;
 
    int pipedir = 1;
    Vector x_pipe_center(3);
@@ -161,17 +235,18 @@ double csg_cubecylsph_smooth(const Vector &x)
    double pipe_radius = 0.25;
    double in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin,
                                 xmax);
-
-   double dist2 = std::max(dist1, -in_pipe_x);
-   //   return dist2;
+   //   double dist2 = std::max(dist1, -in_pipe_x);
+   double dist2 = r_union(dist1, -in_pipe_x);
 
    pipedir = 2;
    in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-   double dist3 = std::max(dist2, -in_pipe_x);
+   //   double dist3 = std::max(dist2, -in_pipe_x);
+   double dist3 = r_union(dist2, -in_pipe_x);
 
    pipedir = 3;
    in_pipe_x = pipe_dist(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
-   double dist4 = std::max(dist3, -in_pipe_x);
+   //   double dist4 = std::max(dist3, -in_pipe_x);
+   double dist4 = r_union(dist3, -in_pipe_x);
 
    return dist4;
 }
@@ -329,21 +404,6 @@ double in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
       return -1.0;
    }
    return 0.0;
-}
-
-double r_intersect(double r1, double r2)
-{
-   return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
-}
-
-double r_union(double r1, double r2)
-{
-   return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
-}
-
-double r_remove(double r1, double r2)
-{
-   return r_intersect(r1, -r2);
 }
 
 double beam_level_set(const Vector &x)
@@ -1288,6 +1348,56 @@ void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat,
    }
 }
 
+void GetMaterialInterfaceDofs(ParMesh *pmesh, ParGridFunction &mat,
+                              ParGridFunction &surf_fit_gf0,
+                              Array<int> &intdofs)
+{
+   Array<int> intf(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      //if there is more than 1 element across the face.
+      if (nbrs.Size() > 1)
+      {
+         matvals.SetSize(2);
+         for (int j = 0; j < 2; j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j) = mat(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j) = vec(0);
+            }
+         }
+         if (matvals(0) != matvals(1))
+         {
+            intf.Append(f);
+         }
+      }
+   }
+
+   Array<int> dofs;
+   intdofs.SetSize(0);
+   for (int i = 0; i < intf.Size(); i++)
+   {
+      surf_fit_gf0.ParFESpace()->GetFaceDofs(intf[i], dofs);
+      intdofs.Append(dofs);
+   }
+}
+
 int GetRank(const Array<int> & offsets, int n)
 {
    for (int i = 0; i<offsets.Size()-1; i++)
@@ -1582,7 +1692,6 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
    }
 
    NumFaces.ExchangeFaceNbrData();
-
 
    int counter = 0;
    for (int e = 0; e < pmesh->GetNE(); e++)
