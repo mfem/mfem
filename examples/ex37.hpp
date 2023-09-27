@@ -1023,7 +1023,7 @@ public:
       GridFunctionCoefficient direction_cf(direction);
       ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi_k);
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
-                                             der_sigmoid_diff_psi));
+                                             direction_cf));
       directionalDer->Assemble();
 
       const double d = (*directionalDer)(*grad);
