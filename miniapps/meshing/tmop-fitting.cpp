@@ -515,7 +515,7 @@ int main (int argc, char *argv[])
    // Setup background mesh for surface fitting
    // Define relevant spaces and gridfunctions
    ParMesh *pmesh_surf_fit_bg = NULL;
-   AdaptivityEvaluator *remap_from_bg;
+   AdaptivityEvaluator *remap_from_bg = NULL;
    FiniteElementCollection *surf_fit_bg_fec = NULL;
    ParFiniteElementSpace *surf_fit_bg_fes = NULL;
    ParGridFunction *surf_fit_bg_gf0 = NULL;
@@ -977,6 +977,7 @@ int main (int argc, char *argv[])
       }
    }
 
+
    Vector b(0);
 
    // 12. Form the integrator that uses the chosen metric and target.
@@ -1115,6 +1116,7 @@ int main (int argc, char *argv[])
    Array<bool> psub_surf_fit_marker(psub_surf_fit_gf0.Size());
    ConstantCoefficient surf_fit_coeff(surface_fit_const);
    ParGridFunction surf_fit_mat_gf(&psub_surf_fit_fes);
+   Array<int> fitting_face_list;
 
    if (surface_fit_const > 0.0)
    {
@@ -1135,9 +1137,7 @@ int main (int argc, char *argv[])
       // Strategy 1: Automatically choose face between elements of different attribute.
       if (marking_type == 0)
       {
-
-         Array<int> intfaces;
-         GetMaterialInterfaceFaces(psubmesh, psub_mat, intfaces);
+         GetMaterialInterfaceFaces(psubmesh, psub_mat, fitting_face_list);
 
          psub_surf_fit_marker.SetSize(psub_surf_fit_gf0.Size());
          for (int j = 0; j < psub_surf_fit_marker.Size(); j++)
@@ -1148,9 +1148,9 @@ int main (int argc, char *argv[])
 
          Array<int> dof_list;
          Array<int> dofs;
-         for (int i = 0; i < intfaces.Size(); i++)
+         for (int i = 0; i < fitting_face_list.Size(); i++)
          {
-            psub_surf_fit_gf0.ParFESpace()->GetFaceDofs(intfaces[i], dofs);
+            psub_surf_fit_gf0.ParFESpace()->GetFaceDofs(fitting_face_list[i], dofs);
             dof_list.Append(dofs);
          }
          for (int i = 0; i < dof_list.Size(); i++)
@@ -1175,6 +1175,7 @@ int main (int argc, char *argv[])
             psubmesh->GetBdrElementAdjacentElement(i, elno, info);
             if (attr == marking_type)
             {
+               fitting_face_list.Append(psubmesh->GetBdrFace(i));
                psub_surf_fit_fes.GetBdrElementVDofs(i, vdofs);
                for (int j = 0; j < vdofs.Size(); j++)
                {
@@ -1344,11 +1345,23 @@ int main (int argc, char *argv[])
       surf_fit_coeff.constant  = surface_fit_const;
    }
 
+   Vector integrated_face_error(fitting_face_list.Size());
+   double tot_init_integ_error = 0.0;
+   double tot_final_integ_error = 0.0;
+   if (surface_fit_const > 0.0)
+   {
+      tot_init_integ_error = ComputeIntegrateErroronInterfaces(psubmesh,
+                                                               ls_coeff,
+                                                               fitting_face_list,
+                                                               surf_fit_bg_gf0,
+                                                               remap_from_bg,
+                                                               integrated_face_error, 0);
+   }
+
 
    ParNonlinearForm a(psub_pfespace);
    ConstantCoefficient *metric_coeff1 = NULL;
    a.AddDomainIntegrator(tmop_integ);
-
 
    // Compute the minimum det(J) of the starting mesh.
    tauval = GetMinDet(psubmesh, psub_pfespace, irules, quad_order);
@@ -1719,6 +1732,16 @@ int main (int argc, char *argv[])
       }
    }
 
+   if (surface_fit_const > 0.0)
+   {
+      tot_final_integ_error = ComputeIntegrateErroronInterfaces(psubmesh,
+                                                                ls_coeff,
+                                                                fitting_face_list,
+                                                                surf_fit_bg_gf0,
+                                                                remap_from_bg,
+                                                                integrated_face_error, 0);
+   }
+
 
    if (myid == 0)
    {
@@ -1771,6 +1794,8 @@ int main (int argc, char *argv[])
                 << "Submesh NTDOFs: " << ntdofsglobsubmesh << endl
                 << "AMRIter: " << int_amr_iters << endl
                 << "NE Pre AMRIter: " << neglob_preamr << endl
+                << "InitIntegError: " << tot_init_integ_error << endl
+                << "FinIntegError: " << tot_final_integ_error << endl
                 << endl;
 
       std::cout << "TMOPFittingInfo: " <<
@@ -1779,7 +1804,8 @@ int main (int argc, char *argv[])
                 "initmindet,finalmindet,initenergy,finalenergy,"
                 "initavgfiterr,initmaxfiterr,finavgfiterr,finmaxfiterr,"
                 "initfitwt,finalfitwt,sfa,sft,sfct,sfcmax,sfcjac,"
-                "sublayer,subne,subnp,subndofs,subtdofs,amriter,nepreiter " <<
+                "sublayer,subne,subnp,subndofs,subtdofs,amriter,nepreiter,"
+                "InitIntegError,FinalIntegError " <<
                 jobid << "," << neglob << "," << num_procs << "," <<
                 mesh_poly_deg << "," << metric_id << "," << target_id << "," <<
                 ndofsglob << "," << ntdofsglob << "," <<
@@ -1799,6 +1825,7 @@ int main (int argc, char *argv[])
                 num_active_glob << "," << num_procs_submesh << "," <<
                 ndofsglobsubmesh << "," << ntdofsglobsubmesh << "," <<
                 int_amr_iters << "," << neglob_preamr << "," <<
+                tot_init_integ_error << "," << tot_final_integ_error <<
                 std::endl;
    }
 

@@ -36,6 +36,7 @@ double r_remove(double r1, double r2)
 double circle_level_set(const Vector &x)
 {
    const int dim = x.Size();
+
    if (dim == 2)
    {
       const double xc = x(0) - 0.5, yc = x(1) - 0.5;
@@ -960,6 +961,119 @@ Mesh* TrimMesh(Mesh &mesh, FunctionCoefficient &ls_coeff, int order,
 }
 
 #ifdef MFEM_USE_MPI
+
+double  ComputeIntegrateErroronInterfaces(ParMesh *pmesh,
+                                          FunctionCoefficient *ls_coeff,
+                                          Array<int> &fitting_face_list,
+                                          ParGridFunction *surf_fit_bg_gf0,
+                                          AdaptivityEvaluator *remap_from_bg,
+                                          Vector &integrated_error,
+                                          int etype = 0)
+{
+   int ninterfaces = fitting_face_list.Size();
+   integrated_error.SetSize(ninterfaces);
+   GridFunction *Nodes = pmesh->GetNodes();
+   const FiniteElementSpace *pfespace = pmesh->GetNodalFESpace();
+   // Make list of quadrature point locations and weight for evaluation
+   int intorder = surf_fit_bg_gf0 ?
+                  2*surf_fit_bg_gf0->FESpace()->GetMaxElementOrder() + 3 :
+                  pfespace->GetMaxElementOrder() + 3;
+
+   int dim = pmesh->Dimension();
+
+   Array<int> IPIndices(fitting_face_list);
+   Vector IntegLocations;
+   Vector IntegWeights;
+   int npts = 0;
+   for (int f = 0; f < ninterfaces; f++)
+   {
+      int fnum = fitting_face_list[f];
+      FaceElementTransformations *transf =
+         pmesh->GetFaceElementTransformations(fnum, 31);
+      if (transf == NULL)
+      {
+         MFEM_ABORT("Null face transformation");
+      }
+      const FiniteElement *fe = transf->GetFE();
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      IPIndices[f] = npts;
+      npts += ir->GetNPoints();
+   }
+
+   IntegLocations.SetSize(npts*dim);
+   IntegWeights.SetSize(npts);
+   Vector InterpolatedValues(npts);
+
+   for (int f = 0; f < ninterfaces; f++)
+   {
+      int ipindex = IPIndices[f];
+      int fnum = fitting_face_list[f];
+      FaceElementTransformations *transf =
+         pmesh->GetFaceElementTransformations(fnum, 31);
+      if (transf == NULL)
+      {
+         MFEM_ABORT("Null face transformation");
+      }
+      const FiniteElement *fe = transf->GetFE();
+      const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      Vector vxyz(IntegLocations.GetData()+ipindex*dim, dim*ir->GetNPoints());
+      Vector wts(IntegWeights.GetData()+ipindex, ir->GetNPoints());
+      for (int i=0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         transf->SetAllIntPoints(&ip);
+
+         Vector xyz(dim);
+         transf->Transform(ip, xyz);
+         if (!remap_from_bg)
+         {
+            InterpolatedValues(ipindex+i) = ls_coeff->Eval(*transf, ip);
+         }
+
+         vxyz(i*dim) = xyz(0);
+         vxyz(i*dim+1) = xyz(1);
+         if (dim==3)
+         {
+            vxyz(i*dim+2) = xyz(2);
+         }
+         wts(i) = ip.weight*transf->Face->Weight();
+      }
+      if (transf->Elem2No < 0) { wts *= 0.5; }
+   }
+
+   if (remap_from_bg)
+   {
+      remap_from_bg->ComputeAtNewPosition(IntegLocations,
+                                          InterpolatedValues,
+                                          Ordering::byVDIM);
+   }
+
+   for (int f = 0; f < ninterfaces; f++)
+   {
+      int ipindex = IPIndices[f];
+      int fnum = fitting_face_list[f];
+      integrated_error(f) = 0;
+      int ipindexend = f < ninterfaces-1 ? IPIndices[f+1] : npts;
+      for (int i = ipindex; i < ipindexend; i++)
+      {
+         if (etype == 0)   //L2 norm squared
+         {
+            integrated_error(f) += IntegWeights(i)*std::pow(InterpolatedValues(i), 2.0);
+         }
+         else   // just the area/length
+         {
+            integrated_error(f) += IntegWeights(i);
+         }
+      }
+   }
+
+   double locerror  = integrated_error.Sum();
+   MPI_Allreduce(MPI_IN_PLACE, &locerror, 1, MPI_DOUBLE, MPI_SUM,
+                 pmesh->GetComm());
+
+   return locerror;
+}
+
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
    const int dim = pmesh->Dimension();
@@ -1315,8 +1429,10 @@ void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat,
    const int NElem = pmesh->GetNE();
    MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
                "constant function over the mesh.");
+   bool shared = false;
    for (int f = 0; f < pmesh->GetNumFaces(); f++ )
    {
+      shared = false;
       Array<int> nbrs;
       pmesh->GetFaceAdjacentElements(f,nbrs);
       Vector matvals;
@@ -1334,6 +1450,7 @@ void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat,
             }
             else
             {
+               shared = true;
                const int Elem2NbrNo = nbrs[j] - NElem;
                mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
                mat.FaceNbrData().GetSubVector(vdofs, vec);
@@ -1342,6 +1459,14 @@ void GetMaterialInterfaceFaces(ParMesh *pmesh, ParGridFunction &mat,
          }
          if (matvals(0) != matvals(1))
          {
+            //          if (shared) {
+            //              FaceElementTransformations *transf =
+            //                    pmesh->GetFaceElementTransformations(f, 31);
+            //           std::cout << pmesh->GetMyRank() << " " << f << " " <<
+            //                        transf->Elem1No << " " << transf->Elem2No << " " <<
+            //                        pmesh->GetNE() <<
+            //                        " k10sharedonint\n";
+            //          }
             intf.Append(f);
          }
       }
@@ -1703,8 +1828,6 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
    {
       std::cout<<"number of element with more than 1 face for fitting: "<<counter<<std::endl;
    }
-
-
 }
 
 void ModifyTetAttributeForMarking(
