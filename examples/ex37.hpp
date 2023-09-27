@@ -992,10 +992,16 @@ public:
       // Solve G = M⁻¹w̃
       w_rhs->Assemble();
       invmass->Mult(*w_rhs, *grad);
-      
+
    }
    GridFunction *GetGradient()
-   { return grad; }
+   {
+      if (!grad_evaluated)
+      {
+         Gradient();
+      }
+      return grad;
+   }
 
 
    void SetAlpha0(const double alpha)
