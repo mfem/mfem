@@ -174,6 +174,8 @@ public:
    VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
       VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
 
+   using VectorCoefficient::Eval;
+
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
