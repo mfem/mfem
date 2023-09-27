@@ -898,7 +898,7 @@ public:
         simp_cf(rho_filter, simp), lambda_SIMP_cf(lambda_cf, simp_cf), mu_SIMP_cf(mu_cf,
                                                                                   simp_cf), negDerSimpElasticityEnergy(&lambda_cf, &mu_cf, u, rho_filter,
                                                                                         rho_min),
-        c1(c1), c2(c2), alpha0(1.0)
+        c1(c1), c2(c2), alpha0(1.0), grad_evaluated(false)
    {
       current_compliance = infinity();
       current_volume = infinity();
@@ -980,6 +980,7 @@ public:
    void Gradient()
    {
       if (grad_evaluated) { return; }
+      if (current_compliance == infinity()) { Eval(); }
       grad_evaluated = true;
       // Step 3 - Adjoint filter solve
       // Solve (ϵ² ∇ w̃, ∇ v) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)

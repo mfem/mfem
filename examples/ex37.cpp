@@ -314,7 +314,6 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   optimizer.Eval();
    for (int k = 1; k <= max_it; k++)
    {
       if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
@@ -322,11 +321,12 @@ int main(int argc, char *argv[])
       mfem::out << "\nStep = " << k << std::endl;
       optimizer.Gradient();
       psi.Add(-alpha, *(optimizer.GetGradient()));
+      double compliance = optimizer.Eval();
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       mfem::out << "volume fraction = " << optimizer.GetVolume() / domain_volume <<
                 std::endl;
-      mfem::out << "compliance = " <<  optimizer.Eval() << std::endl;
+      mfem::out << "compliance = " <<  compliance << std::endl;
 
       // Compute ||ρ - ρ_old|| in control fes.
       double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
