@@ -42,6 +42,12 @@ Discretization improvements
 - Support for parallel transfer of H1 fields using the low-order refined (LOR)
   transfer operators in L2ProjectionGridTransfer
 
+- Added KDTree class for a 3D set or 2D set of points, which are utilized in
+  KDTreeNodalProjection to project a function defined on an arbitrary set of
+  points onto an MFEM grid function. This functionality is demonstrated in the
+  new nodal-transfer miniapp. The current implementation is serial only. Further
+  extensions can include search in arbitrary dimensional spaces.
+
 - Added support for p-refined meshes in GSLIB-FindPoints.
 
 - Device kernels can now access device-specific DOF and quadrature limits using
@@ -88,6 +94,9 @@ New and updated examples and miniapps
 - Added a new parallel LOR transfer miniapp, plor-transfer, which mirrors the
   functionality of the serial LOR transfer miniapp. See miniapps/tools.
 
+- New serial miniapp, nodal-transfer, demonstrating the use of KDTree to map a
+  parallel grid function to a different parallel partitioning of the same mesh.
+
 - Added 3 additional TMOP miniapps in miniapps/meshing:
   * Mesh-Quality evaluates quality using size, skewness, and aspect-ratio
     computed from the Jacobian of the transformation.
@@ -121,14 +130,6 @@ Miscellaneous
 
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
-
-- Added KDTree classes for a 3D set or 2D set of points. In addition, the
-  KDTree classes are utilized in KDTreeNodalProjection class for projecting
-  a function defined on an arbitrary set of points onto an MFEM grid
-  function. The functionality is demonstrated in the nodal-transfer miniapp
-  in the tools subdirectory. The KDTree class is templated and further
-  extensions can include search in arbitrary dimensional spaces. The current
-  implementation is serial only.
 
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.
