@@ -1059,8 +1059,7 @@ public:
             // compute gradient at the updated point
             // Note that alpha is only selected after this
             // So that the next direction is already evaluated
-            Gradient();
-            const double current_d = (*directionalDer)(*grad);
+            const double current_d = (*directionalDer)(*GetGradient());
 
             out << "Direction update condition: ";
             out << "(" << current_d << ", " << c2*d << "), ";
