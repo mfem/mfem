@@ -1008,7 +1008,7 @@ public:
    {
       alpha0 = alpha;
    }
-   
+
    double Step()
    {
       double alpha(alpha0), L(0.0), U(infinity());
