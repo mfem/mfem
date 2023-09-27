@@ -120,6 +120,14 @@ Miscellaneous
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
+- Added KDTree classes for a 3D set or 2D set of points. In addition, the
+  KDTree classes are utilized in KDTreeNodalProjection class for projecting
+  a function defined on an arbitrary set of points onto an MFEM grid
+  function. The functionality is demonstrated in the nodal-transfer miniapp
+  in the tools subdirectory. The KDTree class is templated and further
+  extensions can include search in arbitrary dimensional spaces. The current
+  implementation is serial only.
+
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.
 
