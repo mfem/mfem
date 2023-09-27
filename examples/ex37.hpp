@@ -1007,7 +1007,7 @@ public:
       *direction = *GetGradient();
       direction->Neg();
 
-      MappedGridFunctionCoefficient der_sigmoid_psi_k(psi_k, der_sigmoid);
+      MappedGridFunctionCoefficient der_sigmoid_psi_k(psi, der_sigmoid);
       GridFunctionCoefficient direction_cf(direction);
       ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi_k);
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
@@ -1029,7 +1029,7 @@ public:
          Eval();
          out << "Expected c1 : " << (current_compliance - compliance) /
              (d * alpha) << std::endl;
-         return alpha;
+         // return alpha;
 
          out << "Sufficient decrease condition: ";
          out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";

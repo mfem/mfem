@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
    ExBiSecLVPGTopOpt optimizer(&u,  &psi, &rho_filter,
                                vforce_cf, lambda, mu, target_volume,
                                epsilon, rho_min, 3.0,
-                               ess_bdr, ess_bdr_filter, 0.1, 0.99);
+                               ess_bdr, ess_bdr_filter, 1e-04, 0.9);
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
