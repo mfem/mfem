@@ -1011,16 +1011,11 @@ public:
    void Step()
    {
       double alpha(alpha0), L(0.0), U(infinity());
-      if (current_compliance == infinity())
-      {
-         Eval();
-         Gradient();
-      }
       GridFunction *psi_k = newGridFunction(control_fes);
       GridFunction *direction = newGridFunction(control_fes);
       LinearForm *directionalDer = newLinearForm(control_fes);
       *psi_k = *psi;
-      *direction = *grad;
+      *direction = *GetGradient();
       direction->Neg();
 
       MappedGridFunctionCoefficient der_sigmoid_psi_k(psi_k, der_sigmoid);
