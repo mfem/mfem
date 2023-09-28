@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -467,7 +467,9 @@ void LORDiscretization::FormLORSpace()
    mesh = new Mesh(Mesh::MakeRefined(mesh_ho, refinements, ref_type));
 
    fec = fes_ho.FEColl()->Clone(GetLOROrder());
-   fes = new FiniteElementSpace(mesh, fec);
+   const int vdim = fes_ho.GetVDim();
+   const Ordering::Type ordering = fes_ho.GetOrdering();
+   fes = new FiniteElementSpace(mesh, fec, vdim, ordering);
    SetupProlongationAndRestriction();
 }
 
@@ -511,8 +513,9 @@ void ParLORDiscretization::FormLORSpace()
    mesh = pmesh;
 
    fec = pfes_ho.FEColl()->Clone(GetLOROrder());
-   ParFiniteElementSpace *pfes = new ParFiniteElementSpace(pmesh, fec);
-   fes = pfes;
+   const int vdim = fes_ho.GetVDim();
+   const Ordering::Type ordering = fes_ho.GetOrdering();
+   fes = new ParFiniteElementSpace(pmesh, fec, vdim, ordering);
    SetupProlongationAndRestriction();
 }
 

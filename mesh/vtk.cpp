@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,9 +106,9 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
          case LAGRANGE_SEGMENT:
             return npoints - 1;
          case LAGRANGE_TRIANGLE:
-            return (std::sqrt(8*npoints + 1) - 3)/2;
+            return static_cast<int>(std::sqrt(8*npoints + 1) - 3)/2;
          case LAGRANGE_SQUARE:
-            return std::round(std::sqrt(npoints)) - 1;
+            return static_cast<int>(std::round(std::sqrt(npoints))) - 1;
          case LAGRANGE_TETRAHEDRON:
             switch (npoints)
             {
@@ -138,7 +138,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
                }
             }
          case LAGRANGE_CUBE:
-            return std::round(std::cbrt(npoints)) - 1;
+            return static_cast<int>(std::round(std::cbrt(npoints))) - 1;
          case LAGRANGE_PRISM:
          {
             const double n = npoints;
@@ -148,7 +148,7 @@ int VTKGeometry::GetOrder(int vtk_geom, int npoints)
             const double term =
                std::cbrt(third*sqrt(third)*sqrt((27.0*n - 2.0)*n) + n
                          - twentyseventh);
-            return std::round(term + ninth / term - 4*third);
+            return static_cast<int>(std::round(term + ninth / term - 4*third));
          }
          case LAGRANGE_PYRAMID:
             MFEM_ABORT("Lagrange pyramids not currently supported in VTK.");

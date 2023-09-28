@@ -248,7 +248,10 @@ int main(int argc, char *argv[])
    //     constraints for non-conforming AMR, static condensation, etc.
    if (myid == 0) { cout << "matrix ... " << flush; }
    if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+   // Here we want to try out block-size aware AMG solver in PETSc.
+   // For that to work properly, we need a fully-compliant block-size
+   // structure and we do not skip zeros when assembling.
+   a->Assemble(use_petsc ? 0 : 1);
 
    Vector B, X;
    if (!use_petsc)
@@ -294,13 +297,14 @@ int main(int argc, char *argv[])
          cout << "done." << endl;
          cout << "Size of linear system: " << A.M() << endl;
       }
-      PetscPCGSolver *pcg = new PetscPCGSolver(A);
+      // Tell PETSc the matrix has a block structure
+      A.SetBlockSize(dim);
 
-      // The preconditioner for the PCG solver defined below is specified in the
-      // PETSc config file, rc_ex2p, since a Krylov solver in PETSc can also
-      // customize its preconditioner.
+      // The preconditioner for the PCG solver can be specified in the
+      // PETSc config file
+      PetscPCGSolver *pcg = new PetscPCGSolver(A);
       PetscPreconditioner *prec = NULL;
-      if (use_nonoverlapping)
+      if (use_nonoverlapping) // Specialized BDDC construction
       {
          // Compute dofs belonging to the natural boundary
          Array<int> nat_tdof_list, nat_bdr(pmesh->bdr_attributes.Max());

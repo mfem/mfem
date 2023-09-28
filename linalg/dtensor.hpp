@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,8 +28,8 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
 #endif
-      return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
-             ::result(sizes, args...);
+      return static_cast<int>(first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >
+                              ::result(sizes, args...));
    }
 };
 
@@ -44,7 +44,7 @@ public:
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
       MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
 #endif
-      return first;
+      return static_cast<int>(first);
    }
 };
 

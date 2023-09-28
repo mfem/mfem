@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -138,7 +138,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -227,7 +227,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -554,15 +554,14 @@ function go()
    local cmd_line="${1##+( )}"
    cmd_line="${cmd_line%%+( )}"
    shopt -u extglob
-   eval local cmd=(${cmd_line})
    local res=""
    echo $sep
    echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
-      timed_run "${cmd[@]}"
+      timed_run eval "${cmd_line}"
    else
-      "${cmd[@]}"
+      eval "${cmd_line}"
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"

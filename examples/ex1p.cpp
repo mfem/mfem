@@ -35,9 +35,13 @@
 //               mpirun -np 4 ex1p -pa -d raja-omp
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //             * mpirun -np 4 ex1p -pa -d ceed-hip
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
+//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -215,7 +219,14 @@ int main(int argc, char *argv[])
    //     Diffusion domain integrator.
    ParBilinearForm a(&fespace);
    if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa) { a.SetAssemblyLevel(AssemblyLevel::FULL); }
+   if (fa)
+   {
+      a.SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a.EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a.AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the parallel bilinear form and the corresponding linear

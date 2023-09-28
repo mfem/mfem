@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,9 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
 
    // Create the CSRMatrixMPI A_ by borrowing the internal data from a
    // hypre_CSRMatrix.
+   hypParMat.HostRead();
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
+   hypParMat.HypreRead();
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
    // For now, this method assumes that HYPRE_Int is int. Also, csr_op->num_cols
@@ -201,8 +203,8 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
    MFEM_ASSERT(y.Size() == Height(), "invalid y.Size() = " << y.Size()
                << ", expected size = " << Height());
 
-   double*  yPtr = (double*)y;
-   double*  xPtr = (double*)(const_cast<Vector&>(x));
+   double*  yPtr = y.HostWrite();
+   const double*  xPtr = x.HostRead();
 
    solver_->options().set_verbose( factor_verbose_ );
    ReturnCode ret = solver_->factor();
@@ -219,6 +221,10 @@ void STRUMPACKSolver::Mult( const Vector & x, Vector & y ) const
          MFEM_ABORT("STRUMPACK:  Matrix reordering failed!");
       }
       break;
+      default:
+      {
+         MFEM_ABORT("STRUMPACK: 'factor()' error code = " << ret);
+      }
    }
    solver_->options().set_verbose( solve_verbose_ );
    solver_->solve(xPtr, yPtr);

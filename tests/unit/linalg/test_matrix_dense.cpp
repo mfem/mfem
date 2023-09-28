@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -501,7 +501,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.Mult(x,y1);
       chol.LSolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify lower triangular solve wit a RHS vector x
+      /** Verify lower triangular solve with a RHS vector x
           i.e, L^-1 x = L_exact^-1 x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
@@ -510,7 +510,7 @@ TEST_CASE("MatrixInverse", "[DenseMatrix]")
       L_exact.MultTranspose(x,y1);
       chol.USolve(4,1,y2.GetData());
       y1-=y2;
-      /** Verify upper triangular solve wit a RHS vector x
+      /** Verify upper triangular solve with a RHS vector x
           i.e, L^-t x = L_exact^-t x */
       REQUIRE(y1.Norml2() == MFEM_Approx(0.,tol));
 
@@ -689,6 +689,34 @@ TEST_CASE("Eigensystem Problems",
       }
       break;
    }
+}
+
+TEST_CASE("NNLS", "[DenseMatrix]")
+{
+   const int m = 3;
+   const int n = 5;
+   DenseMatrix G(m,n);
+   G = 0.0;
+
+   for (int i=0; i<m; ++i)
+      for (int j=0; j<n; ++j)
+      {
+         G(i,j) = j;
+      }
+
+   Vector w(n);
+   w = 1.0;
+
+   Vector sol(n);
+
+   NNLSSolver nnls;
+   nnls.SetVerbosity(2);
+   nnls.SetOperator(G);
+
+   nnls.Mult(w, sol);
+
+   REQUIRE(sol.Norml2() == MFEM_Approx(2.5));
+   REQUIRE(sol[4] == MFEM_Approx(2.5));
 }
 
 #endif // if MFEM_USE_LAPACK

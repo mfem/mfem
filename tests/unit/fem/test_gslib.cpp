@@ -201,5 +201,63 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
    delete c_fec;
 }
 
+// Generate a 4x4 Quad Mesh and interpolate point in the center of domain
+// at element boundary to test L2 projection with and without averaging.
+TEST_CASE("GSLIBInterpolateL2", "[GSLIBInterpolateL2]")
+{
+   int nex = 4;
+   int mesh_order = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(nex, nex, Element::QUADRILATERAL);
+   mesh.SetCurvature(mesh_order);
+   const int dim = mesh.Dimension();
+
+   // Set GridFunction to be interpolated
+   int func_order = 3;
+   FiniteElementCollection *c_fec = new L2_FECollection(func_order, dim);
+   FiniteElementSpace c_fespace =
+      FiniteElementSpace(&mesh, c_fec, 1);
+   GridFunction field_vals(&c_fespace);
+   Array<int> dofs;
+   double leftval = 1.0;
+   double rightval = 3.0;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Vector center(dim);
+      mesh.GetElementCenter(e, center);
+      double val_to_set = center(0) < 0.5 ? leftval : rightval;
+      c_fespace.GetElementDofs(e, dofs);
+      Vector vals(dofs.Size());
+      vals = val_to_set;
+      field_vals.SetSubVector(dofs, vals);
+   }
+
+   int npt = 1;
+   Vector xyz(npt*dim);
+   xyz = 0.0;
+   xyz(0) = 0.5;
+
+   // Find and interpolat FE Function values
+   Vector interp_vals(npt);
+   FindPointsGSLIB finder;
+   finder.Setup(mesh);
+   finder.SetL2AvgType(FindPointsGSLIB::NONE);
+   finder.Interpolate(xyz, field_vals, interp_vals, 1);
+   Array<unsigned int> code_out    = finder.GetCode();
+
+   // This point should have been found on element border. But the interpolate
+   // value is not averaged yet.
+   REQUIRE(code_out[0] == 1);
+   REQUIRE((interp_vals(0) == MFEM_Approx(leftval) ||
+            interp_vals(0) == MFEM_Approx(rightval)));
+
+   // Interpolated value has now been averaged.
+   finder.SetL2AvgType(FindPointsGSLIB::ARITHMETIC);
+   finder.Interpolate(xyz, field_vals, interp_vals, 1);
+   REQUIRE(interp_vals(0) == MFEM_Approx(0.5*(leftval+rightval)));
+
+   finder.FreeData();
+   delete c_fec;
+}
+
 } //namespace_gslib
 #endif

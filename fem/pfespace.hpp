@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -82,15 +82,11 @@ private:
    mutable SparseMatrix *R;
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
-   /** Transpose of R or Rconf. For conforming mesh, this is a matrix-free
-       (Device)ConformingProlongationOperator, for a non-conforming mesh
-       this is a TransposeOperator wrapping R. */
-   mutable Operator *R_transpose;
 
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
 
-   /// Resets nd_strias flag at constuction or after rebalancing
+   /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
    ParNURBSExtension *pNURBSext() const
@@ -310,7 +306,7 @@ public:
        the returned operator handles the communication needed to get the
        shared face values from other MPI ranks */
    virtual const FaceRestriction *GetFaceRestriction(
-      ElementDofOrdering e_ordering, FaceType type,
+      ElementDofOrdering f_ordering, FaceType type,
       L2FaceValues mul = L2FaceValues::DoubleValued) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
@@ -375,12 +371,6 @@ public:
    HYPRE_BigInt GetMyTDofOffset() const;
 
    virtual const Operator *GetProlongationMatrix() const;
-   /** @brief Return logical transpose of restriction matrix, but in
-       non-assembled optimized matrix-free form.
-
-       The implementation is like GetProlongationMatrix, but it sets local
-       DOFs to the true DOF values if owned locally, otherwise zero. */
-   virtual const Operator *GetRestrictionTransposeOperator() const;
    /** Get an Operator that performs the action of GetRestrictionMatrix(),
        but potentially with a non-assembled optimized matrix-free
        implementation. */

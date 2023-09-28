@@ -1,0 +1,10 @@
+# Additive Schwarz with Overlap
+# This is not a good solver for elasticity
+# These options are here only to describe
+# the setup of the solver
+-ksp_converged_reason
+-ksp_view
+-ksp_max_it 10
+-pc_type asm
+-pc_asm_overlap 1
+-sub_pc_type icc

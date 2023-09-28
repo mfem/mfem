@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,15 +33,21 @@ void BatchedLOR_RT::Assemble2D()
    static constexpr int nnz_per_row = 7;
    static constexpr int sz_local_mat = ne*ne;
 
-   const double DQ = div_div_coeff;
-   const double MQ = mass_coeff;
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1)
+                   : Reshape(c1.Read(), op1, op1, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1)
+                   : Reshape(c2.Read(), op1, op1, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, o*op1, dim, nel_ho);
 
    auto X = X_vert.Read();
 
-   MFEM_FORALL_2D(iel_ho, nel_ho, ORDER, ORDER, 1,
+   mfem::forall_2D(nel_ho, ORDER, ORDER, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       MFEM_FOREACH_THREAD(iy,y,o)
       {
@@ -102,6 +108,8 @@ void BatchedLOR_RT::Assemble2D()
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
+                  const double mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
+                  const double dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   // Loop over x,y components. c=0 => x, c=1 => y
                   for (int cj=0; cj<dim; ++cj)
                   {
@@ -132,8 +140,8 @@ void BatchedLOR_RT::Assemble2D()
                               val += byi*bxj*Q(1,iqy,iqx);
                               val += bxi*byj*Q(1,iqy,iqx);
                               val += byi*byj*Q(2,iqy,iqx);
-                              val *= MQ;
-                              val += DQ*div_j*div_i*Q(3,iqy,iqx);
+                              val *= mq;
+                              val += dq*div_j*div_i*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -241,8 +249,14 @@ void BatchedLOR_RT::Assemble3D()
    static constexpr int nnz_per_row = 11;
    static constexpr int sz_local_mat = nf*nf;
 
-   const double DQ = div_div_coeff;
-   const double MQ = mass_coeff;
+   const bool const_mq = c1.Size() == 1;
+   const auto MQ = const_mq
+                   ? Reshape(c1.Read(), 1, 1, 1, 1)
+                   : Reshape(c1.Read(), op1, op1, op1, nel_ho);
+   const bool const_dq = c2.Size() == 1;
+   const auto DQ = const_dq
+                   ? Reshape(c2.Read(), 1, 1, 1, 1)
+                   : Reshape(c2.Read(), op1, op1, op1, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, o*o*op1, dim, nel_ho);
@@ -250,7 +264,8 @@ void BatchedLOR_RT::Assemble3D()
    auto X = X_vert.Read();
 
    // Last thread dimension is lowered to avoid "too many resources" error
-   MFEM_FORALL_3D(iel_ho, nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+   mfem::forall_3D(nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+                   [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       MFEM_FOREACH_THREAD(iz,z,o)
       {
@@ -323,6 +338,8 @@ void BatchedLOR_RT::Assemble3D()
                   {
                      for (int iqx=0; iqx<2; ++iqx)
                      {
+                        const double mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
+                        const double dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
                         // Loop over x,y,z components. 0 => x, 1 => y, 2 => z
                         for (int cj=0; cj<dim; ++cj)
                         {
@@ -376,7 +393,7 @@ void BatchedLOR_RT::Assemble3D()
                                     basis_basis += Q(4,iqz,iqy,iqx)*(basis_i[1]*basis_j[2] + basis_i[2]*basis_j[1]);
                                     basis_basis += Q(5,iqz,iqy,iqx)*basis_i[2]*basis_j[2];
 
-                                    const double val = DQ*div_div + MQ*basis_basis;
+                                    const double val = dq*div_div + mq*basis_basis;
                                     // const double val = 1.0;
 
                                     local_mat(ii_loc, jj_loc) += val;
@@ -556,26 +573,8 @@ BatchedLOR_RT::BatchedLOR_RT(BilinearForm &a,
                              Array<int> &sparse_mapping_)
    : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
 {
-   if (VectorFEMassIntegrator *mass = GetIntegrator<VectorFEMassIntegrator>(a))
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>(mass->GetCoefficient());
-      mass_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      mass_coeff = 0.0;
-   }
-
-   if (DivDivIntegrator *divdiv = GetIntegrator<DivDivIntegrator>(a))
-   {
-      auto *coeff = dynamic_cast<const ConstantCoefficient*>
-                    (divdiv->GetCoefficient());
-      div_div_coeff = coeff ? coeff->constant : 1.0;
-   }
-   else
-   {
-      div_div_coeff = 0.0;
-   }
+   ProjectLORCoefficient<VectorFEMassIntegrator>(a, c1);
+   ProjectLORCoefficient<DivDivIntegrator>(a, c2);
 }
 
 } // namespace mfem
