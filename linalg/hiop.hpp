@@ -167,6 +167,36 @@ public:
    virtual bool get_vecdistrib_info(hiop::size_type global_n,
                                     hiop::index_type *cols);
 
+   virtual void solution_callback(hiop::hiopSolveStatus status,
+                                  hiop::size_type n,
+                                  const double *x,
+                                  const double *z_L,
+                                  const double *z_U,
+                                  hiop::size_type m,
+                                  const double *g,
+                                  const double *lambda,
+                                  double obj_value);
+
+   virtual bool iterate_callback(int iter,
+                                 double obj_value,
+                                 double logbar_obj_value,
+                                 int n,
+                                 const double *x,
+                                 const double *z_L,
+                                 const double *z_U,
+                                 int m_ineq,
+                                 const double *s,
+                                 int m,
+                                 const double *g,
+                                 const double *lambda,
+                                 double inf_pr,
+                                 double inf_du,
+                                 double onenorm_pr_,
+                                 double mu,
+                                 double alpha_du,
+                                 double alpha_pr,
+                                 int ls_trials);
+
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
@@ -174,6 +204,48 @@ public:
       return true;
    }
 #endif
+};
+
+/// Users can inherit this class to access to HiOp-specific functionality.
+class HiOpProblem : public OptimizationProblem
+{
+public:
+   HiOpProblem(int insize, const Operator *C_, const Operator *D_)
+      : OptimizationProblem(insize, C_, D_) { }
+
+   /// See hiopInterfaceBase::solution_callback(...).
+   virtual void SolutionCallback(hiop::hiopSolveStatus status,
+                                 hiop::size_type n,
+                                 const double *x,
+                                 const double *z_L,
+                                 const double *z_U,
+                                 hiop::size_type m,
+                                 const double *g,
+                                 const double *lambda,
+                                 double obj_value) const
+   { }
+
+   /// See hiopInterfaceBase::iterate_callback(...).
+   virtual bool IterateCallback(int iter,
+                                double obj_value,
+                                double logbar_obj_value,
+                                int n,
+                                const double *x,
+                                const double *z_L,
+                                const double *z_U,
+                                int m_ineq,
+                                const double *s,
+                                int m,
+                                const double *g,
+                                const double *lambda,
+                                double inf_pr,
+                                double inf_du,
+                                double onenorm_pr_,
+                                double mu,
+                                double alpha_du,
+                                double alpha_pr,
+                                int ls_trials) const
+   { return true; }
 };
 
 /// Adapts the HiOp functionality to the MFEM OptimizationSolver interface.
