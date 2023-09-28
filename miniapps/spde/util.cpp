@@ -30,7 +30,7 @@ void FillWithRandomRotations(std::vector<double> &x)
    std::uniform_real_distribution<> dis(0, 1);
    for (size_t i = 0; i < x.size(); i += 9)
    {
-      // Get a random rotation matrix via unifrom euler angles.
+      // Get a random rotation matrix via uniform Euler angles.
       double e1 = 2 * M_PI * dis(gen);
       double e2 = 2 * M_PI * dis(gen);
       double e3 = 2 * M_PI * dis(gen);
