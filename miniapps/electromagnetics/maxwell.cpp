@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -479,7 +479,7 @@ void dipole_pulse(const Vector &x, double t, Vector &j)
       j = v;
    }
 
-   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2)) / (c * c);
+   j *= a * (t - b) * exp(-0.5 * pow((t-b)/c, 2.0)) / (c * c);
 }
 
 void
@@ -508,7 +508,7 @@ SnapTimeStep(double tmax, double dtmax, double & dt)
 {
    double dsteps = tmax/dtmax;
 
-   int nsteps = pow(10,(int)ceil(log10(dsteps)));
+   int nsteps = static_cast<int>(pow(10,(int)ceil(log10(dsteps))));
 
    for (int i=1; i<=5; i++)
    {

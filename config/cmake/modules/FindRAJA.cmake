@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,17 +14,27 @@
 #   - RAJA_LIBRARIES
 #   - RAJA_INCLUDE_DIRS
 
-include(MfemCmakeUtilities)
-mfem_find_package(RAJA RAJA RAJA_DIR "include" "RAJA/RAJA.hpp" "lib" "RAJA"
-  "Paths to headers required by RAJA." "Libraries required by RAJA.")
-
-if (NOT RAJA_CONFIG_CMAKE)
-   set(RAJA_CONFIG_CMAKE "${RAJA_DIR}/share/raja/cmake/raja-config.cmake")
+if (RAJA_FOUND)
+   return()
 endif()
-if (EXISTS "${RAJA_CONFIG_CMAKE}")
-   include("${RAJA_CONFIG_CMAKE}")
-   if (ENABLE_CUDA AND NOT MFEM_USE_CUDA)
-      message(FATAL_ERROR
-         "RAJA is built with CUDA: MFEM_USE_CUDA=YES is required")
+message(STATUS "Looking for RAJA ...")
+if (RAJA_DIR)
+   message(STATUS "   in RAJA_DIR = ${RAJA_DIR}")
+   find_package(RAJA CONFIG NO_DEFAULT_PATH PATHS "${RAJA_DIR}")
+endif()
+if (NOT RAJA_FOUND)
+   message(STATUS "   in standard CMake locations")
+   find_package(RAJA CONFIG)
+endif()
+if (RAJA_FOUND)
+   set(RAJA_LIBRARIES "RAJA" CACHE STRING "RAJA imported target." FORCE)
+   set(RAJA_INCLUDE_DIRS "" CACHE STRING "RAJA include dirs (not used)" FORCE)
+   message(STATUS
+      "Found RAJA target: ${RAJA_LIBRARIES} (version: ${RAJA_VERSION})")
+else()
+   set(msg STATUS)
+   if (RAJA_FIND_REQUIRED)
+      set(msg FATAL_ERROR)
    endif()
+   message(${msg} "RAJA not found. Please set RAJA_DIR to the RAJA prefix.")
 endif()

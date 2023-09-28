@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_LOR_BATCHED
 
 #include "lor.hpp"
+#include "../qspace.hpp"
 
 namespace mfem
 {
@@ -88,7 +89,7 @@ protected:
 public:
    /// @name GPU kernel functions
    /// These functions should be considered protected, but they contain
-   /// MFEM_FORALL kernels, and so they must be public (this is a compiler
+   /// mfem::forall kernels, and so they must be public (this is a compiler
    /// limitation).
    ///@{
 
@@ -143,6 +144,25 @@ static T *GetIntegrator(BilinearForm &a)
    return nullptr;
 }
 
+IntegrationRule GetCollocatedIntRule(FiniteElementSpace &fes);
+
+template <typename INTEGRATOR>
+void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)
+{
+   INTEGRATOR *i = GetIntegrator<INTEGRATOR>(a);
+   if (i)
+   {
+      // const_cast since Coefficient::Eval is not const...
+      auto *coeff = const_cast<Coefficient*>(i->GetCoefficient());
+      if (coeff) { coeff_vector.Project(*coeff); }
+      else { coeff_vector.SetConstant(1.0); }
+   }
+   else
+   {
+      coeff_vector.SetConstant(0.0);
+   }
+}
+
 /// Abstract base class for the batched LOR assembly kernels.
 class BatchedLORKernel
 {
@@ -151,12 +171,18 @@ protected:
    Vector &X_vert; ///< Mesh coordinate vector.
    Vector &sparse_ij; ///< Local element sparsity matrix data.
    Array<int> &sparse_mapping; ///< Local element sparsity pattern.
+   IntegrationRule ir; ///< Collocated integration rule.
+   QuadratureSpace qs; ///< Quadrature space for coefficients.
+   CoefficientVector c1; ///< Coefficient of first integrator.
+   CoefficientVector c2; ///< Coefficient of second integrator.
    BatchedLORKernel(FiniteElementSpace &fes_ho_,
                     Vector &X_vert_,
                     Vector &sparse_ij_,
                     Array<int> &sparse_mapping_)
       : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
-        sparse_mapping(sparse_mapping_)
+        sparse_mapping(sparse_mapping_), ir(GetCollocatedIntRule(fes_ho)),
+        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
+        c2(qs, CoefficientStorage::COMPRESSED)
    { }
 };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -116,7 +116,7 @@ void kSmemForceMult2D(const int NE,
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D,D1D,2,NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[Q1D][L1D];
@@ -259,7 +259,7 @@ void kSmemForceMult3D(const int NE,
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D, D1D, D1D, 3, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[Q1D][L1D];
@@ -509,7 +509,7 @@ void kSmemForceMultTranspose2D(const int NE,
                        Q1D, Q1D, NE, 2, 2);
    auto velocity = Reshape(v_.Read(), D1D,D1D,2,NE);
    auto energy = Reshape(e_.Write(), L1D, L1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double Bt[L1D][Q1D];
@@ -649,7 +649,7 @@ void kSmemForceMultTranspose3D(const int NE,
                        Q1D, Q1D, Q1D, NE, 3, 3);
    auto velocity = Reshape(v_.Read(), D1D, D1D, D1D, 3, NE);
    auto energy = Reshape(e_.Write(), L1D, L1D, L1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double Bt[L1D][Q1D];
@@ -1147,7 +1147,7 @@ public:
       auto d_diag = diag.Read();
       auto d_x = x.Read();
       auto d_y = y.Write();
-      MFEM_FORALL(i, N, d_y[i] = d_x[i] / d_diag[i];);
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
    void SetOperator(const Operator&) { }
 };
@@ -1230,7 +1230,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    auto O = Reshape(one.Write(), NQ, NE);
    if (dim==2)
    {
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
@@ -1256,7 +1256,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    }
    else
    {
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
@@ -1440,7 +1440,7 @@ void QKernel(const int nzones,
                               stressJinvT.TotalSize());
    if (dim==2)
    {
-      MFEM_FORALL_2D(z, nzones, Q1D, Q1D, 1,
+      mfem::forall_2D(nzones, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int z)
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;
@@ -1471,7 +1471,7 @@ void QKernel(const int nzones,
    }
    if (dim==3)
    {
-      MFEM_FORALL_3D(z, nzones, Q1D, Q1D, Q1D,
+      mfem::forall_3D(nzones, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int z)
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;

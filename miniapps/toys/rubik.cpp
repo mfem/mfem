@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1106,8 +1106,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
    double xData[3];
    Vector x(xData,3);
 
-   int count = 0;
-
    Array<int> v;
    for (int i=0; i<mesh.GetNE(); i++)
    {
@@ -1127,7 +1125,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[0] > -2.5 + tier && x[0] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {
@@ -1138,7 +1135,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[1] > -2.5 + tier && x[1] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {
@@ -1149,7 +1145,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[2] > -2.5 + tier && x[2] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {

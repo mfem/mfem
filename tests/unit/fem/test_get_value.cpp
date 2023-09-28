@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1667,19 +1667,19 @@ TEST_CASE("2D GetVectorValue",
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val);
 
-                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
-                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
-                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
-                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
-                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
-                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val);
 
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
@@ -1845,12 +1845,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -1951,12 +1951,12 @@ TEST_CASE("2D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -2050,7 +2050,7 @@ TEST_CASE("2D GetVectorValue",
                   funcCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
 
                   h1_err  +=  h1_dist;
 
@@ -2214,19 +2214,19 @@ TEST_CASE("2D GetVectorValue in Parallel",
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val);
 
-                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
-                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
-                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
-                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
-                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
-                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val);
 
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
@@ -2514,22 +2514,22 @@ TEST_CASE("3D GetVectorValue",
                   nd_gvf_vals.GetRow(j, nd_gvf_val);
                   rt_gvf_vals.GetRow(j, rt_gvf_val);
 
-                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val);
 
-                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
-                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
-                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
-                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
-                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
-                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val);
 
-                  double  nd_gvf_dist = Distance(f_val,  nd_gvf_val, dim);
-                  double  rt_gvf_dist = Distance(f_val,  rt_gvf_val, dim);
+                  double  nd_gvf_dist = Distance(f_val,  nd_gvf_val);
+                  double  rt_gvf_dist = Distance(f_val,  rt_gvf_val);
 
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
@@ -2748,12 +2748,12 @@ TEST_CASE("3D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -2864,12 +2864,12 @@ TEST_CASE("3D GetVectorValue",
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
                   dgi_xCoef.Eval(dgi_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_dist = Distance(f_val, dgi_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -2969,7 +2969,7 @@ TEST_CASE("3D GetVectorValue",
                   funcCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
 
                   h1_err  +=  h1_dist;
 
@@ -3009,7 +3009,7 @@ TEST_CASE("3D GetVectorValue",
                   funcCoef.Eval(f_val, *T, ip);
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
 
                   h1_err  +=  h1_dist;
 
@@ -3178,19 +3178,19 @@ TEST_CASE("3D GetVectorValue in Parallel",
                   dgv_x.GetVectorValue(e, ip, dgv_gvv_val);
                   dgi_x.GetVectorValue(e, ip, dgi_gvv_val);
 
-                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val, dim);
-                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val, dim);
-                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val, dim);
-                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val, dim);
-                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val, dim);
+                  double  h1_gfc_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_gfc_dist = Distance(f_val,  nd_gfc_val);
+                  double  rt_gfc_dist = Distance(f_val,  rt_gfc_val);
+                  double  l2_gfc_dist = Distance(f_val,  l2_gfc_val);
+                  double dgv_gfc_dist = Distance(f_val, dgv_gfc_val);
+                  double dgi_gfc_dist = Distance(f_val, dgi_gfc_val);
 
-                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val, dim);
-                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val, dim);
-                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val, dim);
-                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val, dim);
-                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val, dim);
-                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val, dim);
+                  double  h1_gvv_dist = Distance(f_val,  h1_gvv_val);
+                  double  nd_gvv_dist = Distance(f_val,  nd_gvv_val);
+                  double  rt_gvv_dist = Distance(f_val,  rt_gvv_val);
+                  double  l2_gvv_dist = Distance(f_val,  l2_gvv_val);
+                  double dgv_gvv_dist = Distance(f_val, dgv_gvv_val);
+                  double dgi_gvv_dist = Distance(f_val, dgi_gvv_val);
 
                   h1_gfc_err  +=  h1_gfc_dist;
                   nd_gfc_err  +=  nd_gfc_dist;
@@ -3423,8 +3423,8 @@ TEST_CASE("1D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3474,8 +3474,8 @@ TEST_CASE("1D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3527,8 +3527,8 @@ TEST_CASE("1D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3624,8 +3624,8 @@ TEST_CASE("2D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3678,8 +3678,8 @@ TEST_CASE("2D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3733,8 +3733,8 @@ TEST_CASE("2D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3833,8 +3833,8 @@ TEST_CASE("3D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3888,8 +3888,8 @@ TEST_CASE("3D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -3944,8 +3944,8 @@ TEST_CASE("3D GetGradient",
                   h1_xCoef.Eval(h1_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, dim);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, dim);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   dgv_err += dgv_dist;
@@ -4054,9 +4054,9 @@ TEST_CASE("2D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -4118,9 +4118,9 @@ TEST_CASE("2D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -4183,9 +4183,9 @@ TEST_CASE("2D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -4301,9 +4301,9 @@ TEST_CASE("3D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -4371,9 +4371,9 @@ TEST_CASE("3D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
@@ -4442,9 +4442,9 @@ TEST_CASE("3D GetCurl",
                   nd_xCoef.Eval(nd_gfc_val, *T, ip);
                   dgv_xCoef.Eval(dgv_gfc_val, *T, ip);
 
-                  double  h1_dist = Distance(f_val,  h1_gfc_val, 2*dim-3);
-                  double  nd_dist = Distance(f_val,  nd_gfc_val, 2*dim-3);
-                  double dgv_dist = Distance(f_val, dgv_gfc_val, 2*dim-3);
+                  double  h1_dist = Distance(f_val,  h1_gfc_val);
+                  double  nd_dist = Distance(f_val,  nd_gfc_val);
+                  double dgv_dist = Distance(f_val, dgv_gfc_val);
 
                   h1_err  +=  h1_dist;
                   nd_err  +=  nd_dist;
