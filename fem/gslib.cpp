@@ -226,6 +226,7 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 
    // Set the element number and reference position to 0 for points not found
+   // Set code to 1 for points found on element boundaries.
    for (int i = 0; i < points_cnt; i++)
    {
       if (gsl_code[i] == 2 ||
@@ -235,6 +236,9 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
          for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
          gsl_code[i] = 2;
       }
+
+      // for points on element boundaries, one of the reference space location
+      // should be +1 or -1.
       if (gsl_code[i] == 0)
       {
          Vector rstloc(gsl_ref.GetData()+i*dim, dim);
