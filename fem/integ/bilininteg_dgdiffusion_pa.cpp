@@ -9,11 +9,11 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../general/forall.hpp"
-#include "../mesh/face_nbr_geom.hpp"
-#include "gridfunc.hpp"
-#include "qfunction.hpp"
-#include "fe/face_map_utils.hpp"
+#include "../../general/forall.hpp"
+#include "../../mesh/face_nbr_geom.hpp"
+#include "../gridfunc.hpp"
+#include "../qfunction.hpp"
+#include "../fe/face_map_utils.hpp"
 
 using namespace std;
 
@@ -858,7 +858,7 @@ static void PADGDiffusionApply3D(const int NF,
          double (*Bu)[max_Q1D] = (side == 0) ? Bu0 : Bu1;
          double (*Gu)[max_Q1D] = (side == 0) ? Gu0 : Gu1;
          double (*Bdu)[max_Q1D] = (side == 0) ? Bdu0 : Bdu1;
-         
+
          MFEM_FOREACH_THREAD(p2, x, Q1D)
          {
             MFEM_FOREACH_THREAD(p1, y, Q1D)
@@ -881,7 +881,8 @@ static void PADGDiffusionApply3D(const int NF,
                }
 
                u[p2][p1] = bbu;
-               du[p2][p1] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu; // du <- Q du/dn * w * det(J)
+               // du <- Q du/dn * w * det(J)
+               du[p2][p1] = Je[0] * bbdu + Je[1] * bgu + Je[2] * gbu;
             }
          }
       }
@@ -901,7 +902,7 @@ static void PADGDiffusionApply3D(const int NF,
                double bjn = 0.0;
                double gj = 0.0;
                double br = 0.0;
-               
+
                for (int p1 = 0; p1 < Q1D; ++p1)
                {
                   const double b = B(p1, d1);
@@ -914,7 +915,7 @@ static void PADGDiffusionApply3D(const int NF,
 
                   // r = - < {Q du/dn}, [v] > + kappa * < {Q/h} [u], [v] >
                   const double r = -avg + kappa_Qh[p2][p1] * jump;
-                  
+
                   // bj, gj, bjn contribute to sigma term
                   bj += b * Je[0] * jump;
                   gj += g * Je[1] * jump;
@@ -926,8 +927,10 @@ static void PADGDiffusionApply3D(const int NF,
                Bj[d1][p2] = sigma * bj;
                Bjn[d1][p2] = sigma * bjn;
 
+               // group br and gj together since we will multiply them both by B
+               // and then sum
                const double sgn = (side == 0) ? 1.0 : -1.0;
-               Gj[d1][p2] = sgn * br + sigma * gj; // group br and gj together since we will multiply both by B and add them anyway
+               Gj[d1][p2] = sgn * br + sigma * gj;
             }
          }
       }
@@ -953,7 +956,7 @@ static void PADGDiffusionApply3D(const int NF,
                {
                   const double b = B(p2, d2);
                   const double g = G(p2, d2);
-                  
+
                   bbj += b * Bj[d1][p2];
                   bgj += b * Gj[d1][p2];
                   gbj += g * Bjn[d1][p2];

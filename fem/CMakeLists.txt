@@ -18,6 +18,7 @@ set(SRCS
   integ/bilininteg_convection_pa.cpp
   integ/bilininteg_convection_ea.cpp
   integ/bilininteg_curlcurl_pa.cpp
+  integ/bilininteg_dgdiffusion_pa.cpp
   integ/bilininteg_dgtrace_pa.cpp
   integ/bilininteg_dgtrace_ea.cpp
   integ/bilininteg_diffusion_mf.cpp
