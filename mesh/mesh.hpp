@@ -534,10 +534,10 @@ protected:
    void Make3D(int nx, int ny, int nz, Element::Type type,
                double sx, double sy, double sz, bool sfc_ordering);
 
-   void MakeSimplicesBySplitting3D(int nx, int ny, int nz,
-                                   double sx, double sy, double sz,
-                                   int type);
-   void MakeSimplicesBySplitting2D(int nx, int ny, double sx, double sy);
+   void Make3D24TetsFromHex(int nx, int ny, int nz,
+                            double sx, double sy, double sz);
+   void Make2D4TrisFromQuad(int nx, int ny, double sx, double sy);
+   void Make2D5QuadsFromQuad(int nx, int ny, double sx, double sy);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
@@ -624,19 +624,28 @@ public:
       bool sfc_ordering = true);
 
    /** Creates a Tet mesh by splitting each hex in inline-hex mesh into
-       12 (type = 1) or 24 (type = 2) tets.
-       For 12 tets, each face of a hex is split into 2 triangles, and the
-       triangles are connected to a hex-centered point.
-       For 24 tets, each face of the hex is split into 4 triangle (face edges are
-       connected to a face-centered point), and the triangles are connected to
-       a hex-centered point.
+       24 (type = 2) tets. Each face of the hex is split into 4 triangle
+       (face edges are connected to a face-centered point), and the triangles
+       are connected to a hex-centered point.
    */
-   static Mesh MakeTetMeshBySplittingHexes(
-      int nx, int ny, int nz,
-      double sx = 1.0, double sy = 1.0, double sz = 1.0,
-      int type = 2);
-   static Mesh MakeTriMeshBySplittingQuads(int nx, int ny,
-                                           double sx, double sy);
+   static Mesh MakeCartesian3DWith24TetsPerHex(int nx, int ny, int nz,
+                                               double sx = 1.0, double sy = 1.0,
+                                               double sz = 1.0);
+
+   /** Creates a triangle mesh by splitting each quad in inline-quad mesh
+       into 4 triangles. Each corner is connected to the element center to
+       form 4 triangles.
+   */
+   static Mesh MakeCartesian2DWith4TrisPerQuad(int nx, int ny,
+                                               double sx, double sy);
+
+   /** Creates a quad mesh by splitting each quad in inline-quad mesh
+       into 5 Quads. Each Quad is Projected inwards and connected to the
+       original quad.
+   */
+   static Mesh MakeCartesian2DWith5QuadsPerQuad(int nx, int ny,
+                                                double sx, double sy);
+
 
    /// Create a refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -771,8 +780,9 @@ public:
                                  std::map<std::tuple<int, int, int, int>, int>
                                  &hex_face_to_center,
                                  int attr = 1);
-   void AddHexAs12TetsWithPoints(int *vi, int attr = 1);
    void AddQuadAs4TrisWithPoints(int *vi, int attr = 1);
+
+   void AddQuadAs5QuadsWithPoints(int *vi, int attr = 1);
 
    /// The parameter @a elem should be allocated using the NewElement() method
    int AddElement(Element *elem);
