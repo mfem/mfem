@@ -237,6 +237,9 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    setupSW.Stop();
    findpts_findpts_time = setupSW.RealTime();
 
+
+   setupSW.Clear();
+   setupSW.Start();
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
@@ -260,8 +263,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
 
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
    // both simplices and quads.
-   setupSW.Clear();
-   setupSW.Start();
    MapRefPosAndElemIndices();
    setupSW.Stop();
    findpts_mapelemrst_time = setupSW.RealTime();

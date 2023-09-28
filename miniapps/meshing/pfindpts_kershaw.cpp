@@ -198,16 +198,17 @@ int main (int argc, char *argv[])
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = NULL;
+   int nx = 6*std::pow(std::pow(2, rs_levels), dim);
    if (dim == 2)
    {
-      int nx = 6*(rs_levels+1);
+    //   int nx = 6*(rs_levels+1);
       mesh = new Mesh(Mesh::MakeCartesian2D(nx, nx, etype == 0 ?
                                             Element::QUADRILATERAL:
                                             Element::TRIANGLE));
    }
    else if (dim == 3)
    {
-      int nx = 6*(rs_levels+1);
+    //   int nx = 6*(rs_levels+1);
       mesh = new Mesh(Mesh::MakeCartesian3D(nx, nx, nx, etype == 0 ?
                                             Element::HEXAHEDRON :
                                             Element::TETRAHEDRON));
@@ -509,6 +510,7 @@ int main (int argc, char *argv[])
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
            tauval << "," <<
+           nelemglob << "," <<
            num_procs << "," <<
            pts_cnt*num_procs << "," <<
            found_loc << "," <<
