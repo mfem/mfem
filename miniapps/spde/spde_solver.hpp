@@ -138,7 +138,7 @@ public:
 
 private:
    /// The rational approximation of the SPDE results in multiple
-   /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
+   /// reaction-diffusion PDEs that need to be solved. This call solves the PDE
    /// (div Theta grad + alpha I)^exponent x = beta b.
    void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
               double beta, int exponent = 1);
