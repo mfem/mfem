@@ -1,0 +1,294 @@
+Step = 1
+(0.0197522, -0.00343396)
+Sufficient decrease condition: (0.00905394, 0.0197436), Success.
+Direction update condition: (-0.000592304, -0.00326226), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.00905394
+norm of the reduced gradient = 0.0205534
+norm of the increment = 0.513834
+
+Step = 2
+(0.00905394, -0.000289805)
+Sufficient decrease condition: (0.007688, 0.00905321), Success.
+Direction update condition: (-0.000170902, -0.000275315), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.007688
+norm of the reduced gradient = 0.00587372
+norm of the increment = 0.146843
+
+Step = 3
+(0.007688, -0.000121879)
+Sufficient decrease condition: (0.00722076, 0.00768769), Success.
+Direction update condition: (-0.000104492, -0.000115785), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.00722076
+norm of the reduced gradient = 0.00276951
+norm of the increment = 0.0692377
+
+Step = 4
+(0.00722076, -8.85123e-05)
+Sufficient decrease condition: (0.00692589, 0.00722054), Success.
+Direction update condition: (-8.09721e-05, -8.40866e-05), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.00692589
+norm of the reduced gradient = 0.00201332
+norm of the increment = 0.050333
+
+Step = 5
+(0.00692589, -7.21011e-05)
+Sufficient decrease condition: (0.00670445, 0.00692571), Success.
+Direction update condition: (-6.73784e-05, -6.84961e-05), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.00670445
+norm of the reduced gradient = 0.0016766
+norm of the increment = 0.041915
+
+Step = 6
+(0.00670445, -6.14161e-05)
+Sufficient decrease condition: (0.0065269, 0.00670429), Success.
+Direction update condition: (-5.813e-05, -5.83453e-05), Success.
+Final alpha: 25
+volume fraction = 0.5
+compliance = 0.0065269
+norm of the reduced gradient = 0.0014543
+norm of the increment = 0.0363574
+
+Step = 7
+(0.0065269, -5.37967e-05)
+Sufficient decrease condition: (0.00637856, 0.00652677), Success.
+Direction update condition: (-5.13574e-05, -5.11068e-05), Failed. alpha:25 -> 50
+Sufficient decrease condition: (0.00625004, 0.00652663), Success.
+Direction update condition: (-4.91189e-05, -5.11068e-05), Success.
+Final alpha: 50
+volume fraction = 0.5
+compliance = 0.00625004
+norm of the reduced gradient = 0.00125808
+norm of the increment = 0.0629038
+
+Step = 8
+(0.00625004, -4.32334e-05)
+Sufficient decrease condition: (0.00604187, 0.00624982), Success.
+Direction update condition: (-4.04272e-05, -4.10717e-05), Success.
+Final alpha: 50
+volume fraction = 0.5
+compliance = 0.00604187
+norm of the reduced gradient = 0.00102976
+norm of the increment = 0.0514882
+
+Step = 9
+(0.00604187, -3.65894e-05)
+Sufficient decrease condition: (0.00587431, 0.00604168), Success.
+Direction update condition: (-3.46363e-05, -3.476e-05), Success.
+Final alpha: 50
+volume fraction = 0.5
+compliance = 0.00587431
+norm of the reduced gradient = 0.0008891
+norm of the increment = 0.044455
+
+Step = 10
+(0.00587431, -3.1843e-05)
+Sufficient decrease condition: (0.00573512, 0.00587415), Success.
+Direction update condition: (-3.03919e-05, -3.02508e-05), Failed. alpha:50 -> 100
+Sufficient decrease condition: (0.0056207, 0.00587399), Success.
+Direction update condition: (-2.91465e-05, -3.02508e-05), Success.
+Final alpha: 100
+volume fraction = 0.5
+compliance = 0.0056207
+norm of the reduced gradient = 0.000738631
+norm of the increment = 0.0738631
+
+Step = 11
+(0.0056207, -2.53862e-05)
+Sufficient decrease condition: (0.00543833, 0.00562045), Success.
+Direction update condition: (-2.37825e-05, -2.41169e-05), Success.
+Final alpha: 100
+volume fraction = 0.5
+compliance = 0.00543833
+norm of the reduced gradient = 0.000575489
+norm of the increment = 0.0575489
+
+Step = 12
+(0.00543833, -2.13187e-05)
+Sufficient decrease condition: (0.00530096, 0.00543812), Success.
+Direction update condition: (-2.02555e-05, -2.02528e-05), Failed. alpha:100 -> 200
+Sufficient decrease condition: (0.00520105, 0.00543791), Success.
+Direction update condition: (-1.94786e-05, -2.02528e-05), Success.
+Final alpha: 200
+volume fraction = 0.5
+compliance = 0.00520105
+norm of the reduced gradient = 0.000421918
+norm of the increment = 0.0843836
+
+Step = 13
+(0.00520105, -1.65424e-05)
+Sufficient decrease condition: (0.00504841, 0.00520072), Success.
+Direction update condition: (-1.5455e-05, -1.57153e-05), Success.
+Final alpha: 200
+volume fraction = 0.5
+compliance = 0.00504841
+norm of the reduced gradient = 0.000312684
+norm of the increment = 0.0625368
+
+Step = 14
+(0.00504841, -1.36147e-05)
+Sufficient decrease condition: (0.00493694, 0.00504814), Success.
+Direction update condition: (-1.29768e-05, -1.29339e-05), Failed. alpha:200 -> 400
+Sufficient decrease condition: (0.00486415, 0.00504786), Success.
+Direction update condition: (-1.25681e-05, -1.29339e-05), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00486415
+norm of the reduced gradient = 0.000241055
+norm of the increment = 0.096422
+
+Step = 15
+(0.00486415, -1.06094e-05)
+Sufficient decrease condition: (0.00475545, 0.00486373), Success.
+Direction update condition: (-9.60424e-06, -1.0079e-05), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00475545
+norm of the reduced gradient = 0.000270526
+norm of the increment = 0.10821
+
+Step = 16
+(0.00475545, -8.65626e-06)
+Sufficient decrease condition: (0.00464471, 0.00475511), Success.
+Direction update condition: (-7.57962e-06, -8.22345e-06), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00464471
+norm of the reduced gradient = 0.000350387
+norm of the increment = 0.140155
+
+Step = 17
+(0.00464471, -1.0619e-05)
+Sufficient decrease condition: (0.00463815, 0.00464428), Success.
+Direction update condition: (-5.57621e-06, -1.00881e-05), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00463815
+norm of the reduced gradient = 0.000537639
+norm of the increment = 0.215055
+
+Step = 18
+(0.00463815, -7.49304e-06)
+Sufficient decrease condition: (0.00438167, 0.00463785), Success.
+Direction update condition: (-3.60319e-06, -7.11839e-06), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00438167
+norm of the reduced gradient = 0.00047716
+norm of the increment = 0.190864
+
+Step = 19
+(0.00438167, -2.19212e-06)
+Sufficient decrease condition: (0.00422807, 0.00438159), Success.
+Direction update condition: (-1.74701e-06, -2.08251e-06), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00422807
+norm of the reduced gradient = 0.000259466
+norm of the increment = 0.103786
+
+Step = 20
+(0.00422807, -1.2357e-06)
+Sufficient decrease condition: (0.00414309, 0.00422802), Success.
+Direction update condition: (-1.11355e-06, -1.17391e-06), Success.
+Final alpha: 400
+volume fraction = 0.5
+compliance = 0.00414309
+norm of the reduced gradient = 0.000155253
+norm of the increment = 0.0621014
+
+Step = 21
+(0.00414309, -8.89895e-07)
+Sufficient decrease condition: (0.00408645, 0.00414305), Success.
+Direction update condition: (-8.57265e-07, -8.45401e-07), Failed. alpha:400 -> 800
+Sufficient decrease condition: (0.00405061, 0.00414302), Success.
+Direction update condition: (-8.41254e-07, -8.45401e-07), Success.
+Final alpha: 800
+volume fraction = 0.5
+compliance = 0.00405061
+norm of the reduced gradient = 9.93652e-05
+norm of the increment = 0.0794922
+
+Step = 22
+(0.00405061, -6.42964e-07)
+Sufficient decrease condition: (0.00399086, 0.00405056), Success.
+Direction update condition: (-5.90925e-07, -6.10816e-07), Success.
+Final alpha: 800
+volume fraction = 0.5
+compliance = 0.00399086
+norm of the reduced gradient = 7.29647e-05
+norm of the increment = 0.0583718
+
+Step = 23
+(0.00399086, -4.94622e-07)
+Sufficient decrease condition: (0.00394062, 0.00399082), Success.
+Direction update condition: (-4.54303e-07, -4.69891e-07), Success.
+Final alpha: 800
+volume fraction = 0.5
+compliance = 0.00394062
+norm of the reduced gradient = 6.00496e-05
+norm of the increment = 0.0480396
+
+Step = 24
+(0.00394062, -3.57034e-07)
+Sufficient decrease condition: (0.00390338, 0.00394059), Success.
+Direction update condition: (-3.36422e-07, -3.39182e-07), Success.
+Final alpha: 800
+volume fraction = 0.5
+compliance = 0.00390338
+norm of the reduced gradient = 4.51239e-05
+norm of the increment = 0.0360991
+
+Step = 25
+(0.00390338, -2.5175e-07)
+Sufficient decrease condition: (0.00387767, 0.00390336), Success.
+Direction update condition: (-2.46371e-07, -2.39162e-07), Failed. alpha:800 -> 1600
+Sufficient decrease condition: (0.0038612, 0.00390334), Success.
+Direction update condition: (-2.44089e-07, -2.39162e-07), Failed. alpha:1600 -> 3200
+Sufficient decrease condition: (0.00384268, 0.0039033), Success.
+Direction update condition: (-2.4388e-07, -2.39162e-07), Failed. alpha:3200 -> 6400
+Sufficient decrease condition: (0.00384248, 0.00390322), Success.
+Direction update condition: (-2.54814e-07, -2.39162e-07), Failed. alpha:6400 -> 12800
+Sufficient decrease condition: (0.00383634, 0.00390306), Success.
+Direction update condition: (-2.35429e-07, -2.39162e-07), Success.
+Final alpha: 12800
+volume fraction = 0.5
+compliance = 0.00383634
+norm of the reduced gradient = 9.68436e-06
+norm of the increment = 0.12396
+
+Step = 26
+(0.00383634, -6.8486e-08)
+Sufficient decrease condition: (0.00376051, 0.00383626), Success.
+Direction update condition: (-6.57009e-08, -6.50617e-08), Failed. alpha:12800 -> 25600
+Sufficient decrease condition: (0.00375545, 0.00383617), Success.
+Direction update condition: (-6.67068e-08, -6.50617e-08), Failed. alpha:25600 -> 51200
+Sufficient decrease condition: (0.00375501, 0.00383599), Success.
+Direction update condition: (-6.69212e-08, -6.50617e-08), Failed. alpha:51200 -> 102400
+Sufficient decrease condition: (0.00375522, 0.00383564), Success.
+Direction update condition: (-6.70067e-08, -6.50617e-08), Failed. alpha:102400 -> 204800
+Sufficient decrease condition: (0.00375569, 0.00383494), Success.
+Direction update condition: (-6.7165e-08, -6.50617e-08), Failed. alpha:204800 -> 409600
+volume fraction = 0.5
+compliance = 0.00375569
+norm of the reduced gradient = 2.74799e-07
+norm of the increment = 0.112558
+
+Step = 27
+(0.00375569, -6.10641e-09)
+Sufficient decrease condition: (0.00373965, 0.00375544), Success.
+Direction update condition: (-2.66211e-09, -5.80109e-09), Success.
+Final alpha: 409600
+volume fraction = 0.5
+compliance = 0.00373965
+norm of the reduced gradient = 1.36837e-07
+norm of the increment = 0.0560486
