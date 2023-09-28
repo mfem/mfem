@@ -422,6 +422,10 @@ int main (int argc, char *argv[])
       }
    }
 
+   if (myid == 0) {
+       std::cout << "Mesh read/setup\n";
+   }
+
    const int dim = mesh->Dimension();
 
    // Define level-set coefficient
@@ -469,6 +473,9 @@ int main (int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   if (myid == 0) {
+       std::cout << "ParMesh setup\n";
+   }
 
    for (int lev = 0; lev < rp_levels; lev++)
    {
@@ -522,6 +529,9 @@ int main (int argc, char *argv[])
 
    if (surf_bg_mesh)
    {
+       if (myid == 0) {
+           std::cout << "Setup Background Mesh\n";
+       }
       MFEM_VERIFY(surface_fit_const > 0,
                   "Fitting is not active. Why background mesh?");
       Mesh *mesh_surf_fit_bg = NULL;
@@ -595,6 +605,10 @@ int main (int argc, char *argv[])
       remap_from_bg->SetParMetaInfo(*pmesh_surf_fit_bg, *surf_fit_bg_fes);
       remap_from_bg->SetInitialField(*pmesh_surf_fit_bg->GetNodes(),
                                      *surf_fit_bg_gf0);
+   }
+
+   if (myid == 0) {
+       std::cout << "Background Mesh setup done\n";
    }
 
 
