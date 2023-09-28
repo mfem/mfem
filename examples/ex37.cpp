@@ -135,14 +135,14 @@ int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 5;
-   int order = 2;
-   double alpha = 1.0;
+   int ref_levels = 7;
+   int order = 1;
+   double alpha = 25.0;
    double epsilon = 0.01;
    double vol_fraction = 0.5;
    int max_it = 1e3;
    double itol = 1e-1;
-   double ntol = 1e-4;
+   double ntol = 1e-6;
    double rho_min = 1e-6;
    double lambda = 1.0;
    double mu = 1.0;
