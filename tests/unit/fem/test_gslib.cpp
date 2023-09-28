@@ -191,15 +191,26 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
    delete c_fec;
 }
 
-// Generate a 4x4 Quad Mesh and interpolate point in the center of domain
+// Generate a 4x4 Quad/Hex Mesh and interpolate point in the center of domain
 // at element boundary. This tests L2 projection with and without averaging.
-TEST_CASE("GSLIBInterpolateL2Edge", "[GSLIBInterpolateL2Edge]")
+TEST_CASE("GSLIBInterpolateL2ElementBoundary", "[GSLIBInterpolateL2ElementBoundary]")
 {
+   int dim                  = GENERATE(2, 3);
+   CAPTURE(dim);
+
    int nex = 4;
    int mesh_order = 2;
-   Mesh mesh = Mesh::MakeCartesian2D(nex, nex, Element::QUADRILATERAL);
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(nex, nex, Element::QUADRILATERAL);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(nex, nex, nex, Element::HEXAHEDRON);
+   }
+
    mesh.SetCurvature(mesh_order);
-   const int dim = mesh.Dimension();
 
    // Set GridFunction to be interpolated
    int func_order = 3;
@@ -234,13 +245,14 @@ TEST_CASE("GSLIBInterpolateL2Edge", "[GSLIBInterpolateL2Edge]")
    finder.Interpolate(xyz, field_vals, interp_vals, 1);
    Array<unsigned int> code_out    = finder.GetCode();
 
-   // This point should have been found on element border. But the interpolate
-   // value is not averaged yet.
+   // This point should have been found on element border. But the interpolated
+   // value will come from either of the elements that share this edge/face.
    REQUIRE(code_out[0] == 1);
    REQUIRE((interp_vals(0) == MFEM_Approx(leftval) ||
             interp_vals(0) == MFEM_Approx(rightval)));
 
-   // Interpolated value has now been averaged.
+   // Interpolated value should now been average of solution coming from
+   // adjacent elements.
    finder.SetL2AvgType(FindPointsGSLIB::ARITHMETIC);
    finder.Interpolate(xyz, field_vals, interp_vals, 1);
    REQUIRE(interp_vals(0) == MFEM_Approx(0.5*(leftval+rightval)));
