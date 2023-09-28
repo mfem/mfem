@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
    //     b(.) and the finite element approximation.
    OperatorHandle A;
 
-   HypreBoomerAMG *amg = nullptr;
+   std::unique_ptr<HypreBoomerAMG> amg;
    if (pa)
    {
       A.Reset(&a, false);
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
    {
       A.SetType(Operator::Hypre_ParCSR);
       a.ParallelAssemble(A);
-      // amg = new HypreBoomerAMG(*A.As<HypreParMatrix>());
+      amg.reset(new HypreBoomerAMG(*A.As<HypreParMatrix>()));
    }
 
    // 11. Depending on the symmetry of A, define and apply a parallel PCG or
@@ -254,8 +254,6 @@ int main(int argc, char *argv[])
       gmres.SetMonitor(monitor);
       gmres.Mult(b, x);
    }
-
-   delete amg;
 
    // 12. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
