@@ -1012,6 +1012,10 @@ public:
       *psi_k = *psi;
       *direction = *GetGradient();
       direction->Neg();
+      for (int i=0; i<direction->Size(); i++)
+      {
+         (*direction)[i] *= !(fabs((*psi)[i]) > 1e04 && (*psi)[i]*(*direction)[i] > 0);
+      }
 
       // Measure the downhill slope using Naïve L2 inner product
       //
