@@ -110,6 +110,10 @@ double GetMinDet(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
    return tauval;
 }
 
+// smooth = 1, fo = 2 so o=2
+// make pfindpts_kershaw -j && mpirun -np 4 pfindpts_kershaw -d 2 -o 2 -mo 3 -ft 0 -rs 1 -npt 1000 -et 0 -smooth 1 -fo 2 -jid 1
+// smooth = 2, fo = 2 so o=3*2 = 6
+// make pfindpts_kershaw -j && mpirun -np 4 pfindpts_kershaw -d 2 -o 6 -mo 3 -ft 0 -rs 1 -npt 1000 -et 0 -smooth 2 -fo 2 -jid 1
 int main (int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -257,6 +261,7 @@ int main (int argc, char *argv[])
    // Kershaw transformation
    if (smooth > 0)
    {
+      // 1 leads to a linear transformation, 2 cubic, and 3 5th order.
       common::KershawTransformation kershawT(pmesh.Dimension(), 0.3, 0.3, smooth);
       pmesh.Transform(kershawT);
    }
@@ -406,11 +411,16 @@ int main (int argc, char *argv[])
       vxyz.Destroy();
    }
 
+   StopWatch FindPointsSW;
+   FindPointsSW.Clear();
+
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
    FindPointsGSLIB finder(MPI_COMM_WORLD);
+   FindPointsSW.Start();
    finder.Setup(pmesh);
    finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
+   FindPointsSW.Stop();
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
@@ -485,6 +495,7 @@ int main (int argc, char *argv[])
            << "\nPoints put on faces:  " << npt_on_faces
            << "\nMax interp error:     " << max_err
            << "\nMax dist (of found):  " << max_dist
+           << "\nTotal Time:  " << FindPointsSW.RealTime()
            << endl;
    }
 
@@ -492,8 +503,8 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,mindet,ne,np,npts,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist"<<
-           "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_mapelemrst,"
+           "jobid,mindet,ne,np,npts,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist,"<<
+           "totaltime,setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_mapelemrst,"
            <<
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
@@ -507,6 +518,7 @@ int main (int argc, char *argv[])
            npt_on_faces << "," <<
            max_err << "," <<
            max_dist << "," <<
+           FindPointsSW.RealTime()  << "," <<
            finder.setup_split_time << "," <<
            finder.setup_nodalmapping_time << "," <<
            finder.setup_findpts_setup_time << "," <<
