@@ -34,6 +34,7 @@ protected:
 
    Array<int> face_to_elem; ///< Face-wise information array.
    Array<int> elem_to_face; ///< Element-wise information array.
+   Array<int> face_to_vol; ///< maps face index to volume index
 
 public:
    /// @brief Constructor.
@@ -63,8 +64,10 @@ public:
    /// @name Internal compute kernels. Public because of nvcc restriction.
    ///@{
 
+   template <int T_D1D = 0>
    void Mult2D(const Vector &x, Vector &y) const;
 
+   template <int T_D1D = 0>
    void AddMultTranspose2D(const Vector &x, Vector &y, const double a) const;
 
    template <int T_D1D = 0>
