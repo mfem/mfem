@@ -407,6 +407,7 @@ int main (int argc, char *argv[])
               "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "n) NURBS refinement (uniform or by formula) with a factor\n"
               "l) refine locally using the region() function\n"
               "--> " << flush;
          char sk;
@@ -431,6 +432,15 @@ int main (int argc, char *argv[])
                int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
                               BasisType::GaussLobatto;
                *mesh = Mesh::MakeRefined(*mesh, ref_factor, ref_type);
+               break;
+            }
+            case 'n':
+            {
+               cout << "enter refinement factor --> " << flush;
+               int ref_factor;
+               cin >> ref_factor;
+               if (ref_factor <= 1 || ref_factor > 32) { break; }
+               mesh->UniformRefinement(0, ref_factor);
                break;
             }
             case 'l':

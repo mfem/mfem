@@ -78,8 +78,11 @@ public:
    void FindInterpolant(Array<Vector*> &x);
 
    void Difference(const KnotVector &kv, Vector &diff) const;
-   void UniformRefinement(Vector &newknots) const;
-   void Refinement(Vector &newknots);
+
+   /// Refine uniformly with refinement factor @a rf.
+   void UniformRefinement(Vector &newknots, int rf) const;
+   /// Refine with refinement factor @a rf.
+   void Refinement(Vector &newknots, int rf) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
    /// @note The returned object should be deleted by the caller.
@@ -112,10 +115,13 @@ protected:
    // Special B-NET access functions
    //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
    //    requested direction. It effectively creates a 1D net.
-   //  - The slice(int, int) operator is the access function in that flattened structure.
-   //    The first int gives the slice and the second int the element in that slice.
-   //  - Both routines are used in 'InsertKnot', 'DegreeElevate' and 'UniformRefinement'.
-   //  - In older implementations slice(int int) was implemented as operator()(int, int)
+   //  - The slice(int, int) operator is the access function in that flattened
+   //    structure. The first int gives the slice and the second int the element
+   //    in that slice.
+   //  - Both routines are used in 'InsertKnot', 'DegreeElevate', and
+   //    'UniformRefinement'.
+   //  - In older implementations, slice(int, int) was implemented as
+   //    operator()(int, int).
    int nd; // Number of knots in flattened structure
    int ls; // Number of variables per knot in flattened structure
    int sd; // Stride for data access
@@ -149,7 +155,12 @@ public:
    void KnotInsert(Array<KnotVector *> &knot);
 
    void DegreeElevate(int t);
-   void UniformRefinement();
+
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+   refinement is done everywhere by the same factor, although nonuniform
+   spacing formulas may be used.
+   */
+   void UniformRefinement(int rf=2);
 
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -466,7 +477,12 @@ public:
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
    void DegreeElevate(int rel_degree, int degree = 16);
-   void UniformRefinement();
+
+   /** @brief Refine with optional refinement factor @a rf. Uniform means
+   refinement is done everywhere by the same factor, although nonuniform
+   spacing formulas may be used.
+   */
+   void UniformRefinement(int rf=2);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 

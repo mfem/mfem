@@ -16,8 +16,10 @@ namespace mfem
 
 SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                                     Array<int> const& ipar,
-                                    Array<double> const& dpar)
+                                    Vector const& dpar)
 {
+   Array<int> iparsub;
+
    switch (spacingType)
    {
       case SPACING_TYPE::UNIFORM:
@@ -49,6 +51,11 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                      dpar.Size() == 1, "Invalid spacing function parameters");
          return new LogarithmicSpacingFunction(ipar[0], (bool) ipar[1],
                                                (bool) ipar[2], dpar[0]);
+      case SPACING_TYPE::PIECEWISE:
+         MFEM_VERIFY(ipar.Size() >= 3, "Invalid spacing function parameters");
+         ipar.GetSubArray(3, ipar.Size() - 3, iparsub);
+         return new PiecewiseSpacingFunction(ipar[0], ipar[1], (bool) ipar[2],
+                                             iparsub, dpar);
       default:
          MFEM_ABORT("Unknown spacing type \"" << spacingType << "\"");
          break;
@@ -371,6 +378,221 @@ void LogarithmicSpacingFunction::CalculateNonsymmetric()
    }
 
    s[0] = p;
+}
+
+void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
+                                           Vector const& dpar)
+{
+   MFEM_VERIFY(partition.Size() == np - 1, "");
+   bool validPartition = true;
+
+   // Verify that partition has ascending numbers in (0,1).
+   for (int i=0; i<np-1; ++i)
+   {
+      partition[i] = dpar[i];
+
+      if (partition[i] <= 0.0 || partition[i] >= 1.0)
+      {
+         validPartition = false;
+      }
+
+      if (i > 0 && partition[i] <= partition[i-1])
+      {
+         validPartition = false;
+      }
+   }
+
+   MFEM_VERIFY(validPartition, "");
+
+   pieces.SetSize(np);
+
+   Array<int> ipar_p;
+   Vector dpar_p;
+
+   int osi = 0;
+   int osd = np - 1;
+   int n_total = 0;
+   npartition.SetSize(np+1);
+   npartition[0] = n;
+   for (int p=0; p<np; ++p)
+   {
+      // Setup piece p
+      const SPACING_TYPE type = (SPACING_TYPE) ipar[osi];
+      const int numIntParam = ipar[osi+1];
+      const int numDoubleParam = ipar[osi+2];
+
+      ipar_p.SetSize(numIntParam);
+      dpar_p.SetSize(numDoubleParam);
+
+      for (int i=0; i<numIntParam; ++i)
+      {
+         ipar_p[i] = ipar[osi + 3 + i];
+      }
+
+      for (int i=0; i<numDoubleParam; ++i)
+      {
+         dpar_p[i] = dpar[osd + i];
+      }
+
+      pieces[p] = GetSpacingFunction(type, ipar_p, dpar_p);
+
+      osi += 3 + numIntParam;
+      osd += numDoubleParam;
+      n_total += pieces[p]->Size();
+
+      npartition[p+1] = pieces[p]->Size();
+
+      MFEM_VERIFY(pieces[p]->Size() >= 1, "");
+   }
+
+   MFEM_VERIFY(osi == ipar.Size() && osd == dpar.Size(), "");
+   n0 = n_total;
+}
+
+void PiecewiseSpacingFunction::ScaleParameters(double a)
+{
+   for (auto p : pieces)
+   {
+      p->ScaleParameters(a);
+   }
+}
+
+void PiecewiseSpacingFunction::Print(std::ostream &os)
+{
+   // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
+   int inum = 3;
+   int dnum = np-1;
+   for (auto p : pieces)
+   {
+      // Add three for the type and the integer and double parameter counts.
+      inum += p->NumIntParameters() + 3;
+      dnum += p->NumDoubleParameters();
+   }
+
+   os << PIECEWISE << " " << inum << " " << dnum << " " << n << " " << np << " "
+      << (int) reverse;
+
+   // Write integer parameters for all pieces.
+   Array<int> ipar;
+   for (auto p : pieces)
+   {
+      os << " " << p->SpacingType() << " " << p->NumIntParameters()
+         << " " << p->NumDoubleParameters();
+
+      p->GetIntParameters(ipar);
+
+      for (auto ip : ipar)
+      {
+         os << " " << ip;
+      }
+   }
+
+   for (auto p : partition)
+   {
+      os << " " << p;
+   }
+
+   // Write double parameters for all pieces.
+   Vector dpar;
+   for (auto p : pieces)
+   {
+      p->GetDoubleParameters(dpar);
+
+      for (auto dp : dpar)
+      {
+         os << " " << dp;
+      }
+   }
+
+   os << "\n";
+}
+
+void PiecewiseSpacingFunction::CalculateSpacing()
+{
+   MFEM_VERIFY(n >= 1 && (n % n0 == 0 || n < n0), "");
+   const int ref = n / n0;
+
+   s.SetSize(n);
+
+   if (n < n0)
+   {
+      // Just use uniform spacing
+      s = 1.0 / ((double) n);
+      return;
+   }
+
+   int n_total = 0;
+   for (int p=0; p<np; ++p)
+   {
+      // Calculate spacing for piece p.
+
+      pieces[p]->SetSize(ref * npartition[p+1]);
+
+      const double p0 = (p == 0) ? 0.0 : partition[p-1];
+      const double p1 = (p == np - 1) ? 1.0 : partition[p];
+      const double h_p = p1 - p0;
+
+      for (int i=0; i<pieces[p]->Size(); ++i)
+      {
+         s[n_total + i] = h_p * pieces[p]->Eval(i);
+      }
+
+      n_total += pieces[p]->Size();
+   }
+
+   MFEM_VERIFY(n_total == n, "");
+}
+
+SpacingFunction *PiecewiseSpacingFunction::Clone() const
+{
+   int osi = 0;
+   int osd = np - 1;
+   Array<int> ipar(osi);
+   std::vector<double> dpar_std(osd);
+
+   for (int p=0; p<np-1; ++p)
+   {
+      dpar_std[p] = partition[p];
+   }
+
+   Array<int> ipar_p;
+   Vector dpar_p;
+
+   for (auto p : pieces)
+   {
+      // Setup piece p
+      const SPACING_TYPE type = p->SpacingType();
+
+      p->GetIntParameters(ipar_p);
+      p->GetDoubleParameters(dpar_p);
+
+      const int numIntParam = p->NumIntParameters();
+      const int numDoubleParam = p->NumDoubleParameters();
+
+      dpar_std.resize(osd + numDoubleParam);
+      // Add three for the type and the integer and double parameter counts.
+      ipar.SetSize(osi + numIntParam + 3);
+
+      ipar[osi] = type;
+      ipar[osi + 1] = numIntParam;
+      ipar[osi + 2] = numDoubleParam;
+
+      for (int i=0; i<numIntParam; ++i)
+      {
+         ipar[osi + 3 + i] = ipar_p[i];
+      }
+
+      for (int i=0; i<numDoubleParam; ++i)
+      {
+         dpar_std[osd + i] = dpar_p[i];
+      }
+
+      osi += numIntParam + 3;
+      osd += numDoubleParam;
+   }
+
+   Vector dpar(dpar_std.data(), dpar_std.size());
+   return new PiecewiseSpacingFunction(n, np, reverse, ipar, dpar);
 }
 
 }
