@@ -185,6 +185,14 @@ public:
                                  const double a = 1.0) const override = 0;
 
    /** @brief Add the face degrees of freedom @a x to the element degrees of
+       freedom @a y ignoring the signs from DOF orientation. */
+   virtual void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                         const double a = 1.0) const
+   {
+      AddMultTranspose(x, y, a);
+   }
+
+   /** @brief Add the face degrees of freedom @a x to the element degrees of
        freedom @a y. Perform the same computation as AddMultTranspose, but
        @a x is invalid after calling this method.
 
@@ -285,6 +293,13 @@ public:
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const double a = 1.0) const override;
+
+   /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
+       L-Vector @b not taking into account signs from DOF orientations.
+
+       @sa AddMultTranspose(). */
+   void AddMultTransposeUnsigned(const Vector &x, Vector &y,
+                                 const double a = 1.0) const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
