@@ -1665,21 +1665,19 @@ void Mesh::AddVertexParents(int i, int p1, int p2)
 
 int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
 {
-   double vi[dim];
+   Vector vii(dim);
+   vii = 0.0;
    for (int j = 0; j < dim; j++) { vi[j] = 0.0; }
    for (int i = 0; i < plist.Size(); i++)
    {
       double *vp = vertices[plist[i]]();
       for (int j = 0; j < dim; j++)
       {
-         vi[j] += vp[j];
+         vii(j) += vp[j];
       }
    }
-   for (int j = 0; j < dim; j++)
-   {
-      vi[j] *= 1.0/plist.Size();
-   }
-   AddVertex(vi);
+   vii *= 1.0/plist.Size();
+   AddVertex(vii.GetData());
    return NumOfVertices;
 }
 
