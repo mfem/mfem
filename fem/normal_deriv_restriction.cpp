@@ -18,8 +18,9 @@
 namespace mfem
 {
 
-// computes the face index to volume index map "face_to_vol" in 2D
-static void NormalDerivativeSetupFaceIndexMap2D(int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
+/// Compute the face index to volume index map "face_to_vol" in 2D
+static void NormalDerivativeSetupFaceIndexMap2D(
+   int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
 {
    auto f2e = Reshape(face_to_elem.HostRead(), 2, 2, nf);
    auto f2v = Reshape(face_to_vol.HostWrite(), d, 2, nf);
@@ -53,8 +54,9 @@ static void NormalDerivativeSetupFaceIndexMap2D(int nf, int d, const Array<int>&
    }
 }
 
-// computes the face index to volume index map "face_to_vol" in 3D
-static void NormalDerivativeSetupFaceIndexMap3D(int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
+/// Compute the face index to volume index map "face_to_vol" in 3D
+static void NormalDerivativeSetupFaceIndexMap3D(
+   int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
 {
    auto f2e = Reshape(face_to_elem.HostRead(), 2, 3, nf);
    auto f2v = Reshape(face_to_vol.HostWrite(), d*d, 2, nf);
@@ -272,7 +274,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(
    if (nf == 0) { return; }
    switch (dim)
    {
-      case 2: 
+      case 2:
       {
          const int d1d = fes.GetElementOrder(0) + 1;
          switch (d1d)
@@ -418,7 +420,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
                const int ij = F2V[side][p];
                const int i = ij % q;
                const int j = ij / q;
-               
+
                for (int c=0; c < vd; ++c)
                {
                   double grad_n = 0;
@@ -512,7 +514,6 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
             E[side] = f2e(side, 0, f);
             FID[side] = f2e(side, 1, f);
          }
-         
          MFEM_FOREACH_THREAD(j, x, q2d)
          {
             F2V[side][j] = f2v(j, side, f);
@@ -746,12 +747,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
       MFEM_SHARED int faces[6];
       MFEM_SHARED int sides[6];
 
+      // Load G into shared memory
       MFEM_FOREACH_THREAD(j, x, d)
       {
          MFEM_FOREACH_THREAD(i, y, q)
          {
-               G(i, j) = a * G_(i, j);
-               G(i, j) = a * G_(i, j);
+            G(i, j) = a * G_(i, j);
+            G(i, j) = a * G_(i, j);
             G(i, j) = a * G_(i, j);
          }
       }
