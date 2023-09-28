@@ -193,7 +193,8 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 
 // Generate a 4x4 Quad/Hex Mesh and interpolate point in the center of domain
 // at element boundary. This tests L2 projection with and without averaging.
-TEST_CASE("GSLIBInterpolateL2ElementBoundary", "[GSLIBInterpolateL2ElementBoundary]")
+TEST_CASE("GSLIBInterpolateL2ElementBoundary",
+          "[GSLIBInterpolateL2ElementBoundary]")
 {
    int dim                  = GENERATE(2, 3);
    CAPTURE(dim);
