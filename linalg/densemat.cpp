@@ -17,7 +17,6 @@
 #include "vector.hpp"
 #include "matrix.hpp"
 #include "densemat.hpp"
-#include "kernels.hpp"
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
@@ -2590,49 +2589,30 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
    MFEM_ASSERT(inva.Height() == a.Width(), "incorrect dimensions");
    MFEM_ASSERT(inva.Width() == a.Height(), "incorrect dimensions");
 
-   double t;
-
    if (a.Width() < a.Height())
    {
       const double *d = a.Data();
       double *id = inva.Data();
       if (a.Height() == 2)
       {
-         t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
-         id[0] = d[0] * t;
-         id[1] = d[1] * t;
+         kernels::CalcLeftInverse<2,1>(d, id);
       }
       else
       {
          if (a.Width() == 1)
          {
-            t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
-            id[0] = d[0] * t;
-            id[1] = d[1] * t;
-            id[2] = d[2] * t;
+            kernels::CalcLeftInverse<3,1>(d, id);
          }
          else
          {
-            double e, g, f;
-            e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
-            g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
-            f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
-            t = 1.0 / (e*g - f*f);
-            e *= t; g *= t; f *= t;
-
-            id[0] = d[0]*g - d[3]*f;
-            id[1] = d[3]*e - d[0]*f;
-            id[2] = d[1]*g - d[4]*f;
-            id[3] = d[4]*e - d[1]*f;
-            id[4] = d[2]*g - d[5]*f;
-            id[5] = d[5]*e - d[2]*f;
+            kernels::CalcLeftInverse<3,2>(d, id);
          }
       }
       return;
    }
 
 #ifdef MFEM_DEBUG
-   t = a.Det();
+   const double t = a.Det();
    MFEM_ASSERT(std::abs(t) > 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()),
                "singular matrix!");
 #endif
@@ -4173,6 +4153,28 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w,
    Init();
 }
 
+DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M,
+                               char left_singular_vectors,
+                               char right_singular_vectors)
+{
+   m = M.Height();
+   n = M.Width();
+   jobu = left_singular_vectors;
+   jobvt = right_singular_vectors;
+   Init();
+}
+
+DenseMatrixSVD::DenseMatrixSVD(int h, int w,
+                               char left_singular_vectors,
+                               char right_singular_vectors)
+{
+   m = h;
+   n = w;
+   jobu = left_singular_vectors;
+   jobvt = right_singular_vectors;
+   Init();
+}
+
 void DenseMatrixSVD::Init()
 {
    sv.SetSize(min(m, n));
@@ -4195,12 +4197,22 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
    double * datau = nullptr;
    double * datavt = nullptr;
-   if (jobu == 'S')
+   if (jobu == 'A')
+   {
+      U.SetSize(m,m);
+      datau = U.Data();
+   }
+   else if (jobu == 'S')
    {
       U.SetSize(m,min(m,n));
       datau = U.Data();
    }
-   if (jobvt == 'S')
+   if (jobvt == 'A')
+   {
+      Vt.SetSize(n,n);
+      datavt = Vt.Data();
+   }
+   else if (jobvt == 'S')
    {
       Vt.SetSize(min(m,n),n);
       datavt = Vt.Data();
