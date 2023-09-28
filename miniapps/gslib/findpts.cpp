@@ -309,23 +309,19 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
    FiniteElementCollection *fec = NULL;
-   FiniteElementCollection *fec_pref = NULL;
    if (fieldtype == 0)
    {
       fec = new H1_FECollection(order, dim);
-      if (prefinement) { fec_pref =  new H1_FECollection(order+1, dim); }
       cout << "H1-GridFunction\n";
    }
    else if (fieldtype == 1)
    {
       fec = new L2_FECollection(order, dim);
-      if (prefinement) { fec_pref =  new L2_FECollection(order+1, dim); }
       cout << "L2-GridFunction\n";
    }
    else if (fieldtype == 2)
    {
       fec = new RT_FECollection(order, dim);
-      if (prefinement) { fec_pref =  new RT_FECollection(order+1, dim); }
       ncomp = 1;
       vec_dim = dim;
       cout << "H(div)-GridFunction\n";
@@ -333,7 +329,6 @@ int main (int argc, char *argv[])
    else if (fieldtype == 3)
    {
       fec = new ND_FECollection(order, dim);
-      if (prefinement) { fec_pref =  new ND_FECollection(order+1, dim); }
       ncomp = 1;
       vec_dim = dim;
       cout << "H(curl)-GridFunction\n";
