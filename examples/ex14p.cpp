@@ -18,6 +18,10 @@
 //               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
 //               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
 //
+// Device sample runs:
+//               mpirun -np 4 ex14p -pa -d cuda -o 3
+//               mpirun -np 4 ex14p -pa -d cuda -m ../data/fichera.mesh -o 3
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
 //               the Laplace problem -Delta u = 1 with homogeneous Dirichlet

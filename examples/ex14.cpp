@@ -19,6 +19,10 @@
 //               ex14 -m ../data/amr-hex.mesh
 //               ex14 -m ../data/fichera-amr.mesh
 //
+// Device sample runs:
+//               ex14 -pa -d cuda -o 3
+//               ex14 -pa -d cuda -o 3 -m ../data/fichera.mesh -o 3
+//
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
 //               the Laplace problem -Delta u = 1 with homogeneous Dirichlet
