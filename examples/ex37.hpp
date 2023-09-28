@@ -1095,6 +1095,7 @@ public:
             }
          }
       }
+      out << "The number of eval: " << k << std::endl;
       delete psi_k;
       delete direction;
       delete directionalDer;
