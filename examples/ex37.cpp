@@ -314,13 +314,12 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
+   optimizer.SetAlpha0(alpha);
    for (int k = 1; k <= max_it; k++)
    {
-      if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
-
       mfem::out << "\nStep = " << k << std::endl;
       optimizer.SetAlpha0(alpha);
-      const double new_alpha = optimizer.Step();
+      alpha = optimizer.Step();
       // optimizer.Gradient();
       // psi.Add(-alpha, *(optimizer.GetGradient()));
       // double compliance = optimizer.Eval();
@@ -332,7 +331,7 @@ int main(int argc, char *argv[])
 
       // Compute ||ρ - ρ_old|| in control fes.
       double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
-      double norm_reduced_gradient = norm_increment/new_alpha;
+      double norm_reduced_gradient = norm_increment/alpha;
       psi_old = psi;
 
       mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient <<
