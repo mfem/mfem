@@ -320,9 +320,6 @@ int main(int argc, char *argv[])
       mfem::out << "\nStep = " << k << std::endl;
       optimizer.SetAlpha0(alpha);
       alpha = optimizer.Step();
-      // optimizer.Gradient();
-      // psi.Add(-alpha, *(optimizer.GetGradient()));
-      // double compliance = optimizer.Eval();
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       mfem::out << "volume fraction = " << optimizer.GetVolume() / domain_volume <<
