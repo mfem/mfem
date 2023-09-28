@@ -410,7 +410,7 @@ protected:
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
    /// Refine NURBS mesh.
-   virtual void NURBSUniformRefinement();
+   virtual void NURBSUniformRefinement(int rf = 2);
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
@@ -1736,7 +1736,7 @@ public:
        re-finalized using Finalize() with the parameter @a refine set to true.
        Note that calling Finalize() in this way will generally invalidate any
        FiniteElementSpace%s and GridFunction%s defined on the mesh. */
-   void UniformRefinement(int ref_algo = 0);
+   void UniformRefinement(int ref_algo = 0, int rf = 2);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and

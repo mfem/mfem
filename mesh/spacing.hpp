@@ -17,8 +17,9 @@
 namespace mfem
 {
 
-typedef enum {UNIFORM, LINEAR, GEOMETRIC, BELL, GAUSSIAN, LOGARITHMIC}
-SPACING_TYPE;
+typedef enum {UNIFORM, LINEAR, GEOMETRIC, BELL,
+              GAUSSIAN, LOGARITHMIC, PIECEWISE
+             } SPACING_TYPE;
 
 class SpacingFunction
 {
@@ -29,6 +30,8 @@ public:
       reverse = r;
       scale = s;
    }
+
+   inline int Size() const { return n; }
 
    virtual double Eval(int p) = 0;
 
@@ -50,6 +53,13 @@ public:
    // The format is
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
    virtual void Print(std::ostream &os) = 0;
+
+   virtual SPACING_TYPE SpacingType() = 0;
+
+   virtual int NumIntParameters() = 0;
+   virtual int NumDoubleParameters() = 0;
+   virtual void GetIntParameters(Array<int> & p) = 0;
+   virtual void GetDoubleParameters(Vector & p) = 0;
 
    virtual SpacingFunction *Clone() const;
 
@@ -83,7 +93,22 @@ public:
    virtual void Print(std::ostream &os) override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << UNIFORM << " 2 0 " << n << " " << (int) reverse << "\n";
+      os << UNIFORM << " 1 0 " << n << "\n";
+   }
+
+   virtual SPACING_TYPE SpacingType() override { return UNIFORM; }
+   virtual int NumIntParameters() override { return 1; }
+   virtual int NumDoubleParameters() override { return 0; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(1);
+      p[0] = n;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(0);
    }
 
    virtual SpacingFunction *Clone() const
@@ -139,6 +164,24 @@ public:
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << LINEAR << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
+   }
+
+   virtual SPACING_TYPE SpacingType() override { return LINEAR; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return 1; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = (int) scale;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(1);
+      p[0] = s;
    }
 
    virtual SpacingFunction *Clone() const
@@ -204,6 +247,24 @@ public:
          << (int) scale << " " << s << "\n";
    }
 
+   virtual SPACING_TYPE SpacingType() override { return GEOMETRIC; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return 1; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = (int) scale;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(1);
+      p[0] = s;
+   }
+
    virtual SpacingFunction *Clone() const
    {
       return new GeometricSpacingFunction(n, reverse, s, scale);
@@ -260,6 +321,25 @@ public:
          << " " << s0 << " " << s1 << "\n";
    }
 
+   virtual SPACING_TYPE SpacingType() override { return BELL; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return 2; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = (int) scale;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(2);
+      p[0] = s0;
+      p[1] = s1;
+   }
+
    virtual SpacingFunction *Clone() const
    {
       return new BellSpacingFunction(n, reverse, s0, s1, scale);
@@ -312,6 +392,25 @@ public:
          << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
+   virtual SPACING_TYPE SpacingType() override { return GAUSSIAN; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return 2; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = (int) scale;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(2);
+      p[0] = s0;
+      p[1] = s1;
+   }
+
    virtual SpacingFunction *Clone() const
    {
       return new GaussianSpacingFunction(n, reverse, s0, s1, scale);
@@ -352,6 +451,24 @@ public:
          << (int) sym << " " << logBase << "\n";
    }
 
+   virtual SPACING_TYPE SpacingType() override { return LOGARITHMIC; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return 1; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = (int) reverse;
+      p[2] = (int) sym;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(1);
+      p[0] = logBase;
+   }
+
    virtual SpacingFunction *Clone() const
    {
       return new LogarithmicSpacingFunction(n, reverse, sym, logBase);
@@ -367,8 +484,76 @@ private:
    void CalculateNonsymmetric();
 };
 
+class PiecewiseSpacingFunction : public SpacingFunction
+{
+public:
+   // Parameters in ipar, for np pieces with index i:
+   //   piece i: type, number of integer parameters, number of double
+   //            parameters, integer parameters
+   // Parameters in dpar start with np-1 partition entries, and the rest are
+   // ordered by piece:
+   //   piece i: double parameters
+   PiecewiseSpacingFunction(int n_, int np_, bool r_,
+                            Array<int> const& ipar, Vector const& dpar)
+      : SpacingFunction(n_, r_), np(np_), partition(np - 1)
+   {
+      SetupPieces(ipar, dpar);
+      CalculateSpacing();
+   }
+
+   virtual void SetSize(int size) override
+   {
+      n = size;
+      CalculateSpacing();
+   }
+
+   virtual double Eval(int p) override
+   {
+      const int i = reverse ? n - 1 - p : p;
+      return s[i];
+   }
+
+   virtual void ScaleParameters(double a) override;
+
+   virtual void Print(std::ostream &os) override;
+
+   virtual SpacingFunction *Clone() const;
+
+   void SetupPieces(Array<int> const& ipar, Vector const& dpar);
+
+   virtual SPACING_TYPE SpacingType() override { return PIECEWISE; }
+   virtual int NumIntParameters() override { return 3; }
+   virtual int NumDoubleParameters() override { return np - 1; }
+
+   virtual void GetIntParameters(Array<int> & p) override
+   {
+      p.SetSize(3);
+      p[0] = n;
+      p[1] = np;
+      p[2] = (int) reverse;
+   }
+
+   virtual void GetDoubleParameters(Vector & p) override
+   {
+      p.SetSize(np - 1);
+      p = partition;
+   }
+
+private:
+   int np;  // Number of pieces
+   Vector partition;
+   Array<int> npartition;
+   Array<SpacingFunction*> pieces;
+
+   int n0 = 0;
+
+   Vector s;
+
+   void CalculateSpacing();
+};
+
 SpacingFunction* GetSpacingFunction(const SPACING_TYPE type,
                                     Array<int> const& ipar,
-                                    Array<double> const& dpar);
+                                    Vector const& dpar);
 }
 #endif

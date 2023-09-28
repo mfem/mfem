@@ -44,7 +44,7 @@ KnotVector::KnotVector(istream &input)
                   numDoubleParam >= 0, "Invalid number of parameters in KnotVector");
 
       Array<int> ipar(numIntParam);
-      Array<double> dpar(numDoubleParam);
+      Vector dpar(numDoubleParam);
 
       for (int i=0; i<numIntParam; ++i)
       {
@@ -115,7 +115,7 @@ KnotVector *KnotVector::DegreeElevate(int t) const
    return newkv;
 }
 
-void KnotVector::UniformRefinement(Vector &newknots) const
+void KnotVector::UniformRefinement(Vector &newknots, int rf) const
 {
    newknots.SetSize(NumOfElements);
    int j = 0;
@@ -129,16 +129,16 @@ void KnotVector::UniformRefinement(Vector &newknots) const
    }
 }
 
-void KnotVector::Refinement(Vector &newknots)
+void KnotVector::Refinement(Vector &newknots, int rf) const
 {
    if (spacing)
    {
-      spacing->ScaleParameters(0.5);
-      spacing->SetSize(2 * NumOfElements);
+      spacing->ScaleParameters(1.0 / ((double) rf));
+      spacing->SetSize(rf * NumOfElements);
       Vector s;
       spacing->EvalAll(s);
 
-      newknots.SetSize(NumOfElements);
+      newknots.SetSize((rf - 1) * NumOfElements);
 
       const double k0 = knot(0);
       const double k1 = knot(knot.Size()-1);
@@ -162,23 +162,28 @@ void KnotVector::Refinement(Vector &newknots)
 
       for (int i=0; i<NumOfElements; ++i)
       {
-         // Modify existing coarse knots
-         for (j=span0[i]; j<span0[i+1]; ++j)
+         // Note that existing coarse knots are not modified here according to
+         // the spacing formula, because modifying them will not produce a
+         // correctly spaced mesh without also updating control points. Here, we
+         // only define new knots according to the spacing formula. Non-nested
+         // refinement should be done by using a single element per patch and
+         // a sufficiently large refinement factor to produce the desired mesh
+         // with only one refinement.
+
+         s0 += s[rf*i];
+
+         for (j=0; j<rf-1; ++j)
          {
-            knot(j) = ((1.0 - s0) * k0) + (s0 * k1);
+            // Define a new knot between the modified coarse knots
+            newknots(((rf - 1) * i) + j) = ((1.0 - s0) * k0) + (s0 * k1);
+
+            s0 += s[(rf*i) + j + 1];
          }
-
-         s0 += s[2*i];
-
-         // Define a new knot between the modified coarse knots
-         newknots(i) = ((1.0 - s0) * k0) + (s0 * k1);
-
-         s0 += s[(2*i) + 1];
       }
    }
    else
    {
-      UniformRefinement(newknots);
+      UniformRefinement(newknots, rf);
    }
 }
 
@@ -887,12 +892,12 @@ int NURBSPatch::SetLoopDirection(int dir)
    return -1;
 }
 
-void NURBSPatch::UniformRefinement()
+void NURBSPatch::UniformRefinement(int rf)
 {
    Vector newknots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->Refinement(newknots);
+      kv[dir]->Refinement(newknots, rf);
       KnotInsert(dir, newknots);
    }
 }
@@ -939,7 +944,7 @@ void NURBSPatch::KnotInsert(Array<Vector *> &newkv)
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller, chapter 5.
 void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 {
    if (knot.Size() == 0 ) { return; }
@@ -1032,8 +1037,8 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
             alfa = alfa/(newkv[k+l] - oldkv[i-pl+l]);
             for (int ll = 0; ll < size; ll++)
             {
-               newp.slice(ind-1,ll) = alfa*newp.slice(ind-1,ll) + (1.0-alfa)*newp.slice(ind,
-                                                                                        ll);
+               newp.slice(ind-1,ll) = alfa*newp.slice(ind-1,ll) +
+                                      (1.0-alfa)*newp.slice(ind, ll);
             }
          }
       }
@@ -3554,11 +3559,11 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
    }
 }
 
-void NURBSExtension::UniformRefinement()
+void NURBSExtension::UniformRefinement(int rf)
 {
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->UniformRefinement();
+      patches[p]->UniformRefinement(rf);
    }
 }
 

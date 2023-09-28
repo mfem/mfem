@@ -5147,12 +5147,12 @@ void Mesh::KnotInsert(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
-void Mesh::NURBSUniformRefinement()
+void Mesh::NURBSUniformRefinement(int rf)
 {
    // do not check for NURBSext since this method is protected
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->UniformRefinement();
+   NURBSext->UniformRefinement(rf);
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -9476,13 +9476,13 @@ static Array<int>& AllElements(Array<int> &list, int nelem)
    return list;
 }
 
-void Mesh::UniformRefinement(int ref_algo)
+void Mesh::UniformRefinement(int ref_algo, int rf)
 {
    Array<int> list;
 
    if (NURBSext)
    {
-      NURBSUniformRefinement();
+      NURBSUniformRefinement(rf);
    }
    else if (ncmesh)
    {
