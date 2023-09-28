@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,6 +35,13 @@ else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
+COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
+
+# If MFEM_SHARED is set, add the ../common rpath
+COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
+   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
+   $(MFEM_BUILD_DIR)/miniapps/common))
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
@@ -43,10 +50,14 @@ endif
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 all: $(MINIAPPS)
+
+# Rule for building lib-common
+lib-common:
+	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
 # For out-of-source builds, link the data files from the source tree:
 ifneq ($(SRC),)
@@ -93,4 +104,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f perturbed.*
+	@rm -f interpolated.gf

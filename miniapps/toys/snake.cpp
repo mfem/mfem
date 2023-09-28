@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
    mesh.FinalizeTopology();
 
    // Paint elements with alternating colors
-   FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
-   FiniteElementSpace fespace(&mesh, fec);
+   L2_FECollection fec(0, 3, 1);
+   FiniteElementSpace fespace(&mesh, &fec);
    GridFunction color(&fespace);
 
    for (int i=0; i<24; i++) { color[i] = (i%2)?1.0:-1.0; }

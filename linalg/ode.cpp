@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -349,6 +349,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    smax = std::min(s_,5);
    a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 2)
    {
@@ -407,6 +408,20 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    s++;
    s = std::min(s, smax);
    if (s == smax)
@@ -417,13 +432,13 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
+      t += dt;
    }
    else
    {
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
    }
-   t += dt;
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
@@ -446,6 +461,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    smax = std::min(s_+1,5);
    a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 3)
    {
@@ -498,6 +514,20 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Moulton history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    if ((s == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
@@ -514,13 +544,14 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       }
       f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
       x.Add(a[0]*dt, k[idx[0]]);
+      t += dt;
    }
    else
    {
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
    }
-   t += dt;
+
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }

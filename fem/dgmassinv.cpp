@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,7 +107,7 @@ void DGMassInverse::Update()
 {
    M->Assemble();
    M->AssembleDiagonal(diag_inv);
-   internal::MakeReciprocal(diag_inv.Size(), diag_inv.ReadWrite());
+   diag_inv.Reciprocal();
 }
 
 DGMassInverse::~DGMassInverse()
@@ -166,21 +166,19 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       b = b_.Read();
    }
 
-   constexpr int NB = Q1D ? Q1D : 1; // block size
+   static constexpr int NB = Q1D ? Q1D : 1; // block size
 
-   MFEM_FORALL_2D(e, NE, NB, NB, 1,
+   mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int NB = Q1D ? Q1D : 1; // redefine here for some compilers
-
       // Perform change of basis if needed
       if (CHANGE_BASIS)
       {
          // Transform RHS
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
          if (IT_MODE)
          {
             // Transform initial guess
-            DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, d2q_B, u, u, d1d);
+            DGMassBasis<DIM,D1D>(e, NE, d2q_B, u, u, d1d);
          }
       }
 
@@ -257,7 +255,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
       if (CHANGE_BASIS)
       {
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_B, u, u, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_B, u, u, d1d);
       }
    });
 }

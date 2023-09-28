@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -144,7 +144,7 @@ struct NeoHookeanMaterial
       }
       // Getting to this point is an error.
       // For now we just return a zero tensor to suppress a warning:
-      return tensor<double, dim, dim>{};
+      return tensor<double, dim, dim> {};
    }
 
    MFEM_HOST_DEVICE tensor<double, dim, dim>
@@ -197,7 +197,7 @@ struct NeoHookeanMaterial
 
    MFEM_HOST_DEVICE tensor<double, dim, dim>
    action_of_gradient_finite_diff(const tensor<double, dim, dim> &dudx,
-                         const tensor<double, dim, dim> &ddudx) const
+                                  const tensor<double, dim, dim> &ddudx) const
    {
       return (stress(dudx + 1.0e-8 * ddudx) - stress(dudx - 1.0e-8 * ddudx)) /
              2.0e-8;
