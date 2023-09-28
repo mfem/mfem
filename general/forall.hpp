@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,14 +23,133 @@
 namespace mfem
 {
 
-// Maximum size of dofs and quads in 1D.
-#ifdef MFEM_USE_HIP
-const int MAX_D1D = 10;
-const int MAX_Q1D = 10;
+// The following DofQuadLimit_ structs define the maximum values of D1D and Q1D
+// often used in the "fallback kernels" for partial assembly. Different limits
+// take effect for different architectures. The limits should be queried using
+// the public interface in DeviceDofQuadLimits or DofQuadLimits, and generally
+// not be directly accessing the structs defined below.
+//
+// In host code, the limits associated with the currently configured Device can
+// be accessed using DeviceDofQuadLimits::Get().
+//
+// In mfem::forall kernels or MFEM_HOST_DEVICE functions, the limits
+// corresponding to the architecture the function is being compiled for can be
+// accessed as static constexpr variables using the type alias DofQuadLimits.
+
+namespace internal
+{
+
+struct DofQuadLimits_CUDA
+{
+   static constexpr int MAX_D1D = 14;
+   static constexpr int MAX_Q1D = 14;
+   static constexpr int HCURL_MAX_D1D = 5;
+   static constexpr int HCURL_MAX_Q1D = 6;
+   static constexpr int HDIV_MAX_D1D = 5;
+   static constexpr int HDIV_MAX_Q1D = 6;
+   static constexpr int MAX_INTERP_1D = 8;
+   static constexpr int MAX_DET_1D = 6;
+};
+
+struct DofQuadLimits_HIP
+{
+   static constexpr int MAX_D1D = 10;
+   static constexpr int MAX_Q1D = 10;
+   static constexpr int HCURL_MAX_D1D = 5;
+   static constexpr int HCURL_MAX_Q1D = 5;
+   static constexpr int HDIV_MAX_D1D = 5;
+   static constexpr int HDIV_MAX_Q1D = 6;
+   static constexpr int MAX_INTERP_1D = 8;
+   static constexpr int MAX_DET_1D = 6;
+};
+
+struct DofQuadLimits_CPU
+{
+#ifndef _WIN32
+   static constexpr int MAX_D1D = 24;
+   static constexpr int MAX_Q1D = 24;
 #else
-const int MAX_D1D = 14;
-const int MAX_Q1D = 14;
+   static constexpr int MAX_D1D = 14;
+   static constexpr int MAX_Q1D = 14;
 #endif
+   static constexpr int HCURL_MAX_D1D = 10;
+   static constexpr int HCURL_MAX_Q1D = 10;
+   static constexpr int HDIV_MAX_D1D = 10;
+   static constexpr int HDIV_MAX_Q1D = 10;
+   static constexpr int MAX_INTERP_1D = MAX_D1D;
+   static constexpr int MAX_DET_1D = MAX_D1D;
+};
+
+} // namespace internal
+
+/// @brief Maximum number of 1D DOFs or quadrature points for the architecture
+/// currently being compiled for (used in fallback kernels).
+///
+/// DofQuadLimits provides access to the limits as static constexpr member
+/// variables for use in mfem::forall kernels or MFEM_HOST_DEVICE functions.
+///
+/// @sa For accessing the limits according to the runtime configuration of the
+/// Device, see DeviceDofQuadLimits.
+#if defined(__CUDA_ARCH__)
+using DofQuadLimits = internal::DofQuadLimits_CUDA;
+#elif defined(__HIP_DEVICE_COMPILE__)
+using DofQuadLimits = internal::DofQuadLimits_HIP;
+#else
+using DofQuadLimits = internal::DofQuadLimits_CPU;
+#endif
+
+/// @brief Maximum number of 1D DOFs or quadrature points for the current
+/// runtime configuration of the Device (used in fallback kernels).
+///
+/// DeviceDofQuadLimits can be used in host code to query the limits for the
+/// configured device (e.g. when the user has selected GPU execution at
+/// runtime).
+///
+/// @sa For accessing the limits according to the current compiler pass, see
+/// DofQuadLimits.
+struct DeviceDofQuadLimits
+{
+   int MAX_D1D; ///< Maximum number of 1D nodal points.
+   int MAX_Q1D; ///< Maximum number of 1D quadrature points.
+   int HCURL_MAX_D1D; ///< Maximum number of 1D nodal points for H(curl).
+   int HCURL_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(curl).
+   int HDIV_MAX_D1D; ///< Maximum number of 1D nodal points for H(div).
+   int HDIV_MAX_Q1D; ///< Maximum number of 1D quadrature points for H(div).
+   int MAX_INTERP_1D; ///< Maximum number of points for use in QuadratureInterpolator.
+   int MAX_DET_1D; ///< Maximum number of points for determinant computation in QuadratureInterpolator.
+
+   /// Return a const reference to the DeviceDofQuadLimits singleton.
+   static const DeviceDofQuadLimits &Get()
+   {
+      static const DeviceDofQuadLimits dof_quad_limits;
+      return dof_quad_limits;
+   }
+
+private:
+   /// Initialize the limits depending on the configuration of the Device.
+   DeviceDofQuadLimits()
+   {
+      if (Device::Allows(Backend::CUDA_MASK)) { Populate<internal::DofQuadLimits_CUDA>(); }
+      else if (Device::Allows(Backend::HIP_MASK)) { Populate<internal::DofQuadLimits_HIP>(); }
+      else { Populate<internal::DofQuadLimits_CPU>(); }
+   }
+
+   /// @brief Set the limits using the static members of the type @a T.
+   ///
+   /// @a T should be one of DofQuadLimits_CUDA, DofQuadLimits_HIP, or
+   /// DofQuadLimits_CPU.
+   template <typename T> void Populate()
+   {
+      MAX_D1D = T::MAX_D1D;
+      MAX_Q1D = T::MAX_Q1D;
+      HCURL_MAX_D1D = T::HCURL_MAX_D1D;
+      HCURL_MAX_Q1D = T::HCURL_MAX_Q1D;
+      HDIV_MAX_D1D = T::HDIV_MAX_D1D;
+      HDIV_MAX_Q1D = T::HDIV_MAX_Q1D;
+      MAX_INTERP_1D = T::MAX_INTERP_1D;
+      MAX_DET_1D = T::MAX_DET_1D;
+   }
+};
 
 // MFEM pragma macros that can be used inside MFEM_FORALL macros.
 #define MFEM_PRAGMA(X) _Pragma(#X)
@@ -59,40 +178,27 @@ const int MAX_Q1D = 14;
 // interfaces supporting RAJA, CUDA, OpenMP, and sequential backends.
 
 // The MFEM_FORALL wrapper
-#define MFEM_FORALL(i,N,...)                             \
-   ForallWrap<1>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
+#define MFEM_FORALL(i,N,...) \
+   ForallWrap<1>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__})
 
 // MFEM_FORALL with a 2D CUDA block
-#define MFEM_FORALL_2D(i,N,X,Y,BZ,...)                   \
-   ForallWrap<2>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,BZ)
+#define MFEM_FORALL_2D(i,N,X,Y,BZ,...) \
+   ForallWrap<2>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,BZ)
 
 // MFEM_FORALL with a 3D CUDA block
-#define MFEM_FORALL_3D(i,N,X,Y,Z,...)                    \
-   ForallWrap<3>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,Z)
+#define MFEM_FORALL_3D(i,N,X,Y,Z,...) \
+   ForallWrap<3>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,Z)
 
 // MFEM_FORALL with a 3D CUDA block and grid
 // With G=0, this is the same as MFEM_FORALL_3D(i,N,X,Y,Z,...)
-#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...)             \
-   ForallWrap<3>(true,N,                                 \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__},\
-                 X,Y,Z,G)
+#define MFEM_FORALL_3D_GRID(i,N,X,Y,Z,G,...) \
+   ForallWrap<3>(true,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__},X,Y,Z,G)
 
 // MFEM_FORALL that uses the basic CPU backend when use_dev is false. See for
 // example the functions in vector.cpp, where we don't want to use the mfem
 // device for operations on small vectors.
-#define MFEM_FORALL_SWITCH(use_dev,i,N,...)              \
-   ForallWrap<1>(use_dev,N,                              \
-                 [=] MFEM_DEVICE (int i) {__VA_ARGS__},  \
-                 [&] MFEM_LAMBDA (int i) {__VA_ARGS__})
+#define MFEM_FORALL_SWITCH(use_dev,i,N,...) \
+   ForallWrap<1>(use_dev,N,[=] MFEM_HOST_DEVICE (int i) {__VA_ARGS__})
 
 
 /// OpenMP backend
@@ -554,9 +660,9 @@ struct HipWrap<3>
 
 
 /// The forall kernel body wrapper
-template <const int DIM, typename DBODY, typename HBODY>
+template <const int DIM, typename d_lambda, typename h_lambda>
 inline void ForallWrap(const bool use_dev, const int N,
-                       DBODY &&d_body, HBODY &&h_body,
+                       d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
@@ -622,6 +728,47 @@ backend_cpu:
    // handled above, e.g. OCCA_CPU with configuration 'occa-cpu,cpu', or
    // OCCA_OMP with configuration 'occa-omp,cpu'.
    for (int k = 0; k < N; k++) { h_body(k); }
+}
+
+template <const int DIM, typename lambda>
+inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+                       const int X=0, const int Y=0, const int Z=0,
+                       const int G=0)
+{
+   ForallWrap<DIM>(use_dev, N, body, body, X, Y, Z, G);
+}
+
+template<typename lambda>
+inline void forall(int N, lambda &&body) { ForallWrap<1>(true, N, body); }
+
+template<typename lambda>
+inline void forall_switch(bool use_dev, int N, lambda &&body)
+{
+   ForallWrap<1>(use_dev, N, body);
+}
+
+template<typename lambda>
+inline void forall_2D(int N, int X, int Y, lambda &&body)
+{
+   ForallWrap<2>(true, N, body, X, Y, 1);
+}
+
+template<typename lambda>
+inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+{
+   ForallWrap<2>(true, N, body, X, Y, BZ);
+}
+
+template<typename lambda>
+inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+{
+   ForallWrap<3>(true, N, body, X, Y, Z, 0);
+}
+
+template<typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+{
+   ForallWrap<3>(true, N, body, X, Y, Z, G);
 }
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,11 +48,12 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
    MFEM_VERIFY(d1d <= q1d,
                "There should be more or equal quadrature points "
                "as there are dofs");
-   MFEM_VERIFY(d1d <= MAX_D1D,
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D,
                "Maximum number of degrees of freedom in 1D reached."
                "This number can be increased globally in general/forall.hpp if "
                "device memory allows.");
-   MFEM_VERIFY(q1d <= MAX_Q1D, "Maximum quadrature points 1D reached."
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D,
+               "Maximum quadrature points 1D reached."
                "This number can be increased globally in "
                "general/forall.hpp if device memory allows.");
 }
@@ -280,9 +281,9 @@ CalcGradTSum(const tensor<double, q1d, d1d> &B,
 template <int dim, int d1d, int q1d>
 static inline MFEM_HOST_DEVICE tensor<double, d1d, d1d, d1d, dim>
 GradAllShapeFunctions(int qx, int qy, int qz,
-            const tensor<double, q1d, d1d> &B,
-            const tensor<double, q1d, d1d> &G,
-            const tensor<double, dim, dim> &invJ)
+                      const tensor<double, q1d, d1d> &B,
+                      const tensor<double, q1d, d1d> &G,
+                      const tensor<double, dim, dim> &invJ)
 {
    tensor<double, d1d, d1d, d1d, dim> dphi_dx;
    // G (x) B (x) B

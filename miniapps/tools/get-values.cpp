@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -48,7 +48,7 @@
 // with a 0-based integer index followed by the point coordinates and then the
 // field data.  A legend, appearing before the bulk data, shows the order of
 // the fields along with the number of values per field (for vector data).
-//
+
 #include "mfem.hpp"
 
 #include <fstream>
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    dc.SetPadDigitsRank(pad_digits_rank);
    dc.Load(cycle);
 
-   if (dc.Error() != DataCollection::NO_ERROR)
+   if (dc.Error() != DataCollection::No_Error)
    {
       mfem::out << "Error loading VisIt data collection: " << coll_name << endl;
       return 1;

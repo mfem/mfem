@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,7 +54,10 @@ void LinearFormExtension::Assemble()
          const auto attr = attributes.Read();
          const auto dimk = domain_integs_marker_k->Read();
          auto markers_w = markers.Write();
-         MFEM_FORALL(e, NE, markers_w[e] = dimk[attr[e]-1] == 1;);
+         mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+         {
+            markers_w[e] = dimk[attr[e]-1] == 1;
+         });
       }
 
       // Assemble the linear form
@@ -94,7 +97,10 @@ void LinearFormExtension::Assemble()
          const auto attr = bdr_attributes.Read();
          const auto attr_markers = boundary_integs_marker_k->Read();
          auto markers_w = bdr_markers.Write();
-         MFEM_FORALL(e, NBE, markers_w[e] = attr_markers[attr[e]-1] == 1;);
+         mfem::forall(NBE, [=] MFEM_HOST_DEVICE (int e)
+         {
+            markers_w[e] = attr_markers[attr[e]-1] == 1;
+         });
       }
 
       // Assemble the linear form
