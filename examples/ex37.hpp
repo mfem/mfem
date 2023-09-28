@@ -1050,24 +1050,21 @@ public:
       const double compliance = current_compliance;
       out << "(" << compliance << ", " << d << ")" << std::endl;
       int k = 0;
-      int maxit = 15;
+      int maxit = 5;
       for (; k<maxit; k++)
       {
          // update and evaluate F
          *psi = *psi_k;
          psi->Add(alpha, *direction);
-         proj();
          Eval();
-         out << "Expected c1 : " << (current_compliance - compliance) /
-             (d * alpha) << std::endl;
-         // return alpha;
 
          out << "Sufficient decrease condition: ";
          out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
-         if (current_compliance > compliance + c1*d*alpha)
+         if (current_compliance == infinity() || current_compliance > compliance + c1*d*alpha)
             // sufficient decreament condition failed
          {
             // We moved too far so that the descent direction is no more valid
+            // -> Backtracking (left half of the search interval)
             out << "Failed. alpha:" << alpha << " -> ";
             // Decrease upper bound
             U = alpha;
@@ -1078,9 +1075,6 @@ public:
          {
             out << "Success." << std::endl;
 
-            // compute gradient at the updated point
-            // Note that alpha is only selected after this
-            // So that the next direction is already evaluated
             const double current_d = (*directionalDer)(*GetGradient());
 
             out << "Direction update condition: ";
