@@ -97,6 +97,51 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 }
 
 
+TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
+{
+   constexpr int refined = 0;
+   IntegrationRules intrules(refined, Quadrature1D::GaussLegendre);
+
+   SECTION("Segment rule constructed by accessing square rule")
+   {
+      auto &quad5_ir = intrules.Get(Geometry::SQUARE, 5);
+      REQUIRE(quad5_ir.GetOrder() == 5);
+      // The segment integration rule of order 5 is lazy constructed when we get
+      // the square integration rule of order 5. Make sure its order was
+      // properly set:
+      auto &line5_ir = intrules.Get(Geometry::SEGMENT, 5);
+      REQUIRE(line5_ir.GetOrder() == 5);
+   }
+
+   SECTION("Segment rule constructed by accessing cube rule")
+   {
+      auto &hex7_ir = intrules.Get(Geometry::CUBE, 7);
+      REQUIRE(hex7_ir.GetOrder() == 7);
+      // The segment integration rule of order 7 is lazy constructed when we get
+      // the cube integration rule of order 7. Make sure its order was properly
+      // set:
+      auto &line7_ir = intrules.Get(Geometry::SEGMENT, 7);
+      REQUIRE(line7_ir.GetOrder() == 7);
+   }
+
+   SECTION("Segment and triangle rules constructed by accessing prism rule")
+   {
+      auto &prism3_ir = intrules.Get(Geometry::PRISM, 3);
+      REQUIRE(prism3_ir.GetOrder() == 3);
+      // The segment integration rule of order 3 is lazy constructed when we get
+      // the prism integration rule of order 3. Make sure its order was properly
+      // set:
+      auto &line3_ir = intrules.Get(Geometry::SEGMENT, 3);
+      REQUIRE(line3_ir.GetOrder() == 3);
+      // The triangle integration rule of order 3 is lazy constructed when we
+      // get the prism integration rule of order 3. Make sure its order was
+      // properly set:
+      auto &tri3_ir = intrules.Get(Geometry::TRIANGLE, 3);
+      REQUIRE(tri3_ir.GetOrder() == 3);
+   }
+}
+
+
 double poly2d(const IntegrationPoint &ip, int m, int n)
 {
    return pow(ip.x, m)*pow(ip.y, n);

@@ -27,7 +27,6 @@
 #include <iostream>
 #include <algorithm>
 
-
 namespace mfem
 {
 

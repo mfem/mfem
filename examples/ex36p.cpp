@@ -1,11 +1,9 @@
-//                         MFEM Example 36 - Parallel Version
-//
+//                       MFEM Example 36 - Parallel Version
 //
 // Compile with: make ex36p
 //
 // Sample runs: mpirun -np 4 ex36p -o 2
 //              mpirun -np 4 ex36p -o 2 -r 4
-//
 //
 // Description: This example code demonstrates the use of MFEM to solve the
 //              bound-constrained energy minimization problem
@@ -28,11 +26,9 @@
 //              order solutions to variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
 //
-//
 // [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
 //     preserving finite element method for pointwise bound constraints.
 //     arXiv:2307.12444 [math.NA]
-
 
 #include "mfem.hpp"
 #include <fstream>
@@ -63,7 +59,7 @@ public:
 class ExponentialGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
+   GridFunction *u;
    Coefficient *obstacle;
    double min_val;
    double max_val;
@@ -219,7 +215,6 @@ int main(int argc, char *argv[])
    ParGridFunction psi_gf(&L2fes);
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
-
 
    // 8. Define the function coefficients for the solution and use them to
    //    initialize the initial guess
