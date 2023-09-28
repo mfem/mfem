@@ -36,16 +36,6 @@ void F_exact(const Vector &p, Vector &F)
 
 enum class Space { H1, L2 };
 
-std::string SpaceName(Space space)
-{
-   switch (space)
-   {
-      case Space::H1: return "H1";
-      case Space::L2: return "L2";
-   }
-   return "";
-}
-
 TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 {
    auto space               = GENERATE(Space::H1, Space::L2);
@@ -202,8 +192,8 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 }
 
 // Generate a 4x4 Quad Mesh and interpolate point in the center of domain
-// at element boundary to test L2 projection with and without averaging.
-TEST_CASE("GSLIBInterpolateL2", "[GSLIBInterpolateL2]")
+// at element boundary. This tests L2 projection with and without averaging.
+TEST_CASE("GSLIBInterpolateL2Edge", "[GSLIBInterpolateL2Edge]")
 {
    int nex = 4;
    int mesh_order = 2;
