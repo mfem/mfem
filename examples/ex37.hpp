@@ -937,7 +937,13 @@ public:
    double Eval()
    {
       // Step 0 - Projection
-      proj();
+      bool projSuccess = proj();
+      if (!projSuccess)
+      {
+         current_compliance = infinity();
+         return current_compliance;
+         // return infinity();
+      }
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
       filterSolver->SetRHSCoefficient(rho);
@@ -1126,7 +1132,7 @@ public:
     * @param max_its Newton maximum iteration number
     * @return double Final volume, ∫_Ω sigmoid(ψ)
     */
-   void proj(double tol=1e-12, int max_its=10)
+   bool proj(double tol=1e-12, int max_its=10)
    {
       MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
       MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
@@ -1155,6 +1161,7 @@ public:
       }
       int_sigmoid_psi->Assemble();
       current_volume = int_sigmoid_psi->Sum();
+      return done;
    }
 
 
