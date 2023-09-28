@@ -1667,7 +1667,6 @@ int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
 {
    Vector vii(dim);
    vii = 0.0;
-   for (int j = 0; j < dim; j++) { vi[j] = 0.0; }
    for (int i = 0; i < plist.Size(); i++)
    {
       double *vp = vertices[plist[i]]();
