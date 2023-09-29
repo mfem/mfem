@@ -102,11 +102,18 @@ jobs:
 
     steps:
     # This external action allows to interrupt a workflow already running on
-    # the same branch to save resource
+    # the same branch to save resources.
     - name: Cancel Previous Runs
       uses: styfle/cancel-workflow-action@0.11.0
       with:
         access_token: ${{ github.token }}
+
+    # Fix 'No space left on device' errors.
+    - name: Run Actions Cleaner
+      uses: easimon/maximize-build-space@master
+      with:
+        overprovision-lvm: 'true'
+        remove-android: 'true'
 
     # Checkout MFEM in "mfem" subdirectory. Final path:
     # /home/runner/work/mfem/mfem/mfem
