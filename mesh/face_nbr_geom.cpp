@@ -16,13 +16,12 @@ namespace mfem
 {
 
 FaceNeighborGeometricFactors::FaceNeighborGeometricFactors(
-   const GeometricFactors &geom_) : geom(geom_)
+   const GeometricFactors &geom_) : num_neighbor_elems(0), geom(geom_)
 {
 #ifdef MFEM_USE_MPI
    if (const ParMesh *par_mesh = dynamic_cast<const ParMesh*>(geom.mesh))
    {
       const int flags = geom.computed_factors;
-      const int nq = geom.IntRule->Size();
       const int dim = par_mesh->Dimension();
       const int sdim = par_mesh->SpaceDimension();
 
@@ -32,24 +31,33 @@ FaceNeighborGeometricFactors::FaceNeighborGeometricFactors(
 
       if (flags & GeometricFactors::COORDINATES)
       {
-         ExchangeFaceNbrData(geom.X, X, nq*sdim);
+         ExchangeFaceNbrQVectors(geom.X, X, sdim);
       }
       if (flags & GeometricFactors::JACOBIANS)
       {
-         ExchangeFaceNbrData(geom.J, J, nq*dim*sdim);
+         ExchangeFaceNbrQVectors(geom.J, J, dim*sdim);
       }
       if (flags & GeometricFactors::DETERMINANTS)
       {
-         ExchangeFaceNbrData(geom.detJ, detJ, nq);
+         ExchangeFaceNbrQVectors(geom.detJ, detJ, 1);
       }
+
+      // Free memory of work arrays.
+      send_data.Destroy();
+      send_offsets.DeleteAll();
+      recv_offsets.DeleteAll();
    }
 #endif
 }
 
-void FaceNeighborGeometricFactors::ExchangeFaceNbrData(const Vector &x_local,
-                                                       Vector &x_shared, const int ndof_per_el)
+void FaceNeighborGeometricFactors::ExchangeFaceNbrQVectors(
+   const Vector &x_local, Vector &x_shared, const int vdim)
 {
 #ifdef MFEM_USE_MPI
+
+   const int nq = geom.IntRule->Size();
+   const int ndof_per_el = vdim * nq;
+
    const ParMesh *mesh = static_cast<const ParMesh*>(geom.mesh);
 
    const int n_face_nbr = mesh->GetNFaceNeighbors();
