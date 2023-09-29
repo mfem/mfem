@@ -732,7 +732,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
       MFEM_SHARED int pp[MD][MD];
       MFEM_SHARED double y_s[MD*MD];
-      MFEM_SHARED int jj;
+      MFEM_SHARED int jj = 0;
       MFEM_SHARED double xx_s[MD*MD*MD];
       auto xx = Reshape(xx_s, d, d, d);
 
