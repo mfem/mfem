@@ -191,12 +191,120 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
    delete c_fec;
 }
 
+// Generates meshes with different element types, followed by points at
+// element faces and interior.. then checks to see if we these points are
+// correctly detected at element boundary or not using.
+TEST_CASE("GSLIBFindAtElementBoundary",
+          "[GSLIBFindAtElementBoundary]")
+{
+   int dim  = GENERATE(2, 3);
+   CAPTURE(dim);
+   int nex = 4;
+   int mesh_order = 4;
+   int l2_order = 4;
+
+   int netype = dim == 2 ? 2 : 4; // 2 element types in 2D, 4 in 3D.
+   int estart = dim == 2 ? 2 : 4; // starts at index 2 in 2D, 4 in 3D
+
+   for (int et = estart; et < estart+netype; et++)
+   {
+      // H1 - order 1, L2 - order 0 for pyramids
+      if (et == 7)
+      {
+         mesh_order = 1;
+         l2_order = 0;
+      }
+      Mesh mesh;
+      if (dim == 2)
+      {
+         mesh = Mesh::MakeCartesian2D(nex, nex, (Element::Type)et);
+      }
+      else
+      {
+         mesh = Mesh::MakeCartesian3D(nex, nex, nex, (Element::Type)et);
+      }
+
+      mesh.SetCurvature(mesh_order);
+      const FiniteElementSpace *n_fespace = mesh.GetNodalFESpace();
+      const GridFunction *nodes = mesh.GetNodes();
+
+      Array<double> xyz;
+
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Array<int> faces,ori;
+         if (dim == 2)
+         {
+            mesh.GetElementEdges(e, faces, ori);
+         }
+         else
+         {
+            mesh.GetElementFaces(e, faces, ori);
+         }
+
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            const FiniteElement *fe = n_fespace->GetFaceElement(faces[f]);
+            const IntegrationRule ir = fe->GetNodes();
+            int nqpts = ir.GetNPoints();
+
+            DenseMatrix vals;
+            DenseMatrix tr;
+            nodes->GetFaceVectorValues(faces[f], 0, ir, vals, tr);
+            xyz.Append(vals.GetData(), vals.Height()*vals.Width());
+         }
+      }
+
+      int nptface = xyz.Size()/dim;
+
+      FiniteElementCollection *l2_fec = new L2_FECollection(l2_order, dim);
+      FiniteElementSpace l2_fespace =
+         FiniteElementSpace(&mesh, l2_fec, 1);
+      DenseMatrix vals;
+      DenseMatrix tr;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         const FiniteElement *fe = l2_fespace.GetFE(e);
+         const IntegrationRule ir = fe->GetNodes();
+         int nqpts = ir.GetNPoints();
+
+         nodes->GetVectorValues(e, ir, vals, tr);
+         xyz.Append(vals.GetData(), vals.Height()*vals.Width());
+      }
+
+      Vector xyzv(xyz.GetData(), xyz.Size());
+      int npt = xyzv.Size()/dim;
+
+      FindPointsGSLIB finder;
+      finder.Setup(mesh);
+      finder.FindPoints(xyzv, Ordering::byVDIM);
+      Array<unsigned int> code_out    = finder.GetCode();
+      unsigned int cmin = 5,
+                   cmax = 0;
+      for (int i = 0; i < nptface; i++)
+      {
+         cmin = std::min(code_out[i], cmin);
+         cmax = std::max(code_out[i], cmax);
+      }
+      REQUIRE((cmin == 1 && cmax == 1)); // should be found on element boundary
+
+      cmin = 5;
+      cmax = 0;
+      for (int i = nptface; i < npt; i++)
+      {
+         cmin = std::min(code_out[i], cmin);
+         cmax = std::max(code_out[i], cmax);
+      }
+      REQUIRE((cmin == 0 && cmax == 0)); // should be found inside element
+   }
+}
+
 // Generate a 4x4 Quad/Hex Mesh and interpolate point in the center of domain
 // at element boundary. This tests L2 projection with and without averaging.
 TEST_CASE("GSLIBInterpolateL2ElementBoundary",
           "[GSLIBInterpolateL2ElementBoundary]")
 {
-   int dim                  = GENERATE(2, 3);
+   int dim  = GENERATE(2, 3);
    CAPTURE(dim);
 
    int nex = 4;
