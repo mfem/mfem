@@ -3174,7 +3174,7 @@ protected:
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
-   IntegrationRules irs;
+   IntegrationRules irs{0, Quadrature1D::GaussLobatto};
 
    // PA extension
    Vector pa_data; // (Q, h, dot(n,J)|el0, dot(n,J)|el1)
@@ -3183,14 +3183,11 @@ protected:
 
 public:
    DGDiffusionIntegrator(const double s, const double k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k), irs(0,
-                                                   Quadrature1D::GaussLobatto) { }
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k), irs(0,
-                                                 Quadrature1D::GaussLobatto) { }
+      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k), irs(0,
-                                                 Quadrature1D::GaussLobatto) { }
+      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
