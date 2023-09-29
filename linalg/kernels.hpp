@@ -406,6 +406,10 @@ void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
    }
 }
 
+/// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
+template<int HEIGHT, int WIDTH> MFEM_HOST_DEVICE
+void CalcLeftInverse(const double *data, double *left_inv);
+
 /// Compute the spectrum of the matrix of size dim with given @a data, returning
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
@@ -1062,6 +1066,41 @@ int Reduce3S(const int &mode,
 
 } // namespace kernels::internal
 
+// Implementations of CalcLeftInverse for dim = 1, 2.
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<2,1>(const double *d, double *left_inv)
+{
+   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,1>(const double *d, double *left_inv)
+{
+   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+   left_inv[2] = d[2] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,2>(const double *d, double *left_inv)
+{
+   double e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+   double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+   double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+   const double t = 1.0 / (e*g - f*f);
+   e *= t; g *= t; f *= t;
+
+   left_inv[0] = d[0]*g - d[3]*f;
+   left_inv[1] = d[3]*e - d[0]*f;
+   left_inv[2] = d[1]*g - d[4]*f;
+   left_inv[3] = d[4]*e - d[1]*f;
+   left_inv[4] = d[2]*g - d[5]*f;
+   left_inv[5] = d[5]*e - d[2]*f;
+}
 
 // Implementations of CalcEigenvalues and CalcSingularvalue for dim = 2, 3.
 

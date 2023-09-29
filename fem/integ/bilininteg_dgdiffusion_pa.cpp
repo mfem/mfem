@@ -540,8 +540,8 @@ void PADGDiffusionApply2D(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    auto B_ = Reshape(b.Read(), Q1D, D1D);
    auto G_ = Reshape(g.Read(), Q1D, D1D);
@@ -557,8 +557,8 @@ void PADGDiffusionApply2D(const int NF,
 
    mfem::forall_2D(NF, NBX, 2, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED double u0[max_D1D];
       MFEM_SHARED double u1[max_D1D];
@@ -719,8 +719,8 @@ static void PADGDiffusionApply3D(const int NF,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    auto B_ = Reshape(b.Read(), Q1D, D1D);
    auto G_ = Reshape(g.Read(), Q1D, D1D);
@@ -737,8 +737,8 @@ static void PADGDiffusionApply3D(const int NF,
 
    mfem::forall_3D(NF, NBX, NBX, 2, [=] MFEM_HOST_DEVICE (int f) -> void
    {
-      constexpr int max_D1D = T_D1D ? T_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       MFEM_SHARED double u0[max_Q1D][max_Q1D];
       MFEM_SHARED double u1[max_Q1D][max_Q1D];

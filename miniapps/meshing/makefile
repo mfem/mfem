@@ -28,7 +28,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	mesh-quality
-PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting
+PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -62,11 +62,11 @@ lib-common:
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh icf.mesh jagged.mesh\
- square01.mesh stretched2D.mesh
+MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
+jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh 
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer pmesh-fitting: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif
@@ -92,6 +92,8 @@ mesh-quality-test-seq: mesh-quality
 	@$(call mfem-test,$<,, Mesh quality miniapp)
 pmesh-fitting-test-par: pmesh-fitting
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
+fit-node-position-test-par: fit-node-position
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel position fitting miniapp)
 minimal-surface-test-seq: minimal-surface
 	@$(call mfem-test,$<,, Meshing miniapp)
 pminimal-surface-test-par: pminimal-surface
@@ -117,7 +119,7 @@ clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid twist
 	rm -f mesh-explorer shaper extruder trimmer reflector
 	rm -f mesh-optimizer pmesh-optimizer pmesh-fitting polar-nc
-	rm -f minimal-surface pminimal-surface mesh-quality
+	rm -f minimal-surface pminimal-surface mesh-quality fit-node-position
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
