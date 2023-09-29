@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "solution\n" << *mesh << dudt_gf;
+         sout << "solution\n" << *mesh << u_gf;
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
