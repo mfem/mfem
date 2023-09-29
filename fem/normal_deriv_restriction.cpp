@@ -22,7 +22,7 @@ namespace mfem
 static void NormalDerivativeSetupFaceIndexMap2D(
    int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
 {
-   auto f2e = Reshape(face_to_elem.HostRead(), 2, 2, nf);
+   const auto f2e = Reshape(face_to_elem.HostRead(), 2, 2, nf);
    auto f2v = Reshape(face_to_vol.HostWrite(), d, 2, nf);
 
    for (int f = 0; f < nf; ++f)
@@ -58,7 +58,7 @@ static void NormalDerivativeSetupFaceIndexMap2D(
 static void NormalDerivativeSetupFaceIndexMap3D(
    int nf, int d, const Array<int>& face_to_elem, Array<int>& face_to_vol)
 {
-   auto f2e = Reshape(face_to_elem.HostRead(), 2, 3, nf);
+   const auto f2e = Reshape(face_to_elem.HostRead(), 2, 3, nf);
    auto f2v = Reshape(face_to_vol.HostWrite(), d*d, 2, nf);
 
    for (int f = 0; f < nf; ++f)
@@ -315,8 +315,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose(
 template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 {
-   constexpr int MD = (T_D1D) ? T_D1D : MAX_D1D;
-
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
 
@@ -364,6 +362,8 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 
    mfem::forall_2D(nf, 2, q, [=] MFEM_HOST_DEVICE (int f) -> void
    {
+      constexpr int MD = (T_D1D) ? T_D1D : DofQuadLimits::MAX_D1D;
+
       MFEM_SHARED double G_s[MD*MD];
       DeviceMatrix G(G_s, q, d);
 
@@ -442,8 +442,6 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
 template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 {
-   static constexpr int MD = T_D1D ? T_D1D : MAX_D1D;
-
    int ne_shared = 0;
    const double *face_nbr_data = nullptr;
 
@@ -489,6 +487,8 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
 
    mfem::forall_2D(nf, q2d, 2, [=] MFEM_HOST_DEVICE (int f) -> void
    {
+      static constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+
       MFEM_SHARED double G_s[MD*MD];
       DeviceMatrix G(G_s, d, q);
 
@@ -583,8 +583,6 @@ template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
    const Vector &y, Vector &x, const double a) const
 {
-   constexpr int MD = T_D1D ? T_D1D : MAX_D1D;
-
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
@@ -599,8 +597,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
 
    // entries of e2f: (el,f0,f1,f2,f3,s0,s1,s2,s3)
    auto e2f = Reshape(elem_to_face.Read(), 9, ne_type);
-   // entries of f2e: (el0, el1, fid0, fid1)
-   auto f2e = Reshape(face_to_elem.Read(), 2, 2, nf);
 
    auto f2v = Reshape(face_to_vol.Read(), d, 2, nf);
 
@@ -611,6 +607,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
 
    mfem::forall_2D(ne_type, d, d, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+
       MFEM_SHARED double y_s[MD];
       MFEM_SHARED int pp[MD];
       MFEM_SHARED double jj;
@@ -703,8 +701,6 @@ template <int T_D1D>
 void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
    const Vector &y, Vector &x, const double a) const
 {
-   static constexpr int MD = T_D1D ? T_D1D : MAX_D1D;
-
    const int vd = fes.GetVDim();
    const bool t = fes.GetOrdering() == Ordering::byVDIM;
 
@@ -724,8 +720,6 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
    // (el, f0,f1,f2,f3,f4,f5, s0,s1,s2,s3,s4,s5)
    auto e2f = Reshape(elem_to_face.Read(), 13, ne_type);
-   // (el0, el1, fid0, fid1, or0, or1)
-   auto f2e = Reshape(face_to_elem.Read(), 2, 3, nf);
 
    auto f2v = Reshape(face_to_vol.Read(), q2d, 2, nf);
 
@@ -734,6 +728,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
    mfem::forall_2D(ne_type, q, q, [=] MFEM_HOST_DEVICE (int e) -> void
    {
+      static constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+
       MFEM_SHARED int pp[MD][MD];
       MFEM_SHARED double y_s[MD*MD];
       MFEM_SHARED int jj;

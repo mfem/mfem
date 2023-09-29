@@ -89,6 +89,7 @@ set(SRCS
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
+  kdtree.cpp
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
@@ -201,6 +202,7 @@ set(HDRS
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
   ceed/solvers/solvers-atpmg.hpp
+  kdtree.hpp
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp

@@ -122,8 +122,8 @@ void multidomain_test_2d(FECType fec_type)
    auto domain_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
                                                       domain1);
 
-   auto boundary_submesh = ParSubMesh::CreateFromDomain(parent_mesh,
-                                                        boundary1);
+   auto boundary_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
+                                                          boundary1);
 
    FiniteElementCollection *fec = create_fec(fec_type, p, parent_mesh.Dimension());
 
@@ -135,8 +135,8 @@ void multidomain_test_2d(FECType fec_type)
    ParGridFunction domain1_gf(&domain1_fes);
    ParGridFunction domain1_gf_ex(&domain1_fes);
 
-   FiniteElementCollection *surface_fec = create_fec(fec_type, p,
-                                                     domain_submesh.Dimension());
+   FiniteElementCollection *surface_fec
+      = create_fec(fec_type, p, boundary_submesh.Dimension());
    ParFiniteElementSpace boundary1_fes(&boundary_submesh, surface_fec);
    ParGridFunction boundary1_gf(&boundary1_fes);
    ParGridFunction boundary1_gf_ex(&boundary1_fes);
