@@ -3421,7 +3421,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
-   int dim, ndof1, ndof2, ndofs;
+   int ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
    double w, wq = 0.0;
 
