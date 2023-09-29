@@ -694,7 +694,7 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [CUDA]")
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(M_PI);
+   ConstantCoefficient pi(3.14159);
 
    const double sigma = -1.0;
    const double kappa = 10.0;
@@ -753,7 +753,7 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][CUDA]")
    ParGridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(M_PI);
+   ConstantCoefficient pi(3.14159);
 
    const double sigma = -1.0;
    const double kappa = 20.0;
