@@ -52,7 +52,7 @@ static void Det1D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0>
+template<int T_D1D = 0, int T_Q1D = 0>
 static void Det2D(const int NE,
                   const double *b,
                   const double *g,
@@ -75,8 +75,8 @@ static void Det2D(const int NE,
 
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -103,8 +103,7 @@ static void Det2D(const int NE,
    });
 }
 
-template<int T_D1D = 0, int T_Q1D = 0, int MAX_D1D = 0, int MAX_Q1D = 0,
-         bool SMEM = true>
+template<int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
 static void Det3D(const int NE,
                   const double *b,
                   const double *g,
@@ -116,10 +115,6 @@ static void Det3D(const int NE,
                   Vector *d_buff = nullptr) // used only with SMEM = false
 {
    constexpr int DIM = 3;
-   static constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-   static constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
-   static constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-   static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
    static constexpr int GRID = SMEM ? 0 : 128;
 
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -133,12 +128,24 @@ static void Det3D(const int NE,
    double *GM = nullptr;
    if (!SMEM)
    {
-      d_buff->SetSize(2*MSZ*GRID);
+      const DeviceDofQuadLimits &limits = DeviceDofQuadLimits::Get();
+      const int max_q1d = T_Q1D ? T_Q1D : limits.MAX_D1D;
+      const int max_d1d = T_D1D ? T_D1D : limits.MAX_Q1D;
+      const int max_qd = std::max(max_q1d, max_d1d);
+      const int mem_size = max_qd * max_qd * max_qd * 9;
+      d_buff->SetSize(2*mem_size*GRID);
       GM = d_buff->Write();
    }
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
+      static constexpr int MQ1 = T_Q1D ? T_Q1D :
+                                 (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_D1D);
+      static constexpr int MD1 = T_D1D ? T_D1D :
+                                 (SMEM ? DofQuadLimits::MAX_DET_1D : DofQuadLimits::MAX_Q1D);
+      static constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
+      static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
+
       const int bid = MFEM_BLOCK_ID(x);
       MFEM_SHARED double BG[2][MQ1*MD1];
       MFEM_SHARED double SM0[SMEM?MSZ:1];
@@ -194,10 +201,12 @@ void TensorDeterminants(const int NE,
 
    if (dim == 1)
    {
-      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
+                  "Orders higher than " << DeviceDofQuadLimits::Get().MAX_D1D-1
                   << " are not supported!");
-      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
-                  << MAX_Q1D << " 1D points are not supported!");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+                  "Quadrature rules with more than "
+                  << DeviceDofQuadLimits::Get().MAX_Q1D << " 1D points are not supported!");
       Det1D(NE, G, X, Y, D1D, Q1D);
       return;
    }
@@ -216,13 +225,13 @@ void TensorDeterminants(const int NE,
          case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Det2D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D);
+            Det2D(NE,B,G,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
@@ -237,13 +246,13 @@ void TensorDeterminants(const int NE,
          case 0x336: return Det3D<3,6>(NE,B,G,X,Y);
          default:
          {
-            constexpr int MD = 6;
-            constexpr int MQ = 6;
+            const int MD = DeviceDofQuadLimits::Get().MAX_DET_1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
             // Highest orders that fit in shared memory
             if (D1D <= MD && Q1D <= MQ)
-            { return Det3D<0,0,MD,MQ>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+            { return Det3D<0,0,true>(NE,B,G,X,Y,vdim,D1D,Q1D); }
             // Last fall-back will use global memory
-            return Det3D<0,0,MAX_D1D,MAX_Q1D,false>(
+            return Det3D<0,0,false>(
                       NE,B,G,X,Y,vdim,D1D,Q1D,&d_buff);
          }
       }

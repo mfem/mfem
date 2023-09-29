@@ -4300,7 +4300,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    }
 
    // Cases when integration is not over the target element, or when the
-   // targets don't contain volumetric iniformation.
+   // targets don't contain volumetric information.
    if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
    {
       lim_energy = fes->GetNE();
