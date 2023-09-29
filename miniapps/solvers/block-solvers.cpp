@@ -180,6 +180,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
 
    Bform_ = make_shared<ParMixedBilinearForm>(u_fes, p_fes);
    Bform_->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+   Bform_->ComputeElementMatrices();
    Bform_->Assemble();
    Bform_->SpMat() *= -1.0;
    Bform_->Finalize();

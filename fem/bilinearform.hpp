@@ -730,6 +730,7 @@ protected:
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
    DenseMatrix elemmat;
+   DenseTensor *element_matrices; ///< Owned.
    Array<int>  trial_vdofs, test_vdofs;
 
 private:
@@ -878,7 +879,18 @@ public:
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
 
+   /// Compute and store internally all element matrices.
+   void ComputeElementMatrices();
+
+   /// Free the memory used by the element matrices.
+   void FreeElementMatrices()
+   { delete element_matrices; element_matrices = NULL; }
+
    /// Compute the element matrix of the given element
+   /** The element matrix is computed by calling the domain integrators
+       or the one stored internally by a prior call of ComputeElementMatrices()
+       is returned when available.
+   */
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
 
    /// Compute the boundary element matrix of the given boundary element
