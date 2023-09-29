@@ -856,9 +856,9 @@ std::unique_ptr<SparseMatrix>>
    {
       J[jcol] = r_and_mlh.first->GetJ()[jcol];
    }
-   r_and_mlh.second = std::unique_ptr<SparseMatrix>(new SparseMatrix(
-                                                       I, J, NULL,
-                                                       r_and_mlh.first->Height(), r_and_mlh.first->Width(), true, true, true));
+   r_and_mlh.second = std::unique_ptr<SparseMatrix>(
+                         new SparseMatrix(I, J, NULL, r_and_mlh.first->Height(),
+                                          r_and_mlh.first->Width(), true, true, true));
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
@@ -1095,7 +1095,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    double* data = Memory<double>(dof_dofI[ndof_lor]);
 
    std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
-                                            dof_dofI, dof_dofJ, data, ndof_lor, ndof_ho, true, true, true));
+                                            dof_dofI, dof_dofJ, data, ndof_lor,
+                                            ndof_ho, true, true, true));
    (*R_local) = 0.0;
 
    dof_lor_dof_ho.LoseData();

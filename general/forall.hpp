@@ -102,7 +102,7 @@ using DofQuadLimits = internal::DofQuadLimits_CPU;
 /// runtime configuration of the Device (used in fallback kernels).
 ///
 /// DeviceDofQuadLimits can be used in host code to query the limits for the
-/// configured device (e.g. when the user has selected GPU executation at
+/// configured device (e.g. when the user has selected GPU execution at
 /// runtime).
 ///
 /// @sa For accessing the limits according to the current compiler pass, see
