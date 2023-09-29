@@ -127,7 +127,7 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
 {
    auto op = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
    elem_restr = dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(elem_restr != NULL, "Missing element restriciton.");
+   MFEM_VERIFY(elem_restr != NULL, "Missing element restriction.");
 
    const auto *rt_fec = dynamic_cast<const RT_FECollection*>(fes.FEColl());
    MFEM_VERIFY(rt_fec, "Must be RT finite element space.");

@@ -135,6 +135,7 @@ The MFEM source code has the following structure:
   │   ├── adjoint
   │   ├── autodiff
   │   ├── common
+  │   ├── dpg
   │   ├── electromagnetics
   │   ├── gslib
   │   ├── hdiv-linear-solver
@@ -148,6 +149,7 @@ The MFEM source code has the following structure:
   │   ├── performance
   │   ├── shifted
   │   ├── solvers
+  │   ├── spde
   │   ├── tools
   │   └── toys
   └── tests
