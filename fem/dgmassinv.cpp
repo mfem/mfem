@@ -170,17 +170,15 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
    mfem::forall_2D(NE, NB, NB, [=] MFEM_HOST_DEVICE (int e)
    {
-      static constexpr int MAX_D1D = DofQuadLimits::MAX_D1D;
-
       // Perform change of basis if needed
       if (CHANGE_BASIS)
       {
          // Transform RHS
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_Bt, b_orig, b2, d1d);
          if (IT_MODE)
          {
             // Transform initial guess
-            DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, d2q_B, u, u, d1d);
+            DGMassBasis<DIM,D1D>(e, NE, d2q_B, u, u, d1d);
          }
       }
 
@@ -257,7 +255,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
       if (CHANGE_BASIS)
       {
-         DGMassBasis<DIM,D1D,MAX_D1D>(e, NE, q2d_B, u, u, d1d);
+         DGMassBasis<DIM,D1D>(e, NE, q2d_B, u, u, d1d);
       }
    });
 }

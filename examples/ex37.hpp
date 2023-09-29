@@ -1,6 +1,4 @@
 //                  MFEM Example 37 - Serial/Parallel Shared Code
-//
-//
 
 #include "mfem.hpp"
 #include <fstream>
@@ -10,10 +8,7 @@
 namespace mfem
 {
 
-/**
- * @brief Inverse sigmoid function
- *
- */
+/// @brief Inverse sigmoid function
 double inv_sigmoid(double x)
 {
    double tol = 1e-12;
@@ -21,10 +16,7 @@ double inv_sigmoid(double x)
    return std::log(x/(1.0-x));
 }
 
-/**
- * @brief Sigmoid function
- *
- */
+/// @brief Sigmoid function
 double sigmoid(double x)
 {
    if (x >= 0)
@@ -37,21 +29,14 @@ double sigmoid(double x)
    }
 }
 
-/**
- * @brief Derivative of sigmoid function
- *
- */
+/// @brief Derivative of sigmoid function
 double der_sigmoid(double x)
 {
    double tmp = sigmoid(-x);
    return tmp - std::pow(tmp,2);
 }
 
-
-/**
- * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
- *
- */
+/// @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
 class MappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
 protected:
@@ -76,10 +61,7 @@ public:
 };
 
 
-/**
- * @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R
- *
- */
+/// @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R
 class DiffMappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
 protected:
@@ -111,14 +93,11 @@ public:
    void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
 };
 
-/**
- * @brief Solid isotropic material penalization (SIMP) coefficient
- *
- */
+/// @brief Solid isotropic material penalization (SIMP) coefficient
 class SIMPInterpolationCoefficient : public Coefficient
 {
 protected:
-   GridFunction *rho_filter; // grid function
+   GridFunction *rho_filter;
    double min_val;
    double max_val;
    double exponent;
@@ -138,10 +117,7 @@ public:
 };
 
 
-/**
- * @brief Strain energy density coefficient
- *
- */
+/// @brief Strain energy density coefficient
 class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
@@ -187,10 +163,7 @@ public:
    }
 };
 
-/**
- * @brief Volumetric force for linear elasticity
- *
- */
+/// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
@@ -200,6 +173,8 @@ private:
 public:
    VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
       VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
+
+   using VectorCoefficient::Eval;
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
@@ -396,9 +371,8 @@ public:
 
 };
 
-// -----------------------------------------------------------------------
-// --------------------      Poisson solver     --------------------------
-// -----------------------------------------------------------------------
+
+// Poisson solver
 
 DiffusionSolver::DiffusionSolver(Mesh * mesh_, int order_,
                                  Coefficient * diffcf_, Coefficient * rhscf_)
@@ -589,10 +563,7 @@ DiffusionSolver::~DiffusionSolver()
 }
 
 
-
-// -----------------------------------------------------------------------
-// ------------------      Elasticity solver     -------------------------
-// -----------------------------------------------------------------------
+// Elasticity solver
 
 LinearElasticitySolver::LinearElasticitySolver(Mesh * mesh_, int order_,
                                                Coefficient * lambda_cf_, Coefficient * mu_cf_)
@@ -772,4 +743,6 @@ LinearElasticitySolver::~LinearElasticitySolver()
    delete fec; fec = nullptr;
    delete b;
 }
-}
+
+} // namespace mfem
+

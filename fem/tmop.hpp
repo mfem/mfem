@@ -2009,7 +2009,7 @@ public:
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
-   /// By default integratioin is performed over the target elements.
+   /// By default integration is performed over the target elements.
    void IntegrateOverTarget(bool integ_over_target_)
    {
       MFEM_VERIFY(metric_normal == 1.0 && lim_normal == 1.0,

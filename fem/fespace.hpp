@@ -214,7 +214,7 @@ class FaceQuadratureInterpolator;
     @par
     Clearly the notion of a @b vdof is relevant in each of the three contexts
     mentioned above so extra care must be taken whenever @b vdim != 1 to ensure
-    that the @b edof, @b ldof, or @b tdof is being interpretted correctly.
+    that the @b edof, @b ldof, or @b tdof is being interpreted correctly.
  */
 class FiniteElementSpace
 {
@@ -927,7 +927,7 @@ public:
    /// changed in the forward mappings by passing a value for @a ndofs which
    /// differs from that returned by GetNDofs().
    ///
-   /// @note Thse methods, with the exception of VDofToDof(), are designed to
+   /// @note These methods, with the exception of VDofToDof(), are designed to
    /// produce the correctly encoded values when dof entries are negative,
    /// see @ref ldof for more on negative dof indices.
    ///
