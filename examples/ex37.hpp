@@ -1012,10 +1012,10 @@ public:
       *psi_k = *psi;
       *direction = *GetGradient();
       direction->Neg();
-      for (int i=0; i<direction->Size(); i++)
-      {
-         (*direction)[i] *= !(fabs((*psi)[i]) > 1e04 && (*psi)[i]*(*direction)[i] > 0);
-      }
+      // for (int i=0; i<direction->Size(); i++)
+      // {
+      //    (*direction)[i] *= !(fabs((*psi)[i]) > 1e06 && (*psi)[i]*(*direction)[i] > 0);
+      // }
 
       // Measure the downhill slope using Naïve L2 inner product
       //
@@ -1025,23 +1025,23 @@ public:
       // Measure the downhill slope using weighted inner product,
       // <d, grad>_w = (d, sigmoid'(ψ_k) grad)
       //
-      // MappedGridFunctionCoefficient der_sigmoid_psi(psi_k, der_sigmoid);
-      // GridFunctionCoefficient direction_cf(direction);
-      // ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi);
-      // directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
-      //                                        der_sigmoid_diff_psi));
+      MappedGridFunctionCoefficient der_sigmoid_psi(psi_k, der_sigmoid);
+      GridFunctionCoefficient direction_cf(direction);
+      ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi);
+      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
+                                             der_sigmoid_diff_psi));
       
       // Measure the downhill slope using change of rho for given direction
       // ρ = sigmoid(sigmoid⁻¹(ρ_k) + α d) = sigmoid(ψ)
       // -> α d̃ = dρ/dd = α sigmoid'(ψ) d 
       // <d̃, \tilde(grad)> = <sigmoid'(ψ_k) d, sigmoid'(ψ) grad>
       //
-      MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
-      MappedGridFunctionCoefficient der_sigmoid_psi_k(psi_k, der_sigmoid);
-      GridFunctionCoefficient direction_cf(direction);
-      auto double_der_sigmoid = ProductCoefficient(der_sigmoid_psi, der_sigmoid_psi_k);
-      auto directional = ProductCoefficient(double_der_sigmoid, direction_cf);
-      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(directional));
+      // MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
+      // MappedGridFunctionCoefficient der_sigmoid_psi_k(psi_k, der_sigmoid);
+      // GridFunctionCoefficient direction_cf(direction);
+      // auto double_der_sigmoid = ProductCoefficient(der_sigmoid_psi, der_sigmoid_psi_k);
+      // auto directional = ProductCoefficient(double_der_sigmoid, direction_cf);
+      // directionalDer->AddDomainIntegrator(new DomainLFIntegrator(directional));
 
       directionalDer->Assemble();
 
