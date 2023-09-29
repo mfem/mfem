@@ -611,7 +611,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
 
       MFEM_SHARED double y_s[MD];
       MFEM_SHARED int pp[MD];
-      MFEM_SHARED double jj;
+      MFEM_SHARED int jj = 0;
       MFEM_SHARED double BG[MD*MD];
       DeviceMatrix G(BG, q, d);
 
