@@ -108,8 +108,9 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      # Fix 'No space left on device' errors.
+      # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
+        if: matrix.os == 'ubuntu-latest'
         uses: easimon/maximize-build-space@master
         with:
           overprovision-lvm: 'true'
