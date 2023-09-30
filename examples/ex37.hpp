@@ -936,14 +936,6 @@ public:
 
    double Eval()
    {
-      // Step 0 - Projection
-      bool projSuccess = proj();
-      if (!projSuccess)
-      {
-         current_compliance = infinity();
-         return current_compliance;
-         // return infinity();
-      }
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
       filterSolver->SetRHSCoefficient(rho);
@@ -1010,6 +1002,7 @@ public:
       GridFunction *direction = newGridFunction(control_fes);
       LinearForm *directionalDer = newLinearForm(control_fes);
       *psi_k = *psi;
+      Eval();
       *direction = *GetGradient();
       direction->Neg();
       // for (int i=0; i<direction->Size(); i++)
@@ -1030,10 +1023,10 @@ public:
       ProductCoefficient der_sigmoid_diff_psi(direction_cf, der_sigmoid_psi);
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
                                              der_sigmoid_diff_psi));
-      
+
       // Measure the downhill slope using change of rho for given direction
       // ρ = sigmoid(sigmoid⁻¹(ρ_k) + α d) = sigmoid(ψ)
-      // -> α d̃ = dρ/dd = α sigmoid'(ψ) d 
+      // -> α d̃ = dρ/dd = α sigmoid'(ψ) d
       // <d̃, \tilde(grad)> = <sigmoid'(ψ_k) d, sigmoid'(ψ) grad>
       //
       // MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
@@ -1060,7 +1053,8 @@ public:
 
          out << "Sufficient decrease condition: ";
          out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
-         if (current_compliance == infinity() || current_compliance > compliance + c1*d*alpha)
+         if (current_compliance == infinity() ||
+             current_compliance > compliance + c1*d*alpha)
             // sufficient decreament condition failed
          {
             // We moved too far so that the descent direction is no more valid
@@ -1095,6 +1089,8 @@ public:
             }
          }
       }
+      proj();
+      Eval();
       out << "The number of eval: " << k << std::endl;
       delete psi_k;
       delete direction;
