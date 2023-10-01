@@ -348,8 +348,7 @@ class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = 0.5 |J|^2 / det(J) - 1.
@@ -432,11 +431,9 @@ public:
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-   //   { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) const;
-   //   { MFEM_ABORT("Not implemented"); }
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -521,8 +518,7 @@ class TMOP_Metric_058 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 
 public:
@@ -539,25 +535,6 @@ public:
 
    virtual void ComputeH(const DenseMatrix &Jpt) const;
 };
-
-///// 2D barrier shape (S) metric (not polyconvex).
-//class TMOP_Metric_058L : public TMOP_QualityMetric
-//{
-//protected:
-//   mutable InvariantsEvaluator2D<double> ie;
-//    mutable DenseMatrix H00, H01, H10, H11;
-
-//public:
-//   // W = I1b (I1b - 2).
-//   virtual double EvalW(const DenseMatrix &Jpt) const;
-
-//   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
-
-//   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-//                          const double weight, DenseMatrix &A) const;
-
-//    virtual void ComputeH(const DenseMatrix &Jpt) const;
-//};
 
 /// 2D non-barrier Shape+Size (VS) metric.
 /// Grade - F.
@@ -587,9 +564,7 @@ class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator2D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
-
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = 0.5(det(J) - 1 / det(J))^2.
@@ -747,8 +722,7 @@ class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = 1/3 |J| |J^-1| - 1.
@@ -768,8 +742,7 @@ class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = |J|^2 |J^{-1}|^2 / 9 - 1.
@@ -793,8 +766,7 @@ class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = |J|^2 / 3 / det(J)^(2/3) - 1.
@@ -879,8 +851,7 @@ class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = (det(J) - 1)^2.
@@ -941,8 +912,7 @@ class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
    mutable InvariantsEvaluator3D<double> ie;
-   mutable DenseTensor
-   HIden; /**<Hessian associated with T=I, used for linearization. */
+   mutable DenseTensor HIden; /**<Hessian associated with T=I (linearization).*/
 
 public:
    // W = |J - J^-t|^2.
