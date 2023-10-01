@@ -192,8 +192,8 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 }
 
 // Generates meshes with different element types, followed by points at
-// element faces and interior.. then checks to see if we these points are
-// correctly detected at element boundary or not using.
+// element faces and interior.. then checks to see if these points are
+// correctly detected at element boundary or not.
 TEST_CASE("GSLIBFindAtElementBoundary",
           "[GSLIBFindAtElementBoundary]")
 {
@@ -230,6 +230,7 @@ TEST_CASE("GSLIBFindAtElementBoundary",
 
       Array<double> xyz;
 
+      // Generate points on each element's face/edge
       for (int e = 0; e < mesh.GetNE(); e++)
       {
          Array<int> faces,ori;
@@ -257,6 +258,7 @@ TEST_CASE("GSLIBFindAtElementBoundary",
 
       int nptface = xyz.Size()/dim;
 
+      // Generate points inside each element
       FiniteElementCollection *l2_fec = new L2_FECollection(l2_order, dim);
       FiniteElementSpace l2_fespace =
          FiniteElementSpace(&mesh, l2_fec, 1);
