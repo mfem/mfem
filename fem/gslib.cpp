@@ -226,7 +226,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 
    // Set the element number and reference position to 0 for points not found
-   // Set code to 1 for points found on element boundaries.
    for (int i = 0; i < points_cnt; i++)
    {
       if (gsl_code[i] == 2 ||
@@ -239,7 +238,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
-   // both simplices and quads.
+   // both simplices and quads. Also sets code to 1 for points found on element
+   // faces/edges.
    MapRefPosAndElemIndices();
 }
 
