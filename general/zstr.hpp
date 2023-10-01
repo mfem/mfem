@@ -35,6 +35,8 @@
 #ifndef __ZSTR_HPP
 #define __ZSTR_HPP
 
+#include "../config/config.hpp"
+
 #include <cassert>
 #include <fstream>
 #include <sstream>

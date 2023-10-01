@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -615,6 +615,7 @@ public:
          solFES.VectorAssemble(y_dof.layout, y_dof, solVecLayoutLoc, y);
       }
    }
+   using Operator::AddMult;
 };
 
 } // namespace mfem

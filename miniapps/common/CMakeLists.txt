@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,9 +21,11 @@ list(APPEND HDRS
 
 if (MFEM_USE_MPI)
   list(APPEND SRCS
-    pfem_extras.cpp)
+    pfem_extras.cpp
+    dist_solver.cpp)
   list(APPEND HDRS
-    pfem_extras.hpp)
+    pfem_extras.hpp
+    dist_solver.hpp)
 endif()
 
 if (MFEM_USE_CUDA)

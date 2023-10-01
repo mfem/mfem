@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,7 +23,11 @@
 #include "densemat.hpp"
 
 #if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
 #include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
 #endif
 
 
@@ -345,20 +349,21 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// y += A * x (default)  or  y += a * A * x
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   void MultTranspose(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    /// y += At * x (default)  or  y += a * At * x
    /** If the matrix is modified, call ResetTranspose() and optionally
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
        be used in the methods AddMultTranspose(), MultTranspose(), and

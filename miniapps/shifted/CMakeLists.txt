@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,13 +11,11 @@
 
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
-        dist_solver.cpp
         sbm_solver.cpp
         marking.cpp
         extrapolator.cpp
 	integ_algoim.cpp)
   list(APPEND DIST_COMMON_HEADERS
-        dist_solver.hpp
         sbm_solver.hpp
         sbm_aux.hpp
         marking.hpp

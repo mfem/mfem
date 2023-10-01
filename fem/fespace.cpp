@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -64,7 +64,7 @@ FiniteElementSpace::FiniteElementSpace()
      face_dof(NULL),
      NURBSext(NULL), own_ext(false),
      DoFTrans(0), VDoFTrans(vdim, ordering),
-     cP(NULL), cR(NULL), cR_hp(NULL), cP_is_set(false),
+     cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
 { }
@@ -123,24 +123,24 @@ void FiniteElementSpace::CopyProlongationAndRestriction(
 
    if (fes.GetConformingProlongation() != NULL)
    {
-      if (perm) { cP = Mult(*perm_mat, *fes.GetConformingProlongation()); }
-      else { cP = new SparseMatrix(*fes.GetConformingProlongation()); }
+      if (perm) { cP.reset(Mult(*perm_mat, *fes.GetConformingProlongation())); }
+      else { cP.reset(new SparseMatrix(*fes.GetConformingProlongation())); }
       cP_is_set = true;
    }
    else if (perm != NULL)
    {
-      cP = perm_mat;
+      cP.reset(perm_mat);
       cP_is_set = true;
       perm_mat = NULL;
    }
    if (fes.GetConformingRestriction() != NULL)
    {
-      if (perm) { cR = Mult(*fes.GetConformingRestriction(), *perm_mat_tr); }
-      else { cR = new SparseMatrix(*fes.GetConformingRestriction()); }
+      if (perm) { cR.reset(Mult(*fes.GetConformingRestriction(), *perm_mat_tr)); }
+      else { cR.reset(new SparseMatrix(*fes.GetConformingRestriction())); }
    }
    else if (perm != NULL)
    {
-      cR = perm_mat_tr;
+      cR.reset(perm_mat_tr);
       perm_mat_tr = NULL;
    }
 
@@ -309,6 +309,12 @@ FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
    }
 }
 
+void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
+{
+   GetPatchDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
 {
    GetFaceDofs(i, vdofs);
@@ -385,21 +391,38 @@ void FiniteElementSpace::BuildBdrElementToDofTable() const
    if (bdr_elem_dof) { return; }
 
    Table *bel_dof = new Table;
+   Table *bel_fos = (mesh->Dimension() == 3) ? (new Table) : NULL;
    Array<int> dofs;
+   int F, Fo;
    bel_dof->MakeI(mesh->GetNBE());
+   if (bel_fos) { bel_fos->MakeI(mesh->GetNBE()); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddColumnsInRow(i, dofs.Size());
+
+      if (bel_fos)
+      {
+         bel_fos->AddAColumnInRow(i);
+      }
    }
    bel_dof->MakeJ();
+   if (bel_fos) { bel_fos->MakeJ(); }
    for (int i = 0; i < mesh->GetNBE(); i++)
    {
       GetBdrElementDofs(i, dofs);
       bel_dof->AddConnections(i, (int *)dofs, dofs.Size());
+
+      if (bel_fos)
+      {
+         mesh->GetBdrElementFace(i, &F, &Fo);
+         bel_fos->AddConnection(i, Fo);
+      }
    }
    bel_dof->ShiftUpI();
+   if (bel_fos) { bel_fos->ShiftUpI(); }
    bdr_elem_dof = bel_dof;
+   bdr_elem_fos = bel_fos;
 }
 
 void FiniteElementSpace::BuildFaceToDofTable() const
@@ -937,7 +960,10 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 
    if (FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS)
    {
-      cP = cR = cR_hp = NULL; // will be treated as identities
+      cP.reset();
+      cR.reset();
+      cR_hp.reset();
+      R_transpose.reset();
       return;
    }
 
@@ -1091,12 +1117,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // if all dofs are true dofs leave cP and cR NULL
    if (n_true_dofs == ndofs)
    {
-      cP = cR = cR_hp = NULL; // will be treated as identities
+      cP.reset();
+      cR.reset();
+      cR_hp.reset();
+      R_transpose.reset();
       return;
    }
 
    // create the conforming prolongation matrix cP
-   cP = new SparseMatrix(ndofs, n_true_dofs);
+   cP.reset(new SparseMatrix(ndofs, n_true_dofs));
 
    // create the conforming restriction matrix cR
    int *cR_J;
@@ -1110,12 +1139,19 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          cR_A[i] = 1.0;
       }
       cR_I[n_true_dofs] = n_true_dofs;
-      cR = new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs);
+      cR.reset(new SparseMatrix(cR_I, cR_J, cR_A, n_true_dofs, ndofs));
    }
 
    // In var. order spaces, create the restriction matrix cR_hp which is similar
    // to cR, but has interpolation in the extra master edge/face DOFs.
-   cR_hp = IsVariableOrder() ? new SparseMatrix(n_true_dofs, ndofs) : NULL;
+   if (IsVariableOrder())
+   {
+      cR_hp.reset(new SparseMatrix(n_true_dofs, ndofs));
+   }
+   else
+   {
+      cR_hp.reset();
+   }
 
    Array<bool> finalized(ndofs);
    finalized = false;
@@ -1233,21 +1269,28 @@ const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cP;
+   return cP.get();
 }
 
 const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cR;
+   if (cR && !R_transpose) { R_transpose.reset(new TransposeOperator(*cR)); }
+   return cR.get();
 }
 
 const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
    if (!cP_is_set) { BuildConformingInterpolation(); }
-   return IsVariableOrder() ? cR_hp : cR;
+   return IsVariableOrder() ? cR_hp.get() : cR.get();
+}
+
+const Operator *FiniteElementSpace::GetRestrictionTransposeOperator() const
+{
+   GetRestrictionOperator(); // Ensure that R_transpose is built
+   return R_transpose.get();
 }
 
 int FiniteElementSpace::GetNConformingDofs() const
@@ -1290,12 +1333,12 @@ const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
 }
 
 const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
-   ElementDofOrdering e_ordering, FaceType type, L2FaceValues mul) const
+   ElementDofOrdering f_ordering, FaceType type, L2FaceValues mul) const
 {
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, e_ordering, type, m);
+   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
@@ -1308,16 +1351,16 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, e_ordering, type, m);
+            res = new L2FaceRestriction(*this, f_ordering, type, m);
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, e_ordering, type, m);
+            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
          }
       }
       else
       {
-         res = new H1FaceRestriction(*this, e_ordering, type);
+         res = new ConformingFaceRestriction(*this, f_ordering, type);
       }
       L2F[key] = res;
       return res;
@@ -1542,6 +1585,10 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
 {
    delete old_elem_dof;
    delete old_elem_fos;
+   for (int i=0; i<old_DoFTrans.Size(); i++)
+   {
+      delete old_DoFTrans[i];
+   }
 }
 
 void FiniteElementSpace::RefinementOperator
@@ -1958,7 +2005,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          DenseMatrix &lM = localM[g](mi[s]);
          DenseMatrix &lR = localR[g](lR_offset+s);
          MultAtB(lP, lM, lR); // lR = lP^T lM
-         AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
+         mfem::AddMult(lR, lP, lPtMP); // lPtMP += lP^T lM lP
       }
       DenseMatrixInverse lPtMP_inv(lPtMP);
       for (int s = 0; s < nm; s++)
@@ -2005,7 +2052,7 @@ void FiniteElementSpace::DerefinementOperator
          x.GetSubVector(f_vdofs, loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
-         AddMult(lR, loc_x_mat, loc_y_mat);
+         mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
       y.SetSubVector(c_vdofs, loc_y);
    }
@@ -2056,10 +2103,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       GetLocalDerefinementMatrices(elem_geoms[i], localR[elem_geoms[i]]);
    }
 
-   SparseMatrix *R = (elem_geoms.Size() != 1)
-                     ? new SparseMatrix(ndofs*vdim, old_ndofs*vdim) // variable row size
-                     : new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
-                                        localR[elem_geoms[0]].SizeI());
+   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
 
    Array<int> mark(R->Height());
    mark = 0;
@@ -2069,6 +2113,7 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(dtrans.embeddings.Size() == old_elem_dof->Size(), "");
 
+   bool is_dg = FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS;
    int num_marked = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
@@ -2091,10 +2136,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
 
-            if (!mark[m])
+            if (is_dg || !mark[m])
             {
                lR.GetRow(i, row);
                R->SetRow(r, old_vdofs, row);
+
                mark[m] = 1;
                num_marked++;
             }
@@ -2102,8 +2148,11 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
       }
    }
 
-   MFEM_VERIFY(num_marked == R->Height(),
-               "internal error: not all rows of R were set.");
+   if (!is_dg)
+   {
+      MFEM_VERIFY(num_marked == R->Height(),
+                  "internal error: not all rows of R were set.");
+   }
 
    R->Finalize(); // no-op if fixed width
    return R;
@@ -2172,7 +2221,10 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
          own_ext = 1;
       }
       UpdateNURBS();
-      cP = cR = cR_hp = NULL;
+      cP.reset();
+      cR.reset();
+      cR_hp.reset();
+      R_transpose.reset();
       cP_is_set = false;
 
       ConstructDoFTrans();
@@ -2334,6 +2386,7 @@ void FiniteElementSpace::Construct()
    cR = NULL;
    cR_hp = NULL;
    cP_is_set = false;
+   R_transpose = NULL;
    // 'Th' is initialized/destroyed before this method is called.
 
    int dim = mesh->Dimension();
@@ -2778,11 +2831,24 @@ FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs) const
    return DoFTrans[mesh->GetElementBaseGeometry(elem)];
 }
 
+void FiniteElementSpace::GetPatchDofs(int patch, Array<int> &dofs) const
+{
+   MFEM_ASSERT(NURBSext,
+               "FiniteElementSpace::GetPatchDofs needs a NURBSExtension");
+   NURBSext->GetPatchDofs(patch, dofs);
+}
+
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
-   if (i < 0 || !mesh->GetNE()) { return NULL; }
-   MFEM_VERIFY(i < mesh->GetNE(),
-               "Invalid element id " << i << ", maximum allowed " << mesh->GetNE()-1);
+   if (i < 0 || i >= mesh->GetNE())
+   {
+      if (mesh->GetNE() == 0)
+      {
+         MFEM_ABORT("Empty MPI partitions are not permitted!");
+      }
+      MFEM_ABORT("Invalid element id:" << i << "; minimum allowed:" << 0 <<
+                 ", maximum allowed:" << mesh->GetNE()-1);
+   }
 
    const FiniteElement *FE =
       fec->GetFE(mesh->GetElementGeometry(i), GetElementOrderImpl(i));
@@ -3145,7 +3211,7 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceBaseGeometry(i));
+         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
    }
 
    if (NURBSext)
@@ -3182,9 +3248,10 @@ FiniteElementSpace::~FiniteElementSpace()
 
 void FiniteElementSpace::Destroy()
 {
-   delete cR;
-   delete cR_hp;
-   delete cP;
+   R_transpose.reset();
+   cR.reset();
+   cR_hp.reset();
+   cP.reset();
    Th.Clear();
    L2E_nat.Clear();
    L2E_lex.Clear();
@@ -3197,6 +3264,7 @@ void FiniteElementSpace::Destroy()
    {
       delete x.second;
    }
+   L2F.clear();
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
@@ -3296,14 +3364,14 @@ void FiniteElementSpace::GetTrueTransferOperator(
       switch (RP_case)
       {
          case 1:
-            T.Reset(new ProductOperator(cR, T.Ptr(), false, owner));
+            T.Reset(new ProductOperator(cR.get(), T.Ptr(), false, owner));
             break;
          case 2:
             T.Reset(new ProductOperator(T.Ptr(), coarse_P, owner, false));
             break;
          case 3:
             T.Reset(new TripleProductOperator(
-                       cR, T.Ptr(), coarse_P, false, owner, false));
+                       cR.get(), T.Ptr(), coarse_P, false, owner, false));
             break;
       }
    }
@@ -3421,7 +3489,7 @@ void FiniteElementSpace::Update(bool want_transform)
             if (cP && cR)
             {
                Th.SetOperatorOwner(false);
-               Th.Reset(new TripleProductOperator(cP, cR, Th.Ptr(),
+               Th.Reset(new TripleProductOperator(cP.get(), cR.get(), Th.Ptr(),
                                                   false, false, true));
             }
             break;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -84,7 +84,7 @@ struct CoarseFineTransformations
 
    void Clear();
    bool IsInitialized() const;
-   std::size_t MemoryUsage() const;
+   long MemoryUsage() const;
 
    MFEM_DEPRECATED
    void GetCoarseToFineMap(const Mesh &fine_mesh, Table &coarse_to_fine) const
@@ -240,7 +240,7 @@ public:
       void Clear();
       bool Empty() const { return !conforming.Size() && !masters.Size(); }
       long TotalSize() const;
-      std::size_t MemoryUsage() const;
+      long MemoryUsage() const;
 
       const MeshId& LookUp(int index, int *type = NULL) const;
 
@@ -390,7 +390,7 @@ public:
    virtual void Trim();
 
    /// Return total number of bytes allocated.
-   std::size_t MemoryUsage() const;
+   long MemoryUsage() const;
 
    int PrintMemoryDetail() const;
 
@@ -420,6 +420,15 @@ protected: // implementation
    bool Iso; ///< true if the mesh only contains isotropic refinements
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
+
+   static const int MaxElemNodes =
+      8;       ///< Number of nodes of an element can have
+   static const int MaxElemEdges =
+      12;      ///< Number of edges of an element can have
+   static const int MaxElemFaces =
+      6;       ///< Number of faces of an element can have
+   static const int MaxElemChildren =
+      10;      ///< Number of children of an element can have
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using
@@ -482,8 +491,8 @@ protected: // implementation
       int attribute;
       union
       {
-         int node[8];  ///< element corners (if ref_type == 0)
-         int child[8]; ///< 2-8 children (if ref_type != 0)
+         int node[MaxElemNodes];  ///< element corners (if ref_type == 0)
+         int child[MaxElemChildren]; ///< 2-10 children (if ref_type != 0)
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free'd
 
@@ -586,6 +595,9 @@ protected: // implementation
    /// Return true if the mesh contains prism elements.
    bool HavePrisms() const { return Geoms & (1 << Geometry::PRISM); }
 
+   /// Return true if the mesh contains pyramid elements.
+   bool HavePyramids() const { return Geoms & (1 << Geometry::PYRAMID); }
+
    /// Return true if the mesh contains tetrahedral elements.
    bool HaveTets() const   { return Geoms & (1 << Geometry::TETRAHEDRON); }
 
@@ -641,6 +653,10 @@ protected: // implementation
 
    int NewTetrahedron(int n0, int n1, int n2, int n3, int attr,
                       int fattr0, int fattr1, int fattr2, int fattr3);
+
+   int NewPyramid(int n0, int n1, int n2, int n3, int n4, int attr,
+                  int fattr0, int fattr1, int fattr2, int fattr3,
+                  int fattr4);
 
    int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
@@ -845,7 +861,7 @@ protected: // implementation
    struct PointMatrix
    {
       int np;
-      Point points[8];
+      Point points[MaxElemNodes];
 
       PointMatrix() : np(0) {}
 
@@ -858,6 +874,13 @@ protected: // implementation
       PointMatrix(const Point& p0, const Point& p1, const Point& p2, const Point& p3)
       { np = 4; points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
 
+      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                  const Point& p3, const Point& p4)
+      {
+         np = 5;
+         points[0] = p0; points[1] = p1; points[2] = p2;
+         points[3] = p3; points[4] = p4;
+      }
       PointMatrix(const Point& p0, const Point& p1, const Point& p2,
                   const Point& p3, const Point& p4, const Point& p5)
       {
@@ -887,6 +910,7 @@ protected: // implementation
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_tet_identity;
    static PointMatrix pm_prism_identity;
+   static PointMatrix pm_pyramid_identity;
    static PointMatrix pm_hex_identity;
 
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
@@ -976,9 +1000,9 @@ protected: // implementation
    struct GeomInfo
    {
       int nv, ne, nf;   // number of: vertices, edges, faces
-      int edges[12][2]; // edge vertices (up to 12 edges)
-      int faces[6][4];  // face vertices (up to 6 faces)
-      int nfv[6];       // number of face vertices
+      int edges[MaxElemEdges][2]; // edge vertices (up to 12 edges)
+      int faces[MaxElemFaces][4];  // face vertices (up to 6 faces)
+      int nfv[MaxElemFaces];       // number of face vertices
 
       bool initialized;
       GeomInfo() : initialized(false) {}
