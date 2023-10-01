@@ -54,8 +54,9 @@ int main(int argc, char *argv[])
    // Check if metric linearization is enabled
    if (linear)
    {
-      MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80 ||
-                  metric_id == 77 || metric_id == 303,
+      MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 77 ||
+                  metric_id == 80 || metric_id == 302 || metric_id == 303 ||
+                  metric_id == 315 || metric_id == 321,
                   "Metric linearization is not enabled for this metric ID.");
    }
 
@@ -151,12 +152,12 @@ int main(int argc, char *argv[])
       Iden = 0.0;
       for (int d = 0; d < dim; d++) { Iden(d, d) = 1.0; }
       Pert_vec.Randomize(0);
-      Vector Pert_vec_copy = Pert_vec;
       double dxm = 1.0;
       double metric_err = 1.0,
              metric_prev_err = 1.0;
       double rate_mu_sum = 0.0;
-      for (int it = 0; it < convergence_iter; it++)
+      int it = 0;
+      for (it = 0; it < convergence_iter; it++)
       {
          metric_prev_err = metric_err;
          T = Iden;
@@ -167,6 +168,11 @@ int main(int argc, char *argv[])
          metric->DisableLinearization();
          dxm *= 0.5;
          metric_err = fabs(approx-exact);
+         if (metric_err == 0.0) {
+             std::cout << "Metric error reached 0. Stopping at iteration " <<
+                          it << endl;
+             break;
+         }
          if (verbose && it == 0)
          {
             std::cout << "metric error " << it << ": " << metric_err << endl;
@@ -182,7 +188,7 @@ int main(int argc, char *argv[])
          }
       }
       std::cout << "--- Metric Linearization:avg rate of convergence (should be 2): "
-                << rate_mu_sum / (convergence_iter - 1) << endl;
+                << rate_mu_sum / (it - 1) << endl;
       return 0.0;
    }
 

@@ -96,6 +96,8 @@
 //   2D non-conforming shape and equal size:
 //     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
 //
+//   2D Add some noise to the nodes and optimize with metric linearization enabled.
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -ji 0.1 -o 2 -mid 2 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -mulin -rs 2 -vl 2 -li 1000
 //   2D untangling:
 //     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
 //   2D untangling with shifted barrier metric:
