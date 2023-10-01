@@ -168,10 +168,11 @@ int main(int argc, char *argv[])
          metric->DisableLinearization();
          dxm *= 0.5;
          metric_err = fabs(approx-exact);
-         if (metric_err == 0.0) {
-             std::cout << "Metric error reached 0. Stopping at iteration " <<
-                          it << endl;
-             break;
+         if (metric_err == 0.0)
+         {
+            std::cout << "Metric error reached 0. Stopping at iteration " <<
+                      it << endl;
+            break;
          }
          if (verbose && it == 0)
          {
