@@ -111,7 +111,7 @@ jobs:
       # Fix 'No space left on device' errors for Ubuntu builds.
       - name: Run Actions Cleaner
         if: matrix.os == 'ubuntu-latest'
-        uses: easimon/maximize-build-space@master
+        uses: easimon/maximize-build-space@v8
         with:
           overprovision-lvm: 'true'
           remove-android: 'true'
