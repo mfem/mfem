@@ -330,11 +330,6 @@ protected:
    /// Return the length of the segment from node i to node j.
    double GetLength(int i, int j) const;
 
-   /** Compute the Jacobian of the transformation from the perfect
-       reference element at the center of the element. */
-   void GetElementJacobian(int i, DenseMatrix &J,
-                           const IntegrationPoint *ip = NULL);
-
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -982,6 +977,26 @@ public:
        Similarly, if type==Interior, only the true interior faces are counted
        excluding all master nonconforming faces. */
    virtual int GetNFbyType(FaceType type) const;
+
+   /** Compute the Jacobian of the transformation from the perfect
+       reference element at the center of the element. */
+   void GetElementJacobian(int i, DenseMatrix &J,
+                           const IntegrationPoint *ip = NULL);
+
+   /** @brief Computes geometric parameters associated with a Jacobian matrix
+       in 2D/3D. These parameters are
+       (1) Area/Volume,
+       (2) Aspect-ratio (1 in 2D, and 2 non-dimensional and 2 dimensional
+                         parameters in 3D. Dimensional parameters are used
+                         for target construction in TMOP),
+       (3) skewness (1 in 2D and 3 in 3D), and finally
+       (4) orientation (1 in 2D and 3 in 3D).
+    */
+   void GetGeometricParametersFromJacobian(const DenseMatrix &J,
+                                           double &volume,
+                                           Vector &aspr,
+                                           Vector &skew,
+                                           Vector &ori) const;
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long long ReduceInt(int value) const { return value; }

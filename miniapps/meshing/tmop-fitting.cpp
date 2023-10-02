@@ -121,6 +121,89 @@ double GetMinDet(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
    return tauval;
 }
 
+double GetWorstJacobianSkewness(DenseMatrix &J)
+{
+   double size;
+   double skew = -100000;
+   const int dim = J.Size();
+   if (dim == 2)
+   {
+      Vector col1, col2;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+
+      skew = std::atan2(J.Det(), col1 * col2);
+      skew = std::fabs(skew);
+   }
+   else
+   {
+      Vector skewv(dim);
+      Vector col1, col2, col3;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+      J.GetColumn(2, col3);
+      double len1 = col1.Norml2(),
+             len2 = col2.Norml2(),
+             len3 = col3.Norml2();
+
+      Vector col1unit = col1,
+             col2unit = col2,
+             col3unit = col3;
+      col1unit *= 1.0/len1;
+      col2unit *= 1.0/len2;
+      col3unit *= 1.0/len3;
+
+      Vector crosscol12, crosscol13, crosscol23;
+      col1.cross3D(col2, crosscol12);
+      col1.cross3D(col3, crosscol13);
+      col2.cross3D(col3, crosscol23);
+      skewv(0) = std::atan2(crosscol12.Norml2(),col1*col2);
+      skewv(1) = std::atan2(crosscol13.Norml2(),col1*col3);
+      skewv(2) = std::atan2(col1*crosscol23,crosscol12*crosscol13);
+      for (int d = 0; d < dim; d++)
+      {
+         skew = std::max(skew, std::fabs(skewv(d)));
+      }
+   }
+
+   return skew;
+}
+
+double GetWorstSkewness(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
+                        IntegrationRules *irules, int quad_order)
+{
+   double skewval = -1000;
+   const int NE = pmesh->GetNE();
+   const int dim = pmesh->Dimension();
+   for (int i = 0; i < NE; i++)
+   {
+      const IntegrationRule &ir =
+         irules->Get(pfespace->GetFE(i)->GetGeomType(), quad_order);
+      ElementTransformation *transf = pmesh->GetElementTransformation(i);
+      DenseMatrix Jac(dim);
+
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir.IntPoint(j));
+         pmesh->GetElementJacobian(i, Jac, &ir.IntPoint(j));
+         double skew_q = GetWorstJacobianSkewness(Jac);
+         skewval = std::max(skewval, skew_q);
+      }
+
+      const IntegrationRule &ir2 = pfespace->GetFE(i)->GetNodes();
+      for (int j = 0; j < ir2.GetNPoints(); j++)
+      {
+         transf->SetIntPoint(&ir2.IntPoint(j));
+         pmesh->GetElementJacobian(i, Jac, &ir.IntPoint(j));
+         double skew_q = GetWorstJacobianSkewness(Jac);
+         skewval = std::max(skewval, skew_q);
+      }
+   }
+   double skewvalglobal;
+   MPI_Allreduce(&skewval, &skewvalglobal, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   return skewvalglobal;
+}
+
 void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
 {
    mfem::L2_FECollection l2fec(0, pmesh.Dimension());
@@ -258,6 +341,7 @@ int main (int argc, char *argv[])
    double surf_fit_const_max = 1e20;
    double surf_fit_min_det_threshold = 0.0;
    bool normalization    = false;
+   double worst_skew = 0.0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -374,6 +458,8 @@ int main (int argc, char *argv[])
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization",
                   "Make all terms in the optimization functional unitless.");
+   args.AddOption(&worst_skew, "-skewmax", "--skew-max",
+                  "worst skewness in degrees.. between 90 and 180");
    args.Parse();
    if (!args.Good())
    {
@@ -426,8 +512,9 @@ int main (int argc, char *argv[])
       }
    }
 
-   if (myid == 0) {
-       std::cout << "Mesh read/setup\n";
+   if (myid == 0)
+   {
+      std::cout << "Mesh read/setup\n";
    }
 
    const int dim = mesh->Dimension();
@@ -477,8 +564,9 @@ int main (int argc, char *argv[])
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   if (myid == 0) {
-       std::cout << "ParMesh setup\n";
+   if (myid == 0)
+   {
+      std::cout << "ParMesh setup\n";
    }
 
    for (int lev = 0; lev < rp_levels; lev++)
@@ -533,9 +621,10 @@ int main (int argc, char *argv[])
 
    if (surf_bg_mesh)
    {
-       if (myid == 0) {
-           std::cout << "Setup Background Mesh\n";
-       }
+      if (myid == 0)
+      {
+         std::cout << "Setup Background Mesh\n";
+      }
       MFEM_VERIFY(surface_fit_const > 0,
                   "Fitting is not active. Why background mesh?");
       Mesh *mesh_surf_fit_bg = NULL;
@@ -611,8 +700,9 @@ int main (int argc, char *argv[])
                                      *surf_fit_bg_gf0);
    }
 
-   if (myid == 0) {
-       std::cout << "Background Mesh setup done\n";
+   if (myid == 0)
+   {
+      std::cout << "Background Mesh setup done\n";
    }
 
 
@@ -1386,6 +1476,10 @@ int main (int argc, char *argv[])
    if (myid == 0)
    { cout << "Minimum det(J) of the original mesh is " << tauval << endl; }
    double init_min_det = tauval;
+   double skewval = GetWorstSkewness(psubmesh, psub_pfespace, irules, quad_order);
+   if (myid == 0)
+   { cout << "Worst skewness of the original mesh is " << skewval*180.0/M_PI << endl; }
+   double init_skew = skewval;
 
    if (tauval < 0.0 && metric_id != 22 && metric_id != 211 && metric_id != 252
        && metric_id != 311 && metric_id != 313 && metric_id != 352)
@@ -1555,6 +1649,10 @@ int main (int argc, char *argv[])
       solver.SetMinimumDeterminantThreshold(surf_fit_min_det_threshold*tauval);
    }
    solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
+   if (worst_skew > 0.0)
+   {
+      solver.SetWorstSkewnessLimit(worst_skew*M_PI/180.0);
+   }
 
    StopWatch TimeSolver;
    TimeSolver.Clear();
@@ -1670,6 +1768,11 @@ int main (int argc, char *argv[])
          tauval = GetMinDet(psubmesh, psub_pfespace, irules, quad_order);
          if (myid == 0)
          { cout << "Minimum det(J) of the optimized mesh is " << tauval << endl; }
+      }
+      {
+         skewval = GetWorstSkewness(psubmesh, psub_pfespace, irules, quad_order);
+         if (myid == 0)
+         { cout << "Worst skewness of the optimized mesh is " << skewval*180.0/M_PI << endl; }
       }
       if (deactivation_layers > 0)
       {
@@ -1789,6 +1892,8 @@ int main (int argc, char *argv[])
                 << (scalefactortime*100/solvertime) <<  "  " << endl
                 << "Initial mindet: " << init_min_det << endl
                 << "Final mindet: " << tauval << endl
+                << "Initial skew: " << init_skew*180.0/M_PI << endl
+                << "Final skew: " << skewval*180.0/M_PI << endl
                 << "Initial energy: " << init_energy << endl
                 << "Final energy: " << fin_energy << endl
                 << "Initial metric energy: " << init_metric_energy << endl
@@ -1819,7 +1924,7 @@ int main (int argc, char *argv[])
       std::cout << "TMOPFittingInfo: " <<
                 "jobid,ne,np,order,metric,target,ndofs,tdofs,"
                 "niter,preciter,totalsolvetime,vectime,gradtime,multtime,procnewstatetime,computescaletime,"
-                "initmindet,finalmindet,initenergy,finalenergy,"
+                "initmindet,finalmindet,initskew,finalskew,initenergy,finalenergy,"
                 "initavgfiterr,initmaxfiterr,finavgfiterr,finmaxfiterr,"
                 "initfitwt,finalfitwt,sfa,sft,sfct,sfcmax,sfcjac,"
                 "sublayer,subne,subnp,subndofs,subtdofs,amriter,nepreiter,"
@@ -1831,6 +1936,7 @@ int main (int argc, char *argv[])
                 solvertime << "," << vectortime << "," << gradtime << "," <<
                 prectime << "," << processnewstatetime << "," << scalefactortime << "," <<
                 init_min_det << "," << tauval << "," <<
+                init_skew*180.0/M_PI << "," << skewval*180.0/M_PI << "," <<
                 init_energy << "," << fin_energy << "," <<
                 init_metric_energy << "," << fin_metric_energy << "," <<
                 init_surf_fit_err_avg << "," << init_surf_fit_err_max << "," <<

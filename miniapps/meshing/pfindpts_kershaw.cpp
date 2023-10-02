@@ -198,18 +198,18 @@ int main (int argc, char *argv[])
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = NULL;
-//    int nx = 6*std::pow(std::pow(2, rs_levels), dim);
+   //    int nx = 6*std::pow(std::pow(2, rs_levels), dim);
    int nx = 6*std::pow(2, rs_levels);
    if (dim == 2)
    {
-    //   int nx = 6*(rs_levels+1);
+      //   int nx = 6*(rs_levels+1);
       mesh = new Mesh(Mesh::MakeCartesian2D(nx, nx, etype == 0 ?
                                             Element::QUADRILATERAL:
                                             Element::TRIANGLE));
    }
    else if (dim == 3)
    {
-    //   int nx = 6*(rs_levels+1);
+      //   int nx = 6*(rs_levels+1);
       mesh = new Mesh(Mesh::MakeCartesian3D(nx, nx, nx, etype == 0 ?
                                             Element::HEXAHEDRON :
                                             Element::TETRAHEDRON));
@@ -538,20 +538,20 @@ int main (int argc, char *argv[])
            std::endl;
    }
 
-//    {
-//       ostringstream mesh_name;
-//       mesh_name << "kershawint.mesh";
-//       ofstream mesh_ofs(mesh_name.str().c_str());
-//       mesh_ofs.precision(8);
-//       if (hrefinement)
-//       {
-//          pmesh.PrintAsOne(mesh_ofs);
-//       }
-//       else
-//       {
-//          pmesh.PrintAsSerial(mesh_ofs);
-//       }
-//    }
+   //    {
+   //       ostringstream mesh_name;
+   //       mesh_name << "kershawint.mesh";
+   //       ofstream mesh_ofs(mesh_name.str().c_str());
+   //       mesh_ofs.precision(8);
+   //       if (hrefinement)
+   //       {
+   //          pmesh.PrintAsOne(mesh_ofs);
+   //       }
+   //       else
+   //       {
+   //          pmesh.PrintAsSerial(mesh_ofs);
+   //       }
+   //    }
 
    // Free the internal gslib data.
    finder.FreeData();

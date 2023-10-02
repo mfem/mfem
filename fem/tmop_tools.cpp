@@ -508,6 +508,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
          scale *= detJ_factor; continue;
       }
+      if (worst_skewness > 0.0)
+      {
+         double worst_skew = ComputeWorstSkew(x_out_loc, *fes);
+         if (worst_skew > worst_skewness)
+         {
+            if (print_options.iterations)
+            {
+               mfem::out << "Scale = " << scale << " Worst skewness breached.\n";
+               mfem::out << worst_skew*180.0/M_PI << " " << worst_skewness*180.0/M_PI <<
+                         std::endl;
+            }
+            scale *= detJ_factor; continue;
+         }
+      }
 
       // Skip the energy and residual checks when we're untangling. The
       // untangling metrics change their denominators, which can affect the
@@ -1013,6 +1027,106 @@ void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
          discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
       }
    }
+}
+
+double GetWorstJacobianSkewness(DenseMatrix &J)
+{
+   double size;
+   double skew = -100000;
+   const int dim = J.Size();
+   if (dim == 2)
+   {
+      Vector col1, col2;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+
+      skew = std::atan2(J.Det(), col1 * col2);
+      skew = std::fabs(skew);
+   }
+   else
+   {
+      Vector skewv(dim);
+      Vector col1, col2, col3;
+      J.GetColumn(0, col1);
+      J.GetColumn(1, col2);
+      J.GetColumn(2, col3);
+      double len1 = col1.Norml2(),
+             len2 = col2.Norml2(),
+             len3 = col3.Norml2();
+
+      Vector col1unit = col1,
+             col2unit = col2,
+             col3unit = col3;
+      col1unit *= 1.0/len1;
+      col2unit *= 1.0/len2;
+      col3unit *= 1.0/len3;
+
+      Vector crosscol12, crosscol13, crosscol23;
+      col1.cross3D(col2, crosscol12);
+      col1.cross3D(col3, crosscol13);
+      col2.cross3D(col3, crosscol23);
+      skewv(0) = std::atan2(crosscol12.Norml2(),col1*col2);
+      skewv(1) = std::atan2(crosscol13.Norml2(),col1*col3);
+      skewv(2) = std::atan2(col1*crosscol23,crosscol12*crosscol13);
+      for (int d = 0; d < dim; d++)
+      {
+         skew = std::max(skew, std::fabs(skewv(d)));
+      }
+   }
+
+   return skew;
+}
+
+double TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
+                                          const FiniteElementSpace &fes) const
+{
+   double skewval = -1000;
+   const Mesh *mesh = fes.GetMesh();
+   const int NE = mesh->GetNE();
+   const int dim = mesh->Dimension();
+   DenseMatrix Jac(dim);
+   Array<int> xdofs;
+   for (int i = 0; i < NE; i++)
+   {
+      const int dof = fes.GetFE(i)->GetDof();
+      DenseMatrix dshape(dof, dim), pos(dof, dim);
+      Vector posV(pos.Data(), dof * dim);
+
+      fes.GetElementVDofs(i, xdofs);
+      x_loc.GetSubVector(xdofs, posV);
+
+      const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
+      const int nsp = irule.GetNPoints();
+      for (int j = 0; j < nsp; j++)
+      {
+         fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jac);
+         double skew_q = GetWorstJacobianSkewness(Jac);
+         skewval = std::max(skewval, skew_q);
+      }
+
+      const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
+      for (int j = 0; j < ir2.GetNPoints(); j++)
+      {
+         fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
+         MultAtB(pos, dshape, Jac);
+         double skew_q = GetWorstJacobianSkewness(Jac);
+         skewval = std::max(skewval, skew_q);
+      }
+   }
+
+   double skewval_all = skewval;
+
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
+      MPI_Allreduce(&skewval, &skewval_all, 1, MPI_DOUBLE, MPI_MAX,
+                    p_nlf->ParFESpace()->GetComm());
+   }
+#endif
+
+   return skewval_all;
 }
 
 double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,

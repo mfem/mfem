@@ -143,6 +143,7 @@ protected:
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
    mutable double weights_max_limit = 1e20;
+   mutable double worst_skewness = 0.0;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -172,6 +173,9 @@ protected:
 
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
+
+   double ComputeWorstSkew(const Vector &x_loc,
+                           const FiniteElementSpace &fes) const;
 
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
@@ -263,6 +267,10 @@ public:
    void SetMaximumFittingWeightLimit(double weight)
    {
       weights_max_limit = weight;
+   }
+   void SetWorstSkewnessLimit(double limit)
+   {
+      worst_skewness = limit;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
