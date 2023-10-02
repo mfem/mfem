@@ -27,14 +27,18 @@
 // (3) "The target-matrix optimization paradigm for high-order meshes" by
 //     Dobrev, Knupp, Kolev, Mittal, Tomov.
 
-// Compile with: make tmop-fitting-paper
+// Compile with: make tmop-fitting
 
-// make tmop-fitting-paper -j && mpirun -np 4 tmop-fitting-paper -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 200 -vl 1 -rtol 1e-10 -mod-bndr-attr -sfc 1.0 -sfa 2.0 -sft 1e-10  -tid 1 -mid 2
-// make tmop-fitting-paper -j && mpirun -np 4 tmop-fitting-paper -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 200 -vl 1 -rtol 1e-10 -mod-bndr-attr -sfc 1.0 -sfa 2.0 -sft 1e-10  -tid 4 -mid 80
+// make tmop-fitting -j && mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 200 -vl 1 -rtol 1e-10 -mod-bndr-attr -sfc 1.0 -sfa 2.0 -sft 1e-10  -tid 1 -mid 2
+// make tmop-fitting -j && mpirun -np 4 tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 200 -vl 1 -rtol 1e-10 -mod-bndr-attr -sfc 1.0 -sfa 2.0 -sft 1e-10  -tid 4 -mid 80
 
 // incline level-set. low-initial weight - sfa = 1.0
-// 201 - make tmop-fitting-paper -j && mpirun -np 6 tmop-fitting-paper -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 100 -rtol 1e-10 -mod-bndr-attr -sfc 10 -sft 1e-6 -tid 1 -mid 2 -ls 4 -ctot 0 -vl 1 -li 1000 -ae 1 -slstype 7  -adw 0 -sfa 0 -jid 201
+// 201 - make tmop-fitting -j && mpirun -np 6 tmop-fitting -m ../../data/inline-tri.mesh -o 1 -rs 1 -ni 100 -rtol 1e-10 -mod-bndr-attr -sfc 10 -sft 1e-6 -tid 1 -mid 2 -ls 4 -ctot 0 -vl 1 -li 1000 -ae 1 -slstype 7  -adw 0 -sfa 0 -jid 201
 
+
+// 3D
+// make tmop-fitting -j && mpirun -np 6 tmop-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -ni 100 -rtol 1e-10 -mod-bndr-attr -sft 1e-08 -tid 1 -mid 303 -ls 4 -ctot 0 -cus-mat -vl 1 -li 1000 -ae 1 -slstype 1 -sfc 1 -sfa 2 -jid 400 -sfcmax 1e10 -sfcjac 1e-5
+// make tmop-fitting -j && mpirun -np 6 tmop-fitting -m cube.mesh -o 2 -rs 2 -ni 100 -rtol 1e-10 -mod-bndr-attr -sft 1e-08 -tid 1 -mid 303 -ls 4 -ctot 2 -cus-mat -vl 1 -li 1000 -ae 1 -slstype 1 -sfc 1 -sfa 2 -jid 400 -sfcmax 1e10 -sfcjac 1e-5
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
