@@ -20,7 +20,6 @@
 #include "../general/text.hpp"
 #include "../general/globals.hpp"
 
-#include <cstdint>
 #include <iostream>
 #include <fstream>
 
