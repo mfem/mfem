@@ -21,7 +21,6 @@
 #include "vertex.hpp"
 #include "../fem/geom.hpp"
 
-#include <cstdint>
 #include <vector>
 #include <map>
 #include <iostream>
