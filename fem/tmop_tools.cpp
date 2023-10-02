@@ -1158,6 +1158,14 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                MultAtB(pos, dshape, Jpr);
                min_detJ = std::min(min_detJ, Jpr.Det());
             }
+
+            const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
+            for (int j = 0; j < ir2.GetNPoints(); j++)
+            {
+                fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
+                MultAtB(pos, dshape, Jpr);
+                min_detJ = std::min(min_detJ, Jpr.Det());
+            }
          }
       }
       else
