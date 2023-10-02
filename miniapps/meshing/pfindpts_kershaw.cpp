@@ -198,7 +198,8 @@ int main (int argc, char *argv[])
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = NULL;
-   int nx = 6*std::pow(std::pow(2, rs_levels), dim);
+//    int nx = 6*std::pow(std::pow(2, rs_levels), dim);
+   int nx = 6*std::pow(2, rs_levels);
    if (dim == 2)
    {
     //   int nx = 6*(rs_levels+1);
@@ -397,7 +398,7 @@ int main (int argc, char *argv[])
    // The implied ordering is byNodes i.e. x0,x1,x2..y0,y1,y2..z0,z1,z2
    // For the first 10% points, set the x coordinates such that they are on
    // element boundary
-   int nxlayers = 6*(rs_levels+1);
+   int nxlayers = std::pow(pmesh.GetGlobalNE(), 1.0/dim);
    int npt_on_faces = int(0.1*pts_cnt);
    for (int i = 0; i < npt_on_faces; i++)
    {
@@ -504,15 +505,20 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,mindet,ne,np,npts,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist,"<<
+           "jobid,ne,np,dim,etype,meshorder,solorder,funcorder,fieldtype,smooth,npts," <<
+           "mindet,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist,"<<
            "totaltime,setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_mapelemrst,"
            <<
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
-           tauval << "," <<
            nelemglob << "," <<
            num_procs << "," <<
+           dim << "," << etype << "," <<
+           mesh_poly_deg << "," << order << "," <<
+           func_order << "," << fieldtype << "," <<
+           smooth << "," <<
            pts_cnt*num_procs << "," <<
+           tauval << "," <<
            found_loc << "," <<
            found_away << "," <<
            not_found << "," <<
@@ -532,20 +538,20 @@ int main (int argc, char *argv[])
            std::endl;
    }
 
-   {
-      ostringstream mesh_name;
-      mesh_name << "kershawint.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      if (hrefinement)
-      {
-         pmesh.PrintAsOne(mesh_ofs);
-      }
-      else
-      {
-         pmesh.PrintAsSerial(mesh_ofs);
-      }
-   }
+//    {
+//       ostringstream mesh_name;
+//       mesh_name << "kershawint.mesh";
+//       ofstream mesh_ofs(mesh_name.str().c_str());
+//       mesh_ofs.precision(8);
+//       if (hrefinement)
+//       {
+//          pmesh.PrintAsOne(mesh_ofs);
+//       }
+//       else
+//       {
+//          pmesh.PrintAsSerial(mesh_ofs);
+//       }
+//    }
 
    // Free the internal gslib data.
    finder.FreeData();
