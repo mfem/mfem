@@ -987,11 +987,11 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       if (int_amr_iters)
       {
-         psubmesh->PrintAsOne(mesh_ofs);
+        //  psubmesh->PrintAsOne(mesh_ofs);
       }
       else
       {
-         psubmesh->PrintAsSerial(mesh_ofs);
+        //  psubmesh->PrintAsSerial(mesh_ofs);
       }
    }
 
@@ -1697,11 +1697,11 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       if (int_amr_iters == 0)
       {
-         pmesh->PrintAsSerial(mesh_ofs);
+        //  pmesh->PrintAsSerial(mesh_ofs);
       }
       else
       {
-         pmesh->PrintAsOne(mesh_ofs);
+        //  pmesh->PrintAsOne(mesh_ofs);
       }
    }
 
@@ -1820,6 +1820,7 @@ int main (int argc, char *argv[])
                 "jobid,ne,np,order,metric,target,ndofs,tdofs,"
                 "niter,preciter,totalsolvetime,vectime,gradtime,multtime,procnewstatetime,computescaletime,"
                 "initmindet,finalmindet,initenergy,finalenergy,"
+                "initmetricenergy,finalmetricenergy,"
                 "initavgfiterr,initmaxfiterr,finavgfiterr,finmaxfiterr,"
                 "initfitwt,finalfitwt,sfa,sft,sfct,sfcmax,sfcjac,"
                 "sublayer,subne,subnp,subndofs,subtdofs,amriter,nepreiter,"
