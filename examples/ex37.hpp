@@ -931,7 +931,7 @@ public:
       const double compliance = current_compliance;
       out << "(" << compliance << ", " << d << ")" << std::endl;
       int k = 0;
-      int maxit = 5;
+      int maxit = 3;
       for (; k<maxit; k++)
       {
          // update and evaluate F
