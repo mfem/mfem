@@ -822,6 +822,12 @@ public:
 
    double Eval()
    {
+      bool proj_succeeded = proj_bisec();
+      if (!proj_succeeded)
+      {
+         current_compliance = infinity();
+         return current_compliance;
+      }
       // Step 1 - Filter solve
       // Solve (ϵ^2 ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)
       filterSolver->SetRHSCoefficient(rho);
@@ -1064,6 +1070,64 @@ public:
       int_sigmoid_psi->Assemble();
       current_volume = int_sigmoid_psi->Sum();
       return done;
+   }
+
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   bool proj_bisec(double tol=1e-12, int max_its=10)
+   {
+      double c = 0;
+      MappedGridFunctionCoefficient rho(psi, [&c](const double x){return sigmoid(x + c);});
+      MappedGridFunctionCoefficient drho(psi, [&c](const double x){return der_sigmoid(x + c);});
+      LinearForm *V = newLinearForm(control_fes);
+      LinearForm *dV = newLinearForm(control_fes);
+      V->AddDomainIntegrator(new DomainLFIntegrator(rho));
+      dV->AddDomainIntegrator(new DomainLFIntegrator(drho));
+      V->Assemble();
+      dV->Assemble();
+      double Vc = V->Sum();
+      double dVc = dV->Sum();
+      double dc = (Vc - target_volume) / dVc;
+      c += dc;
+      int k;
+      // Find an interval (c, c+dc) that contains c⋆.
+      for (k=0; k < max_its; k++)
+      {
+         double Vc_old = Vc;
+         V->Assemble();
+         Vc = V->Sum();
+         if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
+         {
+            break;
+         }
+         c += dc;
+      }
+      if (k == max_its)
+      {
+         return false;
+      }
+      dc = fabs(dc);
+      while (fabs(dc) > 1e-08)
+      {
+         dc /= 2.0;
+         c = Vc > target_volume ? c - dc : c + dc;
+         V->Assemble();
+         Vc = V->Sum();
+      }
+      return true;
    }
 
 
