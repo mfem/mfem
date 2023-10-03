@@ -938,47 +938,53 @@ public:
          *psi = *psi_k;
          psi->Add(alpha, *direction);
          Eval();
-
-         out << "Sufficient decrease condition: ";
-         out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
-         if (current_compliance == infinity() ||
-             current_compliance > compliance + c1*d*alpha)
-            // sufficient decreament condition failed
+         if (current_compliance == infinity())
          {
-            // We moved too far so that the descent direction is no more valid
-            // -> Backtracking (left half of the search interval)
-            out << "Failed. alpha:" << alpha << " -> ";
-            // Decrease upper bound
+            out << "Projection failed. alpha:" << alpha << " -> ";
             U = alpha;
             alpha = (L + U) / 2.0;
             out << alpha << std::endl;
          }
          else
          {
-            out << "Success." << std::endl;
-
-            const double current_d = (*directionalDer)(*GetGradient());
-
-            out << "Direction update condition: ";
-            out << "(" << current_d << ", " << c2*d << "), ";
-            if (current_d < c2*d) // Current direction is still decent
+            out << "Sufficient decrease condition: ";
+            out << "(" << current_compliance << ", " << compliance + c1*d*alpha << "), ";
+            if (current_compliance > compliance + c1*d*alpha)
+               // sufficient decreament condition failed
             {
-               // Increase lower bound and try go further
+               // We moved too far so that the descent direction is no more valid
+               // -> Backtracking (left half of the search interval)
                out << "Failed. alpha:" << alpha << " -> ";
-               L = alpha;
-               alpha = U == infinity() ? 2.0*L : (L + U) / 2.0;
+               // Decrease upper bound
+               U = alpha;
+               alpha = (L + U) / 2.0;
                out << alpha << std::endl;
             }
-            else // objective decreased enough, and direction is sufficiently changed
+            else
             {
                out << "Success." << std::endl;
-               out << "Final alpha: " << alpha << std::endl;
-               break;
+
+               const double current_d = (*directionalDer)(*GetGradient());
+
+               out << "Direction update condition: ";
+               out << "(" << current_d << ", " << c2*d << "), ";
+               if (current_d < c2*d) // Current direction is still decent
+               {
+                  // Increase lower bound and try go further
+                  out << "Failed. alpha:" << alpha << " -> ";
+                  L = alpha;
+                  alpha = U == infinity() ? 2.0*L : (L + U) / 2.0;
+                  out << alpha << std::endl;
+               }
+               else // objective decreased enough, and direction is sufficiently changed
+               {
+                  out << "Success." << std::endl;
+                  out << "Final alpha: " << alpha << std::endl;
+                  break;
+               }
             }
          }
       }
-      proj();
-      Eval();
       out << "The number of eval: " << k << std::endl;
       delete psi_k;
       delete direction;
