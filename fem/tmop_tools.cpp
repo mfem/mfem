@@ -510,13 +510,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       }
       if (worst_skewness > 0.0)
       {
-         double worst_skew = ComputeWorstSkew(x_out_loc, *fes);
-         if (worst_skew > worst_skewness)
+         Vector worst_skew = ComputeWorstSkew(x_out_loc, *fes);
+         if (worst_skew(0) > worst_skewness)
          {
             if (print_options.iterations)
             {
                mfem::out << "Scale = " << scale << " Worst skewness breached.\n";
-               mfem::out << worst_skew*180.0/M_PI << " " << worst_skewness*180.0/M_PI <<
+               mfem::out << worst_skew(0)*180.0/M_PI << " " << worst_skewness*180.0/M_PI <<
                          std::endl;
             }
             scale *= detJ_factor; continue;
@@ -1077,10 +1077,11 @@ double GetWorstJacobianSkewness(DenseMatrix &J)
    return skew;
 }
 
-double TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
+Vector TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
                                           const FiniteElementSpace &fes) const
 {
-   double skewval = -1000;
+   double skewmax = -1000;
+   double skewmin = 1000;
    const Mesh *mesh = fes.GetMesh();
    const int NE = mesh->GetNE();
    const int dim = mesh->Dimension();
@@ -1088,9 +1089,11 @@ double TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
    Array<int> xdofs;
    for (int i = 0; i < NE; i++)
    {
+
       const int dof = fes.GetFE(i)->GetDof();
       DenseMatrix dshape(dof, dim), pos(dof, dim);
       Vector posV(pos.Data(), dof * dim);
+      const int gt = fes.GetFE(i)->GetGeomType();
 
       fes.GetElementVDofs(i, xdofs);
       x_loc.GetSubVector(xdofs, posV);
@@ -1102,7 +1105,8 @@ double TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
          fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
          MultAtB(pos, dshape, Jac);
          double skew_q = GetWorstJacobianSkewness(Jac);
-         skewval = std::max(skewval, skew_q);
+         //         skewmax = std::max(skewmax, skew_q);
+         //         skewmin = std::min(skewmin, skew_q);
       }
 
       const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
@@ -1111,22 +1115,29 @@ double TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
          fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
          MultAtB(pos, dshape, Jac);
          double skew_q = GetWorstJacobianSkewness(Jac);
-         skewval = std::max(skewval, skew_q);
+         skewmax = std::max(skewmax, skew_q);
+         skewmin = std::min(skewmin, skew_q);
       }
    }
 
-   double skewval_all = skewval;
+   double skewmax_all = skewmax;
+   double skewmin_all = skewmin;
 
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
       auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&skewval, &skewval_all, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(&skewmax, &skewmax_all, 1, MPI_DOUBLE, MPI_MAX,
+                    p_nlf->ParFESpace()->GetComm());
+      MPI_Allreduce(&skewmin, &skewmin_all, 1, MPI_DOUBLE, MPI_MIN,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
 
-   return skewval_all;
+   Vector skewall(2);
+   skewall(0) = skewmax_all;
+   skewall(1) = skewmin_all;
+   return skewall;
 }
 
 double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
@@ -1162,9 +1173,9 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
             const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
             for (int j = 0; j < ir2.GetNPoints(); j++)
             {
-                fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
-                MultAtB(pos, dshape, Jpr);
-                min_detJ = std::min(min_detJ, Jpr.Det());
+               fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
+               MultAtB(pos, dshape, Jpr);
+               min_detJ = std::min(min_detJ, Jpr.Det());
             }
          }
       }

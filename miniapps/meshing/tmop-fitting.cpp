@@ -187,7 +187,7 @@ double GetWorstSkewness(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
          transf->SetIntPoint(&ir.IntPoint(j));
          pmesh->GetElementJacobian(i, Jac, &ir.IntPoint(j));
          double skew_q = GetWorstJacobianSkewness(Jac);
-         skewval = std::max(skewval, skew_q);
+         //         skewval = std::max(skewval, skew_q);
       }
 
       const IntegrationRule &ir2 = pfespace->GetFE(i)->GetNodes();
@@ -1077,11 +1077,11 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       if (int_amr_iters)
       {
-        //  psubmesh->PrintAsOne(mesh_ofs);
+         //  psubmesh->PrintAsOne(mesh_ofs);
       }
       else
       {
-        //  psubmesh->PrintAsSerial(mesh_ofs);
+         //  psubmesh->PrintAsSerial(mesh_ofs);
       }
    }
 
@@ -1800,11 +1800,11 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       if (int_amr_iters == 0)
       {
-        //  pmesh->PrintAsSerial(mesh_ofs);
+         //  pmesh->PrintAsSerial(mesh_ofs);
       }
       else
       {
-        //  pmesh->PrintAsOne(mesh_ofs);
+         //  pmesh->PrintAsOne(mesh_ofs);
       }
    }
 

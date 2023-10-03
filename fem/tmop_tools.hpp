@@ -174,7 +174,7 @@ protected:
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
-   double ComputeWorstSkew(const Vector &x_loc,
+   Vector ComputeWorstSkew(const Vector &x_loc,
                            const FiniteElementSpace &fes) const;
 
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
