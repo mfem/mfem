@@ -251,8 +251,12 @@ double NonlinearGridCoefficient::Eval(ElementTransformation & T,
     switch_taylor = 0.0;
     switch_ff = 1.0;
   }
-  
-  if (option == 1) {
+
+  if (option == 0) {
+    // return "f"
+    return f_x + alpha * (psi_bdp - psi_val);
+    
+  } else if (option == 1) {
     // integrand of
     // int_{\Omega_p(\psi)} (  r S_{p'}(\psi_N)
     //                       + S_{ff'}(\psi_N) / (\mu r)

@@ -3,7 +3,7 @@
 #
 
 # coefficient of ff' term
-alpha=0.1
+alpha=0.7
 # coefficient of p' term
 beta=0.0
 # unused?
@@ -24,8 +24,9 @@ rho_gamma=16
 mu=12.5663706144e-7
 # mu=1.0
 mesh_file="meshes/iter_gen.msh"
+# mesh_file="meshes/RegGSTriMeshVeryCoarse0beta.msh"
 data_file="separated_file.data"
-refinement_factor=2
+refinement_factor=0
 
 do_test=0
 do_manufactured_solution=0
@@ -77,7 +78,7 @@ optimize_alpha=1
 obj_option=2
 
 ./../gslib/field-interp -m1 initial_mesh_g3.mesh \
-                        -m2 meshes/iter_gen.msh \
+                        -m2 $mesh_file \
                         -s1 initial_guess_g3.gf \
                         -r $refinement_factor \
                         -no-vis

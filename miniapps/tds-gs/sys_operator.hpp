@@ -236,5 +236,118 @@ public:
 };
 
 
+/*
+  By - 1/Ca Ba Cy^T
+ */
+class ByMinusRankOnePerturbation : public Operator {
+private:
+  const SparseMatrix *By;
+  const Vector *Ba, *Cy;
+  const double ca;
+
+public:
+  //set parameters
+  ByMinusRankOnePerturbation(SparseMatrix *By_, const Vector  *Ba_, const Vector  *Cy_, double ca_) :
+    By(By_), Ba(Ba_), Cy(Cy_), ca(ca_)
+  {
+    width = Ba_->Size();
+    height = Ba_->Size();
+  }
+
+  virtual void Mult(const Vector &k, Vector &y) const;
+  virtual void MultTranspose(const Vector &k, Vector &y) const;
+
+  virtual ~ByMinusRankOnePerturbation() {}
+};
+
+// /*
+//   -F H^{-1} F^T
+//  */
+// class mMuFinvHFT : public Operator{
+// private:
+//   const SparseMatrix *F;
+//   const SparseMatrix *invH;
+
+// public:
+//   //set parameters
+//   mFinvHFT(SparseMatrix *F_, SparseMatrix *invH_) :
+//     F(F_), invH(invH_)
+//   {
+//     width = F_->Height();
+//     height = F_->Height();
+//   }
+
+//   // set action
+//   virtual void Mult(const Vector &k, Vector &y) const;
+
+//   virtual ~mFinvHFT() {}
+// };
+
+
+class WoodburyInverse : public Operator {
+private:
+  SparseMatrix *A;
+  Solver *A_prec;
+  const Vector *U, *V;
+  const double scale;
+  GMRESSolver solver;
+  mutable Vector a, b;
+  double dot;
+public:
+  // set parameters
+  WoodburyInverse(SparseMatrix *A_, Solver *A_prec_, Vector *U_, Vector *V_, double scale_) :
+    A(A_), A_prec(A_prec_), U(U_), V(V_), scale(scale_)
+  {
+    width = U_->Size();
+    height = U_->Size();
+
+    double krylov_tol = 1e-12;
+    double krylov_tol_light = 1e-12;
+    int max_krylov_iter = 1000;
+    int kdim = 1000;
+
+    Vector a_(U_->Size());
+    Vector b_(U_->Size());
+    a_ = 0.0;
+    b_ = 0.0;
+
+    solver.SetAbsTol(0.0);
+    solver.SetRelTol(krylov_tol);
+    solver.SetMaxIter(max_krylov_iter);
+    solver.SetOperator(*A);
+    solver.SetPreconditioner(*A_prec);
+    solver.SetKDim(kdim);
+    solver.SetPrintLevel(0);
+
+    solver.Mult(*U, b_);
+
+    if (solver.GetConverged())
+      {
+        std::cout << "GMRES converged in " << solver.GetNumIterations()
+                  << " iterations with a residual norm of "
+                  << solver.GetFinalNorm() << ".\n";
+      }
+    else
+      {
+        std::cout << "GMRES did not converge in " << solver.GetNumIterations()
+                  << " iterations. Residual norm is " << solver.GetFinalNorm()
+                  << ".\n";
+      }
+
+    b = b_;
+    a = a_;
+
+    solver.SetRelTol(krylov_tol_light);
+
+    dot = (*V) * b;
+  }
+
+  // set action
+  virtual void Mult(const Vector &k, Vector &y) const;
+
+  virtual ~WoodburyInverse() {}
+};
+
+
 
 #endif

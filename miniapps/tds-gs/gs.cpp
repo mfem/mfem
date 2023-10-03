@@ -414,31 +414,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
    Mpi::Init();
    Hypre::Init();
   
-   // 9. Connect to GLVis.
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock;
-   bool visualization = true;
-   // if (visualization)
-   // {
-   //    sol_sock.open(vishost, visport);
-   // }
-  
-  // don't need to recompute matrices everytime
-  // save mesh after refining
-  
   GridFunction xnew(&fespace);
   GridFunction res(&fespace);
 
-  // GridFunction dx_(&fespace);
-  // GridFunction dp_(&fespace);
-  // double da_;
-  // double dl_;
-
-  SparseMatrix *invH;
-  SparseMatrix *invHFT;
-
-  // bool add_alpha = true;
   bool reduce = true;
 
   GridFunction psi_r(&fespace);
@@ -474,7 +452,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     // +        +      + Ba^T dp +       + Ca dl = b4
     // + CyT dx +      +         + Ca da +       = b5
 
-    // solution at previous iteration
+    // initial currents
     printf("currents: [");
     for (int i = 0; i < uv->Size(); ++i) {
       printf("%.3e ", (*uv)[i]);
@@ -506,27 +484,28 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
     b3p = 0.0;
 
     // define block structure of matrix
-    int n_off = 6;
-    if (reduce) {
-      n_off = 5;
-    }
+    // int n_off = 6;
+    // if (reduce) {
+    //   n_off = 5;
+    // }
+    int n_off = 3;
     Array<int> row_offsets(n_off);
     Array<int> col_offsets(n_off);
 
     // define error estimator for AMR
     ErrorEstimator *estimator{nullptr};
     ConstantCoefficient one(1.0);
-    // BilinearFormIntegrator *integ = new DiffusionIntegrator(one);
     DiffusionIntegratorCoefficient diff_op_coeff(model);
     DiffusionIntegrator *integ = new DiffusionIntegrator(diff_op_coeff);
     estimator = new LSZienkiewiczZhuEstimator(*integ, x);
     ThresholdRefiner refiner(*estimator);
     refiner.SetTotalErrorFraction(0.3);
 
-    auto t_init = std::chrono::high_resolution_clock::now();
-    
+    auto t_init = std::chrono::high_resolution_clock::now();    
     // *** AMR LOOP *** //
     for (int it_amr = 0; ; ++it_amr) {
+      int total_gmres = 0;
+
       int cdofs = fespace.GetTrueVSize();
       printf("AMR iteration %d\n", it_amr);
       printf("Number of unknowns: %d\n", cdofs);
@@ -572,7 +551,11 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       op.set_i_option(obj_option);
       op.set_obj_weight(obj_weight);  
 
-      if (reduce) {
+      if (true) {
+        row_offsets[0] = 0;
+        row_offsets[1] = pv.Size();
+        row_offsets[2] = row_offsets[1] + pv.Size();
+      } else if (reduce) {
         row_offsets[0] = 0;
         row_offsets[1] = pv.Size();
         row_offsets[2] = row_offsets[1] + pv.Size();
@@ -593,7 +576,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       for (int i = 0; i <= max_newton_iter; ++i) {
         // print out objective function and regularization
 
-        // -b3 = eq_res = B(y^n) - F u^n
+        // compute matrices and vectors in problem
         op.NonlinearEquationRes(x, uv, alpha);
         eq_res = op.get_res();
         SparseMatrix By = op.get_By();
@@ -603,15 +586,11 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         Vector Ba = op.get_Ba();
         printf("plasma_current = %e\n", C / op.get_mu());
 
+        // -b3 = eq_res = B(y^n) - F u^n
         char name_eq_res[60];
         sprintf(name_eq_res, "gf/eq_res_amr%d_i%d.gf", it_amr, i);
         eq_res.Save(name_eq_res);
 
-        // if (visualization && sol_sock.good())
-        //   {
-        //     sol_sock.precision(8);
-        //     sol_sock << "solution\n" << (*mesh) << x << flush;
-        //   }
         double psi_x = op.get_psi_x();
         double psi_ma = op.get_psi_ma();
         double* x_x = op.get_x_x();
@@ -626,11 +605,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
         SparseMatrix * K = op.compute_hess_obj(x);
 
-        // printf("K: %d %d\n", K->Height(), K->ActualWidth());
-        // printf("xv size: %d\n", x.Size());
-      
         Vector g = op.compute_grad_obj(x);
 
+        // -b1 = Gy + By^T p + Cy lambda - g
         opt_res = g;
         By.AddMultTranspose(pv, opt_res);
         if (add_alpha) {
@@ -645,10 +622,11 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           printf("alpha = %f\n", alpha);
         }
 
-        // b4 = B_a^T p^n + C_a l^n
+        // -b4 = B_a^T p^n + C_a l^n
         double b4 = Ba * pv + Ca * lv;
         b4 *= -1.0;
 
+        // -b5 = C - Ip * mu
         double b5= C - Ip * op.get_mu();
         b5 *= -1.0;
 
@@ -668,7 +646,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
 
         if (i == 0) {
           printf("i: %3d, nonl_res: %.3e, ratio %9s, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
-                 i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), true_obj+regularization, test_obj, regularization);
+                 i, error, "", max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization, test_obj, regularization);
         } else {
           printf("i: %3d, nonl_res: %.3e, ratio %.3e, res: [%.3e, %.3e, %.3e, %.3e], loss: %.3e, obj: %.3e, reg: %.3e\n",
                  i, error, error_old / error, max_opt_res, max_reg_res, abs(b4), abs(b5), test_obj+regularization,
@@ -684,7 +662,13 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
           break;
         }
 
-        // prepare block matrix
+        b1 = opt_res; b1 *= -1.0;
+        b2 = reg_res; b2 *= -1.0;
+        b3 = eq_res;  b3 *= -1.0;
+
+        SparseMatrix *invH;
+        SparseMatrix *invA;
+        SparseMatrix *invHFT;
         SparseMatrix *FT = Transpose(*F);
         SparseMatrix *mF = Add(-1.0, *F, 0.0, *F);
         SparseMatrix *mFT = Transpose(*mF);
@@ -702,163 +686,120 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         SparseMatrix *mMuFinvHFT = Add(op.get_mu(), *mFinvHFT, 0.0, *mFinvHFT);
         SparseMatrix *MuFinvH = Add(op.get_mu(), *FinvH, 0.0, *FinvH);
 
-        SparseMatrix *Ba_;
-        SparseMatrix *Cy_;
-        SparseMatrix *Ca_;
-        SparseMatrix *inv_Ca_;
-        Ba_ = new SparseMatrix(pv.Size(), 1);
-        Cy_ = new SparseMatrix(pv.Size(), 1);
-        Ca_ = new SparseMatrix(1, 1);
-        inv_Ca_ = new SparseMatrix(1, 1);
-        Ca_->Add(0, 0, Ca);
-        inv_Ca_->Add(0, 0, 1.0 / Ca);
-        for (int j = 0; j < pv.Size(); ++j) {
-          if (Ba[j] != 0) {
-            Ba_->Add(j, 0, Ba[j]);
-          }
-          if (Cy[j] != 0) {
-            Cy_->Add(j, 0, Cy[j]);
-          }
-        }
-        Ca_->Finalize();
-        inv_Ca_->Finalize();
-        Ba_->Finalize();
-        Cy_->Finalize();
-        SparseMatrix *CyT_ = Transpose(*Cy_);
-        SparseMatrix *BaT_ = Transpose(*Ba_);
-
-        // *******************************************************************
-        // the system
-        //        + (ByT - 1 / Ca Cy BaT) dp + K dx = b1p = b1 - 1 / Ca Cy b4
-        // + H du - F ^T dp                         = b2p = b2
-        // - F du + (By  - 1 / Ca Ba CyT) dx        = b3p = b3 - 1 / Ca Ba b5
-        //
-        // is equivalent to
-        //                              B^T dp* + (K - 1 / Ca Cy CyT) dx* = b1*
-        //                                                            du* = Hinv b2*
-        // (- 1 / Ca Ba Ba^T - F Hinv F^T ) dp* +                   B dx* = b3*
-        //
-        // where
-        // b1* = b1p
-        // b2* = b2p
-        // b3* = b3p + F Hinv b2p
-        // 
-        // dx = dx*
-        // dp = dp*
-        // du = du* - Hinv FT dp*
-
-        // By = Add(op.get_mu(), *By, 0.0, *By);
-        // Ba_ = Add(op.get_mu(), *Ba_, 0.0, *Ba_);
-        // // das: preconditioner debug
-        // // need to go into equations, can't just mult by mu
-      
-        // get b1, b2, b3
-        b1 = opt_res; b1 *= -1.0;
-        b2 = reg_res; b2 *= -1.0;
-        b3 = eq_res;  b3 *= -1.0;
-      
-        BlockOperator Mat(row_offsets);
-        Mat.SetBlock(0, 0, &By);
-        Mat.SetBlock(0, 1, mMuFinvHFT);
-        if (add_alpha) {
-          Mat.SetBlock(0, 2, Ba_);
-        }
-
-        Mat.SetBlock(1, 0, K);
-        Mat.SetBlock(1, 1, ByT);
-        if (add_alpha) {
-          Mat.SetBlock(1, 3, Cy_);
-        }
-
-        Mat.SetBlock(2, 2, Ca_);
-        if (add_alpha) {
-          Mat.SetBlock(2, 0, CyT_);
-        }
+        // mu G_{yy} diag(By - Ba Cy^T)^{-1} F H^{-1} F^T
         
-        Mat.SetBlock(3, 3, Ca_);
-        if (add_alpha) {
-          Mat.SetBlock(3, 1, BaT_);
+        invA = new SparseMatrix(pv.Size(), pv.Size());
+        for (int j = 0; j < pv.Size(); ++j) {
+          invA->Set(j, j, 1.0 / (By(j, j) - Ba[j] * Cy[j]));
         }
-      
-        // *******************************************************************
-        // preconditioner
+        invA->Finalize();
+        SparseMatrix *KinvA = Mult(*K, *invA);
+        SparseMatrix *mMuKinvAFinvHFT = Mult(*KinvA, *mMuFinvHFT);
+        SparseMatrix *ByT_plus_MuKinvAFinvHFT = Add(1.0, *ByT, -1.0, *mMuKinvAFinvHFT);
+
+        /*
+          [   K,          By^T,  0, Cy] [dy]   [b1]
+          [  By, -F H^{-1} F^T, Ba,  0] [dp] = [b3 + F H^{-1} b2]
+          [   0,          Ba^T,  0, Ca] [da]   [b4]
+          [Cy^T,             0, Ca,  0] [dl]   [b5]
+
+          [A, B] [dx1] = [c1]
+          [C, D] [dx2]   [c2]
+
+          A = [ K,          By^T]
+              [By, -F H^{-1} F^T]
+          B = [ 0, Cy]
+              [Ba,  0]
+          C = B^T
+          D = [ 0, Ca]
+              [Ca,  0]
+
+          dx1 = [dy; dp]
+          dx2 = [da; dl]
+
+          c1 = [b1; b3 + F H^{-1} b_2]
+          c2 = [b4; b5]
+         */
+
+        // Define Schur block
+        // S = [Op  -F H^{-1} F^T]
+        //     [ K           Op^T]
+        ByMinusRankOnePerturbation S11(&By, &Ba, &Cy, Ca);
+        // mMuFinvHFT S12(F, invH);
+        TransposeOperator S22(&S11);
+
+        BlockOperator S(row_offsets);
+        S.SetBlock(0, 0, &S11);
+        S.SetBlock(0, 1, mMuFinvHFT);
+        S.SetBlock(1, 0, K);
+        S.SetBlock(1, 1, &S22);
+
+        // Define rhs
+        // rhs = [b3 + mu F H^{-1} b_2 - Ba b5 / Ca; b1 - Cy b4 / Ca]
+        BlockVector rhs(row_offsets);
+        add(1.0, b1, -b4 / Ca, Cy, rhs.GetBlock(1));
+
+        // invH->Mult(b2, rhs.GetBlock(0));
+        // F->Mult(rhs.GetBlock(0), rhs.GetBlock(0));
+        MuFinvH->Mult(b2, rhs.GetBlock(0));
+        rhs.GetBlock(0) += b3;
+        add(1.0, rhs.GetBlock(0), - b5 / Ca, Ba, rhs.GetBlock(0));
+
+        // define preconditioner
         BlockDiagonalPreconditioner Prec(row_offsets);
 
-        Solver *inv_ByT, *inv_By;
-        int its = 60;
-
-        if (false) {
-          inv_ByT = new GSSmoother(*ByT, 0, its);
-          inv_By = new GSSmoother(By, 0, its);
-        } else {
-          HypreParMatrix * By_Hypre = convert_to_hypre(&By);
-          HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT);
-
-          // HypreBoomerAMG *hba_solver_1;
-          // HypreBoomerAMG *hba_solver_2;
-
-          // hba_solver_1->SetOperator(*By_Hypre);
-          // hba_solver_1->SetPrintLevel(0);
-
-          // hba_solver_1->SetOperator(*ByT_Hypre);
-          // hba_solver_2->SetPrintLevel(0);
-          
-          // inv_By = hba_solver_1;
-          // inv_ByT = hba_solver_2;
-
-          //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
-          HypreBoomerAMG *By_AMG = new HypreBoomerAMG(*By_Hypre);
-          HypreBoomerAMG *ByT_AMG = new HypreBoomerAMG(*ByT_Hypre);
-
-          // 1: V cycle
-          // 2: W cycle
-          By_AMG->SetPrintLevel(0);
-          By_AMG->SetCycleType(1);
-          By_AMG->SetCycleNumSweeps(3, 3);
-
-          ByT_AMG->SetPrintLevel(0);
-          ByT_AMG->SetCycleType(1);
-          ByT_AMG->SetCycleNumSweeps(3, 3);
-
-          inv_By = By_AMG;
-          inv_ByT = ByT_AMG;
-
-        }
+        //
         
-        Prec.SetDiagonalBlock(0, inv_By);
-        Prec.SetDiagonalBlock(1, inv_ByT);
-        Prec.SetDiagonalBlock(2, inv_Ca_);
-        Prec.SetDiagonalBlock(3, inv_Ca_);
+        
 
-        // HypreParMatrix *Mat_hypre = convert_to_hypre(Mat);
-        // HypreBoomerAMG *Mat_AMG = new HypreBoomerAMG(*Mat_hypre);
-        // Solver *prec = Mat_AMG;
+        
+        Solver *inv_ByT, *inv_By;
 
-        // *******************************************************************
-        // create block rhs vector
-        BlockVector Vec(row_offsets);
+        HypreParMatrix * By_Hypre = convert_to_hypre(&By);
+        // HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT);
+        HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT_plus_MuKinvAFinvHFT);
 
-        Vec.GetBlock(0) = b3;
-        MuFinvH->AddMult(b2, Vec.GetBlock(0));
-        Vec.GetBlock(1) = b1;
-        Vec.GetBlock(2) = b5;
-        Vec.GetBlock(3) = b4;
+        //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
+        HypreBoomerAMG *By_AMG = new HypreBoomerAMG(*By_Hypre);
+        HypreBoomerAMG *ByT_AMG = new HypreBoomerAMG(*ByT_Hypre);
 
-        // *******************************************************************
-        // solver
+        // 1: V cycle
+        // 2: W cycle
+        By_AMG->SetPrintLevel(0);
+        By_AMG->SetCycleType(1);
+        By_AMG->SetCycleNumSweeps(1, 1);
+
+        ByT_AMG->SetPrintLevel(0);
+        ByT_AMG->SetCycleType(1);
+        ByT_AMG->SetCycleNumSweeps(1, 1);
+
+        inv_By = By_AMG;
+        inv_ByT = ByT_AMG;
+
+        WoodburyInverse Block1(&By, inv_By, &Ba, &Cy, -1.0);
+        WoodburyInverse Block2(ByT, inv_ByT, &Cy, &Ba, -1.0);
+        // WoodburyInverse Block2(ByT_plus_MuKinvAFinvHFT, inv_ByT, &Cy, &Ba, -1.0);
+        
+        // Prec.SetDiagonalBlock(0, inv_By);
+        // Prec.SetDiagonalBlock(1, inv_ByT);
+        Prec.SetDiagonalBlock(0, &Block1);
+        Prec.SetDiagonalBlock(1, &Block2);
+
+        // solve
         GMRESSolver solver;
         solver.SetAbsTol(1e-16);
         solver.SetRelTol(krylov_tol);
         solver.SetMaxIter(max_krylov_iter);
-        solver.SetOperator(Mat);
+        solver.SetOperator(S);
         solver.SetPreconditioner(Prec);
-        // solver.SetPreconditioner(*prec);
         solver.SetKDim(kdim);
         solver.SetPrintLevel(0);
 
         BlockVector dx(row_offsets);
         dx = 0.0;
-        solver.Mult(Vec, dx);
+        solver.Mult(rhs, dx);
+
+        total_gmres += solver.GetNumIterations();
         if (solver.GetConverged())
           {
             std::cout << "GMRES converged in " << solver.GetNumIterations()
@@ -872,28 +813,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
                       << ".\n";
           }
         
-        // dx_ = dx.GetBlock(0);
-        // dp_ = dx.GetBlock(1);
-        // da_ = dx.GetBlock(2)[0];
-        // dl_ = dx.GetBlock(3)[0];
-
-        // x += dx_;
-        // pv += dp_;
-        // invHFT->AddMult(dp_, *uv);
-        // invH->AddMult(b2, *uv);
-        // if (add_alpha) {
-        //   alpha += da_;
-        //   lv += dl_;
-        // }
-
+        // get solution
         x += dx.GetBlock(0);
         pv += dx.GetBlock(1);
+
         invHFT->AddMult(dx.GetBlock(1), *uv);
         invH->AddMult(b2, *uv);
-        if (add_alpha) {
-          alpha += dx.GetBlock(2)[0];
-          lv += dx.GetBlock(3)[0];
-        }        
+
+        alpha += (b5 - (Cy * dx.GetBlock(0))) / Ca;
+        lv += (b4 - (Ba * dx.GetBlock(1))) / Ca;
 
         printf("currents: [");
         for (int i = 0; i < uv->Size(); ++i) {
@@ -919,6 +847,8 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         visit_dc.Save();
       }
 
+      printf("total GMRES iterations of block system: %d\n", total_gmres);
+      
       if (it_amr >= max_levels) {
         printf("max number of refinement levels\n");
         break;
@@ -938,10 +868,10 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         printf("Refining mesh, i=%d\n", it_amr);
       }
 
+      // update variables due to refinement
       fespace.Update();
 
       x.Update();
-      // xnew.Update();
       res.Update();
       psi_r.Update();
       psi_z.Update();
@@ -955,9 +885,7 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
       b3.Update();
       b1p.Update();
       b3p.Update();
-      // dx_.Update();
-      // dp_.Update();
-
+      
       printf("******* fespace.GetTrueVSize(): %d\n", fespace.GetTrueVSize());
 
 
@@ -1211,7 +1139,11 @@ double gs(const char * mesh_file, const char * data_file, int order, int d_refin
      x.Save("final.gf");
      printf("Saved solution to final.gf\n");
      printf("Saved mesh to mesh.mesh\n");
-     printf("glvis -m mesh.mesh -g final.gf\n");
+     printf("glvis -m mesh_refine.mesh -g final.gf\n");
+
+     
+     
+     
    }
    /* 
       -------------------------------------------------------------------------------------------

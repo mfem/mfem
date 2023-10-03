@@ -417,7 +417,12 @@ void SysOperator::NonlinearEquationRes(GridFunction &psi, Vector *currents, doub
   double* x_x_ = mesh->GetVertex(ind_x);
   x_ma = x_ma_;
   x_x = x_x_;
-
+ 
+  NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
+  GridFunction f(fespace);
+  f.ProjectCoefficient(nlgcoeff0);
+  f.Save("f.gf");
+   
   // ------------------------------------------------
   // *** compute res ***
   // contribution from plasma terms
@@ -572,7 +577,7 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   x = psi;
   // x.Save("x.gf");
   model->set_alpha_bar(*alpha_bar);
-
+  
   double val_ma, val_x;
   int iprint = 0;
   set<int> plasma_inds_;
@@ -585,6 +590,11 @@ void SysOperator::Mult(const Vector &psi, Vector &y) const {
   double* x_x_ = mesh->GetVertex(ind_x);
   x_ma = x_ma_;
   x_x = x_x_;
+
+  NonlinearGridCoefficient nlgcoeff0(model, 0, &x, val_ma, val_x, plasma_inds, attr_lim);
+  GridFunction f(fespace);
+  f.ProjectCoefficient(nlgcoeff0);
+  f.Save("f.gf");
   
   NonlinearGridCoefficient nlgcoeff1(model, 1, &x, val_ma, val_x, plasma_inds, attr_lim);
   if ((iprint) || (false)) {
@@ -730,3 +740,41 @@ Operator &SysOperator::GetGradient(const Vector &psi) const {
   return *Final;
     
 }
+
+
+
+
+void ByMinusRankOnePerturbation::Mult(const Vector &k, Vector &y) const {
+  // By - 1/Ca Ba Cy^T
+  double inner = k * (*Cy); // inner product
+  add(- inner / ca, *Ba, 0.0, *Ba, y);
+  By->AddMult(k, y, 1.0);
+};
+
+void ByMinusRankOnePerturbation::MultTranspose(const Vector &k, Vector &y) const {
+  // By^T - 1/Ca Cy Ba^T
+  double inner = k * (*Ba); // inner product
+  add(- inner / ca, *Cy, 0.0, *Cy, y);
+  By->AddMultTranspose(k, y, 1.0);
+};
+
+// void mFinvHFT::Mult(const Vector &k, Vector &y) const {
+//   // - F H^{-1} F^T
+//   F->MultTranspose(k, y);
+//   invH->Mult(y, y);
+//   F->Mult(y, y);
+//   add(-1.0, y, 0.0, y, y);
+// };
+
+void WoodburyInverse::Mult(const Vector &x, Vector &y) const {
+  // (A + uv^T)^{-1} = A^{-1} - A^{-1} u v^T A^{-1} / (1 + v^T A^{-1} u)
+  //
+  // A^{-1} x = a
+  // A^{-1} u = b
+
+  // A_prec->Mult(x, a);
+  a = 0.0;
+  solver.Mult(x, a);
+
+  add(1.0, a, - scale * ((*V) * a) / (1.0 + scale * dot), b, y);
+};
