@@ -1110,8 +1110,8 @@ public:
    bool proj_bisec(double tol=1e-12, int max_its=10)
    {
       double c = 0;
-      MappedGridFunctionCoefficient rho(psi, [&c](const double x){return sigmoid(x + c);});
-      MappedGridFunctionCoefficient drho(psi, [&c](const double x){return der_sigmoid(x + c);});
+      MappedGridFunctionCoefficient rho(psi, [&c](const double x) {return sigmoid(x + c);});
+      MappedGridFunctionCoefficient drho(psi, [&c](const double x) {return der_sigmoid(x + c);});
       LinearForm *V = newLinearForm(control_fes);
       LinearForm *dV = newLinearForm(control_fes);
       V->AddDomainIntegrator(new DomainLFIntegrator(rho));
@@ -1120,7 +1120,12 @@ public:
       dV->Assemble();
       double Vc = V->Sum();
       double dVc = dV->Sum();
-      double dc = (Vc - target_volume) / dVc;
+      if (fabs(Vc - target_volume) < tol)
+      {
+         current_volume = Vc;
+         return true;
+      }
+      double dc = -(Vc - target_volume) / dVc;
       c += dc;
       int k;
       // Find an interval (c, c+dc) that contains c⋆.
@@ -1147,6 +1152,10 @@ public:
          V->Assemble();
          Vc = V->Sum();
       }
+      *psi += c;
+      c = 0;
+      V->Assemble();
+      current_volume = V->Sum();
       return true;
    }
 
