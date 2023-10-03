@@ -1047,6 +1047,7 @@ public:
       MappedGridFunctionCoefficient sigmoid_psi(psi, sigmoid);
       MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
 
+
       LinearForm *int_sigmoid_psi = newLinearForm(control_fes);
       int_sigmoid_psi->AddDomainIntegrator(new DomainLFIntegrator(sigmoid_psi));
       LinearForm *int_der_sigmoid_psi = newLinearForm(control_fes);
@@ -1056,10 +1057,19 @@ public:
       for (int k=0; k<max_its; k++) // Newton iteration
       {
          int_sigmoid_psi->Assemble(); // Recompute f(c) with updated ψ
-         const double f = int_sigmoid_psi->Sum() - target_volume;
+         double f = int_sigmoid_psi->Sum();
 
          int_der_sigmoid_psi->Assemble(); // Recompute df(c) with updated ψ
-         const double df = int_der_sigmoid_psi->Sum();
+         double df = int_der_sigmoid_psi->Sum();
+
+#ifdef MFEM_USE_MPI
+         if (isParallel)
+         {
+            MPI_Allreduce(MPI_IN_PLACE, &f, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &df, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         }
+#endif
+         f -= target_volume;
 
          const double dc = -f/df;
          *psi += dc;
@@ -1071,6 +1081,14 @@ public:
       }
       int_sigmoid_psi->Assemble();
       current_volume = int_sigmoid_psi->Sum();
+#ifdef MFEM_USE_MPI
+      if (isParallel)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &current_volume, 1, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
+      }
+#endif
+
       return done;
    }
 
