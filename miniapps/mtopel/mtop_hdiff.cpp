@@ -71,13 +71,13 @@ public:
 
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2, 0.2, 0.2);
-        gf->SetMaternParameter(4.0);
+        gf->SetMaternParameter(1.0);
         gf->SetScale(1.0);
         gf->Sample(seed);
 
         af=new mfem::RandFieldCoefficient(pmesh_,vorder);
         af->SetCorrelationLen(0.2, 0.2, 0.2);
-        af->SetMaternParameter(4.0);
+        af->SetMaternParameter(1.0);
         af->SetScale(1.0);
         af->SetZeroDirichletBC(3);
         af->Sample(seed+1347);
@@ -89,7 +89,7 @@ public:
     {
         delete obj;
         delete dsolv;
-        delete dsola;
+        // delete dsola;
 
         delete af;
         delete gf;
@@ -118,6 +118,12 @@ public:
     {
         gf->SetRotationAngles(angle_x, angle_y, angle_z);
         af->SetRotationAngles(angle_x, angle_y, angle_z);
+    }
+
+    void SetMaternParameter(double nu)
+    {
+        gf->SetMaternParameter(nu);
+        af->SetMaternParameter(nu);
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -196,6 +202,7 @@ public:
 
             dsolv->SetVolInput(*gf);
             dsolv->LSolve();
+
             dsolv->GetSol(sols);
 
             dsola->SetVolInput(*af);
@@ -207,6 +214,7 @@ public:
 
 
             //part 1
+            obj->SetDiffSolver(dsolv);
             vv=obj->Eval(sols);
             obj->Grad(sols,lgr);
 
@@ -215,6 +223,7 @@ public:
             rvar=rvar+vv*vv;
 
             //part 2
+            obj->SetDiffSolver(dsola);
             vv=obj->Eval(sola);
             obj->Grad(sola,lgr);
 
@@ -280,8 +289,8 @@ public:
 
 private:
     mfem::DiffusionMaterial* mat;
-    mfem::DiffusionSolver* dsolv;
-    mfem::DiffusionSolver* dsola;
+    mfem::DiffusionSolver* dsolv=nullptr;
+    mfem::DiffusionSolver* dsola=nullptr;
     mfem::ParMesh* pmesh;
 
     mfem::ParFiniteElementSpace* dfes;
@@ -337,6 +346,8 @@ int main(int argc, char *argv[])
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
+   double volume_fraction = 0.5;
+   double nu = 1.0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -380,6 +391,10 @@ int main(int argc, char *argv[])
                   "-r",
                   "--radius",
                   "Filter radius");
+   args.AddOption(&volume_fraction,
+                  "-vf",
+                  "--volume-fraction",
+                  "Volume fraction");                  
    args.AddOption(&num_samples,
                   "-ns",
                   "--num-samples",
@@ -401,7 +416,9 @@ int main(int argc, char *argv[])
    args.AddOption(&angle_y, "-e2", "--e2",
                   "Rotation angle in y direction");             
    args.AddOption(&angle_z, "-e3", "--e3",
-                  "Rotation angle in z direction");                                                                    
+                  "Rotation angle in z direction");     
+   args.AddOption(&nu, "-nu", "--nu",
+                  "Matern Parameter (Smoothness of random field)");                                                                                      
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -449,49 +466,8 @@ int main(int argc, char *argv[])
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   /*
    {
-       mesh.EnsureNodes();
-       mfem::Vector vert;
-       //mesh.GetVertices(vert);
-       mfem::GridFunction* nod=mesh.GetNodes();
-
-       std::cout<<"Size="<<nod->Size()<<std::endl;
-
-       int nv=nod->Size()/3;
-
-       for(int i=0;i<nv;i++){
-           double xx=(*nod)[3*i+0];
-           double yy=(*nod)[3*i+1];
-           double zz=(*nod)[3*i+2];
-
-           double dd=pow(xx,8.0)+pow(yy,8.0)+pow(zz,8.0);
-           dd=pow(dd,1.0/8.0);
-
-           (*nod)[3*i+0] = xx/dd;
-           (*nod)[3*i+1] = yy/dd;
-           (*nod)[3*i+2] = zz/dd;
-       }
-
-
-       //mesh.SetVertices(vert);
-       mfem::Vector xmin(dim), xmax(dim);
-       mesh.GetBoundingBox(xmin,xmax);
-       if(myrank==0){
-           std::cout<<"Xmin:";xmin.Print(std::cout);
-           std::cout<<"Xmax:";xmax.Print(std::cout);
-       }
-   }*/
-
-   // Refine the serial mesh on all processors to increase the resolution. In
-   // this example we do 'ref_levels' of uniform refinement. We choose
-   // 'ref_levels' to be the largest number that gives a final mesh with no
-   // more than 10,000 elements.
-   {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
-
-      for (int l = 0; l < ref_levels; l++)
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh.UniformRefinement();
       }
@@ -534,6 +510,7 @@ int main(int argc, char *argv[])
    sink->SetDensity(vdens);
    sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
    sink->SetRotationAngles(angle_x, angle_y, angle_z);
+   sink->SetMaternParameter(nu);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -547,7 +524,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.35*tot_vol;
+   double max_vol=volume_fraction*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
 
@@ -592,13 +569,16 @@ int main(int argc, char *argv[])
 
 
       std::ostringstream paraview_file_name;
-      paraview_file_name << "TopOpt:ser_ref_" << ser_ref_levels  
+      paraview_file_name << "TopOpt-half:ser_ref_" << ser_ref_levels  
                                          << "_par_ref_" << par_ref_levels 
                                          << "_order_" << order 
                                          << "_num_samples_" << num_samples
+                                         << "_max_it_" << max_it
                                          << "_crlx_" << corr_len_x 
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
+                                         << "_volume_fraction_" << volume_fraction
+                                         << "_maternparam_" << nu
                                          << "_radius_" << fradius;
       mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
@@ -622,10 +602,18 @@ int main(int argc, char *argv[])
               vobj->SetProjection(0.5,2.0);
               sink->SetDensity(vdens,0.5,2.0,3.0);
               sink->SetSIMP(true);
+          }else if(i<400){
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,4.0);
+              sink->SetSIMP(true);     
+          }else if(i<500){
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,5.0);
+              sink->SetSIMP(true);         
           }else{
-              vobj->SetProjection(0.3,8.0);
-              sink->SetDensity(vdens,0.7,8.0,1.0);
-              sink->SetSIMP(false);
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,6.0);
+              sink->SetSIMP(true);
           }
 
           vol=vobj->Eval(vdens);

@@ -7,7 +7,12 @@
 #include "mtop_solvers.hpp"
 #include "mtop_coefficients.hpp"
 
-
+enum geom_type
+{
+   square,    
+   sphere     
+};
+geom_type geom;
 
 class CoeffHoles:public mfem::Coefficient
 {
@@ -66,13 +71,13 @@ public:
 
         gf=new mfem::RandFieldCoefficient(pmesh_,vorder);
         gf->SetCorrelationLen(0.2, 0.2,0.2);
-        gf->SetMaternParameter(4.0);
+        gf->SetMaternParameter(1.0);
         gf->SetScale(1.0);
         gf->Sample(seed);
 
         af=new mfem::RandFieldCoefficient(pmesh_,vorder);
         af->SetCorrelationLen(0.2, 0.2, 0.2);
-        af->SetMaternParameter(4.0);
+        af->SetMaternParameter(1.0);
         af->SetScale(1.0);
         af->SetZeroDirichletBC(2);
         af->Sample(seed+1347);
@@ -114,9 +119,10 @@ public:
         af->SetRotationAngles(angle_x, angle_y, angle_z);
     }
 
-    void Solve()
+    void SetMaternParameter(double nu)
     {
-
+        gf->SetMaternParameter(nu);
+        af->SetMaternParameter(nu);
     }
 
     void SetDesignFES(mfem::ParFiniteElementSpace* fes)
@@ -165,7 +171,14 @@ public:
         grad=0.0;
 
         dsolv->DelDirichletBC();
-        dsolv->AddDirichletBC(2,0.0);
+        if (geom == geom_type::square)
+        {
+          dsolv->AddDirichletBC(2,0.0);
+        }
+        else
+        {
+          dsolv->AddDirichletBC(1,0.0);
+        }
         dsolv->AssembleTangent();
 
         std::uniform_int_distribution<int> uint(1,std::numeric_limits<int>::max());
@@ -224,7 +237,6 @@ private:
 
 };
 
-
 int main(int argc, char *argv[])
 {
    // Initialize MPI.
@@ -255,6 +267,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
+   double volume_fraction = 0.35;
+   int igeom = 0;
+   double nu = 1.0;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -298,6 +313,10 @@ int main(int argc, char *argv[])
                   "-r",
                   "--radius",
                   "Filter radius");
+   args.AddOption(&volume_fraction,
+                  "-vf",
+                  "--volume-fraction",
+                  "Volume fraction");                   
    args.AddOption(&num_samples,
                   "-ns",
                   "--num-samples",
@@ -319,7 +338,11 @@ int main(int argc, char *argv[])
    args.AddOption(&angle_y, "-e2", "--e2",
                   "Rotation angle in y direction");             
    args.AddOption(&angle_z, "-e3", "--e3",
-                  "Rotation angle in z direction");                                                                    
+                  "Rotation angle in z direction");   
+   args.AddOption(&nu, "-nu", "--nu",
+                  "Matern Parameter (Smoothness of random field)");                     
+   args.AddOption(&igeom, "-g", "--geom", "Geometry type"
+                  "0: square, 1: sphere");                                                                                   
    args.AddOption(&petscrc_file, "-petscopts", "--petscopts",
                      "PetscOptions file to use.");
    args.AddOption(&restart,
@@ -336,6 +359,10 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
+
+
+   MFEM_VERIFY((igeom == 0 || igeom == 1), "Wrong choice of geometry kind");
+   geom = (geom_type)igeom;
 
    int seed;
    {
@@ -366,6 +393,7 @@ int main(int argc, char *argv[])
    // and volume meshes with the same code.
    mfem::Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
+   // mfem::out << mesh.bdr_attributes.Max() << std::endl;
 
    /*
    {
@@ -406,8 +434,8 @@ int main(int argc, char *argv[])
    // 'ref_levels' to be the largest number that gives a final mesh with no
    // more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels = ser_ref_levels;
+        //  (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
 
       for (int l = 0; l < ref_levels; l++)
       {
@@ -435,8 +463,15 @@ int main(int argc, char *argv[])
    //allocate the filter
    mfem::FilterSolver* fsolv=new mfem::FilterSolver(fradius,&pmesh);
    fsolv->SetSolver(1e-8,1e-12,100,0);
-   fsolv->AddBC(2,1.0);
-
+   
+   if (geom == geom_type::square)
+   {
+      fsolv->AddBC(2,1.0);
+   }
+   else
+   {
+      fsolv->AddBC(1,1.0);
+   }
 
    mfem::ParGridFunction pgdens(fsolv->GetFilterFES());
    mfem::ParGridFunction oddens(fsolv->GetDesignFES());
@@ -452,6 +487,7 @@ int main(int argc, char *argv[])
    sink->SetDensity(vdens);
    sink->SetCorrelationLen(corr_len_x,corr_len_y, corr_len_z);
    sink->SetRotationAngles(angle_x, angle_y, angle_z);
+   sink->SetMaternParameter(nu);
    sink->SetNumSamples(num_samples);
 
    mfem::VolumeQoI* vobj=new mfem::VolumeQoI(fsolv->GetFilterFES());
@@ -465,7 +501,7 @@ int main(int argc, char *argv[])
        vdens=1.0;
        tot_vol=vobj->Eval(vdens);
    }
-   double max_vol=0.35*tot_vol;
+   double max_vol=volume_fraction*tot_vol;
    if(myrank==0){ std::cout<<"tot vol="<<tot_vol<<std::endl;}
 
 
@@ -504,7 +540,10 @@ int main(int argc, char *argv[])
       CoeffHoles cf;
       oddens.ProjectCoefficient(cf);
       oddens.GetTrueDofs(vtmpv);
-      vtmpv=0.2;
+      if (geom == geom_type::square)
+      {
+        vtmpv=0.2;
+      }
       fsolv->Mult(vtmpv,vdens);
       pgdens.SetFromTrueDofs(vdens);
 
@@ -514,10 +553,14 @@ int main(int argc, char *argv[])
                                          << "_par_ref_" << par_ref_levels 
                                          << "_order_" << order 
                                          << "_num_samples_" << num_samples
+                                         << "_max_it_" << max_it
                                          << "_crlx_" << corr_len_x 
                                          << "_crly_" << corr_len_y 
                                          << "_angle_x_" << angle_x 
-                                         << "_radius_" << fradius;
+                                         << "_volume_fraction_" << volume_fraction
+                                         << "_radius_" << fradius
+                                         << "_maternparam_" << nu
+                                         << "_geom_" << igeom;
       mfem::ParaViewDataCollection paraview_dc(paraview_file_name.str(), &pmesh);
       {
          paraview_dc.SetPrefixPath("ParaView");
@@ -541,14 +584,14 @@ int main(int argc, char *argv[])
               sink->SetDensity(vdens,0.5,2.0,3.0);
               sink->SetSIMP(true);
           }else{
-              vobj->SetProjection(0.3,8.0);
-              sink->SetDensity(vdens,0.7,8.0,1.0);
-              sink->SetSIMP(false);
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,4.0);
+              sink->SetSIMP(true);
           }
 
           vol=vobj->Eval(vdens);
           ivol=ivobj->Eval(vdens);
-          //cpl=sink->Compliance(ograd);
+        //   cpl=sink->Compliance(ograd);
           cpl=sink->MeanCompl(ograd);
 
 
