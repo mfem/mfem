@@ -3937,8 +3937,18 @@ public:
       const double s1 = dx1 * dx1 + dy1 * dy1;
       const double s2 = dx2 * dx2 + dy2 * dy2;
 
-      V[0] = 2.0 * (dy1 / s1 + dy2 / s2);
-      V[1] = -2.0 * (dx1 / s1 + dx2 / s2);
+      const double tol = 1e-6;
+
+      if (s1 < tol || s2 < tol)
+      {
+         V[0] = 0.0;
+         V[1] = 0.0;
+      }
+      else
+      {
+         V[0] = 2.0 * (dy1 / s1 + dy2 / s2);
+         V[1] = -2.0 * (dx1 / s1 + dx2 / s2);
+      }
       V[2] =  1.0;
    }
 };
