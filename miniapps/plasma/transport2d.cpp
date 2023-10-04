@@ -3192,6 +3192,25 @@ public:
    }
 };
 
+class AMRHeatSource: public Coefficient
+{
+private:
+   double a_, b_, midx_, midy_;
+
+   mutable Vector x_;
+
+public:
+   AMRHeatSource(double a, double b, double midx, double midy)
+      : a_(a), b_(b), midx_(midx), midy_(midy), x_(3) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      T.Transform(ip, x_);
+      return exp(-(a_ * ((pow(x_[0] - midx_, 2) / b_) + (pow(x_[1] - midy_,
+                                                             2) / b_))));
+   }
+};
+
 class SinPhi: public Coefficient
 {
 private:
@@ -4130,6 +4149,12 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
       double a, b, kx, ky;
       input >> a >> b >> kx >> ky;
       coef_idx = sCoefs.Append(new ExpSinSin2D(a, b, kx, ky));
+   }
+   else if (name == "AMRHeatSource")
+   {
+      double a, b, midx, midy;
+      input >> a >> b >> midx >> midy;
+      coef_idx = sCoefs.Append(new AMRHeatSource(a, b, midx, midy));
    }
    else if (name == "SinPhi")
    {
