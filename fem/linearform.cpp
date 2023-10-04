@@ -27,7 +27,7 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
    // Linear forms are stored on the device
    UseDevice(true);
 
-   // Copy the pointers to the integrators
+   // Copy the pointers to the integrators and the corresponding marker arrays
    domain_integs = lf->domain_integs;
    domain_integs_marker = lf->domain_integs_marker;
 
@@ -38,6 +38,8 @@ LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
 
    boundary_face_integs = lf->boundary_face_integs;
    boundary_face_integs_marker = lf->boundary_face_integs_marker;
+
+   interior_face_integs = lf->interior_face_integs;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
