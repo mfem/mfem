@@ -1,6 +1,6 @@
 #include "mfem.hpp"
 #include "mtop_solvers.hpp"
-
+#include "../../linalg/dual.hpp"
 
 namespace mfem {
 
@@ -1982,7 +1982,155 @@ void DiffusionComplianceObj::Grad(mfem::ParGridFunction& sol, Vector& grad)
 
 }
 
+double StressObjIntegrator::GetElementEnergy(
+        const FiniteElement &el, ElementTransformation &Tr,
+        const Vector &elfun)
+{
+    double res=0.0;
+    if(disp==nullptr){return 0.0;}
+    if(adj==nullptr){return 0.0;}
 
+    const int dim=el.GetDim();
+    DenseMatrix ugrads; ugrads.SetSize(dim);
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+disp->FESpace()->GetOrder(Tr.ElementNo);
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+    double w;
+
+    double vms;
+    double kap=1.0;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        disp->GetVectorGradient(Tr,ugrads);
+        double E=Ecoef->Eval(Tr,ip);
+        if(kappa!=nullptr){
+            kap=kappa->Eval(Tr,ip);
+        }
+
+        if(dim==2)
+        {
+            vms=elast::vonMisesStress2Dpow(ugrads.GetData(),nu,E,a);
+        }else{//dim==3
+            vms=elast::vonMisesStress3Dpow(ugrads.GetData(),nu,E,a);
+        }
+        res=res+w*kap*vms;
+    }
+    return res;
+}
+
+void StressObjIntegrator::AssembleElementVectorAdjRHS(
+        const FiniteElement &el, ElementTransformation &Tr,
+        const Vector &elfun, Vector &elvect)
+{
+
+    elvect.SetSize(elfun.Size()); elvect=0.0;
+
+    if(disp==nullptr){return;}
+    if(adj==nullptr){return;}
+
+    const int dim=el.GetDim();
+    const int ndof = el.GetDof();
+    DenseMatrix gradu; gradu.SetSize(dim);
+    DenseMatrix vmgrads; vmgrads.SetSize(dim);
+    DenseMatrix B(ndof,dim);
+    Vector tv;
+    Vector dd(dim);
+    Vector ct(ndof);
+
+    const IntegrationRule *ir = nullptr;
+    int order= 2 * el.GetOrder() + Tr.OrderGrad(&el)+disp->FESpace()->GetOrder(Tr.ElementNo);
+    ir=&IntRules.Get(Tr.GetGeometryType(),order);
+    double w;
+
+    double kap=1.0;
+    for(int i=0; i<ir->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir->IntPoint(i);
+        Tr.SetIntPoint(&ip);
+        w=Tr.Weight();
+        w = ip.weight * w;
+
+        double E=Ecoef->Eval(Tr,ip);
+        if(kappa!=nullptr){
+            kap=kappa->Eval(Tr,ip);
+        }
+
+        el.CalcPhysDShape(Tr,B);
+        //evaluate the gradient
+        for(int d=0;d<dim;d++){
+            tv.SetDataAndSize(elfun.GetData()+ndof*d,ndof);
+            B.MultTranspose(tv,dd);
+            for(int p=0;p<dim;p++){
+                gradu(p,d)=dd(p);
+            }
+        }
+
+        //gradient of VM^(2*a) stress with respect to gradu
+        GradVM(gradu, nu, E, a, vmgrads);
+
+        //add the contribution
+
+        for(int d=0;d<dim;d++){
+            for(int p=0;p<dim;p++){
+                dd(p)=vmgrads(p,d)*kap;
+            }
+            B.Mult(dd,ct);
+            for(int k=0;k<ndof;k++){
+                elvect(d*ndof+k)=elvect(d*ndof+k)-w*ct[k];
+            }
+        }
+    }
+}
+
+void StressObjIntegrator::GradVM(DenseMatrix& gradu,
+                                 double nnu, double EE, double aa,
+                                 DenseMatrix& gradvm)
+{
+
+    typedef internal::dual<double, double> ADFloatType;
+    int dim=gradu.Width();
+
+    ADFloatType vg[dim*dim];
+    for(int i=0;i<dim;i++){
+        for(int j=0;j<dim;j++){
+            vg[i*dim+j].value=gradu(i,j);
+            vg[i*dim+j].gradient=0.0;
+        }
+    }
+
+    ADFloatType rez[dim*dim];
+    ADFloatType anu; anu.gradient=0.0; anu.value=nnu;
+    ADFloatType aE; aE.gradient=0.0; aE.value=EE;
+    ADFloatType aaa; aaa.gradient=0.0; aaa.value=aa;
+
+    if(dim==2){
+        for(int i=0;i<4;i++){
+            vg[i].gradient=1.0;
+            rez[i]=elast::vonMisesStress2Dpow<ADFloatType>(vg,anu,aE,aaa);
+            vg[i].gradient=0.0;
+        }
+    }
+    else{//dim==3
+        for(int i=0;i<9;i++){
+            vg[i].gradient=1.0;
+            rez[i]=elast::vonMisesStress3Dpow<ADFloatType>(vg,anu,aE,aaa);
+            vg[i].gradient=0.0;
+        }
+    }
+
+    for(int i=0;i<dim;i++){
+        for(int j=0;j<dim;j++){
+            gradvm(i,j)=rez[i*dim+j].gradient;
+        }
+    }
+
+}
 
 }
 

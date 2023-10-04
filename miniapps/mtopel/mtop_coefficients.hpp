@@ -725,6 +725,40 @@ private:
 
 };
 
+
+class ThresholdCoefficient:public Coefficient
+{
+public:
+    ThresholdCoefficient(Coefficient* gf_, double t_=1.5, double a_=0.0, double b_=1.0):t(t_),a(a_),b(b_)
+    {
+        gf=gf_;
+    }
+
+    void SetGaussianCoeff(Coefficient* gf_){
+        gf=gf_;
+    }
+
+    void SetThresholdValues(double a_,double b_)
+    {
+        a=a_;
+        b=b_;
+    }
+
+    /// Evaluates the coefficient
+    virtual
+    double Eval(ElementTransformation& T, const IntegrationPoint& ip){
+        double val=gf->Eval(T,ip);
+        if(val>t){ return a;}
+        else{ return b;}
+    }
+
+private:
+    double t;
+    double a;
+    double b;
+    Coefficient* gf;
+};
+
 #ifdef MFEM_USE_MPI
 
 class RandFieldCoefficient:public Coefficient

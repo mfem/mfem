@@ -175,6 +175,92 @@ TFloat vonMisesStress2DGrad(TMat stress, TMat grad)
     return vms;
 }
 
+/// Evaluates von Mises stress to the power of 2*a for given
+/// displacement gradients gradu, Poison ratio nnu, and
+/// elstic modulus EE
+template<class TFloat>
+TFloat vonMisesStress3Dpow(TFloat* gradu, TFloat nnu,TFloat EE, TFloat aa)
+{
+    TFloat strain[9];
+    for(int i=0;i<3;i++){
+    for(int j=0;j<3;j++){
+        strain[i*3+j]=0.5*(gradu[i*3+j]+gradu[i+3*j]);
+    }}
+
+    //compute the stress tensor
+    TFloat ss[9];
+    TFloat mu=(EE/(2.0*(1.0+nnu)));
+    TFloat ll=(nnu*EE/((1.0+nnu)*(1.0-2.0*nnu)));
+
+    for(int j=0;j<3;j++){
+    for(int i=0;i<3;i++){
+        ss[i*3+j]=2.0*mu*strain[i*3+j];
+    }}
+
+    ss[0*3+0]=ss[0*3+0]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2+3+2]);
+    ss[1*3+1]=ss[1*3+1]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2*3+2]);
+    ss[2*3+2]=ss[2*3+2]+ll*(strain[0*3+0]+strain[1*3+1]+strain[2*3+2]);
+
+
+    TFloat vms;
+    vms=(ss[0*3+0]-ss[1*3+1])*(ss[0*3+0]-ss[1*3+1]);
+    vms=vms+(ss[1*3+1]-ss[2*3+2])*(ss[1*3+1]-ss[2*3+2]);
+    vms=vms+(ss[2*3+2]-ss[0*3+0])*(ss[2*3+2]-ss[0*3+0]);
+    vms=vms+(ss[0*3+1]*ss[0*3+1]+ss[1*3+0]*ss[1*3+0])*3.0;
+    vms=vms+(ss[0*3+2]*ss[0*3+2]+ss[2*3+0]*ss[2*3+0])*3.0;
+    vms=vms+(ss[1*3+2]*ss[1*3+2]+ss[2*3+1]*ss[2*3+1])*3.0;
+    vms=vms/2.0;
+
+    TFloat rez=vms;
+    for(int i=1;i<aa;i++){
+        rez=rez*vms;
+    }
+
+    return rez;
+}
+
+/// Evaluates von Mises stress to the power of 2*a for given
+/// displacement gradients gradu, Poison ratio nnu, and
+/// elstic modulus EE
+template<class TFloat>
+TFloat vonMisesStress2Dpow(TFloat* gradu, TFloat nnu,TFloat EE, TFloat aa)
+{
+
+    TFloat strain[4];
+    for(int i=0;i<2;i++){
+    for(int j=0;j<2;j++){
+        strain[i*2+j]=0.5*(gradu[i*2+j]+gradu[i+2*j]);
+    }}
+
+    //compute the stress tensor
+    TFloat ss[4];
+    TFloat mu=TFloat(EE/(2.0*(1.0+nnu)));
+    TFloat ll=TFloat(nnu*EE/((1.0+nnu)*(1.0-2.0*nnu)));
+
+    for(int j=0;j<2;j++){
+    for(int i=0;i<2;i++){
+        ss[i*2+j]=2.0*mu*strain[i*2+j];
+    }}
+
+    ss[0*2+0]=ss[0*2+0]+ll*(strain[0*2+0]+strain[1*2+1]);
+    ss[1*2+1]=ss[1*2+1]+ll*(strain[0*2+0]+strain[1*2+1]);
+
+
+    TFloat vms;
+    vms=(ss[0*2+0]-ss[1*2+1])*(ss[0*2+0]-ss[1*2+1]);
+    vms=vms+(ss[1*2+1])*(ss[1*2+1]);
+    vms=vms+(ss[0*2+0])*(ss[0*2+0]);
+    vms=vms+(ss[0*2+1]*ss[0*2+1]+ss[1*2+0]*ss[1*2+0])*3.0;
+    vms=vms/2.0;
+    //return pow(vms,aa);
+
+    TFloat rez=vms;
+    for(int i=1;i<aa;i++){
+        rez=rez*vms;
+    }
+
+    return rez;
+}
 
 }
 
@@ -1512,6 +1598,160 @@ private:
     Vector tmpv;
 
 };
+
+
+class SoftMax
+{
+public:
+
+    SoftMax(double t_=1.0)
+    {
+        to=t_;
+    }
+
+    ~SoftMax()
+    {
+    }
+
+    void SetScale(double t_)
+    {
+        to=t_;
+    }
+
+    /// evaluates soft max from a grid function
+    double Eval(mfem::ParGridFunction& sol){
+
+        mfem::Vector& tvec=sol.GetTrueVector();
+        double xo=tvec.Max();
+        double xg=xo;
+        MPI_Allreduce(&xo,&xg,1,MPI_DOUBLE,MPI_MAX,sol.ParFESpace()->GetComm());
+
+        double res=0.0;
+        for(int i=0;i<tvec.Size();i++){
+            res=res+exp((tvec[i]-xg)/to);
+        }
+
+        double gs=0.0;
+        MPI_Allreduce(&res,&gs,1,MPI_DOUBLE,MPI_SUM,sol.ParFESpace()->GetComm());
+        return to*log(gs);
+    }
+
+    /// return true vector with gradients of the soft max
+    double Grad(mfem::ParGridFunction& sol, mfem::Vector& grad)
+    {
+        mfem::Vector& tvec=sol.GetTrueVector();
+        grad.SetSize(tvec.Size());
+
+        double xo=tvec.Max();
+        double xg=xo;
+        MPI_Allreduce(&xo,&xg,1,MPI_DOUBLE,MPI_MAX,sol.ParFESpace()->GetComm());
+
+        double res=0.0;
+        for(int i=0;i<tvec.Size();i++){
+            res=res+exp((tvec[i]-xg)/to);
+        }
+
+        double gs=0.0;
+        MPI_Allreduce(&res,&gs,1,MPI_DOUBLE,MPI_SUM,sol.ParFESpace()->GetComm());
+
+        for(int i=0;i<tvec.Size();i++){
+            grad[i]=exp((tvec[i]-xg)/to)/gs;
+        }
+
+        return to*log(gs);
+    }
+
+
+private:
+    double to;
+
+};
+
+
+class StressObjIntegrator:public NonlinearFormIntegrator
+{
+public:
+    StressObjIntegrator()
+    {
+        kappa=nullptr;
+        disp=nullptr;
+        adj=nullptr;
+        nu=0.2;
+        Ecoef=nullptr;
+        a=1.0;
+    }
+
+    ~StressObjIntegrator()
+    {
+    }
+
+    void SetKappa(Coefficient* coeff)
+    {
+        kappa=coeff;
+    }
+
+    void SetPower(double a_)
+    {
+        a=a_;
+    }
+
+    void SetDisp(ParGridFunction* disp_)
+    {
+        disp=disp_;
+    }
+
+    void SetAdj(ParGridFunction* adj_)
+    {
+        adj=adj_;
+    }
+
+    void SetE(YoungModulus* E_)
+    {
+        Ecoef=E_;
+    }
+
+    void SetPoissonRatio(double nu_)
+    {
+        nu=nu_;
+    }
+
+    virtual
+    double GetElementEnergy(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun);
+
+    /// evaluates gradients with respect to the displacements
+    virtual
+    void AssembleElementVector(
+            const FiniteElement &el, ElementTransformation &Tr,
+            const Vector &elfun, Vector &elvect)
+    {
+        AssembleElementVectorAdjRHS(el,Tr,elfun,elvect);
+    }
+
+    void AssembleElementVectorAdjRHS(
+            const FiniteElement &el, ElementTransformation &Tr,
+            const Vector &elfun, Vector &elvect);
+
+    void AssembleElementVectorGradDens(
+            const FiniteElement &el, ElementTransformation &Tr,
+            const Vector &elfun, Vector &elvect);
+
+private:
+
+    void GradVM(DenseMatrix& gradu,
+                double nnu, double EE, double aa,
+                DenseMatrix& gradvm);
+
+
+    ParGridFunction* disp;
+    ParGridFunction* adj;
+
+    mfem::Coefficient* kappa;
+    YoungModulus* Ecoef;
+    double nu;
+    double a;
+};
+
 
 
 }
