@@ -1737,7 +1737,7 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 
    // create a GroupCommunicator on the shared edges
    GroupCommunicator sedge_comm(gtopo);
-   GetSharedEdgeCommunicator(sedge_comm);
+   GetSharedEdgeCommunicator(0, sedge_comm);
 
    Array<int> sedge_ord(shared_edges.Size());
    Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
@@ -3285,7 +3285,7 @@ void ParMesh::ReorientTetMesh()
 
    // create a GroupCommunicator over shared vertices
    GroupCommunicator svert_comm(gtopo);
-   GetSharedVertexCommunicator(svert_comm);
+   GetSharedVertexCommunicator(0, svert_comm);
 
    // communicate the local index of each shared vertex from the group master to
    // other ranks in the group
@@ -3367,22 +3367,8 @@ void ParMesh::ReorientTetMesh()
    {
       // create a GroupCommunicator on the shared triangles
       GroupCommunicator stria_comm(gtopo);
-      {
-         // initialize stria_comm
-         Table &gr_stria = stria_comm.GroupLDofTable();
-         // gr_stria differs from group_stria - the latter does not store gr. 0
-         gr_stria.SetDims(GetNGroups(), shared_trias.Size());
-         gr_stria.GetI()[0] = 0;
-         for (int gr = 1; gr <= GetNGroups(); gr++)
-         {
-            gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
-         }
-         for (int k = 0; k < shared_trias.Size(); k++)
-         {
-            gr_stria.GetJ()[k] = group_stria.GetJ()[k];
-         }
-         stria_comm.Finalize();
-      }
+      GetSharedTriCommunicator(0, stria_comm);
+
       Array<int> stria_flag(shared_trias.Size());
       for (int i = 0; i < stria_flag.Size(); i++)
       {
@@ -4952,7 +4938,7 @@ void ParMesh::Print(std::ostream &os) const
    }
 }
 
-void ParMesh::Save(const char *fname, int precision) const
+void ParMesh::Save(const std::string &fname, int precision) const
 {
    ostringstream fname_with_suffix;
    fname_with_suffix << fname << "." << setfill('0') << setw(6) << MyRank;
@@ -5615,7 +5601,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
    return serialmesh;
 }
 
-void ParMesh::SaveAsOne(const char *fname, int precision) const
+void ParMesh::SaveAsOne(const std::string &fname, int precision) const
 {
    ofstream ofs;
    if (MyRank == 0)
@@ -6505,7 +6491,7 @@ static void PrintVertex(const Vertex &v, int space_dim, ostream &os)
    }
 }
 
-void ParMesh::PrintSharedEntities(const char *fname_prefix) const
+void ParMesh::PrintSharedEntities(const std::string &fname_prefix) const
 {
    stringstream out_name;
    out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank

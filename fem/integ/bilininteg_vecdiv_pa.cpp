@@ -170,9 +170,9 @@ static void PADivergenceApply2D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
@@ -186,8 +186,8 @@ static void PADivergenceApply2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 2;
       // the following variables are evaluated at compile time
-      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][VDIM];
       double div[max_Q1D][max_Q1D];
@@ -308,9 +308,9 @@ static void PADivergenceApplyTranspose2D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
@@ -324,8 +324,8 @@ static void PADivergenceApplyTranspose2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 2;
       // the following variables are evaluated at compile time
-      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double quadTest[max_Q1D][max_Q1D];
       double grad[max_Q1D][max_Q1D][VDIM];
@@ -424,9 +424,9 @@ static void PADivergenceApply3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, TR_D1D);
    auto G = Reshape(g.Read(), Q1D, TR_D1D);
    auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
@@ -440,8 +440,8 @@ static void PADivergenceApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 3;
       // the following variables are evaluated at compile time
-      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
       double div[max_Q1D][max_Q1D][max_Q1D];
@@ -607,9 +607,9 @@ static void PADivergenceApplyTranspose3D(const int NE,
    const int TR_D1D = T_TR_D1D ? T_TR_D1D : tr_d1d;
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
    auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
    auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
    auto B  = Reshape(b.Read(), Q1D, TE_D1D);
@@ -623,8 +623,8 @@ static void PADivergenceApplyTranspose3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = 3;
       // the following variables are evaluated at compile time
-      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
       double quadTest[max_Q1D][max_Q1D][max_Q1D];
       double grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
@@ -786,9 +786,9 @@ static void SmemPADivergenceApply3D(const int NE,
    const int TE_D1D = T_TE_D1D ? T_TE_D1D : te_d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(TR_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(TE_D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
+   MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    auto b = Reshape(b_.Read(), Q1D, TR_D1D);
    auto g = Reshape(g_.Read(), Q1D, TR_D1D);
@@ -804,9 +804,9 @@ static void SmemPADivergenceApply3D(const int NE,
       const int D1DR = T_TR_D1D ? T_TR_D1D : tr_d1d;
       const int D1DE = T_TE_D1D ? T_TE_D1D : te_d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : MAX_D1D;
-      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1R = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MD1E = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MD1 = MD1E > MD1R ? MD1E : MD1R;
       constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
       MFEM_SHARED double sBG[2][MQ1*MD1];

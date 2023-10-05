@@ -419,7 +419,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double avg_surf_fit_err, max_surf_fit_err = 0.0;
    if (surf_fit_max_threshold > 0.0)
    {
-      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
+      GetSurfaceFittingError(x_out_loc, avg_surf_fit_err, max_surf_fit_err);
       if (max_surf_fit_err < surf_fit_max_threshold)
       {
          if (print_options.iterations)
@@ -519,7 +519,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       double avg_fit_err, max_fit_err = 0.0;
       if (surf_fit_max_threshold > 0.0)
       {
-         GetSurfaceFittingError(avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
       }
       if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
       {
@@ -662,7 +662,8 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+                                              double &err_avg,
                                               double &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -680,7 +681,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
             err_avg = std::fmax(err_avg_loc, err_avg);
             err_max = std::fmax(err_max_loc, err_max);
          }
@@ -693,7 +694,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
                err_avg = std::fmax(err_avg_loc, err_avg);
                err_max = std::fmax(err_max_loc, err_max);
             }
@@ -733,12 +734,13 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
-   const FiniteElementSpace *x_fes;
+   const FiniteElementSpace *x_fes = nullptr;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
+
       x_fes = pnlf->ParFESpace();
       x_loc.SetSize(x_fes->GetVSize());
       x_fes->GetProlongationMatrix()->Mult(x, x_loc);
@@ -789,7 +791,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    if (update_surf_fit_coeff)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
       // Get array with surface fitting weights.
       Array<double> weights;
       GetSurfaceFittingWeight(weights);
