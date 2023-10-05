@@ -264,7 +264,6 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 Vector * HypreParVector::GlobalVector() const
 {
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   if (hv == nullptr) { return nullptr; }
    Vector *v = new Vector(hv->data, internal::to_int(hv->size));
    v->MakeDataOwner();
    hypre_SeqVectorSetDataOwner(hv,0);
