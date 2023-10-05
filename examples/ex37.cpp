@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 5;
-   int order = 2;
+   int ref_levels = 7;
+   int order = 1;
    double alpha = 1.0;
    double epsilon = 0.01;
    double vol_fraction = 0.5;
@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
    double lambda = 1.0;
    double mu = 1.0;
    double c1 = 1e-04;
-   double c2 = 0.7;
+   double c2 = 0.9;
    bool glvis_visualization = true;
    bool paraview_output = false;
 
@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
       mfem::out << "\nStep = " << k << std::endl;
       optimizer.SetAlpha0(alpha);
       alpha = optimizer.Step();
-      
+
       mfem::out << "volume fraction = " << optimizer.GetVolume() / domain_volume <<
                 std::endl;
       mfem::out << "compliance = " <<  optimizer.GetCompliance() << std::endl;
