@@ -974,7 +974,7 @@ public:
                out << "Success." << std::endl;
                int_der_sigmoid->Assemble();
                z = int_der_sigmoid->Sum();
-
+               directionalDer->Assemble();
                const double current_d = (*directionalDer)(*GetGradient());
 
                out << "Direction update condition: ";
