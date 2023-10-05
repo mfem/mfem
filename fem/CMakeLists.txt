@@ -23,6 +23,7 @@ set(SRCS
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
   integ/bilininteg_diffusion_ea.cpp
+  integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
   integ/bilininteg_elasticity_pa.cpp
@@ -90,6 +91,7 @@ set(SRCS
   ceed/solvers/algebraic.cpp
   ceed/solvers/full-assembly.cpp
   ceed/solvers/solvers-atpmg.cpp
+  kdtree.cpp
   linearform.cpp
   linearform_ext.cpp
   lininteg.cpp
@@ -202,6 +204,7 @@ set(HDRS
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
   ceed/solvers/solvers-atpmg.hpp
+  kdtree.hpp
   linearform.hpp
   linearform_ext.hpp
   lininteg.hpp
