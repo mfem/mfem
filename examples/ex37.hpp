@@ -1156,6 +1156,8 @@ public:
       c = 0;
       V->Assemble();
       current_volume = V->Sum();
+      delete V;
+      delete dV;
       return true;
    }
 
