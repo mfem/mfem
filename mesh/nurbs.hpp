@@ -110,21 +110,23 @@ class NURBSPatch
 protected:
    int     ni, nj, nk, Dim;
    double *data; // the layout of data is: (Dim x ni x nj x nk)
+   // Note that Dim is the spatial dimension plus 1 (homogeneous coordinates).
 
    Array<KnotVector *> kv;
 
    // Special B-NET access functions
    //  - SetLoopDirection(int dir) flattens the multi-dimensional B-NET in the
-   //    requested direction. It effectively creates a 1D net.
+   //    requested direction. It effectively creates a 1D net in homogeneous
+   //    coordinates.
    //  - The slice(int, int) operator is the access function in that flattened
    //    structure. The first int gives the slice and the second int the element
    //    in that slice.
-   //  - Both routines are used in 'InsertKnot', 'DegreeElevate', and
-   //    'UniformRefinement'.
+   //  - Both routines are used in 'KnotInsert', `KnotRemove`, 'DegreeElevate',
+   //    and 'UniformRefinement'.
    //  - In older implementations, slice(int, int) was implemented as
    //    operator()(int, int).
-   int nd; // Number of knots in flattened structure
-   int ls; // Number of variables per knot in flattened structure
+   int nd; // Number of control points in flattened structure
+   int ls; // Number of variables per control point in flattened structure
    int sd; // Stride for data access
    int SetLoopDirection(int dir);
    inline       double &slice(int i, int j);
@@ -154,6 +156,10 @@ public:
 
    void KnotInsert(Array<Vector *> &knot);
    void KnotInsert(Array<KnotVector *> &knot);
+
+   int KnotRemove(int dir, double knot, int ntimes=1, double tol=1.0e-12);
+   void KnotRemove(int dir, Vector const& knot, double tol=1.0e-12);
+   void KnotRemove(Array<Vector *> &knot, double tol=1.0e-12);
 
    void DegreeElevate(int t);
 
@@ -507,6 +513,8 @@ public:
    void UniformRefinement(int rf=2);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
+
+   void KnotRemove(Array<Vector *> &kv, double tol=1.0e-12);
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
