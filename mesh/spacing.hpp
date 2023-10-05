@@ -111,7 +111,7 @@ public:
       p.SetSize(0);
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new UniformSpacingFunction(n);
    }
@@ -184,7 +184,7 @@ public:
       p[0] = s;
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new LinearSpacingFunction(n, reverse, s, scale);
    }
@@ -265,7 +265,7 @@ public:
       p[0] = s;
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new GeometricSpacingFunction(n, reverse, s, scale);
    }
@@ -340,7 +340,7 @@ public:
       p[1] = s1;
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new BellSpacingFunction(n, reverse, s0, s1, scale);
    }
@@ -411,7 +411,7 @@ public:
       p[1] = s1;
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new GaussianSpacingFunction(n, reverse, s0, s1, scale);
    }
@@ -469,7 +469,7 @@ public:
       p[0] = logBase;
    }
 
-   virtual SpacingFunction *Clone() const
+   virtual SpacingFunction *Clone() const override
    {
       return new LogarithmicSpacingFunction(n, reverse, sym, logBase);
    }
@@ -517,7 +517,7 @@ public:
 
    virtual void Print(std::ostream &os) override;
 
-   virtual SpacingFunction *Clone() const;
+   virtual SpacingFunction *Clone() const override;
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 

@@ -548,11 +548,12 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
    int osi = 0;
    int osd = np - 1;
    Array<int> ipar(osi);
-   std::vector<double> dpar_std(osd);
+   // Using Array<double> instead of Vector to increase size and keep data.
+   Array<double> dpar(osd);
 
    for (int p=0; p<np-1; ++p)
    {
-      dpar_std[p] = partition[p];
+      dpar[p] = partition[p];
    }
 
    Array<int> ipar_p;
@@ -569,7 +570,7 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
       const int numIntParam = p->NumIntParameters();
       const int numDoubleParam = p->NumDoubleParameters();
 
-      dpar_std.resize(osd + numDoubleParam);
+      dpar.SetSize(osd + numDoubleParam);
       // Add three for the type and the integer and double parameter counts.
       ipar.SetSize(osi + numIntParam + 3);
 
@@ -584,15 +585,15 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
 
       for (int i=0; i<numDoubleParam; ++i)
       {
-         dpar_std[osd + i] = dpar_p[i];
+         dpar[osd + i] = dpar_p[i];
       }
 
       osi += numIntParam + 3;
       osd += numDoubleParam;
    }
 
-   Vector dpar(dpar_std.data(), dpar_std.size());
-   return new PiecewiseSpacingFunction(n, np, reverse, ipar, dpar);
+   Vector dparvec(dpar.GetData(), dpar.Size());
+   return new PiecewiseSpacingFunction(n, np, reverse, ipar, dparvec);
 }
 
 }

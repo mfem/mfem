@@ -944,14 +944,231 @@ void NURBSPatch::KnotInsert(Array<Vector *> &newkv)
    }
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller, chapter 5.
+void NURBSPatch::KnotRemove(Array<Vector *> &rmkv, double tol)
+{
+   for (int dir = 0; dir < kv.Size(); dir++)
+   {
+      KnotRemove(dir, *rmkv[dir], tol);
+   }
+}
+
+// Algorithm A5.8 from "The NURBS Book", 2nd ed, Piegl and Tiller, chapter 5.
+int NURBSPatch::KnotRemove(int dir, double knot, int ntimes, double tol)
+{
+   if (dir >= kv.Size() || dir < 0)
+   {
+      mfem_error("NURBSPatch::KnotRemove : Invalid direction!");
+   }
+
+   NURBSPatch &oldp  = *this;
+   KnotVector &oldkv = *kv[dir];
+
+   // Find the index of the last occurrence of the knot.
+   int id = -1;
+   int multiplicity = 0;
+   for (int i=0; i<oldkv.Size(); ++i)
+   {
+      if (oldkv[i] == knot)
+      {
+         id = i;
+         multiplicity++;
+      }
+   }
+
+   MFEM_VERIFY(0 < id && id < oldkv.Size() - 1 && multiplicity <= ntimes,
+               "Only interior knots of sufficient multiplicity may be removed.");
+
+   const int p = oldkv.GetOrder();
+
+   NURBSPatch *tmppatch = new NURBSPatch(this, dir, p, oldkv.GetNCP());
+   NURBSPatch &tmpp  = *tmppatch;
+
+   const int size = oldp.SetLoopDirection(dir);
+   if (size != tmpp.SetLoopDirection(dir))
+   {
+      mfem_error("NURBSPatch::KnotRemove : Size mismatch!");
+   }
+
+   // Copy old data
+   for (int k = 0; k < oldp.nd; ++k)
+   {
+      for (int ll = 0; ll < size; ll++)
+      {
+         tmpp.slice(k,ll) = oldp.slice(k,ll);
+      }
+   }
+
+   const int r = id;
+   const int s = multiplicity;
+
+   int last = r - s;
+   int first = r - p;
+
+   int i = first;
+   int j = last;
+
+   Array2D<double> temp(last + ntimes + 1, size);
+
+   for (int t=0; t<ntimes; ++t)
+   {
+      int off = first - 1;  // Difference in index between temp and P.
+
+      for (int ll = 0; ll < size; ll++)
+      {
+         temp(0, ll) = oldp.slice(off, ll);
+         temp(last + 1 - off, ll) = oldp.slice(last + 1, ll);
+      }
+
+      int ii = 1;
+      int jj = last - off;
+
+      while (j - i > t)
+      {
+         // Compute new control points for one removal step
+         const double a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);
+         const double a_j = (knot - oldkv[j]) / (oldkv[j+p+1] - oldkv[j]);
+
+         for (int ll = 0; ll < size; ll++)
+         {
+            temp(ii,ll) = (1.0 / a_i) * oldp.slice(i,ll) -
+                          ((1.0/a_i) - 1.0) * temp(ii - 1, ll);
+
+            temp(jj,ll) = (1.0 / (1.0 - a_j)) * (oldp.slice(j,ll) -
+                                                 (a_j * temp(jj + 1, ll)));
+         }
+
+         i++;  ii++;
+         j--;  jj--;
+      }
+
+      // Check whether knot is removable
+      Vector diff(size);
+      if (j - i < t)
+      {
+         for (int ll = 0; ll < size; ll++)
+         {
+            diff[ll] = temp(ii-1, ll) - temp(jj+1, ll);
+         }
+      }
+      else
+      {
+         const double a_i = (knot - oldkv[i]) / (oldkv[i+p+1] - oldkv[i]);
+         for (int ll = 0; ll < size; ll++)
+            diff[ll] = oldp.slice(i,ll) - (a_i * temp(ii+1, ll))
+                       - ((1.0 - a_i) * temp(ii-1, ll));
+      }
+
+      const double dist = diff.Norml2();
+      if (dist >= tol)
+      {
+         // Removal failed. Return the number of successful removals.
+         delete tmppatch;
+         return t;
+      }
+
+      // Note that the new weights may not be positive.
+
+      // Save new control points
+      i = first;
+      j = last;
+
+      while (j - i > t)
+      {
+         for (int ll = 0; ll < size; ll++)
+         {
+            tmpp.slice(i,ll) = temp(i - off,ll);
+            tmpp.slice(j,ll) = temp(j - off,ll);
+         }
+         i++;
+         j--;
+      }
+
+      first--;
+      last++;
+
+      MFEM_VERIFY(i > j, "TODO: if i == j, then newp.slice(i,:) is not set?");
+   }  // End of loop (t) over ntimes.
+
+   const int fout = ((2*r) - s - p) / 2;  // First control point out
+   j = fout;
+   i = j;
+
+   for (int k=1; k<ntimes; ++k)
+   {
+      if (k % 2 == 1)
+      {
+         i++;
+      }
+      else
+      {
+         j--;
+      }
+   }
+
+   NURBSPatch *newpatch = new NURBSPatch(this, dir, p,
+                                         oldkv.GetNCP() - ntimes);
+   NURBSPatch &newp = *newpatch;
+   if (size != newp.SetLoopDirection(dir))
+   {
+      mfem_error("NURBSPatch::KnotRemove : Size mismatch!");
+   }
+
+   for (int k = 0; k < fout; ++k)
+   {
+      for (int ll = 0; ll < size; ll++)
+      {
+         newp.slice(k,ll) = oldp.slice(k,ll);  // Copy old data
+      }
+   }
+
+   for (int k = i+1; k < oldp.nd; ++k)
+   {
+      for (int ll = 0; ll < size; ll++)
+      {
+         newp.slice(j,ll) = tmpp.slice(k,ll);  // Shift
+      }
+
+      j++;
+   }
+
+   KnotVector &newkv = *newp.GetKV(dir);
+   MFEM_VERIFY(newkv.Size() == oldkv.Size() - ntimes, "");
+
+   newkv.spacing = oldkv.spacing;
+
+   for (int j = 0; j < id - ntimes + 1; j++)
+   {
+      newkv[j] = oldkv[j];
+   }
+   for (int j = id + 1; j < oldkv.Size(); j++)
+   {
+      newkv[j - ntimes] = oldkv[j];
+   }
+
+   newkv.GetElements();
+
+   swap(newpatch);
+
+   return ntimes;
+}
+
+void NURBSPatch::KnotRemove(int dir, const Vector &knot, double tol)
+{
+   // TODO: implement an efficient version of this!
+   for (auto k : knot)
+   {
+      KnotRemove(dir, k, 1, tol);
+   }
+}
+
+// Algorithm A5.5 from "The NURBS Book", 2nd ed, Piegl and Tiller, chapter 5.
 void NURBSPatch::KnotInsert(int dir, const Vector &knot)
 {
    if (knot.Size() == 0 ) { return; }
 
    if (dir >= kv.Size() || dir < 0)
    {
-      mfem_error("NURBSPatch::KnotInsert : Incorrect direction!");
+      mfem_error("NURBSPatch::KnotInsert : Invalid direction!");
    }
 
    NURBSPatch &oldp  = *this;
@@ -3988,6 +4205,66 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
       }
 
       patches[p]->KnotInsert(pkvc);
+
+      for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
+   }
+}
+
+void NURBSExtension::KnotRemove(Array<Vector *> &kv, double tol)
+{
+   Array<int> edges;
+   Array<int> orient;
+   Array<int> kvdir;
+
+   Array<Vector *> pkv(Dimension());
+
+   for (int p = 0; p < patches.Size(); p++)
+   {
+      if (Dimension()==1)
+      {
+         pkv[0] = kv[KnotInd(p)];
+      }
+      else if (Dimension()==2)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[1])];
+      }
+      else if (Dimension()==3)
+      {
+         patchTopo->GetElementEdges(p, edges, orient);
+         pkv[0] = kv[KnotInd(edges[0])];
+         pkv[1] = kv[KnotInd(edges[3])];
+         pkv[2] = kv[KnotInd(edges[8])];
+      }
+
+      // Check whether knots should be flipped before removing.
+      CheckKVDirection(p, kvdir);
+
+      Array<Vector *> pkvc(Dimension());
+      for (int d = 0; d < Dimension(); d++)
+      {
+         pkvc[d] = new Vector(*(pkv[d]));
+
+         if (kvdir[d] == -1)
+         {
+            // Find flip point, for knotvectors that do not have the domain [0:1]
+            KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
+            double apb = (*kva)[0] + (*kva)[kva->Size()-1];
+
+            // Flip vector
+            int size = pkvc[d]->Size();
+            int ns = ceil(size/2.0);
+            for (int j = 0; j < ns; j++)
+            {
+               double tmp = apb - pkvc[d]->Elem(j);
+               pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
+               pkvc[d]->Elem(size-1-j) = tmp;
+            }
+         }
+      }
+
+      patches[p]->KnotRemove(pkvc, tol);
 
       for (int i = 0; i < Dimension(); i++) { delete pkvc[i]; }
    }
