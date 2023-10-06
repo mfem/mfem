@@ -5215,7 +5215,23 @@ void Mesh::NURBSUniformRefinement(int rf)
    // do not check for NURBSext since this method is protected
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->UniformRefinement(rf);
+   const int cf = NURBSext->GetCoarseningFactor();
+   if (cf == 1)
+   {
+      NURBSext->UniformRefinement(rf);
+   }
+   else
+   {
+      NURBSext->Coarsen(cf);
+
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+      sequence++;
+
+      UpdateNURBS();
+
+      NURBSext->ConvertToPatches(*Nodes);
+      NURBSext->UniformRefinement(cf * rf);
+   }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;

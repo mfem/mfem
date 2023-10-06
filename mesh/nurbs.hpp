@@ -84,6 +84,11 @@ public:
    void UniformRefinement(Vector &newknots, int rf) const;
    /// Refine with refinement factor @a rf.
    void Refinement(Vector &newknots, int rf) const;
+
+   int GetCoarseningFactor() const;
+
+   void GetFineKnots(const int cf, Vector & fine);
+
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */
    /// @note The returned object should be deleted by the caller.
@@ -102,6 +107,8 @@ public:
    const double &operator[](int i) const { return knot(i); }
 
    std::shared_ptr<SpacingFunction> spacing;
+
+   bool coarse;
 };
 
 
@@ -168,6 +175,12 @@ public:
    spacing formulas may be used.
    */
    void UniformRefinement(int rf=2);
+
+   void Coarsen(int cf);
+
+   int GetCoarseningFactor() const;
+
+   void SetKnotVectorsCoarse(bool c);
 
    // Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
@@ -511,10 +524,13 @@ public:
    spacing formulas may be used.
    */
    void UniformRefinement(int rf=2);
+   void Coarsen(int cf);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
    void KnotRemove(Array<Vector *> &kv, double tol=1.0e-12);
+
+   int GetCoarseningFactor() const;
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }

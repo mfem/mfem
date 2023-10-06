@@ -52,14 +52,16 @@ public:
 
    // The format is
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-   virtual void Print(std::ostream &os) = 0;
+   virtual void Print(std::ostream &os) const = 0;
 
-   virtual SPACING_TYPE SpacingType() = 0;
+   virtual SPACING_TYPE SpacingType() const = 0;
 
-   virtual int NumIntParameters() = 0;
-   virtual int NumDoubleParameters() = 0;
-   virtual void GetIntParameters(Array<int> & p) = 0;
-   virtual void GetDoubleParameters(Vector & p) = 0;
+   virtual int NumIntParameters() const = 0;
+   virtual int NumDoubleParameters() const = 0;
+   virtual void GetIntParameters(Array<int> & p) const = 0;
+   virtual void GetDoubleParameters(Vector & p) const = 0;
+
+   virtual bool Nested() const = 0;
 
    virtual SpacingFunction *Clone() const;
 
@@ -90,26 +92,28 @@ public:
       return s;
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << UNIFORM << " 1 0 " << n << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return UNIFORM; }
-   virtual int NumIntParameters() override { return 1; }
-   virtual int NumDoubleParameters() override { return 0; }
+   virtual SPACING_TYPE SpacingType() const override { return UNIFORM; }
+   virtual int NumIntParameters() const override { return 1; }
+   virtual int NumDoubleParameters() const override { return 0; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(1);
       p[0] = n;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(0);
    }
+
+   virtual bool Nested() const override { return true; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -159,18 +163,18 @@ public:
       return s + (i * d);
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << LINEAR << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return LINEAR; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return 1; }
+   virtual SPACING_TYPE SpacingType() const override { return LINEAR; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -178,11 +182,13 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = s;
    }
+
+   virtual bool Nested() const override { return false; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -240,18 +246,18 @@ public:
       return s * std::pow(r, i);
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << GEOMETRIC << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return GEOMETRIC; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return 1; }
+   virtual SPACING_TYPE SpacingType() const override { return GEOMETRIC; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -259,11 +265,13 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = s;
    }
+
+   virtual bool Nested() const override { return false; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -314,18 +322,18 @@ public:
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << BELL << " 3 2 " << n << " " << (int) reverse << " " << (int) scale
          << " " << s0 << " " << s1 << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return BELL; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return 2; }
+   virtual SPACING_TYPE SpacingType() const override { return BELL; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return 2; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -333,12 +341,14 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(2);
       p[0] = s0;
       p[1] = s1;
    }
+
+   virtual bool Nested() const override { return false; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -385,18 +395,18 @@ public:
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << GAUSSIAN << " 3 2 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return GAUSSIAN; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return 2; }
+   virtual SPACING_TYPE SpacingType() const override { return GAUSSIAN; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return 2; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -404,12 +414,14 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(2);
       p[0] = s0;
       p[1] = s1;
    }
+
+   virtual bool Nested() const override { return false; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -444,18 +456,18 @@ public:
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) override
+   virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
       os << LOGARITHMIC << " 3 1 " << n << " " << (int) reverse << " "
          << (int) sym << " " << logBase << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() override { return LOGARITHMIC; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return 1; }
+   virtual SPACING_TYPE SpacingType() const override { return LOGARITHMIC; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -463,11 +475,13 @@ public:
       p[2] = (int) sym;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = logBase;
    }
+
+   virtual bool Nested() const override { return true; }
 
    virtual SpacingFunction *Clone() const override
    {
@@ -515,17 +529,17 @@ public:
 
    virtual void ScaleParameters(double a) override;
 
-   virtual void Print(std::ostream &os) override;
+   virtual void Print(std::ostream &os) const override;
 
    virtual SpacingFunction *Clone() const override;
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 
-   virtual SPACING_TYPE SpacingType() override { return PIECEWISE; }
-   virtual int NumIntParameters() override { return 3; }
-   virtual int NumDoubleParameters() override { return np - 1; }
+   virtual SPACING_TYPE SpacingType() const override { return PIECEWISE; }
+   virtual int NumIntParameters() const override { return 3; }
+   virtual int NumDoubleParameters() const override { return np - 1; }
 
-   virtual void GetIntParameters(Array<int> & p) override
+   virtual void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -533,11 +547,14 @@ public:
       p[2] = (int) reverse;
    }
 
-   virtual void GetDoubleParameters(Vector & p) override
+   virtual void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(np - 1);
       p = partition;
    }
+
+   // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
+   virtual bool Nested() const override;
 
 private:
    int np;  // Number of pieces
