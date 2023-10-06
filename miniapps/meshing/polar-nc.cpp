@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -115,7 +115,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
          blocks.Append(Pair<int, int>(mesh->GetNE(), n));
 
          // first create hanging vertices
-         int hang;
+         int hang = 0; // init to suppress gcc warning
          for (int i = 0; i < m; i++)
          {
             double alpha = phi * (2*i+1) / n;
@@ -185,9 +185,9 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
          for (int j = 0, k = 0; j < coords.Size(); k++, j += 2)
          {
-            int sfc = ((i & 1) ? coords[j] : (width-1 - coords[j]))
-                      + coords[j+1]*width;
-            int old_index = beg + sfc;
+            int sfc_index = ((i & 1) ? coords[j] : (width-1 - coords[j]))
+                            + coords[j+1]*width;
+            int old_index = beg + sfc_index;
 
             ordering[old_index] = beg + k;
             new_params[beg + k] = params[old_index];
@@ -221,7 +221,7 @@ Mesh* Make2D(int nsteps, double rstep, double phi, double aspect, int order,
 
          for (int j = 0; j < dofs.Size(); j++)
          {
-            double r, a;
+            double a;
             if (geom == Geometry::SQUARE)
             {
                r = par.r + ir[j].x * par.dr;
@@ -449,7 +449,7 @@ Mesh* Make3D(int nsteps, double rstep, double aspect, int order, bool sfc)
          {
             const IntegrationPoint &ip = ir[j];
 
-            double u, v, w, r;
+            double u, v, w;
             if (geom == Geometry::PRISM)
             {
                double l1 = 1.0 - ip.x - ip.y;
@@ -557,4 +557,3 @@ int main(int argc, char *argv[])
 
    return EXIT_SUCCESS;
 }
-

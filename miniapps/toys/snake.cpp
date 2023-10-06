@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -233,8 +233,8 @@ int main(int argc, char *argv[])
    mesh.FinalizeTopology();
 
    // Paint elements with alternating colors
-   FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
-   FiniteElementSpace fespace(&mesh, fec);
+   L2_FECollection fec(0, 3, 1);
+   FiniteElementSpace fespace(&mesh, &fec);
    GridFunction color(&fespace);
 
    for (int i=0; i<24; i++) { color[i] = (i%2)?1.0:-1.0; }
@@ -366,12 +366,12 @@ rotate(double * x)
 }
 
 void
-trans(const int * conf, Mesh & mesh)
+trans(const int * new_conf, Mesh & mesh)
 {
    for (int i=0; i<23; i++)
    {
       joint_ = i;
-      notch_ = conf[i];
+      notch_ = new_conf[i];
 
       if (notch_ != 0)
       {
@@ -444,12 +444,12 @@ rotate_step(double * x)
 }
 
 bool
-anim_step(const int * conf, Mesh & mesh)
+anim_step(const int * new_conf, Mesh & mesh)
 {
    if (notch_ == 2 && step_ == 2 * nstep_) { joint_++; step_ = 0; }
    if (notch_ != 2 && step_ == nstep_) { joint_++; step_ = 0; }
    if (joint_ == 23) { return false; }
-   notch_ = conf[joint_];
+   notch_ = new_conf[joint_];
 
    if (notch_ == 0)
    {

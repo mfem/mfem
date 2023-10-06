@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -873,30 +873,30 @@ update_state(char axis, int tier, int incr)
 }
 
 void
-print_state(ostream & out)
+print_state(ostream & out_stream)
 {
-   out << "Rubik's Cube State:\n";
-   out << "  Centers: ";
+   out_stream << "Rubik's Cube State:\n";
+   out_stream << "  Centers: ";
    for (int i=0; i<6; i++)
    {
-      out << " " << rubik.cent_[i];
+      out_stream << " " << rubik.cent_[i];
    }
-   out << "\n";
-   out << "  Edges:   ";
+   out_stream << "\n";
+   out_stream << "  Edges:   ";
    for (int i=0; i<12; i++)
    {
-      out << " " << rubik.edge_[2 * i + 0]
-          << ":" << rubik.edge_[2 * i + 1];
+      out_stream << " " << rubik.edge_[2 * i + 0]
+                 << ":" << rubik.edge_[2 * i + 1];
    }
-   out << "\n";
-   out << "  Corners: ";
+   out_stream << "\n";
+   out_stream << "  Corners: ";
    for (int i=0; i<8; i++)
    {
-      out << " " << rubik.corn_[3 * i + 0]
-          << ":" << rubik.corn_[3 * i + 1]
-          << ":" << rubik.corn_[3 * i + 2];
+      out_stream << " " << rubik.corn_[3 * i + 0]
+                 << ":" << rubik.corn_[3 * i + 1]
+                 << ":" << rubik.corn_[3 * i + 2];
    }
-   out << "\n";
+   out_stream << "\n";
 }
 
 void repaint_cube(Mesh & mesh, GridFunction & color, socketstream & sock)
@@ -1106,8 +1106,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
    double xData[3];
    Vector x(xData,3);
 
-   int count = 0;
-
    Array<int> v;
    for (int i=0; i<mesh.GetNE(); i++)
    {
@@ -1127,7 +1125,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[0] > -2.5 + tier && x[0] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {
@@ -1138,7 +1135,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[1] > -2.5 + tier && x[1] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {
@@ -1149,7 +1145,6 @@ void mark_elements(Mesh & mesh, char axis, int tier)
             if ( x[2] > -2.5 + tier && x[2] < -1.5 + tier )
             {
                mesh.SetAttribute(i, 2);
-               count++;
             }
             else
             {

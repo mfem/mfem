@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@
 // Enable internal hypre timing routines
 #define HYPRE_TIMING
 
+#include "../general/mem_manager.hpp"
 #include "_hypre_parcsr_mv.h"
 
 // Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
@@ -38,13 +39,23 @@ typedef HYPRE_Int HYPRE_BigInt;
 #define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
 #define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
 
+#define mfem_hypre_TAlloc_host(type, size) hypre_TAlloc(type, size)
+#define mfem_hypre_CTAlloc_host(type, size) hypre_CTAlloc(type, size)
+#define mfem_hypre_TFree_host(ptr) hypre_TFree(ptr)
+
 #else // MFEM_HYPRE_VERSION >= 21400
 
 #define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+   hypre_TAlloc(type, size, HYPRE_MEMORY_DEVICE)
 #define mfem_hypre_CTAlloc(type, size) \
+   hypre_CTAlloc(type, size, HYPRE_MEMORY_DEVICE)
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_DEVICE)
+
+#define mfem_hypre_TAlloc_host(type, size) \
+   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
+#define mfem_hypre_CTAlloc_host(type, size) \
    hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
+#define mfem_hypre_TFree_host(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
 
 // Notes regarding allocation and deallocation of hypre objects in 2.14.0
 //-----------------------------------------------------------------------
@@ -84,6 +95,12 @@ namespace mfem
 // This module contains functions that are logically part of HYPRE, and might
 // become part of HYPRE at some point. In the meantime the module can be
 // thought of as an extension of HYPRE.
+
+struct MemoryIJData
+{
+   Memory<HYPRE_Int> I, J;
+   Memory<double> data;
+};
 
 namespace internal
 {

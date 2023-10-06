@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,47 +18,79 @@
 using namespace mfem;
 using namespace std;
 
-double discrete_size_2d(const Vector &x)
+double size_indicator(const Vector &x)
 {
-   int opt = 2;
-   const double small = 0.001, big = 0.01;
-   double val = 0.;
-
-   if (opt == 1) // sine wave.
-   {
-      const double X = x(0), Y = x(1);
-      val = std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) + 1) -
-            std::tanh((10*(Y-0.5) + std::sin(4.0*M_PI*X)) - 1);
-   }
-   else if (opt == 2) // semi-circle
-   {
-      const double xc = x(0) - 0.0, yc = x(1) - 0.5;
-      const double r = sqrt(xc*xc + yc*yc);
-      double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-      val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
-   }
-
-   val = std::max(0.,val);
-   val = std::min(1.,val);
-
-   return val * small + (1.0 - val) * big;
-}
-
-double discrete_size_3d(const Vector &x)
-{
-   const double small = 0.0001, big = 0.01;
-   double val = 0.;
-
    // semi-circle
-   const double xc = x(0) - 0.0, yc = x(1) - 0.5, zc = x(2) - 0.5;
+   const double xc = x(0) - 0.0, yc = x(1) - 0.5,
+                zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
    const double r = sqrt(xc*xc + yc*yc + zc*zc);
    double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-   val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
-   val = std::max(0.,val);
-   val = std::min(1.,val);
+   val = fmax(0.,val);
+   val = fmin(1.,val);
+   return val;
+}
 
-   return val * small + (1.0 - val) * big;
+void calc_mass_volume(const GridFunction &g, double &mass, double &vol)
+{
+   Mesh &mesh = *g.FESpace()->GetMesh();
+   const int NE = mesh.GetNE();
+   Vector g_vals;
+   mass = 0.0, vol = 0.0;
+   for (int e = 0; e < NE; e++)
+   {
+      ElementTransformation &Tr = *mesh.GetElementTransformation(e);
+      const IntegrationRule &ir = IntRules.Get(mesh.GetElementBaseGeometry(e),
+                                               Tr.OrderJ());
+      g.GetValues(Tr, ir, g_vals);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         Tr.SetIntPoint(&ip);
+         mass   += g_vals(j) * ip.weight * Tr.Weight();
+         vol    += ip.weight * Tr.Weight();
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   auto gp = dynamic_cast<const ParGridFunction *>(&g);
+   if (gp)
+   {
+      MPI_Comm comm = gp->ParFESpace()->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &mass, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &vol,  1, MPI_DOUBLE, MPI_SUM, comm);
+   }
+#endif
+}
+
+void ConstructSizeGF(GridFunction &size)
+{
+   // Indicator for small (value -> 1) or big (value -> 0) elements.
+   FunctionCoefficient size_ind_coeff(size_indicator);
+   size.ProjectCoefficient(size_ind_coeff);
+
+   // Determine small/big target sizes based on the total number of
+   // elements and the volume occupied by small elements.
+   double volume_ind, volume;
+   calc_mass_volume(size, volume_ind, volume);
+   Mesh &mesh = *size.FESpace()->GetMesh();
+   int NE = mesh.GetNE();
+#ifdef MFEM_USE_MPI
+   auto size_p = dynamic_cast<const ParGridFunction *>(&size);
+   if (size_p) { NE = size_p->ParFESpace()->GetParMesh()->GetGlobalNE(); }
+#endif
+   NCMesh *ncmesh = mesh.ncmesh;
+   // For parallel NC meshes, all tasks have all root elements.
+   NE = (ncmesh) ? ncmesh->GetNumRootElements() : NE;
+   const double size_ratio = (mesh.Dimension() == 2) ? 9 : 27;
+   const double small_el_size = volume_ind / NE +
+                                (volume - volume_ind) / (size_ratio * NE);
+   const double big_el_size   = size_ratio * small_el_size;
+   for (int i = 0; i < size.Size(); i++)
+   {
+      size(i) = size(i) * small_el_size + (1.0 - size(i)) * big_el_size;
+   }
 }
 
 double material_indicator_2d(const Vector &x)
@@ -82,26 +114,6 @@ double material_indicator_2d(const Vector &x)
 double discrete_ori_2d(const Vector &x)
 {
    return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
-}
-
-double discrete_aspr_2d(const Vector &x)
-{
-   double xc = x(0)-0.5, yc = x(1)-0.5;
-   double th = 22.5*M_PI/180.;
-   double xn =  cos(th)*xc + sin(th)*yc;
-   double yn = -sin(th)*xc + cos(th)*yc;
-   // double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   // double stretch = 1/cos(th2);
-   xc = xn; yc = yn;
-
-   double tfac = 20;
-   double s1 = 3;
-   double s2 = 2;
-   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
-                - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
-   if (wgt > 1) { wgt = 1; }
-   if (wgt < 0) { wgt = 0; }
-   return 0.1 + 1*(1-wgt)*(1-wgt);
 }
 
 void discrete_aspr_3d(const Vector &x, Vector &v)
@@ -223,6 +235,140 @@ public:
    }
 };
 
+class HRHessianCoefficient : public TMOPMatrixCoefficient
+{
+private:
+   int dim;
+   // 0 - size target in an annular region,
+   // 1 - size+aspect-ratio in an annular region,
+   // 2 - size+aspect-ratio target for a rotate sine wave.
+   int hr_target_type;
+
+public:
+   HRHessianCoefficient(int dim_, int hr_target_type_ = 0)
+      : TMOPMatrixCoefficient(dim_), dim(dim_),
+        hr_target_type(hr_target_type_) { }
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector pos(3);
+      T.Transform(ip, pos);
+      if (hr_target_type == 0) // size only circle
+      {
+         double small = 0.001, big = 0.01;
+         if (dim == 3) { small = 0.005, big = 0.1; }
+         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         double r;
+         if (dim == 2)
+         {
+            r = sqrt(xc*xc + yc*yc);
+         }
+         else
+         {
+            const double zc = pos(2) - 0.5;
+            r = sqrt(xc*xc + yc*yc + zc*zc);
+         }
+         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+
+         const double tan1 = std::tanh(sf*(r-r1)),
+                      tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double val = ind * small + (1.0 - ind) * big;
+         K = 0.0;
+         K(0, 0) = 1.0;
+         K(0, 1) = 0.0;
+         K(1, 0) = 0.0;
+         K(1, 1) = 1.0;
+         K(0, 0) *= pow(val,0.5);
+         K(1, 1) *= pow(val,0.5);
+         if (dim == 3) { K(2, 2) = pow(val,0.5); }
+      }
+      else if (hr_target_type == 1) // circle with size and AR
+      {
+         const double small = 0.001, big = 0.01;
+         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         const double rv = xc*xc + yc*yc;
+         double r = 0;
+         if (rv>0.) {r = sqrt(rv);}
+
+         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
+         const double szfac = 1;
+         const double asfac = 4;
+         const double eps2 = szfac/asfac;
+         const double eps1 = szfac;
+
+         double tan1 = std::tanh(sf*(r-r1)+1),
+                tan2 = std::tanh(sf*(r-r2)-1);
+         double wgt = 0.5*(tan1-tan2);
+
+         tan1 = std::tanh(sf*(r-r1)),
+         tan2 = std::tanh(sf*(r-r2));
+
+         double ind = (tan1 - tan2);
+         if (ind > 1.0) {ind = 1.;}
+         if (ind < 0.0) {ind = 0.;}
+         double szval = ind * small + (1.0 - ind) * big;
+
+         double th = std::atan2(yc,xc)*180./M_PI;
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
+         double minval = eps1;
+         double avgval = 0.5*(maxval+minval);
+         double ampval = 0.5*(maxval-minval);
+         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
+         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
+
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+         K(0,0) = val1;
+         K(1,1) = val2;
+
+         K(0,0) *= pow(szval,0.5);
+         K(1,1) *= pow(szval,0.5);
+      }
+      else if (hr_target_type == 2) // sharp rotated sine wave
+      {
+         double xc = pos(0)-0.5, yc = pos(1)-0.5;
+         double th = 15.5*M_PI/180.;
+         double xn =  cos(th)*xc + sin(th)*yc;
+         double yn = -sin(th)*xc + cos(th)*yc;
+         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         double stretch = 1/cos(th2);
+         xc = xn/stretch;
+         yc = yn;
+         double tfac = 20;
+         double s1 = 3;
+         double s2 = 2;
+         double yl1 = -0.025;
+         double yl2 =  0.025;
+         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
+                      std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
+         if (wgt > 1) { wgt = 1; }
+         if (wgt < 0) { wgt = 0; }
+
+         const double eps2 = 25;
+         const double eps1 = 1;
+         K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
+         K(0,0) = eps1;
+         K(0,1) = 0.0;
+         K(1,0) = 0.0;
+      }
+      else { MFEM_ABORT("Unsupported option / wrong input."); }
+   }
+
+   virtual void EvalGrad(DenseMatrix &K, ElementTransformation &T,
+                         const IntegrationPoint &ip, int comp)
+   {
+      K = 0.;
+   }
+};
+
 // Additional IntegrationRules that can be used with the --quad-type option.
 IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
@@ -250,15 +396,73 @@ double adapt_lim_fun(const Vector &x)
    return val;
 }
 
+// Used for exact surface alignment
+double surface_level_set(const Vector &x)
+{
+   const int type = 1;
+
+   const int dim = x.Size();
+   if (type == 0)
+   {
+      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+      return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc);
+         return r-0.3;
+      }
+      else
+      {
+         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+         const double r = sqrt(xc*xc + yc*yc + zc*zc);
+         return r-0.3;
+      }
+   }
+}
+
+int material_id(int el_id, const GridFunction &g)
+{
+   const FiniteElementSpace *fes = g.FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   Vector g_vals;
+   const IntegrationRule &ir =
+      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+
+   double integral = 0.0;
+   g.GetValues(el_id, ir, g_vals);
+   ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
+   int approach = 1;
+   if (approach == 0)   // integral based
+   {
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr->SetIntPoint(&ip);
+         integral += ip.weight * g_vals(q) * Tr->Weight();
+      }
+      return (integral > 0.0) ? 1.0 : 0.0;
+   }
+   else if (approach == 1)   // minimum value based
+   {
+      double minval = g_vals.Min();
+      return minval > 0.0 ? 1.0 : 0.0;
+   }
+   return 0.0;
+}
+
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    BilinearForm *Lap = new BilinearForm(field.FESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();
    Lap->Finalize();
 
-   //Setup the smoothing operator
+   // Setup the smoothing operator
    DSmoother *S = new DSmoother(0,1.0,smooth_steps);
    S->iterative_mode = true;
    S->SetOperator(Lap->SpMat());
@@ -274,7 +478,7 @@ void DiffuseField(GridFunction &field, int smooth_steps)
 #ifdef MFEM_USE_MPI
 void DiffuseField(ParGridFunction &field, int smooth_steps)
 {
-   //Setup the Laplacian operator
+   // Setup the Laplacian operator
    ParBilinearForm *Lap = new ParBilinearForm(field.ParFESpace());
    Lap->AddDomainIntegrator(new DiffusionIntegrator());
    Lap->Assemble();
@@ -293,6 +497,7 @@ void DiffuseField(ParGridFunction &field, int smooth_steps)
    field.SetFromTrueDofs(fieldtrue);
 
    delete S;
+   delete A;
    delete Lap;
 }
 #endif

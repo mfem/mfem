@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -383,9 +383,9 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
    int order = -1;
    bool legacy_elem = false, lagrange_elem = false;
 
-   int j = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
+      int j = (i > 0) ? cell_offsets[i-1] : 0;
       int ct = cell_types[i];
       Geometry::Type geom = VTKGeometry::GetMFEMGeometry(ct);
       elements[i] = NewElement(geom);
@@ -423,7 +423,28 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
                   "Mixing of legacy and Lagrange cell types is not supported");
       Dim = elem_dim;
       order = elem_order;
-      j = cell_offsets[i];
+   }
+
+   // determine spaceDim based on min/max differences detected each dimension
+   spaceDim = 0;
+   if (np > 0)
+   {
+      double min_value, max_value;
+      for (int d = 3; d > 0; --d)
+      {
+         min_value = max_value = points(3*0 + d-1);
+         for (int i = 1; i < np; i++)
+         {
+            min_value = std::min(min_value, points(3*i + d-1));
+            max_value = std::max(max_value, points(3*i + d-1));
+            if (min_value != max_value)
+            {
+               spaceDim = d;
+               break;
+            }
+         }
+         if (spaceDim > 0) { break; }
+      }
    }
 
    if (order == 1 && !lagrange_elem)
@@ -465,12 +486,12 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // canonical order
 
       // Keep the original ordering of the vertices
-      int i, n;
-      for (n = i = 0; i < np; i++)
+      NumOfVertices = 0;
+      for (int i = 0; i < np; i++)
       {
          if (pts_dof[i] != -1)
          {
-            pts_dof[i] = n++;
+            pts_dof[i] = NumOfVertices++;
          }
       }
       // update the element vertices
@@ -484,8 +505,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
          }
       }
       // Define the 'vertices' from the 'points' through the 'pts_dof' map
-      NumOfVertices = n;
-      vertices.SetSize(n);
+      vertices.SetSize(NumOfVertices);
       for (int i = 0; i < np; i++)
       {
          int j = pts_dof[i];
@@ -500,27 +520,7 @@ void Mesh::CreateVTKMesh(const Vector &points, const Array<int> &cell_data,
       // No boundary is defined in a VTK mesh
       NumOfBdrElements = 0;
 
-      // determine spaceDim based on min/max differences detected each dimension
-      if (vertices.Size() > 0)
-      {
-         double min_value, max_value;
-         for (int d=0; d<3; ++d)
-         {
-            min_value = max_value = vertices[0](d);
-            for (int i = 1; i < vertices.Size(); i++)
-            {
-               min_value = std::min(min_value,vertices[i](d));
-               max_value = std::max(max_value,vertices[i](d));
-               if (min_value != max_value)
-               {
-                  spaceDim++;
-                  break;
-               }
-            }
-         }
-      }
-      // Generate faces and edges so that we can define
-      // FE space on the mesh
+      // Generate faces and edges so that we can define FE space on the mesh
       FinalizeTopology();
 
       FiniteElementCollection *fec;
@@ -667,7 +667,7 @@ bool StringCompare(const char *s1, const char *s2)
    return strcmp(s1, s2) == 0;
 }
 
-/// Abstract base class for reading continguous arrays of (potentially
+/// Abstract base class for reading contiguous arrays of (potentially
 /// compressed, potentially base-64 encoded) binary data from a buffer into a
 /// destination array. The types of the source and destination arrays may be
 /// different (e.g. read data of type uint8_t into destination array of
@@ -698,16 +698,31 @@ struct BufferReader : BufferReaderBase
    BufferReader(bool compressed_, HeaderType header_type_)
       : compressed(compressed_), header_type(header_type_) { }
 
-   /// Return the number of bytes in the header. The header consists of one
-   /// integer if the data is uncompressed, and four integers if the data is
-   /// compressed. The integers are either 32 or 64 bytes depending on the value
-   /// of @a header_type.
-   int NumHeaderBytes() const
+   /// Return the number of bytes of each header entry.
+   size_t HeaderEntrySize() const
    {
-      int num_entries = compressed ? 4 : 1;
-      int entry_size = (header_type == UINT64_HEADER)
-                       ? sizeof(uint64_t) : sizeof(uint32_t);
-      return num_entries*entry_size;
+      return header_type == UINT64_HEADER ? sizeof(uint64_t) : sizeof(uint32_t);
+   }
+
+   /// Return the value of the header entry pointer to by @a header_buf. The
+   /// value is stored as either uint32_t or uint64_t, according to the @a
+   /// header_type, and is returned as uint64_t.
+   uint64_t ReadHeaderEntry(const char *header_buf) const
+   {
+      return (header_type == UINT64_HEADER) ? bin_io::read<uint64_t>(header_buf)
+             : bin_io::read<uint32_t>(header_buf);
+   }
+
+   /// Return the number of bytes in the header. The header consists of one
+   /// integer if the data is uncompressed, and @a N + 3 integers if the data is
+   /// compressed, where @a N is the number of blocks. The integers are either
+   /// 32 or 64 bytes depending on the value of @a header_type. The number of
+   /// blocks is determined by reading the first integer (of type @a
+   /// header_type) pointed to by @a header_buf.
+   int NumHeaderBytes(const char *header_buf) const
+   {
+      if (!compressed) { return HeaderEntrySize(); }
+      return (3 + ReadHeaderEntry(header_buf))*HeaderEntrySize();
    }
 
    /// Read @a n elements of type @a F from the source buffer @a buf into the
@@ -718,32 +733,42 @@ struct BufferReader : BufferReaderBase
    void ReadBinaryWithHeader(const char *header_buf, const char *buf,
                              void *dest_void, int n) const
    {
-      std::vector<unsigned char> uncompressed_data;
+      std::vector<char> uncompressed_data;
       T *dest = static_cast<T*>(dest_void);
 
       if (compressed)
       {
 #ifdef MFEM_USE_ZLIB
-         uint64_t header[4];
-         if (header_type == UINT32_HEADER)
+         // The header has format (where header_t is uint32_t or uint64_t):
+         //    header_t number_of_blocks;
+         //    header_t uncompressed_block_size;
+         //    header_t uncompressed_last_block_size;
+         //    header_t compressed_size[number_of_blocks];
+         int header_entry_size = HeaderEntrySize();
+         int nblocks = ReadHeaderEntry(header_buf);
+         header_buf += header_entry_size;
+         std::vector<int> header(nblocks + 2);
+         for (int i=0; i<nblocks+2; ++i)
          {
-            uint32_t *header_32 = (uint32_t *)header_buf;
-            for (int i=0; i<4; ++i) { header[i] = header_32[i]; }
+            header[i] = ReadHeaderEntry(header_buf);
+            header_buf += header_entry_size;
          }
-         else
+         uncompressed_data.resize((nblocks-1)*header[0] + header[1]);
+         Bytef *dest_ptr = (Bytef *)uncompressed_data.data();
+         Bytef *dest_start = dest_ptr;
+         const Bytef *source_ptr = (const Bytef *)buf;
+         for (int i=0; i<nblocks; ++i)
          {
-            uint64_t *header_64 = (uint64_t *)header_buf;
-            for (int i=0; i<4; ++i) { header[i] = header_64[i]; }
+            uLongf source_len = header[i+2];
+            uLong dest_len = (i == nblocks-1) ? header[1] : header[0];
+            int res = uncompress(dest_ptr, &dest_len, source_ptr, source_len);
+            MFEM_VERIFY(res == Z_OK, "Error uncompressing");
+            dest_ptr += dest_len;
+            source_ptr += source_len;
          }
-
-         MFEM_VERIFY(header[0] == 1, "Multiple compressed blocks not supported");
-         uLongf dest_len = header[1];
-         uncompressed_data.resize(dest_len);
-         int res = uncompress(uncompressed_data.data(), &dest_len,
-                              (const Bytef *)buf, header[3]);
-         MFEM_VERIFY(res == Z_OK, "Error uncompressing");
-         MFEM_VERIFY(sizeof(F)*n == dest_len, "AppendedData: wrong data size");
-         buf = (const char *)uncompressed_data.data();
+         MFEM_VERIFY(int(sizeof(F)*n) == (dest_ptr - dest_start),
+                     "AppendedData: wrong data size");
+         buf = uncompressed_data.data();
 #else
          MFEM_ABORT("MFEM must be compiled with zlib enabled to uncompress.")
 #endif
@@ -786,7 +811,7 @@ struct BufferReader : BufferReaderBase
    /// buffer @a dest. The input buffer contains both the header and the data.
    void ReadBinary(const char *buf, void *dest, int n) const override
    {
-      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(), dest, n);
+      ReadBinaryWithHeader(buf, buf + NumHeaderBytes(buf), dest, n);
    }
 
    /// Read @a n elements of type @a F from base-64 encoded source buffer into
@@ -803,21 +828,25 @@ struct BufferReader : BufferReaderBase
       }
       if (compressed)
       {
-         std::vector<unsigned char> data, header;
+         // Decode the first entry of the header, which we need to determine
+         // how long the rest of the header is.
+         std::vector<char> nblocks_buf;
+         int nblocks_b64 = bin_io::NumBase64Chars(HeaderEntrySize());
+         bin_io::DecodeBase64(txt, nblocks_b64, nblocks_buf);
+         std::vector<char> data, header;
          // Compute number of characters needed to encode header in base 64,
          // then round to nearest multiple of 4 to take padding into account.
-         int b64_header = ((4*NumHeaderBytes()/3) + 3) & ~3;
+         int header_b64 = bin_io::NumBase64Chars(NumHeaderBytes(nblocks_buf.data()));
          // If data is compressed, header is encoded separately
-         bin_io::DecodeBase64(txt, b64_header, header);
-         bin_io::DecodeBase64(txt + b64_header, strlen(txt)-b64_header, data);
-         ReadBinaryWithHeader((const char *)header.data(),
-                              (const char *)data.data(), dest, n);
+         bin_io::DecodeBase64(txt, header_b64, header);
+         bin_io::DecodeBase64(txt + header_b64, strlen(txt)-header_b64, data);
+         ReadBinaryWithHeader(header.data(), data.data(), dest, n);
       }
       else
       {
-         std::vector<unsigned char> data;
+         std::vector<char> data;
          bin_io::DecodeBase64(txt, strlen(txt), data);
-         ReadBinary((const char *)data.data(), dest, n);
+         ReadBinary(data.data(), dest, n);
       }
    }
 };
@@ -1642,11 +1671,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             -1,-1, /* unsupported tetrahedral types */
             -1,-1, /* unsupported polygonal and polyhedral types */
             16,  /* 16-node third order quadrilateral (4 nodes associated with
-                    the vertices, 8 with the edges, 4 wth the face) */
+                    the vertices, 8 with the edges, 4 with the face) */
             25,  /* 25-node fourth order quadrilateral (4 nodes associated with
-                    the vertices, 12 with the edges, 9 wth the face) */
+                    the vertices, 12 with the edges, 9 with the face) */
             36,  /* 36-node fifth order quadrilateral (4 nodes associated with
-                    the vertices, 16 with the edges, 16 wth the face) */
+                    the vertices, 16 with the edges, 16 with the face) */
             -1,-1,-1, /* unsupported quadrilateral types */
             28,  /* 28-node sixth order complete triangle (3 nodes associated
                     with the vertices, 15 with the edges, 10 with the face) */
@@ -1659,15 +1688,15 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             66,  /* 66-node tenth order complete triangle (3 nodes associated
                     with the vertices, 27 with the edges, 36 with the face) */
             49,  /* 49-node sixth order quadrilateral (4 nodes associated with
-                    the vertices, 20 with the edges, 25 wth the face) */
+                    the vertices, 20 with the edges, 25 with the face) */
             64,  /* 64-node seventh order quadrilateral (4 nodes associated with
-                    the vertices, 24 with the edges, 36 wth the face) */
+                    the vertices, 24 with the edges, 36 with the face) */
             81,  /* 81-node eighth order quadrilateral (4 nodes associated with
-                    the vertices, 28 with the edges, 49 wth the face) */
+                    the vertices, 28 with the edges, 49 with the face) */
             100, /* 100-node ninth order quadrilateral (4 nodes associated with
-                    the vertices, 32 with the edges, 64 wth the face) */
+                    the vertices, 32 with the edges, 64 with the face) */
             121, /* 121-node tenth order quadrilateral (4 nodes associated with
-                    the vertices, 36 with the edges, 81 wth the face) */
+                    the vertices, 36 with the edges, 81 with the face) */
             -1,-1,-1,-1,-1, /* unsupported triangular types */
             -1,-1,-1,-1,-1, /* unsupported quadrilateral types */
             7,   /* 7-node sixth order edge (2 nodes associated with the
@@ -1867,6 +1896,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
          ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
+         bool has_nonpositive_phys_domain = false;
+         bool has_positive_phys_domain = false;
+
          if (binary)
          {
             int n_elem_part = 0; // partial sum of elements that are read
@@ -1917,17 +1949,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      vert_indices[vi] = it->second;
                   }
 
-                  // non-positive attributes are not allowed in MFEM
+                  // Non-positive attributes are not allowed in MFEM. However,
+                  // by default, Gmsh sets the physical domain of all elements
+                  // to zero. In the case that all elements have physical domain
+                  // zero, we will given them attribute 1. If only some elements
+                  // have physical domain zero, we will throw an error.
                   if (phys_domain <= 0)
                   {
-                     MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                                "By default Gmsh sets element tags (attributes)"
-                                " to '0' but MFEM requires that they be"
-                                " positive integers.\n"
-                                "Use \"Physical Curve\", \"Physical Surface\","
-                                " or \"Physical Volume\" to set tags/attributes"
-                                " for all curves, surfaces, or volumes in your"
-                                " Gmsh geometry to values which are >= 1.");
+                     has_nonpositive_phys_domain = true;
+                     phys_domain = 1;
+                  }
+                  else
+                  {
+                     has_positive_phys_domain = true;
                   }
 
                   // initialize the mesh element
@@ -2073,8 +2107,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     /*
-                     // MFEM does not support pyramids yet
                      case   7: el_order--; //   5-node pyramid
                      case  14: el_order--; //  14-node pyramid (2nd order)
                      case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2087,7 +2119,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         {
                            el_order--; // Gmsh does not define an order 10 pyr
                            elements_3D.push_back(
-                               new Pyramid(&vert_indices[0], phys_domain));
+                              new Pyramid(&vert_indices[0], phys_domain));
                            if (el_order > 1)
                            {
                               Array<int> * hov = new Array<int>;
@@ -2097,7 +2129,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                            }
                            break;
                         }
-                     */
                      case 15: // 1-node point
                      {
                         elements_0D.push_back(
@@ -2144,17 +2175,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   vert_indices[vi] = it->second;
                }
 
-               // non-positive attributes are not allowed in MFEM
+               // Non-positive attributes are not allowed in MFEM. However,
+               // by default, Gmsh sets the physical domain of all elements
+               // to zero. In the case that all elements have physical domain
+               // zero, we will given them attribute 1. If only some elements
+               // have physical domain zero, we will throw an error.
                if (phys_domain <= 0)
                {
-                  MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
-                             "By default Gmsh sets element tags (attributes)"
-                             " to '0' but MFEM requires that they be"
-                             " positive integers.\n"
-                             "Use \"Physical Curve\", \"Physical Surface\","
-                             " or \"Physical Volume\" to set tags/attributes"
-                             " for all curves, surfaces, or volumes in your"
-                             " Gmsh geometry to values which are >= 1.");
+                  has_nonpositive_phys_domain = true;
+                  phys_domain = 1;
+               }
+               else
+               {
+                  has_positive_phys_domain = true;
                }
 
                // initialize the mesh element
@@ -2300,8 +2333,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  /*
-                  // MFEM does not support pyramids yet
                   case   7: el_order--; //   5-node pyramid
                   case  14: el_order--; //  14-node pyramid (2nd order)
                   case 118: el_order--; //  30-node pyramid (3rd order)
@@ -2314,7 +2345,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      {
                         el_order--;
                         elements_3D.push_back(
-                            new Pyramid(&vert_indices[0], phys_domain));
+                           new Pyramid(&vert_indices[0], phys_domain));
                         if (el_order > 1)
                         {
                            Array<int> * hov = new Array<int>;
@@ -2324,7 +2355,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                         }
                         break;
                      }
-                  */
                   case 15: // 1-node point
                   {
                      elements_0D.push_back(
@@ -2338,6 +2368,24 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                } // switch (type_of_element)
             } // el (all elements)
          } // if ASCII
+
+         if (has_positive_phys_domain && has_nonpositive_phys_domain)
+         {
+            MFEM_ABORT("Non-positive element attribute in Gmsh mesh!\n"
+                       "By default Gmsh sets element tags (attributes)"
+                       " to '0' but MFEM requires that they be"
+                       " positive integers.\n"
+                       "Use \"Physical Curve\", \"Physical Surface\","
+                       " or \"Physical Volume\" to set tags/attributes"
+                       " for all curves, surfaces, or volumes in your"
+                       " Gmsh geometry to values which are >= 1.");
+         }
+         else if (has_nonpositive_phys_domain)
+         {
+            mfem::out << "\nGmsh reader: all element attributes were zero.\n"
+                      << "MFEM only supports positive element attributes.\n"
+                      << "Setting element attributes to 1.\n\n";
+         }
 
          if (!elements_3D.empty())
          {
@@ -2427,6 +2475,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             // initialize mesh_geoms so we can create Nodes FE space below
             this->SetMeshGen();
 
+            // Generate faces and edges so that we can define
+            // FE space on the mesh
+            this->FinalizeTopology();
+
             // Construct GridFunction for uniformly spaced high order coords
             FiniteElementCollection* nfec;
             FiniteElementSpace* nfes;
@@ -2505,16 +2557,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      }
                      vm = ho_wdg[el_order];
                      break;
-                  // case Element::PYRAMID:
-                  //    ho_verts = ho_verts_3D[el];
-                  //    el_order = ho_el_order_3D[el];
-                  //    if (ho_pyr[el_order])
-                  //    {
-                  //      ho_pyr[el_order] = new int[ho_verts->Size()];
-                  //      GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
-                  //    }
-                  //    vm = ho_pyr[el_order];
-                  //    break;
+                  case Element::PYRAMID:
+                     ho_verts = ho_verts_3D[el];
+                     el_order = ho_el_order_3D[el];
+                     if (!ho_pyr[el_order])
+                     {
+                        ho_pyr[el_order] = new int[ho_verts->Size()];
+                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                     }
+                     vm = ho_pyr[el_order];
+                     break;
                   default: // Any other element type
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
@@ -2577,6 +2629,9 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
          }
 
+         // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
+         ++n_partitions;
+         ++elem_domain;
          MFEM_CONTRACT_VAR(n_partitions);
          MFEM_CONTRACT_VAR(elem_domain);
 
@@ -2594,7 +2649,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          }
          int num_per_ent;
          int num_nodes;
-         int slave, master;
          input >> num_per_ent;
          getline(input, buff); // Read end-of-line
          for (int i = 0; i < num_per_ent; i++)
@@ -2611,6 +2665,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             for (int j=0; j<num_nodes; j++)
             {
+               int slave, master;
                input >> slave >> master;
                v2v[slave - 1] = master - 1;
             }
@@ -2648,6 +2703,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          // Convert nodes to discontinuous GridFunction (if they aren't already)
          if (mesh_order == 1)
          {
+            this->FinalizeTopology();
             this->SetMeshGen();
             this->SetCurvature(1, true, spaceDim, Ordering::byVDIM);
          }
@@ -2791,9 +2847,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int retval;
 
    // dummy string
-   char str_dummy[256];
+   constexpr size_t buf_size = 256;
+   char str_dummy[buf_size];
 
-   char temp_str[256];
+   char temp_str[buf_size];
    int temp_id;
 
    // open the file.
@@ -2837,14 +2894,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int previous_num_node_per_el = 0;
    for (int i = 0; i < (int) num_el_blk; i++)
    {
-      sprintf(temp_str, "num_el_in_blk%d", i+1);
+      snprintf(temp_str, buf_size, "num_el_in_blk%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_el_in_blk[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str, "num_nod_per_el%d", i+1);
+      snprintf(temp_str, buf_size, "num_nod_per_el%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_node_per_el)))
       {
@@ -2991,7 +3048,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    size_t *num_side_in_ss  = new size_t[num_side_sets];
    for (int i = 0; i < (int) num_side_sets; i++)
    {
-      sprintf(temp_str, "num_side_ss%d", i+1);
+      snprintf(temp_str, buf_size, "num_side_ss%d", i+1);
       if ((retval = nc_inq_dimid(ncid, temp_str, &temp_id)) ||
           (retval = nc_inq_dim(ncid, temp_id, str_dummy, &num_side_in_ss[i])))
       {
@@ -3026,7 +3083,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    for (int i = 0; i < (int) num_el_blk; i++)
    {
       elem_blk[i] = new int[num_el_in_blk[i] * num_node_per_el];
-      sprintf(temp_str, "connect%d", i+1);
+      snprintf(temp_str, buf_size, "connect%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_blk[i])))
       {
@@ -3050,14 +3107,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       elem_ss[i] = new int[num_side_in_ss[i]];
       side_ss[i] = new int[num_side_in_ss[i]];
 
-      sprintf(temp_str, "elem_ss%d", i+1);
+      snprintf(temp_str, buf_size, "elem_ss%d", i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, elem_ss[i])))
       {
          MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
       }
 
-      sprintf(temp_str,"side_ss%d",i+1);
+      snprintf(temp_str, buf_size,"side_ss%d",i+1);
       if ((retval = nc_inq_varid(ncid, temp_str, &temp_id)) ||
           (retval = nc_get_var_int(ncid, temp_id, side_ss[i])))
       {

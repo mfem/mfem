@@ -24,8 +24,11 @@
 //               class ConductionOperator defining C(u)), as well as their
 //               implicit time integration. Note that implementing the method
 //               ConductionOperator::ImplicitSolve is the only requirement for
-//               high-order implicit (SDIRK) time integration. Optional saving
-//               with ADIOS2 (adios2.readthedocs.io) is also illustrated.
+//               high-order implicit (SDIRK) time integration. In this example,
+//               the diffusion operator is linearized by evaluating with the
+//               lagged solution from the previous timestep, so there is only
+//               a linear solve. Optional saving with ADIOS2
+//               (adios2.readthedocs.io) is also illustrated.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -90,11 +93,11 @@ double InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -149,7 +152,6 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       args.PrintUsage(cout);
-      MPI_Finalize();
       return 1;
    }
 
@@ -377,8 +379,6 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete pmesh;
 
-   MPI_Finalize();
-
    return 0;
 }
 
@@ -420,8 +420,8 @@ ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, double al,
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    du_dt = M^{-1}*-Ku
+   // for du_dt, where K is linearized by using u from the previous timestep
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
    M_solver.Mult(z, du_dt);
@@ -432,7 +432,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
 {
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   // for du_dt, where K is linearized by using u from the previous timestep
    if (!T)
    {
       T = Add(1.0, Mmat, dt, Kmat);

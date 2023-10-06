@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-   if ( eInt > 0 && eInt < 6 )
+   if ( eInt > 0 && eInt < 7 )
    {
       eType = (Element::Type)eInt;
    }
