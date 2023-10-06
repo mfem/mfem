@@ -967,12 +967,13 @@ void NURBSPatch::Coarsen(int cf)
          KnotRemove(dir, fineKnots);
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
+
          const int ne_coarse = kv[dir]->GetNE();
          MFEM_VERIFY(ne_fine == cf * ne_coarse, "");
          if (kv[dir]->spacing)
          {
-            MFEM_VERIFY(kv[dir]->spacing->Size() == ne_coarse, "");
             kv[dir]->spacing->ScaleParameters((double) cf);
+            kv[dir]->spacing->SetSize(ne_coarse);
          }
       }
    }
@@ -1350,7 +1351,7 @@ int NURBSPatch::KnotRemove(int dir, double knot, int ntimes, double tol)
    MFEM_VERIFY(newkv.Size() == oldkv.Size() - ntimes, "");
 
    newkv.spacing = oldkv.spacing;
-   newkv.spacing->SetSize(newkv.spacing->Size() - ntimes);
+   newkv.coarse = oldkv.coarse;
 
    for (int k = 0; k < id - ntimes + 1; k++)
    {

@@ -22,7 +22,7 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
 
    switch (spacingType)
    {
-      case SPACING_TYPE::UNIFORM:
+      case SPACING_TYPE::UNIFORM_SPACING:
          MFEM_VERIFY(ipar.Size() == 1 &&
                      dpar.Size() == 0, "Invalid spacing function parameters");
          return new UniformSpacingFunction(ipar[0]);
@@ -412,8 +412,6 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
    int osi = 0;
    int osd = np - 1;
    int n_total = 0;
-   npartition.SetSize(np+1);
-   npartition[0] = n;
    for (int p=0; p<np; ++p)
    {
       // Setup piece p
@@ -439,8 +437,6 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
       osi += 3 + numIntParam;
       osd += numDoubleParam;
       n_total += pieces[p]->Size();
-
-      npartition[p+1] = pieces[p]->Size();
 
       MFEM_VERIFY(pieces[p]->Size() >= 1, "");
    }
@@ -510,11 +506,26 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
 void PiecewiseSpacingFunction::CalculateSpacing()
 {
    MFEM_VERIFY(n >= 1 && (n % n0 == 0 || n < n0), "");
-   const int ref = n / n0;
+   const int ref = n / n0;  // Refinement factor
+   const int cf = n0 / n;  // Coarsening factor
 
    s.SetSize(n);
 
-   if (n < n0)
+   bool coarsen = cf > 1 && n > 1;
+   // If coarsening, check whether all pieces have size divisible by cf.
+   if (coarsen)
+   {
+      for (int p=0; p<np; ++p)
+      {
+         const int csize = pieces[p]->Size() / cf;
+         if (pieces[p]->Size() != cf * csize)
+         {
+            coarsen = false;
+         }
+      }
+   }
+
+   if (n < n0 && !coarsen)
    {
       // Just use uniform spacing
       s = 1.0 / ((double) n);
@@ -526,7 +537,14 @@ void PiecewiseSpacingFunction::CalculateSpacing()
    {
       // Calculate spacing for piece p.
 
-      pieces[p]->SetSize(ref * npartition[p+1]);
+      if (coarsen)
+      {
+         pieces[p]->SetSize(pieces[p]->Size() / cf);
+      }
+      else
+      {
+         pieces[p]->SetSize(ref * pieces[p]->Size());
+      }
 
       const double p0 = (p == 0) ? 0.0 : partition[p-1];
       const double p1 = (p == np - 1) ? 1.0 : partition[p];

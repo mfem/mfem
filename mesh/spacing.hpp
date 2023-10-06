@@ -17,7 +17,7 @@
 namespace mfem
 {
 
-typedef enum {UNIFORM, LINEAR, GEOMETRIC, BELL,
+typedef enum {UNIFORM_SPACING, LINEAR, GEOMETRIC, BELL,
               GAUSSIAN, LOGARITHMIC, PIECEWISE
              } SPACING_TYPE;
 
@@ -48,6 +48,9 @@ public:
       }
    }
 
+   // Note that parameters may be scaled inversely during coarsening and
+   // refining, so the scaling should be linear in the sense that scaling by
+   // a number followed by scaling by its inverse has no effect on parameters.
    virtual void ScaleParameters(double a) { }
 
    // The format is
@@ -95,10 +98,10 @@ public:
    virtual void Print(std::ostream &os) const override
    {
       // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << UNIFORM << " 1 0 " << n << "\n";
+      os << UNIFORM_SPACING << " 1 0 " << n << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return UNIFORM; }
+   virtual SPACING_TYPE SpacingType() const override { return UNIFORM_SPACING; }
    virtual int NumIntParameters() const override { return 1; }
    virtual int NumDoubleParameters() const override { return 0; }
 
