@@ -457,7 +457,7 @@ void PiecewiseSpacingFunction::ScaleParameters(double a)
    }
 }
 
-void PiecewiseSpacingFunction::Print(std::ostream &os)
+void PiecewiseSpacingFunction::Print(std::ostream &os) const
 {
    // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
    int inum = 3;
@@ -594,6 +594,19 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
 
    Vector dparvec(dpar.GetData(), dpar.Size());
    return new PiecewiseSpacingFunction(n, np, reverse, ipar, dparvec);
+}
+
+bool PiecewiseSpacingFunction::Nested() const
+{
+   for (auto p : pieces)
+   {
+      if (!p->Nested())
+      {
+         return false;
+      }
+   }
+
+   return true;
 }
 
 }
