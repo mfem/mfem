@@ -1914,6 +1914,8 @@ public:
        FiniteElementSpace%s and GridFunction%s defined on the mesh. */
    void UniformRefinement(int ref_algo = 0, int rf = 2);
 
+   void NURBSCoarsening(int cf = 2);
+
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
        tetrahedra and nonconforming refinement (i.e., with hanging-nodes) of

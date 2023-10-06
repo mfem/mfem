@@ -408,6 +408,7 @@ int main (int argc, char *argv[])
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "n) NURBS refinement (uniform or by formula) with a factor\n"
+              "c) NURBS coarsening (uniform or by formula) with a factor\n"
               "l) refine locally using the region() function\n"
               "r) random refinement with a probability\n"
               "--> " << flush;
@@ -442,6 +443,15 @@ int main (int argc, char *argv[])
                cin >> ref_factor;
                if (ref_factor <= 1 || ref_factor > 32) { break; }
                mesh->UniformRefinement(0, ref_factor);
+               break;
+            }
+            case 'c':
+            {
+               cout << "enter coarsening factor --> " << flush;
+               int coarsen_factor;
+               cin >> coarsen_factor;
+               if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
+               mesh->NURBSCoarsening(coarsen_factor);
                break;
             }
             case 'l':

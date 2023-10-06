@@ -9855,6 +9855,41 @@ void Mesh::UniformRefinement(int ref_algo, int rf)
    }
 }
 
+void Mesh::NURBSCoarsening(int cf)
+{
+   if (NURBSext && cf > 1)
+   {
+      NURBSext->ConvertToPatches(*Nodes);
+
+      const int initcf = NURBSext->GetCoarseningFactor();
+
+      if (initcf == 1)
+      {
+         NURBSext->Coarsen(cf);
+      }
+      else
+      {
+         const int rf = initcf / cf;
+         MFEM_VERIFY(cf * rf == initcf, "");
+
+         NURBSext->Coarsen(initcf);
+
+         last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+         sequence++;
+
+         UpdateNURBS();
+
+         NURBSext->ConvertToPatches(*Nodes);
+         NURBSext->UniformRefinement(rf);
+      }
+
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+      sequence++;
+
+      UpdateNURBS();
+   }
+}
+
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {
