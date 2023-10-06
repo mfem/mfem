@@ -167,9 +167,9 @@ int main(int argc, char *argv[])
 
    // 13. Compute error in the solution and its flux
    FunctionCoefficient uCoef(uExact);
-   double err = x.ComputeL2Error(uCoef);
+   double error = x.ComputeL2Error(uCoef);
 
-   cout << "|u - u_h|_2 = " << err << endl;
+   cout << "|u - u_h|_2 = " << error << endl;
 
    FiniteElementSpace flux_fespace(mesh, &fec, 3);
    GridFunction flux(&flux_fespace);
@@ -324,7 +324,7 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      cout << "side not recognized "
+      cerr << "side not recognized "
            << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 

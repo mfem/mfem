@@ -105,7 +105,7 @@ private:
       Vector diag(fespace.GetTrueVSize());
       bfs.Last()->AssembleDiagonal(diag);
 
-      Solver* smoother = new OperatorChebyshevSmoother(opr.Ptr(), diag,
+      Solver* smoother = new OperatorChebyshevSmoother(*opr, diag,
                                                        *essentialTrueDofs.Last(), 2);
       AddLevel(opr.Ptr(), smoother, true, true);
    }
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
    }
    for (int level = 0; level < order_refinements; ++level)
    {
-      collections.Append(new H1_FECollection(std::pow(2, level+1), dim));
+      collections.Append(new H1_FECollection((int)std::pow(2, level+1), dim));
       fespaces.AddOrderRefinedLevel(collections.Last());
    }
 

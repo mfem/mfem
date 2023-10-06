@@ -70,11 +70,11 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -113,7 +113,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (kappa < 0)
@@ -199,8 +198,8 @@ int main(int argc, char *argv[])
    a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
    if (eta > 0)
    {
-      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
-      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(fespace, eta));
+      a->AddInteriorFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
+      a->AddBdrFaceIntegrator(new DGDiffusionBR2Integrator(*fespace, eta));
    }
    a->Assemble();
    a->Finalize();
@@ -221,7 +220,7 @@ int main(int argc, char *argv[])
    {
       HyprePCG pcg(*A);
       pcg.SetTol(1e-12);
-      pcg.SetMaxIter(200);
+      pcg.SetMaxIter(500);
       pcg.SetPrintLevel(2);
       pcg.SetPreconditioner(*amg);
       pcg.Mult(*B, *X);
@@ -232,7 +231,7 @@ int main(int argc, char *argv[])
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetAbsTol(0.0);
       gmres.SetRelTol(1e-12);
-      gmres.SetMaxIter(200);
+      gmres.SetMaxIter(500);
       gmres.SetKDim(10);
       gmres.SetPrintLevel(1);
       gmres.SetOperator(*A);
@@ -281,8 +280,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

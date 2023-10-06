@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,20 +15,10 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
-
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-#ifdef MFEM_USE_HIP
-constexpr int HCURL_MAX_Q1D = 5;
-#else
-constexpr int HCURL_MAX_Q1D = 6;
-#endif
-
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -60,6 +50,13 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Method defining partial assembly on NURBS patches.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the method AddMultNURBSPA(). */
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
@@ -78,6 +75,9 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled action on NURBS patches.
+   virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -145,6 +145,13 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   /** Given a particular NURBS patch, computes the patch matrix as a
+       SparseMatrix @a smat.
+    */
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
+
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -157,6 +164,15 @@ public:
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   /** Abstract method used for assembling TraceFaceIntegrators for
+       DPG weak formulations. */
+   virtual void AssembleTraceFaceMatrix(int elem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -213,12 +229,18 @@ public:
                              of the method may choose not to scale the "flux"
                              function by any coefficients describing the
                              integrator.
+       @param[in] ir  If passed (the default value is NULL), the implementation
+                      of the method will ignore the integration rule provided
+                      by the @a fluxelem parameter and, instead, compute the
+                      discrete flux at the points specified by the integration
+                      rule @a ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true) { }
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
 
@@ -283,6 +305,12 @@ public:
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
+   }
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes)
+   {
+      bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
    }
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
@@ -551,16 +579,23 @@ protected:
    { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
 
 
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return std::max(space_dim, test_fe.GetVDim()); }
+
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
                                      DenseMatrix & shape)
    { test_fe.CalcVShape(Trans, shape); }
+
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return std::max(space_dim, trial_fe.GetVDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcVShape(Trans, shape); }
 
+   int space_dim;
    Coefficient *Q;
    VectorCoefficient *VQ;
    DiagonalMatrixCoefficient *DQ;
@@ -574,7 +609,7 @@ private:
    DenseMatrix M;
    DenseMatrix test_shape;
    DenseMatrix trial_shape;
-   DenseMatrix test_shape_tmp;
+   DenseMatrix shape_tmp;
 #endif
 
 };
@@ -642,17 +677,21 @@ protected:
    { return trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW(); }
 
 
+   inline virtual int GetVDim(const FiniteElement & vector_fe)
+   { return std::max(space_dim, vector_fe.GetVDim()); }
+
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
-                                  DenseMatrix & shape)
-   { vector_fe.CalcVShape(Trans, shape); }
+                                  DenseMatrix & shape_)
+   { vector_fe.CalcVShape(Trans, shape_); }
 
    inline virtual void CalcShape(const FiniteElement & scalar_fe,
                                  ElementTransformation &Trans,
-                                 Vector & shape)
-   { scalar_fe.CalcPhysShape(Trans, shape); }
+                                 Vector & shape_)
+   { scalar_fe.CalcPhysShape(Trans, shape_); }
 
    VectorCoefficient *VQ;
+   int space_dim;
    bool transpose;
    bool cross_2d;  // In 2D use a cross product rather than a dot product
 
@@ -711,7 +750,7 @@ protected:
    {
       return "MixedScalarDerivativeIntegrator:  "
              "Trial and test spaces must both be scalar fields in 1D "
-             "and the trial space must implement CaldDShape.";
+             "and the trial space must implement CalcDShape.";
    }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
@@ -891,8 +930,8 @@ protected:
       const FiniteElement & test_fe) const
    {
       return (trial_fe.GetDim() == 2 && test_fe.GetDim() == 2 &&
-              trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
-              test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
+              trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
+              test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR);
    }
 
    inline virtual const char * FiniteElementTypeFailureMessage() const
@@ -914,11 +953,26 @@ protected:
       DenseMatrix dshape(shape.GetData(), shape.Size(), 1);
       trial_fe.CalcPhysCurlShape(Trans, dshape);
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
+
+   virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   int dim, ne, dofs1D, quad1D, dofs1Dtest;
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 2D where
     Q is an optional scalar coefficient, u is in L2 or H1, and v is in
-    H(Curl). */
+    H(Curl). Partial assembly (PA) is supported but could be further optimized
+    by using more efficient threading and shared memory.
+*/
 class MixedScalarWeakCurlIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -1051,7 +1105,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetVDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
@@ -1063,6 +1117,9 @@ public:
              "Trial space must be a vector field in 3D "
              "and the test space must be a scalar field with a gradient";
    }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1111,10 +1168,16 @@ public:
              trial_fe.GetOrder() + test_fe.GetOrder() + test_fe.GetDim() - 1;
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return space_dim; }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysDShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1147,10 +1210,16 @@ public:
              "with a gradient operator.";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return space_dim; }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysDShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1176,7 +1245,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1190,10 +1259,16 @@ public:
              "with a curl.";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return trial_fe.GetCurlDim(); }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysCurlShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return test_fe.GetCurlDim(); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1213,7 +1288,8 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetVDim() == 3 &&
+              test_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1227,10 +1303,16 @@ public:
              "with a curl.";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return trial_fe.GetCurlDim(); }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysCurlShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return test_fe.GetCurlDim(); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1250,7 +1332,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
@@ -1264,10 +1346,16 @@ public:
              "and the test space must be a scalar field with a gradient";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return trial_fe.GetCurlDim(); }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysCurlShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1287,7 +1375,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType()  == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
@@ -1301,10 +1389,16 @@ public:
              "and the test space must be a vector field with a curl";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return space_dim; }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
    { trial_fe.CalcPhysDShape(Trans, shape); }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return test_fe.GetCurlDim(); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1325,7 +1419,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
@@ -1337,6 +1431,9 @@ public:
              "Trial space must be a vector field in 3D "
              "and the test space must be a vector field with a curl";
    }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return test_fe.GetCurlDim(); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1392,7 +1489,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (test_fe.GetVDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1404,6 +1501,9 @@ public:
              "Trial space must be a scalar field with a gradient operator"
              " and the test space must be a vector field both in 3D.";
    }
+
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return space_dim; }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1429,7 +1529,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1441,6 +1541,9 @@ public:
              "Trial space must be a vector field in 3D with a curl "
              "and the test space must be a vector field";
    }
+
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return trial_fe.GetCurlDim(); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1507,6 +1610,9 @@ public:
              "Trial space must be a scalar field in 2D with a gradient "
              "and the test space must be a scalar field";
    }
+
+   inline int GetVDim(const FiniteElement & vector_fe)
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1593,6 +1699,9 @@ public:
              "and the test space must be a scalar field";
    }
 
+   inline virtual int GetVDim(const FiniteElement & vector_fe)
+   { return space_dim; }
+
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix & shape)
@@ -1623,6 +1732,9 @@ public:
              "Trial space must be a scalar field with a gradient"
              "and the test space must be a vector field with a divergence";
    }
+
+   inline virtual int GetVDim(const FiniteElement & vector_fe)
+   { return space_dim; }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1661,6 +1773,9 @@ public:
              "and the test space must be a scalar field with a gradient";
    }
 
+   inline virtual int GetVDim(const FiniteElement & vector_fe)
+   { return space_dim; }
+
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix & shape)
@@ -1696,6 +1811,9 @@ public:
              "and the test space must be a scalar field with a gradient";
    }
 
+   inline int GetVDim(const FiniteElement & vector_fe)
+   { return space_dim; }
+
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix & shape)
@@ -1704,7 +1822,10 @@ public:
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) in either 2D
     or 3D and where Q is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) u is in H1 and v is in H(Curl) or H(Div). */
+    diagonal matrix) u is in H1 and v is in H(Curl) or H(Div). Partial assembly
+    (PA) is supported but could be further optimized by using more efficient
+    threading and shared memory.
+*/
 class MixedVectorGradientIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1732,6 +1853,9 @@ protected:
              "vector field in 2D or 3D";
    }
 
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return space_dim; }
+
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
                                       DenseMatrix & shape)
@@ -1744,6 +1868,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    DenseMatrix Jinv;
@@ -1775,7 +1900,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
@@ -1786,6 +1911,9 @@ protected:
              "Trial space must be H(Curl) and the test space must be a "
              "vector field in 3D";
    }
+
+   inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
+   { return trial_fe.GetCurlDim(); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -1799,6 +1927,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    // PA extension
@@ -1830,7 +1959,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetDim() == 3 && test_fe.GetDim() == 3 &&
+      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
@@ -1841,6 +1970,9 @@ protected:
              "Trial space must be vector field in 3D and the "
              "test space must be H(Curl)";
    }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return test_fe.GetCurlDim(); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1854,6 +1986,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    // PA extension
@@ -1893,6 +2026,9 @@ protected:
              "Trial space must be vector field and the "
              "test space must be H1";
    }
+
+   inline virtual int GetTestVDim(const FiniteElement & test_fe)
+   { return space_dim; }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -1962,7 +2098,6 @@ protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
 private:
    Vector vec, vecdxt, pointflux, shape;
@@ -1980,26 +2115,81 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+   // Data for NURBS patch PA
+
+   // Type for a variable-row-length 2D array, used for data related to 1D
+   // quadrature rules in each dimension.
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
+
+   int numPatches = 0;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   // In the case integrationMode == Mode::PATCHWISE_REDUCED, an approximate
+   // integration rule with sparse nonzero weights is computed by NNLSSolver,
+   // for each 1D basis function on each patch, in each spatial dimension. For a
+   // fixed 1D basis function b_i with DOF index i, in the tensor product basis
+   // of patch p, the prescribed exact 1D rule is of the form
+   // \sum_k a_{i,j,k} w_k for some integration points indexed by k, with
+   // weights w_k and coefficients a_{i,j,k} depending on Q(x), an element
+   // transformation, b_i, and b_j, for all 1D basis functions b_j whose support
+   // overlaps that of b_i. Define the constraint matrix G = [g_{j,k}] with
+   // g_{j,k} = a_{i,j,k} and the vector of exact weights w = [w_k]. A reduced
+   // rule should have different weights w_r, many of them zero, and should
+   // approximately satisfy Gw_r = Gw. A sparse approximate solution to this
+   // underdetermined system is computed by NNLSSolver, and its data is stored
+   // in the following members.
+
+   // For each patch p, spatial dimension d (total dim), and rule type t (total
+   // numTypes), an std::vector<Vector> of reduced quadrature weights for all
+   // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
+   // reshaped as rw(t,d,p). Note that nd may vary with respect to the patch and
+   // spatial dimension. Array reducedIDs is treated similarly.
+   std::vector<std::vector<Vector>> reducedWeights;
+   std::vector<IntArrayVar2D> reducedIDs;
+   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<std::vector<Array2D<double>>> pB, pG;
+   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+
+   std::vector<Array<const IntegrationRule*>> pir1d;
+
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
+
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with full 1D quadrature rules. */
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           const FiniteElementSpace &fes,
+                                           SparseMatrix*& smat);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with reduced 1D quadrature rules. */
+   void AssemblePatchMatrix_reducedQuadrature(const int patch,
+                                              const FiniteElementSpace &fes,
+                                              SparseMatrix*& smat);
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
-   DiffusionIntegrator()
-      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Q(NULL), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator(Coefficient &q)
-      : Q(&q), VQ(NULL), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Q(&q), VQ(NULL), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a vector coefficient q
-   DiffusionIntegrator(VectorCoefficient &q)
-      : Q(NULL), VQ(&q), MQ(NULL), SMQ(NULL), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(VectorCoefficient &q,
+                       const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Q(NULL), VQ(&q), MQ(NULL), maps(NULL), geom(NULL) { }
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator(MatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(&q), SMQ(NULL), maps(NULL), geom(NULL) { }
-
-   /// Construct a diffusion integrator with a symmetric matrix coefficient q
-   DiffusionIntegrator(SymmetricMatrixCoefficient &q)
-      : Q(NULL), VQ(NULL), MQ(NULL), SMQ(&q), maps(NULL), geom(NULL) { }
+   DiffusionIntegrator(MatrixCoefficient &q,
+                       const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir),
+        Q(NULL), VQ(NULL), MQ(&q), maps(NULL), geom(NULL) { }
 
    /** Given a particular Finite Element computes the element stiffness matrix
        elmat. */
@@ -2013,6 +2203,14 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
+
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
+
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -2021,7 +2219,8 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2046,15 +2245,22 @@ public:
 
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
+   virtual void AddMultNURBSPA(const Vector&, Vector&) const;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {
+   friend class DGMassInverse;
 protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
@@ -2063,8 +2269,9 @@ protected:
    // PA extension
    const FiniteElementSpace *fespace;
    Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
+   const DofToQuad *maps;                 ///< Not owned
+   const GeometricFactors *geom;          ///< Not owned
+   const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
@@ -2091,6 +2298,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
 
@@ -2109,6 +2318,8 @@ public:
                                          ElementTransformation &Trans);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Mass integrator (u, v) restricted to the boundary of a domain */
@@ -2167,6 +2378,8 @@ public:
    virtual void AddMultMF(const Vector&, Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &el,
                                          ElementTransformation &Trans);
@@ -2250,7 +2463,7 @@ public:
       : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
-   void SetVDim(int vdim) { this->vdim = vdim; }
+   void SetVDim(int vdim_) { vdim = vdim_; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2275,8 +2488,9 @@ public:
     scalar function given by FiniteElement through standard transformation.
     Here, u is the trial function and p is the test function.
 
-    Note: the element matrix returned by AssembleElementMatrix2 does NOT depend
-    on the ElementTransformation Trans. */
+    Note: if the test space does not have map type INTEGRAL, then the element
+    matrix returned by AssembleElementMatrix2 will not depend on the
+    ElementTransformation Trans. */
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2400,6 +2614,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
    DenseMatrix vshape, projcurl;
 #endif
 
@@ -2407,7 +2622,6 @@ protected:
    Coefficient *Q;
    DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2418,18 +2632,15 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; SMQ = NULL; }
+   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
    /// Construct a bilinear form integrator for Nedelec elements
    CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL), SMQ(NULL) { }
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL) { }
    CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
                       const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL), SMQ(NULL) { }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL) { }
    CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq), SMQ(NULL) { }
-   CurlCurlIntegrator(SymmetricMatrixCoefficient &smq,
-                      const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(NULL), SMQ(&smq) { }
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) { }
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2437,10 +2648,16 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
 
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef);
+                                   Vector &flux, bool with_coef,
+                                   const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
@@ -2450,6 +2667,8 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
@@ -2479,6 +2698,35 @@ public:
                                    const Vector &elfun);
 };
 
+/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) where Q is
+    an optional scalar coefficient, and v is a vector with components v_i in
+    the L2 or H1 space. This integrator handles 3 cases:
+    (a) u ∈ H(curl) in 3D, v is a 3D vector with components v_i in L^2 or H^1
+    (b) u ∈ H(curl) in 2D, v is a scalar field in L^2 or H^1
+    (c) u is a scalar field in H^1, i.e, curl u := [0 1;-1 0]grad u and v is a
+        2D vector field with components v_i in L^2 or H^1 space.
+    Note: Case (b) can also be handled by MixedScalarCurlIntegrator  */
+class MixedCurlIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix curlshape;
+   DenseMatrix elmat_comp;
+public:
+   MixedCurlIntegrator() : Q{NULL} { }
+   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
+   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
 /** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
     vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
     H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
@@ -2486,9 +2734,8 @@ public:
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq,
-             SymmetricMatrixCoefficient *smq)
-   { Q = q; DQ = dq; MQ = mq; SMQ = smq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
+   { Q = q; DQ = dq; MQ = mq; }
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2503,7 +2750,6 @@ protected:
    Coefficient *Q;
    DiagonalMatrixCoefficient *DQ;
    MatrixCoefficient *MQ;
-   SymmetricMatrixCoefficient *SMQ;
 
    // PA extension
    Vector pa_data;
@@ -2516,15 +2762,13 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   VectorFEMassIntegrator() { Init(NULL, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient *q_) { Init(q_, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL, NULL); }
-   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_, NULL); }
-   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq, NULL); }
-   VectorFEMassIntegrator(SymmetricMatrixCoefficient &smq) { Init(NULL, NULL, NULL, &smq); }
-   VectorFEMassIntegrator(SymmetricMatrixCoefficient *smq) { Init(NULL, NULL, NULL, smq); }
+   VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient *q_) { Init(q_, NULL, NULL); }
+   VectorFEMassIntegrator(Coefficient &q) { Init(&q, NULL, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient *dq_) { Init(NULL, dq_, NULL); }
+   VectorFEMassIntegrator(DiagonalMatrixCoefficient &dq) { Init(NULL, &dq, NULL); }
+   VectorFEMassIntegrator(MatrixCoefficient *mq_) { Init(NULL, NULL, mq_); }
+   VectorFEMassIntegrator(MatrixCoefficient &mq) { Init(NULL, NULL, &mq); }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2539,7 +2783,10 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same
@@ -2603,7 +2850,7 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector divshape;
+   Vector divshape, te_divshape;
 #endif
 
    // PA extension
@@ -2615,11 +2862,19 @@ private:
 
 public:
    DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q) : Q(&q) { }
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for
@@ -2667,6 +2922,9 @@ public:
 
    VectorDiffusionIntegrator(Coefficient &q)
       : Q(&q) { }
+
+   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir)
+      : BilinearFormIntegrator(ir), Q(&q) { }
 
    /** \brief Integrator with scalar coefficient for caller-specified vector
        dimension.
@@ -2756,12 +3014,14 @@ public:
        of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
        s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
        a FE space with dim*(dim+1)/2 vector components, based on the finite
-       element @a fluxelem. */
+       element @a fluxelem. The integration rule is taken from @a fluxelem.
+       @a ir exists to specific an alternative integration rule. */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true);
+                                   Vector &flux, bool with_coef = true,
+                                   const IntegrationRule *ir = NULL);
 
    /** Compute the element energy (integral of the strain energy density)
        corresponding to the stress represented by @a flux which is a vector of
@@ -2888,8 +3148,8 @@ public:
 
 /** Integrator for the DG form:
 
-    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
-    + kappa < {h^{-1} Q} [u], [v] >,
+        - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+        + kappa < {h^{-1} Q} [u], [v] >
 
     where Q is a scalar or matrix diffusion coefficient and u, v are the trial
     and test spaces, respectively. The parameters sigma and kappa determine the
@@ -2927,20 +3187,21 @@ public:
 
     sum_e eta (r_e([u]), r_e([v]))
 
-    where r_e is the lifting operator defined on each edge e. The parameter eta
-    can be chosen to be one to obtain a stable discretization. The constructor
-    for this integrator requires the finite element space because the lifting
-    operator depends on the element-wise inverse mass matrix.
+    where r_e is the lifting operator defined on each edge e (potentially
+    weighted by a coefficient Q). The parameter eta can be chosen to be one to
+    obtain a stable discretization. The constructor for this integrator requires
+    the finite element space because the lifting operator depends on the
+    element-wise inverse mass matrix.
 
     BR2 stands for the second method of Bassi and Rebay:
 
     - F. Bassi and S. Rebay. A high order discontinuous Galerkin method for
       compressible turbulent flows. In B. Cockburn, G. E. Karniadakis, and
-      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77–88. Springer
+      C.-W. Shu, editors, Discontinuous Galerkin Methods, pages 77-88. Springer
       Berlin Heidelberg, 2000.
     - D. N. Arnold, F. Brezzi, B. Cockburn, and L. D. Marini. Unified analysis
       of discontinuous Galerkin methods for elliptic problems. SIAM Journal on
-      Numerical Analysis, 39(5):1749–1779, 2002.
+      Numerical Analysis, 39(5):1749-1779, 2002.
 */
 class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 {
@@ -2953,14 +3214,28 @@ protected:
    Array<int> ipiv;
    Array<int> ipiv_offsets, Minv_offsets;
 
+   Coefficient *Q;
+
    Vector shape1, shape2;
 
    DenseMatrix R11, R12, R21, R22;
    DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
    DenseMatrix Re, MinvRe;
 
+   /// Precomputes the inverses (LU factorizations) of the local mass matrices.
+   /** @a fes must be a DG space, so the mass matrix is block diagonal, and its
+       inverse can be computed locally. This is required for the computation of
+       the lifting operators @a r_e.
+   */
+   void PrecomputeMassInverse(class FiniteElementSpace &fes);
+
 public:
-   DGDiffusionBR2Integrator(class FiniteElementSpace *fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, double e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, Coefficient &Q_,
+                            double e = 1.0);
+   MFEM_DEPRECATED DGDiffusionBR2Integrator(class FiniteElementSpace *fes,
+                                            double e = 1.0);
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -3115,6 +3390,87 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DPG form: < v, w > over a face (the interface) where
+    the trial variable v is defined on the interface
+    (H^-1/2 i.e., v:=u⋅n normal trace of H(div))
+    and the test variable w is in an H1-conforming space. */
+class TraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape;
+public:
+   TraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
+/** Integrator for the form: < v, w.n > over a face (the interface) where
+    the trial variable v is defined on the interface (H^1/2, i.e., trace of H1)
+    and the test variable w is in an H(div)-conforming space. */
+class NormalTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, normal, shape_n;
+   DenseMatrix shape;
+
+public:
+   NormalTraceIntegrator() { }
+   virtual void AssembleTraceFaceMatrix(int ielem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+};
+
+
+/** Integrator for the form: < v, w × n > over a face (the interface)
+ *  In 3D the trial variable v is defined on the interface (H^-1/2(curl), trace of H(curl))
+ *  In 2D it's defined on the interface (H^1/2, trace of H1)
+ *  The test variable w is in an H(curl)-conforming space. */
+class TangentTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix face_shape, shape, shape_n;
+   Vector normal;
+   Vector temp;
+
+   void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
+   {
+      int dim = x.Size();
+      MFEM_VERIFY(Y.Width() == dim, "Size mismatch");
+      int dimc = dim == 3 ? dim : 1;
+      int h = Y.Height();
+      Z.SetSize(h,dimc);
+      if (dim == 3)
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(2) * Y(i,1) - x(1) * Y(i,2);
+            Z(i,1) = x(0) * Y(i,2) - x(2) * Y(i,0);
+            Z(i,2) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+      else
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+   }
+
+public:
+   TangentTraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
 /** Abstract class to serve as a base for local interpolators to be used in the
     DiscreteLinearOperator class. */
 class DiscreteInterpolator : public BilinearFormIntegrator { };
@@ -3150,7 +3506,7 @@ public:
 
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    bool B_id; // is the B basis operator (maps_C_C) the identity?
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
@@ -3165,6 +3521,8 @@ private:
 class IdentityInterpolator : public DiscreteInterpolator
 {
 public:
+   IdentityInterpolator(): dofquad_fe(NULL) { }
+
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
@@ -3179,9 +3537,11 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual ~IdentityInterpolator() { delete dofquad_fe; }
+
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
@@ -3335,18 +3695,6 @@ public:
 protected:
    VectorCoefficient *VQ;
 };
-
-
-
-// PA Diffusion Assemble 2D kernel
-template<const int T_SDIM>
-void PADiffusionSetup2D(const int Q1D,
-                        const int coeffDim,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d);
 
 }
 #endif

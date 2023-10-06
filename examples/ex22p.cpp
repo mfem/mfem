@@ -13,6 +13,8 @@
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 1
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 2 -p 2
 //               mpirun -np 4 ex22p -m ../data/inline-hex.mesh -o 1 -p 2 -pa
+//               mpirun -np 4 ex22p -m ../data/inline-wedge.mesh -o 1
+//               mpirun -np 4 ex22p -m ../data/inline-pyramid.mesh -o 1
 //               mpirun -np 4 ex22p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Device sample runs:
@@ -73,11 +75,11 @@ bool check_for_inline_mesh(const char * mesh_file);
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -135,7 +137,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -595,8 +596,6 @@ int main(int argc, char *argv[])
    delete fespace;
    delete fec;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

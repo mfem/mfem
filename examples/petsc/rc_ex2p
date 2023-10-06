@@ -1,8 +1,7 @@
 -ksp_converged_reason
 
 # GAMG is still not used at its best,
-# since we are not exploiting the
-# block size (Ordering::byVDIM) and the RBMs
+# since we are not exploiting the RBMs
 
 -ksp_view
 -pc_type gamg

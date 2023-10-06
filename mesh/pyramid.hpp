@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,10 +29,10 @@ public:
 
    Pyramid() : Element(Geometry::PYRAMID) { }
 
-   /// Constructs wedge by specifying the indices and the attribute.
+   /// Constructs pyramid by specifying the indices and the attribute.
    Pyramid(const int *ind, int attr = 1);
 
-   /// Constructs wedge by specifying the indices and the attribute.
+   /// Constructs pyramid by specifying the indices and the attribute.
    Pyramid(int ind1, int ind2, int ind3, int ind4, int ind5,
            int attr = 1);
 
@@ -71,8 +71,7 @@ public:
    virtual ~Pyramid() { }
 };
 
-// Defined in fe.cpp to ensure construction after 'mfem::poly1d'.
-extern class H1_PyramidElement PyramidFE;
+extern class LinearPyramidFiniteElement PyramidFE;
 
 }
 

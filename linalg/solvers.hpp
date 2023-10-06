@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,7 @@ public:
    {
    }
 
-   /** @brief This method is invoked by ItertiveSolver::SetMonitor, informing
+   /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
    void SetIterativeSolver(const IterativeSolver &solver)
    { iter_solver = &solver; }
@@ -65,10 +65,55 @@ public:
 /// Abstract base class for iterative solver
 class IterativeSolver : public Solver
 {
+public:
+   /** @brief Settings for the output behavior of the IterativeSolver.
+
+       By default, all output is suppressed. The construction of the desired
+       print level can be achieved through a builder pattern, for example
+
+           PrintLevel().Errors().Warnings()
+
+       constructs the print level with only errors and warnings enabled.
+     */
+   struct PrintLevel
+   {
+      /** @brief If a fatal problem has been detected the failure will be
+          reported to @ref mfem::err. */
+      bool errors = false;
+      /** @brief If a non-fatal problem has been detected some context-specific
+          information will be reported to @ref mfem::out */
+      bool warnings = false;
+      /** @brief Detailed information about each iteration will be reported to
+          @ref mfem::out */
+      bool iterations = false;
+      /** @brief A summary of the solver process will be reported after the last
+          iteration to @ref mfem::out */
+      bool summary = false;
+      /** @brief Information about the first and last iteration will be printed
+          to @ref mfem::out */
+      bool first_and_last = false;
+
+      /// Initializes the print level to suppress
+      PrintLevel() = default;
+
+      /** @name Builder
+         These methods are utilized to construct PrintLevel objects through a
+         builder approach by chaining the function calls in this group. */
+      ///@{
+      PrintLevel &None() { *this = PrintLevel(); return *this; }
+      PrintLevel &Warnings() { warnings=true; return *this; }
+      PrintLevel &Errors() { errors=true; return *this; }
+      PrintLevel &Iterations() { iterations=true; return *this; }
+      PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
+      PrintLevel &Summary() { summary=true; return *this; }
+      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      ///@}
+   };
+
 #ifdef MFEM_USE_MPI
 private:
    int dot_prod_type; // 0 - local, 1 - global over 'comm'
-   MPI_Comm comm;
+   MPI_Comm comm = MPI_COMM_NULL;
 #endif
 
 protected:
@@ -76,12 +121,52 @@ protected:
    Solver *prec;
    IterativeSolverMonitor *monitor = nullptr;
 
-   int max_iter, print_level;
-   double rel_tol, abs_tol;
+   /// @name Reporting (protected attributes and member functions)
+   ///@{
 
-   // stats
-   mutable int final_iter, converged;
-   mutable double final_norm;
+   /** @brief (DEPRECATED) Legacy print level definition, which is left for
+       compatibility with custom iterative solvers.
+       @deprecated #print_options should be used instead. */
+   int print_level = -1;
+
+   /** @brief Output behavior for the iterative solver.
+
+       This primarily controls the output behavior of the iterative solvers
+       provided by this library. This member must be synchronized with
+       #print_level to ensure compatibility with custom iterative solvers. */
+   PrintLevel print_options;
+
+   /// Convert a legacy print level integer to a PrintLevel object
+   PrintLevel FromLegacyPrintLevel(int);
+
+   /// @brief Use some heuristics to guess a legacy print level corresponding to
+   /// the given PrintLevel.
+   static int GuessLegacyPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Convergence (protected attributes)
+   ///@{
+
+   /// Limit for the number of iterations the solver is allowed to do
+   int max_iter;
+
+   /// Relative tolerance.
+   double rel_tol;
+
+   /// Absolute tolerance.
+   double abs_tol;
+
+   ///@}
+
+   /// @name Solver statistics (protected attributes)
+   /// Every IterativeSolver is expected to define these in its Mult() call.
+   ///@{
+
+   mutable int final_iter = -1;
+   mutable bool converged = false;
+   mutable double initial_norm = -1.0, final_norm = -1.0;
+
+   ///@}
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
@@ -95,20 +180,107 @@ public:
    IterativeSolver(MPI_Comm comm_);
 #endif
 
+   /** @name Convergence
+       @brief Termination criteria for the iterative solvers.
+
+       @details While the convergence criterion is solver specific, most of the
+       provided iterative solvers use one of the following criteria
+
+       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+
+       \f$ ||r||_X \leq tol_{abs} \f$,
+
+       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+
+       where X denotes the space in which the norm is measured. The choice of
+       X depends on the specific iterative solver.
+      */
+   ///@{
    void SetRelTol(double rtol) { rel_tol = rtol; }
    void SetAbsTol(double atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
-   void SetPrintLevel(int print_lvl);
+   ///@}
 
+   /** @name Reporting
+       These options control the internal reporting behavior into ::mfem::out
+       and ::mfem::err of the iterative solvers.
+    */
+   ///@{
+
+   /// @brief Legacy method to set the level of verbosity of the solver output.
+   /** This is the old way to control what information will be printed to
+       ::mfem::out and ::mfem::err. The behavior for the print level for all
+       iterative solvers is:
+
+       - -1: Suppress all outputs.
+       -  0: Print information about all detected issues (e.g. no convergence).
+       -  1: Same as level 0, but with detailed information about each
+             iteration.
+       -  2: Print detected issues and a summary when the solver terminates.
+       -  3: Same as 2, but print also the first and last iterations.
+       - >3: Custom print options which are dependent on the specific solver.
+
+       In parallel, only rank 0 produces output.
+
+       @note It is recommended to use @ref SetPrintLevel(PrintLevel) instead.
+
+       @note Some derived classes, like KINSolver, redefine this method and use
+       their own set of print level constants. */
+   virtual void SetPrintLevel(int print_lvl);
+
+   /// @brief Set the level of verbosity of the solver output.
+   /** In parallel, only rank 0 produces outputs. Errors are output to
+       ::mfem::err and all other information to ::mfem::out.
+
+       @note Not all subclasses of IterativeSolver support all possible options.
+
+       @note Some derived classes, like KINSolver, disable this method in favor
+       of SetPrintLevel(int).
+
+       @sa PrintLevel for possible options.
+   */
+   virtual void SetPrintLevel(PrintLevel);
+   ///@}
+
+   /// @name Solver statistics.
+   /// These are valid after the call to Mult().
+   ///@{
+
+   /// Returns the number of iterations taken during the last call to Mult()
    int GetNumIterations() const { return final_iter; }
-   int GetConverged() const { return converged; }
+   /// Returns true if the last call to Mult() converged successfully.
+   bool GetConverged() const { return converged; }
+   /// @brief Returns the initial residual norm from the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), computed before the start of the
+   /// iteration.
+   double GetInitialNorm() const { return initial_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult().
+   ///
+   /// This function returns the norm of the residual (or preconditioned
+   /// residual, depending on the solver), corresponding to the returned
+   /// solution.
    double GetFinalNorm() const { return final_norm; }
+   /// @brief Returns the final residual norm after termination of the solver
+   /// during the last call to Mult(), divided by the initial residual norm.
+   /// Returns -1 if one of these norms is left undefined by the solver.
+   ///
+   /// @sa GetFinalNorm(), GetInitialNorm()
+   double GetFinalRelNorm() const
+   {
+      if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
+      return final_norm / initial_norm;
+   }
+
+   ///@}
 
    /// This should be called before SetOperator
    virtual void SetPreconditioner(Solver &pr);
 
    /// Also calls SetOperator for the preconditioner if there is one
-   virtual void SetOperator(const Operator &op);
+   virtual void SetOperator(const Operator &op) override;
 
    /// Set the iterative solver monitor
    void SetMonitor(IterativeSolverMonitor &m)
@@ -163,6 +335,9 @@ public:
 
    ~OperatorJacobiSmoother() {}
 
+   /// Replace diagonal entries with their absolute values.
+   void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
+
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
@@ -184,6 +359,8 @@ private:
    const double damping;
    const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
+   /// Uses absolute values of the diagonal entries.
+   bool use_abs_diag = false;
 
    const Operator *oper; // not owned
 
@@ -208,6 +385,12 @@ public:
        the matrix-free setting. The estimated largest eigenvalue of the
        diagonally preconditoned operator must be provided via
        max_eig_estimate. */
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, double max_eig_estimate);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, double max_eig_estimate);
@@ -220,12 +403,27 @@ public:
        accuracy of the estimated eigenvalue may be controlled via
        power_iterations and power_tolerance. */
 #ifdef MFEM_USE_MPI
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, MPI_Comm comm = MPI_COMM_NULL,
+                             int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
                              double power_tolerance = 1e-8);
 #else
+   OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
+                             const Array<int>& ess_tdof_list,
+                             int order, int power_iterations = 10,
+                             double power_tolerance = 1e-8);
+
+   /// Deprecated: see pass-by-reference version above
+   MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
@@ -234,7 +432,7 @@ public:
 
    ~OperatorChebyshevSmoother() {}
 
-   void Mult(const Vector&x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
 
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
@@ -529,6 +727,30 @@ class LBFGSSolver : public NewtonSolver
 {
 protected:
    int m = 10;
+   mutable Array<Vector *> skArray, ykArray;
+
+   void DeleteStorageVectors()
+   {
+      for (int i = 0; i < skArray.Size(); i++)
+      {
+         delete skArray[i];
+         delete ykArray[i];
+      }
+   }
+
+   void InitializeStorageVectors()
+   {
+      DeleteStorageVectors();
+      skArray.SetSize(m);
+      ykArray.SetSize(m);
+      for (int i = 0; i < m; i++)
+      {
+         skArray[i] = new Vector(width);
+         ykArray[i] = new Vector(width);
+         skArray[i]->UseDevice(true);
+         ykArray[i]->UseDevice(true);
+      }
+   }
 
 public:
    LBFGSSolver() : NewtonSolver() { }
@@ -537,7 +759,17 @@ public:
    LBFGSSolver(MPI_Comm comm_) : NewtonSolver(comm_) { }
 #endif
 
-   void SetHistorySize(int dim) { m = dim; }
+   virtual void SetOperator(const Operator &op)
+   {
+      NewtonSolver::SetOperator(op);
+      InitializeStorageVectors();
+   }
+
+   void SetHistorySize(int dim)
+   {
+      m = dim;
+      InitializeStorageVectors();
+   }
 
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
@@ -547,7 +779,10 @@ public:
    { MFEM_WARNING("L-BFGS won't use the given preconditioner."); }
    virtual void SetSolver(Solver &solver)
    { MFEM_WARNING("L-BFGS won't use the given solver."); }
+
+   virtual ~LBFGSSolver() { DeleteStorageVectors(); }
 };
+
 
 /** Adaptive restarted GMRES.
     m_max and m_min(=1) are the maximal and minimal restart parameters.
@@ -558,6 +793,9 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, double cf,
            double &tol, double &atol, int printit);
 
+#ifdef MFEM_USE_HIOP
+class HiopOptimizationProblem;
+#endif
 
 /** Defines operators and constraints for the following optimization problem:
  *
@@ -577,10 +815,24 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  the operators are expected to be defined for tdof vectors. */
 class OptimizationProblem
 {
+#ifdef MFEM_USE_HIOP
+   friend class HiopOptimizationProblem;
+#endif
+
+private:
+   /// See NewX().
+   mutable bool new_x = true;
+
 protected:
    /// Not owned, some can remain unused (NULL).
    const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
+
+   /// Implementations of CalcObjective() and CalcObjectiveGrad() can use this
+   /// method to check if the argument Vector x has been changed after the last
+   /// call to CalcObjective() or CalcObjectiveGrad().
+   /// The result is on by default, and gets set by the OptimizationSolver.
+   bool NewX() const { return new_x; }
 
 public:
    const int input_size;
@@ -918,6 +1170,57 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
+/// Solver wrapper which orthogonalizes the input and output vector
+/**
+ * OrthoSolver wraps an existing Solver and orthogonalizes the input vector
+ * before passing it to the Mult() method of the Solver. This is a convenience
+ * implementation to handle e.g. a Poisson problem with pure Neumann boundary
+ * conditions, where this procedure removes the Nullspace.
+ */
+class OrthoSolver : public Solver
+{
+private:
+#ifdef MFEM_USE_MPI
+   MPI_Comm mycomm;
+   mutable HYPRE_BigInt global_size;
+   const bool parallel;
+#else
+   mutable int global_size;
+#endif
+
+public:
+   OrthoSolver();
+#ifdef MFEM_USE_MPI
+   OrthoSolver(MPI_Comm mycomm_);
+#endif
+
+   /// Set the solver used by the OrthoSolver.
+   /** The action of the OrthoSolver is given by P * s * P where P is the
+       projection to the subspace of vectors with zero sum. Calling this method
+       is required before calling SetOperator() or Mult(). */
+   void SetSolver(Solver &s);
+
+   /// Set the Operator that is the OrthoSolver is to invert (approximately).
+   /** The Operator @a op is simply forwarded to the solver object given by
+       SetSolver() which needs to be called before this method. Calling this
+       method is optional when the solver already has an associated Operator. */
+   virtual void SetOperator(const Operator &op);
+
+   /** @brief Perform the action of the OrthoSolver: P * solver * P where P is
+       the projection to the subspace of vectors with zero sum. */
+   /** @note The projection P can be written as P = I - 1 1^T / (1^T 1) where
+       I is the identity matrix and 1 is the column-vector with all components
+       equal to 1. */
+   void Mult(const Vector &b, Vector &x) const;
+
+private:
+   Solver *solver = nullptr;
+
+   mutable Vector b_ortho;
+
+   void Orthogonalize(const Vector &v, Vector &v_ortho) const;
+};
+
 #ifdef MFEM_USE_MPI
 /** This smoother does relaxations on an auxiliary space (determined by a map
     from the original space to the auxiliary space provided by the user).
@@ -938,8 +1241,129 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
+   using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
+
+#ifdef MFEM_USE_LAPACK
+/** Non-negative least squares (NNLS) solver class, for computing a vector
+    with non-negative entries approximately satisfying an under-determined
+    linear system. */
+class NNLSSolver : public Solver
+{
+public:
+   NNLSSolver();
+
+   ~NNLSSolver() { }
+
+   /// The operator must be a DenseMatrix.
+   void SetOperator(const Operator &op) override;
+
+   void Mult(const Vector &w, Vector &sol) const override;
+
+   /**
+     * Set verbosity. If set to 0: print nothing; if 1: just print results;
+     * if 2: print short update on every iteration; if 3: print longer update
+     * each iteration.
+     */
+   void SetVerbosity(int v) { verbosity_ = v; }
+
+   void SetTolerance(double tol) { const_tol_ = tol; }
+
+   /// Set the minimum number of nonzeros required for the solution.
+   void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
+
+   /// Set the maximum number of nonzeros required for the solution, as an early
+   /// termination condition.
+   void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
+
+   /// Set threshold on relative change in residual over nStallCheck_ iterations.
+   void SetResidualChangeTolerance(double tol)
+   { res_change_termination_tol_ = tol; }
+
+   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+
+   /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
+   void SetRHSDelta(double d) { rhs_delta_ = d; }
+
+   /// Set the maximum number of outer iterations in Solve().
+   void SetOuterIterations(int n) { n_outer_ = n; }
+
+   /// Set the maximum number of inner iterations in Solve().
+   void SetInnerIterations(int n) { n_inner_ = n; }
+
+   /// Set the number of iterations to use for stall checking.
+   void SetStallCheck(int n) { nStallCheck_ = n; }
+
+   /// Set a flag to determine whether to call NormalizeConstraints().
+   void SetNormalize(bool n) { normalize_ = n; }
+
+   /**
+     * Enumerated types of QRresidual mode. Options are 'off': the residual is
+     * calculated normally, 'on': the residual is calculated using the QR
+     * method, 'hybrid': the residual is calculated normally until we experience
+     * rounding errors, then the QR method is used. The default is 'hybrid',
+     * which should see the best performance. Recommend using 'hybrid' or 'off'
+     * only, since 'on' is computationally expensive.
+     */
+   enum class QRresidualMode {off, on, hybrid};
+
+   /**
+    * Set the residual calculation mode for the NNLS solver. See QRresidualMode
+    * enum above for details.
+    */
+   void SetQRResidualMode(const QRresidualMode qr_residual_mode);
+
+   /**
+    * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
+    * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
+    * DenseMatrix input to SetOperator().
+    *
+    * The method by which we find the solution is the active-set method
+    * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
+    * errors in the case of very tight tolerances, we have the option to compute
+    * the residual using the QR factorization of A, by res = b - Q*Q^T*b. This
+    * residual calculation results in less rounding error, but is more
+    * computationally expensive. To select whether to use the QR residual method
+    * or not, see set_qrresidual_mode above.
+    */
+   void Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const;
+
+   /**
+     * Normalize the constraints such that the tolerances for each constraint
+     * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
+     * cases.
+     */
+   void NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const;
+
+private:
+   const DenseMatrix *mat;
+
+   double const_tol_;
+   int min_nnz_; // minimum number of nonzero entries
+   mutable int max_nnz_; // maximum number of nonzero entries
+   int verbosity_;
+
+   /**
+    * @brief Threshold on relative change in residual over nStallCheck_
+    * iterations, for stall sensing.
+    */
+   double res_change_termination_tol_;
+
+   double zero_tol_;
+   double rhs_delta_;
+   int n_outer_;
+   int n_inner_;
+   int nStallCheck_;
+
+   bool normalize_;
+
+   mutable bool NNLS_qrres_on_;
+   QRresidualMode qr_residual_mode_;
+
+   mutable Vector row_scaling_;
+};
+#endif // MFEM_USE_LAPACK
 
 }
 

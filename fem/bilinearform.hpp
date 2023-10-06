@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,8 @@ namespace mfem
 {
 
 /** @brief Enumeration defining the assembly level for bilinear and nonlinear
-    form classes derived from Operator. */
+    form classes derived from Operator. For more details, see
+    https://mfem.org/howto/assembly_levels */
 enum class AssemblyLevel
 {
    /// In the case of a BilinearForm LEGACY corresponds to a fully assembled
@@ -79,33 +80,38 @@ protected:
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+   /** Indicates if the sparse matrix is sorted after assembly when using
+       Full Assembly (FA). */
+   bool sort_sparse_matrix = false;
 
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
    long sequence;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
-       #fbfi, and #bfbfi are owned by another BilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
+       #boundary_integs, #interior_face_integs, and #boundary_face_integs are
+       owned by another BilinearForm. */
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
-   Array<BilinearFormIntegrator*> dbfi;
-   /// Element attribute marker (should be of length mesh->attributes)
+   Array<BilinearFormIntegrator*> domain_integs;
+   /// Element attribute marker (should be of length mesh->attributes.Max() or
+   /// 0 if mesh->attributes is empty)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
-   Array<Array<int>*>             dbfi_marker;
+   Array<Array<int>*>             domain_integs_marker;
 
    /// Set of Boundary Integrators to be applied.
-   Array<BilinearFormIntegrator*> bbfi;
-   Array<Array<int>*>             bbfi_marker; ///< Entries are not owned.
+   Array<BilinearFormIntegrator*> boundary_integs;
+   Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Set of interior face Integrators to be applied.
-   Array<BilinearFormIntegrator*> fbfi;
+   Array<BilinearFormIntegrator*> interior_face_integs;
 
    /// Set of boundary face Integrators to be applied.
-   Array<BilinearFormIntegrator*> bfbfi;
-   Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
+   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -175,8 +181,23 @@ public:
        - AssemblyLevel::ELEMENT
        - AssemblyLevel::NONE
 
-       This method must be called before assembly. */
+       If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /** @brief Force the sparse matrix column indices to be sorted when using
+       AssemblyLevel::FULL.
+
+       When assembling on device the assembly algorithm uses atomic operations
+       to insert values in the sparse matrix, which can result in different
+       column index orderings across runs. Calling this method with @a enable_it
+       set to @a true forces a sorting algorithm to be called at the end of the
+       assembly procedure to ensure sorted column indices (and therefore
+       deterministic results).
+   */
+   void EnableSparseMatrixSorting(bool enable_it)
+   {
+      sort_sparse_matrix = enable_it;
+   }
 
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
@@ -231,24 +252,31 @@ public:
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
    /// Access all the integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
+
+   /// @brief Access all boundary markers added with AddDomainIntegrator().
+   ///
+   /// If no marker was specified when the integrator was added, the
+   /// corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetDBFI_Marker() { return &domain_integs_marker; }
 
    /// Access all the integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
+   Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
 
    /// Access all integrators added with AddInteriorFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
+   Array<BilinearFormIntegrator*> *GetFBFI() { return &interior_face_integs; }
 
    /// Access all integrators added with AddBdrFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
+   Array<BilinearFormIntegrator*> *GetBFBFI() { return &boundary_face_integs; }
    /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
+   Array<Array<int>*> *GetBFBFI_Marker()
+   { return &boundary_face_integs_marker; }
 
    /// Returns a reference to: \f$ M_{ij} \f$
    const double &operator()(int i, int j) { return (*mat)(i,j); }
@@ -290,8 +318,7 @@ public:
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
    /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
-   virtual void MultTranspose(const Vector & x, Vector & y) const
-   { y = 0.0; AddMultTranspose (x, y); }
+   virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Compute \f$ y^T M x \f$
    double InnerProduct(const Vector &x, const Vector &y) const
@@ -303,36 +330,64 @@ public:
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /// Returns a const reference to the sparse matrix.
+   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+
+       This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
+   /** @brief Returns true if the sparse matrix is not null, false otherwise.
+
+       @sa SpMat(). */
+   bool HasSpMat()
+   {
+      return mat != nullptr;
+   }
+
+
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   /// Returns a const reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
 
-   /// Returns a reference to the sparse matrix of eliminated b.c.: \f$ M_e \f$
+   /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
+       \f$ M_e \f$
+
+       This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
+   }
+
+   /**  @brief Returns true if the sparse matrix of eliminated b.c.s is not null,
+        false otherwise.
+
+        @sa SpMatElim(). */
+   bool HasSpMatElim()
+   {
+      return mat_e != nullptr;
    }
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
@@ -403,10 +458,18 @@ public:
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
    virtual const Operator *GetOutputRestrictionTranspose() const
-   { return GetOutputProlongation(); }
+   { return fes->GetRestrictionTransposeOperator(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
+
+   /// @brief Compute serial RAP operator and store it in @a A as a SparseMatrix.
+   void SerialRAP(OperatorHandle &A)
+   {
+      MFEM_ASSERT(mat, "SerialRAP requires the SparseMatrix to be assembled.");
+      ConformingAssemble();
+      A.Reset(mat, false);
+   }
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -652,23 +715,25 @@ protected:
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    MixedBilinearFormExtension *ext;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
-       #tfbfi and #btfbfi are owned by another MixedBilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
+       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs
+       are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
-   Array<BilinearFormIntegrator*> dbfi;
+   Array<BilinearFormIntegrator*> domain_integs;
 
    /// Boundary integrators.
-   Array<BilinearFormIntegrator*> bbfi;
-   Array<Array<int>*>             bbfi_marker;///< Entries are not owned.
+   Array<BilinearFormIntegrator*> boundary_integs;
+   Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> tfbfi;
+   Array<BilinearFormIntegrator*> trace_face_integs;
 
    /// Boundary trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> btfbfi;
-   Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
+   Array<BilinearFormIntegrator*> boundary_trace_face_integs;
+   /// Entries are not owned.
+   Array<Array<int>*> boundary_trace_face_integs_marker;
 
    DenseMatrix elemmat;
    Array<int>  trial_vdofs, test_vdofs;
@@ -734,7 +799,7 @@ public:
    SparseMatrix &SpMat() { return *mat; }
 
    /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
-        to it.  Used for transfering ownership. */
+        to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
@@ -762,24 +827,26 @@ public:
                                    Array<int> &bdr_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
+   Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetTFBFI() { return &tfbfi; }
+   Array<BilinearFormIntegrator*> *GetTFBFI() { return &trace_face_integs; }
 
    /// Access all integrators added with AddBdrTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &btfbfi; }
+   Array<BilinearFormIntegrator*> *GetBTFBFI()
+   { return &boundary_trace_face_integs; }
    /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBTFBFI_Marker() { return &btfbfi_marker; }
+   Array<Array<int>*> *GetBTFBFI_Marker()
+   { return &boundary_trace_face_integs_marker; }
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
    void operator=(const double a) { *mat = a; }
@@ -1004,7 +1071,7 @@ public:
    { AddTraceFaceIntegrator(di); }
 
    /// Access all interpolators added with AddDomainInterpolator().
-   Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
+   Array<BilinearFormIntegrator*> *GetDI() { return &domain_integs; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::FULL.
    /** This method must be called before assembly. */

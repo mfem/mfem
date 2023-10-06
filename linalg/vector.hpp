@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,9 +19,7 @@
 #include "../general/globals.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_serial.h>
-#endif
+
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -66,11 +64,15 @@ protected:
 
 public:
 
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() { data.Reset(); size = 0; }
+   /** Default constructor for Vector. Sets size = 0, and calls Memory::Reset on
+       data through Memory<double>'s default constructor. */
+   Vector(): size(0) { }
 
    /// Copy constructor. Allocates a new data array and copies the data.
    Vector(const Vector &);
+
+   /// Move constructor. "Steals" data from its argument.
+   Vector(Vector&& v);
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
@@ -81,6 +83,11 @@ public:
        with SetData(). */
    Vector(double *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
+
+   /** @brief Create a Vector referencing a sub-vector of the Vector @a base
+       starting at the given offset, @a base_offset, and size @a size_. */
+   Vector(Vector &base, int base_offset, int size_)
+      : data(base.data, base_offset, size_), size(size_) { }
 
    /// Create a Vector of size @a size_ using MemoryType @a mt.
    Vector(int size_, MemoryType mt)
@@ -133,7 +140,7 @@ public:
    void SetSize(int s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
@@ -159,6 +166,11 @@ public:
    /// Reset the Vector to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Vector will not own any of the pointers of
        @a mem.
+
+       Note that when @a own_mem is true, the @a mem object can be destroyed
+       immediately by the caller but `mem.Delete()` should NOT be called since
+       the Vector object takes ownership of all pointers owned by @a mem.
+
        @sa NewDataAndSize(). */
    inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
 
@@ -194,15 +206,11 @@ public:
    inline double *GetData() const
    { return const_cast<double*>((const double*)data); }
 
-   /// Conversion to `double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator double *() { return data; }
+   /// Conversion to `double *`. Deprecated.
+   MFEM_DEPRECATED inline operator double *() { return data; }
 
-   /// Conversion to `const double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator const double *() const { return data; }
+   /// Conversion to `const double *`. Deprecated.
+   MFEM_DEPRECATED inline operator const double *() const { return data; }
 
    /// STL-like begin.
    inline double *begin() { return data; }
@@ -224,10 +232,10 @@ public:
    const Memory<double> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) { GetMemory().Sync(v.GetMemory()); }
+   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
 
    /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v)
+   void SyncAliasMemory(const Vector &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
@@ -254,6 +262,14 @@ public:
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator()(int i) const;
 
+   /// Access Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline double &operator[](int i) { return (*this)(i); }
+
+   /// Read only access to Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline const double &operator[](int i) const { return (*this)(i); }
+
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
 
@@ -267,6 +283,9 @@ public:
    /** @note Defining this method overwrites the implicitly defined copy
        assignment operator. */
    Vector &operator=(const Vector &v);
+
+   /// Move assignment
+   Vector &operator=(Vector&& v);
 
    /// Redefine '=' for vector = constant.
    Vector &operator=(double value);
@@ -297,8 +316,13 @@ public:
 
    void SetVector(const Vector &v, int offset);
 
+   void AddSubVector(const Vector &v, int offset);
+
    /// (*this) = -(*this)
    void Neg();
+
+   /// (*this)(i) = 1.0 / (*this)(i)
+   void Reciprocal();
 
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
@@ -322,6 +346,10 @@ public:
    /// z = a * (x - y)
    friend void subtract(const double a, const Vector &x,
                         const Vector &y, Vector &z);
+
+   /// Computes cross product of this vector with another 3D vector.
+   /// vout = this x vin.
+   void cross3D(const Vector &vin, Vector &vout) const;
 
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
@@ -407,12 +435,16 @@ public:
    double Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
    inline double DistanceSquaredTo(const double *p) const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const Vector &p) const;
    /// Compute the Euclidean distance to another vector.
    inline double DistanceTo(const double *p) const;
+   /// Compute the Euclidean distance to another vector.
+   inline double DistanceTo(const Vector &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(data, size); }
+   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
 
    /// Destroys vector.
    virtual ~Vector();
@@ -441,25 +473,6 @@ public:
    virtual double *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
-#ifdef MFEM_USE_SUNDIALS
-   /// (DEPRECATED) Construct a wrapper Vector from SUNDIALS N_Vector.
-   MFEM_DEPRECATED explicit Vector(N_Vector nv);
-
-   /// (DEPRECATED) Return a new wrapper SUNDIALS N_Vector of type SUNDIALS_NVEC_SERIAL.
-   /** @deprecated The returned N_Vector must be destroyed by the caller. */
-   MFEM_DEPRECATED virtual N_Vector ToNVector()
-   { return N_VMake_Serial(Size(), GetData()); }
-
-   /** @deprecated @brief Update an existing wrapper SUNDIALS N_Vector to point to this
-       Vector.
-
-       \param[in] nv N_Vector to assign this vector's data to
-       \param[in] global_length An optional parameter that designates the global
-        length. If nv is a parallel vector and global_length == 0 then this
-        method will perform a global reduction and calculate the global length
-   */
-   MFEM_DEPRECATED virtual void ToNVector(N_Vector &nv, long global_length = 0);
-#endif
 };
 
 // Inline methods
@@ -493,15 +506,11 @@ inline int CheckFinite(const double *v, const int n)
 
 inline Vector::Vector(int s)
 {
+   MFEM_ASSERT(s>=0,"Unexpected negative size.");
+   size = s;
    if (s > 0)
    {
-      size = s;
       data.New(s);
-   }
-   else
-   {
-      size = 0;
-      data.Reset();
    }
 }
 
@@ -559,8 +568,14 @@ inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
 {
    data.Delete();
    size = s;
-   data = mem;
-   if (!own_mem) { data.ClearOwnerFlags(); }
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
 }
 
 inline void Vector::MakeRef(Vector &base, int offset, int s)
@@ -635,14 +650,31 @@ inline double Distance(const double *x, const double *y, const int n)
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
+inline double Distance(const Vector &x, const Vector &y)
+{
+   return x.DistanceTo(y);
+}
+
 inline double Vector::DistanceSquaredTo(const double *p) const
 {
    return DistanceSquared(data, p, size);
 }
 
+inline double Vector::DistanceSquaredTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return DistanceSquared(data, p.data, size);
+}
+
 inline double Vector::DistanceTo(const double *p) const
 {
    return Distance(data, p, size);
+}
+
+inline double Vector::DistanceTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return Distance(data, p.data, size);
 }
 
 /// Returns the inner product of x and y

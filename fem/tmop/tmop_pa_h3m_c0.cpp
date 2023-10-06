@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
 
    auto Y = Reshape(c_.ReadWrite(), D1D, D1D, D1D, DIM, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int DIM = 3;
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -70,8 +70,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
                double Xh[3];
                kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ,Xh);
 
-               double B[9];
-               DeviceMatrix H(B,3,3);
+               double H_data[9];
+               DeviceMatrix H(H_data,3,3);
                for (int i = 0; i < DIM; i++)
                {
                   for (int j = 0; j < DIM; j++)
@@ -80,9 +80,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_C0_3D,
                   }
                }
 
-               // p2 = B . Xh
+               // p2 = H . Xh
                double p2[3];
-               kernels::Mult(3,3,B,Xh,p2);
+               kernels::Mult(3,3,H_data,Xh,p2);
                kernels::internal::PushEval<MQ1>(Q1D,qx,qy,qz,p2,QQQ);
             }
          }

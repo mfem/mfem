@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,15 @@
 #include "../general/table.hpp"
 #include "../general/globals.hpp"
 #include "densemat.hpp"
+
+#if defined(MFEM_USE_HIP)
+#if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
+#include <hipsparse.h>
+#else
+#include <hipsparse/hipsparse.h>
+#endif
+#endif
+
 
 namespace mfem
 {
@@ -81,27 +90,41 @@ protected:
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
 
-   bool useCuSparse{true}; // Use cuSPARSE if available
+   bool useGPUSparse = true; // Use cuSPARSE or hipSPARSE if available
 
-   // Initialize cuSPARSE
-   void InitCuSparse();
+   // Initialize cuSPARSE/hipSPARSE
+   void InitGPUSparse();
 
-#ifdef MFEM_USE_CUDA
-   cusparseStatus_t status;
-   static cusparseHandle_t handle;
-   cusparseMatDescr_t descr=0;
+#ifdef MFEM_USE_CUDA_OR_HIP
+   // common for hipSPARSE and cuSPARSE
    static int SparseMatrixCount;
    static size_t bufferSize;
    static void *dBuffer;
-   mutable bool initBuffers{false};
+   mutable bool initBuffers = false;
+
+#if defined(MFEM_USE_CUDA)
+   cusparseStatus_t status;
+   static cusparseHandle_t handle;
+   cusparseMatDescr_t descr = 0;
+
 #if CUDA_VERSION >= 10010
    mutable cusparseSpMatDescr_t matA_descr;
    mutable cusparseDnVecDescr_t vecX_descr;
    mutable cusparseDnVecDescr_t vecY_descr;
-#else
+#else // CUDA_VERSION >= 10010
    mutable cusparseMatDescr_t matA_descr;
-#endif
-#endif
+#endif // CUDA_VERSION >= 10010
+
+#else // defined(MFEM_USE_CUDA)
+   hipsparseStatus_t status;
+   static hipsparseHandle_t handle;
+   hipsparseMatDescr_t descr = 0;
+
+   mutable hipsparseSpMatDescr_t matA_descr;
+   mutable hipsparseDnVecDescr_t vecX_descr;
+   mutable hipsparseDnVecDescr_t vecY_descr;
+#endif // defined(MFEM_USE_CUDA)
+#endif // MFEM_USE_CUDA_OR_HIP
 
 public:
    /// Create an empty SparseMatrix.
@@ -109,7 +132,7 @@ public:
    {
       SetEmpty();
 
-      InitCuSparse();
+      InitGPUSparse();
    }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
@@ -151,8 +174,24 @@ public:
    /// Create a SparseMatrix with diagonal @a v, i.e. A = Diag(v)
    SparseMatrix(const Vector & v);
 
-   // Runtime option to use cuSPARSE. Only valid when using a CUDA backend.
-   void UseCuSparse(bool useCuSparse_ = true) { useCuSparse = useCuSparse_;}
+   /// @brief Sets the height and width of the matrix.
+   /** @warning This does not modify in any way the underlying CSR or LIL
+       representation of the matrix.
+
+       This function should generally be called when manually constructing the
+       CSR #I, #J, and #A arrays in conjunction with the
+       SparseMatrix::SparseMatrix() constructor. */
+   void OverrideSize(int height_, int width_);
+
+   /** @brief Runtime option to use cuSPARSE or hipSPARSE. Only valid when using
+       a CUDA or HIP backend.
+
+       @note This option is enabled by default, so typically one would use this
+       method to disable the use of cuSPARSE/hipSPARSE. */
+   void UseGPUSparse(bool useGPUSparse_ = true) { useGPUSparse = useGPUSparse_;}
+   /// Deprecated equivalent of UseGPUSparse().
+   MFEM_DEPRECATED
+   void UseCuSparse(bool useCuSparse_ = true) { UseGPUSparse(useCuSparse_); }
 
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
@@ -169,9 +208,12 @@ public:
    /// Clear the contents of the SparseMatrix.
    void Clear() { Destroy(); SetEmpty(); }
 
-   /** @brief Clear the CuSparse descriptors.
+   /** @brief Clear the cuSPARSE/hipSPARSE descriptors.
        This must be called after releasing the device memory of A. */
-   void ClearCuSparse();
+   void ClearGPUSparse();
+   /// Deprecated equivalent of ClearGPUSparse().
+   MFEM_DEPRECATED
+   void ClearCuSparse() { ClearGPUSparse(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -307,39 +349,61 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// y += A * x (default)  or  y += a * A * x
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y,
+                        const double a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
-   void MultTranspose(const Vector &x, Vector &y) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 
    /// y += At * x (default)  or  y += a * At * x
-   void AddMultTranspose(const Vector &x, Vector &y,
-                         const double a = 1.0) const;
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
+   virtual void AddMultTranspose(const Vector &x, Vector &y,
+                                 const double a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
-       be used in the methods AddMultTranspose() and MultTranspose(). */
+       be used in the methods AddMultTranspose(), MultTranspose(), and
+       AbsMultTranspose(). */
    /** If this method has been called, the internal transpose matrix will be
        used to perform the action of the transpose matrix in AddMultTranspose(),
-       and MultTranspose().
+       MultTranspose(), and AbsMultTranspose().
 
        Warning: any changes in this matrix will invalidate the internal
-       transpose. To rebuild the transpose, call ResetTranspose() followed by a
-       call to this method. If the internal transpose is already built, this
-       method has no effect.
+       transpose. To rebuild the transpose, call ResetTranspose() followed by
+       (optionally) a call to this method. If the internal transpose is already
+       built, this method has no effect.
 
-       When any non-default backend is enabled, i.e. Device::IsEnabled() is
-       true, the methods AddMultTranspose(), and MultTranspose(), require the
-       internal transpose to be built. If that is not the case (i.e. the
-       internal transpose is not built), these methods will raise an error with
-       an appropriate message pointing to this method. When using the default
-       backend, calling this method is optional.
+       When any non-serial-CPU backend is enabled, i.e. the call
+       Device::Allows(~ Backend::CPU_MASK) returns true, the above methods
+       require the internal transpose to be built. If that is not the case (i.e.
+       the internal transpose is not built), these methods will automatically
+       call EnsureMultTranspose(). When using any backend from
+       Backend::CPU_MASK, calling this method is optional.
 
-       This method can only be used when the sparse matrix is finalized. */
+       This method can only be used when the sparse matrix is finalized.
+
+       @sa EnsureMultTranspose(), ResetTranspose(). */
    void BuildTranspose() const;
 
    /** Reset (destroy) the internal transpose matrix. See BuildTranspose() for
        more details. */
    void ResetTranspose() const;
+
+   /** @brief Ensures that the matrix is capable of performing MultTranspose(),
+       AddMultTranspose(), and AbsMultTranspose(). */
+   /** For non-serial-CPU backends (e.g. GPU, OpenMP), multiplying by the
+       transpose requires that the internal transpose matrix be already built.
+       When such a backend is enabled, this function will build the internal
+       transpose matrix, see BuildTranspose().
+
+       For the serial CPU backends, the internal transpose is not required, and
+       this function is a no-op. This allows for significant memory savings
+       when the internal transpose matrix is not required. */
+   void EnsureMultTranspose() const;
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
@@ -361,6 +425,9 @@ public:
    void AbsMult(const Vector &x, Vector &y) const;
 
    /// y = |At| * x, using entry-wise absolute values of the transpose of matrix A
+   /** If the matrix is modified, call ResetTranspose() and optionally
+       EnsureMultTranspose() to make sure this method uses the correct updated
+       transpose. */
    void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
@@ -434,6 +501,14 @@ public:
    void EliminateRowCol(int rc, SparseMatrix &Ae,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
+   /** @brief Eliminate essential (Dirichlet) boundary conditions.
+
+      @param[in] ess_dofs indices of the degrees of freedom belonging to the
+                          essential boundary conditions.
+      @param[in] diag_policy policy for diagonal entries. */
+   void EliminateBC(const Array<int> &ess_dofs,
+                    DiagonalPolicy diag_policy);
+
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
@@ -446,10 +521,14 @@ public:
    /// Determine appropriate scaling for Jacobi iteration
    double GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
-       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A. */
-   void Jacobi(const Vector &b, const Vector &x0, Vector &x1, double sc) const;
+       x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
+       Absolute values of D are used when use_abs_diag = true. */
+   void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
+               double sc, bool use_abs_diag = false) const;
 
-   void DiagScale(const Vector &b, Vector &x, double sc = 1.0) const;
+   /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
+   void DiagScale(const Vector &b, Vector &x,
+                  double sc = 1.0, bool use_abs_diag = false) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
@@ -517,8 +596,8 @@ public:
    inline void _Set_(const int row, const int col, const double a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double a);
-   void Add(const int i, const int j, const double a);
+   void Set(const int i, const int j, const double val);
+   void Add(const int i, const int j, const double val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
@@ -574,7 +653,7 @@ public:
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = mfem::out) const;
+   virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
    void PrintMM(std::ostream &out = mfem::out) const;
@@ -624,30 +703,7 @@ public:
    void Swap(SparseMatrix &other);
 
    /// Destroys sparse matrix.
-   virtual ~SparseMatrix()
-   {
-      Destroy();
-#ifdef MFEM_USE_CUDA
-      if (useCuSparse)
-      {
-         if (SparseMatrixCount==1)
-         {
-            if (handle)
-            {
-               cusparseDestroy(handle);
-               handle = nullptr;
-            }
-            if (dBuffer)
-            {
-               CuMemFree(dBuffer);
-               dBuffer = nullptr;
-               bufferSize = 0;
-            }
-         }
-         SparseMatrixCount--;
-      }
-#endif
-   }
+   virtual ~SparseMatrix();
 
    Type GetType() const { return MFEM_SPARSEMAT; }
 };
