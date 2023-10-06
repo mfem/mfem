@@ -99,9 +99,6 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
       case Geometry::PYRAMID:
          return max(GetNumDof(Geometry::TRIANGLE, p),
                     GetNumDof(Geometry::SQUARE, p));
-      case Geometry::PYRAMID:
-         return max(GetNumDof(Geometry::TRIANGLE, p),
-                    GetNumDof(Geometry::SQUARE, p));
       default:
          MFEM_ABORT("unknown geometry type");
    }
@@ -1855,7 +1852,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
             H1_Elements[Geometry::PYRAMID] = new H1_PyramidElement(p, btype);
          }
-         H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
+         // H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
          TetDofOrd[0] = (TetDof > 0) ? new int[24*TetDof] : nullptr;
@@ -2206,7 +2203,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
          L2_Elements[Geometry::PYRAMID] = new L2_PyramidElement(p, btype);
       }
-      L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
+      // L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
 
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
