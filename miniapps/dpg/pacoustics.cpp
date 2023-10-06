@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
 {
    Mpi::Init();
    int myid = Mpi::WorldRank();
+   int num_procs = Mpi::WorldSize();
    Hypre::Init();
 
    const char *mesh_file = "../../data/inline-quad.mesh";
@@ -821,12 +822,87 @@ int main(int argc, char *argv[])
          pmesh.UniformRefinement();
       }
       if (pml) { pml->SetAttributes(&pmesh); }
-      for (int i =0; i<trial_fes.Size(); i++)
+      for (int i = 0; i<trial_fes.Size(); i++)
       {
          trial_fes[i]->Update(false);
       }
       a->Update();
    }
+
+   {
+      int num_frames = 32;
+
+      if (paraview)
+      {
+         ParGridFunction x_t(p_r);
+         ParGridFunction x_r(p_r);
+         ParGridFunction x_i(p_i);
+         ParaViewDataCollection * paraview_dct = new ParaViewDataCollection(
+            enum_str[prob], &pmesh);
+         ostringstream oss;
+         if (theta > 0.0)
+         {
+            oss << "ParaView/Acoustics/TimeHarmonicAMR";
+         }
+         else
+         {
+            oss << "ParaView/Acoustics/TimeHarmonicUniform";
+         }
+         paraview_dct->SetPrefixPath(oss.str());
+         paraview_dct->SetLevelsOfDetail(order);
+         paraview_dct->SetCycle(0);
+         paraview_dct->SetDataFormat(VTKFormat::BINARY);
+         paraview_dct->SetHighOrderOutput(true);
+         paraview_dct->SetTime(0.0); // set the time
+         paraview_dct->RegisterField("p_t",&x_t);
+
+         for (int j = 0; j<num_frames; j++)
+         {
+            x_t = 0.0;
+            double t = (double)(j % num_frames) / num_frames;
+            add(cos(2.0*M_PI*t), x_r, sin(2.0*M_PI*t), x_i, x_t);
+            paraview_dct->SetCycle(j);
+            paraview_dct->SetTime(t);
+            paraview_dct->Save();
+         }
+         delete paraview_dct;
+      }
+      MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+
+
+      ParGridFunction p_t(p_r);
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      string keys;
+      keys = (dim == 3) ? "keys macF\n" : keys = "keys amrRljcUUuu\n";
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "parallel " << num_procs << " " << myid << "\n"
+               << "solution\n" << pmesh << p_t << keys << "autoscale off\n"
+               << "window_title 'Harmonic Solution (t = 0.0 T)'"
+               << "pause\n" << flush;
+
+      if (myid == 0)
+      {
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
+
+      int i = 0;
+      while (sol_sock)
+      {
+         double t = (double)(i % num_frames) / num_frames;
+         ostringstream oss;
+         oss << "Harmonic Solution (t = " << t << " T)";
+
+         add(cos(2.0*M_PI*t), p_r, sin(2.0*M_PI*t), p_i, p_t);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << pmesh << p_t
+                  << "window_title '" << oss.str() << "'" << flush;
+         i++;
+      }
+   }
+
 
    if (paraview)
    {
