@@ -1,13 +1,13 @@
-# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
-# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
-# See file COPYRIGHT for details.
+# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
 # This file is part of the MFEM library. For more information and source code
-# availability see http://mfem.org.
+# availability visit https://mfem.org.
 #
 # MFEM is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
 
 set(PETSC_EXAMPLES_SRCS "")
 set(PETSC_RC_FILES "")
@@ -31,6 +31,15 @@ if (MFEM_USE_MPI)
     rc_ex5p_bddc rc_ex5p_fieldsplit
     rc_ex9p_expl rc_ex9p_impl
     rc_ex10p
+    )
+endif()
+
+if (MFEM_USE_SLEPC)
+  list(APPEND PETSC_EXAMPLES_SRCS
+    ex11p.cpp
+    )
+  list(APPEND PETSC_RC_FILES
+    rc_ex11p_lobpcg rc_ex11p_gd
     )
 endif()
 
@@ -78,12 +87,22 @@ set(EX9_E_ARGS       -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts 
 set(EX9_ES_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step)
 set(EX9_IS_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
 set(EX10_ARGS        -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3)
+if (MFEM_USE_SLEPC)
+  set(EX11_ARGS_SINV   -m ../../data/star.mesh --useslepc)
+  set(EX11_ARGS_LOBPCG -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_lobpcg)
+  set(EX11_ARGS_GD -m ../../data/star.mesh --useslepc --slepcopts rc_ex11p_gd)
+endif()
 
 # Add the tests: one test per command-line-variable.
-foreach(TEST_OPTIONS_VAR
-        EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
-        EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
-        EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+set(TEST_OPTIONS_VARS
+    EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
+    EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
+    EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+if (MFEM_USE_SLEPC)
+    list(APPEND TEST_OPTIONS_VARS EX11_ARGS_SINV EX11_ARGS_LOBPCG EX11_ARGS_GD)
+endif()
+
+foreach(TEST_OPTIONS_VAR ${TEST_OPTIONS_VARS})
   string(REGEX REPLACE "^(.+)_ARGS" "\\1" TEST_NAME_UC ${TEST_OPTIONS_VAR})
   string(REGEX REPLACE "^([^_]+)" "\\1P" TEST_NAME_UC ${TEST_NAME_UC})
   string(TOLOWER ${TEST_NAME_UC} TEST_NAME_FULL)

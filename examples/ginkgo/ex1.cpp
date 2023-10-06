@@ -69,7 +69,8 @@ int main(int argc, char *argv[])
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
-   bool use_ginkgo_solver= true;
+   int solver_config = 0;
+   int print_lvl = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -86,9 +87,14 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&use_ginkgo_solver, "-gko", "--use_gko_solver", "-no-gko",
-                  "--no-gko-solver",
-                  "Solve using ginkgo.");
+   args.AddOption(&solver_config, "-s", "--solver-config",
+                  "Solver and preconditioner combination: \n\t"
+                  "   0 - Ginkgo solver and Ginkgo preconditioner, \n\t"
+                  "   1 - Ginkgo solver and MFEM preconditioner, \n\t"
+                  "   2 - MFEM solver and Ginkgo preconditioner, \n\t"
+                  "   3 - MFEM solver and MFEM preconditioner.");
+   args.AddOption(&print_lvl, "-pl", "--print-level",
+                  "Print level for iterative solver (1 prints every iteration).");
    args.Parse();
    if (!args.Good())
    {
@@ -191,39 +197,123 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-      if (use_ginkgo_solver)
+      switch (solver_config)
       {
-#ifdef MFEM_USE_GINKGO
-         // Solve the linear system with CG + ILU from Ginkgo.
-         std::string executor = "reference";
-         auto exec = gko::ReferenceExecutor::create();
-         auto ilu_precond =
-            gko::preconditioner::Ilu<gko::solver::LowerTrs<>,
-            gko::solver::UpperTrs<>, false>::build()
-            .on(exec);
-         GinkgoWrappers::CGSolver ginkgo_solver(executor, 1, 2000, 1e-12, 0.0,
-                                                ilu_precond.release() );
-         ginkgo_solver.solve(&((SparseMatrix&)(*A)), X, B);
-#endif
-      }
-      else
-      {
-#ifndef MFEM_USE_SUITESPARSE
-         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-         GSSmoother M((SparseMatrix&)(*A));
-         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-         UMFPackSolver umf_solver;
-         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-         umf_solver.SetOperator(*A);
-         umf_solver.Mult(B, X);
-#endif
-      }
+         // Solve the linear system with CG + IC from Ginkgo
+         case 0:
+         {
+            cout << "Using Ginkgo solver + preconditioner...\n";
+            Ginkgo::GinkgoExecutor exec(device);
+            Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
+            Ginkgo::CGSolver ginkgo_solver(exec, ginkgo_precond);
+            ginkgo_solver.SetPrintLevel(print_lvl);
+            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetAbsTol(0.0);
+            ginkgo_solver.SetMaxIter(400);
+            ginkgo_solver.SetOperator(*(A.Ptr()));
+            ginkgo_solver.Mult(B, X);
+            break;
+         }
+
+         // Solve the linear system with CG from Ginkgo + MFEM preconditioner
+         case 1:
+         {
+            cout << "Using Ginkgo solver + MFEM preconditioner...\n";
+            Ginkgo::GinkgoExecutor exec(device);
+            //Create MFEM preconditioner and wrap it for Ginkgo's use.
+            DSmoother M((SparseMatrix&)(*A));
+            Ginkgo::MFEMPreconditioner gko_M(exec, M);
+            Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
+            ginkgo_solver.SetPrintLevel(print_lvl);
+            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetAbsTol(0.0);
+            ginkgo_solver.SetMaxIter(400);
+            ginkgo_solver.SetOperator(*(A.Ptr()));
+            ginkgo_solver.Mult(B, X);
+            break;
+         }
+
+         // Ginkgo IC preconditioner +  MFEM CG solver
+         case 2:
+         {
+            cout << "Using MFEM solver + Ginkgo preconditioner...\n";
+            Ginkgo::GinkgoExecutor exec(device);
+            Ginkgo::IcPreconditioner M(exec, "paric", 30);
+            M.SetOperator(*(A.Ptr()));  // Generate the preconditioner for the matrix A.
+            PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
+            break;
+         }
+
+         // MFEM solver + MFEM preconditioner
+         case 3:
+         {
+            cout << "Using MFEM solver + MFEM preconditioner...\n";
+            // Use a simple Jacobi preconditioner with PCG.
+            DSmoother M((SparseMatrix&)(*A));
+            PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
+            break;
+         }
+      } // End switch on solver_config
    }
-   else // No preconditioning for now in partial assembly mode.
+   // Partial assembly mode.  Cannot use Ginkgo preconditioners, but can use Ginkgo
+   // solvers.
+   else
    {
-      CG(*A, B, X, 1, 2000, 1e-12, 0.0);
+      if (UsesTensorBasis(*fespace))
+      {
+         // Use Jacobi preconditioning in partial assembly mode.
+         OperatorJacobiSmoother M(*a, ess_tdof_list);
+         switch (solver_config)
+         {
+            // No Ginkgo preconditioners work with matrix-free; error
+            case 0:
+            {
+               cout << "Using Ginkgo solver + preconditioner...\n";
+               MFEM_ABORT("Cannot use Ginkgo preconditioner in partial assembly mode.\n"
+                          "            Try -s 1 to test Ginkgo solver with an MFEM preconditioner.");
+               break;
+            }
+
+            // Use Ginkgo solver with MFEM preconditioner
+            case 1:
+            {
+               cout << "Using Ginkgo solver + MFEM preconditioner...\n";
+               Ginkgo::GinkgoExecutor exec(device);
+               // Wrap MFEM preconditioner for Ginkgo's use.
+               Ginkgo::MFEMPreconditioner gko_M(exec, M);
+               Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
+               ginkgo_solver.SetPrintLevel(print_lvl);
+               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetAbsTol(0.0);
+               ginkgo_solver.SetMaxIter(400);
+               ginkgo_solver.SetOperator(*(A.Ptr()));
+               ginkgo_solver.Mult(B, X);
+               break;
+            }
+
+            // No Ginkgo preconditioners work with matrix-free; error
+            case 2:
+            {
+               cout << "Using MFEM solver + Ginkgo preconditioner...\n";
+               MFEM_ABORT("Cannot use Ginkgo preconditioner in partial assembly mode.\n"
+                          "            Try -s 1 to test Ginkgo solver with an MFEM preconditioner.");
+               break;
+            }
+
+            // Use MFEM solver and preconditioner
+            case 3:
+            {
+               cout << "Using MFEM solver + MFEM preconditioner...\n";
+               PCG(*A, M, B, X, print_lvl, 400, 1e-12, 0.0);
+               break;
+            }
+         } // End switch on solver_config
+      }
+      else // CG with no preconditioning
+      {
+         cout << "Using MFEM solver + no preconditioner...\n";
+         CG(*A, B, X, print_lvl, 400, 1e-12, 0.0);
+      }
    }
 
    // 12. Recover the solution as a finite element grid function.

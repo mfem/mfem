@@ -1,0 +1,8 @@
+# Using RK4 as solver, no adaptive time step
+-ts_type rk
+-ts_rk_type 4
+-ts_adapt_type none
+-ts_view
+-ts_monitor
+# Dump log to check that no data is communicated host<->device when using PETSc
+-log_view

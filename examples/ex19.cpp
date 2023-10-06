@@ -8,6 +8,7 @@
 //    ex19 -m ../data/beam-hex.mesh
 //    ex19 -m ../data/beam-tet.mesh
 //    ex19 -m ../data/beam-wedge.mesh
+//    ex19 -m ../data/beam-quad-amr.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
@@ -38,6 +39,42 @@
 using namespace std;
 using namespace mfem;
 
+class GeneralResidualMonitor : public IterativeSolverMonitor
+{
+public:
+   GeneralResidualMonitor(const std::string& prefix_, int print_lvl)
+      : prefix(prefix_)
+   {
+      print_level = print_lvl;
+   }
+
+   virtual void MonitorResidual(int it, double norm, const Vector &r, bool final);
+
+private:
+   const std::string prefix;
+   int print_level;
+   mutable double norm0;
+};
+
+void GeneralResidualMonitor::MonitorResidual(int it, double norm,
+                                             const Vector &r, bool final)
+{
+   if (print_level == 1 || (print_level == 3 && (final || it == 0)))
+   {
+      mfem::out << prefix << " iteration " << setw(2) << it
+                << " : ||r|| = " << norm;
+      if (it > 0)
+      {
+         mfem::out << ",  ||r||/||r_0|| = " << norm/norm0;
+      }
+      else
+      {
+         norm0 = norm;
+      }
+      mfem::out << '\n';
+   }
+}
+
 // Custom block preconditioner for the Jacobian of the incompressible nonlinear
 // elasticity operator. It has the form
 //
@@ -60,7 +97,7 @@ protected:
    Array<FiniteElementSpace *> spaces;
 
    // Offsets for extracting block vector segments
-   Array<int> &block_offsets;
+   Array<int> &block_trueOffsets;
 
    // Jacobian for block access
    BlockOperator *jacobian;
@@ -103,9 +140,11 @@ protected:
 
    // Newton solver for the hyperelastic operator
    NewtonSolver newton_solver;
+   GeneralResidualMonitor newton_monitor;
 
    // Solver for the Jacobian solve in the Newton method
    Solver *j_solver;
+   GeneralResidualMonitor j_monitor;
 
    // Preconditioner for the Jacobian
    Solver *j_prec;
@@ -114,7 +153,7 @@ protected:
    Coefficient &mu;
 
    // Block offsets for variable access
-   Array<int> &block_offsets;
+   Array<int> &block_trueOffsets;
 
 public:
    RubberOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
@@ -208,8 +247,8 @@ int main(int argc, char *argv[])
    spaces[0] = &R_space;
    spaces[1] = &W_space;
 
-   int R_size = R_space.GetVSize();
-   int W_size = W_space.GetVSize();
+   int R_size = R_space.GetTrueVSize();
+   int W_size = W_space.GetTrueVSize();
 
    // 6. Define the Dirichlet conditions (set to boundary attribute 1 and 2)
    Array<Array<int> *> ess_bdr(2);
@@ -233,13 +272,13 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
 
    // 8. Define the block structure of the solution vector (u then p)
-   Array<int> block_offsets(3);
-   block_offsets[0] = 0;
-   block_offsets[1] = R_space.GetVSize();
-   block_offsets[2] = W_space.GetVSize();
-   block_offsets.PartialSum();
+   Array<int> block_trueOffsets(3);
+   block_trueOffsets[0] = 0;
+   block_trueOffsets[1] = R_space.GetTrueVSize();
+   block_trueOffsets[2] = W_space.GetTrueVSize();
+   block_trueOffsets.PartialSum();
 
-   BlockVector xp(block_offsets);
+   BlockVector xp(block_trueOffsets);
 
    // 9. Define grid functions for the current configuration, reference
    //    configuration, final deformation, and pressure
@@ -248,8 +287,8 @@ int main(int argc, char *argv[])
    GridFunction x_def(&R_space);
    GridFunction p_gf(&W_space);
 
-   x_gf.MakeRef(&R_space, xp.GetBlock(0), 0);
-   p_gf.MakeRef(&W_space, xp.GetBlock(1), 0);
+   x_gf.MakeTRef(&R_space, xp.GetBlock(0), 0);
+   p_gf.MakeTRef(&W_space, xp.GetBlock(1), 0);
 
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    VectorFunctionCoefficient refconfig(dim, ReferenceConfiguration);
@@ -258,14 +297,19 @@ int main(int argc, char *argv[])
    x_ref.ProjectCoefficient(refconfig);
    p_gf = 0.0;
 
+   x_gf.SetTrueVector();
+   p_gf.SetTrueVector();
+
    // 10. Initialize the incompressible neo-Hookean operator
-   RubberOperator oper(spaces, ess_bdr, block_offsets,
+   RubberOperator oper(spaces, ess_bdr, block_trueOffsets,
                        newton_rel_tol, newton_abs_tol, newton_iter, c_mu);
 
    // 11. Solve the Newton system
    oper.Solve(xp);
 
    // 12. Compute the final deformation
+   x_gf.SetFromTrueVector();
+   p_gf.SetFromTrueVector();
    subtract(x_gf, x_ref, x_def);
 
    // 13. Visualize the results if requested
@@ -311,7 +355,7 @@ int main(int argc, char *argv[])
 JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
                                                SparseMatrix &mass,
                                                Array<int> &offsets)
-   : Solver(offsets[2]), block_offsets(offsets), pressure_mass(&mass)
+   : Solver(offsets[2]), block_trueOffsets(offsets), pressure_mass(&mass)
 {
    fes.Copy(spaces);
 
@@ -343,18 +387,18 @@ JacobianPreconditioner::JacobianPreconditioner(Array<FiniteElementSpace *> &fes,
 void JacobianPreconditioner::Mult(const Vector &k, Vector &y) const
 {
    // Extract the blocks from the input and output vectors
-   Vector disp_in(k.GetData() + block_offsets[0],
-                  block_offsets[1]-block_offsets[0]);
-   Vector pres_in(k.GetData() + block_offsets[1],
-                  block_offsets[2]-block_offsets[1]);
+   Vector disp_in(k.GetData() + block_trueOffsets[0],
+                  block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_in(k.GetData() + block_trueOffsets[1],
+                  block_trueOffsets[2]-block_trueOffsets[1]);
 
-   Vector disp_out(y.GetData() + block_offsets[0],
-                   block_offsets[1]-block_offsets[0]);
-   Vector pres_out(y.GetData() + block_offsets[1],
-                   block_offsets[2]-block_offsets[1]);
+   Vector disp_out(y.GetData() + block_trueOffsets[0],
+                   block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector pres_out(y.GetData() + block_trueOffsets[1],
+                   block_trueOffsets[2]-block_trueOffsets[1]);
 
-   Vector temp(block_offsets[1]-block_offsets[0]);
-   Vector temp2(block_offsets[1]-block_offsets[0]);
+   Vector temp(block_trueOffsets[1]-block_trueOffsets[0]);
+   Vector temp2(block_trueOffsets[1]-block_trueOffsets[0]);
 
    // Perform the block elimination for the preconditioner
    mass_pcg->Mult(pres_in, pres_out);
@@ -409,8 +453,9 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
                                double abs_tol,
                                int iter,
                                Coefficient &c_mu)
-   : Operator(fes[0]->GetVSize() + fes[1]->GetVSize()),
-     newton_solver(), mu(c_mu), block_offsets(offsets)
+   : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
+     newton_solver(), newton_monitor("Newton", 1),
+     j_monitor("  GMRES", 3), mu(c_mu), block_trueOffsets(offsets)
 {
    Array<Vector *> rhs(2);
    rhs = NULL; // Set all entries in the array
@@ -432,12 +477,16 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    a->AddDomainIntegrator(new MassIntegrator(one));
    a->Assemble();
    a->Finalize();
+
+   OperatorPtr op;
+   Array<int> p_ess_tdofs;
+   a->FormSystemMatrix(p_ess_tdofs, op);
    pressure_mass = a->LoseMat();
    delete a;
 
    // Initialize the Jacobian preconditioner
    JacobianPreconditioner *jac_prec =
-      new JacobianPreconditioner(fes, *pressure_mass, block_offsets);
+      new JacobianPreconditioner(fes, *pressure_mass, block_trueOffsets);
    j_prec = jac_prec;
 
    // Set up the Jacobian solver
@@ -446,7 +495,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    j_gmres->SetRelTol(1e-12);
    j_gmres->SetAbsTol(1e-12);
    j_gmres->SetMaxIter(300);
-   j_gmres->SetPrintLevel(0);
+   j_gmres->SetPrintLevel(-1);
+   j_gmres->SetMonitor(j_monitor);
    j_gmres->SetPreconditioner(*j_prec);
    j_solver = j_gmres;
 
@@ -454,7 +504,8 @@ RubberOperator::RubberOperator(Array<FiniteElementSpace *> &fes,
    newton_solver.iterative_mode = true;
    newton_solver.SetSolver(*j_solver);
    newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(1);
+   newton_solver.SetPrintLevel(-1);
+   newton_solver.SetMonitor(newton_monitor);
    newton_solver.SetRelTol(rel_tol);
    newton_solver.SetAbsTol(abs_tol);
    newton_solver.SetMaxIter(iter);
