@@ -157,7 +157,10 @@ TEST_CASE("CalcShape for several Lagrange FiniteElement instances",
 
 TEST_CASE("CalcShape for several H1 FiniteElement instances",
           "[H1_SegmentElement]"
+          "[H1_TriangleElement]"
           "[H1_QuadrilateralElement]"
+          "[H1_WedgeElement]"
+          "[H1_PyramidElement]"
           "[H1_HexahedronElement]")
 {
    int maxOrder = 5;
@@ -174,6 +177,17 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
       }
    }
 
+   SECTION("H1_TriangleElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_TriangleElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_TriangleElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
    SECTION("H1_QuadrilateralElement")
    {
       for (int order =1; order <= maxOrder; ++order)
@@ -181,6 +195,39 @@ TEST_CASE("CalcShape for several H1 FiniteElement instances",
          std::cout << "Testing H1_QuadrilateralElement::CalcShape() "
                    << "for order " << order << std::endl;
          H1_QuadrilateralElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
+   SECTION("H1_TetrahedronElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_TetrahedronElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_TetrahedronElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
+   SECTION("H1_WedgeElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_WedgeElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_WedgeElement fe(order);
+         TestCalcShape(&fe, resolution);
+      }
+   }
+
+   SECTION("H1_PyramidElement")
+   {
+      for (int order =1; order <= maxOrder; ++order)
+      {
+         std::cout << "Testing H1_PyramidElement::CalcShape() "
+                   << "for order " << order << std::endl;
+         H1_PyramidElement fe(order);
          TestCalcShape(&fe, resolution);
       }
    }
