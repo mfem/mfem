@@ -1,5 +1,6 @@
 #include <mfem.hpp>
 #include <navierstokes_operator.hpp>
+#include <caliper/cali.h>
 #include <fstream>
 #include <iostream>
 
@@ -9,6 +10,24 @@ using namespace mfem;
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref, int par_ref);
 
 double nu = 1.0;
+
+void vel_dfg(const Vector &x, double t, Vector &u)
+{
+   double xi = x(0);
+   double yi = x(1);
+
+   const double U = 1.5;
+
+   if (xi == 0.0)
+   {
+      u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
+      u(1) = 0.0; 
+   }
+   else
+   {
+      u = 0.0;
+   }
+}
 
 void vel_shear_ic(const Vector &x, double t, Vector &u)
 {
@@ -157,21 +176,23 @@ int main(int argc, char *argv[])
 
    Array<int> vel_ess_bdr, pres_ess_bdr;
 
-   if (mesh.bdr_attributes.Size() > 0) {
-      vel_ess_bdr.SetSize(mesh.bdr_attributes.Max());
-   }
+   vel_ess_bdr.SetSize(mesh.bdr_attributes.Max());
+   pres_ess_bdr.SetSize(mesh.bdr_attributes.Max());
 
-   if (problem_type == 4) {
+   if (problem_type == 1) {
+      vel_ess_bdr = 1;
+      pres_ess_bdr = 0;
+   } else if (problem_type == 4) {
       vel_ess_bdr = 0;
+      pres_ess_bdr = 0;
+   } else if (problem_type == 5) {
+      vel_ess_bdr = 1;
+      vel_ess_bdr[1] = 0;
+      pres_ess_bdr = 0;
+      pres_ess_bdr[1] = 1;
    } else {
       vel_ess_bdr = 1;
-   }
-
-   pres_ess_bdr = vel_ess_bdr;
-   if (problem_type == 4) {
       pres_ess_bdr = 0;
-   } else {
-      for (int &marker : pres_ess_bdr) { marker = !marker; }
    }
 
    VectorCoefficient *velocity_mms_coeff = nullptr;
@@ -198,6 +219,11 @@ int main(int argc, char *argv[])
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, vel_shear_ic);
       pressure_mms_coeff = new ConstantCoefficient(0.0);
       forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_3);
+   } else if (problem_type == 5) {
+      out << "problem type 5" << std::endl;
+      velocity_mms_coeff = new VectorFunctionCoefficient(dim, vel_dfg);
+      pressure_mms_coeff = new ConstantCoefficient(0.0);
+      forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_3);
    }
 
    ParGridFunction u_gf(&vel_fes), uex_gf(&vel_fes), p_gf(&pres_fes),
@@ -212,8 +238,11 @@ int main(int argc, char *argv[])
    std::vector<VelDirichletBC> vel_dbcs;
    vel_dbcs.emplace_back(std::make_pair(velocity_mms_coeff, &vel_ess_bdr));
 
-   NavierStokesOperator navier(vel_fes, pres_fes, vel_dbcs, pres_ess_bdr, nu_gf,
-                               true, false, true);
+   std::vector<PresDirichletBC> pres_dbcs;
+   pres_dbcs.emplace_back(std::make_pair(pressure_mms_coeff, &pres_ess_bdr));
+
+   NavierStokesOperator navier(vel_fes, pres_fes, vel_dbcs, pres_dbcs, nu_gf,
+                               true, true, true);
 
    navier.SetForcing(forcing_coeff);
 
@@ -265,13 +294,16 @@ int main(int argc, char *argv[])
 
    save_callback(num_steps, t);
 
+   CALI_MARK_FUNCTION_BEGIN;
+   CALI_CXX_MARK_LOOP_BEGIN(odesolve_loop_ann, "ODE Solve");
    while (t < tf)
    {
       // if (t + dt > tf) { dt = tf - t; }
-
+      num_steps++;
+      CALI_CXX_MARK_LOOP_ITERATION(odesolve_loop_ann, num_steps);
       if (Mpi::Root())
       {
-         std::cout << "Step " << std::left << std::setw(5) << ++num_steps
+         std::cout << "Step " << std::left << std::setw(5) << num_steps
                    << std::setprecision(2) << std::scientific
                    << " t = " << t
                    << " dt = " << dt
@@ -295,6 +327,13 @@ int main(int argc, char *argv[])
       pex_gf.ProjectCoefficient(*pressure_mms_coeff);
       double pres_l2_err = p_gf.ComputeL2Error(*pressure_mms_coeff);
 
+      // Compute incompressiblity error
+      // double div_u_l2 = 0.0;
+      // {
+      //    u_gf.GetDivergence()
+      //    div_u_l2 = div_u.Norml2();
+      // }
+
       if (Mpi::Root()) {
          printf("u_l2err = %.5E\np_l2err = %.5E\n", vel_l2_err, pres_l2_err);
       }
@@ -303,9 +342,12 @@ int main(int argc, char *argv[])
          save_callback(num_steps, t);
       }
 
-      std::cout << std::endl;
+      if (Mpi::Root()) {
+         std::cout << std::endl;
+      }
    }
-
+   CALI_CXX_MARK_LOOP_END(odesolve_loop_ann);
+   CALI_MARK_FUNCTION_END;
    return 0;
 }
 

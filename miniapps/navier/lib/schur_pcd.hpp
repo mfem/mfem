@@ -57,11 +57,9 @@ public:
       fp_form.Finalize();
       fp_form.FormSystemMatrix(pres_ess_tdofs, Fp);
 
-      Mp.As<HypreParMatrix>()->GetDiag(M_local);
-      Mp_inv = new UMFPackSolver(M_local);
+      Mp_inv = new HypreBoomerAMG(*Mp.As<HypreParMatrix>());
 
-      Lp.As<HypreParMatrix>()->GetDiag(Lp_local);
-      Lp_inv = new UMFPackSolver(Lp_local);
+      Lp_inv = new HypreBoomerAMG(*Lp.As<HypreParMatrix>());
 
       pcd = new PCD(*Mp_inv, *Lp_inv, Fp);
    }
@@ -87,8 +85,8 @@ public:
    SparseMatrix M_local;
    SparseMatrix Lp_local;
 
-   UMFPackSolver *Lp_inv;
-   UMFPackSolver *Mp_inv;
+   Solver *Lp_inv;
+   Solver *Mp_inv;
 
    PCD *pcd = nullptr;
 };

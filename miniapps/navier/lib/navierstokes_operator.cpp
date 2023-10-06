@@ -1,12 +1,13 @@
 #include "navierstokes_operator.hpp"
 #include "util.hpp"
+#include <caliper/cali.h>
 
 using namespace mfem;
 
 NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
                                            ParFiniteElementSpace &pres_fes,
                                            std::vector<VelDirichletBC> velocity_dbcs,
-                                           const Array<int> pres_ess_bdr,
+                                           std::vector<PresDirichletBC> pressure_dbcs,
                                            ParGridFunction &nu_gf,
                                            bool convection,
                                            bool convection_explicit,
@@ -16,17 +17,20 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
    pres_fes(pres_fes),
    kinematic_viscosity(nu_gf),
    velocity_dbcs(velocity_dbcs),
-   pres_ess_bdr(pres_ess_bdr),
+   pressure_dbcs(pressure_dbcs),
    convection(convection),
    convection_explicit(convection_explicit),
    matrix_free(matrix_free),
    offsets({0, vel_fes.GetTrueVSize(), pres_fes.GetTrueVSize()}),
-   intrules(0, Quadrature1D::GaussLobatto)
+   intrules(0, Quadrature1D::GaussLobatto),
+   zero_coeff(0.0)
 {
-   // Append individual velocity Dirichlet BC attributes to collective array.
    if (vel_fes.GetParMesh()->bdr_attributes.Size() > 0) {
       vel_ess_bdr.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
+      pres_ess_bdr.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
+      schur_ess_tdofs.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
    }
+
    for (auto &bc : velocity_dbcs)
    {
       for (int i = 0; i < bc.second->Size(); i++)
@@ -38,8 +42,34 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
       }
    }
 
+   for (auto &bc : pressure_dbcs)
+   {
+      for (int i = 0; i < bc.second->Size(); i++)
+      {
+         if ((*bc.second)[i] == 1)
+         {
+            pres_ess_bdr[i] = 1;
+         }
+      }
+   }
+
+   if (Mpi::Root())
+   {
+      out << "velocity ess bdr\n";
+      vel_ess_bdr.Print();
+
+      out << "pressure ess bdr\n";
+      pres_ess_bdr.Print();
+   }
+
    vel_fes.GetEssentialTrueDofs(vel_ess_bdr, vel_ess_tdofs);
    pres_fes.GetEssentialTrueDofs(pres_ess_bdr, pres_ess_tdofs);
+
+   if (Mpi::Root())
+   {
+      out << "velocity ess tdofs size " << vel_ess_tdofs.Size() << "\n";
+      out << "pressure ess tdofs size " << pres_ess_tdofs.Size() << "\n";
+   }
 
    offsets.PartialSum();
 
@@ -52,59 +82,88 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
    vel_bc_gf = std::make_unique<ParGridFunction>(&vel_fes);
    *vel_bc_gf = 0.0;
 
+   pres_bc_gf = std::make_unique<ParGridFunction>(&pres_fes);
+   *pres_bc_gf = 0.0;
+
    ir_nl = intrules.Get(vel_fes.GetFE(0)->GetGeomType(),
                              (int)(ceil(1.5 * 2*(vel_fes.GetOrder(0)+1) - 3)));
 
    ir = intrules.Get(vel_fes.GetFE(0)->GetGeomType(),
                              (int)(2*(vel_fes.GetOrder(0)+1) - 3));
 
-   strumpack.reset(new STRUMPACKSolver(0, nullptr, MPI_COMM_WORLD));
-   mumps.reset(new MUMPSSolver);
+   // strumpack.reset(new STRUMPACKSolver(0, nullptr, MPI_COMM_WORLD));
+   // mumps.reset(new MUMPSSolver);
+   pc.reset(new BlockLowerTriangularPreconditioner(offsets));
 }
 
 void NavierStokesOperator::MultImplicit(const Vector &xb, Vector &yb) const
 {
+   CALI_MARK_BEGIN("MultImplicit");
+
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
 
    const Vector &xu = x.GetBlock(0);
+   const Vector &xp = x.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
    A->Mult(x, y);
    y.Neg();
 
-   yu += fu_rhs;
+   // yu += fu_rhs;
 
-   for (int i = 0; i < vel_ess_tdofs.Size(); i++)
-   {
-      yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
-   }
+   // for (int i = 0; i < vel_ess_tdofs.Size(); i++)
+   // {
+   //    yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
+   // }
 
    yp = 0.0;
+
+   // for (int i = 0; i < pres_ess_tdofs.Size(); i++)
+   // {
+   //    yp[pres_ess_tdofs[i]] = xp[pres_ess_tdofs[i]];
+   // }
+
+   CALI_MARK_END("MultImplicit");
 }
 
 void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
 {
+   CALI_MARK_BEGIN("NavierStokesOperator::MultExplicit");
+
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
 
    const Vector &xu = x.GetBlock(0);
+   const Vector &xp = x.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
    n_form->Mult(xu, yu);
+   yu.Neg();
 
-   for (int i = 0; i < vel_ess_tdofs.Size(); i++)
-   {
-      yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
-   }
+   yu += fu_rhs;
+
+   // for (int i = 0; i < vel_ess_tdofs.Size(); i++)
+   // {
+   //    yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
+   // }
 
    yp = 0.0;
+
+   // for (int i = 0; i < pres_ess_tdofs.Size(); i++)
+   // {
+   //    yp[pres_ess_tdofs[i]] = xp[pres_ess_tdofs[i]];
+   // }
+
+   CALI_MARK_END("NavierStokesOperator::MultExplicit");
 }
 
 void NavierStokesOperator::Mult(const Vector &xb, Vector &yb) const
 {
+   CALI_MARK_BEGIN("Mult");
+
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
 
@@ -131,211 +190,58 @@ void NavierStokesOperator::Mult(const Vector &xb, Vector &yb) const
    {
       yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
    }
+
+   CALI_MARK_END("Mult");
 }
 
 void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
 {
-   MyFGMRESSolver krylov(MPI_COMM_WORLD);
+   CALI_MARK_BEGIN("NavierStokesOperator::Step");
+
+   FGMRESSolver krylov(MPI_COMM_WORLD);
    krylov.SetRelTol(1e-6);
+   krylov.SetAbsTol(1e-12);
+   // krylov.SetKDim(200);
    krylov.SetMaxIter(5000);
+   krylov.SetPreconditioner(*pc.get());
    krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
-   BlockOrthoSolver krylov_ortho(MPI_COMM_WORLD, offsets);
+   // {
+   //    BlockVector B(offsets);
+   //    B.Randomize(1);
+   //    B *= 1e-4;
+   //    B.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+   //    B.GetBlock(1) = 0.0;
+
+   //    X = 0.0;
+   //    SetTime(t);
+   //    Setup(dt);
+   //    RebuildPC(X);
+   //    krylov.SetOperator(*Amonoe_matfree);
+   //    krylov.Mult(B, X);
+
+   //    exit(0);
+   // }
 
    NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetRelTol(1e-4);
-   newton.SetAbsTol(1e-12);
-   newton.SetMaxIter(1);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-9);
+   newton.SetMaxIter(10);
    newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
    newton.SetOperator(*trans_newton_residual);
-   newton.SetPreconditioner(*mumps.get());
-   // newton.SetPreconditioner(krylov);
+   newton.SetPreconditioner(krylov);
+   // newton.SetAdaptiveLinRtol();
 
-   int method = 5;
+   int method = 4;
 
-   if (method == 1)
-   {
-      // Backward Euler
-
-      SetTime(t + dt);
-
-      Setup(dt);
-
-      Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-      z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-      ProjectVelocityDirichletBC(X.GetBlock(0));
-   
-      Y = X;
-      Orthogonalize(Y.GetBlock(1));
-      newton.Mult(z, Y);
-      X = Y;
-   }
-   else if (method == 2)
-   {
-      // SDIRK2
-      double a11, a22, a33, a44;
-      a11 = a22 = a33 = a44 = 1.0 / 4.0;
-      double c1 = 1.0 / 4.0, c2 = 11.0 / 28.0, c3 = 1.0 / 3.0, c4 = 1.0;
-      double a21 = 1.0 / 7.0;
-      double a31 = 61.0 / 144.0, a32 = -49.0 / 144.0;
-      double a41 = 0.0, a42 = 0.0, a43 = 3.0 / 4.0;
-      BlockVector F1(offsets), F2(offsets), F3(offsets);
-
-      // Stage 1
-      {
-         SetTime(t + c1 * dt);
-
-         Setup(a11 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(X.GetBlock(0));
-
-         Y = X;
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-
-         Mult(Y, F1);
-      }
-      // Stage 2
-      {
-         SetTime(t + c2 * dt);
-
-         Setup(a22 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         w.GetBlock(0) = F1.GetBlock(0);
-         w.GetBlock(0) *= dt * a21;
-         z.GetBlock(0) += w.GetBlock(0);
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(Y.GetBlock(0));
-
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-
-         Mult(Y, F2);
-      }
-      // Stage 3
-      {
-         SetTime(t + c3 * dt);
-
-         Setup(a33 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         w.GetBlock(0) = F1.GetBlock(0);
-         w.GetBlock(0) *= dt * a31;
-         z.GetBlock(0) += w.GetBlock(0);
-         w.GetBlock(0) = F2.GetBlock(0);
-         w.GetBlock(0) *= dt * a32;
-         z.GetBlock(0) += w.GetBlock(0);
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(Y.GetBlock(0));
-
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-
-         Mult(Y, F3);
-      }
-      // Stage 4
-      {
-         SetTime(t + c4 * dt);
-
-         Setup(a44 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         w.GetBlock(0) = F1.GetBlock(0);
-         w.GetBlock(0) *= dt * a41;
-         z.GetBlock(0) += w.GetBlock(0);
-         w.GetBlock(0) = F2.GetBlock(0);
-         w.GetBlock(0) *= dt * a42;
-         z.GetBlock(0) += w.GetBlock(0);
-         w.GetBlock(0) = F3.GetBlock(0);
-         w.GetBlock(0) *= dt * a43;
-         z.GetBlock(0) += w.GetBlock(0);
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(Y.GetBlock(0));
-
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-         X = Y;
-      }
-   }
-   else if (method == 3)
-   {
-      // TR-BDF2
-      double alpha = 2.0 - sqrt(2);
-      double a21 = alpha / 2.0,
-             a22 = alpha / 2.0;
-      double a31 = 1.0 / (2.0 * (2.0 - alpha)),
-             a32 = 1.0 / (2.0 * (2.0 - alpha)),
-             a33 = (1.0 - alpha) / (2.0 - alpha);
-      double c2 = alpha,
-             c3 = 1.0;
-      
-      BlockVector F1(offsets), F2(offsets);
-
-      // Stage 1
-      {
-         SetTime(t);
-         Setup(dt);
-         Mult(X, F1);
-      }
-      // Stage 2
-      {
-         SetTime(t + c2 * dt);
-
-         Setup(a22 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         w.GetBlock(0) = F1.GetBlock(0);
-         w.GetBlock(0) *= dt * a21;
-         z.GetBlock(0) += w.GetBlock(0);
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(Y.GetBlock(0));
-
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-
-         Mult(Y, F2);
-      }
-      // Stage 3
-      {
-         SetTime(t + c3 * dt);
-
-         Setup(a33 * dt);
-
-         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
-         w.GetBlock(0) = F1.GetBlock(0);
-         w.GetBlock(0) *= dt * a31;
-         z.GetBlock(0) += w.GetBlock(0);
-         w.GetBlock(0) = F2.GetBlock(0);
-         w.GetBlock(0) *= dt * a32;
-         z.GetBlock(0) += w.GetBlock(0);
-         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-
-         ProjectVelocityDirichletBC(Y.GetBlock(0));
-
-         Orthogonalize(Y.GetBlock(1));
-         newton.Mult(z, Y);
-
-         X = Y;
-      }
-   } else if (method == 4)
+   if (method == 4)
    {
       // IMEX BE-FE
-      double aI_22 = 1.0;
-      double aE_21 = 1.0;
-      double c2 = 1.0;
+      const double aI_22 = 1.0;
+      const double aE_21 = 1.0;
+      const double c2 = 1.0;
 
       BlockVector F1(offsets), F2(offsets);
-
-      convection_explicit = true;
 
       // Stage 1
       {
@@ -355,23 +261,26 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          w.GetBlock(0) *= dt * aE_21;
          z.GetBlock(0) += w.GetBlock(0);
          z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
 
+         Y = X;
          ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
 
-         Orthogonalize(Y.GetBlock(1));
+         // Orthogonalize(Y.GetBlock(1));
+         CALI_MARK_BEGIN("Newton");
          newton.Mult(z, Y);
+         CALI_MARK_END("Newton");
          X = Y;
       }
     } else if (method == 5) {
       // IMEX-SSP2(3,2,2)
-      double aI_11 = 0.25, aI_22 = 0.25, aI_31 = 1.0 / 3.0, aI_32 = 1.0 / 3.0, aI_33 = 1.0 / 3.0;
-      double cI_1 = 0.25, cI_2 = 0.25, cI_3 = 1.0;
-      double aE_21 = 0.5, aE_31 = 0.5, aE_32 = 0.5;
-      double cE_2 = 0.5, cE_3 = 1.0;
+      const double aI_11 = 0.25, aI_22 = 0.25, aI_31 = 1.0 / 3.0, aI_32 = 1.0 / 3.0, aI_33 = 1.0 / 3.0;
+      const double cI_1 = 0.25, cI_2 = 0.25;
+      const double aE_21 = 0.5, aE_31 = 0.5, aE_32 = 0.5;
+      const double cE_2 = 0.5;
 
       BlockVector FE1(offsets), FI1(offsets), FI2(offsets), FE2(offsets);
-
-      convection_explicit = true;
 
       // Stage 1
       {
@@ -380,10 +289,13 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
 
          Mv->Mult(X.GetBlock(0), z.GetBlock(0));
          z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
 
+         Y = 0.0;
          ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
 
-         Orthogonalize(Y.GetBlock(1));
+         // Orthogonalize(Y.GetBlock(1));
          newton.Mult(z, Y);
 
          SetTime(t + cI_1 * dt);
@@ -403,10 +315,13 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          w.GetBlock(0) *= dt * aE_21;
          z.GetBlock(0) += w.GetBlock(0);
          z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
 
+         Y = FE1;
          ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
 
-         Orthogonalize(Y.GetBlock(1));
+         // Orthogonalize(Y.GetBlock(1));
          newton.Mult(z, Y);
 
          SetTime(t + cI_2 * dt);
@@ -417,7 +332,7 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
       }
       // Stage 3
       {
-         SetTime(t + cI_3 * dt);
+         SetTime(t + dt);
 
          Setup(aI_33 * dt);
 
@@ -435,16 +350,92 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          w.GetBlock(0) *= dt * aE_32;
          z.GetBlock(0) += w.GetBlock(0);
          z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
 
+         Y = FE2;
          ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
 
-         Orthogonalize(Y.GetBlock(1));
+         // Orthogonalize(Y.GetBlock(1));
          newton.Mult(z, Y);
+         X = Y;
+      }
+   } else if (method == 6)
+   {
+      // IMEX ARS(2,2,2)
+      const double gamma = (2.0 - sqrt(2)) / 2.0;
+      const double delta = 1.0 - 1.0 / (2.0 * gamma);
+      const double aI_22 = gamma, aI_32 = 1.0 - gamma, aI_33 = gamma;
+      const double aE_21 = gamma, aE_31 = delta, aE_32 = 1.0 - delta;
+      const double c_2 = gamma, c_3 = 1.0;
+
+      BlockVector FE1(offsets), FI1(offsets), FI2(offsets), FE2(offsets);
+
+      // Stage 1
+      {
+         SetTime(t);
+         Setup(dt);
+         Y = X;
+         MultExplicit(Y, FE1);
+      }
+      // Stage 2
+      {
+         SetTime(t + c_2 * dt);
+
+         Setup(aI_22 * dt);
+
+         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
+         w.GetBlock(0) = FE1.GetBlock(0);
+         w.GetBlock(0) *= dt * aE_21;
+         z.GetBlock(0) += w.GetBlock(0);
+         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
+
+         Y = FE1;
+         ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
+
+         // Orthogonalize(Y.GetBlock(1));
+         CALI_MARK_BEGIN("Newton");
+         newton.Mult(z, Y);
+         CALI_MARK_END("Newton");
+
+         MultImplicit(Y, FI2);
+         MultExplicit(Y, FE2);
+      }
+      // Stage 3
+      {
+         SetTime(t + c_3 * dt);
+
+         Setup(aI_33 * dt);
+
+         Mv->Mult(X.GetBlock(0), z.GetBlock(0));
+         w.GetBlock(0) = FE1.GetBlock(0);
+         w.GetBlock(0) *= dt * aE_31;
+         z.GetBlock(0) += w.GetBlock(0);
+         w.GetBlock(0) = FE2.GetBlock(0);
+         w.GetBlock(0) *= dt * aE_32;
+         z.GetBlock(0) += w.GetBlock(0);
+         w.GetBlock(0) = FI2.GetBlock(0);
+         w.GetBlock(0) *= dt * aI_32;
+         z.GetBlock(0) += w.GetBlock(0);
+         z.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
+         z.GetBlock(1) = 0.0;
+
+         Y = FE2;
+         ProjectVelocityDirichletBC(Y.GetBlock(0));
+         ProjectPressureDirichletBC(Y.GetBlock(1));
+
+         // Orthogonalize(Y.GetBlock(1));
+         CALI_MARK_BEGIN("Newton");
+         newton.Mult(z, Y);
+         CALI_MARK_END("Newton");
          X = Y;
       }
    }
 
    t += dt;
+   CALI_MARK_END("NavierStokesOperator::Step");
 }
 
 void NavierStokesOperator::ProjectVelocityDirichletBC(Vector &v)
@@ -456,6 +447,17 @@ void NavierStokesOperator::ProjectVelocityDirichletBC(Vector &v)
       vel_bc_gf->ProjectBdrCoefficient(*bc.first, *bc.second);
    }
    vel_bc_gf->ParallelProject(v);
+}
+
+void NavierStokesOperator::ProjectPressureDirichletBC(Vector &p)
+{
+   // Update boundary conditions
+   pres_bc_gf->Distribute(p);
+   for (auto &bc : pressure_dbcs)
+   {
+      pres_bc_gf->ProjectBdrCoefficient(*bc.first, *bc.second);
+   }
+   pres_bc_gf->ParallelProject(p);
 }
 
 void NavierStokesOperator::SetTime(double t)
@@ -497,13 +499,13 @@ void NavierStokesOperator::Setup(const double dt)
    ak_coeff = new GridFunctionCoefficient(&kinematic_viscosity);
 
    delete ad_coeff;
-   ad_coeff = new ConstantCoefficient(-1.0);
+   ad_coeff = new ConstantCoefficient(1.0);
 
    delete am_mono_coeff;
    am_mono_coeff = new ProductCoefficient(1.0, *am_coeff);
 
    delete ak_mono_coeff;
-   ak_mono_coeff = new ProductCoefficient(cached_dt, *ak_coeff);
+   ak_mono_coeff = new ConstantCoefficient(cached_dt * 1e-3);
 
    SetParameters(am_coeff, ak_coeff, ad_coeff);
    Assemble();
@@ -527,9 +529,17 @@ void NavierStokesOperator::SetParameters(Coefficient *am,
 
    delete mp_form;
    mp_form = new ParBilinearForm(&pres_fes);
-   integrator = new MassIntegrator;
+   auto mp_coeff = new ConstantCoefficient(1.0 / 1e-3);
+   integrator = new MassIntegrator(*mp_coeff);
    integrator->SetIntRule(&ir);
    mp_form->AddDomainIntegrator(integrator);
+
+   delete lp_form;
+   lp_form = new ParBilinearForm(&pres_fes);
+   // auto lp_coeff = new ConstantCoefficient(cached_dt);
+   integrator = new DiffusionIntegrator;
+   integrator->SetIntRule(&ir);
+   lp_form->AddDomainIntegrator(integrator);
 
    delete k_form;
    k_form = new ParBilinearForm(&vel_fes);
@@ -553,6 +563,7 @@ void NavierStokesOperator::SetParameters(Coefficient *am,
    {
       mv_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       mp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      lp_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       k_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
       d_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
@@ -587,11 +598,13 @@ void NavierStokesOperator::SetForcing(VectorCoefficient *f)
    }
 
    fu_rhs.SetSize(vel_fes.GetTrueVSize());
+   fu_rhs = 0.0;
 }
 
 /// @brief Assemble all forms and matrices
 void NavierStokesOperator::Assemble()
 {
+   CALI_MARK_BEGIN("NavierStokesOperator::Assemble");
    if (k_form == nullptr)
    {
       MFEM_ABORT("use SetParameters() first")
@@ -604,11 +617,6 @@ void NavierStokesOperator::Assemble()
    mv_form->Assemble();
    mv_form->Finalize();
    mv_form->FormSystemMatrix(empty, Mv);
-
-   mp_form->Update();
-   mp_form->Assemble();
-   mp_form->Finalize();
-   mp_form->FormSystemMatrix(empty, Mp);
 
    k_form->Update();
    k_form->Assemble();
@@ -643,27 +651,24 @@ void NavierStokesOperator::Assemble()
       forcing_form->Assemble();
       forcing_form->ParallelAssemble(fu_rhs);
    }
+   CALI_MARK_END("NavierStokesOperator::Assemble");
 }
 
 void NavierStokesOperator::RebuildPC(const Vector &x)
 {
+   CALI_MARK_BEGIN("NavierStokesOperator::RebuildPC");
+
    Array<int> empty;
+   BilinearFormIntegrator *integrator = nullptr;
 
    delete mdta_form;
-   mdta_form = new ParNonlinearForm(&vel_fes);
-   BilinearFormIntegrator *integrator = new VectorMassIntegrator(*am_mono_coeff);
+   mdta_form = new ParBilinearForm(&vel_fes);
+   integrator = new VectorMassIntegrator;
    integrator->SetIntRule(&ir);
    mdta_form->AddDomainIntegrator(integrator);
    integrator = new VectorDiffusionIntegrator(*ak_mono_coeff);
    integrator->SetIntRule(&ir);
    mdta_form->AddDomainIntegrator(integrator);
-   if (!convection_explicit)
-   {
-      auto nl_integrator = new VectorConvectionNLFIntegrator(*ak_mono_coeff);
-      nl_integrator->SetIntRule(&ir_nl);
-      mdta_form->AddDomainIntegrator(integrator);
-   }
-   mdta_form->SetEssentialTrueDofs(vel_ess_tdofs);
 
    delete gmono_form;
    gmono_form = new ParMixedBilinearForm(&pres_fes, &vel_fes);
@@ -673,35 +678,127 @@ void NavierStokesOperator::RebuildPC(const Vector &x)
 
    delete dmono_form;
    dmono_form = new ParMixedBilinearForm(&vel_fes, &pres_fes);
-   integrator = new VectorDivergenceIntegrator(new ConstantCoefficient(-1.0));
+   integrator = new VectorDivergenceIntegrator(*ad_coeff);
    integrator->SetIntRule(&ir);
    dmono_form->AddDomainIntegrator(integrator);
 
+   delete cmono_form;
+   cmono_form = new ParBilinearForm(&pres_fes);
+   cmono_form->AddDomainIntegrator(new MassIntegrator(zero_coeff));
+
+   if (matrix_free)
+   {
+      mdta_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      gmono_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      dmono_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      cmono_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+
    mdta_form->Update();
+   mdta_form->Assemble();
+   mdta_form->Finalize();
+   mdta_form->FormSystemMatrix(vel_ess_tdofs, MdtAe);
 
    dmono_form->Update();
    dmono_form->Assemble();
    dmono_form->Finalize();
-   dmono_form->FormRectangularSystemMatrix(empty, empty, Dmonoe);
+   dmono_form->FormRectangularSystemMatrix(vel_ess_tdofs, pres_ess_tdofs, Dmonoe);
 
    gmono_form->Update();
    gmono_form->Assemble();
    gmono_form->Finalize();
-   gmono_form->FormRectangularSystemMatrix(empty, vel_ess_tdofs, Gmonoe);
+   gmono_form->FormRectangularSystemMatrix(pres_ess_tdofs, vel_ess_tdofs, Gmonoe);
 
-   const BlockVector xb(x.GetData(), offsets);
-   HypreParMatrix *MdtAeGrad = static_cast<HypreParMatrix *>(&mdta_form->GetGradient(xb.GetBlock(0)));
+   cmono_form->Update();
+   cmono_form->Assemble();
+   cmono_form->Finalize();
+   cmono_form->FormSystemMatrix(pres_ess_tdofs, Cmonoe);
 
-   Array2D<HypreParMatrix *> blocks(2, 2);
-   blocks(0, 0) = MdtAeGrad;
-   blocks(0, 1) = Gmonoe.As<HypreParMatrix>();
-   blocks(1, 0) = Dmonoe.As<HypreParMatrix>();
-   blocks(1, 1) = nullptr;
-   delete Amonoe;
-   Amonoe = HypreParMatrixFromBlocks(blocks);
+   mp_form->Update();
+   mp_form->Assemble();
+   mp_form->Finalize();
+   mp_form->FormSystemMatrix(empty, Mp);
 
-   mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-   mumps->SetOperator(*Amonoe);
+   lp_form->Update();
+   lp_form->Assemble();
+   lp_form->Finalize();
+   lp_form->FormSystemMatrix(pres_ess_tdofs, Lp);
+
+   // Array2D<HypreParMatrix *> blocks(2, 2);
+   // blocks(0, 0) = MdtAe.As<HypreParMatrix>();
+   // blocks(0, 1) = Gmonoe.As<HypreParMatrix>();
+   // blocks(1, 0) = Dmonoe.As<HypreParMatrix>();
+   // blocks(1, 1) = nullptr;
+   // delete Amonoe;
+   // Amonoe = HypreParMatrixFromBlocks(blocks);
+
+   delete Amonoe_matfree;
+   Amonoe_matfree = new BlockOperator(offsets);
+   Amonoe_matfree->SetBlock(0, 0, MdtAe.Ptr());
+   Amonoe_matfree->SetBlock(0, 1, Gmonoe.Ptr());
+   Amonoe_matfree->SetBlock(1, 0, Dmonoe.Ptr());
+   Amonoe_matfree->SetBlock(1, 1, Cmonoe.Ptr());
+
+   {
+      auto amg = new LORSolver<HypreBoomerAMG>(*mdta_form, vel_ess_tdofs);
+      amg->GetSolver().SetSystemsOptions(vel_fes.GetMesh()->Dimension(), true);
+      HYPRE_BoomerAMGSetAggNumLevels(amg->GetSolver(), 4);
+      HYPRE_BoomerAMGSetPMaxElmts(amg->GetSolver(), 2);
+      amg->GetSolver().SetPrintLevel(0);
+
+      Vector diag_pa(vel_fes.GetTrueVSize());
+      mdta_form->AssembleDiagonal(diag_pa);
+      auto jacobi = new OperatorJacobiSmoother(diag_pa, vel_ess_tdofs);
+
+      // MdtAinvPC.reset(amg);
+      // auto cg = new CGSolver(MPI_COMM_WORLD);
+      // cg->SetRelTol(1e-6);
+      // cg->SetMaxIter(10);
+      // cg->SetOperator(*MdtAe.Ptr());
+      // cg->SetPreconditioner(*MdtAinvPC);
+      MdtAinv.reset(amg);
+   }
+
+   {
+      Vector diag_pa(pres_fes.GetTrueVSize());
+      mp_form->AssembleDiagonal(diag_pa);
+      auto jacobi = new OperatorJacobiSmoother(diag_pa, pres_ess_tdofs);
+      // MpinvPC.reset(jacobi);
+      // auto cg = new CGSolver(MPI_COMM_WORLD);
+      // cg->SetRelTol(1e-4);
+      // cg->SetMaxIter(10);
+      // cg->SetOperator(*Mp);
+      // cg->SetPreconditioner(*MpinvPC);
+      Mpinv.reset(jacobi);
+   }
+
+   {
+      auto amg = new LORSolver<HypreBoomerAMG>(*lp_form, pres_ess_tdofs);
+      HYPRE_BoomerAMGSetStrongThreshold(amg->GetSolver(), 0.7);
+      amg->GetSolver().SetPrintLevel(0);
+      // LpinvPC.reset(amg);
+      // auto cg = new CGSolver(MPI_COMM_WORLD);
+      // cg->SetRelTol(1e-4);
+      // cg->SetMaxIter(10);
+      // cg->SetOperator(*Lp);
+      // cg->SetPreconditioner(*LpinvPC);
+      // cg->SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
+      Lpinv.reset(amg);
+   }
+
+   Sinv = new CahouetChabardPC(*Mpinv.get(), *Lpinv.get(), cached_dt, pres_ess_tdofs);
+   
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(0, 0, MdtAinv.get());
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 0, D.Ptr());
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 1, Sinv);
+
+   // auto block_pc = static_cast<BlockLowerTriangularPreconditioner *>(pc.get());
+   // block_pc->SetBlock(0, 0, MdtAeGradinv.get());
+   // block_pc->SetBlock(1, 0, Dmonoe.Ptr());
+   // block_pc->SetBlock(1, 1, SchurInv.get());
+
+   // mumps->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+   // mumps->SetOperator(*Amonoe);
 
    // delete Amonoe_rowloc;
    // Amonoe_rowloc = new STRUMPACKRowLocMatrix(*Amonoe);
@@ -716,6 +813,7 @@ void NavierStokesOperator::RebuildPC(const Vector &x)
    // std::ofstream amono("amono.dat");
    // Amonoe->PrintMatlab(amono);
    // amono.close();
+   CALI_MARK_END("NavierStokesOperator::RebuildPC");
 }
 
 const Array<int>& NavierStokesOperator::GetOffsets() const

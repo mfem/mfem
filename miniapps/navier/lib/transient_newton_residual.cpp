@@ -1,6 +1,7 @@
 #include "transient_newton_residual.hpp"
 #include "navierstokes_operator.hpp"
 #include "util.hpp"
+#include <caliper/cali.h>
 
 using namespace mfem;
 
@@ -12,6 +13,7 @@ TransientNewtonResidual::TransientNewtonResidual(NavierStokesOperator &nav) :
 
 void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
 {
+   CALI_MARK_BEGIN("TransientNewtonResidual::Mult");
    const BlockVector x(xb.GetData(), nav.offsets);
    BlockVector y(yb.GetData(), nav.offsets);
 
@@ -25,38 +27,34 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
    nav.K->Mult(xu, yu);
    yu *= dt;
 
-   if (nav.convection && !nav.convection_explicit)
-   {
-      nav.n_form->Mult(xu, zu);
-      zu *= dt;
-      yu += zu;
-   }
-
    nav.G->Mult(xp, zu);
    zu *= dt;
    yu += zu;
   
    nav.D->Mult(xu, yp);
-      
+
    nav.Mv->Mult(xu, zu);
    yu += zu;
 
-   zu = nav.fu_rhs;
-   zu.Neg();
-   zu *= dt;
-   yu += zu;
+   // zu = nav.fu_rhs;
+   // zu.Neg();
+   // zu *= dt;
+   // yu += zu;
 
    yu.SetSubVector(nav.vel_ess_tdofs, 0.0);
+   yp.SetSubVector(nav.pres_ess_tdofs, 0.0);
+   CALI_MARK_BEGIN("TransientNewtonResidual::Mult");
 }
 
 Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
 {
    // Build preconditioner
 
-   if (nav.Amonoe == nullptr) {
+   if (nav.Amonoe_matfree == nullptr || rebuild_pc) {
       nav.RebuildPC(x);
+      rebuild_pc = false;
    }
-   return *nav.Amonoe;
+   return *nav.Amonoe_matfree;
 
    // fd_linearized.reset(new FDJacobian(*this, x));
    // return *fd_linearized;
@@ -64,6 +62,10 @@ Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
 
 void TransientNewtonResidual::Setup(const double dt)
 {
+   if (this->dt != dt)
+   {
+      rebuild_pc = true;
+   }
    this->dt = dt;
    linearized.Setup(dt);
 }

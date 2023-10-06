@@ -29,6 +29,7 @@ public:
    mutable std::shared_ptr<FDJacobian> fd_linearized;
    mutable BlockVector z;
    double dt;
+   mutable bool rebuild_pc = true;
 };
 
 }

@@ -33,9 +33,9 @@ struct s_NavierContext
    bool amr = false;
    int ser_ref_levels = 0;
    int order = 4;
-   double kinvis = 1.0;
+   double kinvis = 1.0e-2;
    double t_final = 2 * 0.25e-4;
-   double dt = 0.25e-4;
+   double dt = 0.25e-2;
    bool visualization = false;
    bool checkres = false;
 } ctx;

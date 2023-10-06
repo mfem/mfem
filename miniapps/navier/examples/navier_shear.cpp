@@ -38,7 +38,7 @@ struct s_NavierContext
 {
    int order = 6;
    double kinvis = 1.0 / 100000.0;
-   double t_final = 2000 * 1e-3;
+   double t_final = 1.0;
    double dt = 1e-3;
 } ctx;
 
@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
    double t_final = ctx.t_final;
    bool last_step = false;
 
+   flowsolver.SetMaxBDFOrder(2);
    flowsolver.Setup(dt);
 
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
@@ -129,12 +130,12 @@ int main(int argc, char *argv[])
    // pvdc.RegisterField("vorticity", &w_gf);
    pvdc.Save();
 
-   char vishost[] = "128.15.198.77";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock << "parallel " << num_procs << " " << myid << "\n";
-   sol_sock.precision(8);
-   sol_sock << "solution\n" << *pmesh << *u_gf << "\n" << "pause\n" << std::flush;
+   // char vishost[] = "128.15.198.77";
+   // int  visport   = 19916;
+   // socketstream sol_sock(vishost, visport);
+   // sol_sock << "parallel " << num_procs << " " << myid << "\n";
+   // sol_sock.precision(8);
+   // sol_sock << "solution\n" << *pmesh << *u_gf << "\n" << "pause\n" << std::flush;
 
    for (int step = 0; !last_step; ++step)
    {
@@ -152,9 +153,9 @@ int main(int argc, char *argv[])
          pvdc.SetTime(t);
          pvdc.Save();
 
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
+         // sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         // sol_sock.precision(8);
+         // sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
       }
 
       if (Mpi::Root())
