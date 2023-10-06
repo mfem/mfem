@@ -1758,14 +1758,14 @@ public:
    // at a point x.  Internally the point is transformed to the traditional
    // domain of [-1,1].
    static void CalcJacobi(const int p, const double alpha, const double beta,
-			  const double x, double *u);
+                          const double x, double *u);
 
    // Evaluate the values and derivatives of the Jacobi polynomials,
    // P^{(\alpha,\beta)}_n, on [0,1] with degrees ranging from 0 to p and
    // parameters alpha and beta at a point x.  Internally the point is
    // transformed to the traditional domain of [-1,1].
    static void CalcJacobi(const int p, const double alpha, const double beta,
-			  const double x, double *u, double *d);
+                          const double x, double *u, double *d);
 
    // Evaluate the values of the Legendre polynomials, P_n, on [0,1] with
    // degrees ranging from 0 to p at a point x.  Internally the point is

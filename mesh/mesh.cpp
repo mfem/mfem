@@ -866,16 +866,16 @@ void Mesh::GetLocalFaceTransformation(
          else if (elem_type == Element::WEDGE)
          {
             GetLocalTriToWdgTransformation(Transf, info);
-	 }
+         }
          else if (elem_type == Element::PYRAMID)
          {
             GetLocalTriToPyrTransformation(Transf, info);
-	 }
-	 else
-	 {
+         }
+         else
+         {
             MFEM_ABORT("Mesh::GetLocalFaceTransformation not defined for "
-		       "face type " << face_type
-		       << " and element type " << elem_type << "\n");
+                       "face type " << face_type
+                       << " and element type " << elem_type << "\n");
          }
          break;
 
@@ -892,11 +892,11 @@ void Mesh::GetLocalFaceTransformation(
          {
             GetLocalQuadToPyrTransformation(Transf, info);
          }
-	 else
-	 {
+         else
+         {
             MFEM_ABORT("Mesh::GetLocalFaceTransformation not defined for "
-		       "face type " << face_type
-		       << " and element type " << elem_type << "\n");
+                       "face type " << face_type
+                       << " and element type " << elem_type << "\n");
          }
          break;
    }
@@ -2480,14 +2480,14 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          y = sfc[3*k + 1];
          z = sfc[3*k + 2];
 
-         ind[0] = VTX(x  , y  , z  );
-         ind[1] = VTX(x+1, y  , z  );
+         ind[0] = VTX(x, y, z  );
+         ind[1] = VTX(x+1, y, z  );
          ind[2] = VTX(x+1, y+1, z  );
-         ind[3] = VTX(x  , y+1, z  );
-         ind[4] = VTX(x  , y  , z+1);
-         ind[5] = VTX(x+1, y  , z+1);
+         ind[3] = VTX(x, y+1, z  );
+         ind[4] = VTX(x, y, z+1);
+         ind[5] = VTX(x+1, y, z+1);
          ind[6] = VTX(x+1, y+1, z+1);
-         ind[7] = VTX(x  , y+1, z+1);
+         ind[7] = VTX(x, y+1, z+1);
 
          AddHex(ind, 1);
       }
@@ -2500,12 +2500,12 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             for (x = 0; x < nx; x++)
             {
-               ind[0] = VTX(x  , y  , z  );
-               ind[1] = VTX(x+1, y  , z  );
+               ind[0] = VTX(x, y, z  );
+               ind[1] = VTX(x+1, y, z  );
                ind[2] = VTX(x+1, y+1, z  );
-               ind[3] = VTX(x  , y+1, z  );
-               ind[4] = VTX(x  , y  , z+1);
-               ind[5] = VTX(x+1, y  , z+1);
+               ind[3] = VTX(x, y+1, z  );
+               ind[4] = VTX(x, y, z+1);
+               ind[5] = VTX(x+1, y, z+1);
                ind[6] = VTX(x+1, y+1, z+1);
                ind[7] = VTX(  x, y+1, z+1);
                if (type == Element::TETRAHEDRON)
@@ -2531,10 +2531,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , 0);
-         ind[1] = VTX(x  , y+1, 0);
+         ind[0] = VTX(x, y, 0);
+         ind[1] = VTX(x, y+1, 0);
          ind[2] = VTX(x+1, y+1, 0);
-         ind[3] = VTX(x+1, y  , 0);
+         ind[3] = VTX(x+1, y, 0);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 1);
@@ -2554,10 +2554,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (x = 0; x < nx; x++)
       {
-         ind[0] = VTX(x  , y  , nz);
-         ind[1] = VTX(x+1, y  , nz);
+         ind[0] = VTX(x, y, nz);
+         ind[1] = VTX(x+1, y, nz);
          ind[2] = VTX(x+1, y+1, nz);
-         ind[3] = VTX(x  , y+1, nz);
+         ind[3] = VTX(x, y+1, nz);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 6);
@@ -2577,10 +2577,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(0  , y  , z  );
-         ind[1] = VTX(0  , y  , z+1);
-         ind[2] = VTX(0  , y+1, z+1);
-         ind[3] = VTX(0  , y+1, z  );
+         ind[0] = VTX(0, y, z  );
+         ind[1] = VTX(0, y, z+1);
+         ind[2] = VTX(0, y+1, z+1);
+         ind[3] = VTX(0, y+1, z  );
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 5);
@@ -2596,10 +2596,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (y = 0; y < ny; y++)
       {
-         ind[0] = VTX(nx, y  , z  );
+         ind[0] = VTX(nx, y, z  );
          ind[1] = VTX(nx, y+1, z  );
          ind[2] = VTX(nx, y+1, z+1);
-         ind[3] = VTX(nx, y  , z+1);
+         ind[3] = VTX(nx, y, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 3);
@@ -2615,10 +2615,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , 0, z  );
+         ind[0] = VTX(x, 0, z  );
          ind[1] = VTX(x+1, 0, z  );
          ind[2] = VTX(x+1, 0, z+1);
-         ind[3] = VTX(x  , 0, z+1);
+         ind[3] = VTX(x, 0, z+1);
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 2);
@@ -2634,8 +2634,8 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (z = 0; z < nz; z++)
       {
-         ind[0] = VTX(x  , ny, z  );
-         ind[1] = VTX(x  , ny, z+1);
+         ind[0] = VTX(x, ny, z  );
+         ind[1] = VTX(x, ny, z+1);
          ind[2] = VTX(x+1, ny, z+1);
          ind[3] = VTX(x+1, ny, z  );
          if (type == Element::TETRAHEDRON)
@@ -6881,8 +6881,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
          case Element::PYRAMID:
          {
             const int *f = el_to_face->GetRow(i);
-	    // pyr_counter++;
-	    
+            // pyr_counter++;
+
             for (int fi = 0; fi < 1; fi++)
             {
                for (int k = 0; k < 4; k++)
@@ -6905,39 +6905,39 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
             new_elements[j++] =
                new Pyramid(v[0], oedge+e[0], oface+qf0,
-			   oedge+e[3], oedge+e[4], attr);
+                           oedge+e[3], oedge+e[4], attr);
 
             new_elements[j++] =
                new Pyramid(oedge+e[0], v[1], oedge+e[1],
-			   oface+qf0, oedge+e[5], attr);
+                           oface+qf0, oedge+e[5], attr);
 
             new_elements[j++] =
-	       new Pyramid(oface+qf0, oedge+e[1], v[2],
-			   oedge+e[2], oedge+e[6], attr);
+               new Pyramid(oface+qf0, oedge+e[1], v[2],
+                           oedge+e[2], oedge+e[6], attr);
 
             new_elements[j++] =
-	      new Pyramid(oedge+e[3], oface+qf0, oedge+e[2],
-			  v[3], oedge+e[7], attr);
+               new Pyramid(oedge+e[3], oface+qf0, oedge+e[2],
+                           v[3], oedge+e[7], attr);
 
             new_elements[j++] =
                new Pyramid(oedge+e[4], oedge+e[5], oedge+e[6],
-			   oedge+e[7], v[4], attr);
+                           oedge+e[7], v[4], attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[0], oedge+e[4], oedge+e[5],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[1], oedge+e[5], oedge+e[6],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[1], oedge+e[5], oedge+e[6],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[2], oedge+e[6], oedge+e[7],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[2], oedge+e[6], oedge+e[7],
+                               oface+qf0, attr);
 
             new_elements[j++] =
-	      new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
-			      oface+qf0, attr);
+               new Tetrahedron(oedge+e[3], oedge+e[7], oedge+e[4],
+                               oface+qf0, attr);
          }
          break;
 
