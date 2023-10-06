@@ -155,7 +155,7 @@ TEST_CASE("CalcShape H1",
           "[H1_TetrahedronElement]"
           "[H1_HexahedronElement]"
           "[H1_WedgeElement]")
-          "[H1_PyramidElement]"
+"[H1_PyramidElement]"
 {
    const int maxOrder = 5;
    const int resolution = 10;
