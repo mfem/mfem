@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #ifndef MFEM_GINKGO
 #define MFEM_GINKGO
@@ -31,8 +31,207 @@
 
 namespace mfem
 {
-namespace GinkgoWrappers
+namespace Ginkgo
 {
+/**
+* Helper class for a case where a wrapped MFEM Vector
+* should be owned by Ginkgo, and deleted when the wrapper
+* object goes out of scope.
+*/
+template <typename T>
+class gko_mfem_destroy
+{
+public:
+   using pointer = T *;
+
+   // Destroys an MFEM object.  Requires object to have a Destroy() method.
+   void operator()(pointer ptr) const noexcept { ptr->Destroy(); }
+};
+
+/**
+* This class wraps an MFEM vector object for Ginkgo's use. It
+* allows Ginkgo and MFEM to operate directly on the same
+* data, and is necessary to use MFEM Operators with Ginkgo
+* solvers.
+*
+* @ingroup Ginkgo
+*/
+
+class VectorWrapper : public gko::matrix::Dense<double>
+{
+public:
+   VectorWrapper(std::shared_ptr<const gko::Executor> exec,
+                 gko::size_type size, Vector *mfem_vec,
+                 bool ownership = false)
+      : gko::matrix::Dense<double>(
+           exec,
+           gko::dim<2> {size, 1},
+   gko::Array<double>::view(exec,
+                            size,
+                            mfem_vec->ReadWrite(
+                               exec != exec->get_master() ? true : false)),
+   1)
+   {
+      // This controls whether or not we want Ginkgo to own its MFEM Vector.
+      // Normally, when we are wrapping an MFEM Vector created outside
+      // Ginkgo, we do not want ownership to be true. However, Ginkgo
+      // creates its own temporary vectors as part of its solvers, and
+      // these will be owned (and deleted) by Ginkgo.
+      if (ownership)
+      {
+         using deleter = gko_mfem_destroy<Vector>;
+         wrapped_vec = std::unique_ptr<Vector,
+         std::function<void(Vector *)>>(
+            mfem_vec, deleter{});
+      }
+      else
+      {
+         using deleter = gko::null_deleter<Vector>;
+         wrapped_vec = std::unique_ptr<Vector,
+         std::function<void(Vector *)>>(
+            mfem_vec, deleter{});
+      }
+   }
+
+   static std::unique_ptr<VectorWrapper> create(
+      std::shared_ptr<const gko::Executor> exec,
+      gko::size_type size,
+      Vector *mfem_vec,
+      bool ownership = false)
+   {
+      return std::unique_ptr<VectorWrapper>(
+                new VectorWrapper(exec, size, mfem_vec, ownership));
+   }
+
+   // Return reference to MFEM Vector object
+   Vector &get_mfem_vec_ref() { return *(this->wrapped_vec.get()); }
+
+   // Return const reference to MFEM Vector object
+   const Vector &get_mfem_vec_const_ref() const { return *(this->wrapped_vec.get()); }
+
+   // Override base Dense class implementation for creating new vectors
+   // with same executor and size as self
+   virtual std::unique_ptr<gko::matrix::Dense<double>>
+                                                    create_with_same_config() const override
+   {
+      Vector *mfem_vec = new Vector(
+         this->get_size()[0],
+         this->wrapped_vec.get()->GetMemory().GetMemoryType());
+
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true
+      return VectorWrapper::create(this->get_executor(),
+                                   this->get_size()[0],
+                                   mfem_vec,
+                                   true);
+   }
+
+   // Override base Dense class implementation for creating new vectors
+   // with same executor and type as self, but with a different size.
+   // This function will create "one large VectorWrapper" of size
+   // size[0] * size[1], since MFEM Vectors only have one dimension.
+   virtual std::unique_ptr<gko::matrix::Dense<double>> create_with_type_of_impl(
+                                                       std::shared_ptr<const gko::Executor> exec,
+                                                       const gko::dim<2> &size,
+                                                       gko::size_type stride) const override
+   {
+      // Only stride of 1 is allowed for VectorWrapper type
+      if (stride > 1)
+      {
+         throw gko::Error(
+            __FILE__, __LINE__,
+            "VectorWrapper cannot be created with stride > 1");
+      }
+      // Compute total size of new Vector
+      gko::size_type total_size = size[0]*size[1];
+      Vector *mfem_vec = new Vector(
+         total_size,
+         this->wrapped_vec.get()->GetMemory().GetMemoryType());
+
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true
+      return VectorWrapper::create(
+                this->get_executor(), total_size, mfem_vec,
+                true);
+   }
+
+   // Override base Dense class implementation for creating new sub-vectors
+   // from a larger vector.
+   virtual std::unique_ptr<gko::matrix::Dense<double>> create_submatrix_impl(
+                                                       const gko::span &rows,
+                                                       const gko::span &columns,
+                                                       const gko::size_type stride) override
+   {
+
+      gko::size_type num_rows = rows.end - rows.begin;
+      gko::size_type num_cols = columns.end - columns.begin;
+      // Data in the Dense matrix will be stored in row-major format.
+      // Check that we only have one column, and that the stride = 1
+      // (only allowed value for VectorWrappers).
+      if (num_cols > 1 || stride > 1)
+      {
+         throw gko::BadDimension(
+            __FILE__, __LINE__, __func__, "new_submatrix", num_rows,
+            num_cols,
+            "VectorWrapper submatrix must have one column and stride = 1");
+      }
+      int data_size = static_cast<int>(num_rows * num_cols);
+      int start = static_cast<int>(rows.begin);
+      // Create a new MFEM Vector pointing to this starting point in the data
+      Vector *mfem_vec = new Vector();
+      mfem_vec->MakeRef(*(this->wrapped_vec.get()), start, data_size);
+      mfem_vec->UseDevice(this->wrapped_vec.get()->UseDevice());
+
+      // If this function is called, Ginkgo is creating this
+      // object and should control the memory, so ownership is
+      // set to true (but MFEM doesn't own and won't delete
+      // the data, at it's only a reference to the parent Vector)
+      return VectorWrapper::create(
+                this->get_executor(), data_size, mfem_vec,
+                true);
+   }
+
+private:
+   std::unique_ptr<Vector, std::function<void(Vector *)>> wrapped_vec;
+};
+
+/**
+* This class wraps an MFEM Operator for Ginkgo, to make its Mult()
+* function available to Ginkgo, provided the input and output vectors
+* are of the VectorWrapper type.
+* Note that this class does NOT take ownership of the MFEM Operator.
+*
+* @ingroup Ginkgo
+*/
+class OperatorWrapper
+   : public gko::EnableLinOp<OperatorWrapper>,
+     public gko::EnableCreateMethod<OperatorWrapper>
+{
+public:
+   OperatorWrapper(std::shared_ptr<const gko::Executor> exec,
+                   gko::size_type size = 0,
+                   const Operator *oper = NULL)
+      : gko::EnableLinOp<OperatorWrapper>(exec, gko::dim<2> {size, size}),
+   gko::EnableCreateMethod<OperatorWrapper>()
+   {
+      this->wrapped_oper = oper;
+   }
+
+protected:
+   void apply_impl(const gko::LinOp *b, gko::LinOp *x) const override;
+   void apply_impl(const gko::LinOp *alpha, const gko::LinOp *b,
+                   const gko::LinOp *beta, gko::LinOp *x) const override;
+
+private:
+   const Operator *wrapped_oper;
+};
+
 // Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
 // matrix representing the norm of a vector.
 template <typename ValueType=double>
@@ -68,7 +267,7 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
  * custom-logger example to understand how to write and modify your own loggers
  * with Ginkgo.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
 template <typename ValueType=double>
 struct ResidualLogger : gko::log::Logger
@@ -77,9 +276,16 @@ struct ResidualLogger : gko::log::Logger
    void write() const
    {
       // Print a header for the table
-      mfem::out << "Iteration log with real residual norms:" << std::endl;
+      if (compute_real_residual)
+      {
+         mfem::out << "Iteration log with real residual norms:" << std::endl;
+      }
+      else
+      {
+         mfem::out << "Iteration log with residual norms:" << std::endl;
+      }
       mfem::out << '|' << std::setw(10) << "Iteration" << '|' << std::setw(25)
-                << "Real Residual Norm" << '|' << std::endl;
+                << "Residual Norm" << '|' << std::endl;
       // Print a separation line. Note that for creating `10` characters
       // `std::setw()` should be set to `11`.
       mfem::out << '|' << std::setfill('-') << std::setw(11) << '|' <<
@@ -89,7 +295,7 @@ struct ResidualLogger : gko::log::Logger
       for (std::size_t i = 0; i < iterations.size(); i++)
       {
          mfem::out << '|' << std::setw(10) << iterations[i] << '|'
-                   << std::setw(25) << real_norms[i] << '|' << std::endl;
+                   << std::setw(25) << residual_norms[i] << '|' << std::endl;
       }
       // std::defaultfloat could be used here but some compilers do not support
       // it properly, e.g. the Intel compiler
@@ -107,172 +313,350 @@ struct ResidualLogger : gko::log::Logger
                               const gko::size_type &iteration,
                               const gko::LinOp *residual,
                               const gko::LinOp *solution,
-                              const gko::LinOp *residual_norm) const override
+                              const gko::LinOp *residual_norm,
+                              const gko::LinOp *implicit_sq_residual_norm) const override
    {
-      // // If the solver shares a residual norm, log its value
-      // if (residual_norm)
-      // {
-      //    auto dense_norm = gko::as<gko_dense>(residual_norm);
-      //    // Add the norm to the `recurrent_norms` vector
-      //    recurrent_norms.push_back(get_norm(dense_norm));
-      //    // Otherwise, use the recurrent residual vector
-      // }
-      // else
-      // {
-      //    auto dense_residual = gko::as<gko_dense>(residual);
-      //    // Compute the residual vector's norm
-      //    auto norm = compute_norm(gko::lend(dense_residual));
-      //    // Add the computed norm to the `recurrent_norms` vector
-      //    recurrent_norms.push_back(norm);
-      // }
-
-      // If the solver shares the current solution vector
-      if (solution)
+      // If the solver shares the current solution vector and we want to
+      // compute the residual from that
+      if (solution && compute_real_residual)
       {
          // Store the matrix's executor
          auto exec = matrix->get_executor();
-         // Create a scalar containing the value 1.0
-         auto one = gko::initialize<gko_dense>({1.0}, exec);
-         // Create a scalar containing the value -1.0
-         auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
-         // Instantiate a temporary result variable
-         auto res = gko::clone(b);
          // Compute the real residual vector by calling apply on the system
-         // matrix
-         matrix->apply(gko::lend(one), gko::lend(solution),
-                       gko::lend(neg_one), gko::lend(res));
+         // First, compute res = A * x
+         matrix->apply(gko::lend(solution), gko::lend(res));
+         // Now do res = res - b, depending on which vector/oper type
+         // Check if b is a Ginkgo vector or wrapped MFEM Vector
+         if (dynamic_cast<const VectorWrapper*>(b))
+         {
+            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+            // Copy the MFEM Vector stored in b
+            VectorWrapper *res_cast = gko::as<VectorWrapper>(res);
+            res_cast->get_mfem_vec_ref() -= b_cast->get_mfem_vec_const_ref();
+         }
+         else
+         {
+            // Create a scalar containing the value -1.0
+            auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
+            res->add_scaled(gko::lend(neg_one), gko::lend(b));
+         }
 
          // Compute the norm of the residual vector and add it to the
-         // `real_norms` vector
-         real_norms.push_back(compute_norm(gko::lend(res)));
+         // `residual_norms` vector
+         residual_norms.push_back(compute_norm(gko::lend(res)));
       }
       else
       {
-         // Add to the `real_norms` vector the value -1.0 if it could not be
-         // computed
-         real_norms.push_back(-1.0);
+         // If the solver shares an implicit or recurrent residual norm, log its value
+         if (implicit_sq_residual_norm)
+         {
+            auto dense_norm = gko::as<gko_dense>(implicit_sq_residual_norm);
+            // Add the norm to the `residual_norms` vector
+            residual_norms.push_back(get_norm(dense_norm));
+            // Otherwise, use the recurrent residual vector
+         }
+         else if (residual_norm)
+         {
+            auto dense_norm = gko::as<gko_dense>(residual_norm);
+            // Add the norm to the `residual_norms` vector
+            residual_norms.push_back(get_norm(dense_norm));
+            // Otherwise, use the recurrent residual vector
+         }
+         else
+         {
+            auto dense_residual = gko::as<gko_dense>(residual);
+            // Compute the residual vector's norm
+            auto norm = compute_norm(gko::lend(dense_residual));
+            // Add the computed norm to the `residual_norms` vector
+            residual_norms.push_back(norm);
+         }
       }
-
       // Add the current iteration number to the `iterations` vector
       iterations.push_back(iteration);
    }
 
+   // Version for solver that doesn't log implicit res norm
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm) const override
+   {
+      on_iteration_complete(op, iteration, residual, solution, residual_norm,
+                            nullptr);
+   }
+
    // Construct the logger and store the system matrix and b vectors
    ResidualLogger(std::shared_ptr<const gko::Executor> exec,
-                  const gko::LinOp *matrix, const gko_dense *b)
+                  const gko::LinOp *matrix, const gko_dense *b,
+                  bool compute_real_residual=false)
       : gko::log::Logger(exec,
                          gko::log::Logger::iteration_complete_mask),
         matrix{matrix},
-        b{b}
-   {}
+        b{b},
+        compute_real_residual{compute_real_residual}
+   {
+      if (compute_real_residual == true)
+      {
+         if (dynamic_cast<const VectorWrapper*>(b))
+         {
+            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+            res = std::move(gko_dense::create_with_config_of(b_cast).release());
+         }
+         else
+         {
+            res = std::move(gko::clone(b).release());
+         }
+      }
+   }
 
 private:
    // Pointer to the system matrix
    const gko::LinOp *matrix;
    // Pointer to the right hand sides
    const gko_dense *b;
-   // Vector which stores all the recurrent residual norms
-   mutable std::vector<ValueType> recurrent_norms{};
-   // Vector which stores all the real residual norms
-   mutable std::vector<ValueType> real_norms{};
+   // Pointer to the residual workspace vector
+   gko_dense *res;
+   // Vector which stores all the residual norms
+   mutable std::vector<ValueType> residual_norms{};
    // Vector which stores all the iteration numbers
    mutable std::vector<std::size_t> iterations{};
+   // Whether or not to compute the residual at every iteration,
+   //  rather than using the recurrent norm
+   const bool compute_real_residual;
 };
 
+/**
+* This class wraps a Ginkgo Executor for use in MFEM.
+* Note that objects in the Ginkgo namespace intended to work
+* together, e.g. a Ginkgo solver and preconditioner, should use the same
+* GinkgoExecutor object.  In general, most users will want to create
+* one GinkgoExecutor object for use with all Ginkgo-related objects.
+* The wrapper can be created to match MFEM's device configuration.
+*/
+class GinkgoExecutor
+{
+public:
+   // Types of Ginkgo Executors.
+   enum ExecType
+   {
+      /// Reference CPU Executor.
+      REFERENCE = 0,
+      /// OpenMP CPU Executor.
+      OMP = 1,
+      /// CUDA GPU Executor.
+      CUDA = 2,
+      /// HIP GPU Executor.
+      HIP = 3
+   };
+   /**
+    * Constructor.
+    * Takes an @p GinkgoExecType argument and creates an Executor.
+    */
+   GinkgoExecutor(ExecType exec_type);
+
+   /**
+    * Constructor.
+    * Takes an MFEM @p Device object and creates an Executor
+    * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
+    * will choose the OmpExecutor; if MFEM is using CUDA,
+    * Ginkgo will choose the CudaExecutor).
+    */
+   GinkgoExecutor(Device &mfem_device);
+
+   /**
+    * Destructor.
+    */
+   virtual ~GinkgoExecutor() = default;
+
+   std::shared_ptr<gko::Executor> GetExecutor() const
+   {
+      return this->executor;
+   };
+
+private:
+   std::shared_ptr<gko::Executor> executor;
+
+};
 
 /**
-* This class forms the base class for all of Ginkgo's iterative solvers.  The
-* various derived classes only take the additional data that is specific to them
-* and solve the given linear system. The entire collection of solvers that
-* Ginkgo implements is available at the Ginkgo documentation and manual pages,
+* This class forms the base class for all of Ginkgo's preconditioners.  The
+* various derived classes only take the additional data that is specific to them.
+* The entire collection of preconditioners that Ginkgo implements is available
+* at the Ginkgo documentation and manual pages,
 * https://ginkgo-project.github.io/ginkgo/doc/develop.
 *
-* @ingroup GinkgoWrappers
+* @ingroup Ginkgo
 */
-class GinkgoIterativeSolverBase
+class GinkgoPreconditioner : public Solver
 {
 public:
    /**
     * Constructor.
     *
-    * The @p exec_type defines the paradigm where the solution is computed.
-    * It is a string and the choices are "omp" , "reference" or "cuda".
-    * The respective strings create the respective executors as given below.
-    *
-    * Ginkgo currently supports three different executor types:
+    * The @p exec defines the paradigm where the solution is computed.
+    * Ginkgo currently supports four different executor types:
     *
     * +    OmpExecutor specifies that the data should be stored and the
     *      associated operations executed on an OpenMP-supporting device (e.g.
     *      host CPU);
-    * ```
-    * auto omp = gko::create<gko::OmpExecutor>();
-    * ```
     * +    CudaExecutor specifies that the data should be stored and the
     *      operations executed on the NVIDIA GPU accelerator;
-    * ```
-    * if(gko::CudaExecutor::get_num_devices() > 0 ) {
-    *    auto cuda = gko::create<gko::CudaExecutor>();
-    * }
-    * ```
+    * +    HipExecutor specifies that the data should be stored and the
+    *      operations executed on the GPU accelerator using HIP;
     * +    ReferenceExecutor executes a non-optimized reference implementation,
     *      which can be used to debug the library.
-    * ```
-    * auto ref = gko::create<gko::ReferenceExecutor>();
-    * ```
-    *
-    * The following code snippet demonstrates the using of the OpenMP executor
-    * to create a solver which would use the OpenMP paradigm to the solve the
-    * system on the CPU.
-    *
-    * ```
-    * auto omp = gko::create<gko::OmpExecutor>();
-    * using cg = gko::solver::Cg<>;
-    * auto solver_gen =
-    *     cg::build()
-    *          .with_criteria(
-    *              gko::stop::Iteration::build().with_max_iters(20u).on(omp),
-    *              gko::stop::ResidualNormReduction<>::build()
-    *                  .with_reduction_factor(1e-6)
-    *                  .on(omp))
-    *          .on(omp);
-    * auto solver = solver_gen->generate(system_matrix);
-    *
-    * solver->apply(lend(rhs), lend(solution));
-    * ```
     */
-   GinkgoIterativeSolverBase(const std::string &exec_type, int print_iter,
-                             int max_num_iter, double RTOLERANCE, double ATOLERANCE);
+   GinkgoPreconditioner(GinkgoExecutor &exec);
 
    /**
     * Destructor.
     */
-   virtual ~GinkgoIterativeSolverBase() = default;
+   virtual ~GinkgoPreconditioner() = default;
 
    /**
-    * Initialize the matrix and copy over its data to Ginkgo's data structures.
+    * Generate the preconditioner for the given matrix @p op,
+    * which must be of MFEM SparseMatrix type.
+    * Calling this function is only required when creating a
+    * preconditioner for use with another MFEM solver; to use with
+    * a Ginkgo solver, get the LinOpFactory  pointer through @p GetFactory()
+    * and pass to the Ginkgo solver constructor.
     */
-   void
-   initialize(const SparseMatrix *matrix);
+   virtual void SetOperator(const Operator &op);
 
    /**
-    * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
-    * provided by derived classes one of Ginkgo's linear solvers is chosen.
+    * Apply the preconditioner to input vector @p x, with out @p y.
     */
-   void
-   apply(Vector &solution, const Vector &rhs);
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    /**
-    * Solve the linear system <tt>Ax=b</tt>. Dependent on the information
-    * provided by derived classes one of Ginkgo's linear solvers is chosen.
+    * Return a pointer to the LinOpFactory that will generate the preconditioner
+    * with the parameters set through the specific constructor.
     */
-   void
-   solve(const SparseMatrix *matrix,
-         Vector &            solution,
-         const Vector &      rhs);
+   const std::shared_ptr<gko::LinOpFactory> GetFactory() const
+   {
+      return this->precond_gen;
+   };
 
+   /**
+    * Return a pointer to the generated preconditioner for a specific matrix
+    * (that has previously been set with @p SetOperator).
+    */
+   const std::shared_ptr<gko::LinOp> GetGeneratedPreconditioner() const
+   {
+      return this->generated_precond;
+   };
+
+   /**
+    * Return whether this GinkgoPreconditioner object has an explicitly-
+    * generated preconditioner, built for a specific matrix.
+    */
+   bool HasGeneratedPreconditioner() const
+   {
+      return this->has_generated_precond;
+   };
 
 protected:
-   int print_lvl;
+   /**
+    * The Ginkgo generated solver factory object.
+    */
+   std::shared_ptr<gko::LinOpFactory> precond_gen;
+
+   /**
+    * Generated Ginkgo preconditioner for a specific matrix, created through
+    * @p SetOperator(), or a wrapped MFEM preconditioner.
+    * Must exist to use @p Mult().
+    */
+   std::shared_ptr<gko::LinOp> generated_precond;
+
+   /**
+    * The execution paradigm in Ginkgo. The choices are between
+    * `gko::OmpExecutor`, `gko::CudaExecutor` and `gko::ReferenceExecutor`
+    * and more details can be found in Ginkgo's documentation.
+    */
+   std::shared_ptr<gko::Executor> executor;
+
+   /**
+    * Whether or not we have generated a specific preconditioner for
+    * a matrix.
+    */
+   bool has_generated_precond;
+
+};
+
+/**
+* This class forms the base class for all of Ginkgo's iterative solvers.
+* It is not intended to be used directly by MFEM applications. The various
+* derived classes only take the additional data that is specific to them
+* and solve the given linear system. The entire collection of solvers that
+* Ginkgo implements is available at the Ginkgo documentation and manual pages,
+* https://ginkgo-project.github.io/ginkgo/doc/develop.
+*
+* @ingroup Ginkgo
+*/
+class GinkgoIterativeSolver : public Solver
+{
+public:
+   /**
+    * Return a pointer to the LinOpFactory that will generate the solver
+    * with the parameters set through the specific constructor.
+    */
+   const std::shared_ptr<gko::LinOpFactory> GetFactory() const
+   {
+      return this->solver_gen;
+   };
+
+   void SetPrintLevel(int print_lvl) { print_level = print_lvl; }
+
+   int GetNumIterations() const { return final_iter; }
+   int GetConverged() const { return converged; }
+   double GetFinalNorm() const { return final_norm; }
+
+   /**
+    * If the Operator is a SparseMatrix, set up a Ginkgo Csr matrix
+    * to use its data directly.  If the Operator is not a matrix,
+    * create an OperatorWrapper for it and store.
+    */
+   virtual void SetOperator(const Operator &op);
+
+   /**
+    * Solve the linear system <tt>Ax=y</tt>. Dependent on the information
+    * provided by derived classes one of Ginkgo's linear solvers is chosen.
+    */
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /**
+    * Return whether this GinkgoIterativeSolver object will use
+    * VectorWrapper types for input and output vectors.
+    * Note that Mult() will automatically create these wrappers if needed.
+    */
+   bool UsesVectorWrappers() const
+   {
+      return this->needs_wrapped_vecs;
+   };
+
+   /**
+    * Destructor.
+    */
+   virtual ~GinkgoIterativeSolver() = default;
+
+protected:
+   /**
+    * Constructor.
+    *
+    * The @p exec defines the paradigm where the solution is computed.
+    * @p use_implicit_res_norm is for internal use by the derived classes
+    * for specific Ginkgo solvers; it indicates whether the solver makes
+    * an implicit residual norm estimate available for convergence checking.
+    * Each derived class automatically sets the correct value when calling this
+    * base class constructor.
+    *
+    */
+   GinkgoIterativeSolver(GinkgoExecutor &exec,
+                         bool use_implicit_res_norm);
+
+   bool use_implicit_res_norm;
+   int print_level;
    int max_iter;
    double rel_tol;
    double abs_tol;
@@ -281,28 +665,54 @@ protected:
    mutable int converged;
 
    /**
-    * The Ginkgo generated solver factory object.
+    * The Ginkgo solver factory object, to generate specific solvers.
     */
    std::shared_ptr<gko::LinOpFactory> solver_gen;
 
    /**
-    * The residual criterion object that controls the reduction of the residual
-    * based on the tolerance set in the solver_control member.
+    * The Ginkgo solver object, generated for a specific operator.
     */
-   std::shared_ptr<gko::stop::ResidualNormReduction<>::Factory>
-   residual_criterion;
+   std::shared_ptr<gko::LinOp> solver;
+
+   /**
+    * The residual criterion object that controls the reduction of the residual
+    * relative to the initial residual.
+    */
+   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   rel_criterion;
+
+   /**
+    * The residual criterion object that controls the reduction of the residual
+    * based on an absolute tolerance.
+    */
+   std::shared_ptr<gko::stop::ResidualNorm<>::Factory>
+   abs_criterion;
+
+   /**
+    * The implicit residual criterion object that controls the reduction of the residual
+    * relative to the initial residual, based on an implicit residual norm value.
+    */
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   imp_rel_criterion;
+
+   /**
+    * The implicit residual criterion object that controls the reduction of the residual
+    * based on an absolute tolerance, based on an implicit residual norm value.
+    */
+   std::shared_ptr<gko::stop::ImplicitResidualNorm<>::Factory>
+   imp_abs_criterion;
 
    /**
     * The Ginkgo convergence logger used to check for convergence and other
     * solver data if needed.
     */
-   std::shared_ptr<gko::log::Convergence<>> convergence_logger;
+   mutable std::shared_ptr<gko::log::Convergence<>> convergence_logger;
 
    /**
     * The residual logger object used to check for convergence and other solver
     * data if needed.
     */
-   std::shared_ptr<ResidualLogger<>> residual_logger;
+   mutable std::shared_ptr<ResidualLogger<>> residual_logger;
 
    /**
     * The Ginkgo combined factory object is used to create a combined stopping
@@ -317,121 +727,139 @@ protected:
     */
    std::shared_ptr<gko::Executor> executor;
 
+   /**
+    * Whether or not we need to use VectorWrapper types with this solver.
+    */
+   bool needs_wrapped_vecs;
+
+   /**
+    * Whether or not we need to use VectorWrapper types with the preconditioner
+    * or an inner solver.  This value is set upon creation of the
+    * GinkgoIterativeSolver object and should never change.
+    */
+   bool sub_op_needs_wrapped_vecs;
+
+   /** Rebuild the Ginkgo stopping criterion factory with the latest values
+    * of rel_tol, abs_tol, and max_iter.
+    */
+   void update_stop_factory();
+
 private:
    /**
     * Initialize the Ginkgo logger object with event masks. Refer to the logging
     * event masks in Ginkgo's .../include/ginkgo/core/log/logger.hpp.
     */
    void
-   initialize_ginkgo_log(gko::matrix::Dense<double>* b);
+   initialize_ginkgo_log(gko::matrix::Dense<double>* b) const;
 
    /**
-    * Ginkgo matrix data structure. First template parameter is for storing the
-    * array of the non-zeros of the matrix. The second is for the row pointers
-    * and the column indices.
-    *
-    * @todo Templatize based on Matrix type.
+    * Pointer to either a Ginkgo CSR matrix or an OperatorWrapper wrapping
+    * an MFEM Operator (for matrix-free evaluation).
     */
-   std::shared_ptr<gko::matrix::Csr<>> system_matrix;
+   std::shared_ptr<gko::LinOp> system_oper;
 
-   /**
-    * The execution paradigm as a string to be set by the user. The choices are
-    * between `omp`, `cuda` and `reference` and more details can be found in
-    * Ginkgo's documentation.
-    */
-   const std::string exec_type;
+};
+
+/**
+ * This class adds helper functions for updating Ginkgo factories
+ * and solvers, when the full class type is needed.  The derived classes
+ * should inherit from this class, rather than from GinkgoIterativeSolver
+ * directly.
+ */
+template<typename SolverType>
+class EnableGinkgoSolver : public GinkgoIterativeSolver
+{
+public:
+   EnableGinkgoSolver(GinkgoExecutor &exec, bool use_implicit_res_norm) :
+      GinkgoIterativeSolver(exec, use_implicit_res_norm) {}
+
+   void SetRelTol(double rtol)
+   {
+      rel_tol = rtol;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
+
+   void SetAbsTol(double atol)
+   {
+      abs_tol = atol;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
+
+   void SetMaxIter(int max_it)
+   {
+      max_iter = max_it;
+      this->update_stop_factory();
+      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
+      { combined_factory };
+      if (solver)
+      {
+         gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
+      }
+   }
 };
 
 
 /**
  * An implementation of the solver interface using the Ginkgo CG solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class CGSolver : public GinkgoIterativeSolverBase
+class CGSolver : public EnableGinkgoSolver<gko::solver::Cg<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     */
-   CGSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   CGSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   CGSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
-   );
+   CGSolver(GinkgoExecutor &exec,
+            const GinkgoPreconditioner &preconditioner);
 };
 
 
 /**
  * An implementation of the solver interface using the Ginkgo BiCGStab solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class BICGSTABSolver : public GinkgoIterativeSolverBase
+class BICGSTABSolver : public EnableGinkgoSolver<gko::solver::Bicgstab<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     */
-   BICGSTABSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   BICGSTABSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   BICGSTABSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
-   );
+   BICGSTABSolver(GinkgoExecutor &exec,
+                  const GinkgoPreconditioner &preconditioner);
 
 };
 
@@ -441,46 +869,26 @@ public:
  * CGS or the conjugate gradient square method is an iterative type Krylov
  * subspace method which is suitable for general systems.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class CGSSolver : public GinkgoIterativeSolverBase
+class CGSSolver : public EnableGinkgoSolver<gko::solver::Cgs<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     */
-   CGSSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   CGSSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   CGSSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
-   );
+   CGSSolver(GinkgoExecutor &exec,
+             const GinkgoPreconditioner &preconditioner);
 };
 
 /**
@@ -497,97 +905,124 @@ public:
  * vectors spanning the Krylov subspace. This increases the computational cost
  * of every Krylov solver iteration but allows for non-constant preconditioners.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class FCGSolver : public GinkgoIterativeSolverBase
+class FCGSolver : public EnableGinkgoSolver<gko::solver::Fcg<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     */
-   FCGSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   FCGSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] preconditioner The preconditioner for the solver.
     */
-   FCGSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
-   );
+   FCGSolver(GinkgoExecutor &exec,
+             const GinkgoPreconditioner &preconditioner);
 };
 
 /**
  * An implementation of the solver interface using the Ginkgo GMRES solver.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class GMRESSolver : public GinkgoIterativeSolverBase
+class GMRESSolver : public EnableGinkgoSolver<gko::solver::Gmres<double>>
 {
 public:
-   void SetKDim(int dim) { m = dim; }
-
-
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
     */
-   GMRESSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   GMRESSolver(GinkgoExecutor &exec, int dim = 0);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] preconditioner The preconditioner for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *                  let Ginkgo use its own internal default value.
     */
-   GMRESSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory* preconditioner
-   );
+   GMRESSolver(GinkgoExecutor &exec,
+               const GinkgoPreconditioner &preconditioner,
+               int dim = 0);
+
+   /**
+    * Change the Krylov dimension of the solver.
+    */
+   void SetKDim(int dim);
 
 protected:
-   int m; // see SetKDim()
+   int m; // Dimension of Krylov subspace
+};
+
+using gko::solver::cb_gmres::storage_precision;
+/**
+ * An implementation of the solver interface using the Ginkgo
+ * Compressed Basis GMRES solver. With CB-GMRES, the Krylov basis
+ * is "compressed" by storing in a lower precision.  Currently, computations
+ * are always performed in double precision when using this MFEM integration.
+ * The Ginkgo storage precision options are accessed
+ * through Ginkgo::storage_precision::*.  The default choice
+ * is Ginkgo::storage_precision::reduce1, i.e., store in float
+ * instead of double.
+ *
+ * @ingroup Ginkgo
+ */
+class CBGMRESSolver : public EnableGinkgoSolver<gko::solver::CbGmres<double>>
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *  let Ginkgo use its own internal default value.
+    * @param[in] prec  The storage precision used in the CB-GMRES. Options
+    *  are: keep (keep double precision), reduce1 (double -> float),
+    *  reduce2 (double -> half), integer (double -> int64),
+    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
+    *  See Ginkgo documentation for more about the CB-GMRES and
+    *  these options.
+    */
+   CBGMRESSolver(GinkgoExecutor &exec, int dim = 0,
+                 storage_precision prec = storage_precision::reduce1);
+
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the solver.
+    * @param[in] preconditioner The preconditioner for the solver.
+    * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
+    *  let Ginkgo use its own internal default value.
+    * @param[in] prec  The storage precision used in the CB-GMRES. Options
+    *  are: keep (keep double precision), reduce1 (double -> float),
+    *  reduce2 (double -> half), integer (double -> int64),
+    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
+    *  See Ginkgo documentation for more about the CB-GMRES and
+    *  these options.
+    */
+   CBGMRESSolver(GinkgoExecutor &exec,
+                 const GinkgoPreconditioner &preconditioner,
+                 int dim = 0,
+                 storage_precision prec = storage_precision::reduce1);
+
+   /**
+    * Change the Krylov dimension of the solver.
+    */
+   void SetKDim(int dim);
+
+protected:
+   int m; // Dimension of Krylov subspace
 };
 
 /**
@@ -597,50 +1032,241 @@ protected:
  * method to approximate the error of the current solution via the current
  * residual.
  *
- * @ingroup GinkgoWrappers
+ * @ingroup Ginkgo
  */
-class IRSolver : public GinkgoIterativeSolverBase
+class IRSolver : public EnableGinkgoSolver<gko::solver::Ir<double>>
 {
 public:
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     */
-   IRSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE
-   );
+   IRSolver(GinkgoExecutor &exec);
 
    /**
     * Constructor.
     *
-    * @param[in] exec_type The execution paradigm for the solver.
-    * @param[in] print_iter  A setting to control the printing to the screen.
-    * @param[in] max_num_iter  The maximum number of iterations to be run.
-    * @param[in] RTOLERANCE  The relative tolerance to be achieved.
-    * @param[in] ATOLERANCE The absolute tolerance to be achieved.
+    * @param[in] exec The execution paradigm for the solver.
     * @param[in] inner_solver  The inner solver for the main solver.
     */
-   IRSolver(
-      const std::string &   exec_type,
-      int print_iter,
-      int max_num_iter,
-      double RTOLERANCE,
-      double ATOLERANCE,
-      const gko::LinOpFactory *inner_solver
+   IRSolver(GinkgoExecutor &exec,
+            const GinkgoIterativeSolver &inner_solver);
+
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo Jacobi
+ * preconditioner.
+ *
+ * @ingroup Ginkgo
+ */
+class JacobiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] storage_opt  The storage optimization parameter.
+    * @param[in] accuracy The relative accuracy for the adaptive version.
+    * @param[in] max_block_size Maximum block size.
+    * See the Ginkgo documentation for more information on these parameters.
+    */
+   JacobiPreconditioner(
+      GinkgoExecutor &exec,
+      const std::string &storage_opt = "none",
+      const double accuracy = 1.e-1,
+      const int max_block_size = 32
    );
 };
 
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete LU preconditioner (ILU(0)).
+ *
+ * @ingroup Ginkgo
+ */
+class IluPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIlu
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IluPreconditioner(
+      GinkgoExecutor &exec,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const bool skip_sort = false
+   );
+};
 
-} // namespace GinkgoWrappers
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete LU-Incomplete Sparse Approximate Inverse preconditioner.
+ * The Ilu-ISAI preconditioner differs from the Ilu preconditioner in
+ * that Incomplete Sparse Approximate Inverses (ISAIs) are formed
+ * to approximate solving the triangular systems defined by L and U.
+ * When the preconditioner is applied, these ISAI matrices are applied
+ * through matrix-vector multiplication.
+ *
+ * @ingroup Ginkgo
+ */
+class IluIsaiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "parilu".
+    * @param[in] sweeps The number of sweeps to do in the ParIlu
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] sparsity_power Parameter determining the sparsity pattern of
+    * the ISAI approximations.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    * See the Ginkgo documentation for more information on these parameters.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IluIsaiPreconditioner(
+      GinkgoExecutor &exec,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const int sparsity_power = 1,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete Cholesky preconditioner (IC(0)).
+ *
+ * @ingroup Ginkgo
+ */
+class IcPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "paric".
+    * @param[in] sweeps The number of sweeps to do in the ParIc
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IcPreconditioner(
+      GinkgoExecutor &exec,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * An implementation of the preconditioner interface using the Ginkgo
+ * Incomplete Cholesky-Incomplete Sparse Approximate Inverse  preconditioner.
+ * The Ic-ISAI preconditioner differs from the Ic preconditioner in
+ * that Incomplete Sparse Approximate Inverses (ISAIs) are formed
+ * to approximate solving the triangular systems defined by L and L^T.
+ * When the preconditioner is applied, these ISAI matrices are applied
+ * through matrix-vector multiplication.
+ *
+ * @ingroup Ginkgo
+ */
+class IcIsaiPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] factorization_type The factorization type: "exact" or
+    *  "paric".
+    * @param[in] sweeps The number of sweeps to do in the ParIc
+    *  factorization algorithm.  A value of 0 tells Ginkgo to use its
+    *  internal default value.  This parameter is ignored in the case
+    *  of an exact factorization.
+    * @param[in] sparsity_power Parameter determining the sparsity pattern of
+    * the ISAI approximations.
+    * @param[in] skip_sort Only set this to true if the input matrix
+    * that will be used to generate this preconditioner is guaranteed
+    * to be sorted by column.
+    * See the Ginkgo documentation for more information on these parameters.
+    *
+    * Note: The use of this preconditioner will sort any input matrix
+    * given to it, potentially changing the order of the stored values.
+    */
+   IcIsaiPreconditioner(
+      GinkgoExecutor &exec,
+      const std::string &factorization_type = "exact",
+      const int sweeps = 0,
+      const int sparsity_power = 1,
+      const bool skip_sort = false
+   );
+};
+
+/**
+ * A wrapper that allows Ginkgo to use MFEM preconditioners.
+ *
+ * @ingroup Ginkgo
+ */
+class MFEMPreconditioner : public GinkgoPreconditioner
+{
+public:
+   /**
+    * Constructor.
+    *
+    * @param[in] exec The execution paradigm for the preconditioner.
+    * @param[in] mfem_precond The MFEM Preconditioner to wrap.
+    */
+   MFEMPreconditioner(
+      GinkgoExecutor &exec,
+      const Solver &mfem_precond
+   );
+
+   /**
+    * SetOperator is not allowed for this type of preconditioner;
+    * this function overrides the base class in order to give an
+    * error if SetOperator() is called for this class.
+    */
+   virtual void SetOperator(const Operator &op)
+   {
+      MFEM_ABORT("Ginkgo::MFEMPreconditioner must be constructed "
+                 "with the MFEM Operator that it will wrap as an argument;\n"
+                 "calling SetOperator() is not allowed.");
+   };
+};
+} // namespace Ginkgo
 
 }
 

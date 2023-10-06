@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -23,6 +23,23 @@
 #if XSDK_INDEX_SIZE == 64
 #error "SuperLUDist has been built with 64bit integers. This is not supported"
 #endif
+
+// For now, it is assumed that HYPRE_BigInt is int.
+#if defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT)
+#error "SuperLUDist support requires HYPRE_BigInt == int, for now."
+#endif
+
+#if SUPERLU_DIST_MAJOR_VERSION > 6 ||                                   \
+  (SUPERLU_DIST_MAJOR_VERSION == 6 && SUPERLU_DIST_MINOR_VERSION > 2)
+#define ScalePermstruct_t dScalePermstruct_t
+#define LUstruct_t dLUstruct_t
+#define SOLVEstruct_t dSOLVEstruct_t
+#define ScalePermstructFree dScalePermstructFree
+#define Destroy_LU dDestroy_LU
+#define LUstructFree dLUstructFree
+#define LUstructInit dLUstructInit
+#endif
+
 
 using namespace std;
 
@@ -135,8 +152,10 @@ SuperLURowLocMatrix::SuperLURowLocMatrix( const HypreParMatrix & hypParMat )
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
    hypre_CSRMatrixSetDataOwner(csr_op,0);
 #if MFEM_HYPRE_VERSION >= 21600
-   MFEM_VERIFY(csr_op->num_rows < INT_MAX,"SuperLU: number of local rows "
-               "is too large to store as an integer.");
+   // For now, this method assumes that HYPRE_BigInt is int. Also, csr_op->num_cols
+   // is of type HYPRE_Int, so if we want to check for big indices in
+   // csr_op->big_j, we'll have to check all entries and that check will only be
+   // necessary in HYPRE_MIXEDINT mode which is not supported at the moment.
    hypre_CSRMatrixBigJtoJ(csr_op);
 #endif
 
@@ -283,9 +302,6 @@ void SuperLUSolver::Init()
 
    // Set default options
    set_default_options_dist(options);
-
-   options->ParSymbFact = YES;
-   options->ColPerm     = NATURAL;
 
    // Choose nprow and npcol so that the process grid is as square as possible.
    // If the processes cannot be divided evenly, keep the row dimension smaller
@@ -507,9 +523,10 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    // SuperLU overwrites x with y, so copy x to y and pass that to the solve
    // routine.
 
-   y = x;
+   const double *xPtr = x.HostRead();
+   y = xPtr;
+   double * yPtr = y.HostReadWrite();
 
-   double*  yPtr = (double*)y;
    int      info = -1, locSize = y.Size();
 
    // Solve the system
@@ -518,7 +535,29 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
 
    if ( info != 0 )
    {
-      if ( info <= A->ncol )
+      if ( info < 0 )
+      {
+         switch (-info)
+         {
+            case 1:
+               MFEM_ABORT("SuperLU:  SuperLU options are invalid.");
+               break;
+            case 2:
+               MFEM_ABORT("SuperLU:  Matrix A (in Ax=b) is invalid.");
+               break;
+            case 5:
+               MFEM_ABORT("SuperLU:  Vector b dimension (in Ax=b) is invalid.");
+               break;
+            case 6:
+               MFEM_ABORT("SuperLU:  Number of right-hand sides is invalid.");
+               break;
+            default:
+               MFEM_ABORT("SuperLU:  Parameter with index "
+                          << -info << "invalid. (1-indexed)");
+               break;
+         }
+      }
+      else if ( info <= A->ncol )
       {
          MFEM_ABORT("SuperLU:  Found a singular matrix, U("
                     << info << "," << info << ") is exactly zero.");

@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "../config/config.hpp"
 
@@ -21,7 +21,6 @@ namespace mfem
 void ParLinearForm::Update(ParFiniteElementSpace *pf)
 {
    if (pf) { pfes = pf; }
-
    LinearForm::Update(pfes);
 }
 
@@ -31,15 +30,70 @@ void ParLinearForm::Update(ParFiniteElementSpace *pf, Vector &v, int v_offset)
    LinearForm::Update(pf,v,v_offset);
 }
 
+void ParLinearForm::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
+{
+   LinearForm::MakeRef(f, v, v_offset);
+   pfes = dynamic_cast<ParFiniteElementSpace*>(f);
+   MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
+}
+
+void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
+{
+   LinearForm::MakeRef(pf, v, v_offset);
+   pfes = pf;
+}
+
+void ParLinearForm::Assemble()
+{
+   LinearForm::Assemble();
+
+   if (iflfi.Size())
+   {
+      pfes->ExchangeFaceNbrData();
+      AssembleSharedFaces();
+   }
+}
+
+void ParLinearForm::AssembleSharedFaces()
+{
+   Array<int> vdofs;
+   Vector elemvect;
+
+   if (iflfi.Size())
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      for (int k = 0; k < iflfi.Size(); k++)
+      {
+         for (int i = 0; i < pmesh->GetNSharedFaces(); i++)
+         {
+            FaceElementTransformations *tr = NULL;
+            tr = pmesh->GetSharedFaceTransformations(i);
+
+            if (tr != NULL)
+            {
+               int Elem2Nbr = tr->Elem2No - pmesh->GetNE();
+               fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+               iflfi[0] -> AssembleRHSElementVect (*fes->GetFE(tr -> Elem1No),
+                                                   *pfes->GetFaceNbrFE(Elem2Nbr),
+                                                   *tr, elemvect);
+               AddElementVector (vdofs, elemvect);
+            }
+         }
+      }
+   }
+}
+
 void ParLinearForm::ParallelAssemble(Vector &tv)
 {
-   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
+   const Operator* prolong = pfes->GetProlongationMatrix();
+   prolong->MultTranspose(*this, tv);
 }
 
 HypreParVector *ParLinearForm::ParallelAssemble()
 {
    HypreParVector *tv = pfes->NewTrueDofVector();
-   pfes->GetProlongationMatrix()->MultTranspose(*this, *tv);
+   const Operator* prolong = pfes->GetProlongationMatrix();
+   prolong->MultTranspose(*this, *tv);
    return tv;
 }
 
