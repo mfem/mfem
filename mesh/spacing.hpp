@@ -246,7 +246,7 @@ public:
    virtual double Eval(int p) override
    {
       const int i = reverse ? n - 1 - p : p;
-      return s * std::pow(r, i);
+      return n == 1 ? 1.0 : s * std::pow(r, i);
    }
 
    virtual void Print(std::ostream &os) const override

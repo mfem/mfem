@@ -117,14 +117,21 @@ KnotVector *KnotVector::DegreeElevate(int t) const
 
 void KnotVector::UniformRefinement(Vector &newknots, int rf) const
 {
-   newknots.SetSize(NumOfElements);
+   MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
+
+   const double h = 1.0 / ((double) rf);
+
+   newknots.SetSize(NumOfElements * (rf - 1));
    int j = 0;
    for (int i = 0; i < knot.Size()-1; i++)
    {
       if (knot(i) != knot(i+1))
       {
-         newknots(j) = 0.5*(knot(i) + knot(i+1));
-         j++;
+         for (int m = 1; m < rf; ++m)
+         {
+            newknots(j) = m * h * (knot(i) + knot(i+1));
+            j++;
+         }
       }
    }
 }
@@ -184,6 +191,8 @@ void KnotVector::GetFineKnots(const int cf, Vector & fine)
 
 void KnotVector::Refinement(Vector &newknots, int rf) const
 {
+   MFEM_VERIFY(rf > 1, "Refinement factor must be at least 2.");
+
    if (spacing)
    {
       spacing->ScaleParameters(1.0 / ((double) rf));
@@ -945,17 +954,24 @@ int NURBSPatch::SetLoopDirection(int dir)
    return -1;
 }
 
-void NURBSPatch::UniformRefinement(int rf)
+void NURBSPatch::UniformRefinement(Array<int> const& rf)
 {
    Vector newknots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->Refinement(newknots, rf);
+      kv[dir]->Refinement(newknots, rf[dir]);
       KnotInsert(dir, newknots);
    }
 }
 
-void NURBSPatch::Coarsen(int cf)
+void NURBSPatch::UniformRefinement(int rf)
+{
+   Array<int> rf_array(kv.Size());
+   rf_array = rf;
+   UniformRefinement(rf_array);
+}
+
+void NURBSPatch::Coarsen(Array<int> const& cf)
 {
    for (int dir = 0; dir < kv.Size(); dir++)
    {
@@ -963,44 +979,36 @@ void NURBSPatch::Coarsen(int cf)
       {
          const int ne_fine = kv[dir]->GetNE();
          Vector fineKnots;
-         kv[dir]->GetFineKnots(cf, fineKnots);
+         kv[dir]->GetFineKnots(cf[dir], fineKnots);
          KnotRemove(dir, fineKnots);
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
          const int ne_coarse = kv[dir]->GetNE();
-         MFEM_VERIFY(ne_fine == cf * ne_coarse, "");
+         MFEM_VERIFY(ne_fine == cf[dir] * ne_coarse, "");
          if (kv[dir]->spacing)
          {
-            kv[dir]->spacing->ScaleParameters((double) cf);
             kv[dir]->spacing->SetSize(ne_coarse);
+            kv[dir]->spacing->ScaleParameters((double) cf[dir]);
          }
       }
    }
 }
 
-int NURBSPatch::GetCoarseningFactor() const
+void NURBSPatch::Coarsen(int cf)
 {
-   int f = 0;
+   Array<int> cf_array(kv.Size());
+   cf_array = cf;
+   Coarsen(cf_array);
+}
+
+void NURBSPatch::GetCoarseningFactors(Array<int> & f) const
+{
+   f.SetSize(kv.Size());
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      const int kf = kv[dir]->GetCoarseningFactor();
-      if (dir == 0)
-      {
-         f = kf;   // Initialize
-      }
-      else
-      {
-         MFEM_VERIFY(f == kf || f == 1 || kf == 1,
-                     "Inconsistent knotvector coarsening factors");
-         if (f == 1 && kf != 1)
-         {
-            f = kf;
-         }
-      }
+      f[dir] = kv[dir]->GetCoarseningFactor();
    }
-
-   return f;
 }
 
 void NURBSPatch::KnotInsert(Array<KnotVector *> &newkv)
@@ -4195,7 +4203,7 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
    }
 }
 
-void NURBSExtension::UniformRefinement(int rf)
+void NURBSExtension::UniformRefinement(Array<int> const& rf)
 {
    for (int p = 0; p < patches.Size(); p++)
    {
@@ -4203,7 +4211,14 @@ void NURBSExtension::UniformRefinement(int rf)
    }
 }
 
-void NURBSExtension::Coarsen(int cf)
+void NURBSExtension::UniformRefinement(int rf)
+{
+   Array<int> rf_array(Dimension());
+   rf_array = rf;
+   UniformRefinement(rf_array);
+}
+
+void NURBSExtension::Coarsen(Array<int> const& cf)
 {
    // First, mark all knot vectors on all patches as not coarse. This prevents
    // coarsening the same knot vector twice.
@@ -4218,28 +4233,38 @@ void NURBSExtension::Coarsen(int cf)
    }
 }
 
-int NURBSExtension::GetCoarseningFactor() const
+void NURBSExtension::Coarsen(int cf)
 {
-   int f = 0;
+   Array<int> cf_array(Dimension());
+   cf_array = cf;
+   Coarsen(cf_array);
+}
+
+void NURBSExtension::GetCoarseningFactors(Array<int> & f) const
+{
+   f.SetSize(0);
    for (auto patch : patches)
    {
-      const int pf = patch->GetCoarseningFactor();
-      if (f == 0)
+      Array<int> pf;
+      patch->GetCoarseningFactors(pf);
+      if (f.Size() == 0)
       {
-         f = pf;   // Initialize
+         f = pf; // Initialize
       }
       else
       {
-         MFEM_VERIFY(f == pf || f == 1 || pf == 1,
-                     "Inconsistent patch coarsening factors");
-         if (f == 1 && pf != 1)
+         MFEM_VERIFY(f.Size() == pf.Size(), "");
+         for (int i=0; i<f.Size(); ++i)
          {
-            f = pf;
+            MFEM_VERIFY(f[i] == pf[i] || f[i] == 1 || pf[i] == 1,
+                        "Inconsistent patch coarsening factors");
+            if (f[i] == 1 && pf[i] != 1)
+            {
+               f[i] = pf[i];
+            }
          }
       }
    }
-
-   return f;
 }
 
 void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
@@ -4269,7 +4294,6 @@ void NURBSExtension::KnotInsert(Array<KnotVector *> &kv)
          pkv[1] = kv[KnotInd(edges[3])];
          pkv[2] = kv[KnotInd(edges[8])];
       }
-
 
       // Check whether inserted knots should be flipped before inserting.
       // Knotvectors are stored in a different array pkvc such that the original
@@ -4320,7 +4344,6 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
          pkv[1] = kv[KnotInd(edges[3])];
          pkv[2] = kv[KnotInd(edges[8])];
       }
-
 
       // Check whether inserted knots should be flipped before inserting.
       // Knotvectors are stored in a different array pkvc such that the original

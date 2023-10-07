@@ -1911,7 +1911,10 @@ public:
        refined locally using methods like GeneralRefinement() unless it is
        re-finalized using Finalize() with the parameter @a refine set to true.
        Note that calling Finalize() in this way will generally invalidate any
-       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
+       FiniteElementSpace%s and GridFunction%s defined on the mesh.
+
+       @param[in] rf % Refinement factor for NURBS meshes.
+   */
    void UniformRefinement(int ref_algo = 0, int rf = 2);
 
    void NURBSCoarsening(int cf = 2);

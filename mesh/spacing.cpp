@@ -73,7 +73,9 @@ SpacingFunction *SpacingFunction::Clone() const
 
 void GeometricSpacingFunction::CalculateSpacing()
 {
-   MFEM_VERIFY(n > 1, "GeometricSpacingFunction requires more than 1 interval");
+   // GeometricSpacingFunction requires more than 1 interval. If only 1
+   // interval is requested, just use uniform spacing.
+   if (n == 1) { return; }
 
    // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
 
@@ -103,11 +105,19 @@ void GeometricSpacingFunction::CalculateSpacing()
 
 void BellSpacingFunction::CalculateSpacing()
 {
-   MFEM_VERIFY(n > 2, "Bell spacing requires at least three intervals");
+   s.SetSize(n);
+
+   // Bell spacing requires at least 3 intervals. If fewer than 3 are
+   // requested, we simply use uniform spacing.
+   if (n < 3)
+   {
+      s = 1.0 / ((double) n);
+      return;
+   }
+
    MFEM_VERIFY(s0 + s1 < 1.0, "Sum of first and last Bell spacings must be"
                << " less than 1");
 
-   s.SetSize(n);
    s[0] = s0;
    s[n-1] = s1;
 
@@ -222,11 +232,15 @@ void BellSpacingFunction::CalculateSpacing()
 
 void GaussianSpacingFunction::CalculateSpacing()
 {
-   MFEM_VERIFY(n > 2, "Gaussian spacing requires at least three intervals");
-   MFEM_VERIFY(s0 + s1 < 1.0, "Sum of first and last Gaussian spacings must"
-               << " be less than 1");
-
    s.SetSize(n);
+   // Gaussian spacing requires at least 3 intervals. If fewer than 3 are
+   // requested, we simply use uniform spacing.
+   if (n < 3)
+   {
+      s = 1.0 / ((double) n);
+      return;
+   }
+
    s[0] = s0;
    s[n-1] = s1;
 

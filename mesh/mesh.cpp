@@ -5215,8 +5215,16 @@ void Mesh::NURBSUniformRefinement(int rf)
    // do not check for NURBSext since this method is protected
    NURBSext->ConvertToPatches(*Nodes);
 
-   const int cf = NURBSext->GetCoarseningFactor();
-   if (cf == 1)
+   Array<int> cf;
+   NURBSext->GetCoarseningFactors(cf);
+
+   bool cf1 = true;
+   for (auto f : cf)
+   {
+      cf1 = (cf1 && f == 1);
+   }
+
+   if (cf1)
    {
       NURBSext->UniformRefinement(rf);
    }
@@ -5230,7 +5238,8 @@ void Mesh::NURBSUniformRefinement(int rf)
       UpdateNURBS();
 
       NURBSext->ConvertToPatches(*Nodes);
-      NURBSext->UniformRefinement(cf * rf);
+      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf; }
+      NURBSext->UniformRefinement(cf);
    }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
@@ -9860,18 +9869,21 @@ void Mesh::NURBSCoarsening(int cf)
    if (NURBSext && cf > 1)
    {
       NURBSext->ConvertToPatches(*Nodes);
+      Array<int> initcf;
+      NURBSext->GetCoarseningFactors(initcf);
 
-      const int initcf = NURBSext->GetCoarseningFactor();
+      bool initcf1 = true;
+      for (auto f : initcf)
+      {
+         initcf1 = (initcf1 && f == 1);
+      }
 
-      if (initcf == 1)
+      if (initcf1)
       {
          NURBSext->Coarsen(cf);
       }
       else
       {
-         const int rf = initcf / cf;
-         MFEM_VERIFY(cf * rf == initcf, "");
-
          NURBSext->Coarsen(initcf);
 
          last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
@@ -9880,6 +9892,17 @@ void Mesh::NURBSCoarsening(int cf)
          UpdateNURBS();
 
          NURBSext->ConvertToPatches(*Nodes);
+
+         Array<int> rf(initcf);
+         bool divisible = true;
+         for (int i=0; i<rf.Size(); ++i)
+         {
+            rf[i] /= cf;
+            divisible = divisible && cf * rf[i] == initcf[i];
+         }
+
+         MFEM_VERIFY(divisible, "Invalid coarsening");
+
          NURBSext->UniformRefinement(rf);
       }
 
