@@ -101,6 +101,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    // Copy the pointers to the integrators
    domain_integs = bf->domain_integs;
+   domain_integs_marker = bf->domain_integs_marker;
 
    boundary_integs = bf->boundary_integs;
    boundary_integs_marker = bf->boundary_integs_marker;
@@ -111,6 +112,138 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    boundary_face_integs_marker = bf->boundary_face_integs_marker;
 
    AllocMat();
+}
+
+BilinearForm::BilinearForm(BilinearForm &&other)
+   : Matrix(other.fes->GetVSize()), mat(other.mat), mat_e(other.mat_e),
+     fes(other.fes), assembly(other.assembly), batch(other.batch),
+     ext(other.ext), sequence(other.sequence), extern_bfs(other.extern_bfs),
+     element_matrices(other.element_matrices), static_cond(other.static_cond),
+     hybridization(other.hybridization), diag_policy(other.diag_policy),
+     precompute_sparsity(other.precompute_sparsity)
+{
+   // We swap stored integrators and markers with the moved nonlinear form
+   mfem::Swap(domain_integs, other.domain_integs);
+   mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+   mfem::Swap(boundary_integs, other.boundary_integs);
+   mfem::Swap(boundary_integs_marker, other.boundary_integs_marker);
+   mfem::Swap(interior_face_integs, other.interior_face_integs);
+   mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+   mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+
+   /// Leave the moved nonlinear form in a state as if it was just constructed
+   /// with fes
+   other.sequence = fes->GetSequence();
+   other.mat = nullptr;
+   other.mat_e = nullptr;
+   other.extern_bfs = 0;
+   other.element_matrices = nullptr;
+   other.static_cond = nullptr;
+   other.hybridization = nullptr;
+   other.precompute_sparsity = 0;
+   other.diag_policy = DIAG_KEEP;
+
+   other.assembly = AssemblyLevel::LEGACY;
+   other.batch = 1;
+   other.ext = nullptr;
+}
+
+BilinearForm& BilinearForm::operator=(BilinearForm &&other)
+{
+   if (this != &other)
+   {
+      /// Cleanup current bilinear form first
+      delete mat_e;
+      delete mat;
+      delete element_matrices;
+      delete static_cond;
+      delete hybridization;
+      for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
+      for (int i = 0; i < boundary_integs.Size(); i++) { delete boundary_integs[i]; }
+      for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
+      for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
+      delete ext;
+
+      /// Null out all our integs and set size of their arrays to zero
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         domain_integs[k] = nullptr;
+      }
+      domain_integs.SetSize(0);
+      for (int k = 0; k < boundary_integs.Size(); k++)
+      {
+         boundary_integs[k] = nullptr;
+      }
+      boundary_integs.SetSize(0);
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k] = nullptr;
+      }
+      interior_face_integs.SetSize(0);
+      for (int k = 0; k < boundary_face_integs.Size(); ++k)
+      {
+         boundary_face_integs[k] = nullptr;
+      }
+      boundary_face_integs.SetSize(0);
+
+      /// Null out all our markers and set size of their arrays to zero
+      for (int k = 0; k < domain_integs_marker.Size(); ++k)
+      {
+         domain_integs_marker[k] = nullptr;
+      }
+      domain_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_integs_marker.Size(); ++k)
+      {
+         boundary_integs_marker[k] = nullptr;
+      }
+      boundary_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_face_integs_marker.Size(); ++k)
+      {
+         boundary_face_integs_marker[k] = nullptr;
+      }
+      boundary_face_integs_marker.SetSize(0);
+
+      /// Now steal data from other bilinear form leaving it in a state as if
+      /// it was just constructed with fes
+      Matrix::operator=(std::move(other));
+
+      mat = other.mat;
+      other.mat = nullptr;
+      mat_e = other.mat_e;
+      other.mat_e = nullptr;
+      fes = other.fes;
+      assembly = other.assembly;
+      other.assembly = AssemblyLevel::LEGACY;
+      batch = other.batch;
+      other.batch = 1;
+      ext = other.ext;
+      other.ext = nullptr;
+      sequence = other.sequence;
+      other.sequence = fes->GetSequence();
+      extern_bfs = other.extern_bfs;
+      other.extern_bfs = 0;
+
+      // Swap our empty integ and marker arrays with the moved bilinear form
+      mfem::Swap(domain_integs, other.domain_integs);
+      mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+      mfem::Swap(boundary_integs, other.boundary_integs);
+      mfem::Swap(boundary_integs_marker, other.boundary_integs_marker);
+      mfem::Swap(interior_face_integs, other.interior_face_integs);
+      mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+      mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+
+      element_matrices = other.element_matrices;
+      other.element_matrices = nullptr;
+      static_cond = other.static_cond;
+      other.static_cond = nullptr;
+      hybridization = other.hybridization;
+      other.hybridization = nullptr;
+      diag_policy = other.diag_policy;
+      other.diag_policy = DIAG_KEEP;
+      precompute_sparsity = other.precompute_sparsity;
+      other.precompute_sparsity = 0;
+   }
+   return *this;
 }
 
 void BilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)

@@ -27,13 +27,45 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
    MFEM_VERIFY(!Serial(), "internal MFEM error");
 }
 
+ParNonlinearForm::ParNonlinearForm(ParNonlinearForm &&other)
+   : NonlinearForm(std::move(other)),
+     X((ParFiniteElementSpace *)other.fes, other.X.GetData()),
+     Y((ParFiniteElementSpace *)other.fes, other.Y.GetData()), pGrad(other.pGrad)
+{
+   other.X.MakeRef(other.fes, nullptr);
+   other.Y.MakeRef(other.fes, nullptr);
+
+   pGrad.SetOperatorOwner();
+   other.pGrad.SetOperatorOwner(false);
+   other.pGrad.SetType(Operator::Hypre_ParCSR);
+}
+
+ParNonlinearForm& ParNonlinearForm::operator=(ParNonlinearForm &&other)
+{
+   if (this != &other)
+   {
+      NonlinearForm::operator=(std::move(other));
+      X.MakeRef(other.fes, other.X.GetData());
+      other.X.MakeRef(other.fes, nullptr);
+      Y.MakeRef(other.fes, other.Y.GetData());
+      other.Y.MakeRef(other.fes, nullptr);
+
+      pGrad = other.pGrad;
+      pGrad.SetOperatorOwner();
+      other.pGrad.SetOperatorOwner(false);
+      other.pGrad.SetType(Operator::Hypre_ParCSR);
+
+   }
+   return *this;
+}
+
 double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 {
    double loc_energy, glob_energy;
 
    loc_energy = GetGridFunctionEnergy(x);
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from shared faces");
    }
@@ -48,7 +80,7 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
@@ -78,9 +110,9 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
          X.GetSubVector(vdofs1, el_x.GetData());
          X.FaceNbrData().GetSubVector(vdofs2, el_x.GetData() + vdofs1.Size());
 
-         for (int k = 0; k < fnfi.Size(); k++)
+         for (int k = 0; k < interior_face_integs.Size(); k++)
          {
-            fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+            interior_face_integs[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
             aux2.AddElementVector(vdofs1, el_y.GetData());
          }
       }
@@ -116,7 +148,7 @@ Operator &ParNonlinearForm::GetGradient(const Vector &x) const
 
    OperatorHandle dA(pGrad.Type()), Ph(pGrad.Type());
 
-   if (fnfi.Size() == 0)
+   if (interior_face_integs.Size() == 0)
    {
       dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
                              pfes->GetDofOffsets(), Grad);
@@ -252,7 +284,7 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    BlockNonlinearForm::MultBlocked(xs, ys);
 
-   if (fnfi.Size() > 0)
+   if (interior_face_integs.Size() > 0)
    {
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }
@@ -332,7 +364,7 @@ BlockOperator & ParBlockNonlinearForm::GetGradient(const Vector &x) const
 
    GetLocalGradient(x); // gradients are stored in 'Grads'
 
-   if (fnfi.Size() > 0)
+   if (interior_face_integs.Size() > 0)
    {
       MFEM_ABORT("TODO: assemble contributions from shared face terms");
    }

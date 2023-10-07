@@ -32,6 +32,13 @@ protected:
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
 
+   /// Explicitly prohibit copy construction/assignment of ParNonlinearForm
+   ParNonlinearForm(const ParNonlinearForm &other) = delete;
+   ParNonlinearForm& operator=(const ParNonlinearForm &other) = delete;
+
+   ParNonlinearForm(ParNonlinearForm &&other);
+   ParNonlinearForm& operator=(ParNonlinearForm &&other);
+
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
 

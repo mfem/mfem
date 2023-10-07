@@ -28,10 +28,6 @@ class ParLinearForm : public LinearForm
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
-private:
-   /// Copy construction is not supported; body is undefined.
-   ParLinearForm(const ParLinearForm &);
-
 public:
    /** @brief Create an empty ParLinearForm without an associated
        ParFiniteElementSpace.
@@ -64,6 +60,9 @@ public:
    ParLinearForm(ParFiniteElementSpace *pf, ParLinearForm * plf)
       : LinearForm(pf, plf) { pfes = pf; }
 
+   /// Explicitly prohibit copy construction of ParLinearForm
+   ParLinearForm(const ParLinearForm &other) = delete;
+
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
        that have the same size.
@@ -72,6 +71,18 @@ public:
        assignment operator. */
    ParLinearForm &operator=(const ParLinearForm &rhs)
    { return operator=((const Vector &)rhs); }
+
+   /// Move constructor for ParLinearForm.
+   /** This constructor "steals" the owned data members from the @a other
+       ParLinearForm. */
+   ParLinearForm(ParLinearForm &&other)
+      : LinearForm(std::move(other)), pfes(other.pfes)
+   { other.pfes = nullptr; }
+
+   /// Move assignment operator for ParLinearForm
+   /** This assignment first frees all owned data, then "steals" the owned data
+       members from the @a other ParLinearForm. */
+   ParLinearForm& operator=(ParLinearForm &&other);
 
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 

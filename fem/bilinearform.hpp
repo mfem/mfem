@@ -94,23 +94,23 @@ protected:
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
-   Array<BilinearFormIntegrator*> domain_integs;
+   Array<BilinearFormIntegrator*> domain_integs; // owned
    /// Element attribute marker (should be of length mesh->attributes.Max() or
    /// 0 if mesh->attributes is empty)
    /// Includes all by default.
    /// 0 - ignore attribute
    /// 1 - include attribute
-   Array<Array<int>*>             domain_integs_marker;
+   Array<Array<int>*>             domain_integs_marker; // not owned
 
    /// Set of Boundary Integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_integs;
+   Array<BilinearFormIntegrator*> boundary_integs; // owned
    Array<Array<int>*> boundary_integs_marker; ///< Entries are not owned.
 
    /// Set of interior face Integrators to be applied.
-   Array<BilinearFormIntegrator*> interior_face_integs;
+   Array<BilinearFormIntegrator*> interior_face_integs; // owned
 
    /// Set of boundary face Integrators to be applied.
-   Array<BilinearFormIntegrator*> boundary_face_integs;
+   Array<BilinearFormIntegrator*> boundary_face_integs; // owned
    Array<Array<int>*> boundary_face_integs_marker; ///< Entries are not owned.
 
    DenseMatrix elemmat;
@@ -145,13 +145,6 @@ protected:
       ext = NULL;
    }
 
-private:
-   /// Copy construction is not supported; body is undefined.
-   BilinearForm(const BilinearForm &);
-
-   /// Copy assignment is not supported; body is undefined.
-   BilinearForm &operator=(const BilinearForm &);
-
 public:
    /// Creates bilinear form associated with FE space @a *f.
    /** The pointer @a f is not owned by the newly constructed object. */
@@ -168,6 +161,20 @@ public:
        The optional parameter @a ps is used to initialize the internal flag
        #precompute_sparsity, see UsePrecomputedSparsity() for details. */
    BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
+
+   /// Explicitly prohibit copy construction/assignment of BilinearForms
+   BilinearForm(const BilinearForm &) = delete;
+   BilinearForm &operator=(const BilinearForm &) = delete;
+
+   /// Move constructor for BilinearForm.
+   /** This constructor "steals" the owned data members from the @a other
+       BilinearForm. */
+   BilinearForm(BilinearForm &&other);
+
+   /// Move assignment operator for BilinearForm
+   /** This assignment first frees all owned data, then "steals" the owned data
+       members from the @a other BilinearForm. */
+   BilinearForm& operator=(BilinearForm &&other);
 
    /// Get the size of the BilinearForm as a square matrix.
    int Size() const { return height; }

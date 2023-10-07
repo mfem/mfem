@@ -15,6 +15,92 @@
 namespace mfem
 {
 
+NonlinearForm::NonlinearForm(NonlinearForm &&other)
+   : Operator(other.fes->GetTrueVSize()), assembly(other.assembly),
+     ext(other.ext), fes(other.fes), Grad(other.Grad), cGrad(other.cGrad),
+     sequence(other.fes->GetSequence()), P(other.fes->GetProlongationMatrix()),
+     cP(dynamic_cast<const SparseMatrix*>(P))
+{
+   // We swap stored integrators and markers with the moved nonlinear form
+   mfem::Swap(domain_integs, other.domain_integs);
+   mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+   mfem::Swap(interior_face_integs, other.interior_face_integs);
+   mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+   mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+
+   /// Leave the moved nonlinear form in a state as if it was just constructed
+   /// with fes
+   other.ext = nullptr;
+   other.cGrad = nullptr;
+   other.Grad = nullptr;
+   other.assembly = AssemblyLevel::LEGACY;
+}
+
+NonlinearForm& NonlinearForm::operator=(NonlinearForm &&other)
+{
+   if (this != &other)
+   {
+      /// Cleanup current nonlinear form first
+      delete cGrad;
+      delete Grad;
+      for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
+      for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
+      for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
+      delete ext;
+
+      /// Null out all our integs and set size of their arrays to zero
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         domain_integs[k] = nullptr;
+      }
+      domain_integs.SetSize(0);
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         boundary_face_integs[k] = nullptr;
+      }
+      boundary_face_integs.SetSize(0);
+      for (int k = 0; k < interior_face_integs.Size(); k++)
+      {
+         interior_face_integs[k] = nullptr;
+      }
+      interior_face_integs.SetSize(0);
+
+      /// Null out all our markers and set size of their arrays to zero
+      for (int k = 0; k < domain_integs_marker.Size(); ++k)
+      {
+         domain_integs_marker[k] = nullptr;
+      }
+      domain_integs_marker.SetSize(0);
+      for (int k = 0; k < boundary_face_integs_marker.Size(); ++k)
+      {
+         boundary_face_integs_marker[k] = nullptr;
+      }
+      boundary_face_integs_marker.SetSize(0);
+
+      /// Now steal data from other nonlinear form leaving it in a state as if
+      /// it was just constructed with fes
+      Operator::operator=(std::move(other));
+
+      assembly = other.assembly;
+      other.assembly = AssemblyLevel::LEGACY;
+      Grad = other.Grad;
+      other.Grad = nullptr;
+      cGrad = other.cGrad;
+      other.cGrad = nullptr;
+
+      // Swap our empty integ and marker arrays with the moved nonlinear form
+      mfem::Swap(domain_integs, other.domain_integs);
+      mfem::Swap(domain_integs_marker, other.domain_integs_marker);
+      mfem::Swap(interior_face_integs, other.interior_face_integs);
+      mfem::Swap(boundary_face_integs, other.boundary_face_integs);
+      mfem::Swap(boundary_face_integs_marker, other.boundary_face_integs_marker);
+
+      ext = other.ext;
+      other.ext = nullptr;
+   }
+   return *this;
+}
+
 void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    if (ext)
@@ -36,6 +122,38 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       default:
          mfem_error("Unknown assembly level for this form.");
    }
+}
+
+void NonlinearForm::AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
+{
+   domain_integs.Append(nlfi);
+   domain_integs_marker.Append(nullptr); // null marker means apply everywhere
+}
+
+void NonlinearForm::AddDomainIntegrator(NonlinearFormIntegrator *nlfi,
+                                        Array<int> &elem_marker)
+{
+   domain_integs.Append(nlfi);
+   domain_integs_marker.Append(&elem_marker);
+}
+
+void NonlinearForm::AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
+{
+   interior_face_integs.Append(nlfi);
+}
+
+void NonlinearForm::AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi)
+{
+   boundary_face_integs.Append(nlfi);
+   // null marker means apply everywhere
+   boundary_face_integs_marker.Append(nullptr);
+}
+
+void NonlinearForm::AddBdrFaceIntegrator(NonlinearFormIntegrator *nlfi,
+                                         Array<int> &bdr_marker)
+{
+   boundary_face_integs.Append(nlfi);
+   boundary_face_integs_marker.Append(&bdr_marker);
 }
 
 void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
@@ -87,8 +205,10 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
-      MFEM_VERIFY(!fnfi.Size(), "Interior faces terms not yet implemented!");
-      MFEM_VERIFY(!bfnfi.Size(), "Boundary face terms not yet implemented!");
+      MFEM_VERIFY(!interior_face_integs.Size(),
+                  "Interior faces terms not yet implemented!");
+      MFEM_VERIFY(!boundary_face_integs.Size(),
+                  "Boundary face terms not yet implemented!");
       return ext->GetGridFunctionEnergy(x);
    }
 
@@ -97,30 +217,47 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    const FiniteElement *fe;
    ElementTransformation *T;
    DofTransformation *doftrans;
+   Mesh *mesh = fes->GetMesh();
    double energy = 0.0;
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = mesh->GetAttribute(i);
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          x.GetSubVector(vdofs, el_x);
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
-         for (int k = 0; k < dnfi.Size(); k++)
+         for (int k = 0; k < domain_integs.Size(); k++)
          {
-            energy += dnfi[k]->GetElementEnergy(*fe, *T, el_x);
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               energy += domain_integs[k]->GetElementEnergy(*fe, *T, el_x);
+            }
          }
       }
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from interior face terms");
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
@@ -173,25 +310,41 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
    py = 0.0;
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = mesh->GetAttribute(i);
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
-         for (int k = 0; k < dnfi.Size(); k++)
+         for (int k = 0; k < domain_integs.Size(); k++)
          {
-            dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
-            if (doftrans) {doftrans->TransformDual(el_y); }
-            py.AddElementVector(vdofs, el_y);
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               domain_integs[k]->AssembleElementVector(*fe, *T, el_x, el_y);
+               if (doftrans) {doftrans->TransformDual(el_y); }
+               py.AddElementVector(vdofs, el_y);
+            }
          }
       }
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -211,16 +364,16 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
 
-            for (int k = 0; k < fnfi.Size(); k++)
+            for (int k = 0; k < interior_face_integs.Size(); k++)
             {
-               fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               interior_face_integs[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
                py.AddElementVector(vdofs, el_y);
             }
          }
       }
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -229,14 +382,14 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); k++)
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
       {
-         if (bfnfi_marker[k] == NULL)
+         if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -262,12 +415,12 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < bfnfi.Size(); k++)
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
+               boundary_face_integs[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
                py.AddElementVector(vdofs, el_y);
             }
          }
@@ -320,26 +473,42 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       *Grad = 0.0;
    }
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
    {
+      for (int k = 0; k < domain_integs.Size(); k++)
+      {
+         if (domain_integs_marker[k] != nullptr)
+         {
+            MFEM_VERIFY(mesh->attributes.Size() ==
+                        domain_integs_marker[k]->Size(),
+                        "invalid element marker for domain integrator #"
+                        << k << ", counting from zero");
+         }
+      }
+
       for (int i = 0; i < fes->GetNE(); i++)
       {
+         int elem_attr = fes->GetMesh()->GetAttribute(i);
          fe = fes->GetFE(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          T = fes->GetElementTransformation(i);
          px.GetSubVector(vdofs, el_x);
          if (doftrans) {doftrans->InvTransformPrimal(el_x); }
-         for (int k = 0; k < dnfi.Size(); k++)
+         for (int k = 0; k < domain_integs.Size(); k++)
          {
-            dnfi[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
-            if (doftrans) { doftrans->TransformDual(elmat); }
-            Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
-            // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
+            if (domain_integs_marker[k] == nullptr ||
+                (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+            {
+               domain_integs[k]->AssembleElementGrad(*fe, *T, el_x, elmat);
+               if (doftrans) { doftrans->TransformDual(elmat); }
+               Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+               // Grad->AddSubMatrix(vdofs, vdofs, elmat, 1);
+            }
          }
       }
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -359,16 +528,16 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
 
-            for (int k = 0; k < fnfi.Size(); k++)
+            for (int k = 0; k < interior_face_integs.Size(); k++)
             {
-               fnfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
+               interior_face_integs[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
                Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             }
          }
       }
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       FaceElementTransformations *tr;
       const FiniteElement *fe1, *fe2;
@@ -377,14 +546,14 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); k++)
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
       {
-         if (bfnfi_marker[k] == NULL)
+         if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -410,12 +579,12 @@ Operator &NonlinearForm::GetGradient(const Vector &x) const
             // but we can't dereference a NULL pointer, and we don't want to
             // actually make a fake element.
             fe2 = fe1;
-            for (int k = 0; k < bfnfi.Size(); k++)
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfnfi[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
+               boundary_face_integs[k]->AssembleFaceGrad(*fe1, *fe2, *tr, el_x, elmat);
                Grad->AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
             }
          }
@@ -471,9 +640,9 @@ NonlinearForm::~NonlinearForm()
 {
    delete cGrad;
    delete Grad;
-   for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
-   for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
-   for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
+   for (int i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
+   for (int i = 0; i < interior_face_integs.Size(); i++) { delete interior_face_integs[i]; }
+   for (int i = 0; i < boundary_face_integs.Size(); i++) { delete boundary_face_integs[i]; }
    delete ext;
 }
 
@@ -564,8 +733,8 @@ BlockNonlinearForm::BlockNonlinearForm(Array<FiniteElementSpace *> &f) :
 void BlockNonlinearForm::AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nfi,
                                               Array<int> &bdr_attr_marker)
 {
-   bfnfi.Append(nfi);
-   bfnfi_marker.Append(&bdr_attr_marker);
+   boundary_face_integs.Append(nfi);
+   boundary_face_integs_marker.Append(&bdr_attr_marker);
 }
 
 void BlockNonlinearForm::SetEssentialBC(
@@ -600,7 +769,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
       vdofs[i] = new Array<int>;
    }
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
          T = fes[0]->GetElementTransformation(i);
@@ -612,9 +781,9 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
             if (doftrans) {doftrans->InvTransformPrimal(*el_x[s]); }
          }
 
-         for (int k = 0; k < dnfi.Size(); ++k)
+         for (int k = 0; k < domain_integs.Size(); ++k)
          {
-            energy += dnfi[k]->GetElementEnergy(fe, *T, el_x_const);
+            energy += domain_integs[k]->GetElementEnergy(fe, *T, el_x_const);
          }
       }
 
@@ -625,12 +794,12 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
       delete vdofs[i];
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from interior face terms");
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from boundary face terms");
    }
@@ -668,7 +837,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       vdofs2[s] = new Array<int>;
    }
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
    {
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
@@ -681,10 +850,10 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
             if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
          }
 
-         for (int k = 0; k < dnfi.Size(); ++k)
+         for (int k = 0; k < domain_integs.Size(); ++k)
          {
-            dnfi[k]->AssembleElementVector(fe, *T,
-                                           el_x_const, el_y);
+            domain_integs[k]->AssembleElementVector(fe, *T,
+                                                    el_x_const, el_y);
 
             for (int s=0; s<fes.Size(); ++s)
             {
@@ -696,7 +865,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       }
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
@@ -719,10 +888,10 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
-            for (int k = 0; k < fnfi.Size(); ++k)
+            for (int k = 0; k < interior_face_integs.Size(); ++k)
             {
 
-               fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
+               interior_face_integs[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
 
                for (int s=0; s<fes.Size(); ++s)
                {
@@ -734,7 +903,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       }
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       Mesh *mesh = fes[0]->GetMesh();
       FaceElementTransformations *tr;
@@ -742,14 +911,14 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); ++k)
+      for (int k = 0; k < boundary_face_integs.Size(); ++k)
       {
-         if (bfnfi_marker[k] == NULL)
+         if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -776,12 +945,12 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
             }
 
-            for (int k = 0; k < bfnfi.Size(); ++k)
+            for (int k = 0; k < boundary_face_integs.Size(); ++k)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bfnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
+               boundary_face_integs[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
 
                for (int s=0; s<fes.Size(); ++s)
                {
@@ -886,7 +1055,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (dnfi.Size())
+   if (domain_integs.Size())
    {
       for (int i = 0; i < fes[0]->GetNE(); ++i)
       {
@@ -899,9 +1068,9 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
             if (doftrans[s]) {doftrans[s]->InvTransformPrimal(*el_x[s]); }
          }
 
-         for (int k = 0; k < dnfi.Size(); ++k)
+         for (int k = 0; k < domain_integs.Size(); ++k)
          {
-            dnfi[k]->AssembleElementGrad(fe, *T, el_x_const, elmats);
+            domain_integs[k]->AssembleElementGrad(fe, *T, el_x_const, elmats);
 
             for (int j=0; j<fes.Size(); ++j)
             {
@@ -920,7 +1089,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (fnfi.Size())
+   if (interior_face_integs.Size())
    {
       FaceElementTransformations *tr;
       Mesh *mesh = fes[0]->GetMesh();
@@ -941,9 +1110,9 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
             bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
          }
 
-         for (int k = 0; k < fnfi.Size(); ++k)
+         for (int k = 0; k < interior_face_integs.Size(); ++k)
          {
-            fnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
+            interior_face_integs[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
             for (int j=0; j<fes.Size(); ++j)
             {
                for (int l=0; l<fes.Size(); ++l)
@@ -957,7 +1126,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       }
    }
 
-   if (bfnfi.Size())
+   if (boundary_face_integs.Size())
    {
       FaceElementTransformations *tr;
       Mesh *mesh = fes[0]->GetMesh();
@@ -966,14 +1135,14 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bfnfi.Size(); ++k)
+      for (int k = 0; k < boundary_face_integs.Size(); ++k)
       {
-         if (bfnfi_marker[k] == NULL)
+         if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bfnfi_marker[k];
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
@@ -1000,11 +1169,11 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx) const
                bx.GetBlock(s).GetSubVector(*vdofs[s], *el_x[s]);
             }
 
-            for (int k = 0; k < bfnfi.Size(); ++k)
+            for (int k = 0; k < boundary_face_integs.Size(); ++k)
             {
-               if (bfnfi_marker[k] &&
-                   (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
-               bfnfi[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+               boundary_face_integs[k]->AssembleFaceGrad(fe, fe2, *tr, el_x_const, elmats);
                for (int l=0; l<fes.Size(); ++l)
                {
                   for (int j=0; j<fes.Size(); ++j)
@@ -1109,19 +1278,19 @@ BlockNonlinearForm::~BlockNonlinearForm()
       delete ess_tdofs[i];
    }
 
-   for (int i = 0; i < dnfi.Size(); ++i)
+   for (int i = 0; i < domain_integs.Size(); ++i)
    {
-      delete dnfi[i];
+      delete domain_integs[i];
    }
 
-   for (int i = 0; i < fnfi.Size(); ++i)
+   for (int i = 0; i < interior_face_integs.Size(); ++i)
    {
-      delete fnfi[i];
+      delete interior_face_integs[i];
    }
 
-   for (int i = 0; i < bfnfi.Size(); ++i)
+   for (int i = 0; i < boundary_face_integs.Size(); ++i)
    {
-      delete bfnfi[i];
+      delete boundary_face_integs[i];
    }
 
 }
