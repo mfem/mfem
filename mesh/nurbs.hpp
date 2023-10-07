@@ -175,10 +175,12 @@ public:
    spacing formulas may be used.
    */
    void UniformRefinement(int rf=2);
+   void UniformRefinement(Array<int> const& rf);
 
-   void Coarsen(int cf);
+   void Coarsen(int cf=2);
+   void Coarsen(Array<int> const& cf);
 
-   int GetCoarseningFactor() const;
+   void GetCoarseningFactors(Array<int> & f) const;
 
    void SetKnotVectorsCoarse(bool c);
 
@@ -524,13 +526,15 @@ public:
    spacing formulas may be used.
    */
    void UniformRefinement(int rf=2);
-   void Coarsen(int cf);
+   void UniformRefinement(Array<int> const& rf);
+   void Coarsen(int cf=2);
+   void Coarsen(Array<int> const& cf);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
    void KnotRemove(Array<Vector *> &kv, double tol=1.0e-12);
 
-   int GetCoarseningFactor() const;
+   void GetCoarseningFactors(Array<int> & f) const;
 
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
