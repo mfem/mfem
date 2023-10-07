@@ -22,8 +22,10 @@ allocate_resource:
   extends: .on_corona
   stage: allocate_resource
   script:
-    - echo ${ALLOC_NAME}
-    - salloc --exclusive --nodes=1 --partition=mi60 --time=45 --no-shell --job-name=${ALLOC_NAME}
+    - |
+      set -x
+      echo "Shared allocation disabled: runs slowly, needs a fix"
+      #flux mini batch --time-limit=45m --nodes=1 --job-name=${ALLOC_NAME} --wrap sleep inf
   timeout: 6h
   needs: [setup]
 
@@ -41,10 +43,11 @@ release_resource:
   extends: .on_corona
   stage: release_resource_and_report
   script:
-    - echo ${ALLOC_NAME}
-    - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
-    - echo ${JOBID}
-    - ([[ -n "${JOBID}" ]] && scancel ${JOBID})
+    - |
+      set -x
+      echo "Shared allocation disabled: runs slowly, needs a fix"
+      #export JOBID=$(flux jobs -o "{id} {name}" | grep ${ALLOC_NAME} | awk '{print $1}')
+      #([[ -n "${JOBID}" ]] && flux job kill ${JOBID})
   needs: [rocm_gcc_8.3.1]
 
 # Jobs report
