@@ -73,7 +73,8 @@ protected:
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
+   ConductionOperator(FiniteElementSpace &f, const Array<int> &bdr,
+                      double alpha, double kappa, double dirichlet,
                       const Vector &u);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
@@ -100,6 +101,8 @@ int main(int argc, char *argv[])
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
    double kappa = 0.5;
+   double dirichlet = 0.0;
+   int boundary_type = 0;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -125,6 +128,10 @@ int main(int argc, char *argv[])
                   "Alpha coefficient.");
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
+   args.AddOption(&dirichlet, "-d", "--dirichlet",
+                  "Dirichlet coefficient value.");
+   args.AddOption(&boundary_type, "-bt", "--boundary-type",
+                  "Boundary type: 0 - natural, 1 - dirichlet.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -190,16 +197,26 @@ int main(int argc, char *argv[])
 
    GridFunction u_gf(&fespace);
 
-   // 6. Set the initial conditions for u. All boundaries are considered
-   //    natural.
+   // 6. Set the initial conditions for u. All boundaries are
+   //    the same type, namely natural or dirichlet.
+   Array<int> ess_bdr_marker(mesh->bdr_attributes.Max());
    FunctionCoefficient u_0(InitialTemperature);
    u_gf.ProjectCoefficient(u_0);
+   if (boundary_type == 1)
+   {
+      ess_bdr_marker = 1;
+      ConstantCoefficient u_dirichlet(dirichlet);
+      u_gf.ProjectBdrCoefficient(u_dirichlet, ess_bdr_marker);
+   }
+
    Vector u;
    u_gf.GetTrueDofs(u);
 
    // 7. Initialize the conduction operator and the visualization.
-   ConductionOperator oper(fespace, alpha, kappa, u);
+   ConductionOperator oper(fespace, ess_bdr_marker, alpha, kappa, dirichlet, u);
 
+   // FIXME: do we really need to set the GridFunction with u,
+   // considering that ConductionOperator does not modify u?
    u_gf.SetFromTrueDofs(u);
    {
       ofstream omesh("ex16.mesh");
@@ -293,12 +310,16 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
-                                       double kap, const Vector &u)
+ConductionOperator::ConductionOperator(FiniteElementSpace &f,
+                                       const Array<int> &bdr,
+                                       double al, double kap, double dirichlet,
+                                       const Vector &u)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0), z(height)
 {
    const double rel_tol = 1e-8;
+
+   fespace.GetEssentialTrueDofs(bdr, ess_tdof_list);
 
    M = new BilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
@@ -331,8 +352,20 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    // Compute:
    //    du_dt = M^{-1}*-Ku
    // for du_dt, where K is linearized by using u from the previous timestep
-   Kmat.Mult(u, z);
+   //
+   // The full bilinear form K must be used to diffuse values on the boundary.
+   // If we use Kmat only (which has boundary dofs eliminated), the interior
+   // DoF are disconnected from the boundary.
+   //
+   // Essential boundary condition is constant in time, therefore we set these
+   // values in the rhs. The call to FormSystemMatrix() has already eliminated
+   // the corresponding essential boundary dofs. We could not change the rhs
+   // directly like that if the value to impose was different than zero,
+   // because the product of the elimination matrix with the imposed values
+   // would also change the neighbor dofs.
+   K->FullMult(u, z);
    z.Neg(); // z = -z
+   z.SetSubVector(ess_tdof_list, 0.0);
    M_solver.Mult(z, du_dt);
 }
 
@@ -349,8 +382,9 @@ void ConductionOperator::ImplicitSolve(const double dt,
       T_solver.SetOperator(*T);
    }
    MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
-   Kmat.Mult(u, z);
+   K->FullMult(u, z);
    z.Neg();
+   z.SetSubVector(ess_tdof_list, 0.0);
    T_solver.Mult(z, du_dt);
 }
 
@@ -371,6 +405,7 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
    K->Assemble();
    K->FormSystemMatrix(ess_tdof_list, Kmat);
+
    delete T;
    T = NULL; // re-compute T on the next ImplicitSolve
 }
