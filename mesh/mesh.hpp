@@ -633,8 +633,7 @@ public:
        Construct a shell of a mesh object allocating space to store pointers to
        the vertices, elements, and boundary elements. The vertices and elements
        themselves can later be added using methods from the
-       @ref mfem_Mesh_construction "Mesh construction" group.
-   */
+       @ref mfem_Mesh_construction "Mesh construction" group. */
    Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
    {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
@@ -643,7 +642,8 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. See also @a Mesh::LoadFromFile. */
+       generated. See also @a Mesh::LoadFromFile. See @a Mesh::Finalize for the
+       meaning of @a refine. */
    explicit Mesh(const std::string &filename, int generate_edges = 0,
                  int refine = 1, bool fix_orientation = true);
 
