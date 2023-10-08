@@ -539,6 +539,14 @@ void PiecewiseSpacingFunction::CalculateSpacing()
       }
    }
 
+   if (n == 1)
+   {
+      for (auto p : pieces)
+      {
+         p->SetSize(1);
+      }
+   }
+
    if (n < n0 && !coarsen)
    {
       // Just use uniform spacing
