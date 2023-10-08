@@ -5212,6 +5212,16 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
 
 void Mesh::NURBSUniformRefinement(int rf)
 {
+   Array<int> rf_array(Dim);
+   rf_array = rf;
+   NURBSUniformRefinement(rf_array);
+}
+
+void Mesh::NURBSUniformRefinement(Array<int> const& rf)
+{
+   MFEM_VERIFY(rf.Size() == Dim,
+               "Refinement factors must be defined for each dimension");
+
    // do not check for NURBSext since this method is protected
    NURBSext->ConvertToPatches(*Nodes);
 
@@ -5238,7 +5248,7 @@ void Mesh::NURBSUniformRefinement(int rf)
       UpdateNURBS();
 
       NURBSext->ConvertToPatches(*Nodes);
-      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf; }
+      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
       NURBSext->UniformRefinement(cf);
    }
 
@@ -9861,6 +9871,18 @@ void Mesh::UniformRefinement(int ref_algo, int rf)
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
       }
+   }
+}
+
+void Mesh::UniformRefinement(Array<int> const& rf)
+{
+   if (NURBSext)
+   {
+      NURBSUniformRefinement(rf);
+   }
+   else
+   {
+      MFEM_ABORT("Anisotropic refinement is supported only for NURBS meshes");
    }
 }
 

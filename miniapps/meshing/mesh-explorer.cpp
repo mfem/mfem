@@ -438,11 +438,21 @@ int main (int argc, char *argv[])
             }
             case 'n':
             {
-               cout << "enter refinement factor --> " << flush;
-               int ref_factor;
-               cin >> ref_factor;
-               if (ref_factor <= 1 || ref_factor > 32) { break; }
-               mesh->UniformRefinement(0, ref_factor);
+               Array<int> ref_factors(dim);
+               cout << "enter refinement factor, 1st dimension --> " << flush;
+               cin >> ref_factors[0];
+               cout << "enter refinement factor, 2nd dimension --> " << flush;
+               cin >> ref_factors[1];
+               if (dim == 3)
+               {
+                  cout << "enter refinement factor, 3rd dimension --> "
+                       << flush;
+                  cin >> ref_factors[2];
+               }
+               for (auto ref_factor : ref_factors)
+                  if (ref_factor <= 1 || ref_factor > 32) { break; }
+
+               mesh->UniformRefinement(ref_factors);
                break;
             }
             case 'c':

@@ -411,6 +411,7 @@ protected:
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement(int rf = 2);
+   virtual void NURBSUniformRefinement(Array<int> const& rf);
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
@@ -1916,6 +1917,10 @@ public:
        @param[in] rf % Refinement factor for NURBS meshes.
    */
    void UniformRefinement(int ref_algo = 0, int rf = 2);
+
+   /// Refinement, generally anisotropic, for all mesh elements on NURBS meshes.
+   /** @param[in] rf % Refinement factors in each dimension. */
+   void UniformRefinement(Array<int> const& rf);
 
    void NURBSCoarsening(int cf = 2);
 
