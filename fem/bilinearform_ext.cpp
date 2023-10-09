@@ -255,8 +255,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
    if ( Device::Allows(Backend::CEED_MASK) ) { return; }
-   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace()) &&
-                                 use_tensor_basis ?
+   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
                                  ElementDofOrdering::LEXICOGRAPHIC:
                                  ElementDofOrdering::NATIVE;
    elem_restrict = trial_fes->GetElementRestriction(ordering);
@@ -442,11 +441,6 @@ void PABilinearFormExtension::Update()
    elem_restrict = nullptr;
    int_face_restrict_lex = nullptr;
    bdr_face_restrict_lex = nullptr;
-}
-
-void BilinearFormExtension::UseTensorBasis(const bool use_tensor_basis_)
-{
-   use_tensor_basis = use_tensor_basis_;
 }
 
 void PABilinearFormExtension::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -1046,12 +1040,6 @@ FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form)
 
 void FABilinearFormExtension::Assemble()
 {
-   //Not having any domain integrators currently causes a seg fault in mfem::ElementRestriction::FillJAndData,
-   //so verify at least on domain integrator is present.
-   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   MFEM_VERIFY(integratorCount > 0,
-               "Full Assembly requires at least one domain integrator.");
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
    int width = fes.GetVSize();
