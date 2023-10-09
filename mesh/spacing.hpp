@@ -21,9 +21,17 @@ typedef enum {UNIFORM_SPACING, LINEAR, GEOMETRIC, BELL,
               GAUSSIAN, LOGARITHMIC, PIECEWISE
              } SPACING_TYPE;
 
+/// Class for spacing functions that define meshes in a dimension, using a
+/// formula or method implemented in a derived class.
 class SpacingFunction
 {
 public:
+   /** @brief Base class constructor.
+   @param[in] n_  Size or number of intervals, which defines elements.
+   @param[in] r   Whether to reverse the spacings, false by default.
+   @param[in] s   Whether to scale parameters by the refinement or coarsening
+                  factor, in the function @a SpacingFunction::ScaleParameters.
+   */
    SpacingFunction(int n_, bool r=false, bool s=false)
    {
       n = n_;
@@ -31,14 +39,19 @@ public:
       scale = s;
    }
 
+   /// Returns the size, or number of intervals (elements).
    inline int Size() const { return n; }
 
-   virtual double Eval(int p) = 0;
-
+   /// Sets the size, or number of intervals (elements).
    virtual void SetSize(int size) = 0;
 
+   /// Sets the property that determines whether the spacing is reversed.
    void SetReverse(bool r) { reverse = r; }
 
+   /// Returns the width of interval @a p (between 0 and @a Size() - 1).
+   virtual double Eval(int p) = 0;
+
+   /// Returns the width of all intervals, resizing @a s to @a Size().
    void EvalAll(Vector & s)
    {
       s.SetSize(n);
@@ -48,33 +61,55 @@ public:
       }
    }
 
-   // Note that parameters may be scaled inversely during coarsening and
-   // refining, so the scaling should be linear in the sense that scaling by
-   // a number followed by scaling by its inverse has no effect on parameters.
+   /** @brief Scales parameters by the factor @a a associated with @a Size().
+
+       Note that parameters may be scaled inversely during coarsening and
+       refining, so the scaling should be linear in the sense that scaling by a
+       number followed by scaling by its inverse has no effect on parameters. */
    virtual void ScaleParameters(double a) { }
 
-   // The format is
-   // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-   virtual void Print(std::ostream &os) const = 0;
-
+   /// Returns the spacing type, indicating the derived class.
    virtual SPACING_TYPE SpacingType() const = 0;
 
+   /* @brief Prints all the data necessary to define the spacing function and
+      its current state (size and other parameters).
+
+      The format is generally
+      SPACING_TYPE numIntParam numDoubleParam {int params} {double params} */
+   virtual void Print(std::ostream &os) const = 0;
+
+   /// Returns the number of integer parameters defining the spacing function.
    virtual int NumIntParameters() const = 0;
+
+   /// Returns the number of double parameters defining the spacing function.
    virtual int NumDoubleParameters() const = 0;
+
+   /// Returns the array of integer parameters defining the spacing function.
+   /// @param[out] p  Array of integer parameters, resized appropriately.
    virtual void GetIntParameters(Array<int> & p) const = 0;
+
+   /// Returns the array of double parameters defining the spacing function.
+   /// @param[out] p  Array of double parameters, resized appropriately.
    virtual void GetDoubleParameters(Vector & p) const = 0;
 
+   /// Returns true if the spacing function is nested during refinement.
    virtual bool Nested() const = 0;
 
+   /// Returns a clone of this spacing function.
    virtual SpacingFunction *Clone() const;
 
    virtual ~SpacingFunction() { }
 
 protected:
-   int n;
-   bool reverse, scale;
+   int n;  // Size, or number of intervals (elements)
+   bool reverse;  // Whether to reverse the spacing
+   bool scale;  // Whether to scale parameters in ScaleParameters.
 };
 
+/** @brief Uniform spacing function, dividing the unit interval into @a Size()
+    equally spaced intervals (elements).
+
+    This function is nested and has no scaled parameters. */
 class UniformSpacingFunction : public SpacingFunction
 {
 public:
@@ -124,7 +159,7 @@ public:
    }
 
 private:
-   double s;
+   double s; // Width of each interval (element)
 
    void CalculateSpacing()
    {
@@ -133,13 +168,19 @@ private:
    }
 };
 
+/** @brief Linear spacing function, defining the width of interval i as
+    s + i * d.
+
+    The initial interval width s is prescribed as a parameter, which can be
+    scaled, and d is computed as a function of Size(), to ensure that the widths
+    sum to 1. This function is not nested. */
 class LinearSpacingFunction : public SpacingFunction
 {
 public:
    LinearSpacingFunction(int n_, bool r_, double s_, bool scale_)
       : SpacingFunction(n_, r_, scale_), s(s_)
    {
-      MFEM_ASSERT(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
+      MFEM_VERIFY(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
       CalculateDifference();
    }
 
@@ -160,7 +201,7 @@ public:
 
    virtual double Eval(int p) override
    {
-      MFEM_ASSERT(p>=0 && p<n, "Access element " << p
+      MFEM_ASSERT(0 <= p && p < n, "Access element " << p
                   << " of spacing function, size = " << n);
       const int i = reverse ? n - 1 - p : p;
       return s + (i * d);
@@ -214,11 +255,14 @@ private:
    }
 };
 
-// Spacing of interval i is s*r^i for 0 <= i < n, with
-//     s + s*r + s*r^2 + ... + s*r^(n-1) = 1
-//     s * (r^n - 1) / (r - 1) = 1
-// The initial spacing s and number of intervals n are inputs, and r is solved
-// for by Newton's method.
+/** @brief Geometric spacing function.
+
+    The spacing of interval i is s*r^i for 0 <= i < n, with
+       s + s*r + s*r^2 + ... + s*r^(n-1) = 1
+       s * (r^n - 1) / (r - 1) = 1
+    The initial spacing s and number of intervals n are inputs, and r is solved
+    for by Newton's method. The parameter s can be scaled. This function is not
+    nested. */
 class GeometricSpacingFunction : public SpacingFunction
 {
 public:
@@ -288,11 +332,28 @@ private:
    void CalculateSpacing();
 };
 
+/** @brief Bell spacing function, which produces spacing resembling a Bell
+    curve.
+
+    The widths of the first and last intervals (elements) are prescribed, and
+    the remaining interior spacings are computed by an algorithm that minimizes
+    the ratios of adjacent spacings. If the first and last intervals are wide
+    enough, the spacing may decrease in the middle of the domain. The first and
+    last interval widths can be scaled. This function is not nested.
+ */
 class BellSpacingFunction : public SpacingFunction
 {
 public:
-   BellSpacingFunction(int n_, bool r_, double s0_, double s1_, bool scale_)
-      : SpacingFunction(n_, r_, scale_), s0(s0_), s1(s1_)
+   /** @brief Constructor for BellSpacingFunction.
+   @param[in] n_  Size or number of intervals, which defines elements.
+   @param[in] r_  Whether to reverse the spacings.
+   @param[in] s0_ Width of the first interval (element).
+   @param[in] s1_ Width of the last interval (element).
+   @param[in] s_  Whether to scale parameters by the refinement or coarsening
+                  factor, in the function @a SpacingFunction::ScaleParameters.
+   */
+   BellSpacingFunction(int n_, bool r_, double s0_, double s1_, bool s_)
+      : SpacingFunction(n_, r_, s_), s0(s0_), s1(s1_)
    {
       CalculateSpacing();
    }
@@ -359,19 +420,35 @@ public:
    }
 
 private:
-   double s0, s1;
+   double s0, s1; // First and last interval widths
    Vector s;
 
    void CalculateSpacing();
 };
 
-// GaussianSpacingFunction fits a Gaussian function of the general form
-// g(x) = a exp(-(x-m)^2 / c^2) for some scalar parameters a, m, c.
+/** @brief Gaussian spacing function of the general form
+    g(x) = a exp(-(x-m)^2 / c^2) for some scalar parameters a, m, c.
+
+    The widths of the first and last intervals (elements) are prescribed, and
+    the remaining interior spacings are computed by using Newton's method to
+    compute parameters that fit the endpoint widths. The results of this spacing
+    function are very similar to those of @a BellSpacingFunction, but they may
+    differ by about 1%. If the first and last intervals are wide enough, the
+    spacing may decrease in the middle of the domain. The first and last
+    interval widths can be scaled. This function is not nested. */
 class GaussianSpacingFunction : public SpacingFunction
 {
 public:
-   GaussianSpacingFunction(int n_, bool r_, double s0_, double s1_, bool scale_)
-      : SpacingFunction(n_, r_, scale_), s0(s0_), s1(s1_)
+   /** @brief Constructor for BellSpacingFunction.
+   @param[in] n_  Size or number of intervals, which defines elements.
+   @param[in] r_  Whether to reverse the spacings.
+   @param[in] s0_ Width of the first interval (element).
+   @param[in] s1_ Width of the last interval (element).
+   @param[in] s_  Whether to scale parameters by the refinement or coarsening
+                  factor, in the function @a SpacingFunction::ScaleParameters.
+   */
+   GaussianSpacingFunction(int n_, bool r_, double s0_, double s1_, bool s_)
+      : SpacingFunction(n_, r_, s_), s0(s0_), s1(s1_)
    {
       CalculateSpacing();
    }
@@ -432,12 +509,19 @@ public:
    }
 
 private:
-   double s0, s1;
+   double s0, s1; // First and last interval widths
    Vector s;
 
    void CalculateSpacing();
 };
 
+/** @brief Logarithmic spacing function, uniform in log base 10 by default.
+
+    The log base can be changed as an input parameter. Decreasing it makes the
+    distribution more uniform, whereas increasing it makes the spacing vary
+    more. Another input option is a flag to make the distribution symmetric
+    (default is non-symmetric). There are no scaled parameters. This function is
+    nested. */
 class LogarithmicSpacingFunction : public SpacingFunction
 {
 public:
@@ -501,15 +585,26 @@ private:
    void CalculateNonsymmetric();
 };
 
+/** @brief Piecewise spacing function, with spacing functions defining spacing
+    within arbitarily many fixed subdomains of the unit interval.
+
+    The scaling of parameters is done for the spacing function on each
+    subinterval separately. This function is nested if and only if the functions
+    on all subintervals are nested.
+ */
 class PiecewiseSpacingFunction : public SpacingFunction
 {
 public:
-   // Parameters in ipar, for np pieces with index i:
-   //   piece i: type, number of integer parameters, number of double
-   //            parameters, integer parameters
-   // Parameters in dpar start with np-1 partition entries, and the rest are
-   // ordered by piece:
-   //   piece i: double parameters
+   /** @brief Constructor for PiecewiseSpacingFunction.
+   @param[in] n_   Size or number of intervals, which defines elements.
+   @param[in] np_  Number of pieces (subintervals of unit interval).
+   @param[in] ipar Integer parameters for all np_ spacing functions. For each
+                   piece, these parameters are type, number of integer
+                   parameters, number of double parameters, integer parameters.
+   @param[in] dpar Double parameters for all np_ spacing functions. The first
+                   np_ - 1 entries define the partition of the unit interval,
+                   and the remaining are for the pieces.
+   */
    PiecewiseSpacingFunction(int n_, int np_, bool r_,
                             Array<int> const& ipar, Vector const& dpar)
       : SpacingFunction(n_, r_), np(np_), partition(np - 1)
