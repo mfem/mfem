@@ -18,10 +18,10 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
+MFEM_REGISTER_TMOP_KERNELS(fptype, MinDetJpr_Kernel_3D,
                            const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &g_,
                            const Vector &x_,
                            Vector &DetJ,
                            const int d1d,
@@ -44,11 +44,11 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED fptype BG[2][MQ1*MD1];
+      MFEM_SHARED fptype DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED fptype DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED fptype DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED fptype QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -63,7 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double J[9];
+               fptype J[9];
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,J);
                E(qx,qy,qz,e) = kernels::Det<3>(J);
             }
@@ -74,7 +74,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, MinDetJpr_Kernel_3D,
    return DetJ.Min();
 }
 
-double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
+fptype TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
                                       const Vector &X) const
 {
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -89,8 +89,8 @@ double TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
+   const Array<fptype> &B = maps.B;
+   const Array<fptype> &G = maps.G;
 
    Vector E(NE*NQ);
    E.UseDevice(true);

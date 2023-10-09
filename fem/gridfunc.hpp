@@ -46,12 +46,12 @@ protected:
        associated true-dof values - either owned or external. */
    Vector t_vec;
 
-   void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
+   void SaveSTLTri(std::ostream &out, fptype p1[], fptype p2[], fptype p3[]);
 
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
    void ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
-                                double &integral);
+                                fptype &integral);
 
    // Sum fluxes to vertices and count element contributions
    void SumFluxAndCount(BilinearFormIntegrator &blfi,
@@ -89,7 +89,7 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data)
+   GridFunction(FiniteElementSpace *f, fptype *data)
       : Vector(data, f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
 
@@ -150,7 +150,7 @@ public:
    void SetFromTrueVector() { SetFromTrueDofs(GetTrueVector()); }
 
    /// Returns the values in the vertices of i'th element for dimension vdim.
-   void GetNodalValues(int i, Array<double> &nval, int vdim = 1) const;
+   void GetNodalValues(int i, Array<fptype> &nval, int vdim = 1) const;
 
    /** @name Element index Get Value Methods
 
@@ -166,7 +166,7 @@ public:
    */
    ///@{
    /** Return a scalar value from within the given element. */
-   virtual double GetValue(int i, const IntegrationPoint &ip,
+   virtual fptype GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
    /** Return a vector value from within the given element. */
@@ -217,7 +217,7 @@ public:
    ///@{
    /** Return a scalar value from within the element indicated by the
        ElementTransformation Object. */
-   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+   virtual fptype GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                            int comp = 0, Vector *tr = NULL) const;
 
    /** Return a vector value from within the element indicated by the
@@ -323,7 +323,7 @@ public:
                              before the call. */
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
-   double GetDivergence(ElementTransformation &tr) const;
+   fptype GetDivergence(ElementTransformation &tr) const;
 
    void GetCurl(ElementTransformation &tr, Vector &curl) const;
 
@@ -371,7 +371,7 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      const Vector &lo_, const Vector &hi_);
    void ImposeBounds(int i, const Vector &weights,
-                     double min_ = 0.0, double max_ = infinity());
+                     fptype min_ = 0.0, fptype max_ = infinity());
 
    /** On a non-conforming mesh, make sure the function lies in the conforming
        space by multiplying with R and then with P, the conforming restriction
@@ -497,43 +497,43 @@ public:
                                              Array<int> &bdr_attr);
 
 
-   virtual double ComputeL2Error(Coefficient *exsol[],
+   virtual fptype ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 in element ielem for H1 or L2 elements
-   virtual double ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
+   virtual fptype ComputeElementGradError(int ielem, VectorCoefficient *exgrad,
                                           const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||u_ex - u_h||_L2 for H1 or L2 elements
    /* The @a elems input variable expects a list of markers:
       an elem marker equal to 1 will compute the L2 error on that element
       an elem marker equal to 0 will not compute the L2 error on that element */
-   virtual double ComputeL2Error(Coefficient &exsol,
+   virtual fptype ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
    { return GridFunction::ComputeLpError(2.0, exsol, NULL, irs, elems); }
 
-   virtual double ComputeL2Error(VectorCoefficient &exsol,
+   virtual fptype ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-   virtual double ComputeGradError(VectorCoefficient *exgrad,
+   virtual fptype ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-   virtual double ComputeCurlError(VectorCoefficient *excurl,
+   virtual fptype ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const;
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
-   virtual double ComputeDivError(Coefficient *exdiv,
+   virtual fptype ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const;
 
    /// Returns the Face Jumps error for L2 elements. The error can be weighted
    /// by a constant nu, by nu/h, or nu*p^2/h, depending on the value of
    /// @a jump_scaling.
-   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+   virtual fptype ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
                                          class JumpScaling jump_scaling,
                                          const IntegrationRule *irs[] = NULL)
@@ -541,9 +541,9 @@ public:
 
    /// Returns the Face Jumps error for L2 elements, with 1/h scaling.
    MFEM_DEPRECATED
-   double ComputeDGFaceJumpError(Coefficient *exsol,
+   fptype ComputeDGFaceJumpError(Coefficient *exsol,
                                  Coefficient *ell_coeff,
-                                 double Nu,
+                                 fptype Nu,
                                  const IntegrationRule *irs[] = NULL) const;
 
    /** This method is kept for backward compatibility.
@@ -552,56 +552,56 @@ public:
        depending on norm_type = 1, 2, 3. Additional arguments for the DG face
        jumps norm: ell_coeff: mesh-depended coefficient (weight) Nu: scalar
        constant weight */
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                 Coefficient *ell_coef, double Nu,
+   virtual fptype ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, fptype Nu,
                                  int norm_type) const;
 
    /// Returns the error measured in H1-norm for H1 elements or in "broken"
    /// H1-norm for L2 elements
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   virtual fptype ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const;
 
    /// Returns the error measured in H(div)-norm for RT elements
-   virtual double ComputeHDivError(VectorCoefficient *exsol,
+   virtual fptype ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const;
 
    /// Returns the error measured in H(curl)-norm for ND elements
-   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+   virtual fptype ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeMaxError(Coefficient &exsol,
+   virtual fptype ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
-   virtual double ComputeMaxError(Coefficient *exsol[],
+   virtual fptype ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeMaxError(VectorCoefficient &exsol,
+   virtual fptype ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   virtual double ComputeL1Error(Coefficient &exsol,
+   virtual fptype ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   virtual double ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   virtual fptype ComputeW11Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                   int norm_type, const Array<int> *elems = NULL,
                                   const IntegrationRule *irs[] = NULL) const;
 
-   virtual double ComputeL1Error(VectorCoefficient &exsol,
+   virtual fptype ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
    /* The @a elems input variable expects a list of markers:
     an elem marker equal to 1 will compute the L2 error on that element
     an elem marker equal to 0 will not compute the L2 error on that element */
-   virtual double ComputeLpError(const double p, Coefficient &exsol,
+   virtual fptype ComputeLpError(const fptype p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;
@@ -609,7 +609,7 @@ public:
    /** Compute the Lp error in each element of the mesh and store the results in
        the Vector @a error. The result should be of length number of elements,
        for example an L2 GridFunction of order zero using map type VALUE. */
-   virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
+   virtual void ComputeElementLpErrors(const fptype p, Coefficient &exsol,
                                        Vector &error,
                                        Coefficient *weight = NULL,
                                        const IntegrationRule *irs[] = NULL
@@ -636,7 +636,7 @@ public:
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
-   virtual double ComputeLpError(const double p, VectorCoefficient &exsol,
+   virtual fptype ComputeLpError(const fptype p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
@@ -644,7 +644,7 @@ public:
    /** Compute the Lp error in each element of the mesh and store the results in
        the Vector @ error. The result should be of length number of elements,
        for example an L2 GridFunction of order zero using map type VALUE. */
-   virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
+   virtual void ComputeElementLpErrors(const fptype p, VectorCoefficient &exsol,
                                        Vector &error,
                                        Coefficient *weight = NULL,
                                        VectorCoefficient *v_weight = NULL,
@@ -674,7 +674,7 @@ public:
                             bool wcoef = true, int subdomain = -1);
 
    /// Redefine '=' for GridFunction = constant.
-   GridFunction &operator=(double value);
+   GridFunction &operator=(fptype value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
@@ -702,7 +702,7 @@ public:
    /** This method changes the FiniteElementSpace associated with the
        GridFunction and sets the pointer @a v as external data in the
        GridFunction. */
-   virtual void MakeRef(FiniteElementSpace *f, double *v);
+   virtual void MakeRef(FiniteElementSpace *f, fptype *v);
 
    /** @brief Make the GridFunction reference external data on a new
        FiniteElementSpace. */
@@ -720,7 +720,7 @@ public:
          method MakeRef() is called with the same arguments.
        - Otherwise, the method SetSpace() is called with argument @a f.
        - The internal true-dof vector is set to reference @a tv. */
-   void MakeTRef(FiniteElementSpace *f, double *tv);
+   void MakeTRef(FiniteElementSpace *f, fptype *tv);
 
    /** @brief Associate a new FiniteElementSpace and new true-dof data with the
        GridFunction. */
@@ -776,14 +776,14 @@ public:
       P_SQUARED_OVER_H
    };
 private:
-   double nu;
+   fptype nu;
    JumpScalingType type;
 public:
-   JumpScaling(double nu_=1.0, JumpScalingType type_=CONSTANT)
+   JumpScaling(fptype nu_=1.0, JumpScalingType type_=CONSTANT)
       : nu(nu_), type(type_) { }
-   double Eval(double h, int p) const
+   fptype Eval(fptype h, int p) const
    {
-      double val = nu;
+      fptype val = nu;
       if (type != CONSTANT) { val /= h; }
       if (type == P_SQUARED_OVER_H) { val *= p*p; }
       return val;
@@ -794,7 +794,7 @@ public:
 std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
 
 
-double ZZErrorEstimator(BilinearFormIntegrator &blfi,
+fptype ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux,
                         Vector &error_estimates,
@@ -812,7 +812,7 @@ void TensorProductLegendre(int dim,                      // input
                            const Vector &xmax,           // input
                            const Vector &xmin,           // input
                            Vector &poly,                 // output
-                           double angle=0.0,             // input (optional)
+                           fptype angle=0.0,             // input (optional)
                            const Vector *midpoint=NULL); // input (optional)
 
 /// Defines the bounding box for the face patches used by NewZZErorrEstimator
@@ -835,7 +835,7 @@ void BoundingBox(const Array<int> &face_patch, // input
                  int order,                    // input
                  Vector &xmin,                 // output
                  Vector &xmax,                 // output
-                 double &angle,                // output
+                 fptype &angle,                // output
                  Vector &midpoint,             // output
                  int iface=-1);                // input (optional)
 
@@ -847,15 +847,15 @@ void BoundingBox(const Array<int> &face_patch, // input
  *     element faces are used. These face patches always consist of two elements
  *     delivered by mesh::GetFaceElements(Face, *Elem1, *Elem2).
  */
-double LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
+fptype LSZZErrorEstimator(BilinearFormIntegrator &blfi,         // input
                           GridFunction &u,                      // input
                           Vector &error_estimates,              // output
                           bool subdomain_reconstruction = true, // input (optional)
                           bool with_coeff = false,              // input (optional)
-                          double tichonov_coeff = 0.0);         // input (optional)
+                          fptype tichonov_coeff = 0.0);         // input (optional)
 
 /// Compute the Lp distance between two grid functions on the given element.
-double ComputeElementLpDistance(double p, int i,
+fptype ComputeElementLpDistance(fptype p, int i,
                                 GridFunction& gf1, GridFunction& gf2);
 
 
@@ -869,7 +869,7 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)
       : n(n_), mesh_in(m), sol_in(s) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual fptype Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ExtrudeCoefficient() { }
 };
 

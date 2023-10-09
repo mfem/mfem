@@ -279,13 +279,13 @@ public:
    { return &boundary_face_integs_marker; }
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   const double &operator()(int i, int j) { return (*mat)(i,j); }
+   const fptype &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   virtual fptype &Elem(int i, int j);
 
    /// Returns constant reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   virtual const fptype &Elem(int i, int j) const;
 
    /// Matrix vector multiplication:  \f$ y = M x \f$
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -297,7 +297,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
+   virtual void AddMult(const Vector &x, Vector &y, const fptype a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
@@ -308,7 +308,7 @@ public:
 
    /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const
+                                 const fptype a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
@@ -321,7 +321,7 @@ public:
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
    /// Compute \f$ y^T M x \f$
-   double InnerProduct(const Vector &x, const Vector &y) const
+   fptype InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
@@ -423,7 +423,7 @@ public:
                              Array<int> &bdr_marker);
 
    /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
-   void operator=(const double a)
+   void operator=(const fptype a)
    {
       if (mat != NULL) { *mat = a; }
       if (mat_e != NULL) { *mat_e = a; }
@@ -614,7 +614,7 @@ public:
                              DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
-                                 double value);
+                                 fptype value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
    /** In this case the eliminations are applied to the internal \f$ M \f$
@@ -643,7 +643,7 @@ public:
                                      DiagonalPolicy dpolicy = DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
-                                         double value);
+                                         fptype value);
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
@@ -652,7 +652,7 @@ public:
                             Vector &b);
 
    /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
-   double FullInnerProduct(const Vector &x, const Vector &y) const
+   fptype FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /// Update the @a FiniteElementSpace and delete all data associated with the old one.
@@ -767,20 +767,20 @@ public:
                      MixedBilinearForm *mbf);
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual double &Elem(int i, int j);
+   virtual fptype &Elem(int i, int j);
 
    /// Returns a reference to: \f$ M_{ij} \f$
-   virtual const double &Elem(int i, int j) const;
+   virtual const fptype &Elem(int i, int j) const;
 
    /// Matrix multiplication: \f$ y = M x \f$
    virtual void Mult(const Vector & x, Vector & y) const;
 
    virtual void AddMult(const Vector & x, Vector & y,
-                        const double a = 1.0) const;
+                        const fptype a = 1.0) const;
 
    virtual void MultTranspose(const Vector & x, Vector & y) const;
    virtual void AddMultTranspose(const Vector & x, Vector & y,
-                                 const double a = 1.0) const;
+                                 const fptype a = 1.0) const;
 
    virtual MatrixInverse *Inverse() const;
 
@@ -849,7 +849,7 @@ public:
    { return &boundary_trace_face_integs_marker; }
 
    /// Sets all sparse values of \f$ M \f$ to @a a.
-   void operator=(const double a) { *mat = a; }
+   void operator=(const fptype a) { *mat = a; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
    /** This method must be called before assembly. */

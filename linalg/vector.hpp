@@ -37,13 +37,13 @@ namespace mfem
 
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
-inline int CheckFinite(const double *v, const int n);
+inline int CheckFinite(const fptype *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
-inline double infinity()
+inline fptype infinity()
 {
-   return std::numeric_limits<double>::infinity();
+   return std::numeric_limits<fptype>::infinity();
 }
 #else
 // On Cygwin math.h defines a function 'infinity()' which will conflict with the
@@ -59,7 +59,7 @@ class Vector
 {
 protected:
 
-   Memory<double> data;
+   Memory<fptype> data;
    int size;
 
 public:
@@ -81,7 +81,7 @@ public:
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector(double *data_, int size_)
+   Vector(fptype *data_, int size_)
    { data.Wrap(data_, size_, false); size = size_; }
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
@@ -100,7 +100,7 @@ public:
 
    /// Create a vector using a braced initializer list
    template <int N>
-   explicit Vector(const double (&values)[N]) : Vector(N)
+   explicit Vector(const fptype (&values)[N]) : Vector(N)
    { std::copy(values, values + N, GetData()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
@@ -144,20 +144,20 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
-   void SetData(double *d) { data.Wrap(d, data.Capacity(), false); }
+   void SetData(fptype *d) { data.Wrap(d, data.Capacity(), false); }
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(double *d, int s) { data.Wrap(d, s, false); size = s; }
+   void SetDataAndSize(fptype *d, int s) { data.Wrap(d, s, false); size = s; }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(double *d, int s)
+   void NewDataAndSize(fptype *d, int s)
    {
       data.Delete();
       SetDataAndSize(d, s);
@@ -172,7 +172,7 @@ public:
        the Vector object takes ownership of all pointers owned by @a mem.
 
        @sa NewDataAndSize(). */
-   inline void NewMemoryAndSize(const Memory<double> &mem, int s, bool own_mem);
+   inline void NewMemoryAndSize(const Memory<fptype> &mem, int s, bool own_mem);
 
    /// Reset the Vector to be a reference to a sub-vector of @a base.
    inline void MakeRef(Vector &base, int offset, int size);
@@ -203,33 +203,33 @@ public:
    /// Return a pointer to the beginning of the Vector data.
    /** @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
-   inline double *GetData() const
-   { return const_cast<double*>((const double*)data); }
+   inline fptype *GetData() const
+   { return const_cast<fptype*>((const fptype*)data); }
 
    /// Conversion to `double *`. Deprecated.
-   MFEM_DEPRECATED inline operator double *() { return data; }
+   MFEM_DEPRECATED inline operator fptype *() { return data; }
 
    /// Conversion to `const double *`. Deprecated.
-   MFEM_DEPRECATED inline operator const double *() const { return data; }
+   MFEM_DEPRECATED inline operator const fptype *() const { return data; }
 
    /// STL-like begin.
-   inline double *begin() { return data; }
+   inline fptype *begin() { return data; }
 
    /// STL-like end.
-   inline double *end() { return data + size; }
+   inline fptype *end() { return data + size; }
 
    /// STL-like begin (const version).
-   inline const double *begin() const { return data; }
+   inline const fptype *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const double *end() const { return data + size; }
+   inline const fptype *end() const { return data + size; }
 
    /// Return a reference to the Memory object used by the Vector.
-   Memory<double> &GetMemory() { return data; }
+   Memory<fptype> &GetMemory() { return data; }
 
    /** @brief Return a reference to the Memory object used by the Vector, const
        version. */
-   const Memory<double> &GetMemory() const { return data; }
+   const Memory<fptype> &GetMemory() const { return data; }
 
    /// Update the memory location of the vector to match @a v.
    void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
@@ -242,42 +242,42 @@ public:
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(double **p)
+   inline void StealData(fptype **p)
    { *p = data; data.Reset(); size = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
-   inline double *StealData() { double *p; StealData(&p); return p; }
+   inline fptype *StealData() { fptype *p; StealData(&p); return p; }
 
    /// Access Vector entries. Index i = 0 .. size-1.
-   double &Elem(int i);
+   fptype &Elem(int i);
 
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const double &Elem(int i) const;
+   const fptype &Elem(int i) const;
 
    /// Access Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline double &operator()(int i);
+   inline fptype &operator()(int i);
 
    /// Read only access to Vector entries using () for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const double &operator()(int i) const;
+   inline const fptype &operator()(int i) const;
 
    /// Access Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline double &operator[](int i) { return (*this)(i); }
+   inline fptype &operator[](int i) { return (*this)(i); }
 
    /// Read only access to Vector entries using [] for 0-based indexing.
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const double &operator[](int i) const { return (*this)(i); }
+   inline const fptype &operator[](int i) const { return (*this)(i); }
 
    /// Dot product with a `double *` array.
-   double operator*(const double *) const;
+   fptype operator*(const fptype *) const;
 
    /// Return the inner-product.
-   double operator*(const Vector &v) const;
+   fptype operator*(const Vector &v) const;
 
    /// Copy Size() entries from @a v.
-   Vector &operator=(const double *v);
+   Vector &operator=(const fptype *v);
 
    /// Copy assignment.
    /** @note Defining this method overwrites the implicitly defined copy
@@ -288,31 +288,31 @@ public:
    Vector &operator=(Vector&& v);
 
    /// Redefine '=' for vector = constant.
-   Vector &operator=(double value);
+   Vector &operator=(fptype value);
 
-   Vector &operator*=(double c);
+   Vector &operator*=(fptype c);
 
    /// Component-wise scaling: (*this)(i) *= v(i)
    Vector &operator*=(const Vector &v);
 
-   Vector &operator/=(double c);
+   Vector &operator/=(fptype c);
 
    /// Component-wise division: (*this)(i) /= v(i)
    Vector &operator/=(const Vector &v);
 
-   Vector &operator-=(double c);
+   Vector &operator-=(fptype c);
 
    Vector &operator-=(const Vector &v);
 
-   Vector &operator+=(double c);
+   Vector &operator+=(fptype c);
 
    Vector &operator+=(const Vector &v);
 
    /// (*this) += a * Va
-   Vector &Add(const double a, const Vector &Va);
+   Vector &Add(const fptype a, const Vector &Va);
 
    /// (*this) = a * x
-   Vector &Set(const double a, const Vector &x);
+   Vector &Set(const fptype a, const Vector &x);
 
    void SetVector(const Vector &v, int offset);
 
@@ -331,20 +331,20 @@ public:
    friend void add(const Vector &v1, const Vector &v2, Vector &v);
 
    /// Set v = v1 + alpha * v2.
-   friend void add(const Vector &v1, double alpha, const Vector &v2, Vector &v);
+   friend void add(const Vector &v1, fptype alpha, const Vector &v2, Vector &v);
 
    /// z = a * (x + y)
-   friend void add(const double a, const Vector &x, const Vector &y, Vector &z);
+   friend void add(const fptype a, const Vector &x, const Vector &y, Vector &z);
 
    /// z = a * x + b * y
-   friend void add(const double a, const Vector &x,
-                   const double b, const Vector &y, Vector &z);
+   friend void add(const fptype a, const Vector &x,
+                   const fptype b, const Vector &y, Vector &z);
 
    /// Set v = v1 - v2.
    friend void subtract(const Vector &v1, const Vector &v2, Vector &v);
 
    /// z = a * (x - y)
-   friend void subtract(const double a, const Vector &x,
+   friend void subtract(const fptype a, const Vector &x,
                         const Vector &y, Vector &z);
 
    /// Computes cross product of this vector with another 3D vector.
@@ -362,12 +362,12 @@ public:
    /// Extract entries listed in @a dofs to the output array @a elem_data.
    /** Negative dof values cause the -dof-1 position in @a elem_data to receive
        the -val in from this Vector. */
-   void GetSubVector(const Array<int> &dofs, double *elem_data) const;
+   void GetSubVector(const Array<int> &dofs, fptype *elem_data) const;
 
    /// Set the entries listed in @a dofs to the given @a value.
    /** Negative dof values cause the -dof-1 position in this Vector to receive
        the -value. */
-   void SetSubVector(const Array<int> &dofs, const double value);
+   void SetSubVector(const Array<int> &dofs, const fptype value);
 
    /** @brief Set the entries listed in @a dofs to the values given in the @a
        elemvect Vector. Negative dof values cause the -dof-1 position in this
@@ -377,7 +377,7 @@ public:
    /** @brief Set the entries listed in @a dofs to the values given the @a ,
        elem_data array. Negative dof values cause the -dof-1 position in this
        Vector to receive the -val from @a elem_data. */
-   void SetSubVector(const Array<int> &dofs, double *elem_data);
+   void SetSubVector(const Array<int> &dofs, fptype *elem_data);
 
    /** @brief Add elements of the @a elemvect Vector to the entries listed in @a
        dofs. Negative dof values cause the -dof-1 position in this Vector to add
@@ -387,16 +387,16 @@ public:
    /** @brief Add elements of the @a elem_data array to the entries listed in @a
        dofs. Negative dof values cause the -dof-1 position in this Vector to add
        the -val from @a elem_data. */
-   void AddElementVector(const Array<int> & dofs, double *elem_data);
+   void AddElementVector(const Array<int> & dofs, fptype *elem_data);
 
    /** @brief Add @a times the elements of the @a elemvect Vector to the entries
        listed in @a dofs. Negative dof values cause the -dof-1 position in this
        Vector to add the -a*val from @a elemvect. */
-   void AddElementVector(const Array<int> & dofs, const double a,
+   void AddElementVector(const Array<int> & dofs, const fptype a,
                          const Vector & elemvect);
 
    /// Set all vector entries NOT in the @a dofs Array to the given @a val.
-   void SetSubVectorComplement(const Array<int> &dofs, const double val);
+   void SetSubVectorComplement(const Array<int> &dofs, const fptype val);
 
    /// Prints vector to stream out.
    void Print(std::ostream &out = mfem::out, int width = 8) const;
@@ -420,27 +420,27 @@ public:
    /// Set random values in the vector.
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
-   double Norml2() const;
+   fptype Norml2() const;
    /// Returns the l_infinity norm of the vector.
-   double Normlinf() const;
+   fptype Normlinf() const;
    /// Returns the l_1 norm of the vector.
-   double Norml1() const;
+   fptype Norml1() const;
    /// Returns the l_p norm of the vector.
-   double Normlp(double p) const;
+   fptype Normlp(fptype p) const;
    /// Returns the maximal element of the vector.
-   double Max() const;
+   fptype Max() const;
    /// Returns the minimal element of the vector.
-   double Min() const;
+   fptype Min() const;
    /// Return the sum of the vector entries
-   double Sum() const;
+   fptype Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
-   inline double DistanceSquaredTo(const double *p) const;
+   inline fptype DistanceSquaredTo(const fptype *p) const;
    /// Compute the square of the Euclidean distance to another vector.
-   inline double DistanceSquaredTo(const Vector &p) const;
+   inline fptype DistanceSquaredTo(const Vector &p) const;
    /// Compute the Euclidean distance to another vector.
-   inline double DistanceTo(const double *p) const;
+   inline fptype DistanceTo(const fptype *p) const;
    /// Compute the Euclidean distance to another vector.
-   inline double DistanceTo(const Vector &p) const;
+   inline fptype DistanceTo(const Vector &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -450,27 +450,27 @@ public:
    virtual ~Vector();
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), on_dev).
-   virtual const double *Read(bool on_dev = true) const
+   virtual const fptype *Read(bool on_dev = true) const
    { return mfem::Read(data, size, on_dev); }
 
    /// Shortcut for mfem::Read(vec.GetMemory(), vec.Size(), false).
-   virtual const double *HostRead() const
+   virtual const fptype *HostRead() const
    { return mfem::Read(data, size, false); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), on_dev).
-   virtual double *Write(bool on_dev = true)
+   virtual fptype *Write(bool on_dev = true)
    { return mfem::Write(data, size, on_dev); }
 
    /// Shortcut for mfem::Write(vec.GetMemory(), vec.Size(), false).
-   virtual double *HostWrite()
+   virtual fptype *HostWrite()
    { return mfem::Write(data, size, false); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), on_dev).
-   virtual double *ReadWrite(bool on_dev = true)
+   virtual fptype *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, size, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(vec.GetMemory(), vec.Size(), false).
-   virtual double *HostReadWrite()
+   virtual fptype *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
 };
@@ -483,7 +483,7 @@ inline T ZeroSubnormal(T val)
    return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
 }
 
-inline bool IsFinite(const double &val)
+inline bool IsFinite(const fptype &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
    // standard in C89 or C++98. PGI as of 14.7 still defines it as a macro.
@@ -494,7 +494,7 @@ inline bool IsFinite(const double &val)
 #endif
 }
 
-inline int CheckFinite(const double *v, const int n)
+inline int CheckFinite(const fptype *v, const int n)
 {
    int bad = 0;
    for (int i = 0; i < n; i++)
@@ -563,7 +563,7 @@ inline void Vector::SetSize(int s, MemoryType mt)
    data.UseDevice(use_dev);
 }
 
-inline void Vector::NewMemoryAndSize(const Memory<double> &mem, int s,
+inline void Vector::NewMemoryAndSize(const Memory<fptype> &mem, int s,
                                      bool own_mem)
 {
    data.Delete();
@@ -600,7 +600,7 @@ inline void Vector::Destroy()
    data.UseDevice(use_dev);
 }
 
-inline double &Vector::operator()(int i)
+inline fptype &Vector::operator()(int i)
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -608,7 +608,7 @@ inline double &Vector::operator()(int i)
    return data[i];
 }
 
-inline const double &Vector::operator()(int i) const
+inline const fptype &Vector::operator()(int i) const
 {
    MFEM_ASSERT(data && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
@@ -633,9 +633,9 @@ inline Vector::~Vector()
    data.Delete();
 }
 
-inline double DistanceSquared(const double *x, const double *y, const int n)
+inline fptype DistanceSquared(const fptype *x, const fptype *y, const int n)
 {
-   double d = 0.0;
+   fptype d = 0.0;
 
    for (int i = 0; i < n; i++)
    {
@@ -645,33 +645,33 @@ inline double DistanceSquared(const double *x, const double *y, const int n)
    return d;
 }
 
-inline double Distance(const double *x, const double *y, const int n)
+inline fptype Distance(const fptype *x, const fptype *y, const int n)
 {
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
-inline double Distance(const Vector &x, const Vector &y)
+inline fptype Distance(const Vector &x, const Vector &y)
 {
    return x.DistanceTo(y);
 }
 
-inline double Vector::DistanceSquaredTo(const double *p) const
+inline fptype Vector::DistanceSquaredTo(const fptype *p) const
 {
    return DistanceSquared(data, p, size);
 }
 
-inline double Vector::DistanceSquaredTo(const Vector &p) const
+inline fptype Vector::DistanceSquaredTo(const Vector &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
    return DistanceSquared(data, p.data, size);
 }
 
-inline double Vector::DistanceTo(const double *p) const
+inline fptype Vector::DistanceTo(const fptype *p) const
 {
    return Distance(data, p, size);
 }
 
-inline double Vector::DistanceTo(const Vector &p) const
+inline fptype Vector::DistanceTo(const Vector &p) const
 {
    MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
    return Distance(data, p.data, size);
@@ -681,7 +681,7 @@ inline double Vector::DistanceTo(const Vector &p) const
 /** In parallel this computes the inner product of the local vectors,
     producing different results on each MPI rank.
 */
-inline double InnerProduct(const Vector &x, const Vector &y)
+inline fptype InnerProduct(const Vector &x, const Vector &y)
 {
    return x * y;
 }
@@ -691,11 +691,13 @@ inline double InnerProduct(const Vector &x, const Vector &y)
 /** In parallel this computes the inner product of the global vectors,
     producing identical results on each MPI rank.
 */
-inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
+inline fptype InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 {
-   double loc_prod = x * y;
-   double glb_prod;
-   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+   fptype loc_prod = x * y;
+   fptype glb_prod;
+   // TODO: ifdef for float/double
+   //MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
    return glb_prod;
 }
 #endif

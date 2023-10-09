@@ -19,14 +19,14 @@ namespace mfem
 {
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
-                           const double lim_normal,
+                           const fptype lim_normal,
                            const Vector &lim_dist,
                            const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &bld_,
+                           const Array<fptype> &w_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
                            Vector &y_,
@@ -63,20 +63,20 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double BLD[MQ1*MD1];
+      MFEM_SHARED fptype B[MQ1*MD1];
+      MFEM_SHARED fptype BLD[MQ1*MD1];
 
-      MFEM_SHARED double XY[NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY[NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ[NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ0[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY0[2][NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ0[2][NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ0[2][NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY1[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY1[2][NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ1[2][NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ1[2][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
@@ -98,19 +98,19 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            const double *Jtr = &J(0,0,qx,qy,e);
-            const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
+            const fptype *Jtr = &J(0,0,qx,qy,e);
+            const fptype detJtr = kernels::Det<2>(Jtr);
+            const fptype weight = W(qx,qy) * detJtr;
 
-            double ld, p0[2], p1[2];
-            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            fptype ld, p0[2], p1[2];
+            const fptype coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
 
-            const double dist = ld; // GetValues, default comp set to 0
+            const fptype dist = ld; // GetValues, default comp set to 0
 
-            double d1[2];
+            fptype d1[2];
             // Eval_d1 (Quadratic Limiter)
             // subtract(1.0 / (dist * dist), x, x0, d1);
             // z = a * (x - y)
@@ -123,9 +123,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             // z = a * (x - y)
             // grad = a * (x - x0)
 
-            double a = 0.0;
-            const double w = weight * lim_normal * coeff0;
-            const double dist_squared = dist * dist;
+            fptype a = 0.0;
+            const fptype w = weight * lim_normal * coeff0;
+            const fptype dist_squared = dist * dist;
 
             if (!exp_lim)
             {
@@ -133,7 +133,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_C0_2D,
             }
             else
             {
-               double dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
+               fptype dsq = kernels::DistanceSquared<2>(p1,p0) / dist_squared;
                a = 20.0*exp(10.0*(dsq - 1.0))/dist_squared;
             }
             kernels::Subtract<2>(w*a, p1, p0, d1);
@@ -155,12 +155,12 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &X, Vector &Y) const
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
+   const fptype ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W   = PA.ir->GetWeights();
-   const Array<double> &B   = PA.maps->B;
-   const Array<double> &BLD = PA.maps_lim->B;
+   const Array<fptype> &W   = PA.ir->GetWeights();
+   const Array<fptype> &B   = PA.maps->B;
+   const Array<fptype> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;

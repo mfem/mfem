@@ -332,7 +332,7 @@ protected:
    void SetMeshGen();
 
    /// Return the length of the segment from node i to node j.
-   double GetLength(int i, int j) const;
+   fptype GetLength(int i, int j) const;
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -420,11 +420,11 @@ protected:
                                         int nc_limit = 0);
 
    /// NC version of GeneralDerefinement.
-   virtual bool NonconformingDerefinement(Array<double> &elem_error,
-                                          double threshold, int nc_limit = 0,
+   virtual bool NonconformingDerefinement(Array<fptype> &elem_error,
+                                          fptype threshold, int nc_limit = 0,
                                           int op = 1);
    /// Derefinement helper.
-   double AggregateError(const Array<double> &elem_error,
+   fptype AggregateError(const Array<fptype> &elem_error,
                          const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
@@ -550,7 +550,7 @@ protected:
        (when type=HEXAHEDRON) are ordered: true - use space-filling curve
        ordering, or false - use lexicographic ordering. */
    void Make3D(int nx, int ny, int nz, Element::Type type,
-               double sx, double sy, double sz, bool sfc_ordering);
+               fptype sx, fptype sy, fptype sz, bool sfc_ordering);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
@@ -558,11 +558,11 @@ protected:
        if 1 edges are generated. The parameter @a sfc_ordering controls how the
        elements (when type=QUADRILATERAL) are ordered: true - use space-filling
        curve ordering, or false - use lexicographic ordering. */
-   void Make2D(int nx, int ny, Element::Type type, double sx, double sy,
+   void Make2D(int nx, int ny, Element::Type type, fptype sx, fptype sy,
                bool generate_edges, bool sfc_ordering);
 
    /// Creates a 1D mesh for the interval [0,sx] divided into n equal intervals.
-   void Make1D(int n, double sx = 1.0);
+   void Make1D(int n, fptype sx = 1.0);
 
    /// Internal function used in Mesh::MakeRefined
    void MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
@@ -578,7 +578,7 @@ protected:
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
 
-   double GetElementSize(ElementTransformation *T, int type = 0);
+   fptype GetElementSize(ElementTransformation *T, int type = 0);
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
    void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
@@ -619,7 +619,7 @@ public:
        This method calls the method FinalizeTopology(). The method Finalize()
        may be called after this constructor and after optionally setting the
        Mesh nodes. */
-   Mesh(double *vertices, int num_vertices,
+   Mesh(fptype *vertices, int num_vertices,
         int *element_indices, Geometry::Type element_type,
         int *element_attributes, int num_elements,
         int *boundary_indices, Geometry::Type boundary_type,
@@ -702,7 +702,7 @@ public:
                             bool fix_orientation = true);
 
    /** Creates 1D mesh , divided into n equal intervals. */
-   static Mesh MakeCartesian1D(int n, double sx = 1.0);
+   static Mesh MakeCartesian1D(int n, fptype sx = 1.0);
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
        quadrilaterals if type = QUADRILATERAL or into 2*nx*ny triangles if
@@ -711,7 +711,7 @@ public:
        ordered along a space-filling curve, instead of row by row. */
    static Mesh MakeCartesian2D(
       int nx, int ny, Element::Type type, bool generate_edges = false,
-      double sx = 1.0, double sy = 1.0, bool sfc_ordering = true);
+      fptype sx = 1.0, fptype sy = 1.0, bool sfc_ordering = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
@@ -719,7 +719,7 @@ public:
        along a space-filling curve, instead of row by row and layer by layer. */
    static Mesh MakeCartesian3D(
       int nx, int ny, int nz, Element::Type type,
-      double sx = 1.0, double sy = 1.0, double sz = 1.0,
+      fptype sx = 1.0, fptype sy = 1.0, fptype sz = 1.0,
       bool sfc_ordering = true);
 
    /// Create a refined (by any factor) version of @a orig_mesh.
@@ -784,8 +784,8 @@ public:
    /// @note The returned object should be deleted by the caller.
    Element *NewElement(int geom);
 
-   int AddVertex(double x, double y = 0.0, double z = 0.0);
-   int AddVertex(const double *coords);
+   int AddVertex(fptype x, fptype y = 0.0, fptype z = 0.0);
+   int AddVertex(const fptype *coords);
    int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
@@ -956,10 +956,10 @@ public:
        @return The final edge product cost of the ordering. The function may be
        called in an external loop with different seeds, and the best ordering can
        then be retained. */
-   double GetGeckoElementOrdering(Array<int> &ordering,
+   fptype GetGeckoElementOrdering(Array<int> &ordering,
                                   int iterations = 4, int window = 4,
                                   int period = 2, int seed = 0,
-                                  bool verbose = false, double time_limit = 0);
+                                  bool verbose = false, fptype time_limit = 0);
 
    /** Return an ordering of the elements that approximately follows the Hilbert
        curve. The method performs a spatial (Hilbert) sort on the centers of all
@@ -983,7 +983,7 @@ public:
    /// Deprecated: see @a MakeCartesian3D.
    MFEM_DEPRECATED
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
-        double sx = 1.0, double sy = 1.0, double sz = 1.0,
+        fptype sx = 1.0, fptype sy = 1.0, fptype sz = 1.0,
         bool sfc_ordering = true)
    {
       Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
@@ -993,7 +993,7 @@ public:
    /// Deprecated: see @a MakeCartesian2D.
    MFEM_DEPRECATED
    Mesh(int nx, int ny, Element::Type type, bool generate_edges = false,
-        double sx = 1.0, double sy = 1.0, bool sfc_ordering = true)
+        fptype sx = 1.0, fptype sy = 1.0, bool sfc_ordering = true)
    {
       Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
       Finalize(true); // refine = true
@@ -1001,7 +1001,7 @@ public:
 
    /// Deprecated: see @a MakeCartesian1D.
    MFEM_DEPRECATED
-   explicit Mesh(int n, double sx = 1.0)
+   explicit Mesh(int n, fptype sx = 1.0)
    {
       Make1D(n, sx);
       // Finalize(); // reminder: not needed
@@ -1069,8 +1069,8 @@ public:
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
 
-   void GetCharacteristics(double &h_min, double &h_max,
-                           double &kappa_min, double &kappa_max,
+   void GetCharacteristics(fptype &h_min, fptype &h_max,
+                           fptype &kappa_min, fptype &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
    /// @}
@@ -1122,7 +1122,7 @@ public:
    /// @brief Return pointer to vertex i's coordinates.
    /// @warning For high-order meshes (when #Nodes != NULL) vertices may not be
    /// updated and should not be used!
-   const double *GetVertex(int i) const { return vertices[i](); }
+   const fptype *GetVertex(int i) const { return vertices[i](); }
 
    /// @brief Return pointer to vertex i's coordinates.
    ///
@@ -1132,7 +1132,7 @@ public:
    /// @note The pointer returned by this function can be used to
    /// alter vertex locations but the pointer itself should not be
    /// changed by the caller.
-   double *GetVertex(int i) { return vertices[i](); }
+   fptype *GetVertex(int i) { return vertices[i](); }
 
    /// @brief Return pointer to the i'th element object
    ///
@@ -1253,11 +1253,11 @@ public:
 
    /** @brief Get the size of the i-th element relative to the perfect
        reference element. */
-   double GetElementSize(int i, int type = 0);
+   fptype GetElementSize(int i, int type = 0);
 
-   double GetElementSize(int i, const Vector &dir);
+   fptype GetElementSize(int i, const Vector &dir);
 
-   double GetElementVolume(int i);
+   fptype GetElementVolume(int i);
 
    void GetElementCenter(int i, Vector &center);
 
@@ -1801,14 +1801,14 @@ public:
    /** If @a zerocopy is `true`, the vertices must be given as an array of 3
        doubles per vertex. If @a zerocopy is `false` then the current Vertex
        data is first copied to the @a vertices array. */
-   void ChangeVertexDataOwnership(double *vertices, int len_vertices,
+   void ChangeVertexDataOwnership(fptype *vertices, int len_vertices,
                                   bool zerocopy = false);
 
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the element
    // and along the edges and on the faces.
-   void GetNode(int i, double *coord) const;
-   void SetNode(int i, const double *coord);
+   void GetNode(int i, fptype *coord) const;
+   void SetNode(int i, const fptype *coord);
 
    // Node operations for curved mesh.
    // They call the corresponding '...Vertices' method if the
@@ -1818,8 +1818,8 @@ public:
    /// Updates the vertex/node locations. Invokes NodesUpdated().
    void SetNodes(const Vector &node_coord);
 
-   void ScaleSubdomains (double sf);
-   void ScaleElements (double sf);
+   void ScaleSubdomains (fptype sf);
+   void ScaleElements (fptype sf);
 
    void Transform(void (*f)(const Vector&, Vector&));
    void Transform(VectorCoefficient &deformation);
@@ -1931,21 +1931,21 @@ public:
                           int nonconforming = -1, int nc_limit = 0);
 
    /// Refine each element with given probability. Uses GeneralRefinement.
-   void RandomRefinement(double prob, bool aniso = false,
+   void RandomRefinement(fptype prob, bool aniso = false,
                          int nonconforming = -1, int nc_limit = 0);
 
    /// Refine elements sharing the specified vertex. Uses GeneralRefinement.
    void RefineAtVertex(const Vertex& vert,
-                       double eps = 0.0, int nonconforming = -1);
+                       fptype eps = 0.0, int nonconforming = -1);
 
    /** Refine element i if elem_error[i] > threshold, for all i.
        Returns true if at least one element was refined, false otherwise. */
-   bool RefineByError(const Array<double> &elem_error, double threshold,
+   bool RefineByError(const Array<fptype> &elem_error, fptype threshold,
                       int nonconforming = -1, int nc_limit = 0);
 
    /** Refine element i if elem_error(i) > threshold, for all i.
        Returns true if at least one element was refined, false otherwise. */
-   bool RefineByError(const Vector &elem_error, double threshold,
+   bool RefineByError(const Vector &elem_error, fptype threshold,
                       int nonconforming = -1, int nc_limit = 0);
 
    /** Derefine the mesh based on an error measure associated with each
@@ -1953,11 +1953,11 @@ public:
        elements is smaller than 'threshold'. If 'nc_limit' > 0, derefinements
        that would increase the maximum level of hanging nodes of the mesh are
        skipped. Returns true if the mesh changed, false otherwise. */
-   bool DerefineByError(Array<double> &elem_error, double threshold,
+   bool DerefineByError(Array<fptype> &elem_error, fptype threshold,
                         int nc_limit = 0, int op = 1);
 
    /// Same as DerefineByError for an error vector.
-   bool DerefineByError(const Vector &elem_error, double threshold,
+   bool DerefineByError(const Vector &elem_error, fptype threshold,
                         int nc_limit = 0, int op = 1);
 
    /** Make sure that a quad/hex mesh is considered to be nonconforming (i.e.,
@@ -2110,7 +2110,7 @@ public:
        @warning This algorithm does not scale well with the number of boundary
        vertices in the mesh, and may run slowly on very large meshes. */
    std::vector<int> CreatePeriodicVertexMapping(
-      const std::vector<Vector> &translations, double tol = 1e-8) const;
+      const std::vector<Vector> &translations, fptype tol = 1e-8) const;
 
    /** @brief Find the ids of the elements that contain the given points, and
        their corresponding reference coordinates.
@@ -2151,7 +2151,7 @@ public:
        (4) orientation (1 in 2D and 3 in 3D).
     */
    void GetGeometricParametersFromJacobian(const DenseMatrix &J,
-                                           double &volume,
+                                           fptype &volume,
                                            Vector &aspr,
                                            Vector &skew,
                                            Vector &ori) const;
@@ -2166,7 +2166,7 @@ public:
    void MesquiteSmooth(const int mesquite_option = 0);
 
    /// @todo This method needs a proper description
-   void CheckDisplacements(const Vector &displacements, double &tmax);
+   void CheckDisplacements(const Vector &displacements, fptype &tmax);
 
    /// @}
 };
@@ -2289,10 +2289,10 @@ class NodeExtrudeCoefficient : public VectorCoefficient
 {
 private:
    int n, layer;
-   double p[2], s;
+   fptype p[2], s;
    Vector tip;
 public:
-   NodeExtrudeCoefficient(const int dim, const int n_, const double s_);
+   NodeExtrudeCoefficient(const int dim, const int n_, const fptype s_);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -2302,11 +2302,11 @@ public:
 
 
 /// Extrude a 1D mesh
-Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy,
+Mesh *Extrude1D(Mesh *mesh, const int ny, const fptype sy,
                 const bool closed = false);
 
 /// Extrude a 2D mesh
-Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz);
+Mesh *Extrude2D(Mesh *mesh, const int nz, const fptype sz);
 
 // shift cyclically 3 integers left-to-right
 inline void ShiftRight(int &a, int &b, int &c)

@@ -36,12 +36,12 @@ namespace mfem
 
 class
 #if defined(__alignas_is_defined)
-   alignas(double)
+   alignas(fptype)
 #endif
    RowNode
 {
 public:
-   double Value;
+   fptype Value;
    RowNode *Prev;
    int Column;
 };
@@ -65,7 +65,7 @@ protected:
    Memory<int> J;
    /** @brief %Array with size #I[#height], containing the actual entries of the
        sparse matrix, as indexed by the #I array. */
-   Memory<double> A;
+   Memory<fptype> A;
    ///@}
 
    /** @brief %Array of linked lists, one for every row. This array represents
@@ -144,14 +144,14 @@ public:
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is transferred to the SparseMatrix. */
-   SparseMatrix(int *i, int *j, double *data, int m, int n);
+   SparseMatrix(int *i, int *j, fptype *data, int m, int n);
 
    /** @brief Create a sparse matrix in CSR format. Ownership of @a i, @a j, and
        @a data is optionally transferred to the SparseMatrix. */
    /** If the parameter @a data is NULL, then the internal #A array is allocated
        by this constructor (initializing it with zeros and taking ownership,
        regardless of the parameter @a owna). */
-   SparseMatrix(int *i, int *j, double *data, int m, int n, bool ownij,
+   SparseMatrix(int *i, int *j, fptype *data, int m, int n, bool ownij,
                 bool owna, bool issorted);
 
    /** @brief Create a sparse matrix in CSR format where each row has space
@@ -229,9 +229,9 @@ public:
    inline const int *GetJ() const { return J; }
 
    /// Return the element data, i.e. the array #A.
-   inline double *GetData() { return A; }
+   inline fptype *GetData() { return A; }
    /// Return the element data, i.e. the array #A, const version.
-   inline const double *GetData() const { return A; }
+   inline const fptype *GetData() const { return A; }
 
    // Memory access methods for the #I array.
    Memory<int> &GetMemoryI() { return I; }
@@ -266,19 +266,19 @@ public:
    { return mfem::ReadWrite(J, J.Capacity(), false); }
 
    // Memory access methods for the #A array.
-   Memory<double> &GetMemoryData() { return A; }
-   const Memory<double> &GetMemoryData() const { return A; }
-   const double *ReadData(bool on_dev = true) const
+   Memory<fptype> &GetMemoryData() { return A; }
+   const Memory<fptype> &GetMemoryData() const { return A; }
+   const fptype *ReadData(bool on_dev = true) const
    { return mfem::Read(A, A.Capacity(), on_dev); }
-   double *WriteData(bool on_dev = true)
+   fptype *WriteData(bool on_dev = true)
    { return mfem::Write(A, A.Capacity(), on_dev); }
-   double *ReadWriteData(bool on_dev = true)
+   fptype *ReadWriteData(bool on_dev = true)
    { return mfem::ReadWrite(A, A.Capacity(), on_dev); }
-   const double *HostReadData() const
+   const fptype *HostReadData() const
    { return mfem::Read(A, A.Capacity(), false); }
-   double *HostWriteData()
+   fptype *HostWriteData()
    { return mfem::Write(A, A.Capacity(), false); }
-   double *HostReadWriteData()
+   fptype *HostReadWriteData()
    { return mfem::ReadWrite(A, A.Capacity(), false); }
 
    /// Returns the number of elements in row @a i.
@@ -293,9 +293,9 @@ public:
    const int *GetRowColumns(const int row) const;
 
    /// Return a pointer to the entries in a row.
-   double *GetRowEntries(const int row);
+   fptype *GetRowEntries(const int row);
    /// Return a pointer to the entries in a row, const version.
-   const double *GetRowEntries(const int row) const;
+   const fptype *GetRowEntries(const int row) const;
 
    /// Change the width of a SparseMatrix.
    /*!
@@ -319,16 +319,16 @@ public:
    void MoveDiagonalFirst();
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j);
+   virtual fptype &Elem(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const;
+   virtual const fptype &Elem(int i, int j) const;
 
    /// Returns reference to A[i][j].
-   double &operator()(int i, int j);
+   fptype &operator()(int i, int j);
 
    /// Returns reference to A[i][j].
-   const double &operator()(int i, int j) const;
+   const fptype &operator()(int i, int j) const;
 
    /// Returns the Diagonal of A
    void GetDiag(Vector & d) const;
@@ -350,7 +350,7 @@ public:
 
    /// y += A * x (default)  or  y += a * A * x
    virtual void AddMult(const Vector &x, Vector &y,
-                        const double a = 1.0) const;
+                        const fptype a = 1.0) const;
 
    /// Multiply a vector with the transposed matrix. y = At * x
    /** If the matrix is modified, call ResetTranspose() and optionally
@@ -363,7 +363,7 @@ public:
        EnsureMultTranspose() to make sure this method uses the correct updated
        transpose. */
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+                                 const fptype a = 1.0) const;
 
    /** @brief Build and store internally the transpose of this matrix which will
        be used in the methods AddMultTranspose(), MultTranspose(), and
@@ -407,7 +407,7 @@ public:
 
    void PartMult(const Array<int> &rows, const Vector &x, Vector &y) const;
    void PartAddMult(const Array<int> &rows, const Vector &x, Vector &y,
-                    const double a=1.0) const;
+                    const fptype a=1.0) const;
 
    /// y = A * x, treating all entries as booleans (zero=false, nonzero=true).
    /** The actual values stored in the data array, #A, are not used - this means
@@ -431,18 +431,18 @@ public:
    void AbsMultTranspose(const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
-   double InnerProduct(const Vector &x, const Vector &y) const;
+   fptype InnerProduct(const Vector &x, const Vector &y) const;
 
    /// For all i compute \f$ x_i = \sum_j A_{ij} \f$
    void GetRowSums(Vector &x) const;
    /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
-   double GetRowNorml1(int irow) const;
+   fptype GetRowNorml1(int irow) const;
 
    /// This virtual method is not supported: it always returns NULL.
    virtual MatrixInverse *Inverse() const;
 
    /// Eliminates a column from the transpose matrix.
-   void EliminateRow(int row, const double sol, Vector &rhs);
+   void EliminateRow(int row, const fptype sol, Vector &rhs);
 
    /// Eliminates a row from the matrix.
    /*!
@@ -478,7 +478,7 @@ public:
        is assembled if and only if the element (rc,i) is assembled.
        By default, elements (rc,rc) are set to 1.0, although this behavior
        can be adjusted by changing the @a dpolicy parameter. */
-   void EliminateRowCol(int rc, const double sol, Vector &rhs,
+   void EliminateRowCol(int rc, const fptype sol, Vector &rhs,
                         DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to
@@ -490,7 +490,7 @@ public:
                                    DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// Perform elimination and set the diagonal entry to the given value
-   void EliminateRowColDiag(int rc, double value);
+   void EliminateRowColDiag(int rc, fptype value);
 
    /// Eliminate row @a rc and column @a rc.
    void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
@@ -512,31 +512,31 @@ public:
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
-   virtual void EliminateZeroRows(const double threshold = 1e-12);
+   virtual void EliminateZeroRows(const fptype threshold = 1e-12);
 
    /// Gauss-Seidel forward and backward iterations over a vector x.
    void Gauss_Seidel_forw(const Vector &x, Vector &y) const;
    void Gauss_Seidel_back(const Vector &x, Vector &y) const;
 
    /// Determine appropriate scaling for Jacobi iteration
-   double GetJacobiScaling() const;
+   fptype GetJacobiScaling() const;
    /** One scaled Jacobi iteration for the system A x = b.
        x1 = x0 + sc D^{-1} (b - A x0)  where D is the diag of A.
        Absolute values of D are used when use_abs_diag = true. */
    void Jacobi(const Vector &b, const Vector &x0, Vector &x1,
-               double sc, bool use_abs_diag = false) const;
+               fptype sc, bool use_abs_diag = false) const;
 
    /// x = sc b / A_ii. When use_abs_diag = true, |A_ii| is used.
    void DiagScale(const Vector &b, Vector &x,
-                  double sc = 1.0, bool use_abs_diag = false) const;
+                  fptype sc = 1.0, bool use_abs_diag = false) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
-                double sc = 1.0) const;
+                fptype sc = 1.0) const;
 
    /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j A_{ij} \f$. */
    void Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
-                double sc = 1.0) const;
+                fptype sc = 1.0) const;
 
    /** @brief Finalize the matrix initialization, switching the storage format
        from LIL to CSR. */
@@ -556,7 +556,7 @@ public:
    /** @brief Remove entries smaller in absolute value than a given tolerance
        @a tol. If @a fix_empty_rows is true, a zero value is inserted in the
        diagonal entry (for square matrices only) */
-   void Threshold(double tol, bool fix_empty_rows = false);
+   void Threshold(fptype tol, bool fix_empty_rows = false);
 
    /** Split the matrix into M x N blocks of sparse matrices in CSR format.
        The 'blocks' array is M x N (i.e. M and N are determined by its
@@ -580,24 +580,24 @@ public:
        SparseMatrix, it will be added to the sparsity pattern initialized with
        zero. If the matrix is finalized and the entry is not found, an error
        will be generated. */
-   inline double &SearchRow(const int col);
+   inline fptype &SearchRow(const int col);
    /// Add a value to an entry in the "current row". See SetColPtr().
-   inline void _Add_(const int col, const double a)
+   inline void _Add_(const int col, const fptype a)
    { SearchRow(col) += a; }
    /// Set an entry in the "current row". See SetColPtr().
-   inline void _Set_(const int col, const double a)
+   inline void _Set_(const int col, const fptype a)
    { SearchRow(col) = a; }
    /// Read the value of an entry in the "current row". See SetColPtr().
-   inline double _Get_(const int col) const;
+   inline fptype _Get_(const int col) const;
 
-   inline double &SearchRow(const int row, const int col);
-   inline void _Add_(const int row, const int col, const double a)
+   inline fptype &SearchRow(const int row, const int col);
+   inline void _Add_(const int row, const int col, const fptype a)
    { SearchRow(row, col) += a; }
-   inline void _Set_(const int row, const int col, const double a)
+   inline void _Set_(const int row, const int col, const fptype a)
    { SearchRow(row, col) = a; }
 
-   void Set(const int i, const int j, const double val);
-   void Add(const int i, const int j, const double val);
+   void Set(const int i, const int j, const fptype val);
+   void Add(const int i, const int j, const fptype val);
 
    void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
@@ -631,7 +631,7 @@ public:
    void SetRow(const int row, const Array<int> &cols, const Vector &srow);
    void AddRow(const int row, const Array<int> &cols, const Vector &srow);
 
-   void ScaleRow(const int row, const double scale);
+   void ScaleRow(const int row, const fptype scale);
    /// this = diag(sl) * this;
    void ScaleRows(const Vector & sl);
    /// this = this * diag(sr);
@@ -643,11 +643,11 @@ public:
 
    /** @brief Add the sparse matrix 'B' scaled by the scalar 'a' into '*this'.
        Only entries in the sparsity pattern of '*this' are added. */
-   void Add(const double a, const SparseMatrix &B);
+   void Add(const fptype a, const SparseMatrix &B);
 
-   SparseMatrix &operator=(double a);
+   SparseMatrix &operator=(fptype a);
 
-   SparseMatrix &operator*=(double a);
+   SparseMatrix &operator*=(fptype a);
 
    /// Prints matrix to stream out.
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
@@ -668,7 +668,7 @@ public:
    void PrintInfo(std::ostream &out) const;
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
-   double IsSymmetric() const;
+   fptype IsSymmetric() const;
 
    /// (*this) = 1/2 ((*this) + (*this)^t)
    void Symmetrize();
@@ -676,10 +676,10 @@ public:
    /// Returns the number of the nonzero elements in the matrix
    virtual int NumNonZeroElems() const;
 
-   double MaxNorm() const;
+   fptype MaxNorm() const;
 
    /// Count the number of entries with |a_ij| <= tol.
-   int CountSmallElems(double tol) const;
+   int CountSmallElems(fptype tol) const;
 
    /// Count the number of entries that are NOT finite, i.e. Inf or Nan.
    int CheckFinite() const;
@@ -715,7 +715,7 @@ inline std::ostream& operator<<(std::ostream& os, SparseMatrix const& mat)
 }
 
 /// Applies f() to each element of the matrix (after it is finalized).
-void SparseMatrixFunction(SparseMatrix &S, double (*f)(double));
+void SparseMatrixFunction(SparseMatrix &S, fptype (*f)(fptype));
 
 
 /// Transpose of a sparse matrix. A must be finalized.
@@ -766,13 +766,13 @@ SparseMatrix *Mult_AtDA(const SparseMatrix &A, const Vector &D,
 /// Matrix addition result = A + B.
 SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B);
 /// Matrix addition result = a*A + b*B
-SparseMatrix * Add(double a, const SparseMatrix & A, double b,
+SparseMatrix * Add(fptype a, const SparseMatrix & A, fptype b,
                    const SparseMatrix & B);
 /// Matrix addition result = sum_i A_i
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
 
 /// B += alpha * A
-void Add(const SparseMatrix &A, double alpha, DenseMatrix &B);
+void Add(const SparseMatrix &A, fptype alpha, DenseMatrix &B);
 
 /// Produces a block matrix with blocks A_{ij}*B
 DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B);
@@ -843,7 +843,7 @@ inline void SparseMatrix::ClearColPtr() const
    }
 }
 
-inline double &SparseMatrix::SearchRow(const int col)
+inline fptype &SparseMatrix::SearchRow(const int col)
 {
    if (Rows)
    {
@@ -870,7 +870,7 @@ inline double &SparseMatrix::SearchRow(const int col)
    }
 }
 
-inline double SparseMatrix::_Get_(const int col) const
+inline fptype SparseMatrix::_Get_(const int col) const
 {
    if (Rows)
    {
@@ -884,7 +884,7 @@ inline double SparseMatrix::_Get_(const int col) const
    }
 }
 
-inline double &SparseMatrix::SearchRow(const int row, const int col)
+inline fptype &SparseMatrix::SearchRow(const int row, const int col)
 {
    if (Rows)
    {

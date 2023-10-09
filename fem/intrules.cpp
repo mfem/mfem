@@ -83,7 +83,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    }
 }
 
-const Array<double> &IntegrationRule::GetWeights() const
+const Array<fptype> &IntegrationRule::GetWeights() const
 {
    if (weights.Size() != GetNPoints())
    {
@@ -132,9 +132,9 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    int pt = 0;
    for (int i = 0; i <= s; i++)
    {
-      double weight;
+      fptype weight;
 
-      weight = pow(2., -2*s)*pow(static_cast<double>(d + n - 2*i),
+      weight = pow(2., -2*s)*pow(static_cast<fptype>(d + n - 2*i),
                                  d)/fact(i)/fact(d + n - i);
       if (i%2)
       {
@@ -149,11 +149,11 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
       {
          IntegrationPoint &ip = IntPoint(pt++);
          ip.weight = weight;
-         ip.x = double(2*beta[0] + 1)/(d + n - 2*i);
-         ip.y = double(2*beta[1] + 1)/(d + n - 2*i);
+         ip.x = fptype(2*beta[0] + 1)/(d + n - 2*i);
+         ip.y = fptype(2*beta[1] + 1)/(d + n - 2*i);
          if (n == 3)
          {
-            ip.z = double(2*beta[2] + 1)/(d + n - 2*i);
+            ip.z = fptype(2*beta[2] + 1)/(d + n - 2*i);
          }
 
          int j = 0;
@@ -186,8 +186,8 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    IntegrationRule *kvir = new IntegrationRule(ne * np);
    kvir->SetOrder(GetOrder());
 
-   double x0 = kv[0];
-   double x1 = x0;
+   fptype x0 = kv[0];
+   fptype x1 = x0;
 
    int id = 0;
    for (int e=0; e<ne; ++e)
@@ -212,11 +212,11 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
          }
       }
 
-      const double s = x1 - x0;
+      const fptype s = x1 - x0;
 
       for (int j=0; j<this->GetNPoints(); ++j)
       {
-         const double x = x0 + (s * (*this)[j].x);
+         const fptype x = x0 + (s * (*this)[j].x);
          (*kvir)[(e * np) + j].Set1w(x, (*this)[j].weight);
       }
    }
@@ -403,9 +403,9 @@ public:
       if (k >= (n+1)/2) { mpfr_swap(z, p1); }
    }
 
-   double GetPoint() const { return mpfr_get_d(z, rnd); }
-   double GetSymmPoint() const { return mpfr_get_d(p1, rnd); }
-   double GetWeight() const { return mpfr_get_d(w, rnd); }
+   fptype GetPoint() const { return mpfr_get_d(z, rnd); }
+   fptype GetSymmPoint() const { return mpfr_get_d(p1, rnd); }
+   fptype GetWeight() const { return mpfr_get_d(w, rnd); }
 
    const mpfr_t &GetHPPoint() const { return z; }
    const mpfr_t &GetHPSymmPoint() const { return p1; }
@@ -450,16 +450,16 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 
    for (int i = 1; i <= m; i++)
    {
-      double z = cos(M_PI * (i - 0.25) / (n + 0.5));
-      double pp, p1, dz, xi = 0.;
+      fptype z = cos(M_PI * (i - 0.25) / (n + 0.5));
+      fptype pp, p1, dz, xi = 0.;
       bool done = false;
       while (1)
       {
-         double p2 = 1;
+         fptype p2 = 1;
          p1 = z;
          for (int j = 2; j <= n; j++)
          {
-            double p3 = p2;
+            fptype p3 = p2;
             p2 = p1;
             p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j;
          }
@@ -551,13 +551,13 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
       {
          // initial guess is the corresponding Chebyshev point, x_i:
          //    x_i = -cos(\pi * (i / (np-1)))
-         double x_i = std::sin(M_PI * ((double)(i)/(np-1) - 0.5));
-         double z_i = 0., p_l;
+         fptype x_i = std::sin(M_PI * ((fptype)(i)/(np-1) - 0.5));
+         fptype z_i = 0., p_l;
          bool done = false;
          for (int iter = 0 ; true ; ++iter)
          {
             // build Legendre polynomials, up to P_{np}(x_i)
-            double p_lm1 = 1.0;
+            fptype p_lm1 = 1.0;
             p_l = x_i;
 
             for (int l = 1 ; l < (np-1) ; ++l)
@@ -565,7 +565,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
                // The Legendre polynomials can be built by recursion:
                // x * P_l(x) = 1/(2*l+1)*[ (l+1)*P_{l+1}(x) + l*P_{l-1} ], i.e.
                // P_{l+1}(x) = [ (2*l+1)*x*P_l(x) - l*P_{l-1} ]/(l+1)
-               double p_lp1 = ( (2*l + 1)*x_i*p_l - l*p_lm1)/(l + 1);
+               fptype p_lp1 = ( (2*l + 1)*x_i*p_l - l*p_lm1)/(l + 1);
 
                p_lm1 = p_l;
                p_l = p_lp1;
@@ -583,7 +583,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
             // therefore, deriv = np * (np-1) * p_l;
 
             // compute dx = resid/deriv
-            double dx = (x_i*p_l - p_lm1) / (np*p_l);
+            fptype dx = (x_i*p_l - p_lm1) / (np*p_l);
             if (std::abs(dx) < 1e-16)
             {
                done = true;
@@ -601,7 +601,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
          IntegrationPoint &ip = ir->IntPoint(i);
          ip.x = z_i;
          // w_i = (2/[ n*(n-1)*[P_{n-1}(x_i)]^2 ]) / 2
-         ip.weight = (double)(1.0 / (np*(np-1)*p_l*p_l));
+         ip.weight = (fptype)(1.0 / (np*(np-1)*p_l*p_l));
 
          // set the symmetric point
          IntegrationPoint &symm_ip = ir->IntPoint(np-1-i);
@@ -637,7 +637,7 @@ void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
    // interpolatory polynomial through the equally spaced quadrature points.
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(i+1) / double(np + 1);
+      ir->IntPoint(i).x = fptype(i+1) / fptype(np + 1);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::OpenUniform);
@@ -657,7 +657,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(i) / (np-1);
+      ir->IntPoint(i).x = fptype(i) / (np-1);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::ClosedUniform);
@@ -672,7 +672,7 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
    {
-      ir->IntPoint(i).x = double(2*i+1) / (2*np);
+      ir->IntPoint(i).x = fptype(2*i+1) / (2*np);
    }
 
    CalculateUniformWeights(ir, Quadrature1D::OpenHalfUniform);
@@ -700,7 +700,7 @@ void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
    CalculateUniformWeights(ir, Quadrature1D::ClosedGL);
 }
 
-void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
+void QuadratureFunctions1D::GivePolyPoints(const int np, fptype *pts,
                                            const int type)
 {
    IntegrationRule ir(np);
@@ -1838,7 +1838,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
    MFEM_VERIFY(kv.Size() == dim, "");
 
    int np = 1;
-   std::vector<std::vector<double>> el(dim);
+   std::vector<std::vector<fptype>> el(dim);
 
    std::vector<int> npd;
    npd.assign(3, 0);
@@ -1847,8 +1847,8 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
    {
       const int order = kv[d]->GetOrder();
 
-      const double kv0 = (*kv[d])[order + ijk[d]];
-      const double kv1 = (*kv[d])[order + ijk[d] + 1];
+      const fptype kv0 = (*kv[d])[order + ijk[d]];
+      const fptype kv1 = (*kv[d])[order + ijk[d] + 1];
 
       const bool rightEnd = (order + ijk[d] + 1) == (kv[d]->Size() - 1);
 
@@ -1857,7 +1857,7 @@ IntegrationRule& NURBSMeshRules::GetElementRule(const int elem,
          const IntegrationPoint& ip = (*patchRules1D(patch,d))[i];
          if (kv0 <= ip.x && (ip.x < kv1 || rightEnd))
          {
-            const double x = (ip.x - kv0) / (kv1 - kv0);
+            const fptype x = (ip.x - kv0) / (kv1 - kv0);
             el[d].push_back(x);
             el[d].push_back(ip.weight);
          }
@@ -1995,8 +1995,8 @@ void NURBSMeshRules::Finalize(Mesh const& mesh)
             bool found = false;
             while (!found)
             {
-               const double kv0 = (*pkv[d])[order + ijk_d];
-               const double kv1 = (*pkv[d])[order + ijk_d + 1];
+               const fptype kv0 = (*pkv[d])[order + ijk_d];
+               const fptype kv1 = (*pkv[d])[order + ijk_d + 1];
 
                const bool rightEnd = (order + ijk_d + 1) == (pkv[d]->Size() - 1);
 

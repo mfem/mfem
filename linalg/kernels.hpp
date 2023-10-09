@@ -37,16 +37,16 @@ namespace kernels
 
 /// Compute the square of the Euclidean distance to another vector
 template<int dim>
-MFEM_HOST_DEVICE inline double DistanceSquared(const double *x, const double *y)
+MFEM_HOST_DEVICE inline fptype DistanceSquared(const fptype *x, const fptype *y)
 {
-   double d = 0.0;
+   fptype d = 0.0;
    for (int i = 0; i < dim; i++) { d += (x[i]-y[i])*(x[i]-y[i]); }
    return d;
 }
 
 /// Creates n x n diagonal matrix with diagonal elements c
 template<int dim>
-MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
+MFEM_HOST_DEVICE inline void Diag(const fptype c, fptype *data)
 {
    const int N = dim*dim;
    for (int i = 0; i < N; i++) { data[i] = 0.0; }
@@ -55,28 +55,28 @@ MFEM_HOST_DEVICE inline void Diag(const double c, double *data)
 
 /// Vector subtraction operation: z = a * (x - y)
 template<int dim>
-MFEM_HOST_DEVICE inline void Subtract(const double a,
-                                      const double *x, const double *y,
-                                      double *z)
+MFEM_HOST_DEVICE inline void Subtract(const fptype a,
+                                      const fptype *x, const fptype *y,
+                                      fptype *z)
 {
    for (int i = 0; i < dim; i++) { z[i] = a * (x[i] - y[i]); }
 }
 
 /// Dense matrix operation: VWt += v w^t
 template<int dim>
-MFEM_HOST_DEVICE inline void AddMultVWt(const double *v, const double *w,
-                                        double *VWt)
+MFEM_HOST_DEVICE inline void AddMultVWt(const fptype *v, const fptype *w,
+                                        fptype *VWt)
 {
    for (int i = 0; i < dim; i++)
    {
-      const double vi = v[i];
+      const fptype vi = v[i];
       for (int j = 0; j < dim; j++) { VWt[i*dim+j] += vi * w[j]; }
    }
 }
 
 template<int H, int W, typename T>
 MFEM_HOST_DEVICE inline
-void FNorm(double &scale_factor, double &scaled_fnorm2, const T *data)
+void FNorm(fptype &scale_factor, fptype &scaled_fnorm2, const T *data)
 {
    int i, hw = H * W;
    T max_norm = 0.0, entry, fnorm2;
@@ -110,9 +110,9 @@ void FNorm(double &scale_factor, double &scaled_fnorm2, const T *data)
 /// Compute the Frobenius norm of the matrix
 template<int H, int W, typename T>
 MFEM_HOST_DEVICE inline
-double FNorm(const T *data)
+fptype FNorm(const T *data)
 {
-   double s, n2;
+   fptype s, n2;
    kernels::FNorm<H,W>(s, n2, data);
    return s*sqrt(n2);
 }
@@ -120,9 +120,9 @@ double FNorm(const T *data)
 /// Compute the square of the Frobenius norm of the matrix
 template<int H, int W, typename T>
 MFEM_HOST_DEVICE inline
-double FNorm2(const T *data)
+fptype FNorm2(const T *data)
 {
-   double s, n2;
+   fptype s, n2;
    kernels::FNorm<H,W>(s, n2, data);
    return s*s*n2;
 }
@@ -130,7 +130,7 @@ double FNorm2(const T *data)
 /// Returns the l2 norm of the Vector with given @a size and @a data.
 template<typename T>
 MFEM_HOST_DEVICE inline
-double Norml2(const int size, const T *data)
+fptype Norml2(const int size, const T *data)
 {
    if (0 == size) { return 0.0; }
    if (1 == size) { return std::abs(data[0]); }
@@ -310,7 +310,7 @@ void Add(const int height, const int width, const TA *Adata, TB *Bdata)
 template<typename TA, typename TB>
 MFEM_HOST_DEVICE inline
 void Add(const int height, const int width,
-         const double alpha, const TA *Adata, TB *Bdata)
+         const fptype alpha, const TA *Adata, TB *Bdata)
 {
    const int m = height * width;
    for (int i = 0; i < m; i++)
@@ -324,7 +324,7 @@ void Add(const int height, const int width,
 template<typename TA, typename TB>
 MFEM_HOST_DEVICE inline
 void Set(const int height, const int width,
-         const double alpha, const TA *Adata, TB *Bdata)
+         const fptype alpha, const TA *Adata, TB *Bdata)
 {
    const int m = height * width;
    for (int i = 0; i < m; i++)
@@ -370,7 +370,7 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
       TC *c = ABtdata;
       for (int j = 0; j < Bheight; j++)
       {
-         const double bjk = Bdata[j];
+         const fptype bjk = Bdata[j];
          for (int i = 0; i < Aheight; i++)
          {
             c[i] += Adata[i] * bjk;
@@ -408,17 +408,17 @@ void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
 
 /// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
 template<int HEIGHT, int WIDTH> MFEM_HOST_DEVICE
-void CalcLeftInverse(const double *data, double *left_inv);
+void CalcLeftInverse(const fptype *data, fptype *left_inv);
 
 /// Compute the spectrum of the matrix of size dim with given @a data, returning
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<int dim> MFEM_HOST_DEVICE
-void CalcEigenvalues(const double *data, double *lambda, double *vec);
+void CalcEigenvalues(const fptype *data, fptype *lambda, fptype *vec);
 
 /// Return the i'th singular value of the matrix of size dim with given @a data.
 template<int dim> MFEM_HOST_DEVICE
-double CalcSingularvalue(const double *data, const int i);
+fptype CalcSingularvalue(const fptype *data, const int i);
 
 
 // Utility functions for CalcEigenvalues and CalcSingularvalue
@@ -435,18 +435,18 @@ void Swap(T &a, T &b)
    b = tmp;
 }
 
-const double Epsilon = std::numeric_limits<double>::epsilon();
+const fptype Epsilon = std::numeric_limits<fptype>::epsilon();
 
 /// Utility function used in CalcSingularvalue<3>.
 MFEM_HOST_DEVICE static inline
-void Eigenvalues2S(const double &d12, double &d1, double &d2)
+void Eigenvalues2S(const fptype &d12, fptype &d1, fptype &d2)
 {
-   const double sqrt_1_eps = sqrt(1./Epsilon);
+   const fptype sqrt_1_eps = sqrt(1./Epsilon);
    if (d12 != 0.)
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t;
-      const double zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
+      fptype t;
+      const fptype zeta = (d2 - d1)/(2*d12); // inf/inf from overflows?
       if (fabs(zeta) < sqrt_1_eps)
       {
          t = d12*copysign(1./(fabs(zeta) + sqrt(1. + zeta*zeta)), zeta);
@@ -462,10 +462,10 @@ void Eigenvalues2S(const double &d12, double &d1, double &d2)
 
 /// Utility function used in CalcEigenvalues().
 MFEM_HOST_DEVICE static inline
-void Eigensystem2S(const double &d12, double &d1, double &d2,
-                   double &c, double &s)
+void Eigensystem2S(const fptype &d12, fptype &d1, fptype &d2,
+                   fptype &c, fptype &s)
 {
-   const double sqrt_1_eps = sqrt(1./Epsilon);
+   const fptype sqrt_1_eps = sqrt(1./Epsilon);
    if (d12 == 0.0)
    {
       c = 1.;
@@ -474,9 +474,9 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
    else
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
-      double t;
-      const double zeta = (d2 - d1)/(2*d12);
-      const double azeta = fabs(zeta);
+      fptype t;
+      const fptype zeta = (d2 - d1)/(2*d12);
+      const fptype azeta = fabs(zeta);
       if (azeta < sqrt_1_eps)
       {
          t = copysign(1./(azeta + sqrt(1. + zeta*zeta)), zeta);
@@ -496,15 +496,15 @@ void Eigensystem2S(const double &d12, double &d1, double &d2,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void GetScalingFactor(const double &d_max, double &mult)
+void GetScalingFactor(const fptype &d_max, fptype &mult)
 {
    int d_exp;
    if (d_max > 0.)
    {
       mult = frexp(d_max, &d_exp);
-      if (d_exp == std::numeric_limits<double>::max_exponent)
+      if (d_exp == std::numeric_limits<fptype>::max_exponent)
       {
-         mult *= std::numeric_limits<double>::radix;
+         mult *= std::numeric_limits<fptype>::radix;
       }
       mult = d_max/mult;
    }
@@ -519,7 +519,7 @@ void GetScalingFactor(const double &d_max, double &mult)
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 bool KernelVector2G(const int &mode,
-                    double &d1, double &d12, double &d21, double &d2)
+                    fptype &d1, fptype &d12, fptype &d21, fptype &d2)
 {
    // Find a vector (z1,z2) in the "near"-kernel of the matrix
    // |  d1  d12 |
@@ -530,11 +530,11 @@ bool KernelVector2G(const int &mode,
    // Note: in the current implementation |z1| + |z2| = 1.
 
    // l1-norms of the columns
-   double n1 = fabs(d1) + fabs(d21);
-   double n2 = fabs(d2) + fabs(d12);
+   fptype n1 = fabs(d1) + fabs(d21);
+   fptype n2 = fabs(d2) + fabs(d12);
 
    bool swap_columns = (n2 > n1);
-   double mu;
+   fptype mu;
 
    if (!swap_columns)
    {
@@ -660,13 +660,13 @@ bool KernelVector2G(const int &mode,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void Vec_normalize3_aux(const double &x1, const double &x2,
-                        const double &x3,
-                        double &n1, double &n2, double &n3)
+void Vec_normalize3_aux(const fptype &x1, const fptype &x2,
+                        const fptype &x3,
+                        fptype &n1, fptype &n2, fptype &n3)
 {
-   double t, r;
+   fptype t, r;
 
-   const double m = fabs(x1);
+   const fptype m = fabs(x1);
    r = x2/m;
    t = 1. + r*r;
    r = x3/m;
@@ -679,8 +679,8 @@ void Vec_normalize3_aux(const double &x1, const double &x2,
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-void Vec_normalize3(const double &x1, const double &x2, const double &x3,
-                    double &n1, double &n2, double &n3)
+void Vec_normalize3(const fptype &x1, const fptype &x2, const fptype &x3,
+                    fptype &n1, fptype &n2, fptype &n3)
 {
    // should work ok when xk is the same as nk for some or all k
    if (fabs(x1) >= fabs(x2))
@@ -709,12 +709,12 @@ void Vec_normalize3(const double &x1, const double &x2, const double &x3,
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int KernelVector3G_aux(const int &mode,
-                       double &d1, double &d2, double &d3,
-                       double &c12, double &c13, double &c23,
-                       double &c21, double &c31, double &c32)
+                       fptype &d1, fptype &d2, fptype &d3,
+                       fptype &c12, fptype &c13, fptype &c23,
+                       fptype &c21, fptype &c31, fptype &c32)
 {
    int kdim;
-   double mu, n1, n2, n3, s1, s2, s3;
+   fptype mu, n1, n2, n3, s1, s2, s3;
 
    s1 = hypot(c21, c31);
    n1 = hypot(d1, s1);
@@ -815,9 +815,9 @@ done_column_1:
 
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
-int KernelVector3S(const int &mode, const double &d12,
-                   const double &d13, const double &d23,
-                   double &d1, double &d2, double &d3)
+int KernelVector3S(const int &mode, const fptype &d12,
+                   const fptype &d13, const fptype &d23,
+                   fptype &d1, fptype &d2, fptype &d3)
 {
    // Find a unit vector (z1,z2,z3) in the "near"-kernel of the matrix
    // |  d1  d12  d13 |
@@ -830,8 +830,8 @@ int KernelVector3S(const int &mode, const double &d12,
    // - if kdim == 2, then (d1,d2,d3) is a vector orthogonal to the kernel,
    // - otherwise kdim == 1 and (d1,d2,d3) is a vector in the "near"-kernel.
 
-   double c12 = d12, c13 = d13, c23 = d23;
-   double c21, c31, c32;
+   fptype c12 = d12, c13 = d13, c23 = d23;
+   fptype c21, c31, c32;
    int col, row;
 
    // l1-norms of the columns:
@@ -944,11 +944,11 @@ int KernelVector3S(const int &mode, const double &d12,
 /// Utility function used in CalcEigenvalues<3>.
 MFEM_HOST_DEVICE static inline
 int Reduce3S(const int &mode,
-             double &d1, double &d2, double &d3,
-             double &d12, double &d13, double &d23,
-             double &z1, double &z2, double &z3,
-             double &v1, double &v2, double &v3,
-             double &g)
+             fptype &d1, fptype &d2, fptype &d3,
+             fptype &d12, fptype &d13, fptype &d23,
+             fptype &z1, fptype &z2, fptype &z3,
+             fptype &v1, fptype &v2, fptype &v3,
+             fptype &g)
 {
    // Given the matrix
    //     |  d1  d12  d13 |
@@ -967,7 +967,7 @@ int Reduce3S(const int &mode,
    // return value of the function is k. The variable g = 2/(v1^2+v2^2+v3^3).
 
    int k;
-   double s, w1, w2, w3;
+   fptype s, w1, w2, w3;
 
    if (mode == 0)
    {
@@ -1069,29 +1069,29 @@ int Reduce3S(const int &mode,
 // Implementations of CalcLeftInverse for dim = 1, 2.
 
 template<> MFEM_HOST_DEVICE inline
-void CalcLeftInverse<2,1>(const double *d, double *left_inv)
+void CalcLeftInverse<2,1>(const fptype *d, fptype *left_inv)
 {
-   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+   const fptype t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
    left_inv[0] = d[0] * t;
    left_inv[1] = d[1] * t;
 }
 
 template<> MFEM_HOST_DEVICE inline
-void CalcLeftInverse<3,1>(const double *d, double *left_inv)
+void CalcLeftInverse<3,1>(const fptype *d, fptype *left_inv)
 {
-   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+   const fptype t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
    left_inv[0] = d[0] * t;
    left_inv[1] = d[1] * t;
    left_inv[2] = d[2] * t;
 }
 
 template<> MFEM_HOST_DEVICE inline
-void CalcLeftInverse<3,2>(const double *d, double *left_inv)
+void CalcLeftInverse<3,2>(const fptype *d, fptype *left_inv)
 {
-   double e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
-   double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
-   double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
-   const double t = 1.0 / (e*g - f*f);
+   fptype e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+   fptype g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+   fptype f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+   const fptype t = 1.0 / (e*g - f*f);
    e *= t; g *= t; f *= t;
 
    left_inv[0] = d[0]*g - d[3]*f;
@@ -1108,12 +1108,12 @@ void CalcLeftInverse<3,2>(const double *d, double *left_inv)
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<2>(const double *data, double *lambda, double *vec)
+void CalcEigenvalues<2>(const fptype *data, fptype *lambda, fptype *vec)
 {
-   double d0 = data[0];
-   double d2 = data[2]; // use the upper triangular entry
-   double d3 = data[3];
-   double c, s;
+   fptype d0 = data[0];
+   fptype d2 = data[2]; // use the upper triangular entry
+   fptype d3 = data[3];
+   fptype c, s;
    internal::Eigensystem2S(d2, d0, d3, c, s);
    if (d0 <= d3)
    {
@@ -1139,18 +1139,18 @@ void CalcEigenvalues<2>(const double *data, double *lambda, double *vec)
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
 /// vec (listed consecutively).
 template<> MFEM_HOST_DEVICE inline
-void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
+void CalcEigenvalues<3>(const fptype *data, fptype *lambda, fptype *vec)
 {
-   double d11 = data[0];
-   double d12 = data[3]; // use the upper triangular entries
-   double d22 = data[4];
-   double d13 = data[6];
-   double d23 = data[7];
-   double d33 = data[8];
+   fptype d11 = data[0];
+   fptype d12 = data[3]; // use the upper triangular entries
+   fptype d22 = data[4];
+   fptype d13 = data[6];
+   fptype d23 = data[7];
+   fptype d33 = data[8];
 
-   double mult;
+   fptype mult;
    {
-      double d_max = fabs(d11);
+      fptype d_max = fabs(d11);
       if (d_max < fabs(d22)) { d_max = fabs(d22); }
       if (d_max < fabs(d33)) { d_max = fabs(d33); }
       if (d_max < fabs(d12)) { d_max = fabs(d12); }
@@ -1163,12 +1163,12 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
    d11 /= mult;  d22 /= mult;  d33 /= mult;
    d12 /= mult;  d13 /= mult;  d23 /= mult;
 
-   double aa = (d11 + d22 + d33)/3;  // aa = tr(A)/3
-   double c1 = d11 - aa;
-   double c2 = d22 - aa;
-   double c3 = d33 - aa;
+   fptype aa = (d11 + d22 + d33)/3;  // aa = tr(A)/3
+   fptype c1 = d11 - aa;
+   fptype c2 = d22 - aa;
+   fptype c3 = d33 - aa;
 
-   double Q, R;
+   fptype Q, R;
 
    Q = (2*(d12*d12 + d13*d13 + d23*d23) + c1*c1 + c2*c2 + c3*c3)/6;
    R = (c1*(d23*d23 - c2*c3)+ d12*(d12*c3 - 2*d13*d23) + d13*d13*c2)/2;
@@ -1182,11 +1182,11 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
    }
    else
    {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
-      // double sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
-      // double sqrtQ3 = pow(Q, 1.5);
-      double r;
+      fptype sqrtQ = sqrt(Q);
+      fptype sqrtQ3 = Q*sqrtQ;
+      // fptype sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
+      // fptype sqrtQ3 = pow(Q, 1.5);
+      fptype r;
       if (fabs(R) >= sqrtQ3)
       {
          if (R < 0.)
@@ -1255,7 +1255,7 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
       //                   | d11   0   0 |
       // A <-- Q P A P Q = |  0  d22 d23 |
       //                   |  0  d23 d33 |
-      double v1, v2, v3, g;
+      fptype v1, v2, v3, g;
       int k = internal::Reduce3S(mode, d11, d22, d33, d12, d13, d23,
                                  c1, c2, c3, v1, v2, v3, g);
       // Q = I - 2 v v^t
@@ -1264,11 +1264,11 @@ void CalcEigenvalues<3>(const double *data, double *lambda, double *vec)
       // find the eigenvalues and eigenvectors for
       // | d22 d23 |
       // | d23 d33 |
-      double c, s;
+      fptype c, s;
       internal::Eigensystem2S(d23, d22, d33, c, s);
       // d22 <-> P Q (0, c, -s), d33 <-> P Q (0, s, c)
 
-      double *vec_1, *vec_2, *vec_3;
+      fptype *vec_1, *vec_2, *vec_3;
       if (d11 <= d22)
       {
          if (d22 <= d33)
@@ -1341,17 +1341,17 @@ done_3d:
 
 /// Return the i'th singular value of the matrix of size 2 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<2>(const double *data, const int i)
+fptype CalcSingularvalue<2>(const fptype *data, const int i)
 {
-   double d0, d1, d2, d3;
+   fptype d0, d1, d2, d3;
    d0 = data[0];
    d1 = data[1];
    d2 = data[2];
    d3 = data[3];
-   double mult;
+   fptype mult;
 
    {
-      double d_max = fabs(d0);
+      fptype d_max = fabs(d0);
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
@@ -1363,8 +1363,8 @@ double CalcSingularvalue<2>(const double *data, const int i)
    d2 /= mult;
    d3 /= mult;
 
-   double t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   double s = d0*d2 + d1*d3;
+   fptype t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   fptype s = d0*d2 + d1*d3;
    s = sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + sqrt(t*t + s*s));
 
    if (s == 0.0)
@@ -1389,15 +1389,15 @@ double CalcSingularvalue<2>(const double *data, const int i)
 
 /// Return the i'th singular value of the matrix of size 3 with given @a data.
 template<> MFEM_HOST_DEVICE inline
-double CalcSingularvalue<3>(const double *data, const int i)
+fptype CalcSingularvalue<3>(const fptype *data, const int i)
 {
-   double d0, d1, d2, d3, d4, d5, d6, d7, d8;
+   fptype d0, d1, d2, d3, d4, d5, d6, d7, d8;
    d0 = data[0];  d3 = data[3];  d6 = data[6];
    d1 = data[1];  d4 = data[4];  d7 = data[7];
    d2 = data[2];  d5 = data[5];  d8 = data[8];
-   double mult;
+   fptype mult;
    {
-      double d_max = fabs(d0);
+      fptype d_max = fabs(d0);
       if (d_max < fabs(d1)) { d_max = fabs(d1); }
       if (d_max < fabs(d2)) { d_max = fabs(d2); }
       if (d_max < fabs(d3)) { d_max = fabs(d3); }
@@ -1413,12 +1413,12 @@ double CalcSingularvalue<3>(const double *data, const int i)
    d3 /= mult;  d4 /= mult;  d5 /= mult;
    d6 /= mult;  d7 /= mult;  d8 /= mult;
 
-   double b11 = d0*d0 + d1*d1 + d2*d2;
-   double b12 = d0*d3 + d1*d4 + d2*d5;
-   double b13 = d0*d6 + d1*d7 + d2*d8;
-   double b22 = d3*d3 + d4*d4 + d5*d5;
-   double b23 = d3*d6 + d4*d7 + d5*d8;
-   double b33 = d6*d6 + d7*d7 + d8*d8;
+   fptype b11 = d0*d0 + d1*d1 + d2*d2;
+   fptype b12 = d0*d3 + d1*d4 + d2*d5;
+   fptype b13 = d0*d6 + d1*d7 + d2*d8;
+   fptype b22 = d3*d3 + d4*d4 + d5*d5;
+   fptype b23 = d3*d6 + d4*d7 + d5*d8;
+   fptype b33 = d6*d6 + d7*d7 + d8*d8;
 
    // double a, b, c;
    // a = -(b11 + b22 + b33);
@@ -1437,20 +1437,20 @@ double CalcSingularvalue<3>(const double *data, const int i)
    // Q >= 0 and
    // Q = 0  <==> B = scalar * I
    // double R = (2 * a * a * a - 9 * a * b + 27 * c) / 54;
-   double aa = (b11 + b22 + b33)/3;  // aa = tr(B)/3
-   double c1, c2, c3;
+   fptype aa = (b11 + b22 + b33)/3;  // aa = tr(B)/3
+   fptype c1, c2, c3;
    // c1 = b11 - aa; // ((b11 - b22) + (b11 - b33))/3
    // c2 = b22 - aa; // ((b22 - b11) + (b22 - b33))/3
    // c3 = b33 - aa; // ((b33 - b11) + (b33 - b22))/3
    {
-      double b11_b22 = ((d0-d3)*(d0+d3)+(d1-d4)*(d1+d4)+(d2-d5)*(d2+d5));
-      double b22_b33 = ((d3-d6)*(d3+d6)+(d4-d7)*(d4+d7)+(d5-d8)*(d5+d8));
-      double b33_b11 = ((d6-d0)*(d6+d0)+(d7-d1)*(d7+d1)+(d8-d2)*(d8+d2));
+      fptype b11_b22 = ((d0-d3)*(d0+d3)+(d1-d4)*(d1+d4)+(d2-d5)*(d2+d5));
+      fptype b22_b33 = ((d3-d6)*(d3+d6)+(d4-d7)*(d4+d7)+(d5-d8)*(d5+d8));
+      fptype b33_b11 = ((d6-d0)*(d6+d0)+(d7-d1)*(d7+d1)+(d8-d2)*(d8+d2));
       c1 = (b11_b22 - b33_b11)/3;
       c2 = (b22_b33 - b11_b22)/3;
       c3 = (b33_b11 - b22_b33)/3;
    }
-   double Q, R;
+   fptype Q, R;
    Q = (2*(b12*b12 + b13*b13 + b23*b23) + c1*c1 + c2*c2 + c3*c3)/6;
    R = (c1*(b23*b23 - c2*c3)+ b12*(b12*c3 - 2*b13*b23) +b13*b13*c2)/2;
    // R = (-1/2)*det(B-(tr(B)/3)*I)
@@ -1485,11 +1485,11 @@ double CalcSingularvalue<3>(const double *data, const int i)
 
    else
    {
-      double sqrtQ = sqrt(Q);
-      double sqrtQ3 = Q*sqrtQ;
+      fptype sqrtQ = sqrt(Q);
+      fptype sqrtQ3 = Q*sqrtQ;
       // double sqrtQ3 = sqrtQ*sqrtQ*sqrtQ;
       // double sqrtQ3 = pow(Q, 1.5);
-      double r;
+      fptype r;
 
       if (fabs(R) >= sqrtQ3)
       {
@@ -1584,7 +1584,7 @@ double CalcSingularvalue<3>(const double *data, const int i)
       //                   | b11   0   0 |
       // B <-- Q P B P Q = |  0  b22 b23 |
       //                   |  0  b23 b33 |
-      double v1, v2, v3, g;
+      fptype v1, v2, v3, g;
       internal::Reduce3S(mode, b11, b22, b33, b12, b13, b23,
                          c1, c2, c3, v1, v2, v3, g);
       // Q = I - g v v^t
@@ -1630,19 +1630,19 @@ have_aa:
 // @param [in] ipiv array storing pivot information
 // @param [in, out] x vector storing right-hand side and then solution
 MFEM_HOST_DEVICE
-inline void LUSolve(const double *data, const int m, const int *ipiv,
-                    double *x)
+inline void LUSolve(const fptype *data, const int m, const int *ipiv,
+                    fptype *x)
 {
    // X <- P X
    for (int i = 0; i < m; i++)
    {
-      internal::Swap<double>(x[i], x[ipiv[i]]);
+      internal::Swap<fptype>(x[i], x[ipiv[i]]);
    }
 
    // X <- L^{-1} X
    for (int j = 0; j < m; j++)
    {
-      const double x_j = x[j];
+      const fptype x_j = x[j];
       for (int i = j + 1; i < m; i++)
       {
          x[i] -= data[i + j * m] * x_j;
@@ -1652,7 +1652,7 @@ inline void LUSolve(const double *data, const int m, const int *ipiv,
    // X <- U^{-1} X
    for (int j = m - 1; j >= 0; j--)
    {
-      const double x_j = (x[j] /= data[j + j * m]);
+      const fptype x_j = (x[j] /= data[j + j * m]);
       for (int i = 0; i < j; i++)
       {
          x[i] -= data[i + j * m] * x_j;

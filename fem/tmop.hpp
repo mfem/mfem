@@ -44,14 +44,14 @@ public:
 
    /** @brief Evaluates the metric in matrix form (opposed to invariant form).
        Used for validating the invariant evaluations. */
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const
    { return -1.0; /* not implemented -> checks would fail. */ }
 
    /** @brief Evaluate the strain energy density function, W = W(Jpt), by using
        the 2D or 3D matrix invariants, see linalg/invariants.hpp.
        @param[in] Jpt  Represents the target->physical transformation
                        Jacobian matrix. */
-   virtual double EvalW(const DenseMatrix &Jpt) const = 0;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const = 0;
 
    /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
        @param[in] Jpt  Represents the target->physical transformation
@@ -72,7 +72,7 @@ public:
        where x1 ... xn are the FE dofs. This function is usually defined using
        the matrix invariants and their derivatives. */
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const = 0;
+                          const fptype weight, DenseMatrix &A) const = 0;
 
    /** @brief Return the metric ID. */
    virtual int Id() const { return 0; }
@@ -86,10 +86,10 @@ class TMOP_Combo_QualityMetric : public TMOP_QualityMetric
 {
 protected:
    Array<TMOP_QualityMetric *> tmop_q_arr; //the metrics are not owned
-   Array<double> wt_arr;
+   Array<fptype> wt_arr;
 
 public:
-   virtual void AddQualityMetric(TMOP_QualityMetric *tq, double wt = 1.0)
+   virtual void AddQualityMetric(TMOP_QualityMetric *tq, fptype wt = 1.0)
    {
       tmop_q_arr.Append(tq);
       wt_arr.Append(wt);
@@ -103,14 +103,14 @@ public:
       }
    }
 
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    /// Computes the averages of all metrics (integral of metric / volume).
    /// Works in parallel when called with a ParGridFunction.
@@ -124,7 +124,7 @@ public:
                                const TargetConstructor &tc,
                                Vector &weights) const;
 
-   void GetWeights(Array<double> &weights) const { weights = wt_arr; }
+   void GetWeights(Array<fptype> &weights) const { weights = wt_arr; }
 
    /// Changes the weights of the metrics in the combination.
    void SetWeights(const Vector &weights)
@@ -166,21 +166,21 @@ public:
 
 protected:
    TMOP_QualityMetric &tmop_metric; // non-barrier metric to use
-   double min_detT;                 // minimum Jacobian in the mesh
-   double max_muT;                  // max mu_k/phi(tau,ep) in the mesh
+   fptype min_detT;                 // minimum Jacobian in the mesh
+   fptype max_muT;                  // max mu_k/phi(tau,ep) in the mesh
    int exponent;                    // used for p-mean metrics
-   double alpha;                    // scaling factor for min(det(T))
-   double detT_ep;                  // small constant subtracted from min(detT)
-   double muT_ep;                   // small constant added to muT term
+   fptype alpha;                    // scaling factor for min(det(T))
+   fptype detT_ep;                  // small constant subtracted from min(detT)
+   fptype muT_ep;                   // small constant added to muT term
    BarrierType btype;
    WorstCaseType wctype;
 
 public:
    TMOP_WorstCaseUntangleOptimizer_Metric(TMOP_QualityMetric &tmop_metric_,
                                           int exponent_ = 1,
-                                          double alpha_ = 1.5,
-                                          double detT_ep_ = 0.0001,
-                                          double muT_ep_ = 0.0001,
+                                          fptype alpha_ = 1.5,
+                                          fptype detT_ep_ = 0.0001,
+                                          fptype muT_ep_ = 0.0001,
                                           BarrierType btype_ = BarrierType::None,
                                           WorstCaseType wctype_ = WorstCaseType::None) :
       tmop_metric(tmop_metric_), exponent(exponent_), alpha(alpha_),
@@ -196,21 +196,21 @@ public:
       }
    }
 
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 
    // Compute mu_hat.
-   virtual double EvalWBarrier(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWBarrier(const DenseMatrix &Jpt) const;
 
-   virtual void SetMinDetT(double min_detT_) { min_detT = min_detT_; }
+   virtual void SetMinDetT(fptype min_detT_) { min_detT = min_detT_; }
 
-   virtual void SetMaxMuT(double max_muT_) { max_muT = max_muT_; }
+   virtual void SetMaxMuT(fptype max_muT_) { max_muT = max_muT_; }
 
    virtual BarrierType GetBarrierType() { return btype; }
 
@@ -221,16 +221,16 @@ public:
 class TMOP_Metric_001 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = |J|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 1; }
 };
@@ -240,13 +240,13 @@ class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -255,13 +255,13 @@ class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
 public:
    // W = 1/6 (3 - sum_i cos(angle_Jpr_i - angle_Jtr_i)), i = 1..3.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -270,13 +270,13 @@ class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
 {
 public:
    // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -285,13 +285,13 @@ class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
 {
 public:
    // W = 1/3 sum [0.5 (ar_Jpr_i/ar_Jtr_i + ar_Jtr_i/ar_Jpr_i) - 1], i = 1..3.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -300,19 +300,19 @@ public:
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = 0.5 |J|^2 / det(J) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 I1b - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 2; }
 };
@@ -322,16 +322,16 @@ public:
 class TMOP_Metric_004 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = |J|^2 - 2*det(J)
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 4; }
 };
@@ -340,16 +340,16 @@ public:
 class TMOP_Metric_007 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = |J - J^-t|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 7; }
 };
@@ -358,16 +358,16 @@ public:
 class TMOP_Metric_009 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = det(J) * |J - J^-t|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
@@ -375,13 +375,13 @@ class TMOP_Metric_014 : public TMOP_QualityMetric
 {
 public:
    // W = |T-I|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -389,19 +389,19 @@ public:
 class TMOP_Metric_022 : public TMOP_QualityMetric
 {
 protected:
-   double &min_detT;
-   mutable InvariantsEvaluator2D<double> ie;
+   fptype &min_detT;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
-   TMOP_Metric_022(double &t0): min_detT(t0) {}
+   TMOP_Metric_022(fptype &t0): min_detT(t0) {}
 
    // W = 0.5(|J|^2 - 2det(J)) / (det(J) - tau0).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D barrier shape metric (polyconvex).
@@ -409,19 +409,19 @@ public:
 class TMOP_Metric_050 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = 0.5 |J^t J|^2 / det(J)^2 - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 I1b^2 - 2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D non-barrier size (V) metric (not polyconvex).
@@ -429,16 +429,16 @@ public:
 class TMOP_Metric_055 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = (det(J) - 1)^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
 };
 
@@ -447,38 +447,38 @@ public:
 class TMOP_Metric_056 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = 0.5 (det(J) + 1 / det(J)) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 (I2b + 1/I2b) - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D barrier shape (S) metric (not polyconvex).
 class TMOP_Metric_058 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = |J^t J|^2 / det(J)^2 - 2|J|^2 / det(J) + 2
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b (I1b - 2).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D non-barrier Shape+Size (VS) metric.
@@ -486,11 +486,11 @@ public:
 class TMOP_Metric_066 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_066(double gamma)
+   TMOP_Metric_066(fptype gamma)
       : sh_metric(new TMOP_Metric_004), sz_metric(new TMOP_Metric_055)
    {
       // (1-gamma) mu_4 + gamma mu_55
@@ -498,7 +498,7 @@ public:
       AddQualityMetric(sz_metric, gamma);
    }
    virtual int Id() const { return 66; }
-   double GetGamma() const { return wt_arr[1]; }
+   fptype GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_066() { delete sh_metric; delete sz_metric; }
 };
@@ -508,19 +508,19 @@ public:
 class TMOP_Metric_077 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    // W = 0.5 (det(J) - 1 / det(J))^2.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 (I2 + 1 / I2) - 1.0.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 77; }
 };
@@ -530,11 +530,11 @@ public:
 class TMOP_Metric_080 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_080(double gamma)
+   TMOP_Metric_080(fptype gamma)
       : sh_metric(new TMOP_Metric_002), sz_metric(new TMOP_Metric_077)
    {
       // (1-gamma) mu_2 + gamma mu_77
@@ -543,7 +543,7 @@ public:
    }
 
    virtual int Id() const { return 80; }
-   double GetGamma() const { return wt_arr[1]; }
+   fptype GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
@@ -553,13 +553,13 @@ class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
    // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -567,7 +567,7 @@ public:
 class TMOP_Metric_090 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
@@ -588,7 +588,7 @@ public:
 class TMOP_Metric_094 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
@@ -610,13 +610,13 @@ class TMOP_Metric_098 : public TMOP_QualityMetric
 {
 public:
    // W = 1/tau |T-I|^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -624,77 +624,77 @@ public:
 class TMOP_Metric_211 : public TMOP_QualityMetric
 {
 protected:
-   const double eps;
-   mutable InvariantsEvaluator2D<double> ie;
+   const fptype eps;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
-   TMOP_Metric_211(double epsilon = 1e-4) : eps(epsilon) { }
+   TMOP_Metric_211(fptype epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J) + sqrt(det(J)^2 + eps).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// Shifted barrier form of metric 56 (area, ideal barrier metric), 2D
 class TMOP_Metric_252 : public TMOP_QualityMetric
 {
 protected:
-   double &tau0;
-   mutable InvariantsEvaluator2D<double> ie;
+   fptype &tau0;
+   mutable InvariantsEvaluator2D<fptype> ie;
 
 public:
    /// Note that @a t0 is stored by reference
-   TMOP_Metric_252(double &t0): tau0(t0) {}
+   TMOP_Metric_252(fptype &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_301 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = 1/3 |J| |J^-1| - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 1/3 sqrt(I1b * I2b) - 1
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 3D barrier Shape (S) metric, well-posed (polyconvex & invex).
 class TMOP_Metric_302 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J|^2 |J^{-1}|^2 / 9 - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b * I2b / 9 - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 302; }
 };
@@ -703,19 +703,19 @@ public:
 class TMOP_Metric_303 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J|^2 / 3 / det(J)^(2/3) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b / 3 - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 303; }
 };
@@ -724,19 +724,19 @@ public:
 class TMOP_Metric_304 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J|^3 / 3^(3/2) / det(J) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = (I1b/3)^3/2 - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 304; }
 };
@@ -745,38 +745,38 @@ public:
 class TMOP_Metric_311 : public TMOP_QualityMetric
 {
 protected:
-   const double eps;
-   mutable InvariantsEvaluator3D<double> ie;
+   const fptype eps;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
-   TMOP_Metric_311(double epsilon = 1e-4) : eps(epsilon) { }
+   TMOP_Metric_311(fptype epsilon = 1e-4) : eps(epsilon) { }
 
    // W = (det(J) - 1)^2 - det(J)  + (det(J)^2 + eps)^(1/2).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 3D Shape (S) metric, untangling version of 303.
 class TMOP_Metric_313 : public TMOP_QualityMetric
 {
 protected:
-   double &min_detT;
-   mutable InvariantsEvaluator3D<double> ie;
+   fptype &min_detT;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
-   TMOP_Metric_313(double &mindet) : min_detT(mindet) { }
+   TMOP_Metric_313(fptype &mindet) : min_detT(mindet) { }
 
    // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 313; }
 };
@@ -785,16 +785,16 @@ public:
 class TMOP_Metric_315 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = (det(J) - 1)^2.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 315; }
 };
@@ -803,38 +803,38 @@ public:
 class TMOP_Metric_316 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = 0.5 (det(J) + 1/det(J)) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 (I3b + 1/I3b) - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 3D Size (V) metric.
 class TMOP_Metric_318 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = 0.5 (det(J)^2 + 1/det(J)^2) - 1.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = 0.5 (I3 + 1/I3) - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 318; }
 };
@@ -843,19 +843,19 @@ public:
 class TMOP_Metric_321 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J - J^-t|^2.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1 + I2/I3 - 6.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 321; }
 };
@@ -864,19 +864,19 @@ public:
 class TMOP_Metric_322 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J - adjJ^-t|^2.
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 322; }
 };
@@ -885,19 +885,19 @@ public:
 class TMOP_Metric_323 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = I1^3/2 - 3 sqrt(3) ln(I3b) - 3 sqrt(3).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 323; }
 };
@@ -906,7 +906,7 @@ public:
 class TMOP_Metric_328 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
@@ -930,7 +930,7 @@ protected:
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_332(double gamma)
+   TMOP_Metric_332(fptype gamma)
       : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_315)
    {
       // (1-gamma) mu_302 + gamma mu_315
@@ -939,7 +939,7 @@ public:
    }
 
    virtual int Id() const { return 332; }
-   double GetGamma() const { return wt_arr[1]; }
+   fptype GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_332() { delete sh_metric; delete sz_metric; }
 };
@@ -948,11 +948,11 @@ public:
 class TMOP_Metric_333 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_333(double gamma)
+   TMOP_Metric_333(fptype gamma)
       : sh_metric(new TMOP_Metric_302), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_302 + gamma mu_316
@@ -967,11 +967,11 @@ public:
 class TMOP_Metric_334 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_334(double gamma)
+   TMOP_Metric_334(fptype gamma)
       : sh_metric(new TMOP_Metric_303), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_303 + gamma mu_316
@@ -980,7 +980,7 @@ public:
    }
 
    virtual int Id() const { return 334; }
-   double GetGamma() const { return wt_arr[1]; }
+   fptype GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_334() { delete sh_metric; delete sz_metric; }
 };
@@ -989,7 +989,7 @@ public:
 class TMOP_Metric_338 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
@@ -1010,11 +1010,11 @@ public:
 class TMOP_Metric_347 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_Metric_347(double gamma)
+   TMOP_Metric_347(fptype gamma)
       : sh_metric(new TMOP_Metric_304), sz_metric(new TMOP_Metric_316)
    {
       // (1-gamma) mu_304 + gamma mu_316
@@ -1023,7 +1023,7 @@ public:
    }
 
    virtual int Id() const { return 347; }
-   double GetGamma() const { return wt_arr[1]; }
+   fptype GetGamma() const { return wt_arr[1]; }
 
    virtual ~TMOP_Metric_347() { delete sh_metric; delete sz_metric; }
 };
@@ -1032,38 +1032,38 @@ public:
 class TMOP_Metric_352 : public TMOP_QualityMetric
 {
 protected:
-   double &tau0;
-   mutable InvariantsEvaluator3D<double> ie;
+   fptype &tau0;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
-   TMOP_Metric_352(double &t0): tau0(t0) {}
+   TMOP_Metric_352(fptype &t0): tau0(t0) {}
 
    // W = 0.5(det(J) - 1)^2 / (det(J) - tau0).
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 3D non-barrier Shape (S) metric.
 class TMOP_Metric_360 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // W = |J|^3 / 3^(3/2) - det(J).
-   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
 
    // W = (I1b/3)^3/2 - 1.
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const;
+                          const fptype weight, DenseMatrix &A) const;
 
    virtual int Id() const { return 360; }
 };
@@ -1073,17 +1073,17 @@ public:
 class TMOP_AMetric_011 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -1091,17 +1091,17 @@ public:
 class TMOP_AMetric_014a : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -1109,17 +1109,17 @@ public:
 class TMOP_AMetric_036 : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // (1/alpha) | A - W |^2
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -1127,17 +1127,17 @@ public:
 class TMOP_AMetric_107a : public TMOP_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator3D<double> ie;
+   mutable InvariantsEvaluator3D<fptype> ie;
 
 public:
    // (1/2 alpha) | A - (|A|/|W|) W |^2
-   virtual double EvalW(const DenseMatrix &Jpt) const;
+   virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
    { MFEM_ABORT("Not implemented"); }
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
+                          const fptype weight, DenseMatrix &A) const
    { MFEM_ABORT("Not implemented"); }
 };
 
@@ -1145,11 +1145,11 @@ public:
 class TMOP_AMetric_126 : public TMOP_Combo_QualityMetric
 {
 protected:
-   mutable InvariantsEvaluator2D<double> ie;
+   mutable InvariantsEvaluator2D<fptype> ie;
    TMOP_QualityMetric *sh_metric, *sz_metric;
 
 public:
-   TMOP_AMetric_126(double gamma)
+   TMOP_AMetric_126(fptype gamma)
       : sh_metric(new TMOP_AMetric_011), sz_metric(new TMOP_AMetric_014a)
    {
       // (1-gamma) nu_11 + gamma nu_14
@@ -1168,16 +1168,16 @@ class TMOP_LimiterFunction
 {
 public:
    /// Returns the limiting function, f(x, x0, d).
-   virtual double Eval(const Vector &x, const Vector &x0, double d) const = 0;
+   virtual fptype Eval(const Vector &x, const Vector &x0, fptype d) const = 0;
 
    /** @brief Returns the gradient of the limiting function f(x, x0, d) with
        respect to x. */
-   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d1(const Vector &x, const Vector &x0, fptype dist,
                         Vector &d1) const = 0;
 
    /** @brief Returns the Hessian of the limiting function f(x, x0, d) with
        respect to x. */
-   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d2(const Vector &x, const Vector &x0, fptype dist,
                         DenseMatrix &d2) const = 0;
 
    /// Virtual destructor.
@@ -1188,14 +1188,14 @@ public:
 class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
 {
 public:
-   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
+   virtual fptype Eval(const Vector &x, const Vector &x0, fptype dist) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
    }
 
-   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d1(const Vector &x, const Vector &x0, fptype dist,
                         Vector &d1) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
@@ -1204,7 +1204,7 @@ public:
       subtract(1.0 / (dist * dist), x, x0, d1);
    }
 
-   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d2(const Vector &x, const Vector &x0, fptype dist,
                         DenseMatrix &d2) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
@@ -1219,33 +1219,33 @@ public:
 class TMOP_ExponentialLimiter : public TMOP_LimiterFunction
 {
 public:
-   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
+   virtual fptype Eval(const Vector &x, const Vector &x0, fptype dist) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       return  exp(10.0*((x.DistanceSquaredTo(x0) / (dist * dist))-1.0));
    }
 
-   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d1(const Vector &x, const Vector &x0, fptype dist,
                         Vector &d1) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       d1.SetSize(x.Size());
-      double dist_squared = dist*dist;
+      fptype dist_squared = dist*dist;
       subtract(20.0*exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared) - 1.0)) /
                dist_squared, x, x0, d1);
    }
 
-   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+   virtual void Eval_d2(const Vector &x, const Vector &x0, fptype dist,
                         DenseMatrix &d2) const
    {
       MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
       Vector tmp;
       tmp.SetSize(x.Size());
-      double dist_squared = dist*dist;
-      double dist_squared_squared = dist_squared*dist_squared;
-      double f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
+      fptype dist_squared = dist*dist;
+      fptype dist_squared_squared = dist_squared*dist_squared;
+      fptype f = exp(10.0*((x.DistanceSquaredTo(x0) / dist_squared)-1.0));
 
       subtract(x,x0,tmp);
       d2.SetSize(x.Size());
@@ -1351,8 +1351,8 @@ public:
 protected:
    // Nodes that are used in ComputeElementTargets(), depending on target_type.
    const GridFunction *nodes; // not owned
-   mutable double avg_volume;
-   double volume_scale;
+   mutable fptype avg_volume;
+   fptype volume_scale;
    const TargetType target_type;
    bool uses_phys_coords; // see UsesPhysicalCoordinates()
 
@@ -1412,7 +1412,7 @@ public:
    const GridFunction *GetNodes() const { return nodes; }
 
    /// Used by target type IDEAL_SHAPE_EQUAL_SIZE. The default volume scale is 1.
-   void SetVolumeScale(double vol_scale) { volume_scale = vol_scale; }
+   void SetVolumeScale(fptype vol_scale) { volume_scale = vol_scale; }
 
    TargetType GetTargetType() const { return target_type; }
 
@@ -1546,7 +1546,7 @@ protected:
 #endif
 
    int amr_el;
-   double lim_min_size;
+   fptype lim_min_size;
 
    // These flags can be used by outside functions to avoid recomputing the
    // tspec and tspec_perth fields again on the same mesh.
@@ -1644,14 +1644,14 @@ public:
        specifications after a mesh perturbation in x or y direction.
        If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
-   void UpdateGradientTargetSpecification(const Vector &x, double dx,
+   void UpdateGradientTargetSpecification(const Vector &x, fptype dx,
                                           bool reuse_flag = false,
                                           int x_ordering = Ordering::byNODES);
    /** Used for finite-difference based computations. Computes the target
        specifications after two mesh perturbations in x and/or y direction.
        If @a reuse_flag is true, repeated calls won't do anything until
        ResetUpdateFlags() is called. */
-   void UpdateHessianTargetSpecification(const Vector &x, double dx,
+   void UpdateHessianTargetSpecification(const Vector &x, fptype dx,
                                          bool reuse_flag = false,
                                          int x_ordering = Ordering::byNODES);
 
@@ -1697,7 +1697,7 @@ public:
    // Targets based on discrete functions can result in invalid (negative)
    // size at the quadrature points. This method can be used to set a
    // minimum target size.
-   void SetMinSizeForTargets(double min_size_) { lim_min_size = min_size_; }
+   void SetMinSizeForTargets(fptype min_size_) { lim_min_size = min_size_; }
 
    /// Computes target specification data with respect to the coarse FE space.
    void SetTspecDataForDerefinement(FiniteElementSpace *fes);
@@ -1748,7 +1748,7 @@ protected:
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *metric_coeff; // not owned, if NULL -> metric_coeff is 1.
    // Normalization factor for the metric term.
-   double metric_normal;
+   fptype metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
@@ -1760,7 +1760,7 @@ protected:
    // Limiting function. Owned.
    TMOP_LimiterFunction *lim_func;
    // Normalization factor for the limiting term.
-   double lim_normal;
+   fptype lim_normal;
 
    // Adaptive limiting.
    const GridFunction *adapt_lim_gf0;    // Not owned.
@@ -1780,7 +1780,7 @@ protected:
    // Fitting to given physical positions.
    TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
    const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
-   double surf_fit_normal;
+   fptype surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
@@ -1791,8 +1791,8 @@ protected:
 
    // Parameters for FD-based Gradient & Hessian calculation.
    bool fdflag;
-   double dx;
-   double dxscale;
+   fptype dx;
+   fptype dxscale;
    // Specifies that ComputeElementTargets is being called by a FD function.
    // It's used to skip terms that have exact derivative calculations.
    bool fd_call_flag;
@@ -1855,8 +1855,8 @@ protected:
    } PA;
 
    void ComputeNormalizationEnergies(const GridFunction &x,
-                                     double &metric_energy, double &lim_energy,
-                                     double &surf_fit_gf_energy);
+                                     fptype &metric_energy, fptype &lim_energy,
+                                     fptype &surf_fit_gf_energy);
 
    void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
@@ -1894,10 +1894,10 @@ protected:
                                 IsoparametricTransformation &Tpr,
                                 DenseMatrix &mat);
 
-   double GetFDDerivative(const FiniteElement &el,
+   fptype GetFDDerivative(const FiniteElement &el,
                           ElementTransformation &T,
                           Vector &elfun, const int nodenum,const int idir,
-                          const double baseenergy, bool update_stored);
+                          const fptype baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
@@ -1938,10 +1938,10 @@ protected:
    void AssembleGradPA_C0_2D(const Vector&) const;
    void AssembleGradPA_C0_3D(const Vector&) const;
 
-   double GetLocalStateEnergyPA_2D(const Vector&) const;
-   double GetLocalStateEnergyPA_C0_2D(const Vector&) const;
-   double GetLocalStateEnergyPA_3D(const Vector&) const;
-   double GetLocalStateEnergyPA_C0_3D(const Vector&) const;
+   fptype GetLocalStateEnergyPA_2D(const Vector&) const;
+   fptype GetLocalStateEnergyPA_C0_2D(const Vector&) const;
+   fptype GetLocalStateEnergyPA_3D(const Vector&) const;
+   fptype GetLocalStateEnergyPA_C0_3D(const Vector&) const;
 
    void AddMultPA_2D(const Vector&, Vector&) const;
    void AddMultPA_3D(const Vector&, Vector&) const;
@@ -1962,10 +1962,10 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
-   double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   fptype ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
    // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
    // does not reduce over MPI.
-   double ComputeUntanglerMaxMuBarrier(const Vector &x,
+   fptype ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
 public:
@@ -2139,7 +2139,7 @@ public:
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
    void GetSurfaceFittingErrors(const Vector &pos,
-                                double &err_avg, double &err_max);
+                                fptype &err_avg, fptype &err_max);
    bool IsSurfaceFittingEnabled()
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
@@ -2152,7 +2152,7 @@ public:
        @param[in] el     Type of FiniteElement.
        @param[in] T      Mesh element transformation.
        @param[in] elfun  Physical coordinates of the zone. */
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual fptype GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
 
@@ -2161,14 +2161,14 @@ public:
        In addition to the inputs for GetElementEnergy, this function requires an
        IntegrationRule to be specified that will give the decomposition of the
        given element based on the refinement type being considered. */
-   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+   virtual fptype GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
                                              const Vector &elfun,
                                              const IntegrationRule &irule);
 
    /// This function is similar to GetElementEnergy, but ignores components
    /// such as limiting etc. to compute the element energy.
-   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+   virtual fptype GetDerefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
                                                const Vector &elfun);
 
@@ -2193,7 +2193,7 @@ public:
 
    virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
 
-   virtual double GetLocalStateEnergyPA(const Vector&) const;
+   virtual fptype GetLocalStateEnergyPA(const Vector&) const;
 
    virtual void AddMultPA(const Vector&, Vector&) const;
 
@@ -2216,18 +2216,18 @@ public:
    void EnableFiniteDifferences(const ParGridFunction &x);
 #endif
 
-   void   SetFDhScale(double dxscale_) { dxscale = dxscale_; }
+   void   SetFDhScale(fptype dxscale_) { dxscale = dxscale_; }
    bool   GetFDFlag() const { return fdflag; }
-   double GetFDh()    const { return dx; }
+   fptype GetFDh()    const { return dx; }
 
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 
    /// Update the surface fitting weight as surf_fit_coeff *= factor;
-   void UpdateSurfaceFittingWeight(double factor);
+   void UpdateSurfaceFittingWeight(fptype factor);
 
    /// Get the surface fitting weight.
-   double GetSurfaceFittingWeight();
+   fptype GetSurfaceFittingWeight();
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
@@ -2267,7 +2267,7 @@ public:
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0);
 
-   virtual double GetElementEnergy(const FiniteElement &el,
+   virtual fptype GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -2277,12 +2277,12 @@ public:
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
 
-   virtual double GetRefinementElementEnergy(const FiniteElement &el,
+   virtual fptype GetRefinementElementEnergy(const FiniteElement &el,
                                              ElementTransformation &T,
                                              const Vector &elfun,
                                              const IntegrationRule &irule);
 
-   virtual double GetDerefinementElementEnergy(const FiniteElement &el,
+   virtual fptype GetDerefinementElementEnergy(const FiniteElement &el,
                                                ElementTransformation &T,
                                                const Vector &elfun);
 
@@ -2296,7 +2296,7 @@ public:
    using NonlinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
    virtual void AssembleGradPA(const Vector&, const FiniteElementSpace&);
-   virtual double GetLocalStateEnergyPA(const Vector&) const;
+   virtual fptype GetLocalStateEnergyPA(const Vector&) const;
    virtual void AddMultPA(const Vector&, Vector&) const;
    virtual void AddMultGradPA(const Vector&, Vector&) const;
    virtual void AssembleGradDiagonalPA(Vector&) const;

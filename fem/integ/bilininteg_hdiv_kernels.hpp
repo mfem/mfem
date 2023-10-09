@@ -32,7 +32,7 @@ namespace internal
 void PAHdivMassSetup2D(const int Q1D,
                        const int coeffDim,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<fptype> &w,
                        const Vector &j,
                        Vector &coeff_,
                        Vector &op);
@@ -41,7 +41,7 @@ void PAHdivMassSetup2D(const int Q1D,
 void PAHdivMassSetup3D(const int Q1D,
                        const int coeffDim,
                        const int NE,
-                       const Array<double> &w,
+                       const Array<fptype> &w,
                        const Vector &j,
                        Vector &coeff_,
                        Vector &op);
@@ -51,8 +51,8 @@ void PAHdivMassAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
                                   const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
+                                  const Array<fptype> &Bo_,
+                                  const Array<fptype> &Bc_,
                                   const Vector &op_,
                                   Vector &diag_);
 
@@ -61,8 +61,8 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const int Q1D,
                                   const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
+                                  const Array<fptype> &Bo_,
+                                  const Array<fptype> &Bc_,
                                   const Vector &op_,
                                   Vector &diag_);
 
@@ -71,10 +71,10 @@ void PAHdivMassApply(const int dim,
                      const int Q1D,
                      const int NE,
                      const bool symmetric,
-                     const Array<double> &Bo,
-                     const Array<double> &Bc,
-                     const Array<double> &Bot,
-                     const Array<double> &Bct,
+                     const Array<fptype> &Bo,
+                     const Array<fptype> &Bc,
+                     const Array<fptype> &Bot,
+                     const Array<fptype> &Bct,
                      const Vector &op,
                      const Vector &x,
                      Vector &y);
@@ -84,10 +84,10 @@ void PAHdivMassApply2D(const int D1D,
                        const int Q1D,
                        const int NE,
                        const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
+                       const Array<fptype> &Bo_,
+                       const Array<fptype> &Bc_,
+                       const Array<fptype> &Bot_,
+                       const Array<fptype> &Bct_,
                        const Vector &op_,
                        const Vector &x_,
                        Vector &y_);
@@ -97,10 +97,10 @@ void PAHdivMassApply3D(const int D1D,
                        const int Q1D,
                        const int NE,
                        const bool symmetric,
-                       const Array<double> &Bo_,
-                       const Array<double> &Bc_,
-                       const Array<double> &Bot_,
-                       const Array<double> &Bct_,
+                       const Array<fptype> &Bo_,
+                       const Array<fptype> &Bc_,
+                       const Array<fptype> &Bot_,
+                       const Array<fptype> &Bct_,
                        const Vector &op_,
                        const Vector &x_,
                        Vector &y_);
@@ -109,10 +109,10 @@ void PAHdivMassApply3D(const int D1D,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAHdivMassApply2D(const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Array<double> &Bot_,
-                                  const Array<double> &Bct_,
+                                  const Array<fptype> &Bo_,
+                                  const Array<fptype> &Bc_,
+                                  const Array<fptype> &Bot_,
+                                  const Array<fptype> &Bct_,
                                   const Vector &op_,
                                   const Vector &x_,
                                   Vector &y_,
@@ -144,14 +144,14 @@ inline void SmemPAHdivMassApply2D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double smo[MQ1*(MD1-1)];
+      MFEM_SHARED fptype smo[MQ1*(MD1-1)];
       DeviceMatrix Bo(smo, D1D-1, Q1D);
 
-      MFEM_SHARED double smc[MQ1*MD1];
+      MFEM_SHARED fptype smc[MQ1*MD1];
       DeviceMatrix Bc(smc, D1D, Q1D);
 
-      MFEM_SHARED double sm0[VDIM*MDQ*MDQ];
-      MFEM_SHARED double sm1[VDIM*MDQ*MDQ];
+      MFEM_SHARED fptype sm0[VDIM*MDQ*MDQ];
+      MFEM_SHARED fptype sm1[VDIM*MDQ*MDQ];
       DeviceMatrix X(sm0, D1D*(D1D-1), VDIM);
       DeviceCube QD(sm1, Q1D, D1D, VDIM);
       DeviceCube QQ(sm0, Q1D, Q1D, VDIM);
@@ -184,7 +184,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double dq = 0.0;
+               fptype dq = 0.0;
                for (int dx = 0; dx < nx; ++dx)
                {
                   dq += Xxy(dx,dy,vd) * Bx(dx,qx);
@@ -202,7 +202,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double qq = 0.0;
+               fptype qq = 0.0;
                for (int dy = 0; dy < ny; ++dy)
                {
                   qq += QD(qx,dy,vd) * By(dy,qy);
@@ -219,13 +219,13 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double Qx = QQ(qx,qy,0);
-               const double Qy = QQ(qx,qy,1);
+               const fptype Qx = QQ(qx,qy,0);
+               const fptype Qy = QQ(qx,qy,1);
 
-               const double D11 = D(qx,qy,0,e);
-               const double D12 = D(qx,qy,1,e);
-               const double D21 = symmetric ? D12 : D(qx,qy,2,e);
-               const double D22 = symmetric ? D(qx,qy,2,e) : D(qx,qy,3,e);
+               const fptype D11 = D(qx,qy,0,e);
+               const fptype D12 = D(qx,qy,1,e);
+               const fptype D21 = symmetric ? D12 : D(qx,qy,2,e);
+               const fptype D22 = symmetric ? D(qx,qy,2,e) : D(qx,qy,3,e);
 
                QQ(qx,qy,0) = D11*Qx + D12*Qy;
                QQ(qx,qy,1) = D21*Qx + D22*Qy;
@@ -242,7 +242,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double qd = 0.0;
+               fptype qd = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   qd += QQ(qx,qy,vd) * Btx(dx,qx);
@@ -262,7 +262,7 @@ inline void SmemPAHdivMassApply2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double dd = 0.0;
+               fptype dd = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   dd += QD(dx,qy,vd) * Bty(dy,qy);
@@ -279,10 +279,10 @@ inline void SmemPAHdivMassApply2D(const int NE,
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPAHdivMassApply3D(const int NE,
                                   const bool symmetric,
-                                  const Array<double> &Bo_,
-                                  const Array<double> &Bc_,
-                                  const Array<double> &Bot_,
-                                  const Array<double> &Bct_,
+                                  const Array<fptype> &Bo_,
+                                  const Array<fptype> &Bc_,
+                                  const Array<fptype> &Bot_,
+                                  const Array<fptype> &Bct_,
                                   const Vector &op_,
                                   const Vector &x_,
                                   Vector &y_,
@@ -314,14 +314,14 @@ inline void SmemPAHdivMassApply3D(const int NE,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double smo[MQ1*(MD1-1)];
+      MFEM_SHARED fptype smo[MQ1*(MD1-1)];
       DeviceMatrix Bo(smo, D1D-1, Q1D);
 
-      MFEM_SHARED double smc[MQ1*MD1];
+      MFEM_SHARED fptype smc[MQ1*MD1];
       DeviceMatrix Bc(smc, D1D, Q1D);
 
-      MFEM_SHARED double sm0[VDIM*MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[VDIM*MDQ*MDQ*MDQ];
+      MFEM_SHARED fptype sm0[VDIM*MDQ*MDQ*MDQ];
+      MFEM_SHARED fptype sm1[VDIM*MDQ*MDQ*MDQ];
       DeviceMatrix X(sm0, D1D*(D1D-1)*(D1D-1), VDIM);
       DeviceTensor<4> QDD(sm1, Q1D, D1D, D1D, VDIM);
       DeviceTensor<4> QQD(sm0, Q1D, Q1D, D1D, VDIM);
@@ -375,7 +375,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[D1D];
+               fptype u[D1D];
                MFEM_UNROLL(MD1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
@@ -402,7 +402,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[D1D];
+               fptype u[D1D];
                MFEM_UNROLL(MD1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
@@ -428,7 +428,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double u[Q1D];
+               fptype u[Q1D];
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
                MFEM_UNROLL(MD1)
@@ -456,19 +456,19 @@ inline void SmemPAHdivMassApply3D(const int NE,
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  const double Qx = QQQ(qx,qy,qz,0);
-                  const double Qy = QQQ(qx,qy,qz,1);
-                  const double Qz = QQQ(qx,qy,qz,2);
+                  const fptype Qx = QQQ(qx,qy,qz,0);
+                  const fptype Qy = QQQ(qx,qy,qz,1);
+                  const fptype Qz = QQQ(qx,qy,qz,2);
 
-                  const double D11 = D(qx,qy,qz,0,e);
-                  const double D12 = D(qx,qy,qz,1,e);
-                  const double D13 = D(qx,qy,qz,2,e);
-                  const double D21 = symmetric ? D12 : D(qx,qy,qz,3,e);
-                  const double D22 = symmetric ? D(qx,qy,qz,3,e) : D(qx,qy,qz,4,e);
-                  const double D23 = symmetric ? D(qx,qy,qz,4,e) : D(qx,qy,qz,5,e);
-                  const double D31 = symmetric ? D13 : D(qx,qy,qz,6,e);
-                  const double D32 = symmetric ? D23 : D(qx,qy,qz,7,e);
-                  const double D33 = symmetric ? D(qx,qy,qz,5,e) : D(qx,qy,qz,8,e);
+                  const fptype D11 = D(qx,qy,qz,0,e);
+                  const fptype D12 = D(qx,qy,qz,1,e);
+                  const fptype D13 = D(qx,qy,qz,2,e);
+                  const fptype D21 = symmetric ? D12 : D(qx,qy,qz,3,e);
+                  const fptype D22 = symmetric ? D(qx,qy,qz,3,e) : D(qx,qy,qz,4,e);
+                  const fptype D23 = symmetric ? D(qx,qy,qz,4,e) : D(qx,qy,qz,5,e);
+                  const fptype D31 = symmetric ? D13 : D(qx,qy,qz,6,e);
+                  const fptype D32 = symmetric ? D23 : D(qx,qy,qz,7,e);
+                  const fptype D33 = symmetric ? D(qx,qy,qz,5,e) : D(qx,qy,qz,8,e);
 
                   QQQ(qx,qy,qz,0) = D11*Qx + D12*Qy + D13*Qz;
                   QQQ(qx,qy,qz,1) = D21*Qx + D22*Qy + D23*Qz;
@@ -487,7 +487,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[Q1D];
+               fptype u[Q1D];
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
                MFEM_UNROLL(MQ1)
@@ -514,7 +514,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[Q1D];
+               fptype u[Q1D];
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
                MFEM_UNROLL(MQ1)
@@ -543,7 +543,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               double u[D1D];
+               fptype u[D1D];
                MFEM_UNROLL(MD1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MQ1)
@@ -567,7 +567,7 @@ inline void SmemPAHdivMassApply3D(const int NE,
 // PA H(div) div-div Assemble 2D kernel
 void PADivDivSetup2D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<fptype> &w,
                      const Vector &j,
                      Vector &coeff_,
                      Vector &op);
@@ -575,7 +575,7 @@ void PADivDivSetup2D(const int Q1D,
 // PA H(div) div-div Assemble 3D kernel
 void PADivDivSetup3D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<fptype> &w,
                      const Vector &j,
                      Vector &coeff_,
                      Vector &op);
@@ -584,8 +584,8 @@ void PADivDivSetup3D(const int Q1D,
 void PADivDivAssembleDiagonal2D(const int D1D,
                                 const int Q1D,
                                 const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
+                                const Array<fptype> &Bo_,
+                                const Array<fptype> &Gc_,
                                 const Vector &op_,
                                 Vector &diag_);
 
@@ -593,8 +593,8 @@ void PADivDivAssembleDiagonal2D(const int D1D,
 void PADivDivAssembleDiagonal3D(const int D1D,
                                 const int Q1D,
                                 const int NE,
-                                const Array<double> &Bo_,
-                                const Array<double> &Gc_,
+                                const Array<fptype> &Bo_,
+                                const Array<fptype> &Gc_,
                                 const Vector &op_,
                                 Vector &diag_);
 
@@ -602,10 +602,10 @@ void PADivDivAssembleDiagonal3D(const int D1D,
 void PADivDivApply2D(const int D1D,
                      const int Q1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
+                     const Array<fptype> &Bo_,
+                     const Array<fptype> &Gc_,
+                     const Array<fptype> &Bot_,
+                     const Array<fptype> &Gct_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_);
@@ -614,10 +614,10 @@ void PADivDivApply2D(const int D1D,
 void PADivDivApply3D(const int D1D,
                      const int Q1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &Bot_,
-                     const Array<double> &Gct_,
+                     const Array<fptype> &Bo_,
+                     const Array<fptype> &Gc_,
+                     const Array<fptype> &Bot_,
+                     const Array<fptype> &Gct_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_);
@@ -625,14 +625,14 @@ void PADivDivApply3D(const int D1D,
 // PA H(div)-L2 Assemble 2D kernel
 void PAHdivL2Setup2D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<fptype> &w,
                      Vector &coeff_,
                      Vector &op);
 
 // PA H(div)-L2 Assemble 3D kernel
 void PAHdivL2Setup3D(const int Q1D,
                      const int NE,
-                     const Array<double> &w,
+                     const Array<fptype> &w,
                      Vector &coeff_,
                      Vector &op);
 
@@ -641,9 +641,9 @@ void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
                                       const int Q1D,
                                       const int L2D1D,
                                       const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
+                                      const Array<fptype> &L2Bo_,
+                                      const Array<fptype> &Gct_,
+                                      const Array<fptype> &Bot_,
                                       const Vector &op_,
                                       const Vector &D_,
                                       Vector &diag_);
@@ -653,9 +653,9 @@ void PAHdivL2AssembleDiagonal_ADAt_3D(const int D1D,
                                       const int Q1D,
                                       const int L2D1D,
                                       const int NE,
-                                      const Array<double> &L2Bo_,
-                                      const Array<double> &Gct_,
-                                      const Array<double> &Bot_,
+                                      const Array<fptype> &L2Bo_,
+                                      const Array<fptype> &Gct_,
+                                      const Array<fptype> &Bot_,
                                       const Vector &op_,
                                       const Vector &D_,
                                       Vector &diag_);
@@ -665,9 +665,9 @@ void PAHdivL2Apply2D(const int D1D,
                      const int Q1D,
                      const int L2D1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
+                     const Array<fptype> &Bo_,
+                     const Array<fptype> &Gc_,
+                     const Array<fptype> &L2Bot_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_);
@@ -677,9 +677,9 @@ void PAHdivL2ApplyTranspose2D(const int D1D,
                               const int Q1D,
                               const int L2D1D,
                               const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
+                              const Array<fptype> &L2Bo_,
+                              const Array<fptype> &Gct_,
+                              const Array<fptype> &Bot_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_);
@@ -689,9 +689,9 @@ void PAHdivL2Apply3D(const int D1D,
                      const int Q1D,
                      const int L2D1D,
                      const int NE,
-                     const Array<double> &Bo_,
-                     const Array<double> &Gc_,
-                     const Array<double> &L2Bot_,
+                     const Array<fptype> &Bo_,
+                     const Array<fptype> &Gc_,
+                     const Array<fptype> &L2Bot_,
                      const Vector &op_,
                      const Vector &x_,
                      Vector &y_);
@@ -701,9 +701,9 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
                               const int Q1D,
                               const int L2D1D,
                               const int NE,
-                              const Array<double> &L2Bo_,
-                              const Array<double> &Gct_,
-                              const Array<double> &Bot_,
+                              const Array<fptype> &L2Bo_,
+                              const Array<fptype> &Gct_,
+                              const Array<fptype> &Bot_,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_);

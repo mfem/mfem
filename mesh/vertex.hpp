@@ -22,34 +22,34 @@ namespace mfem
 class Vertex
 {
 protected:
-   double coord[3];
+   fptype coord[3];
 
 public:
    Vertex() = default;
 
    // Trivial copy constructor and trivial copy assignment operator
 
-   Vertex (double *xx, int dim);
-   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
-   Vertex( double x, double y, double z)
+   Vertex(fptype *xx, int dim);
+   Vertex(fptype x, fptype y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex(fptype x, fptype y, fptype z)
    { coord[0] = x; coord[1] = y; coord[2] = z; }
 
    /// Returns pointer to the coordinates of the vertex.
-   inline double * operator() () const { return (double*)coord; }
+   inline fptype * operator() () const { return (fptype*)coord; }
 
    /// Returns the i'th coordinate of the vertex.
-   inline double & operator() (int i) { return coord[i]; }
+   inline fptype & operator() (int i) { return coord[i]; }
 
    /// Returns the i'th coordinate of the vertex.
-   inline const double & operator() (int i) const { return coord[i]; }
+   inline const fptype & operator() (int i) const { return coord[i]; }
 
    /// (DEPRECATED) Set the coordinates of the Vertex.
    /** @deprecated This old version of SetCoords is not always memory safe. */
-   MFEM_DEPRECATED void SetCoords(const double *p)
+   MFEM_DEPRECATED void SetCoords(const fptype *p)
    { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
 
    /// Sets vertex location based on given point p
-   void SetCoords(int dim, const double *p)
+   void SetCoords(int dim, const fptype *p)
    { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
 
    // Trivial destructor

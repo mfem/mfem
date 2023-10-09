@@ -35,9 +35,9 @@ void TensorValues<QVectorLayout::byNODES>(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double *B = maps.B.Read();
-   const double *X = e_vec.Read();
-   double *Y = q_val.Write();
+   const fptype *B = maps.B.Read();
+   const fptype *X = e_vec.Read();
+   fptype *Y = q_val.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
 

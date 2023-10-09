@@ -93,19 +93,19 @@ void Vector::Load(std::istream &in, int Size)
    }
 }
 
-double &Vector::Elem(int i)
+fptype &Vector::Elem(int i)
 {
    return operator()(i);
 }
 
-const double &Vector::Elem(int i) const
+const fptype &Vector::Elem(int i) const
 {
    return operator()(i);
 }
 
-double Vector::operator*(const double *v) const
+fptype Vector::operator*(const fptype *v) const
 {
-   double dot = 0.0;
+   fptype dot = 0.0;
 #ifdef MFEM_USE_LEGACY_OPENMP
    #pragma omp parallel for reduction(+:dot)
 #endif
@@ -116,7 +116,7 @@ double Vector::operator*(const double *v) const
    return dot;
 }
 
-Vector &Vector::operator=(const double *v)
+Vector &Vector::operator=(const fptype *v)
 {
    data.CopyFromHost(v, size);
    return *this;
@@ -151,7 +151,7 @@ Vector &Vector::operator=(Vector &&v)
    return *this;
 }
 
-Vector &Vector::operator=(double value)
+Vector &Vector::operator=(fptype value)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -160,7 +160,7 @@ Vector &Vector::operator=(double value)
    return *this;
 }
 
-Vector &Vector::operator*=(double c)
+Vector &Vector::operator*=(fptype c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -181,11 +181,11 @@ Vector &Vector::operator*=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator/=(double c)
+Vector &Vector::operator/=(fptype c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
-   const double m = 1.0/c;
+   const fptype m = 1.0/c;
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] *= m; });
    return *this;
@@ -203,7 +203,7 @@ Vector &Vector::operator/=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator-=(double c)
+Vector &Vector::operator-=(fptype c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -224,7 +224,7 @@ Vector &Vector::operator-=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::operator+=(double c)
+Vector &Vector::operator+=(fptype c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
@@ -245,7 +245,7 @@ Vector &Vector::operator+=(const Vector &v)
    return *this;
 }
 
-Vector &Vector::Add(const double a, const Vector &Va)
+Vector &Vector::Add(const fptype a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
@@ -260,7 +260,7 @@ Vector &Vector::Add(const double a, const Vector &Va)
    return *this;
 }
 
-Vector &Vector::Set(const double a, const Vector &Va)
+Vector &Vector::Set(const fptype a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
 
@@ -277,8 +277,8 @@ void Vector::SetVector(const Vector &v, int offset)
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
    const int vs = v.Size();
-   const double *vp = v.data;
-   double *p = data + offset;
+   const fptype *vp = v.data;
+   fptype *p = data + offset;
    for (int i = 0; i < vs; i++)
    {
       p[i] = vp[i];
@@ -290,8 +290,8 @@ void Vector::AddSubVector(const Vector &v, int offset)
    MFEM_ASSERT(v.Size() + offset <= size, "invalid sub-vector");
 
    const int vs = v.Size();
-   const double *vp = v.data;
-   double *p = data + offset;
+   const fptype *vp = v.data;
+   fptype *p = data + offset;
    for (int i = 0; i < vs; i++)
    {
       p[i] += vp[i];
@@ -336,7 +336,7 @@ void add(const Vector &v1, const Vector &v2, Vector &v)
 #endif
 }
 
-void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
+void add(const Vector &v1, fptype alpha, const Vector &v2, Vector &v)
 {
    MFEM_ASSERT(v.size == v1.size && v.size == v2.size,
                "incompatible Vectors!");
@@ -363,8 +363,8 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
          d_z[i] = d_x[i] + alpha * d_y[i];
       });
 #else
-      const double *v1p = v1.data, *v2p = v2.data;
-      double *vp = v.data;
+      const fptype *v1p = v1.data, *v2p = v2.data;
+      fptype *vp = v.data;
       const int s = v.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -375,7 +375,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
    }
 }
 
-void add(const double a, const Vector &x, const Vector &y, Vector &z)
+void add(const fptype a, const Vector &x, const Vector &y, Vector &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -402,9 +402,9 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
          zd[i] = a * (xd[i] + yd[i]);
       });
 #else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
+      const fptype *xp = x.data;
+      const fptype *yp = y.data;
+      fptype       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -415,8 +415,8 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
    }
 }
 
-void add(const double a, const Vector &x,
-         const double b, const Vector &y, Vector &z)
+void add(const fptype a, const Vector &x,
+         const fptype b, const Vector &y, Vector &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -457,9 +457,9 @@ void add(const double a, const Vector &x,
          zd[i] = a * xd[i] + b * yd[i];
       });
 #else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
+      const fptype *xp = x.data;
+      const fptype *yp = y.data;
+      fptype       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -487,9 +487,9 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
       zd[i] = xd[i] - yd[i];
    });
 #else
-   const double *xp = x.data;
-   const double *yp = y.data;
-   double       *zp = z.data;
+   const fptype *xp = x.data;
+   const fptype *yp = y.data;
+   fptype       *zp = z.data;
    const int     s = x.size;
    #pragma omp parallel for
    for (int i = 0; i < s; i++)
@@ -499,7 +499,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 #endif
 }
 
-void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
+void subtract(const fptype a, const Vector &x, const Vector &y, Vector &z)
 {
    MFEM_ASSERT(x.size == y.size && x.size == z.size,
                "incompatible Vectors!");
@@ -526,9 +526,9 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
          zd[i] = a * (xd[i] - yd[i]);
       });
 #else
-      const double *xp = x.data;
-      const double *yp = y.data;
-      double       *zp = z.data;
+      const fptype *xp = x.data;
+      const fptype *yp = y.data;
+      fptype       *zp = z.data;
       const int      s = x.size;
       #pragma omp parallel for
       for (int i = 0; i < s; i++)
@@ -591,7 +591,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
    });
 }
 
-void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
+void Vector::GetSubVector(const Array<int> &dofs, fptype *elem_data) const
 {
    data.Read(MemoryClass::HOST, size);
    const int n = dofs.Size();
@@ -602,7 +602,7 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
    }
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, const double value)
+void Vector::SetSubVector(const Array<int> &dofs, const fptype value)
 {
    const bool use_dev = dofs.UseDevice();
    const int n = dofs.Size();
@@ -649,7 +649,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
    });
 }
 
-void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
+void Vector::SetSubVector(const Array<int> &dofs, fptype *elem_data)
 {
    // Use read+write access because we overwrite only part of the data.
    data.ReadWrite(MemoryClass::HOST, size);
@@ -693,7 +693,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
    });
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
+void Vector::AddElementVector(const Array<int> &dofs, fptype *elem_data)
 {
    data.ReadWrite(MemoryClass::HOST, size);
    const int n = dofs.Size();
@@ -711,7 +711,7 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
    }
 }
 
-void Vector::AddElementVector(const Array<int> &dofs, const double a,
+void Vector::AddElementVector(const Array<int> &dofs, const fptype a,
                               const Vector &elemvect)
 {
    MFEM_ASSERT(dofs.Size() <= elemvect.Size(), "Size mismatch: "
@@ -737,7 +737,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
    });
 }
 
-void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
+void Vector::SetSubVectorComplement(const Array<int> &dofs, const fptype val)
 {
    const bool use_dev = UseDevice() || dofs.UseDevice();
    const int n = dofs.Size();
@@ -816,7 +816,7 @@ void Vector::PrintHash(std::ostream &os) const
 
 void Vector::Randomize(int seed)
 {
-   const double max = (double)(RAND_MAX) + 1.;
+   const fptype max = (fptype)(RAND_MAX) + 1.;
 
    if (seed == 0)
    {
@@ -832,7 +832,7 @@ void Vector::Randomize(int seed)
    }
 }
 
-double Vector::Norml2() const
+fptype Vector::Norml2() const
 {
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
@@ -847,13 +847,13 @@ double Vector::Norml2() const
    {
       return std::abs(data[0]);
    } // end if 1 == size
-   return kernels::Norml2(size, (const double*) data);
+   return kernels::Norml2(size, (const fptype*) data);
 }
 
-double Vector::Normlinf() const
+fptype Vector::Normlinf() const
 {
    HostRead();
-   double max = 0.0;
+   fptype max = 0.0;
    for (int i = 0; i < size; i++)
    {
       max = std::max(std::abs(data[i]), max);
@@ -861,10 +861,10 @@ double Vector::Normlinf() const
    return max;
 }
 
-double Vector::Norml1() const
+fptype Vector::Norml1() const
 {
    HostRead();
-   double sum = 0.0;
+   fptype sum = 0.0;
    for (int i = 0; i < size; i++)
    {
       sum += std::abs(data[i]);
@@ -872,7 +872,7 @@ double Vector::Norml1() const
    return sum;
 }
 
-double Vector::Normlp(double p) const
+fptype Vector::Normlp(fptype p) const
 {
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
 
@@ -899,14 +899,14 @@ double Vector::Normlp(double p) const
          return std::abs(data[0]);
       } // end if 1 == size
 
-      double scale = 0.0;
-      double sum = 0.0;
+      fptype scale = 0.0;
+      fptype sum = 0.0;
 
       for (int i = 0; i < size; i++)
       {
          if (data[i] != 0.0)
          {
-            const double absdata = std::abs(data[i]);
+            const fptype absdata = std::abs(data[i]);
             if (scale <= absdata)
             {
                sum = 1.0 + sum * std::pow(scale / absdata, p);
@@ -922,12 +922,12 @@ double Vector::Normlp(double p) const
    return Normlinf(); // else p >= infinity()
 }
 
-double Vector::Max() const
+fptype Vector::Max() const
 {
    if (size == 0) { return -infinity(); }
 
    HostRead();
-   double max = data[0];
+   fptype max = data[0];
 
    for (int i = 1; i < size; i++)
    {
@@ -941,9 +941,9 @@ double Vector::Max() const
 }
 
 #ifdef MFEM_USE_CUDA
-static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
+static __global__ void cuKernelMin(const int N, fptype *gdsr, const fptype *x)
 {
-   __shared__ double s_min[MFEM_CUDA_BLOCKS];
+   __shared__ fptype s_min[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -966,29 +966,29 @@ static __global__ void cuKernelMin(const int N, double *gdsr, const double *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
-static Array<double> cuda_reduce_buf;
+static Array<fptype> cuda_reduce_buf;
 
-static double cuVectorMin(const int N, const double *X)
+static fptype cuVectorMin(const int N, const fptype *X)
 {
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(min_sz);
-   Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
+   Memory<fptype> &buf = cuda_reduce_buf.GetMemory();
+   fptype *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    cuKernelMin<<<gridSize,blockSize>>>(N, d_min, X);
    MFEM_GPU_CHECK(cudaGetLastError());
-   const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
-   double min = std::numeric_limits<double>::infinity();
+   const fptype *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   fptype min = std::numeric_limits<fptype>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
 }
 
-static __global__ void cuKernelDot(const int N, double *gdsr,
-                                   const double *x, const double *y)
+static __global__ void cuKernelDot(const int N, fptype *gdsr,
+                                   const fptype *x, const fptype *y)
 {
-   __shared__ double s_dot[MFEM_CUDA_BLOCKS];
+   __shared__ fptype s_dot[MFEM_CUDA_BLOCKS];
    const int n = blockDim.x*blockIdx.x + threadIdx.x;
    if (n>=N) { return; }
    const int bid = blockIdx.x;
@@ -1011,28 +1011,28 @@ static __global__ void cuKernelDot(const int N, double *gdsr,
    if (tid==0) { gdsr[bid] = s_dot[0]; }
 }
 
-static double cuVectorDot(const int N, const double *X, const double *Y)
+static fptype cuVectorDot(const int N, const fptype *X, const fptype *Y)
 {
    const int tpb = MFEM_CUDA_BLOCKS;
    const int blockSize = MFEM_CUDA_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
    cuda_reduce_buf.SetSize(dot_sz, Device::GetDeviceMemoryType());
-   Memory<double> &buf = cuda_reduce_buf.GetMemory();
-   double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
+   Memory<fptype> &buf = cuda_reduce_buf.GetMemory();
+   fptype *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    cuKernelDot<<<gridSize,blockSize>>>(N, d_dot, X, Y);
    MFEM_GPU_CHECK(cudaGetLastError());
-   const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-   double dot = 0.0;
+   const fptype *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   fptype dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_CUDA
 
 #ifdef MFEM_USE_HIP
-static __global__ void hipKernelMin(const int N, double *gdsr, const double *x)
+static __global__ void hipKernelMin(const int N, fptype *gdsr, const fptype *x)
 {
-   __shared__ double s_min[MFEM_HIP_BLOCKS];
+   __shared__ fptype s_min[MFEM_HIP_BLOCKS];
    const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (n>=N) { return; }
    const int bid = hipBlockIdx_x;
@@ -1055,29 +1055,29 @@ static __global__ void hipKernelMin(const int N, double *gdsr, const double *x)
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
 
-static Array<double> hip_reduce_buf;
+static Array<fptype> hip_reduce_buf;
 
-static double hipVectorMin(const int N, const double *X)
+static fptype hipVectorMin(const int N, const fptype *X)
 {
    const int tpb = MFEM_HIP_BLOCKS;
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int min_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    hip_reduce_buf.SetSize(min_sz);
-   Memory<double> &buf = hip_reduce_buf.GetMemory();
-   double *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
+   Memory<fptype> &buf = hip_reduce_buf.GetMemory();
+   fptype *d_min = buf.Write(MemoryClass::DEVICE, min_sz);
    hipLaunchKernelGGL(hipKernelMin,gridSize,blockSize,0,0,N,d_min,X);
    MFEM_GPU_CHECK(hipGetLastError());
-   const double *h_min = buf.Read(MemoryClass::HOST, min_sz);
-   double min = std::numeric_limits<double>::infinity();
+   const fptype *h_min = buf.Read(MemoryClass::HOST, min_sz);
+   fptype min = std::numeric_limits<fptype>::infinity();
    for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
    return min;
 }
 
-static __global__ void hipKernelDot(const int N, double *gdsr,
-                                    const double *x, const double *y)
+static __global__ void hipKernelDot(const int N, fptype *gdsr,
+                                    const fptype *x, const fptype *y)
 {
-   __shared__ double s_dot[MFEM_HIP_BLOCKS];
+   __shared__ fptype s_dot[MFEM_HIP_BLOCKS];
    const int n = hipBlockDim_x*hipBlockIdx_x + hipThreadIdx_x;
    if (n>=N) { return; }
    const int bid = hipBlockIdx_x;
@@ -1100,25 +1100,25 @@ static __global__ void hipKernelDot(const int N, double *gdsr,
    if (tid==0) { gdsr[bid] = s_dot[0]; }
 }
 
-static double hipVectorDot(const int N, const double *X, const double *Y)
+static fptype hipVectorDot(const int N, const fptype *X, const fptype *Y)
 {
    const int tpb = MFEM_HIP_BLOCKS;
    const int blockSize = MFEM_HIP_BLOCKS;
    const int gridSize = (N+blockSize-1)/blockSize;
    const int dot_sz = (N%tpb)==0 ? (N/tpb) : (1+N/tpb);
    hip_reduce_buf.SetSize(dot_sz);
-   Memory<double> &buf = hip_reduce_buf.GetMemory();
-   double *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
+   Memory<fptype> &buf = hip_reduce_buf.GetMemory();
+   fptype *d_dot = buf.Write(MemoryClass::DEVICE, dot_sz);
    hipLaunchKernelGGL(hipKernelDot,gridSize,blockSize,0,0,N,d_dot,X,Y);
    MFEM_GPU_CHECK(hipGetLastError());
-   const double *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
-   double dot = 0.0;
+   const fptype *h_dot = buf.Read(MemoryClass::HOST, dot_sz);
+   fptype dot = 0.0;
    for (int i = 0; i < dot_sz; i++) { dot += h_dot[i]; }
    return dot;
 }
 #endif // MFEM_USE_HIP
 
-double Vector::operator*(const Vector &v) const
+fptype Vector::operator*(const Vector &v) const
 {
    MFEM_ASSERT(size == v.size, "incompatible Vectors!");
    if (size == 0) { return 0.0; }
@@ -1136,7 +1136,7 @@ double Vector::operator*(const Vector &v) const
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
-      return occa::linalg::dot<double,double,double>(
+      return occa::linalg::dot<fptype,fptype,fptype>(
                 OccaMemoryRead(data, size), OccaMemoryRead(v.data, size));
    }
 #endif
@@ -1171,7 +1171,7 @@ double Vector::operator*(const Vector &v) const
          const int stride = (size + nt - 1)/nt;
          const int start  = tid*stride;
          const int stop   = std::min(start + stride, size);
-         double my_dot = 0.0;
+         fptype my_dot = 0.0;
          for (int i = start; i < stop; i++)
          {
             my_dot += m_data[i] * v_data[i];
@@ -1182,7 +1182,7 @@ double Vector::operator*(const Vector &v) const
       return th_dot.Sum();
 #else
       // The standard way of computing the dot product is non-deterministic
-      double prod = 0.0;
+      fptype prod = 0.0;
       #pragma omp parallel for reduction(+:prod)
       for (int i = 0; i < size; i++)
       {
@@ -1212,7 +1212,7 @@ vector_dot_cpu:
    return operator*(v_data);
 }
 
-double Vector::Min() const
+fptype Vector::Min() const
 {
    if (size == 0) { return infinity(); }
 
@@ -1224,7 +1224,7 @@ double Vector::Min() const
 #ifdef MFEM_USE_OCCA
    if (DeviceCanUseOcca())
    {
-      return occa::linalg::min<double,double>(OccaMemoryRead(data, size));
+      return occa::linalg::min<fptype,fptype>(OccaMemoryRead(data, size));
    }
 #endif
 
@@ -1245,7 +1245,7 @@ double Vector::Min() const
 #ifdef MFEM_USE_OPENMP
    if (Device::Allows(Backend::OMP_MASK))
    {
-      double minimum = m_data[0];
+      fptype minimum = m_data[0];
       #pragma omp parallel for reduction(min:minimum)
       for (int i = 0; i < size; i++)
       {
@@ -1272,7 +1272,7 @@ double Vector::Min() const
    }
 
 vector_min_cpu:
-   double minimum = data[0];
+   fptype minimum = data[0];
    for (int i = 1; i < size; i++)
    {
       if (m_data[i] < minimum)
@@ -1283,7 +1283,7 @@ vector_min_cpu:
    return minimum;
 }
 
-double Vector::Sum() const
+fptype Vector::Sum() const
 {
    if (size == 0) { return 0.0; }
 
@@ -1319,8 +1319,8 @@ double Vector::Sum() const
    }
 
    // CPU fallback
-   const double *h_data = HostRead();
-   double sum = 0.0;
+   const fptype *h_data = HostRead();
+   fptype sum = 0.0;
    for (int i = 0; i < size; i++)
    {
       sum += h_data[i];

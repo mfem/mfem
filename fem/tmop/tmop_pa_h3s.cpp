@@ -23,10 +23,10 @@ using Args = kernels::InvariantsEvaluator3D::Buffers;
 // dP_302 = (dI2b*dI1b + dI1b*dI2b)/9 + (I1b/9)*ddI2b + (I2b/9)*ddI1b
 static MFEM_HOST_DEVICE inline
 void EvalH_302(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP,
-               double *B, double *dI1b, double *ddI1b,
-               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-               double *dI3b)
+               const fptype weight, const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *B, fptype *dI1b, fptype *ddI1b,
+               fptype *dI2, fptype *dI2b, fptype *ddI2, fptype *ddI2b,
+               fptype *dI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
@@ -34,9 +34,9 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
                                      .dI1b(dI1b).ddI1b(ddI1b)
                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                                      .dI3b(dI3b));
-   const double c1 = weight/9.;
-   const double I1b = ie.Get_I1b();
-   const double I2b = ie.Get_I2b();
+   const fptype c1 = weight/9.;
+   const fptype I1b = ie.Get_I1b();
+   const fptype I2b = ie.Get_I2b();
    ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
    ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
    for (int i = 0; i < DIM; i++)
@@ -49,7 +49,7 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp =
+               const fptype dp =
                   (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
                   + ddi2b(r,c)*I1b
                   + ddi1b(r,c)*I2b;
@@ -63,10 +63,10 @@ void EvalH_302(const int e, const int qx, const int qy, const int qz,
 // dP_303 = ddI1b/3
 static MFEM_HOST_DEVICE inline
 void EvalH_303(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP,
-               double *B, double *dI1b, double *ddI1, double *ddI1b,
-               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *B, fptype *dI1b, fptype *ddI1, fptype *ddI1b,
+               fptype *dI2, fptype *dI2b, fptype *ddI2, fptype *ddI2b,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
@@ -74,7 +74,7 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                                      .dI3b(dI3b).ddI3b(ddI3b));
-   const double c1 = weight/3.;
+   const fptype c1 = weight/3.;
    for (int i = 0; i < DIM; i++)
    {
       for (int j = 0; j < DIM; j++)
@@ -84,7 +84,7 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp = ddi1b(r,c);
+               const fptype dp = ddi1b(r,c);
                dP(r,c,i,j,qx,qy,qz,e) = c1 * dp;
             }
          }
@@ -95,16 +95,16 @@ void EvalH_303(const int e, const int qx, const int qy, const int qz,
 // dP_315 = 2*(dI3b x dI3b) + 2*(I3b - 1)*ddI3b
 static MFEM_HOST_DEVICE inline
 void EvalH_315(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args().
                                      J(J).
                                      dI3b(dI3b).ddI3b(ddI3b));
 
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
+   fptype sign_detJ;
+   const fptype I3b = ie.Get_I3b(sign_detJ);
    ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
 
    for (int i = 0; i < DIM; i++)
@@ -116,7 +116,7 @@ void EvalH_315(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
+               const fptype dp = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
                                  2.0 * weight * di3b(r,c) * di3b(i,j);
                dP(r,c,i,j,qx,qy,qz,e) = dp;
             }
@@ -129,16 +129,16 @@ void EvalH_315(const int e, const int qx, const int qy, const int qz,
 // Uses the I3b form, as dI3 and ddI3 were not implemented at the time.
 static MFEM_HOST_DEVICE inline
 void EvalH_318(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args().
                                      J(J).
                                      dI3b(dI3b).ddI3b(ddI3b));
 
-   double sign_detJ;
-   const double I3b = ie.Get_I3b(sign_detJ);
+   fptype sign_detJ;
+   const fptype I3b = ie.Get_I3b(sign_detJ);
    ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
 
    for (int i = 0; i < DIM; i++)
@@ -150,7 +150,7 @@ void EvalH_318(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp =
+               const fptype dp =
                   weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
                   weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
                dP(r,c,i,j,qx,qy,qz,e) = dp;
@@ -166,10 +166,10 @@ void EvalH_318(const int e, const int qx, const int qy, const int qz,
 //               + (-2*I2/I3b^3)*ddI3b
 static MFEM_HOST_DEVICE inline
 void EvalH_321(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *J, DeviceTensor<8,double> dP,
-               double *B, double *dI1b, double *ddI1, double *ddI1b,
-               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *B, fptype *dI1b, fptype *ddI1, fptype *ddI1b,
+               fptype *dI2, fptype *dI2b, fptype *ddI2, fptype *ddI2b,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
@@ -177,17 +177,17 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
                                      .dI1b(dI1b).ddI1(ddI1).ddI1b(ddI1b)
                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                                      .dI3b(dI3b).ddI3b(ddI3b));
-   double sign_detJ;
-   const double I2 = ie.Get_I2();
-   const double I3b = ie.Get_I3b(sign_detJ);
+   fptype sign_detJ;
+   const fptype I2 = ie.Get_I2();
+   const fptype I3b = ie.Get_I3b(sign_detJ);
 
    ConstDeviceMatrix di2(ie.Get_dI2(),DIM,DIM);
    ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
 
-   const double c0 = 1.0/I3b;
-   const double c1 = weight*c0*c0;
-   const double c2 = -2*c0*c1;
-   const double c3 = c2*I2;
+   const fptype c0 = 1.0/I3b;
+   const fptype c1 = weight*c0*c0;
+   const fptype c2 = -2*c0*c1;
+   const fptype c3 = c2*I2;
 
    for (int i = 0; i < DIM; i++)
    {
@@ -200,7 +200,7 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp =
+               const fptype dp =
                   weight * ddi1(r,c)
                   + c1 * ddi2(r,c)
                   + c3 * ddi3b(r,c)
@@ -216,11 +216,11 @@ void EvalH_321(const int e, const int qx, const int qy, const int qz,
 // H_332 = w0 H_302 + w1 H_315
 static MFEM_HOST_DEVICE inline
 void EvalH_332(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *w,
-               const double *J, DeviceTensor<8,double> dP,
-               double *B, double *dI1b, double *ddI1b,
-               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *w,
+               const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *B, fptype *dI1b, fptype *ddI1b,
+               fptype *dI2, fptype *dI2b, fptype *ddI2, fptype *ddI2b,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
@@ -228,11 +228,11 @@ void EvalH_332(const int e, const int qx, const int qy, const int qz,
                                      .dI1b(dI1b).ddI1b(ddI1b)
                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                                      .dI3b(dI3b).ddI3b(ddI3b));
-   double sign_detJ;
-   const double c1 = weight/9.;
-   const double I1b = ie.Get_I1b();
-   const double I2b = ie.Get_I2b();
-   const double I3b = ie.Get_I3b(sign_detJ);
+   fptype sign_detJ;
+   const fptype c1 = weight/9.;
+   const fptype I1b = ie.Get_I1b();
+   const fptype I2b = ie.Get_I2b();
+   const fptype I3b = ie.Get_I3b(sign_detJ);
    ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
    ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
    ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
@@ -247,11 +247,11 @@ void EvalH_332(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp_302 =
+               const fptype dp_302 =
                   (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
                   + ddi2b(r,c)*I1b
                   + ddi1b(r,c)*I2b;
-               const double dp_315 = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
+               const fptype dp_315 = 2.0 * weight * (I3b - 1.0) * ddi3b(r,c) +
                                      2.0 * weight * di3b(r,c) * di3b(i,j);
                dP(r,c,i,j,qx,qy,qz,e) = w[0] * c1 * dp_302 +
                                         w[1] * dp_315;
@@ -264,11 +264,11 @@ void EvalH_332(const int e, const int qx, const int qy, const int qz,
 // H_338 = w0 H_302 + w1 H_318
 static MFEM_HOST_DEVICE inline
 void EvalH_338(const int e, const int qx, const int qy, const int qz,
-               const double weight, const double *w,
-               const double *J, DeviceTensor<8,double> dP,
-               double *B, double *dI1b, double *ddI1b,
-               double *dI2, double *dI2b, double *ddI2, double *ddI2b,
-               double *dI3b, double *ddI3b)
+               const fptype weight, const fptype *w,
+               const fptype *J, DeviceTensor<8,fptype> dP,
+               fptype *B, fptype *dI1b, fptype *ddI1b,
+               fptype *dI2, fptype *dI2b, fptype *ddI2, fptype *ddI2b,
+               fptype *dI3b, fptype *ddI3b)
 {
    constexpr int DIM = 3;
    kernels::InvariantsEvaluator3D ie(Args()
@@ -276,11 +276,11 @@ void EvalH_338(const int e, const int qx, const int qy, const int qz,
                                      .dI1b(dI1b).ddI1b(ddI1b)
                                      .dI2(dI2).dI2b(dI2b).ddI2(ddI2).ddI2b(ddI2b)
                                      .dI3b(dI3b).ddI3b(ddI3b));
-   double sign_detJ;
-   const double c1 = weight/9.;
-   const double I1b = ie.Get_I1b();
-   const double I2b = ie.Get_I2b();
-   const double I3b = ie.Get_I3b(sign_detJ);
+   fptype sign_detJ;
+   const fptype c1 = weight/9.;
+   const fptype I1b = ie.Get_I1b();
+   const fptype I2b = ie.Get_I2b();
+   const fptype I3b = ie.Get_I3b(sign_detJ);
    ConstDeviceMatrix di1b(ie.Get_dI1b(),DIM,DIM);
    ConstDeviceMatrix di2b(ie.Get_dI2b(),DIM,DIM);
    ConstDeviceMatrix di3b(ie.Get_dI3b(sign_detJ),DIM,DIM);
@@ -295,11 +295,11 @@ void EvalH_338(const int e, const int qx, const int qy, const int qz,
          {
             for (int c = 0; c < DIM; c++)
             {
-               const double dp_302 =
+               const fptype dp_302 =
                   (di2b(r,c)*di1b(i,j) + di1b(r,c)*di2b(i,j))
                   + ddi2b(r,c)*I1b
                   + ddi1b(r,c)*I2b;
-               const double dp_318 =
+               const fptype dp_318 =
                   weight * (I3b - 1.0/(I3b*I3b*I3b)) * ddi3b(r,c) +
                   weight * (1.0 + 3.0/(I3b*I3b*I3b*I3b)) * di3b(r,c)*di3b(i,j);
                dP(r,c,i,j,qx,qy,qz,e) = w[0] * c1 * dp_302 +
@@ -311,14 +311,14 @@ void EvalH_338(const int e, const int qx, const int qy, const int qz,
 }
 
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
-                           const double metric_normal,
-                           const Array<double> &metric_param,
+                           const fptype metric_normal,
+                           const Array<fptype> &metric_param,
                            const int mid,
                            const Vector &x_,
                            const int NE,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<fptype> &w_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &g_,
                            const DenseTensor &j_,
                            Vector &h_,
                            const int d1d,
@@ -339,7 +339,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, DIM, NE);
    auto H = Reshape(h_.Write(), DIM, DIM, DIM, DIM, Q1D, Q1D, Q1D, NE);
 
-   const double *metric_data = metric_param.Read();
+   const fptype *metric_data = metric_param.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -348,11 +348,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double s_BG[2][MQ1*MD1];
-      MFEM_SHARED double s_DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double s_DDQ[9][MD1*MD1*MQ1];
-      MFEM_SHARED double s_DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double s_QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED fptype s_BG[2][MQ1*MD1];
+      MFEM_SHARED fptype s_DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED fptype s_DDQ[9][MD1*MD1*MQ1];
+      MFEM_SHARED fptype s_DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED fptype s_QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,s_DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,s_BG);
@@ -367,28 +367,28 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const double *Jtr = &J(0,0,qx,qy,qz,e);
-               const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+               const fptype *Jtr = &J(0,0,qx,qy,qz,e);
+               const fptype detJtr = kernels::Det<3>(Jtr);
+               const fptype weight = metric_normal * W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
-               double Jrt[9];
+               fptype Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^T.DSh
-               double Jpr[9];
+               fptype Jpr[9];
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz, s_QQQ, Jpr);
 
                // Jpt = X^T . DS = (X^T.DSh) . Jrt = Jpr . Jrt
-               double Jpt[9];
+               fptype Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // InvariantsEvaluator3D buffers used for the metrics
-               double B[9];
-               double         dI1b[9], ddI1[9], ddI1b[9];
-               double dI2[9], dI2b[9], ddI2[9], ddI2b[9];
+               fptype B[9];
+               fptype         dI1b[9], ddI1[9], ddI1b[9];
+               fptype dI2[9], dI2b[9], ddI2[9], ddI2b[9];
                // reuse local arrays, to help register allocation
-               double        *dI3b=Jrt,        *ddI3b=Jpr;
+               fptype        *dI3b=Jrt,        *ddI3b=Jpr;
 
                // metric->AssembleH
                if (mid == 302)
@@ -437,14 +437,14 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int M = metric->Id();
    const int id = (D1D << 4 ) | Q1D;
-   const double mn = metric_normal;
+   const fptype mn = metric_normal;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = PA.ir->GetWeights();
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &G = PA.maps->G;
+   const Array<fptype> &W = PA.ir->GetWeights();
+   const Array<fptype> &B = PA.maps->B;
+   const Array<fptype> &G = PA.maps->G;
    Vector &H = PA.H;
 
-   Array<double> mp;
+   Array<fptype> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
       m->GetWeights(mp);

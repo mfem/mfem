@@ -53,8 +53,8 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_UNIT_SIZE_3D_KERNEL,
 
 MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
                            const int NE,
-                           const Array<double> &b_,
-                           const Array<double> &g_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &g_,
                            const DenseMatrix &w_,
                            const Vector &x_,
                            DenseTensor &j_,
@@ -63,7 +63,7 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
 {
    constexpr int DIM = 3;
 
-   const double detW = w_.Det();
+   const fptype detW = w_.Det();
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
@@ -81,11 +81,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED fptype BG[2][MQ1*MD1];
+      MFEM_SHARED fptype DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED fptype DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED fptype DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED fptype QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -100,11 +100,11 @@ MFEM_REGISTER_TMOP_KERNELS(bool, TC_IDEAL_SHAPE_GIVEN_SIZE_3D_KERNEL,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double Jtr[9];
-               const double *Wid = &W(0,0);
+               fptype Jtr[9];
+               const fptype *Wid = &W(0,0);
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz,QQQ,Jtr);
-               const double detJ = kernels::Det<3>(Jtr);
-               const double alpha = std::pow(detJ/detW,1./3);
+               const fptype detJ = kernels::Det<3>(Jtr);
+               const fptype alpha = std::pow(detJ/detW,1./3);
                kernels::Set(DIM,DIM,alpha,Wid,&J(0,0,qx,qy,qz,e));
             }
          }
@@ -133,8 +133,8 @@ TargetConstructor::ComputeAllElementTargets<3>(const FiniteElementSpace &fes,
    const DenseMatrix &W = Geometries.GetGeomToPerfGeomJac(Geometry::CUBE);
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    const DofToQuad &maps = fe.GetDofToQuad(ir, mode);
-   const Array<double> &B = maps.B;
-   const Array<double> &G = maps.G;
+   const Array<fptype> &B = maps.B;
+   const Array<fptype> &G = maps.G;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
    const int id = (D1D << 4 ) | Q1D;

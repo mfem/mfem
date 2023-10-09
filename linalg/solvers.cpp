@@ -52,7 +52,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 
 #endif // MFEM_USE_MPI
 
-double IterativeSolver::Dot(const Vector &x, const Vector &y) const
+fptype IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
 #ifndef MFEM_USE_MPI
    return (x * y);
@@ -187,7 +187,7 @@ void IterativeSolver::SetOperator(const Operator &op)
    }
 }
 
-void IterativeSolver::Monitor(int it, double norm, const Vector& r,
+void IterativeSolver::Monitor(int it, fptype norm, const Vector& r,
                               const Vector& x, bool final) const
 {
    if (monitor != nullptr)
@@ -197,7 +197,7 @@ void IterativeSolver::Monitor(int it, double norm, const Vector& r,
    }
 }
 
-OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
+OperatorJacobiSmoother::OperatorJacobiSmoother(const fptype dmpng)
    : damping(dmpng),
      ess_tdof_list(nullptr),
      oper(nullptr),
@@ -206,7 +206,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const double dmpng)
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const fptype dmpng)
    :
    Solver(a.FESpace()->GetTrueVSize()),
    dinv(height),
@@ -225,7 +225,7 @@ OperatorJacobiSmoother::OperatorJacobiSmoother(const BilinearForm &a,
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const Vector &d,
                                                const Array<int> &ess_tdofs,
-                                               const double dmpng)
+                                               const fptype dmpng)
    :
    Solver(d.Size()),
    dinv(height),
@@ -277,7 +277,7 @@ void OperatorJacobiSmoother::SetOperator(const Operator &op)
 void OperatorJacobiSmoother::Setup(const Vector &diag)
 {
    residual.UseDevice(true);
-   const double delta = damping;
+   const fptype delta = damping;
    auto D = diag.Read();
    auto DI = dinv.Write();
    const bool use_abs_diag_ = use_abs_diag;
@@ -331,7 +331,7 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, fptype max_eig_estimate_)
    :
    Solver(d.Size()),
    order(order_),
@@ -348,12 +348,12 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, fptype power_tolerance)
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, fptype power_tolerance)
 #endif
    : Solver(d.Size()),
      order(order_),
@@ -383,21 +383,21 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, double max_eig_estimate_)
+                                                     int order_, fptype max_eig_estimate_)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, double power_tolerance)
+                                                     int order_, MPI_Comm comm, int power_iterations, fptype power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
                                power_iterations, power_tolerance) { }
 #else
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, double power_tolerance)
+                                                     int order_, int power_iterations, fptype power_tolerance)
    : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
                                power_tolerance) { }
 #endif
@@ -418,10 +418,10 @@ void OperatorChebyshevSmoother::Setup()
    // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.
-   double upper_bound = 1.2 * max_eig_estimate;
-   double lower_bound = 0.3 * max_eig_estimate;
-   double theta = 0.5 * (upper_bound + lower_bound);
-   double delta = 0.5 * (upper_bound - lower_bound);
+   fptype upper_bound = 1.2 * max_eig_estimate;
+   fptype lower_bound = 0.3 * max_eig_estimate;
+   fptype theta = 0.5 * (upper_bound + lower_bound);
+   fptype delta = 0.5 * (upper_bound - lower_bound);
 
    switch (order-1)
    {
@@ -432,16 +432,16 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 1:
       {
-         double tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
+         fptype tmp_0 = 1.0/(pow(delta, 2) - 2*pow(theta, 2));
          coeffs[0] = -4*theta*tmp_0;
          coeffs[1] = 2*tmp_0;
          break;
       }
       case 2:
       {
-         double tmp_0 = 3*pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
+         fptype tmp_0 = 3*pow(delta, 2);
+         fptype tmp_1 = pow(theta, 2);
+         fptype tmp_2 = 1.0/(-4*pow(theta, 3) + theta*tmp_0);
          coeffs[0] = tmp_2*(tmp_0 - 12*tmp_1);
          coeffs[1] = 12/(tmp_0 - 4*tmp_1);
          coeffs[2] = -4*tmp_2;
@@ -449,10 +449,10 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 3:
       {
-         double tmp_0 = pow(delta, 2);
-         double tmp_1 = pow(theta, 2);
-         double tmp_2 = 8*tmp_0;
-         double tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
+         fptype tmp_0 = pow(delta, 2);
+         fptype tmp_1 = pow(theta, 2);
+         fptype tmp_2 = 8*tmp_0;
+         fptype tmp_3 = 1.0/(pow(delta, 4) + 8*pow(theta, 4) - tmp_1*tmp_2);
          coeffs[0] = tmp_3*(32*pow(theta, 3) - 16*theta*tmp_0);
          coeffs[1] = tmp_3*(-48*tmp_1 + tmp_2);
          coeffs[2] = 32*theta*tmp_3;
@@ -461,15 +461,15 @@ void OperatorChebyshevSmoother::Setup()
       }
       case 4:
       {
-         double tmp_0 = 5*pow(delta, 4);
-         double tmp_1 = pow(theta, 4);
-         double tmp_2 = pow(theta, 2);
-         double tmp_3 = pow(delta, 2);
-         double tmp_4 = 60*tmp_3;
-         double tmp_5 = 20*tmp_3;
-         double tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
-         double tmp_7 = 160*tmp_2;
-         double tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
+         fptype tmp_0 = 5*pow(delta, 4);
+         fptype tmp_1 = pow(theta, 4);
+         fptype tmp_2 = pow(theta, 2);
+         fptype tmp_3 = pow(delta, 2);
+         fptype tmp_4 = 60*tmp_3;
+         fptype tmp_5 = 20*tmp_3;
+         fptype tmp_6 = 1.0/(16*pow(theta, 5) - pow(theta, 3)*tmp_5 + theta*tmp_0);
+         fptype tmp_7 = 160*tmp_2;
+         fptype tmp_8 = 1.0/(tmp_0 + 16*tmp_1 - tmp_2*tmp_5);
          coeffs[0] = tmp_6*(tmp_0 + 80*tmp_1 - tmp_2*tmp_4);
          coeffs[1] = tmp_8*(tmp_4 - tmp_7);
          coeffs[2] = tmp_6*(-tmp_5 + tmp_7);
@@ -567,7 +567,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
    // General version of SLI with a relative tolerance, optional preconditioner
    // and optional initial guess
-   double r0, nom, nom0, nomold = 1, cf;
+   fptype r0, nom, nom0, nomold = 1, cf;
 
    if (iterative_mode)
    {
@@ -676,7 +676,7 @@ void SLISolver::Mult(const Vector &b, Vector &x) const
 
 void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         fptype RTOLERANCE, fptype ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -691,7 +691,7 @@ void SLI(const Operator &A, const Vector &b, Vector &x,
 
 void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         fptype RTOLERANCE, fptype ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -718,7 +718,7 @@ void CGSolver::UpdateVectors()
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
-   double r0, den, nom, nom0, betanom, alpha, beta;
+   fptype r0, den, nom, nom0, betanom, alpha, beta;
 
    x.UseDevice(true);
    if (iterative_mode)
@@ -897,7 +897,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter, int max_num_iter,
-        double RTOLERANCE, double ATOLERANCE)
+        fptype RTOLERANCE, fptype ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -912,7 +912,7 @@ void CG(const Operator &A, const Vector &b, Vector &x,
 
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter, int max_num_iter,
-         double RTOLERANCE, double ATOLERANCE)
+         fptype RTOLERANCE, fptype ATOLERANCE)
 {
    MFEM_PERF_FUNCTION;
 
@@ -927,8 +927,8 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 }
 
 
-inline void GeneratePlaneRotation(double &dx, double &dy,
-                                  double &cs, double &sn)
+inline void GeneratePlaneRotation(fptype &dx, fptype &dy,
+                                  fptype &cs, fptype &sn)
 {
    if (dy == 0.0)
    {
@@ -937,21 +937,21 @@ inline void GeneratePlaneRotation(double &dx, double &dy,
    }
    else if (fabs(dy) > fabs(dx))
    {
-      double temp = dx / dy;
+      fptype temp = dx / dy;
       sn = 1.0 / sqrt( 1.0 + temp*temp );
       cs = temp * sn;
    }
    else
    {
-      double temp = dy / dx;
+      fptype temp = dy / dx;
       cs = 1.0 / sqrt( 1.0 + temp*temp );
       sn = temp * cs;
    }
 }
 
-inline void ApplyPlaneRotation(double &dx, double &dy, double &cs, double &sn)
+inline void ApplyPlaneRotation(fptype &dx, fptype &dy, fptype &cs, fptype &sn)
 {
-   double temp = cs * dx + sn * dy;
+   fptype temp = cs * dx + sn * dy;
    dy = -sn * dx + cs * dy;
    dx = temp;
 }
@@ -1023,7 +1023,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          r = b;
       }
    }
-   double beta = initial_norm = Norm(r);  // beta = ||r||
+   fptype beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1087,7 +1087,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         const double resid = fabs(s(i+1));
+         const fptype resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
 
          if (resid <= final_norm)
@@ -1183,7 +1183,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       x = 0.;
       r = b;
    }
-   double beta = initial_norm = Norm(r);  // beta = ||r||
+   fptype beta = initial_norm = Norm(r);  // beta = ||r||
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
@@ -1258,7 +1258,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         const double resid = fabs(s(i+1));
+         const fptype resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
@@ -1338,7 +1338,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 
 
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit)
+          int &max_iter, int m, fptype &tol, fptype atol, int printit)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1357,7 +1357,7 @@ int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-           int print_iter, int max_num_iter, int m, double rtol, double atol)
+           int print_iter, int max_num_iter, int m, fptype rtol, fptype atol)
 {
    GMRES(A, x, b, B, max_num_iter, m, rtol, atol, print_iter);
 }
@@ -1381,8 +1381,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    // on p. 27 of the SIAM Templates book.
 
    int i;
-   double resid, tol_goal;
-   double rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
+   fptype resid, tol_goal;
+   fptype rho_1, rho_2=1.0, alpha=1.0, beta, omega=1.0;
 
    if (iterative_mode)
    {
@@ -1568,7 +1568,7 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 }
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
-             int &max_iter, double &tol, double atol, int printit)
+             int &max_iter, fptype &tol, fptype atol, int printit)
 {
    BiCGSTABSolver bicgstab;
    bicgstab.SetPrintLevel(printit);
@@ -1584,7 +1584,7 @@ int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
 }
 
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
-              int print_iter, int max_num_iter, double rtol, double atol)
+              int print_iter, int max_num_iter, fptype rtol, fptype atol)
 {
    BiCGSTAB(A, x, b, B, max_num_iter, rtol, atol, print_iter);
 }
@@ -1622,8 +1622,8 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
    x.UseDevice(true);
 
    int it;
-   double beta, eta, gamma0, gamma1, sigma0, sigma1;
-   double alpha, delta, rho1, rho2, rho3, norm_goal;
+   fptype beta, eta, gamma0, gamma1, sigma0, sigma1;
+   fptype alpha, delta, rho1, rho2, rho3, norm_goal;
    Vector *z = (prec) ? &u1 : &v1;
 
    converged = true;
@@ -1778,7 +1778,7 @@ loop_end:
 }
 
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
-            int max_it, double rtol, double atol)
+            int max_it, fptype rtol, fptype atol)
 {
    MFEM_PERF_FUNCTION;
 
@@ -1792,7 +1792,7 @@ void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it,
 }
 
 void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
-            int print_it, int max_it, double rtol, double atol)
+            int print_it, int max_it, fptype rtol, fptype atol)
 {
    MINRESSolver minres;
    minres.SetPrintLevel(print_it);
@@ -1822,7 +1822,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm0, norm, norm_goal;
+   fptype norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -1891,7 +1891,7 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
          AdaptiveLinRtolPostSolve(c, r, it, norm);
       }
 
-      const double c_scale = ComputeScalingFactor(x, b);
+      const fptype c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -1925,10 +1925,10 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
 }
 
 void NewtonSolver::SetAdaptiveLinRtol(const int type,
-                                      const double rtol0,
-                                      const double rtol_max,
-                                      const double alpha_,
-                                      const double gamma_)
+                                      const fptype rtol0,
+                                      const fptype rtol_max,
+                                      const fptype alpha_,
+                                      const fptype gamma_)
 {
    lin_rtol_type = type;
    lin_rtol0 = rtol0;
@@ -1939,15 +1939,15 @@ void NewtonSolver::SetAdaptiveLinRtol(const int type,
 
 void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
                                            const int it,
-                                           const double fnorm) const
+                                           const fptype fnorm) const
 {
    // Assume that when adaptive linear solver relative tolerance is activated,
    // we are working with an iterative solver.
    auto iterative_solver = static_cast<IterativeSolver *>(prec);
    // Adaptive linear solver relative tolerance
-   double eta;
+   fptype eta;
    // Safeguard threshold
-   double sg_threshold = 0.1;
+   fptype sg_threshold = 0.1;
 
    if (it == 0)
    {
@@ -1971,7 +1971,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
       }
 
       // Safeguard rtol from "oversolving" ?!
-      const double sg_eta = gamma * pow(eta_last, alpha);
+      const fptype sg_eta = gamma * pow(eta_last, alpha);
       if (sg_eta > sg_threshold) { eta = std::max(eta, sg_eta); }
    }
 
@@ -1987,7 +1987,7 @@ void NewtonSolver::AdaptiveLinRtolPreSolve(const Vector &x,
 void NewtonSolver::AdaptiveLinRtolPostSolve(const Vector &x,
                                             const Vector &b,
                                             const int it,
-                                            const double fnorm) const
+                                            const fptype fnorm) const
 {
    fnorm_last = fnorm;
 
@@ -2020,7 +2020,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
    int last_saved_id = -1;
 
    int it;
-   double norm0, norm, norm_goal;
+   fptype norm0, norm, norm_goal;
    const bool have_b = (b.Size() == Height());
 
    if (!iterative_mode)
@@ -2070,7 +2070,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       }
 
       rk = r;
-      const double c_scale = ComputeScalingFactor(x, b);
+      const fptype c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = false;
@@ -2089,7 +2089,7 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       // LBFGS - construct descent direction
       subtract(r, rk, yk);   // yk = r_{k+1} - r_{k}
       sk = c; sk *= -c_scale; //sk = x_{k+1} - x_{k} = -c_scale*c
-      const double gamma = Dot(sk, yk)/Dot(yk, yk);
+      const fptype gamma = Dot(sk, yk)/Dot(yk, yk);
 
       // Save last m vectors
       last_saved_id = (last_saved_id == m-1) ? 0 : last_saved_id+1;
@@ -2118,13 +2118,13 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
       {
          for (int i = last_saved_id+1; i < m ; i++)
          {
-            double betai = rho(i)*Dot((*ykArray[i]), c);
+            fptype betai = rho(i)*Dot((*ykArray[i]), c);
             add(c, alpha(i)-betai, (*skArray[i]), c);
          }
       }
       for (int i = 0; i < last_saved_id+1 ; i++)
       {
-         double betai = rho(i)*Dot((*ykArray[i]), c);
+         fptype betai = rho(i)*Dot((*ykArray[i]), c);
          add(c, alpha(i)-betai, (*skArray[i]), c);
       }
 
@@ -2148,8 +2148,8 @@ void LBFGSSolver::Mult(const Vector &b, Vector &x) const
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
-           int m_max, int m_min, int m_step, double cf,
-           double &tol, double &atol, int printit)
+           int m_max, int m_min, int m_step, fptype cf,
+           fptype &tol, fptype &atol, int printit)
 {
    int n = A.Width();
 
@@ -2159,11 +2159,11 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector w(n), av(n);
 
-   double r1, resid;
+   fptype r1, resid;
    int i, j, k;
 
    M.Mult(b,w);
-   double normb = w.Norml2(); // normb = ||M b||
+   fptype normb = w.Norml2(); // normb = ||M b||
    if (normb == 0.0)
    {
       normb = 1;
@@ -2173,7 +2173,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    A.Mult(x, r);
    subtract(b,r,w);
    M.Mult(w, r);           // r = M (b - A x)
-   double beta = r.Norml2();  // beta = ||r||
+   fptype beta = r.Norml2();  // beta = ||r||
 
    resid = beta / normb;
 
@@ -2364,13 +2364,13 @@ void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
    hi.SetDataAndSize(hi_.GetData(), hi_.Size());
 }
 
-void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, double a_)
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, fptype a_)
 {
    w.SetDataAndSize(w_.GetData(), w_.Size());
    a = a_;
 }
 
-inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
+inline void SLBQPOptimizer::print_iteration(int it, fptype r, fptype l) const
 {
    if (print_options.iterations || (print_options.first_and_last && it == 0))
    {
@@ -2388,19 +2388,19 @@ void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
 
    // Set some algorithm-specific constants and temporaries.
    int nclip   = 0;
-   double l    = 0;
-   double llow = 0;
-   double lupp = 0;
-   double lnew = 0;
-   double dl   = 2;
-   double r    = 0;
-   double rlow = 0;
-   double rupp = 0;
-   double s    = 0;
+   fptype l    = 0;
+   fptype llow = 0;
+   fptype lupp = 0;
+   fptype lnew = 0;
+   fptype dl   = 2;
+   fptype r    = 0;
+   fptype rlow = 0;
+   fptype rupp = 0;
+   fptype s    = 0;
 
-   const double smin = 0.1;
+   const fptype smin = 0.1;
 
-   const double tol = max(abs_tol, rel_tol*a);
+   const fptype tol = max(abs_tol, rel_tol*a);
 
    // *** Start bracketing phase of SLBQP ***
    if (print_options.iterations)
@@ -2551,18 +2551,18 @@ slbqp_done:
 
 struct WeightMinHeap
 {
-   const std::vector<double> &w;
+   const std::vector<fptype> &w;
    std::vector<size_t> c;
    std::vector<int> loc;
 
-   WeightMinHeap(const std::vector<double> &w_) : w(w_)
+   WeightMinHeap(const std::vector<fptype> &w_) : w(w_)
    {
       c.reserve(w.size());
       loc.resize(w.size());
       for (size_t i=0; i<w.size(); ++i) { push(i); }
    }
 
-   size_t percolate_up(size_t pos, double val)
+   size_t percolate_up(size_t pos, fptype val)
    {
       for (; pos > 0 && w[c[(pos-1)/2]] > val; pos = (pos-1)/2)
       {
@@ -2572,7 +2572,7 @@ struct WeightMinHeap
       return pos;
    }
 
-   size_t percolate_down(size_t pos, double val)
+   size_t percolate_down(size_t pos, fptype val)
    {
       while (2*pos+1 < c.size())
       {
@@ -2597,7 +2597,7 @@ struct WeightMinHeap
 
    void push(size_t i)
    {
-      double val = w[i];
+      fptype val = w[i];
       c.push_back(0);
       size_t pos = c.size()-1;
       pos = percolate_up(pos, val);
@@ -2613,7 +2613,7 @@ struct WeightMinHeap
       // Mark as removed
       loc[i] = -1;
       if (c.empty()) { return i; }
-      double val = w[j];
+      fptype val = w[j];
       size_t pos = 0;
       pos = percolate_down(pos, val);
       c[pos] = j;
@@ -2624,7 +2624,7 @@ struct WeightMinHeap
    void update(size_t i)
    {
       size_t pos = loc[i];
-      double val = w[i];
+      fptype val = w[i];
       pos = percolate_up(pos, val);
       pos = percolate_down(pos, val);
       c[pos] = i;
@@ -2645,7 +2645,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
    C.GetDiag(D);
    int *I = C.GetI();
    int *J = C.GetJ();
-   double *V = C.GetData();
+   fptype *V = C.GetData();
    for (int i=0; i<n; ++i)
    {
       for (int j=I[i]; j<I[i+1]; ++j)
@@ -2654,7 +2654,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       }
    }
 
-   std::vector<double> w(n, 0.0);
+   std::vector<fptype> w(n, 0.0);
    for (int k=0; k<n; ++k)
    {
       // Find all neighbors i of k
@@ -2662,7 +2662,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
       {
          int i = J[ii];
          // Find value of (i,k)
-         double C_ik = 0.0;
+         fptype C_ik = 0.0;
          for (int kk=I[i]; kk<I[i+1]; ++kk)
          {
             if (J[kk] == k)
@@ -2675,7 +2675,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
          {
             int j = J[jj];
             if (j == k) { continue; }
-            double C_kj = V[jj];
+            fptype C_kj = V[jj];
             bool ij_exists = false;
             for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
             {
@@ -2712,7 +2712,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             int i = J[ii2];
             if (w_heap.picked(i)) { continue; }
             // Find value of (i,k)
-            double C_ik = 0.0;
+            fptype C_ik = 0.0;
             for (int kk2=I[i]; kk2<I[i+1]; ++kk2)
             {
                if (J[kk2] == k)
@@ -2725,7 +2725,7 @@ void MinimumDiscardedFillOrdering(SparseMatrix &C, Array<int> &p)
             {
                int j = J[jj];
                if (j == k || w_heap.picked(j)) { continue; }
-               double C_kj = V[jj];
+               fptype C_kj = V[jj];
                bool ij_exists = false;
                for (int jj2=I[i]; jj2<I[i+1]; ++jj2)
                {
@@ -2800,7 +2800,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
    int nrows = A.Height();
    const int *I = A.GetI();
    const int *J = A.GetJ();
-   const double *V = A.GetData();
+   const fptype *V = A.GetData();
    int nnz = 0;
    int nblockrows = nrows / block_size;
 
@@ -2841,7 +2841,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
          }
       }
       C.Finalize(false);
-      double *CV = C.GetData();
+      fptype *CV = C.GetData();
       for (int i=0; i<C.NumNonZeroElems(); ++i)
       {
          CV[i] = sqrt(CV[i]);
@@ -2916,7 +2916,7 @@ void BlockILU::CreateBlockPattern(const SparseMatrix &A)
                if (j >= jblock_perm*block_size && j < (jblock_perm + 1)*block_size)
                {
                   int bj = j - jblock_perm*block_size;
-                  double val = V[k];
+                  fptype val = V[k];
                   AB(bi, bj, counter) = val;
                   // Extract the diagonal
                   if (iblock == jblock)
@@ -3045,16 +3045,16 @@ void BlockILU::Mult(const Vector &b, Vector &x) const
 
 
 void ResidualBCMonitor::MonitorResidual(
-   int it, double norm, const Vector &r, bool final)
+   int it, fptype norm, const Vector &r, bool final)
 {
    if (!ess_dofs_list) { return; }
 
-   double bc_norm_squared = 0.0;
+   fptype bc_norm_squared = 0.0;
    r.HostRead();
    ess_dofs_list->HostRead();
    for (int i = 0; i < ess_dofs_list->Size(); i++)
    {
-      const double r_entry = r((*ess_dofs_list)[i]);
+      const fptype r_entry = r((*ess_dofs_list)[i]);
       bc_norm_squared += r_entry*r_entry;
    }
    bool print = true;
@@ -3126,7 +3126,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
 
    const int * Ap = mat->HostReadI();
    const int * Ai = mat->HostReadJ();
-   const double * Ax = mat->HostReadData();
+   const fptype * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
@@ -3310,7 +3310,7 @@ void KLUSolver::SetOperator(const Operator &op)
 
    int * Ap = mat->GetI();
    int * Ai = mat->GetJ();
-   double * Ax = mat->GetData();
+   fptype * Ax = mat->GetData();
 
    Symbolic = klu_analyze( height, Ap, Ai, &Common);
    Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
@@ -3486,7 +3486,7 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 
    // TODO: GPU/device implementation
 
-   double global_sum = v.Sum();
+   fptype global_sum = v.Sum();
 
 #ifdef MFEM_USE_MPI
    if (parallel)
@@ -3495,7 +3495,7 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
    }
 #endif
 
-   double ratio = global_sum / static_cast<double>(global_size);
+   fptype ratio = global_sum / static_cast<fptype>(global_size);
    v_ortho.SetSize(v.Size());
    v.HostRead();
    v_ortho.HostWrite();

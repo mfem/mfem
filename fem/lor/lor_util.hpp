@@ -22,7 +22,7 @@ namespace mfem
 
 template <int ORDER>
 MFEM_HOST_DEVICE inline void LORVertexCoordinates2D(
-   const double *X, int iel_ho, int kx, int ky, double vx[4], double vy[4])
+   const fptype *X, int iel_ho, int kx, int ky, fptype vx[4], fptype vy[4])
 {
    const int dim = 2;
    const int nd1d = ORDER + 1;
@@ -54,8 +54,8 @@ MFEM_HOST_DEVICE inline void LORVertexCoordinates2D(
 
 template <int ORDER>
 MFEM_HOST_DEVICE inline void LORVertexCoordinates3D(
-   const double *X, int iel_ho, int kx, int ky, int kz,
-   double vx[8], double vy[8], double vz[8])
+   const fptype *X, int iel_ho, int kx, int ky, int kz,
+   fptype vx[8], fptype vy[8], fptype vz[8])
 {
    const int dim = 3;
    const int nd1d = ORDER + 1;
@@ -113,7 +113,7 @@ MFEM_HOST_DEVICE inline void LORVertexCoordinates3D(
 }
 
 MFEM_HOST_DEVICE inline void Jacobian2D(
-   const double x, const double y, const double vx[4], const double vy[4],
+   const fptype x, const fptype y, const fptype vx[4], const fptype vy[4],
    DeviceMatrix &J)
 {
    J(0,0) = -(1-y)*vx[0] + (1-y)*vx[1] + y*vx[2] - y*vx[3];
@@ -124,8 +124,8 @@ MFEM_HOST_DEVICE inline void Jacobian2D(
 }
 
 MFEM_HOST_DEVICE inline void Jacobian3D(
-   const double x, const double y, const double z,
-   const double vx[8], const double vy[8], const double vz[8],
+   const fptype x, const fptype y, const fptype z,
+   const fptype vx[8], const fptype vy[8], const fptype vz[8],
    DeviceMatrix &J)
 {
    // c: (1-x)(1-y)(1-z)v0[c] + x (1-y)(1-z)v1[c] + x y (1-z)v2[c] + (1-x) y (1-z)v3[c]
@@ -180,12 +180,12 @@ MFEM_HOST_DEVICE inline void Adjugate3D(const DeviceMatrix &J, DeviceMatrix &A)
    A(2,2) = (J(0,0) * J(1,1)) - (J(0,1) * J(1,0));
 }
 
-MFEM_HOST_DEVICE inline double Det2D(DeviceMatrix &J)
+MFEM_HOST_DEVICE inline fptype Det2D(DeviceMatrix &J)
 {
    return J(0,0)*J(1,1) - J(1,0)*J(0,1);
 }
 
-MFEM_HOST_DEVICE inline double Det3D(DeviceMatrix &J)
+MFEM_HOST_DEVICE inline fptype Det3D(DeviceMatrix &J)
 {
    return J(0,0) * (J(1,1) * J(2,2) - J(2,1) * J(1,2)) -
           J(1,0) * (J(0,1) * J(2,2) - J(2,1) * J(0,2)) +

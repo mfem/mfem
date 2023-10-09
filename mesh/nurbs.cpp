@@ -112,12 +112,12 @@ void KnotVector::GetElements()
 
 void KnotVector::Flip()
 {
-   double apb = knot(0) + knot(knot.Size()-1);
+   fptype apb = knot(0) + knot(knot.Size()-1);
 
    int ns = (NumOfControlPoints - Order)/2;
    for (int i = 1; i <= ns; i++)
    {
-      double tmp = apb - knot(Order + i);
+      fptype tmp = apb - knot(Order + i);
       knot(Order + i) = apb - knot(NumOfControlPoints - i);
       knot(NumOfControlPoints - i) = tmp;
    }
@@ -134,7 +134,7 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 {
    Vector shape(Order+1);
 
-   double x, dx = 1.0/double (samples - 1);
+   fptype x, dx = 1.0/fptype (samples - 1);
 
    for (int i = 0; i <GetNE() ; i++)
    {
@@ -158,14 +158,14 @@ void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.2 p. 70
-void KnotVector::CalcShape(Vector &shape, int i, double xi) const
+void KnotVector::CalcShape(Vector &shape, int i, fptype xi) const
 {
    MFEM_ASSERT(Order <= MaxOrder, "Order > MaxOrder!");
 
    int    p = Order;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
-   double left[MaxOrder+1], right[MaxOrder+1];
+   fptype u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), saved, tmp;
+   fptype left[MaxOrder+1], right[MaxOrder+1];
 
    shape(0) = 1.;
    for (int j = 1; j <= p; ++j)
@@ -185,12 +185,12 @@ void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A2.3 p. 72
-void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
+void KnotVector::CalcDShape(Vector &grad, int i, fptype xi) const
 {
    int    p = Order, rk, pk;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
-   double ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
+   fptype u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip), temp, saved, d;
+   fptype ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
    if (p > MaxOrder)
@@ -242,13 +242,13 @@ void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+void KnotVector::CalcDnShape(Vector &gradn, int n, int i, fptype xi) const
 {
    int    p = Order, rk, pk, j1, j2,r,j,k;
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
-   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
-   double temp, saved, d;
-   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
+   fptype u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   fptype temp, saved, d;
+   fptype a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
           right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
@@ -349,7 +349,7 @@ void KnotVector::FindMaxima(Array<int> &ks,
 {
    Vector shape(Order+1);
    Vector maxima(GetNCP());
-   double arg1, arg2, arg, max1, max2, max;
+   fptype arg1, arg2, arg, max1, max2, max;
 
    xi.SetSize(GetNCP());
    u.SetSize(GetNCP());
@@ -439,7 +439,7 @@ void KnotVector::FindInterpolant(Array<Vector*> &x)
    }
 }
 
-int KnotVector::findKnotSpan(double u) const
+int KnotVector::findKnotSpan(fptype u) const
 {
    int low, mid, high;
 
@@ -489,7 +489,7 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
    int i = 0;
    for (int j = 0; j < kv.Size(); j++)
    {
-      if (abs(knot(i) - kv[j]) < 2 * std::numeric_limits<double>::epsilon())
+      if (abs(knot(i) - kv[j]) < 2 * std::numeric_limits<fptype>::epsilon())
       {
          i++;
       }
@@ -512,7 +512,7 @@ void NURBSPatch::init(int dim_)
       nj = -1;
       nk = -1;
 
-      data = new double[ni*Dim];
+      data = new fptype[ni*Dim];
 
 #ifdef MFEM_DEBUG
       for (int i = 0; i < ni*Dim; i++)
@@ -527,7 +527,7 @@ void NURBSPatch::init(int dim_)
       nj = kv[1]->GetNCP();
       nk = -1;
 
-      data = new double[ni*nj*Dim];
+      data = new fptype[ni*nj*Dim];
 
 #ifdef MFEM_DEBUG
       for (int i = 0; i < ni*nj*Dim; i++)
@@ -542,7 +542,7 @@ void NURBSPatch::init(int dim_)
       nj = kv[1]->GetNCP();
       nk = kv[2]->GetNCP();
 
-      data = new double[ni*nj*nk*Dim];
+      data = new fptype[ni*nj*nk*Dim];
 
 #ifdef MFEM_DEBUG
       for (int i = 0; i < ni*nj*nk*Dim; i++)
@@ -563,8 +563,8 @@ NURBSPatch::NURBSPatch(const NURBSPatch &orig)
 {
    // Allocate and copy data:
    const int data_size = Dim*ni*nj*((kv.Size() == 2) ? 1 : nk);
-   data = new double[data_size];
-   std::memcpy(data, orig.data, data_size*sizeof(double));
+   data = new fptype[data_size];
+   std::memcpy(data, orig.data, data_size*sizeof(fptype));
 
    // Copy the knot vectors:
    for (int i = 0; i < kv.Size(); i++)
@@ -926,7 +926,7 @@ void NURBSPatch::KnotInsert(int dir, const Vector &knot)
       for (int l = 1; l <= pl; l++)
       {
          int ind = k-pl+l;
-         double alfa = newkv[k+l] - knot(j);
+         fptype alfa = newkv[k+l] - knot(j);
          if (fabs(alfa) == 0.0)
          {
             for (int ll = 0; ll < size; ll++)
@@ -972,7 +972,7 @@ void NURBSPatch::DegreeElevate(int dir, int t)
 
    int i, j, k, kj, mpi, mul, mh, kind, cind, first, last;
    int r, a, b, oldr, save, s, tr, lbz, rbz, l;
-   double inv, ua, ub, numer, alf, den, bet, gam;
+   fptype inv, ua, ub, numer, alf, den, bet, gam;
 
    NURBSPatch &oldp  = *this;
    KnotVector &oldkv = *kv[dir];
@@ -1222,7 +1222,7 @@ void NURBSPatch::FlipDirection(int dir)
    for (int id = 0; id < nd/2; id++)
       for (int i = 0; i < size; i++)
       {
-         Swap<double>((*this).slice(id,i), (*this).slice(nd-1-id,i));
+         Swap<fptype>((*this).slice(id,i), (*this).slice(nd-1-id,i));
       }
    kv[dir]->Flip();
 }
@@ -1252,7 +1252,7 @@ void NURBSPatch::SwapDirections(int dir1, int dir2)
    swap(newpatch);
 }
 
-void NURBSPatch::Rotate(double angle, double n[])
+void NURBSPatch::Rotate(fptype angle, fptype n[])
 {
    if (Dim == 3)
    {
@@ -1269,10 +1269,10 @@ void NURBSPatch::Rotate(double angle, double n[])
    }
 }
 
-void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
+void NURBSPatch::Get2DRotationMatrix(fptype angle, DenseMatrix &T)
 {
-   double s = sin(angle);
-   double c = cos(angle);
+   fptype s = sin(angle);
+   fptype c = cos(angle);
 
    T.SetSize(2);
    T(0,0) = c;
@@ -1281,7 +1281,7 @@ void NURBSPatch::Get2DRotationMatrix(double angle, DenseMatrix &T)
    T(1,1) = c;
 }
 
-void NURBSPatch::Rotate2D(double angle)
+void NURBSPatch::Rotate2D(fptype angle)
 {
    if (Dim != 3)
    {
@@ -1307,12 +1307,12 @@ void NURBSPatch::Rotate2D(double angle)
    }
 }
 
-void NURBSPatch::Get3DRotationMatrix(double n[], double angle, double r,
+void NURBSPatch::Get3DRotationMatrix(fptype n[], fptype angle, fptype r,
                                      DenseMatrix &T)
 {
-   double c, s, c1;
-   double l2 = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
-   double l = sqrt(l2);
+   fptype c, s, c1;
+   fptype l2 = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
+   fptype l = sqrt(l2);
 
    if (fabs(angle) == M_PI_2)
    {
@@ -1346,7 +1346,7 @@ void NURBSPatch::Get3DRotationMatrix(double n[], double angle, double r,
    T(2,2) =  (n[2]*n[2] + (n[0]*n[0] + n[1]*n[1])*c)/l2;
 }
 
-void NURBSPatch::Rotate3D(double n[], double angle)
+void NURBSPatch::Rotate3D(fptype n[], fptype angle)
 {
    if (Dim != 4)
    {
@@ -1442,7 +1442,7 @@ NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2)
    return patch;
 }
 
-NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
+NURBSPatch *Revolve3D(NURBSPatch &patch, fptype n[], fptype ang, int times)
 {
    if (patch.Dim != 4)
    {
@@ -1474,11 +1474,11 @@ NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang, int times)
    Vector u(NULL, 3), v(NULL, 3);
 
    NURBSPatch::Get3DRotationMatrix(n, ang, 1., T);
-   double c = cos(ang/2);
+   fptype c = cos(ang/2);
    NURBSPatch::Get3DRotationMatrix(n, ang/2, 1./c, T2);
    T2 *= c;
 
-   double *op = patch.data, *np;
+   fptype *op = patch.data, *np;
    for (int i = 0; i < size; i++)
    {
       np = newpatch->data + 4*i;
@@ -3873,14 +3873,14 @@ void NURBSExtension::KnotInsert(Array<Vector *> &kv)
          {
             // Find flip point, for knotvectors that do not have the domain [0:1]
             KnotVector *kva = knotVectorsCompr[Dimension()*p+d];
-            double apb = (*kva)[0] + (*kva)[kva->Size()-1];
+            fptype apb = (*kva)[0] + (*kva)[kva->Size()-1];
 
             // Flip vector
             int size = pkvc[d]->Size();
             int ns = ceil(size/2.0);
             for (int j = 0; j < ns; j++)
             {
-               double tmp = apb - pkvc[d]->Elem(j);
+               fptype tmp = apb - pkvc[d]->Elem(j);
                pkvc[d]->Elem(j) = apb - pkvc[d]->Elem(size-1-j);
                pkvc[d]->Elem(size-1-j) = tmp;
             }

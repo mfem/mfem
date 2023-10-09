@@ -19,7 +19,7 @@ namespace internal
 
 // PA Mass Diagonal 1D kernel
 static void PAMassAssembleDiagonal1D(const int NE,
-                                     const Array<double> &b,
+                                     const Array<fptype> &b,
                                      const Vector &d,
                                      Vector &y,
                                      const int D1D,
@@ -42,7 +42,7 @@ static void PAMassAssembleDiagonal1D(const int NE,
 
 void PAMassAssembleDiagonal(const int dim, const int D1D,
                             const int Q1D, const int NE,
-                            const Array<double> &B,
+                            const Array<fptype> &B,
                             const Vector &D,
                             Vector &Y)
 {
@@ -179,11 +179,11 @@ void OccaPAMassApply3D(const int D1D,
 MFEM_HOST_DEVICE inline
 void PAMassApply1D_Element(const int e,
                            const int NE,
-                           const double *b_,
-                           const double *bt_,
-                           const double *d_,
-                           const double *x_,
-                           double *y_,
+                           const fptype *b_,
+                           const fptype *bt_,
+                           const fptype *d_,
+                           const fptype *x_,
+                           fptype *y_,
                            const int d1d = 0,
                            const int q1d = 0)
 {
@@ -195,14 +195,14 @@ void PAMassApply1D_Element(const int e,
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
 
-   double XQ[DofQuadLimits::MAX_Q1D];
+   fptype XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
    {
       XQ[qx] = 0.0;
    }
    for (int dx = 0; dx < D1D; ++dx)
    {
-      const double s = X(dx,e);
+      const fptype s = X(dx,e);
       for (int qx = 0; qx < Q1D; ++qx)
       {
          XQ[qx] += B(qx,dx)*s;
@@ -210,7 +210,7 @@ void PAMassApply1D_Element(const int e,
    }
    for (int qx = 0; qx < Q1D; ++qx)
    {
-      const double q = XQ[qx]*D(qx,e);
+      const fptype q = XQ[qx]*D(qx,e);
       for (int dx = 0; dx < D1D; ++dx)
       {
          Y(dx,e) += Bt(dx,qx) * q;
@@ -220,8 +220,8 @@ void PAMassApply1D_Element(const int e,
 
 // PA Mass Apply 1D kernel
 static void PAMassApply1D(const int NE,
-                          const Array<double> &b_,
-                          const Array<double> &bt_,
+                          const Array<fptype> &b_,
+                          const Array<fptype> &bt_,
                           const Vector &d_,
                           const Vector &x_,
                           Vector &y_,
@@ -247,8 +247,8 @@ void PAMassApply(const int dim,
                  const int D1D,
                  const int Q1D,
                  const int NE,
-                 const Array<double> &B,
-                 const Array<double> &Bt,
+                 const Array<fptype> &B,
+                 const Array<fptype> &Bt,
                  const Vector &D,
                  const Vector &X,
                  Vector &Y)

@@ -67,7 +67,7 @@ protected:
 
    Array<int> hat_offsets, hat_dofs_marker;
    Array<int> Af_offsets, Af_f_offsets;
-   double *Af_data;
+   fptype *Af_data;
    int *Af_ipiv;
 
 #ifdef MFEM_USE_MPI

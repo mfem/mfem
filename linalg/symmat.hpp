@@ -24,7 +24,7 @@ namespace mfem
 class DenseSymmetricMatrix : public Matrix
 {
 private:
-   Memory<double> data;
+   Memory<fptype> data;
 
 public:
 
@@ -38,14 +38,14 @@ public:
    /// Construct a DenseSymmetricMatrix using an existing data array.
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the array. */
-   DenseSymmetricMatrix(double *d, int s)
+   DenseSymmetricMatrix(fptype *d, int s)
       : Matrix(s, s) { UseExternalData(d, s); }
 
    /// Change the data array and the size of the DenseSymmetricMatrix.
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseSymmetricMatrix that owns its current data array. */
-   void UseExternalData(double *d, int s)
+   void UseExternalData(fptype *d, int s)
    {
       data.Wrap(d, (s*(s+1))/2, false);
       height = s; width = s;
@@ -55,7 +55,7 @@ public:
    /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
-   void Reset(double *d, int s)
+   void Reset(fptype *d, int s)
    { if (OwnsData()) { data.Delete(); } UseExternalData(d, s); }
 
    /** Clear the data array and the dimensions of the DenseSymmetricMatrix. This method
@@ -73,59 +73,59 @@ public:
    int GetStoredSize() const { return Height()*(Height()+1)/2; }
 
    /// Returns the matrix data array.
-   inline double *Data() const
-   { return const_cast<double*>((const double*)data);}
+   inline fptype *Data() const
+   { return const_cast<fptype*>((const fptype*)data);}
 
    /// Returns the matrix data array.
-   inline double *GetData() const { return Data(); }
+   inline fptype *GetData() const { return Data(); }
 
-   Memory<double> &GetMemory() { return data; }
-   const Memory<double> &GetMemory() const { return data; }
+   Memory<fptype> &GetMemory() { return data; }
+   const Memory<fptype> &GetMemory() const { return data; }
 
    /// Return the DenseSymmetricMatrix data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
-   inline double &operator()(int i, int j);
+   inline fptype &operator()(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   inline const double &operator()(int i, int j) const;
+   inline const fptype &operator()(int i, int j) const;
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j);
+   virtual fptype &Elem(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const;
+   virtual const fptype &Elem(int i, int j) const;
 
    /// Sets the matrix elements equal to constant c
-   DenseSymmetricMatrix &operator=(double c);
+   DenseSymmetricMatrix &operator=(fptype c);
 
-   DenseSymmetricMatrix &operator*=(double c);
+   DenseSymmetricMatrix &operator*=(fptype c);
 
-   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(fptype); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const double *Read(bool on_dev = true) const
+   const fptype *Read(bool on_dev = true) const
    { return mfem::Read(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const double *HostRead() const
+   const fptype *HostRead() const
    { return mfem::Read(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   double *Write(bool on_dev = true)
+   fptype *Write(bool on_dev = true)
    { return mfem::Write(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   double *HostWrite()
+   fptype *HostWrite()
    { return mfem::Write(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   fptype *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   double *HostReadWrite()
+   fptype *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
    /// Matrix vector multiplication.
@@ -147,7 +147,7 @@ public:
 // n + n-1 + n-2 + ... + n-k+1, where there are k terms. This equals
 // kn - sum_{i=1}^{k-1} i = kn - (k-1)k/2
 // This formula is used for the offset for each row.
-inline double &DenseSymmetricMatrix::operator()(int i, int j)
+inline fptype &DenseSymmetricMatrix::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    if (i > j)  // reverse i and j
@@ -160,7 +160,7 @@ inline double &DenseSymmetricMatrix::operator()(int i, int j)
    }
 }
 
-inline const double &DenseSymmetricMatrix::operator()(int i, int j) const
+inline const fptype &DenseSymmetricMatrix::operator()(int i, int j) const
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    if (i > j)  // reverse i and j

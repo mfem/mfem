@@ -18,15 +18,15 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
-                           const double lim_normal,
+MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_C0_2D,
+                           const fptype lim_normal,
                            const Vector &lim_dist,
                            const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &bld_,
+                           const Array<fptype> &w_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
                            const Vector &ones,
@@ -64,20 +64,20 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double BLD[MQ1*MD1];
+      MFEM_SHARED fptype B[MQ1*MD1];
+      MFEM_SHARED fptype BLD[MQ1*MD1];
 
-      MFEM_SHARED double XY[NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY[NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ[NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ[NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY0[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ0[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ0[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY0[2][NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ0[2][NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ0[2][NBZ][MQ1*MQ1];
 
-      MFEM_SHARED double XY1[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ1[2][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ1[2][NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype XY1[2][NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ1[2][NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ1[2][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,LD,XY);
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X0,XY0);
@@ -99,17 +99,17 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double ld, p0[2], p1[2];
-            const double *Jtr = &J(0,0,qx,qy,e);
-            const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = W(qx,qy) * detJtr;
-            const double coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
+            fptype ld, p0[2], p1[2];
+            const fptype *Jtr = &J(0,0,qx,qy,e);
+            const fptype detJtr = kernels::Det<2>(Jtr);
+            const fptype weight = W(qx,qy) * detJtr;
+            const fptype coeff0 = const_c0 ? C0(0,0,0) : C0(qx,qy,e);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ,ld);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
-            const double dist = ld; // GetValues, default comp set to 0
-            double id2 = 0.0;
-            double dsq = 0.0;
+            const fptype dist = ld; // GetValues, default comp set to 0
+            fptype id2 = 0.0;
+            fptype dsq = 0.0;
             if (!exp_lim)
             {
                id2 = 0.5 / (dist*dist);
@@ -128,18 +128,18 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
+fptype TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
+   const fptype ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W   = PA.ir->GetWeights();
-   const Array<double> &B   = PA.maps->B;
-   const Array<double> &BLD = PA.maps_lim->B;
+   const Array<fptype> &W   = PA.ir->GetWeights();
+   const Array<fptype> &B   = PA.maps->B;
+   const Array<fptype> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;

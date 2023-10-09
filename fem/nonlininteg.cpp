@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-double NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
+fptype NonlinearFormIntegrator::GetLocalStateEnergyPA(const Vector &x) const
 {
    mfem_error ("NonlinearFormIntegrator::GetLocalStateEnergyPA(...)\n"
                "   is not implemented for this class.");
@@ -105,7 +105,7 @@ void NonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-double NonlinearFormIntegrator::GetElementEnergy(
+fptype NonlinearFormIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
    mfem_error("NonlinearFormIntegrator::GetElementEnergy"
@@ -156,7 +156,7 @@ void BlockNonlinearFormIntegrator::AssembleFaceGrad(
               " is not overloaded!");
 }
 
-double BlockNonlinearFormIntegrator::GetElementEnergy(
+fptype BlockNonlinearFormIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
    const Array<const Vector *>&elfun)
@@ -167,7 +167,7 @@ double BlockNonlinearFormIntegrator::GetElementEnergy(
 }
 
 
-double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
+fptype InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 {
    Z.SetSize(J.Width());
    CalcAdjugateTranspose(J, Z);
@@ -177,7 +177,7 @@ double InverseHarmonicModel::EvalW(const DenseMatrix &J) const
 void InverseHarmonicModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 {
    int dim = J.Width();
-   double t;
+   fptype t;
 
    Z.SetSize(dim);
    S.SetSize(dim);
@@ -194,11 +194,11 @@ void InverseHarmonicModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 }
 
 void InverseHarmonicModel::AssembleH(
-   const DenseMatrix &J, const DenseMatrix &DS, const double weight,
+   const DenseMatrix &J, const DenseMatrix &DS, const fptype weight,
    DenseMatrix &A) const
 {
    int dof = DS.Height(), dim = DS.Width();
-   double t;
+   fptype t;
 
    Z.SetSize(dim);
    S.SetSize(dim);
@@ -220,7 +220,7 @@ void InverseHarmonicModel::AssembleH(
    for (int i = 0; i < dof; i++)
       for (int j = 0; j <= i; j++)
       {
-         double a = 0.0;
+         fptype a = 0.0;
          for (int d = 0; d < dim; d++)
          {
             a += G(i,d)*G(j,d);
@@ -229,7 +229,7 @@ void InverseHarmonicModel::AssembleH(
          for (int k = 0; k < dim; k++)
             for (int l = 0; l <= k; l++)
             {
-               double b = a*S(k,l);
+               fptype b = a*S(k,l);
                A(i+k*dof,j+l*dof) += b;
                if (i != j)
                {
@@ -253,7 +253,7 @@ void InverseHarmonicModel::AssembleH(
          for (int k = 1; k < dim; k++)
             for (int l = 0; l < k; l++)
             {
-               double a =
+               fptype a =
                   weight*(C(i,l)*G(j,k) - C(i,k)*G(j,l) +
                           C(j,k)*G(i,l) - C(j,l)*G(i,k) +
                           t*(G(i,k)*G(j,l) - G(i,l)*G(j,k)));
@@ -278,7 +278,7 @@ inline void NeoHookeanModel::EvalCoeffs() const
    }
 }
 
-double NeoHookeanModel::EvalW(const DenseMatrix &J) const
+fptype NeoHookeanModel::EvalW(const DenseMatrix &J) const
 {
    int dim = J.Width();
 
@@ -287,9 +287,9 @@ double NeoHookeanModel::EvalW(const DenseMatrix &J) const
       EvalCoeffs();
    }
 
-   double dJ = J.Det();
-   double sJ = dJ/g;
-   double bI1 = pow(dJ, -2.0/dim)*(J*J); // \bar{I}_1
+   fptype dJ = J.Det();
+   fptype sJ = dJ/g;
+   fptype bI1 = pow(dJ, -2.0/dim)*(J*J); // \bar{I}_1
 
    return 0.5*(mu*(bI1 - dim) + K*(sJ - 1.0)*(sJ - 1.0));
 }
@@ -306,9 +306,9 @@ void NeoHookeanModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
    Z.SetSize(dim);
    CalcAdjugateTranspose(J, Z);
 
-   double dJ = J.Det();
-   double a  = mu*pow(dJ, -2.0/dim);
-   double b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
+   fptype dJ = J.Det();
+   fptype a  = mu*pow(dJ, -2.0/dim);
+   fptype b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
 
    P = 0.0;
    P.Add(a, J);
@@ -316,7 +316,7 @@ void NeoHookeanModel::EvalP(const DenseMatrix &J, DenseMatrix &P) const
 }
 
 void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                                const double weight, DenseMatrix &A) const
+                                const fptype weight, DenseMatrix &A) const
 {
    int dof = DS.Height(), dim = DS.Width();
 
@@ -329,12 +329,12 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    G.SetSize(dof, dim);
    C.SetSize(dof, dim);
 
-   double dJ = J.Det();
-   double sJ = dJ/g;
-   double a  = mu*pow(dJ, -2.0/dim);
-   double bc = a*(J*J)/dim;
-   double b  = bc - K*sJ*(sJ - 1.0);
-   double c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
+   fptype dJ = J.Det();
+   fptype sJ = dJ/g;
+   fptype a  = mu*pow(dJ, -2.0/dim);
+   fptype bc = a*(J*J)/dim;
+   fptype b  = bc - K*sJ*(sJ - 1.0);
+   fptype c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
 
    CalcAdjugateTranspose(J, Z);
    Z *= (1.0/dJ); // Z = J^{-t}
@@ -350,7 +350,7 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    for (int i = 0; i < dof; i++)
       for (int k = 0; k <= i; k++)
       {
-         double s = 0.0;
+         fptype s = 0.0;
          for (int d = 0; d < dim; d++)
          {
             s += DS(i,d)*DS(k,d);
@@ -384,12 +384,12 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 }
 
 
-double HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
+fptype HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
                                                    ElementTransformation &Ttr,
                                                    const Vector &elfun)
 {
    int dof = el.GetDof(), dim = el.GetDim();
-   double energy;
+   fptype energy;
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -497,7 +497,7 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
    }
 }
 
-double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
+fptype IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    const Array<const FiniteElement *>&el,
    ElementTransformation &Tr,
    const Array<const Vector *>&elfun)
@@ -520,8 +520,8 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
    int intorder = 2*el[0]->GetOrder() + 3; // <---
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);
 
-   double energy = 0.0;
-   double mu = 0.0;
+   fptype energy = 0.0;
+   fptype mu = 0.0;
 
    for (int i = 0; i < ir.GetNPoints(); ++i)
    {
@@ -597,9 +597,9 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
 
       el[1]->CalcShape(ip, Sh_p);
 
-      double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
-      double dJ = F.Det();
+      fptype pres = Sh_p * *elfun[1];
+      fptype mu = c_mu->Eval(Tr, ip);
+      fptype dJ = F.Det();
 
       CalcInverseTranspose(F, FinvT);
 
@@ -660,10 +660,10 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
       MultAtB(PMatI_u, DS_u, F);
 
       el[1]->CalcShape(ip, Sh_p);
-      double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
-      double dJ = F.Det();
-      double dJ_FinvT_DS;
+      fptype pres = Sh_p * *elfun[1];
+      fptype mu = c_mu->Eval(Tr, ip);
+      fptype dJ = F.Det();
+      fptype dJ_FinvT_DS;
 
       CalcInverseTranspose(F, FinvT);
 
@@ -765,7 +765,7 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
       T.SetIntPoint(&ip);
       el.CalcShape(ip, shape);
       el.CalcPhysDShape(T, dshape);
-      double w = ip.weight * T.Weight();
+      fptype w = ip.weight * T.Weight();
       if (Q) { w *= Q->Eval(T, ip); }
 
       MultAtB(EF, dshape, gradEF);
@@ -794,7 +794,7 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
 
-   double w;
+   fptype w;
    Vector vec1(dim), vec2(dim), vec3(nd);
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, trans);
@@ -879,7 +879,7 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
       el.CalcShape(ip, shape);
       el.CalcDShape(ip, dshape);
 
-      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+      const fptype w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
 
       EF.MultTranspose(shape, vec1); // u^n
 
@@ -933,7 +933,7 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
       Mult(dshape, trans.InverseJacobian(), dshapex);
 
-      const double w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
+      const fptype w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
 
       EF.MultTranspose(shape, vec1); // u^n
 

@@ -34,11 +34,11 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
-   const double *X = e_vec.Read();
-   double *Y = q_der.Write();
+   const fptype *B = maps.B.Read();
+   const fptype *G = maps.G.Read();
+   const fptype *J = nullptr; // not used in DERIVATIVES (non-GRAD_PHYS) mode
+   const fptype *X = e_vec.Read();
+   fptype *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byNODES;
    constexpr bool P = false; // GRAD_PHYS

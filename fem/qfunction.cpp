@@ -16,7 +16,7 @@
 namespace mfem
 {
 
-QuadratureFunction &QuadratureFunction::operator=(double value)
+QuadratureFunction &QuadratureFunction::operator=(fptype value)
 {
    Vector::operator=(value);
    return *this;
