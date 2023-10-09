@@ -367,10 +367,11 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
 {
    MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
 
+   ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
    for (int i = 0; i < dof2quad_array.Size(); i++)
    {
       const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
+      if (d2q.IntRule == &ir && d2q.mode == mode && d2q.ordering == ordering) { return d2q; }
    }
 
 #ifdef MFEM_THREAD_SAFE
@@ -489,6 +490,14 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
    }
    dof2quad_array.Append(d2q);
    return *d2q;
+}
+
+const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
+                                             DofToQuad::Mode mode,
+                                             const ElementDofOrdering ordering) const
+{
+   MFEM_ABORT("method is not implemented for this element");
+   return GetDofToQuad(ir, mode);
 }
 
 void FiniteElement::GetFaceMap(const int face_id,
@@ -2518,6 +2527,44 @@ void NodalTensorFiniteElement::SetMapType(const int map_type)
    if (basis1d.IsIntegratedType())
    {
       basis1d.ScaleIntegrated(map_type == VALUE);
+   }
+}
+
+const DofToQuad &NodalTensorFiniteElement::GetDofToQuad(
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode,
+   const ElementDofOrdering ordering) const
+{
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      const DofToQuad &d2q = *dof2quad_array[i];
+      if (d2q.IntRule == &ir && d2q.mode == mode && d2q.ordering == ordering) { return d2q; }
+   }
+   auto &d2q = GetDofToQuad(ir, mode);
+   if (mode == DofToQuad::Mode::FULL &&
+       ordering == ElementDofOrdering::LEXICOGRAPHIC)
+   {
+      //Undo the native ordering which is the default in GetDofToQuad for FULL mode.
+      auto *d2q_new = new DofToQuad(d2q);
+      d2q_new->ordering = ElementDofOrdering::LEXICOGRAPHIC;
+      const int nqpt = ir.GetNPoints();
+      for (int i = 0; i < nqpt; i++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               d2q_new->G[i+nqpt*(d+dim*j)] = d2q_new->Gt[j+dof*(i+nqpt*d)] = d2q.G[i+nqpt*
+                                                                                    (d+dim*dof_map[j])];
+            }
+         }
+      }
+      dof2quad_array.Append(d2q_new);
+      return *d2q_new;
+   }
+   else
+   {
+      return d2q;
    }
 }
 
