@@ -544,20 +544,12 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 }
 
-void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
-                                          const bool transpose) const
+void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
-      if (transpose)
-      {
-         A->MultTranspose(x, y);
-      }
-      else
-      {
-         A->Mult(x, y);
-      }
+      A->Mult(x, y);
       return;
    }
 
@@ -568,14 +560,8 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    auto d_z = z.ReadWrite();
    mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
 
-   if (transpose)
-   {
-      A->MultTranspose(z, y);
-   }
-   else
-   {
-      A->Mult(z, y);
-   }
+   A->Mult(z, y);
+
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
    auto d_y = y.ReadWrite();
@@ -603,18 +589,6 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
          mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
-}
-
-void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
-{
-   constexpr bool transpose = false;
-   ConstrainedMult(x, y, transpose);
-}
-
-void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
-{
-   constexpr bool transpose = true;
-   ConstrainedMult(x, y, transpose);
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(

@@ -924,13 +924,6 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
-
-   /** @brief Implementation of Mult or MultTranspose.
-    *  TODO - Generalize to allow constraining rows and columns differently.
-   */
-   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
-
    /// Destructor: destroys the unconstrained Operator, if owned.
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };

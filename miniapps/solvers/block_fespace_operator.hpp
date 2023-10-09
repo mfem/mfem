@@ -12,17 +12,25 @@ namespace mfem
 ///        conditions for block systems arise from mixing many types of
 ///        finite element spaces. Each block is intended to operate on
 ///        L-Vectors. For example, a block may be a BilinearForm.
-class BlockFESpaceOperator : public BlockOperator
+class BlockFESpaceOperator : public Operator
 {
 private:
+   /// @brief Offsets for the square "A" operator.
    Array<int> offsets;
+   /// @brief Column offsets for the prolongation operator.
    Array<int> prolongColOffsets;
+   /// @brief Row offsets for the prolongation operator.
    Array<int> restrictRowOffsets;
+   /// @brief The "A" part of "RAP".
+   BlockOperator A;
    /// @brief Maps local dofs of each block to true dofs.
    BlockOperator prolongation;
    /// @brief Maps true dofs of each block to local dofs.
    BlockOperator restriction;
-   /// @brief Computes offsets for parent BlockOperator.
+   /// @brief Computes height for parent operator.
+   static int GetHeight(const std::vector<const FiniteElementSpace*>
+                        &fespaces);
+   /// @brief Computes offsets for A BlockOperator.
    static Array<int> GetBlockOffsets(const std::vector<const FiniteElementSpace*>
                                      &fespaces);
    /// @brief Computes col_offsets for prolongation operator.
@@ -35,8 +43,13 @@ public:
    /// @brief Constructor for BlockFESpaceOperator.
    /// @param[in] fespaces Finite element spaces for diagonal blocks. Spaces are not owned.
    BlockFESpaceOperator(const std::vector<const FiniteElementSpace*> &fespaces);
-   virtual const Operator* GetProlongation () const;
-   virtual const Operator* GetRestriction () const;
+   const Operator* GetProlongation () const override;
+   const Operator* GetRestriction () const override;
+   void Mult(const Vector &x, Vector &y) const override {A.Mult(x,y);};
+   void SetBlock( int   iRow,
+                  int   iCol,
+                  Operator *  op,
+                  double   c = 1.0) {A.SetBlock(iRow, iCol, op, c);};
 };
 
 }//namespace mfem

@@ -5,10 +5,11 @@ namespace mfem
 
 BlockFESpaceOperator::BlockFESpaceOperator(const
                                            std::vector<const FiniteElementSpace*> &fespaces):
-   BlockOperator(GetBlockOffsets(fespaces),true),
+   Operator(GetHeight(fespaces)),
    offsets(GetBlockOffsets(fespaces)),
    prolongColOffsets(GetProColBlockOffsets(fespaces)),
    restrictRowOffsets(GetResRowBlockOffsets(fespaces)),
+   A(offsets),
    prolongation(offsets,prolongColOffsets),
    restriction(restrictRowOffsets, offsets)
 {
@@ -21,6 +22,17 @@ BlockFESpaceOperator::BlockFESpaceOperator(const
       restriction.SetDiagonalBlock(i,
                                    const_cast<Operator *>(fespaces[i]->GetRestrictionOperator()));
    }
+}
+
+int BlockFESpaceOperator::GetHeight(const std::vector<const FiniteElementSpace*>
+                                    &fespaces)
+{
+   int height = 0;
+   for (size_t i = 0; i < fespaces.size(); i++)
+   {
+      height += fespaces[i]->GetVSize();
+   }
+   return height;
 }
 
 Array<int> BlockFESpaceOperator::GetBlockOffsets(const
