@@ -758,6 +758,26 @@ void ByMinusRankOnePerturbation::MultTranspose(const Vector &k, Vector &y) const
   By->AddMultTranspose(k, y, 1.0);
 };
 
+void SchurComplement::Mult(const Vector &x, Vector &y) const {
+  // D - C A^{-1} B
+
+  B->Mult(x, a);
+  b = 0.0;
+  a *= -1.0;
+  solver.Mult(a, b);
+  C->Mult(b, y);
+
+  D->AddMult(x, y);
+}
+
+void SchurComplementInverse::Mult(const Vector &x, Vector &y) const {
+  // (D - C A^{-1} B)^{-1}
+
+  b = 0.0;
+  solver.Mult(x, b);
+  y = b;
+}
+
 // void mFinvHFT::Mult(const Vector &k, Vector &y) const {
 //   // - F H^{-1} F^T
 //   F->MultTranspose(k, y);

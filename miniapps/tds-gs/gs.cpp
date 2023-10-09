@@ -724,16 +724,15 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         // Define Schur block
         // S = [Op  -F H^{-1} F^T]
         //     [ K           Op^T]
-        ByMinusRankOnePerturbation S11(&By, &Ba, &Cy, Ca);
-        // mMuFinvHFT S12(F, invH);
-        TransposeOperator S22(&S11);
+        ByMinusRankOnePerturbation A(&By, &Ba, &Cy, Ca);
+        TransposeOperator D(&A);
 
-        BlockOperator S(row_offsets);
-        S.SetBlock(0, 0, &S11);
-        S.SetBlock(0, 1, mMuFinvHFT);
-        S.SetBlock(1, 0, K);
-        S.SetBlock(1, 1, &S22);
-
+        BlockOperator BlockSystem(row_offsets);
+        BlockSystem.SetBlock(0, 0, &A);
+        BlockSystem.SetBlock(0, 1, mMuFinvHFT);
+        BlockSystem.SetBlock(1, 0, K);
+        BlockSystem.SetBlock(1, 1, &D);
+        
         // Define rhs
         // rhs = [b3 + mu F H^{-1} b_2 - Ba b5 / Ca; b1 - Cy b4 / Ca]
         BlockVector rhs(row_offsets);
@@ -745,18 +744,9 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         rhs.GetBlock(0) += b3;
         add(1.0, rhs.GetBlock(0), - b5 / Ca, Ba, rhs.GetBlock(0));
 
-        // define preconditioner
-        BlockDiagonalPreconditioner Prec(row_offsets);
-
-        //
-        
-        
-
-        
         Solver *inv_ByT, *inv_By;
 
         HypreParMatrix * By_Hypre = convert_to_hypre(&By);
-        // HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT);
         HypreParMatrix * ByT_Hypre = convert_to_hypre(ByT_plus_MuKinvAFinvHFT);
 
         //https://hypre.readthedocs.io/en/latest/api-sol-parcsr.html
@@ -776,22 +766,27 @@ void Solve(FiniteElementSpace & fespace, PlasmaModelBase *model, GridFunction & 
         inv_By = By_AMG;
         inv_ByT = ByT_AMG;
 
-        WoodburyInverse Block1(&By, inv_By, &Ba, &Cy, -1.0);
-        WoodburyInverse Block2(ByT, inv_ByT, &Cy, &Ba, -1.0);
-        // WoodburyInverse Block2(ByT_plus_MuKinvAFinvHFT, inv_ByT, &Cy, &Ba, -1.0);
-        
-        // Prec.SetDiagonalBlock(0, inv_By);
-        // Prec.SetDiagonalBlock(1, inv_ByT);
-        Prec.SetDiagonalBlock(0, &Block1);
-        Prec.SetDiagonalBlock(1, &Block2);
+        WoodburyInverse Ainv(&By, inv_By, &Ba, &Cy, -1.0);
+
+        SchurComplement SC(&A, mMuFinvHFT, K, &D, inv_By);
+        WoodburyInverse SCinv_approx(ByT_plus_MuKinvAFinvHFT, inv_ByT, &Cy, &Ba, -1.0);
+
+        SchurComplementInverse SCinv(&SC, inv_ByT);
+
+        // define preconditioner
+        BlockDiagonalPreconditioner BlockPrec(row_offsets);
+        BlockPrec.SetDiagonalBlock(0, &Ainv);
+        BlockPrec.SetDiagonalBlock(1, &SCinv);
+        // BlockPrec.SetDiagonalBlock(1, &SCinv_approx);
+        // BlockPrec.SetDiagonalBlock(1, &Ainv);
 
         // solve
         GMRESSolver solver;
         solver.SetAbsTol(1e-16);
         solver.SetRelTol(krylov_tol);
         solver.SetMaxIter(max_krylov_iter);
-        solver.SetOperator(S);
-        solver.SetPreconditioner(Prec);
+        solver.SetOperator(BlockSystem);
+        solver.SetPreconditioner(BlockPrec);
         solver.SetKDim(kdim);
         solver.SetPrintLevel(0);
 

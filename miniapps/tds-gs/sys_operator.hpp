@@ -260,6 +260,101 @@ public:
   virtual ~ByMinusRankOnePerturbation() {}
 };
 
+
+// D - C A^{-1} B
+class SchurComplement : public Operator {
+private:
+  const Operator *D;
+  const Operator *C;
+  const Operator *B;
+  const Operator *A;
+  Solver *A_prec;
+  GMRESSolver solver;
+  mutable Vector a, b;
+  
+public:
+  SchurComplement(Operator *A_, Operator *B_, Operator *C_, Operator *D_, Solver *A_prec_) :
+    A(A_), B(B_), C(C_), D(D_), A_prec(A_prec_)
+  {
+
+    width = A->Height();
+    height = A->Height();
+
+    double krylov_tol = 1e-12;
+    double krylov_tol_light = 1e-12;
+    int max_krylov_iter = 1000;
+    int kdim = 1000;
+    
+    solver.SetAbsTol(0.0);
+    solver.SetRelTol(krylov_tol);
+    solver.SetMaxIter(max_krylov_iter);
+    solver.SetOperator(*A);
+    solver.SetPreconditioner(*A_prec);
+    solver.SetKDim(kdim);
+    solver.SetPrintLevel(0);
+    
+    Vector a_(A->Height());
+    Vector b_(A->Height());
+    a_ = 0.0;
+    b_ = 0.0;
+    b = b_;
+    a = a_;
+
+  }
+
+  virtual void Mult(const Vector &k, Vector &y) const;
+
+  virtual ~SchurComplement() {}
+};
+
+
+
+// (D - C A^{-1} B)^{-1}
+class SchurComplementInverse : public Operator {
+private:
+  const Operator *SC;
+  Solver *SC_prec;
+  GMRESSolver solver;
+  mutable Vector a, b;
+  
+public:
+  SchurComplementInverse(SchurComplement *SC_, Solver *SC_prec_) :
+    SC(SC_), SC_prec(SC_prec_)
+  {
+
+    width = SC->Height();
+    height = SC->Height();
+
+    double krylov_tol = 1e-12;
+    double krylov_tol_light = 1e-12;
+    int max_krylov_iter = 1000;
+    int kdim = 1000;
+    
+    solver.SetAbsTol(0.0);
+    solver.SetRelTol(krylov_tol);
+    solver.SetMaxIter(max_krylov_iter);
+    solver.SetOperator(*SC_);
+    solver.SetPreconditioner(*SC_prec_);
+    solver.SetKDim(kdim);
+    solver.SetPrintLevel(0);
+    
+    Vector a_(SC->Height());
+    Vector b_(SC->Height());
+    a_ = 0.0;
+    b_ = 0.0;
+    b = b_;
+    a = a_;
+
+  }
+
+  virtual void Mult(const Vector &k, Vector &y) const;
+
+  virtual ~SchurComplementInverse() {}
+};
+
+
+
+
 // /*
 //   -F H^{-1} F^T
 //  */
