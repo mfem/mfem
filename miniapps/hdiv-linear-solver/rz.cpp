@@ -16,7 +16,7 @@ double one_over_r(const Vector &xvec)
 {
    // xvec = [z, r]
    const double r = xvec[1];
-   return 1.0/r;
+   return r == 0.0 ? 0.0 : 1.0/r;
 }
 
 double f_rz(const Vector &xvec)
@@ -39,6 +39,38 @@ double u_rz(const Vector &xvec)
 
    return r*r*sin(r)*cos(z);
 }
+
+class RobinCoefficient : public Coefficient
+{
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      double xdata[3];
+      Vector xvec(xdata, 3);
+      T.Transform(ip, xvec);
+      const int dim = xvec.Size();
+
+      Vector n(dim);
+      CalcOrtho(T.Jacobian(), n);
+      n /= n.Norml2();
+
+      const double p_val = u_rz(xvec);
+      const double z = xvec[0];
+      const double r = xvec[1];
+
+      if (dim == 2)
+      {
+         const double dpdz = -r*r*sin(r)*sin(z);
+         const double dpdr = r*cos(z)*(r*cos(r) + 2*sin(r));
+         const double u_val = n[0]*dpdz + n[1]*dpdr;
+         return p_val + u_val;
+      }
+      else
+      {
+         MFEM_ABORT("Not implemented");
+      }
+      return 0.0;
+   }
+};
 
 int main(int argc, char *argv[])
 {
@@ -96,10 +128,13 @@ int main(int argc, char *argv[])
    b_l2.UseFastAssembly(true);
    b_l2.Assemble();
 
-   // Enforce Dirichlet boundary conditions on the scalar unknown by adding
-   // the boundary term to the flux equation.
+   // Coefficient to enforce Robin boundary condition
+   RobinCoefficient bc_coeff;
+
+   // Enforce Robin boundary conditions by adding the boundary term to the flux
+   // equation.
    ParLinearForm b_rt(&fes_rt);
-   b_rt.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(u_coeff));
+   b_rt.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(bc_coeff));
    b_rt.UseFastAssembly(true);
    b_rt.Assemble();
 
@@ -113,7 +148,7 @@ int main(int argc, char *argv[])
 
    const auto solver_mode = HdivSaddlePointSolver::Mode::DARCY;
    HdivSaddlePointSolver saddle_point_solver(
-      mesh, fes_rt, fes_l2, r_coeff, r_recip_coeff, ess_rt_dofs, solver_mode);
+      mesh, fes_rt, fes_l2, r_coeff, r_recip_coeff, r_recip_coeff, ess_rt_dofs, solver_mode);
 
    const Array<int> &offsets = saddle_point_solver.GetOffsets();
    BlockVector X_block(offsets), B_block(offsets);
