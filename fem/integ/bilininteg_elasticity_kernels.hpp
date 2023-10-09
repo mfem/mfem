@@ -145,7 +145,6 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    const auto &ir = lambda.GetIntRule(0);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
-   E_To_Q_Map->DisableTensorProducts();
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
    //interpolate physical derivatives to quadrature points.
    Vector junk;

@@ -20,7 +20,6 @@
 
 namespace mfem
 {
-
 /// Possible basis types. Note that not all elements can use all BasisType(s).
 class BasisType
 {
@@ -128,6 +127,19 @@ public:
    }
 };
 
+/// Constants describing the possible orderings of the DOFs in one element.
+enum class ElementDofOrdering
+{
+   /// Native ordering as defined by the FiniteElement.
+   /** This ordering can be used by tensor-product elements when the
+       interpolation from the DOFs to quadrature points does not use the
+       tensor-product structure. */
+   NATIVE,
+   /// Lexicographic ordering for tensor-product FiniteElements.
+   /** This ordering can be used only with tensor-product elements. */
+   LEXICOGRAPHIC
+};
+
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
     FiniteElement at a the quadrature points of a given IntegrationRule. */
@@ -163,6 +175,9 @@ public:
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
    Mode mode;
+
+   /// Describes the contents of the #B, #Bt, #G, and #Gt arrays.
+   ElementDofOrdering ordering;
 
    /** @brief Number of degrees of freedom = number of basis functions. When
        #mode is TENSOR, this is the 1D number. */
@@ -577,6 +592,13 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
+   /** @brief Return a DofToQuad structure corresponding to the given
+       IntegrationRule using the given DofToQuad::Mode and ElementDofOrdering. */
+   /** See the documentation for DofToQuad and ElementDofOrdering for more details.
+   TODO - make this a reference again.*/
+   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                         DofToQuad::Mode mode,
+                                         const ElementDofOrdering ordering) const;
 
    /** @brief Return the mapping from lexicographic face DOFs to lexicographic
        element DOFs for the given local face @a face_id. */
@@ -1254,6 +1276,10 @@ public:
              FiniteElement::GetDofToQuad(ir, mode) :
              GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
    }
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode,
+                                 const ElementDofOrdering ordering) const override;
 
    void SetMapType(const int map_type_) override;
 
