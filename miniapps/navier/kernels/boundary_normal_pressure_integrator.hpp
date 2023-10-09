@@ -17,14 +17,11 @@
 using namespace mfem;
 using namespace navier;
 
-class BoundaryNormalStressIntegrator : public LinearFormIntegrator
+class BoundaryNormalPressureIntegrator : public LinearFormIntegrator
 {
 public:
-   BoundaryNormalStressIntegrator(const GridFunction &ugf, const GridFunction &pgf,
-                                  const GridFunction &nugf) :
-      ugf(ugf),
-      pgf(pgf),
-      nugf(nugf)
+   BoundaryNormalPressureIntegrator(const GridFunction &pgf) :
+      pgf(pgf)
    { }
 
    virtual bool SupportsDevice() const { return false; }
@@ -35,7 +32,7 @@ public:
    {
       int dim = el.GetDim()+1;
       MFEM_ASSERT(dim > 1,
-                  "BoundaryNormalStressIntegrator not implemented for dim == 1");
+                  "BoundaryNormalPressureIntegrator not implemented for dim == 1");
       int ndofs = el.GetDof();
 
       shape.SetSize(ndofs);
@@ -58,20 +55,16 @@ public:
          Tr.SetIntPoint(&ip);
          CalcOrtho(Tr.Jacobian(), nor);
 
-         ugf.GetVectorGradient(Tr, dudx);
          double p = pgf.GetValue(Tr, ip);
-         double nu = nugf.GetValue(Tr, ip);
 
          el.CalcShape(ip, shape);
 
-         // (-p * I + nu (grad(u) + grad(u)^T))
+         // -p * I
          for (int i = 0; i < dim; i++)
          {
             for (int j = 0; j < dim; j++)
             {
-               A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
-               // A(i, j) = -p * (i == j);
-               // A(i, j) = nu * (dudx(i, j) + dudx(j, i));
+               A(i, j) = -p * (i == j);
             }
          }
 
@@ -94,7 +87,5 @@ public:
 
    Vector shape, nor;
    DenseMatrix dudx, A;
-   const GridFunction &ugf;
    const GridFunction &pgf;
-   const GridFunction &nugf;
 };

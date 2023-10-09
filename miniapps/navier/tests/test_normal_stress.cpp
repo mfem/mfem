@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   const int polynomial_order = 1;
+   const int polynomial_order = 2;
 
    Mesh mesh = Mesh::LoadFromFile("two_domain_test.mesh");
    mesh.EnsureNodes();
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
    H1_FECollection h1_fec(polynomial_order);
    ParFiniteElementSpace h1_vfes(&solid_mesh, &h1_fec, dimension);
 
-   // Using a GridFunction here is signaling that we are transferringa Vdof
+   // Using a GridFunction here is signaling that we are transferring a Vdof
    // vector. Although the values represent a "dual" of a GridFunction.
    ParGridFunction boundary_traction_integrated_fluid(
       navier.GetCurrentVelocity()->ParFESpace());

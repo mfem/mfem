@@ -71,7 +71,10 @@ void accel(const Vector &x, double t, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
@@ -109,19 +112,7 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (mpi.Root())
-      {
-         args.PrintUsage(mfem::out);
-      }
-      return 1;
-   }
-   if (mpi.Root())
-   {
-      args.PrintOptions(mfem::out);
-   }
+   args.ParseCheck();
 
    // Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
    Mesh *mesh = new Mesh("../../data/inline-quad.mesh");
@@ -136,7 +127,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -214,7 +205,7 @@ int main(int argc, char *argv[])
       errlinf_p = naviersolver.NekNorm(p_ex, 1, false);
 
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          if (step == -1)
          {
@@ -311,12 +302,12 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int visport = 19916;
       socketstream u_sock(vishost, visport);
-      u_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
+      u_sock << "parallel " << num_procs << " " << myid
              << "\n";
       u_sock << "solution\n" << *pmesh << u_ex << std::flush;
 
       socketstream p_sock(vishost, visport);
-      p_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
+      p_sock << "parallel " << num_procs << " " << myid
              << "\n";
       p_sock << "solution\n" << *pmesh << p_ex << std::flush;
    }
