@@ -763,8 +763,10 @@ void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
             sface_lface[stria_counter] = lface;
             if (meshgen == 1) // Tet-only mesh
             {
-               Tetrahedron *tet = dynamic_cast<Tetrahedron *>
-                                  (elements[faces_info[lface].Elem1No]);
+               Element *elem = elements[faces_info[lface].Elem1No];
+               MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elem),
+                           "Unexpected non-Tetrahedron element")
+               auto *tet = static_cast<Tetrahedron *>(elem);
                // mark the shared face for refinement by reorienting
                // it according to the refinement flag in the tetrahedron
                // to which this shared face belongs to.
@@ -1789,8 +1791,10 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths,
-                                                            glob_edge_order);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths,
+                                                           glob_edge_order);
       }
    }
 
@@ -1798,8 +1802,10 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths,
-                                                         glob_edge_order);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths,
+                                                        glob_edge_order);
       }
    }
 

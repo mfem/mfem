@@ -483,6 +483,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
             Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
          MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                      "Mesh requires nodal Finite Element.");
+
          IntegrationRule eir(face_el->GetDof());
          FaceElemTr.Loc1.Transf.ElementNo = elem_id;
          FaceElemTr.Loc1.Transf.mesh = this;
@@ -2626,7 +2627,9 @@ void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
    {
       if (elements[i]->GetType() == Element::TRIANGLE)
       {
-         dynamic_cast<Triangle &>(*elements[i]).MarkEdge(v_to_v, lengths, idx);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(elements[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(elements[i])->MarkEdge(v_to_v, lengths, idx);
       }
    }
 }
@@ -2645,14 +2648,18 @@ void Mesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         dynamic_cast<Tetrahedron &>(*elements[i]).MarkEdge(v_to_v, lengths, idx);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths, idx);
       }
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         dynamic_cast<Triangle &>(*boundary[i]).MarkEdge(v_to_v, lengths, idx);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths, idx);
       }
    }
 }
