@@ -80,7 +80,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(ElementTransformation *T, int type)
+fptype Mesh::GetElementSize(ElementTransformation *T, int type)
 {
    DenseMatrix J(spaceDim, Dim);
 
@@ -102,12 +102,12 @@ double Mesh::GetElementSize(ElementTransformation *T, int type)
    }
 }
 
-double Mesh::GetElementSize(int i, int type)
+fptype Mesh::GetElementSize(int i, int type)
 {
    return GetElementSize(GetElementTransformation(i), type);
 }
 
-double Mesh::GetElementSize(int i, const Vector &dir)
+fptype Mesh::GetElementSize(int i, const Vector &dir)
 {
    DenseMatrix J(spaceDim, Dim);
    Vector d_hat(Dim);
@@ -116,12 +116,12 @@ double Mesh::GetElementSize(int i, const Vector &dir)
    return sqrt((d_hat * d_hat) / (dir * dir));
 }
 
-double Mesh::GetElementVolume(int i)
+fptype Mesh::GetElementVolume(int i)
 {
    ElementTransformation *et = GetElementTransformation(i);
    const IntegrationRule &ir = IntRules.Get(GetElementBaseGeometry(i),
                                             et->OrderJ());
-   double volume = 0.0;
+   fptype volume = 0.0;
    for (int j = 0; j < ir.GetNPoints(); j++)
    {
       const IntegrationPoint &ip = ir.IntPoint(j);
@@ -146,7 +146,7 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
 
    if (Nodes == NULL)
    {
-      double *coord;
+      fptype *coord;
       for (int i = 0; i < NumOfVertices; i++)
       {
          coord = GetVertex(i);
@@ -197,13 +197,13 @@ void Mesh::GetBoundingBox(Vector &min, Vector &max, int ref)
    }
 }
 
-void Mesh::GetCharacteristics(double &h_min, double &h_max,
-                              double &kappa_min, double &kappa_max,
+void Mesh::GetCharacteristics(fptype &h_min, fptype &h_max,
+                              fptype &kappa_min, fptype &kappa_max,
                               Vector *Vh, Vector *Vk)
 {
    int i, dim, sdim;
    DenseMatrix J;
-   double h, kappa;
+   fptype h, kappa;
 
    dim = Dimension();
    sdim = SpaceDimension();
@@ -218,7 +218,7 @@ void Mesh::GetCharacteristics(double &h_min, double &h_max,
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Weight()), 1.0/double(dim));
+      h = pow(fabs(J.Weight()), 1.0/fptype(dim));
       kappa = (dim == sdim) ?
               J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1) : -1.0;
       if (Vh) { (*Vh)(i) = h; }
@@ -248,7 +248,7 @@ void Mesh::PrintElementsByGeometry(int dim,
 
 void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
 {
-   double h_min, h_max, kappa_min, kappa_max;
+   fptype h_min, h_max, kappa_min, kappa_max;
 
    os << "Mesh Characteristics:";
 
@@ -1041,7 +1041,7 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FaceElemTr.CheckConsistency();
+   fptype dist = FaceElemTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
@@ -1623,17 +1623,17 @@ static void CheckEnlarge(Array<T> &array, int size)
    if (size >= array.Size()) { array.SetSize(size + 1); }
 }
 
-int Mesh::AddVertex(double x, double y, double z)
+int Mesh::AddVertex(fptype x, fptype y, fptype z)
 {
    CheckEnlarge(vertices, NumOfVertices);
-   double *v = vertices[NumOfVertices]();
+   fptype *v = vertices[NumOfVertices]();
    v[0] = x;
    v[1] = y;
    v[2] = z;
    return NumOfVertices++;
 }
 
-int Mesh::AddVertex(const double *coords)
+int Mesh::AddVertex(const fptype *coords)
 {
    CheckEnlarge(vertices, NumOfVertices);
    vertices[NumOfVertices].SetCoords(spaceDim, coords);
@@ -1655,7 +1655,7 @@ void Mesh::AddVertexParents(int i, int p1, int p2)
    // correct position
    if (i < vertices.Size())
    {
-      double *vi = vertices[i](), *vp1 = vertices[p1](), *vp2 = vertices[p2]();
+      fptype *vi = vertices[i](), *vp1 = vertices[p1](), *vp2 = vertices[p2]();
       for (int j = 0; j < 3; j++)
       {
          vi[j] = (vp1[j] + vp2[j]) * 0.5;
@@ -2016,10 +2016,10 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 class GeckoProgress : public Gecko::Progress
 {
-   double limit;
+   fptype limit;
    mutable StopWatch sw;
 public:
-   GeckoProgress(double limit) : limit(limit) { sw.Start(); }
+   GeckoProgress(fptype limit) : limit(limit) { sw.Start(); }
    virtual bool quit() const { return limit > 0 && sw.UserTime() > limit; }
 };
 
@@ -2029,7 +2029,7 @@ class GeckoVerboseProgress : public GeckoProgress
    using Graph = Gecko::Graph;
    using uint = Gecko::uint;
 public:
-   GeckoVerboseProgress(double limit) : GeckoProgress(limit) {}
+   GeckoVerboseProgress(fptype limit) : GeckoProgress(limit) {}
 
    virtual void beginorder(const Graph* graph, Float cost) const
    { mfem::out << "Begin Gecko ordering, cost = " << cost << std::endl; }
@@ -2047,10 +2047,10 @@ public:
 };
 
 
-double Mesh::GetGeckoElementOrdering(Array<int> &ordering,
+fptype Mesh::GetGeckoElementOrdering(Array<int> &ordering,
                                      int iterations, int window,
                                      int period, int seed, bool verbose,
-                                     double time_limit)
+                                     fptype time_limit)
 {
    Gecko::Graph graph;
    Gecko::FunctionalGeometric functional; // edge product cost
@@ -2095,10 +2095,10 @@ struct HilbertCmp
 {
    int coord;
    bool dir;
-   const Array<double> &points;
-   double mid;
+   const Array<fptype> &points;
+   fptype mid;
 
-   HilbertCmp(int coord, bool dir, const Array<double> &points, double mid)
+   HilbertCmp(int coord, bool dir, const Array<fptype> &points, fptype mid)
       : coord(coord), dir(dir), points(points), mid(mid) {}
 
    bool operator()(int i) const
@@ -2110,13 +2110,13 @@ struct HilbertCmp
 static void HilbertSort2D(int coord1, // major coordinate to sort points by
                           bool dir1,  // sort coord1 ascending/descending?
                           bool dir2,  // sort coord2 ascending/descending?
-                          const Array<double> &points, int *beg, int *end,
-                          double xmin, double ymin, double xmax, double ymax)
+                          const Array<fptype> &points, int *beg, int *end,
+                          fptype xmin, fptype ymin, fptype xmax, fptype ymax)
 {
    if (end - beg <= 1) { return; }
 
-   double xmid = (xmin + xmax)*0.5;
-   double ymid = (ymin + ymax)*0.5;
+   fptype xmid = (xmin + xmax)*0.5;
+   fptype ymid = (ymin + ymax)*0.5;
 
    int coord2 = (coord1 + 1) % 2; // the 'other' coordinate
 
@@ -2149,15 +2149,15 @@ static void HilbertSort2D(int coord1, // major coordinate to sort points by
 }
 
 static void HilbertSort3D(int coord1, bool dir1, bool dir2, bool dir3,
-                          const Array<double> &points, int *beg, int *end,
-                          double xmin, double ymin, double zmin,
-                          double xmax, double ymax, double zmax)
+                          const Array<fptype> &points, int *beg, int *end,
+                          fptype xmin, fptype ymin, fptype zmin,
+                          fptype xmax, fptype ymax, fptype zmax)
 {
    if (end - beg <= 1) { return; }
 
-   double xmid = (xmin + xmax)*0.5;
-   double ymid = (ymin + ymax)*0.5;
-   double zmid = (zmin + zmax)*0.5;
+   fptype xmid = (xmin + xmax)*0.5;
+   fptype ymid = (ymin + ymax)*0.5;
+   fptype zmid = (zmin + zmax)*0.5;
 
    int coord2 = (coord1 + 1) % 3;
    int coord3 = (coord1 + 2) % 3;
@@ -2222,7 +2222,7 @@ void Mesh::GetHilbertElementOrdering(Array<int> &ordering)
    GetBoundingBox(min, max);
 
    Array<int> indices(GetNE());
-   Array<double> points(3*GetNE());
+   Array<fptype> points(3*GetNE());
 
    if (spaceDim < 3) { points = 0.0; }
 
@@ -2454,7 +2454,7 @@ void Mesh::GetEdgeOrdering(DSTable &v_to_v, Array<int> &order)
 {
    NumOfEdges = v_to_v.NumberOfEntries();
    order.SetSize(NumOfEdges);
-   Array<Pair<double, int> > length_idx(NumOfEdges);
+   Array<Pair<fptype, int> > length_idx(NumOfEdges);
 
    for (int i = 0; i < NumOfVertices; i++)
    {
@@ -3115,7 +3115,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
-                  double sx, double sy, double sz, bool sfc_ordering)
+                  fptype sx, fptype sy, fptype sz, bool sfc_ordering)
 {
    int x, y, z;
 
@@ -3142,19 +3142,19 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
-   double coord[3];
+   fptype coord[3];
    int ind[9];
 
    // Sets vertices and the corresponding coordinates
    for (z = 0; z <= nz; z++)
    {
-      coord[2] = ((double) z / nz) * sz;
+      coord[2] = ((fptype) z / nz) * sz;
       for (y = 0; y <= ny; y++)
       {
-         coord[1] = ((double) y / ny) * sy;
+         coord[1] = ((fptype) y / ny) * sy;
          for (x = 0; x <= nx; x++)
          {
-            coord[0] = ((double) x / nx) * sx;
+            coord[0] = ((fptype) x / nx) * sx;
             AddVertex(coord);
          }
       }
@@ -3163,13 +3163,13 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       for (z = 0; z < nz; z++)
       {
-         coord[2] = (((double) z + 0.5) / nz) * sz;
+         coord[2] = (((fptype) z + 0.5) / nz) * sz;
          for (y = 0; y < ny; y++)
          {
-            coord[1] = (((double) y + 0.5 ) / ny) * sy;
+            coord[1] = (((fptype) y + 0.5 ) / ny) * sy;
             for (x = 0; x < nx; x++)
             {
-               coord[0] = (((double) x + 0.5 ) / nx) * sx;
+               coord[0] = (((fptype) x + 0.5 ) / nx) * sx;
                AddVertex(coord);
             }
          }
@@ -3396,7 +3396,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
 }
 
 void Mesh::Make2D(int nx, int ny, Element::Type type,
-                  double sx, double sy,
+                  fptype sx, fptype sy,
                   bool generate_edges, bool sfc_ordering)
 {
    int i, j, k;
@@ -3416,17 +3416,17 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
       elements.SetSize(NumOfElements);
       boundary.SetSize(NumOfBdrElements);
 
-      double cx, cy;
+      fptype cx, cy;
       int ind[4];
 
       // Sets vertices and the corresponding coordinates
       k = 0;
       for (j = 0; j < ny+1; j++)
       {
-         cy = ((double) j / ny) * sy;
+         cy = ((fptype) j / ny) * sy;
          for (i = 0; i < nx+1; i++)
          {
-            cx = ((double) i / nx) * sx;
+            cx = ((fptype) i / nx) * sx;
             vertices[k](0) = cx;
             vertices[k](1) = cy;
             k++;
@@ -3493,17 +3493,17 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
       elements.SetSize(NumOfElements);
       boundary.SetSize(NumOfBdrElements);
 
-      double cx, cy;
+      fptype cx, cy;
       int ind[3];
 
       // Sets vertices and the corresponding coordinates
       k = 0;
       for (j = 0; j < ny+1; j++)
       {
-         cy = ((double) j / ny) * sy;
+         cy = ((fptype) j / ny) * sy;
          for (i = 0; i < nx+1; i++)
          {
-            cx = ((double) i / nx) * sx;
+            cx = ((fptype) i / nx) * sx;
             vertices[k](0) = cx;
             vertices[k](1) = cy;
             k++;
@@ -3573,7 +3573,7 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
    // Finalize(...) can be called after this method, if needed
 }
 
-void Mesh::Make1D(int n, double sx)
+void Mesh::Make1D(int n, fptype sx)
 {
    int j, ind[1];
 
@@ -3592,7 +3592,7 @@ void Mesh::Make1D(int n, double sx)
    // Sets vertices and the corresponding coordinates
    for (j = 0; j < n+1; j++)
    {
-      vertices[j](0) = ((double) j / n) * sx;
+      vertices[j](0) = ((fptype) j / n) * sx;
    }
 
    // Sets elements and the corresponding indices of vertices
@@ -3762,7 +3762,7 @@ Mesh Mesh::LoadFromFile(const std::string &filename, int generate_edges,
    return mesh;
 }
 
-Mesh Mesh::MakeCartesian1D(int n, double sx)
+Mesh Mesh::MakeCartesian1D(int n, fptype sx)
 {
    Mesh mesh;
    mesh.Make1D(n, sx);
@@ -3772,7 +3772,7 @@ Mesh Mesh::MakeCartesian1D(int n, double sx)
 
 Mesh Mesh::MakeCartesian2D(
    int nx, int ny, Element::Type type, bool generate_edges,
-   double sx, double sy, bool sfc_ordering)
+   fptype sx, fptype sy, bool sfc_ordering)
 {
    Mesh mesh;
    mesh.Make2D(nx, ny, type, sx, sy, generate_edges, sfc_ordering);
@@ -3782,7 +3782,7 @@ Mesh Mesh::MakeCartesian2D(
 
 Mesh Mesh::MakeCartesian3D(
    int nx, int ny, int nz, Element::Type type,
-   double sx, double sy, double sz, bool sfc_ordering)
+   fptype sx, fptype sy, fptype sz, bool sfc_ordering)
 {
    Mesh mesh;
    mesh.Make3D(nx, ny, nz, type, sx, sy, sz, sfc_ordering);
@@ -3832,7 +3832,7 @@ Mesh::Mesh(std::istream &input, int generate_edges, int refine,
    Load(input, generate_edges, refine, fix_orientation);
 }
 
-void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
+void Mesh::ChangeVertexDataOwnership(fptype *vertex_data, int len_vertex_data,
                                      bool zerocopy)
 {
    // A dimension of 3 is now required since we use mfem::Vertex objects as PODs
@@ -3842,7 +3842,7 @@ void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
                "len_vertex_data = "<< len_vertex_data << ", "
                "NumOfVertices * 3 = " << NumOfVertices * 3);
    // Allow multiple calls to this method with the same vertex_data
-   if (vertex_data == (double *)(vertices.GetData()))
+   if (vertex_data == (fptype *)(vertices.GetData()))
    {
       MFEM_ASSERT(!vertices.OwnsData(), "invalid ownership");
       return;
@@ -3850,13 +3850,13 @@ void Mesh::ChangeVertexDataOwnership(double *vertex_data, int len_vertex_data,
    if (!zerocopy)
    {
       memcpy(vertex_data, vertices.GetData(),
-             NumOfVertices * 3 * sizeof(double));
+             NumOfVertices * 3 * sizeof(fptype));
    }
    // Vertex is POD double[3]
    vertices.MakeRef(reinterpret_cast<Vertex*>(vertex_data), NumOfVertices);
 }
 
-Mesh::Mesh(double *vertices_, int num_vertices,
+Mesh::Mesh(fptype *vertices_, int num_vertices,
            int *element_indices, Geometry::Type element_type,
            int *element_attributes, int num_elements,
            int *boundary_indices, Geometry::Type boundary_type,
@@ -4983,7 +4983,7 @@ Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
 }
 
 std::vector<int> Mesh::CreatePeriodicVertexMapping(
-   const std::vector<Vector> &translations, double tol) const
+   const std::vector<Vector> &translations, fptype tol) const
 {
    int sdim = SpaceDimension();
 
@@ -5011,7 +5011,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
       }
    }
    add(xMax, -1.0, xMin, xDiff);
-   double dia = xDiff.Norml2(); // compute mesh diameter
+   fptype dia = xDiff.Norml2(); // compute mesh diameter
 
    // We now identify coincident vertices. Several originally distinct vertices
    // may become coincident under the periodic mapping. One of these vertices
@@ -5712,7 +5712,7 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 int Mesh::CheckElementOrientation(bool fix_it)
 {
    int i, j, k, wo = 0, fo = 0;
-   double *v[4];
+   fptype *v[4];
 
    if (Dim == 2 && spaceDim == 2)
    {
@@ -6685,11 +6685,11 @@ void Mesh::GetBdrPointMatrix(int i,DenseMatrix &pointmat) const
       }
 }
 
-double Mesh::GetLength(int i, int j) const
+fptype Mesh::GetLength(int i, int j) const
 {
-   const double *vi = vertices[i]();
-   const double *vj = vertices[j]();
-   double length = 0.;
+   const fptype *vi = vertices[i]();
+   const fptype *vj = vertices[j]();
+   fptype length = 0.;
 
    for (int k = 0; k < spaceDim; k++)
    {
@@ -7383,12 +7383,12 @@ void Mesh::ReorientTetMesh()
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
-   double pmin[3] = { infinity(), infinity(), infinity() };
-   double pmax[3] = { -infinity(), -infinity(), -infinity() };
+   fptype pmin[3] = { infinity(), infinity(), infinity() };
+   fptype pmax[3] = { -infinity(), -infinity(), -infinity() };
    // find a bounding box using the vertices
    for (int vi = 0; vi < NumOfVertices; vi++)
    {
-      const double *p = vertices[vi]();
+      const fptype *p = vertices[vi]();
       for (int i = 0; i < spaceDim; i++)
       {
          if (p[i] < pmin[i]) { pmin[i] = p[i]; }
@@ -7399,7 +7399,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    partitioning = new int[NumOfElements];
 
    // determine the partitioning using the centers of the elements
-   double ppt[3];
+   fptype ppt[3];
    Vector pt(ppt, spaceDim);
    for (int el = 0; el < NumOfElements; el++)
    {
@@ -7883,8 +7883,8 @@ void Mesh::CheckPartitioning(int *partitioning_)
 // where A, B are (d x d), d=2,3
 void DetOfLinComb(const DenseMatrix &A, const DenseMatrix &B, Vector &c)
 {
-   const double *a = A.Data();
-   const double *b = B.Data();
+   const fptype *a = A.Data();
+   const fptype *b = B.Data();
 
    c.SetSize(A.Width()+1);
    switch (A.Width())
@@ -7992,8 +7992,8 @@ int FindRoots(const Vector &z, Vector &x)
 
       case 2:
       {
-         double a = z(2), b = z(1), c = z(0);
-         double D = b*b-4*a*c;
+         fptype a = z(2), b = z(1), c = z(0);
+         fptype D = b*b-4*a*c;
          if (D < 0.0)
          {
             return 0;
@@ -8010,7 +8010,7 @@ int FindRoots(const Vector &z, Vector &x)
          }
          else
          {
-            double t;
+            fptype t;
             if (b > 0.0)
             {
                t = -0.5 * (b + sqrt(D));
@@ -8023,7 +8023,7 @@ int FindRoots(const Vector &z, Vector &x)
             x(1) = c / t;
             if (x(0) > x(1))
             {
-               Swap<double>(x(0), x(1));
+               Swap<fptype>(x(0), x(1));
             }
             return 2;
          }
@@ -8031,13 +8031,13 @@ int FindRoots(const Vector &z, Vector &x)
 
       case 3:
       {
-         double a = z(2)/z(3), b = z(1)/z(3), c = z(0)/z(3);
+         fptype a = z(2)/z(3), b = z(1)/z(3), c = z(0)/z(3);
 
          // find the real roots of x^3 + a x^2 + b x + c = 0
-         double Q = (a * a - 3 * b) / 9;
-         double R = (2 * a * a * a - 9 * a * b + 27 * c) / 54;
-         double Q3 = Q * Q * Q;
-         double R2 = R * R;
+         fptype Q = (a * a - 3 * b) / 9;
+         fptype R = (2 * a * a * a - 9 * a * b + 27 * c) / 54;
+         fptype Q3 = Q * Q * Q;
+         fptype R2 = R * R;
 
          if (R2 == Q3)
          {
@@ -8047,7 +8047,7 @@ int FindRoots(const Vector &z, Vector &x)
             }
             else
             {
-               double sqrtQ = sqrt(Q);
+               fptype sqrtQ = sqrt(Q);
 
                if (R > 0)
                {
@@ -8064,9 +8064,9 @@ int FindRoots(const Vector &z, Vector &x)
          }
          else if (R2 < Q3)
          {
-            double theta = acos(R / sqrt(Q3));
-            double A = -2 * sqrt(Q);
-            double x0, x1, x2;
+            fptype theta = acos(R / sqrt(Q3));
+            fptype A = -2 * sqrt(Q);
+            fptype x0, x1, x2;
             x0 = A * cos(theta / 3) - a / 3;
             x1 = A * cos((theta + 2.0 * M_PI) / 3) - a / 3;
             x2 = A * cos((theta - 2.0 * M_PI) / 3) - a / 3;
@@ -8074,14 +8074,14 @@ int FindRoots(const Vector &z, Vector &x)
             /* Sort x0, x1, x2 */
             if (x0 > x1)
             {
-               Swap<double>(x0, x1);
+               Swap<fptype>(x0, x1);
             }
             if (x1 > x2)
             {
-               Swap<double>(x1, x2);
+               Swap<fptype>(x1, x2);
                if (x0 > x1)
                {
-                  Swap<double>(x0, x1);
+                  Swap<fptype>(x0, x1);
                }
             }
             x(0) = x0;
@@ -8091,7 +8091,7 @@ int FindRoots(const Vector &z, Vector &x)
          }
          else
          {
-            double A;
+            fptype A;
             if (R >= 0.0)
             {
                A = -pow(sqrt(R2 - Q3) + R, 1.0/3.0);
@@ -8108,10 +8108,10 @@ int FindRoots(const Vector &z, Vector &x)
    return 0;
 }
 
-void FindTMax(Vector &c, Vector &x, double &tmax,
-              const double factor, const int Dim)
+void FindTMax(Vector &c, Vector &x, fptype &tmax,
+              const fptype factor, const int Dim)
 {
-   const double c0 = c(0);
+   const fptype c0 = c(0);
    c(0) = c0 * (1.0 - pow(factor, -Dim));
    int nr = FindRoots(c, x);
    for (int j = 0; j < nr; j++)
@@ -8142,12 +8142,12 @@ void FindTMax(Vector &c, Vector &x, double &tmax,
    }
 }
 
-void Mesh::CheckDisplacements(const Vector &displacements, double &tmax)
+void Mesh::CheckDisplacements(const Vector &displacements, fptype &tmax)
 {
    int nvs = vertices.Size();
    DenseMatrix P, V, DS, PDS(spaceDim), VDS(spaceDim);
    Vector c(spaceDim+1), x(spaceDim);
-   const double factor = 2.0;
+   const fptype factor = 2.0;
 
    // check for tangling assuming constant speed
    if (tmax < 1.0)
@@ -8248,7 +8248,7 @@ void Mesh::SetVertices(const Vector &vert_coord)
       }
 }
 
-void Mesh::GetNode(int i, double *coord) const
+void Mesh::GetNode(int i, fptype *coord) const
 {
    if (Nodes)
    {
@@ -8267,7 +8267,7 @@ void Mesh::GetNode(int i, double *coord) const
    }
 }
 
-void Mesh::SetNode(int i, const double *coord)
+void Mesh::SetNode(int i, const fptype *coord)
 {
    if (Nodes)
    {
@@ -8500,15 +8500,15 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
    }
    mfem::Swap(boundary, new_boundary);
 
-   static const double A = 0.0, B = 0.5, C = 1.0;
-   static double tri_children[2*3*4] =
+   static const fptype A = 0.0, B = 0.5, C = 1.0;
+   static fptype tri_children[2*3*4] =
    {
       A,A, B,A, A,B,
       B,B, A,B, B,A,
       B,A, C,A, B,B,
       A,B, B,B, A,C
    };
-   static double quad_children[2*4*4] =
+   static fptype quad_children[2*4*4] =
    {
       A,A, B,A, B,B, A,B, // lower-left
       B,A, C,A, C,B, B,B, // lower-right
@@ -8551,7 +8551,7 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
 #endif
 }
 
-static inline double sqr(const double &x)
+static inline fptype sqr(const fptype &x)
 {
    return x*x;
 }
@@ -8726,7 +8726,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             if (rt_algo == 0)
             {
                // smallest octahedron diagonal
-               double len_sqr, min_len;
+               fptype len_sqr, min_len;
 
                min_len = sqr(J(0,0)-J(0,1)-J(0,2)) +
                          sqr(J(1,0)-J(1,1)-J(1,2)) +
@@ -8746,10 +8746,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             else
             {
                // best aspect ratio
-               double Em_data[18], Js_data[9], Jp_data[9];
+               fptype Em_data[18], Js_data[9], Jp_data[9];
                DenseMatrix Em(Em_data, 3, 6);
                DenseMatrix Js(Js_data, 3, 3), Jp(Jp_data, 3, 3);
-               double ar1, ar2, kappa, kappa_min;
+               fptype ar1, ar2, kappa, kappa_min;
 
                for (int s = 0; s < 3; s++)
                {
@@ -9163,8 +9163,8 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    }
    mfem::Swap(boundary, new_boundary);
 
-   static const double A = 0.0, B = 0.5, C = 1.0, D = -1.0;
-   static double tet_children[3*4*16] =
+   static const fptype A = 0.0, B = 0.5, C = 1.0, D = -1.0;
+   static fptype tet_children[3*4*16] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B,
       B,A,A, C,A,A, B,B,A, B,A,B,
@@ -9189,7 +9189,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       A,A,B, A,B,B, B,A,B, B,B,A,
       A,A,B, B,A,B, B,A,A, B,B,A
    };
-   static double pyr_children[3*5*10] =
+   static fptype pyr_children[3*5*10] =
    {
       A,A,A, B,A,A, B,B,A, A,B,A, A,A,B,
       B,A,A, C,A,A, C,B,A, B,B,A, B,A,B,
@@ -9202,7 +9202,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       B,C,A, B,B,B, A,B,B, B,B,A, D,D,D,
       A,B,A, A,B,B, A,A,B, B,B,A, D,D,D
    };
-   static double pri_children[3*6*8] =
+   static fptype pri_children[3*6*8] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B,
       B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B,
@@ -9213,7 +9213,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       B,A,B, C,A,B, B,B,B, B,A,C, C,A,C, B,B,C,
       A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
    };
-   static double hex_children[3*8*8] =
+   static fptype hex_children[3*8*8] =
    {
       A,A,A, B,A,A, B,B,A, A,B,A, A,A,B, B,A,B, B,B,B, A,B,B,
       B,A,A, C,A,A, C,B,A, B,B,A, B,A,B, C,A,B, C,B,B, B,B,B,
@@ -9300,7 +9300,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          CoarseFineTr.embeddings[new_e] = Embedding(i, Geometry::SEGMENT, 2);
       }
 
-      static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
+      static fptype seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
       UseExternalData(seg_children, 1, 2, 3);
 
@@ -9555,16 +9555,16 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    }
 }
 
-double Mesh::AggregateError(const Array<double> &elem_error,
+fptype Mesh::AggregateError(const Array<fptype> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = elem_error[fine[0]];
+   fptype error = elem_error[fine[0]];
 
    for (int i = 1; i < nfine; i++)
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
 
-      double err_fine = elem_error[fine[i]];
+      fptype err_fine = elem_error[fine[i]];
       switch (op)
       {
          case 0: error = std::min(error, err_fine); break;
@@ -9575,8 +9575,8 @@ double Mesh::AggregateError(const Array<double> &elem_error,
    return error;
 }
 
-bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
-                                     double threshold, int nc_limit, int op)
+bool Mesh::NonconformingDerefinement(Array<fptype> &elem_error,
+                                     fptype threshold, int nc_limit, int op)
 {
    MFEM_VERIFY(ncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
@@ -9597,7 +9597,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      double error =
+      fptype error =
          AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
 
       if (error < threshold) { derefs.Append(i); }
@@ -9623,7 +9623,7 @@ bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
    return true;
 }
 
-bool Mesh::DerefineByError(Array<double> &elem_error, double threshold,
+bool Mesh::DerefineByError(Array<fptype> &elem_error, fptype threshold,
                            int nc_limit, int op)
 {
    // NOTE: the error array is not const because it will be expanded in parallel
@@ -9640,10 +9640,10 @@ bool Mesh::DerefineByError(Array<double> &elem_error, double threshold,
    }
 }
 
-bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
+bool Mesh::DerefineByError(const Vector &elem_error, fptype threshold,
                            int nc_limit, int op)
 {
-   Array<double> tmp(elem_error.Size());
+   Array<fptype> tmp(elem_error.Size());
    for (int i = 0; i < tmp.Size(); i++)
    {
       tmp[i] = elem_error(i);
@@ -9909,13 +9909,13 @@ void Mesh::EnsureNCMesh(bool simplices_nonconforming)
    }
 }
 
-void Mesh::RandomRefinement(double prob, bool aniso, int nonconforming,
+void Mesh::RandomRefinement(fptype prob, bool aniso, int nonconforming,
                             int nc_limit)
 {
    Array<Refinement> refs;
    for (int i = 0; i < GetNE(); i++)
    {
-      if ((double) rand() / RAND_MAX < prob)
+      if ((fptype) rand() / RAND_MAX < prob)
       {
          int type = 7;
          if (aniso)
@@ -9928,7 +9928,7 @@ void Mesh::RandomRefinement(double prob, bool aniso, int nonconforming,
    GeneralRefinement(refs, nonconforming, nc_limit);
 }
 
-void Mesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
+void Mesh::RefineAtVertex(const Vertex& vert, fptype eps, int nonconforming)
 {
    Array<int> v;
    Array<Refinement> refs;
@@ -9938,10 +9938,10 @@ void Mesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
       bool refine = false;
       for (int j = 0; j < v.Size(); j++)
       {
-         double dist = 0.0;
+         fptype dist = 0.0;
          for (int l = 0; l < spaceDim; l++)
          {
-            double d = vert(l) - vertices[v[j]](l);
+            fptype d = vert(l) - vertices[v[j]](l);
             dist += d*d;
          }
          if (dist <= eps*eps) { refine = true; break; }
@@ -9954,7 +9954,7 @@ void Mesh::RefineAtVertex(const Vertex& vert, double eps, int nonconforming)
    GeneralRefinement(refs, nonconforming);
 }
 
-bool Mesh::RefineByError(const Array<double> &elem_error, double threshold,
+bool Mesh::RefineByError(const Array<fptype> &elem_error, fptype threshold,
                          int nonconforming, int nc_limit)
 {
    MFEM_VERIFY(elem_error.Size() == GetNE(), "");
@@ -9974,10 +9974,10 @@ bool Mesh::RefineByError(const Array<double> &elem_error, double threshold,
    return false;
 }
 
-bool Mesh::RefineByError(const Vector &elem_error, double threshold,
+bool Mesh::RefineByError(const Vector &elem_error, fptype threshold,
                          int nonconforming, int nc_limit)
 {
-   Array<double> tmp(const_cast<double*>(elem_error.GetData()),
+   Array<fptype> tmp(const_cast<fptype*>(elem_error.GetData()),
                      elem_error.Size());
    return RefineByError(tmp, threshold, nonconforming, nc_limit);
 }
@@ -11247,7 +11247,7 @@ void Mesh::PrintVTK(std::ostream &os, int ref, int field_data)
    {
       Array<int> coloring;
       srand((unsigned)time(0));
-      double a = double(rand()) / (double(RAND_MAX) + 1.);
+      fptype a = fptype(rand()) / (fptype(RAND_MAX) + 1.);
       int el0 = (int)floor(a * GetNE());
       GetElementColoring(coloring, el0);
       os << "SCALARS element_coloring int\n"
@@ -11902,13 +11902,13 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &os) const
    }
 }
 
-void Mesh::ScaleSubdomains(double sf)
+void Mesh::ScaleSubdomains(fptype sf)
 {
    int i,j,k;
    Array<int> vert;
    DenseMatrix pointmat;
    int na = attributes.Size();
-   double *cg = new double[na*spaceDim];
+   fptype *cg = new fptype[na*spaceDim];
    int *nbea = new int[na];
 
    int *vn = new int[NumOfVertices];
@@ -11972,13 +11972,13 @@ void Mesh::ScaleSubdomains(double sf)
    delete [] vn;
 }
 
-void Mesh::ScaleElements(double sf)
+void Mesh::ScaleElements(fptype sf)
 {
    int i,j,k;
    Array<int> vert;
    DenseMatrix pointmat;
    int na = NumOfElements;
-   double *cg = new double[na*spaceDim];
+   fptype *cg = new fptype[na*spaceDim];
    int *nbea = new int[na];
 
    int *vn = new int[NumOfVertices];
@@ -12325,14 +12325,14 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
    elem_ids = -1;
    if (!GetNE()) { return 0; }
 
-   double *data = point_mat.GetData();
+   fptype *data = point_mat.GetData();
    InverseElementTransformation *inv_tr = inv_trans;
    inv_tr = inv_tr ? inv_tr : new InverseElementTransformation;
 
    // For each point in 'point_mat', find the element whose center is closest.
    Vector min_dist(npts);
    Array<int> e_idx(npts);
-   min_dist = std::numeric_limits<double>::max();
+   min_dist = std::numeric_limits<fptype>::max();
    e_idx = -1;
 
    Vector pt(spaceDim);
@@ -12342,7 +12342,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
          Geometries.GetCenter(GetElementBaseGeometry(i)), pt);
       for (int k = 0; k < npts; k++)
       {
-         double dist = pt.DistanceTo(data+k*spaceDim);
+         fptype dist = pt.DistanceTo(data+k*spaceDim);
          if (dist < min_dist(k))
          {
             min_dist(k) = dist;
@@ -12428,7 +12428,7 @@ int Mesh::FindPoints(DenseMatrix &point_mat, Array<int>& elem_ids,
 }
 
 void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
-                                              double &volume,
+                                              fptype &volume,
                                               Vector &aspr,
                                               Vector &skew,
                                               Vector &ori) const
@@ -12469,7 +12469,7 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
       J.GetColumn(0, col1);
       J.GetColumn(1, col2);
       J.GetColumn(2, col3);
-      double len1 = col1.Norml2(),
+      fptype len1 = col1.Norml2(),
              len2 = col2.Norml2(),
              len3 = col3.Norml2();
 
@@ -12515,7 +12515,7 @@ void Mesh::GetGeometricParametersFromJacobian(const DenseMatrix &J,
       // Third column
       rot1 /= rot1.Norml2();
       for (int d=0; d < Dim; d++) { rot(d, 2) = rot1(d); }
-      double delta = sqrt(pow(rot(2,1)-rot(1,2), 2.0) +
+      fptype delta = sqrt(pow(rot(2,1)-rot(1,2), 2.0) +
                           pow(rot(0,2)-rot(2,0), 2.0) +
                           pow(rot(1,0)-rot(0,1), 2.0));
       ori = 0.0;
@@ -12684,7 +12684,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
 }
 
 NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int n_,
-                                               const double s_)
+                                               const fptype s_)
    : VectorCoefficient(dim), n(n_), s(s_), tip(p, dim-1)
 {
 }
@@ -12707,7 +12707,7 @@ void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 
-Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
+Mesh *Extrude1D(Mesh *mesh, const int ny, const fptype sy, const bool closed)
 {
    if (mesh->Dimension() != 1)
    {
@@ -12729,13 +12729,13 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
                         mesh->GetNBE()*ny+2*mesh->GetNE());
 
    // vertices
-   double vc[2];
+   fptype vc[2];
    for (int i = 0; i < mesh->GetNV(); i++)
    {
       vc[0] = mesh->GetVertex(i)[0];
       for (int j = 0; j < nvy; j++)
       {
-         vc[1] = sy * (double(j) / ny);
+         vc[1] = sy * (fptype(j) / ny);
          mesh2d->AddVertex(vc);
       }
    }
@@ -12867,7 +12867,7 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
    return mesh2d;
 }
 
-Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
+Mesh *Extrude2D(Mesh *mesh, const int nz, const fptype sz)
 {
    if (mesh->Dimension() != 2)
    {
@@ -12885,14 +12885,14 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    bool hexMesh = false;
 
    // vertices
-   double vc[3];
+   fptype vc[3];
    for (int i = 0; i < mesh->GetNV(); i++)
    {
       vc[0] = mesh->GetVertex(i)[0];
       vc[1] = mesh->GetVertex(i)[1];
       for (int j = 0; j < nvz; j++)
       {
-         vc[2] = sz * (double(j) / nz);
+         vc[2] = sz * (fptype(j) / nz);
          mesh3d->AddVertex(vc);
       }
    }
@@ -13100,7 +13100,7 @@ void Mesh::DebugDump(std::ostream &os) const
    os << NumOfVertices + NumOfEdges << "\n";
    for (int i = 0; i < NumOfVertices; i++)
    {
-      const double *v = GetVertex(i);
+      const fptype *v = GetVertex(i);
       os << i << " " << v[0] << " " << v[1] << " " << v[2]
          << " 0 0 " << i << " -1 0\n";
    }
@@ -13109,7 +13109,7 @@ void Mesh::DebugDump(std::ostream &os) const
    for (int i = 0; i < NumOfEdges; i++)
    {
       GetEdgeVertices(i, ev);
-      double mid[3] = {0, 0, 0};
+      fptype mid[3] = {0, 0, 0};
       for (int j = 0; j < 2; j++)
       {
          for (int k = 0; k < spaceDim; k++)

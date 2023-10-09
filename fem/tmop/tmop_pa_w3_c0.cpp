@@ -18,15 +18,15 @@
 namespace mfem
 {
 
-MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
-                           const double lim_normal,
+MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_C0_3D,
+                           const fptype lim_normal,
                            const Vector &lim_dist,
                            const Vector &c0_,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<double> &w_,
-                           const Array<double> &b_,
-                           const Array<double> &bld_,
+                           const Array<fptype> &w_,
+                           const Array<fptype> &b_,
+                           const Array<fptype> &bld_,
                            const Vector &x0_,
                            const Vector &x1_,
                            const Vector &ones,
@@ -62,27 +62,27 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
-      MFEM_SHARED double B[MQ1*MD1];
-      MFEM_SHARED double sBLD[MQ1*MD1];
+      MFEM_SHARED fptype B[MQ1*MD1];
+      MFEM_SHARED fptype sBLD[MQ1*MD1];
       kernels::internal::LoadB<MD1,MQ1>(D1D,Q1D,bld,sBLD);
       ConstDeviceMatrix BLD(sBLD, D1D, Q1D);
 
-      MFEM_SHARED double sm0[MDQ*MDQ*MDQ];
-      MFEM_SHARED double sm1[MDQ*MDQ*MDQ];
+      MFEM_SHARED fptype sm0[MDQ*MDQ*MDQ];
+      MFEM_SHARED fptype sm1[MDQ*MDQ*MDQ];
       DeviceCube DDD(sm0, MD1,MD1,MD1);
       DeviceCube DDQ(sm1, MD1,MD1,MQ1);
       DeviceCube DQQ(sm0, MD1,MQ1,MQ1);
       DeviceCube QQQ(sm1, MQ1,MQ1,MQ1);
 
-      MFEM_SHARED double DDD0[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ0[3][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ0[3][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ0[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED fptype DDD0[3][MD1*MD1*MD1];
+      MFEM_SHARED fptype DDQ0[3][MD1*MD1*MQ1];
+      MFEM_SHARED fptype DQQ0[3][MD1*MQ1*MQ1];
+      MFEM_SHARED fptype QQQ0[3][MQ1*MQ1*MQ1];
 
-      MFEM_SHARED double DDD1[3][MD1*MD1*MD1];
-      MFEM_SHARED double DDQ1[3][MD1*MD1*MQ1];
-      MFEM_SHARED double DQQ1[3][MD1*MQ1*MQ1];
-      MFEM_SHARED double QQQ1[3][MQ1*MQ1*MQ1];
+      MFEM_SHARED fptype DDD1[3][MD1*MD1*MD1];
+      MFEM_SHARED fptype DDQ1[3][MD1*MD1*MQ1];
+      MFEM_SHARED fptype DQQ1[3][MD1*MQ1*MQ1];
+      MFEM_SHARED fptype QQQ1[3][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX(e,D1D,LD,DDD);
       kernels::internal::LoadX<MD1>(e,D1D,X0,DDD0);
@@ -108,19 +108,19 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double D, p0[3], p1[3];
-               const double *Jtr = &J(0,0,qx,qy,qz,e);
-               const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = W(qx,qy,qz) * detJtr;
-               const double coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
+               fptype D, p0[3], p1[3];
+               const fptype *Jtr = &J(0,0,qx,qy,qz,e);
+               const fptype detJtr = kernels::Det<3>(Jtr);
+               const fptype weight = W(qx,qy,qz) * detJtr;
+               const fptype coeff0 = const_c0 ? C0(0,0,0,0) : C0(qx,qy,qz,e);
 
                kernels::internal::PullEval(qx,qy,qz,QQQ,D);
                kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ0,p0);
                kernels::internal::PullEval<MQ1>(Q1D,qx,qy,qz,QQQ1,p1);
 
-               const double dist = D; // GetValues, default comp set to 0
-               double id2 = 0.0;
-               double dsq = 0.0;
+               const fptype dist = D; // GetValues, default comp set to 0
+               fptype id2 = 0.0;
+               fptype dsq = 0.0;
                if (!exp_lim)
                {
                   id2 = 0.5 / (dist*dist);
@@ -140,18 +140,18 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_3D,
    return energy * ones;
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X) const
+fptype TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const double ln = lim_normal;
+   const fptype ln = lim_normal;
    const Vector &LD = PA.LD;
    const DenseTensor &J = PA.Jtr;
-   const Array<double> &W = PA.ir->GetWeights();
-   const Array<double> &B = PA.maps->B;
-   const Array<double> &BLD = PA.maps_lim->B;
+   const Array<fptype> &W = PA.ir->GetWeights();
+   const Array<fptype> &B = PA.maps->B;
+   const Array<fptype> &BLD = PA.maps_lim->B;
    MFEM_VERIFY(PA.maps_lim->ndof == D1D, "");
    MFEM_VERIFY(PA.maps_lim->nqpt == Q1D, "");
    const Vector &X0 = PA.X0;

@@ -65,21 +65,21 @@ class ComplexFactors
 protected:
 
    // returns a new complex array
-   std::complex<double> * RealToComplex(int m, const double * x_r,
-                                        const double * x_i) const;
+   std::complex<fptype> * RealToComplex(int m, const fptype * x_r,
+                                        const fptype * x_i) const;
    // copies the given complex array to real and imag arrays
-   void ComplexToReal(int m, const std::complex<double> * x, double * x_r,
-                      double * x_i) const;
+   void ComplexToReal(int m, const std::complex<fptype> * x, fptype * x_r,
+                      fptype * x_i) const;
 
 public:
 
-   double *data_r = nullptr;
-   double *data_i = nullptr;
-   std::complex<double> * data = nullptr;
+   fptype *data_r = nullptr;
+   fptype *data_i = nullptr;
+   std::complex<fptype> * data = nullptr;
 
    ComplexFactors() { }
 
-   ComplexFactors(double *data_r_, double *data_i_)
+   ComplexFactors(fptype *data_r_, fptype *data_i_)
       : data_r(data_r_), data_i(data_i_) { }
 
    void SetComplexData(int m);
@@ -90,24 +90,24 @@ public:
       SetComplexData(m);
    }
 
-   virtual bool Factor(int m, double TOL = 0.0)
+   virtual bool Factor(int m, fptype TOL = 0.0)
    {
       mfem_error("ComplexFactors::ComplexFactors(...)");
       return false;
    }
 
-   virtual std::complex<double> Det(int m) const
+   virtual std::complex<fptype> Det(int m) const
    {
       mfem_error("Factors::Det(...)");
       return 0.;
    }
 
-   virtual void Solve(int m, int n, double *X_r, double * X_i) const
+   virtual void Solve(int m, int n, fptype *X_r, fptype * X_i) const
    {
       mfem_error("Factors::Solve(...)");
    }
 
-   virtual void GetInverseMatrix(int m, double *X_r, double * X_i) const
+   virtual void GetInverseMatrix(int m, fptype *X_r, fptype * X_i) const
    {
       mfem_error("Factors::GetInverseMatrix(...)");
    }
@@ -134,7 +134,7 @@ public:
        explicitly before calling class methods. */
    ComplexLUFactors(): ComplexFactors() { }
 
-   ComplexLUFactors(double *data_r_,double * data_i, int *ipiv_)
+   ComplexLUFactors(fptype *data_r_,fptype * data_i, int *ipiv_)
       : ComplexFactors(data_r_, data_i), ipiv(ipiv_) { }
    /**
     * @brief Compute the LU factorization of the current matrix
@@ -148,36 +148,36 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, double TOL = 0.0);
+   virtual bool Factor(int m, fptype TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   virtual std::complex<double> Det(int m) const;
+   virtual std::complex<fptype> Det(int m) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
-   void Mult(int m, int n, double *X_r, double * X_i) const;
+   void Mult(int m, int n, fptype *X_r, fptype * X_i) const;
 
-   void Mult(int m, int n, std::complex<double> *X) const;
+   void Mult(int m, int n, std::complex<fptype> *X) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute
        X <- L^{-1} P X, for a matrix X of size (m x n). */
-   void LSolve(int m, int n, double *X_r, double *X_i) const;
+   void LSolve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute
        X <- U^{-1} X, for a matrix X of size (m x n). */
-   void USolve(int m, int n, double *X_r, double *X_i) const;
+   void USolve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, double *X_r, double *X_i) const;
+   virtual void Solve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
-   void RightSolve(int m, int n, double *X_r, double *X_i) const;
+   void RightSolve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, double *X_r, double * X_i) const;
+   virtual void GetInverseMatrix(int m, fptype *X_r, fptype * X_i) const;
 };
 
 
@@ -191,7 +191,7 @@ public:
        explicitly before calling class methods. */
    ComplexCholeskyFactors() : ComplexFactors() { }
 
-   ComplexCholeskyFactors(double *data_r_, double * data_i_)
+   ComplexCholeskyFactors(fptype *data_r_, fptype * data_i_)
       : ComplexFactors(data_r_, data_i_) { }
 
    /**
@@ -206,38 +206,38 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, double TOL = 0.0);
+   virtual bool Factor(int m, fptype TOL = 0.0);
 
    /** Assuming LL^H = A factored data of size (m x m), compute |A|
        from the diagonal values of L */
-   virtual std::complex<double> Det(int m) const;
+   virtual std::complex<fptype> Det(int m) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- L X,
        for a matrix X of size (m x n). */
-   void LMult(int m, int n, double *X_r, double * X_i) const;
+   void LMult(int m, int n, fptype *X_r, fptype * X_i) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- L^t X,
        for a matrix X of size (m x n). */
-   void UMult(int m, int n, double *X_r, double *X_i) const;
+   void UMult(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /** Assuming L L^H = A factored data of size (m x m), compute
        X <- L^{-1} X, for a matrix X of size (m x n). */
-   void LSolve(int m, int n, double *X_r, double * X_i) const;
+   void LSolve(int m, int n, fptype *X_r, fptype * X_i) const;
 
    /** Assuming L L^H = A factored data of size (m x m), compute
        X <- L^{-t} X, for a matrix X of size (m x n). */
-   void USolve(int m, int n, double *X_r, double *X_i) const;
+   void USolve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, double *X_r, double * X_i) const;
+   virtual void Solve(int m, int n, fptype *X_r, fptype * X_i) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
-   void RightSolve(int m, int n, double *X_r, double *X_i) const;
+   void RightSolve(int m, int n, fptype *X_r, fptype *X_i) const;
 
    /// Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, double *X_r, double * X_i) const;
+   virtual void GetInverseMatrix(int m, fptype *X_r, fptype * X_i) const;
 
 };
 

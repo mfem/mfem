@@ -27,9 +27,9 @@ namespace quadrature_interpolator
 {
 
 static void Det1D(const int NE,
-                  const double *g,
-                  const double *x,
-                  double *y,
+                  const fptype *g,
+                  const fptype *x,
+                  fptype *y,
                   const int d1d,
                   const int q1d)
 {
@@ -42,7 +42,7 @@ static void Det1D(const int NE,
    {
       for (int q = 0; q < q1d; q++)
       {
-         double u = 0.0;
+         fptype u = 0.0;
          for (int d = 0; d < d1d; d++)
          {
             u += G(q, d) * X(d, e);
@@ -54,10 +54,10 @@ static void Det1D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void Det2D(const int NE,
-                  const double *b,
-                  const double *g,
-                  const double *x,
-                  double *y,
+                  const fptype *b,
+                  const fptype *g,
+                  const fptype *x,
+                  fptype *y,
                   const int vdim = 1,
                   const int d1d = 0,
                   const int q1d = 0)
@@ -80,10 +80,10 @@ static void Det2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
+      MFEM_SHARED fptype BG[2][MQ1*MD1];
+      MFEM_SHARED fptype XY[2][NBZ][MD1*MD1];
+      MFEM_SHARED fptype DQ[4][NBZ][MD1*MQ1];
+      MFEM_SHARED fptype QQ[4][NBZ][MQ1*MQ1];
 
       kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
@@ -95,7 +95,7 @@ static void Det2D(const int NE,
       {
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
-            double J[4];
+            fptype J[4];
             kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
             Y(qx,qy,e) = kernels::Det<2>(J);
          }
@@ -105,10 +105,10 @@ static void Det2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
 static void Det3D(const int NE,
-                  const double *b,
-                  const double *g,
-                  const double *x,
-                  double *y,
+                  const fptype *b,
+                  const fptype *g,
+                  const fptype *x,
+                  fptype *y,
                   const int vdim = 1,
                   const int d1d = 0,
                   const int q1d = 0,
@@ -125,7 +125,7 @@ static void Det3D(const int NE,
    const auto X = Reshape(x, D1D, D1D, D1D, DIM, NE);
    auto Y = Reshape(y, Q1D, Q1D, Q1D, NE);
 
-   double *GM = nullptr;
+   fptype *GM = nullptr;
    if (!SMEM)
    {
       const DeviceDofQuadLimits &limits = DeviceDofQuadLimits::Get();
@@ -147,15 +147,15 @@ static void Det3D(const int NE,
       static constexpr int MSZ = MDQ * MDQ * MDQ * 9;
 
       const int bid = MFEM_BLOCK_ID(x);
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double SM0[SMEM?MSZ:1];
-      MFEM_SHARED double SM1[SMEM?MSZ:1];
-      double *lm0 = SMEM ? SM0 : GM + MSZ*bid;
-      double *lm1 = SMEM ? SM1 : GM + MSZ*(GRID+bid);
-      double (*DDD)[MD1*MD1*MD1] = (double (*)[MD1*MD1*MD1]) (lm0);
-      double (*DDQ)[MD1*MD1*MQ1] = (double (*)[MD1*MD1*MQ1]) (lm1);
-      double (*DQQ)[MD1*MQ1*MQ1] = (double (*)[MD1*MQ1*MQ1]) (lm0);
-      double (*QQQ)[MQ1*MQ1*MQ1] = (double (*)[MQ1*MQ1*MQ1]) (lm1);
+      MFEM_SHARED fptype BG[2][MQ1*MD1];
+      MFEM_SHARED fptype SM0[SMEM?MSZ:1];
+      MFEM_SHARED fptype SM1[SMEM?MSZ:1];
+      fptype *lm0 = SMEM ? SM0 : GM + MSZ*bid;
+      fptype *lm1 = SMEM ? SM1 : GM + MSZ*(GRID+bid);
+      fptype (*DDD)[MD1*MD1*MD1] = (fptype (*)[MD1*MD1*MD1]) (lm0);
+      fptype (*DDQ)[MD1*MD1*MQ1] = (fptype (*)[MD1*MD1*MQ1]) (lm1);
+      fptype (*DQQ)[MD1*MQ1*MQ1] = (fptype (*)[MD1*MQ1*MQ1]) (lm0);
+      fptype (*QQQ)[MQ1*MQ1*MQ1] = (fptype (*)[MQ1*MQ1*MQ1]) (lm1);
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
@@ -170,7 +170,7 @@ static void Det3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               double J[9];
+               fptype J[9];
                kernels::internal::PullGrad<MQ1>(Q1D, qx,qy,qz, QQQ, J);
                Y(qx,qy,qz,e) = kernels::Det<3>(J);
             }
@@ -192,10 +192,10 @@ void TensorDeterminants(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const double *B = maps.B.Read();
-   const double *G = maps.G.Read();
-   const double *X = e_vec.Read();
-   double *Y = q_det.Write();
+   const fptype *B = maps.B.Read();
+   const fptype *G = maps.G.Read();
+   const fptype *X = e_vec.Read();
+   fptype *Y = q_det.Write();
 
    const int id = (vdim<<8) | (D1D<<4) | Q1D;
 

@@ -57,15 +57,15 @@ public:
 
    bool isElement(int i) const { return (knot(Order+i) != knot(Order+i+1)); }
 
-   double getKnotLocation(double xi, int ni) const
+   fptype getKnotLocation(fptype xi, int ni) const
    { return (xi*knot(ni+1) + (1. - xi)*knot(ni)); }
 
-   int findKnotSpan(double u) const;
+   int findKnotSpan(fptype u) const;
 
-   void CalcShape  (Vector &shape, int i, double xi) const;
-   void CalcDShape (Vector &grad,  int i, double xi) const;
-   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
-   void CalcD2Shape(Vector &grad2, int i, double xi) const
+   void CalcShape  (Vector &shape, int i, fptype xi) const;
+   void CalcDShape (Vector &grad,  int i, fptype xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, fptype xi) const;
+   void CalcD2Shape(Vector &grad2, int i, fptype xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
    /** Gives the locations of the maxima of the knotvector in reference space. The
@@ -93,8 +93,8 @@ public:
    /// Destroys KnotVector
    ~KnotVector() { }
 
-   double &operator[](int i) { return knot(i); }
-   const double &operator[](int i) const { return knot(i); }
+   fptype &operator[](int i) { return knot(i); }
+   const fptype &operator[](int i) const { return knot(i); }
 };
 
 
@@ -102,7 +102,7 @@ class NURBSPatch
 {
 protected:
    int     ni, nj, nk, Dim;
-   double *data; // the layout of data is: (Dim x ni x nj x nk)
+   fptype *data; // the layout of data is: (Dim x ni x nj x nk)
 
    Array<KnotVector *> kv;
 
@@ -117,8 +117,8 @@ protected:
    int ls; // Number of variables per knot in flattened structure
    int sd; // Stride for data access
    int SetLoopDirection(int dir);
-   inline       double &slice(int i, int j);
-   inline const double &slice(int i, int j) const;
+   inline       fptype &slice(int i, int j);
+   inline const fptype &slice(int i, int j) const;
 
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
    void swap(NURBSPatch *np);
@@ -155,18 +155,18 @@ public:
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
-   inline       double &operator()(int i, int j);
-   inline const double &operator()(int i, int j) const;
+   inline       fptype &operator()(int i, int j);
+   inline const fptype &operator()(int i, int j) const;
 
-   inline       double &operator()(int i, int j, int l);
-   inline const double &operator()(int i, int j, int l) const;
+   inline       fptype &operator()(int i, int j, int l);
+   inline const fptype &operator()(int i, int j, int l) const;
 
-   inline       double &operator()(int i, int j, int k, int l);
-   inline const double &operator()(int i, int j, int k, int l) const;
+   inline       fptype &operator()(int i, int j, int k, int l);
+   inline const fptype &operator()(int i, int j, int k, int l) const;
 
-   static void Get2DRotationMatrix(double angle,
+   static void Get2DRotationMatrix(fptype angle,
                                    DenseMatrix &T);
-   static void Get3DRotationMatrix(double n[], double angle, double r,
+   static void Get3DRotationMatrix(fptype n[], fptype angle, fptype r,
                                    DenseMatrix &T);
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
@@ -174,15 +174,15 @@ public:
    /// Rotate the NURBSPatch.
    /** A rotation of a 2D NURBS-patch requires an angle only. Rotating
        a 3D NURBS-patch requires a normal as well.*/
-   void Rotate(double angle, double normal[]= NULL);
-   void Rotate2D(double angle);
-   void Rotate3D(double normal[], double angle);
+   void Rotate(fptype angle, fptype normal[]= NULL);
+   void Rotate2D(fptype angle);
+   void Rotate3D(fptype normal[], fptype angle);
 
    int MakeUniformDegree(int degree = -1);
    /// @note The returned object should be deleted by the caller.
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
    /// @note The returned object should be deleted by the caller.
-   friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
+   friend NURBSPatch *Revolve3D(NURBSPatch &patch, fptype n[], fptype ang,
                                 int times);
 };
 
@@ -583,7 +583,7 @@ public:
 
 // Inline function implementations
 
-inline double &NURBSPatch::slice(int i, int j)
+inline fptype &NURBSPatch::slice(int i, int j)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -594,7 +594,7 @@ inline double &NURBSPatch::slice(int i, int j)
    return data[j%sd + sd*(i + (j/sd)*nd)];
 }
 
-inline const double &NURBSPatch::slice(int i, int j) const
+inline const fptype &NURBSPatch::slice(int i, int j) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= nd || j < 0 || j > ls)
@@ -606,7 +606,7 @@ inline const double &NURBSPatch::slice(int i, int j) const
 }
 
 
-inline double &NURBSPatch::operator()(int i, int l)
+inline fptype &NURBSPatch::operator()(int i, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || nj > 0 || nk > 0 ||
@@ -619,7 +619,7 @@ inline double &NURBSPatch::operator()(int i, int l)
    return data[i*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int l) const
+inline const fptype &NURBSPatch::operator()(int i, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni ||  nj > 0 || nk > 0 ||
@@ -632,7 +632,7 @@ inline const double &NURBSPatch::operator()(int i, int l) const
    return data[i*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int l)
+inline fptype &NURBSPatch::operator()(int i, int j, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -645,7 +645,7 @@ inline double &NURBSPatch::operator()(int i, int j, int l)
    return data[(i+j*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int l) const
+inline const fptype &NURBSPatch::operator()(int i, int j, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || nk > 0 ||
@@ -658,7 +658,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int l) const
    return data[(i+j*ni)*Dim+l];
 }
 
-inline double &NURBSPatch::operator()(int i, int j, int k, int l)
+inline fptype &NURBSPatch::operator()(int i, int j, int k, int l)
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||
@@ -671,7 +671,7 @@ inline double &NURBSPatch::operator()(int i, int j, int k, int l)
    return data[(i+(j+k*nj)*ni)*Dim+l];
 }
 
-inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
+inline const fptype &NURBSPatch::operator()(int i, int j, int k, int l) const
 {
 #ifdef MFEM_DEBUG
    if (data == 0 || i < 0 || i >= ni || j < 0 || j >= nj || k < 0 ||

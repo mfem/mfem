@@ -56,7 +56,7 @@ void BilinearForm::AllocMat()
 
    int *I = dof_dof.GetI();
    int *J = dof_dof.GetJ();
-   double *data = Memory<double>(I[height]);
+   fptype *data = Memory<fptype>(I[height]);
 
    mat = new SparseMatrix(I, J, data, height, height, true, true, true);
    *mat = 0.0;
@@ -208,12 +208,12 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
    UseSparsity(A.GetI(), A.GetJ(), A.ColumnsAreSorted());
 }
 
-double& BilinearForm::Elem (int i, int j)
+fptype& BilinearForm::Elem (int i, int j)
 {
    return mat -> Elem(i,j);
 }
 
-const double& BilinearForm::Elem (int i, int j) const
+const fptype& BilinearForm::Elem (int i, int j) const
 {
    return mat -> Elem(i,j);
 }
@@ -996,7 +996,7 @@ void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 }
 
 void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
-                                             double value)
+                                             fptype value)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -1082,7 +1082,7 @@ void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
 }
 
 void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
-                                                     double value)
+                                                     fptype value)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
@@ -1264,12 +1264,12 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    }
 }
 
-double & MixedBilinearForm::Elem (int i, int j)
+fptype & MixedBilinearForm::Elem (int i, int j)
 {
    return (*mat)(i, j);
 }
 
-const double & MixedBilinearForm::Elem (int i, int j) const
+const fptype & MixedBilinearForm::Elem (int i, int j) const
 {
    return (*mat)(i, j);
 }
@@ -1281,7 +1281,7 @@ void MixedBilinearForm::Mult(const Vector & x, Vector & y) const
 }
 
 void MixedBilinearForm::AddMult(const Vector & x, Vector & y,
-                                const double a) const
+                                const fptype a) const
 {
    if (ext)
    {
@@ -1300,7 +1300,7 @@ void MixedBilinearForm::MultTranspose(const Vector & x, Vector & y) const
 }
 
 void MixedBilinearForm::AddMultTranspose(const Vector & x, Vector & y,
-                                         const double a) const
+                                         const fptype a) const
 {
    if (ext)
    {

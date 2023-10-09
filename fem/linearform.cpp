@@ -403,7 +403,7 @@ void LinearForm::AssembleDelta()
    }
 }
 
-LinearForm & LinearForm::operator=(double value)
+LinearForm & LinearForm::operator=(fptype value)
 {
    Vector::operator=(value);
    return *this;

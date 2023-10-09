@@ -204,8 +204,8 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int     *J_r = (A_r)?A_r->GetJ():NULL;
    const int     *J_i = (A_i)?A_i->GetJ():NULL;
 
-   const double  *D_r = (A_r)?A_r->GetData():NULL;
-   const double  *D_i = (A_i)?A_i->GetData():NULL;
+   const fptype  *D_r = (A_r)?A_r->GetData():NULL;
+   const fptype  *D_i = (A_i)?A_i->GetData():NULL;
 
    const int    nnz_r = (I_r)?I_r[nrows]:0;
    const int    nnz_i = (I_i)?I_i[nrows]:0;
@@ -213,9 +213,9 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 
    int    *I = Memory<int>(this->Height()+1);
    int    *J = Memory<int>(nnz);
-   double *D = Memory<double>(nnz);
+   fptype *D = Memory<fptype>(nnz);
 
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const fptype factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    I[0] = 0;
    I[nrows] = nnz_r + nnz_i;
@@ -308,8 +308,8 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    const int * Ap =
       mat->real().HostReadI(); // assuming real and imag have the same sparsity
    const int * Ai = mat->real().HostReadJ();
-   const double * Ax = mat->real().HostReadData();
-   const double * Az = mat->imag().HostReadData();
+   const fptype * Ax = mat->real().HostReadData();
+   const fptype * Az = mat->imag().HostReadData();
 
    if (!use_long_ints)
    {
@@ -384,8 +384,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    x.HostReadWrite();
 
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   fptype * datax = x.GetData();
+   fptype * datab = b.GetData();
 
    // For the Block Symmetric case data the imaginary part
    // has to be scaled by -1
@@ -439,8 +439,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    b.HostRead();
    x.HostReadWrite();
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   fptype * datax = x.GetData();
+   fptype * datab = b.GetData();
 
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;

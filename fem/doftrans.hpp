@@ -85,7 +85,7 @@ public:
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
    virtual void TransformPrimal(const Array<int> & face_orientation,
-                                double *v) const = 0;
+                                fptype *v) const = 0;
    inline void TransformPrimal(const Array<int> & face_orientation,
                                Vector &v) const
    { TransformPrimal(face_orientation, v.GetData()); }
@@ -96,7 +96,7 @@ public:
        can be used to compute a local interpolation.
    */
    virtual void InvTransformPrimal(const Array<int> & face_orientation,
-                                   double *v) const = 0;
+                                   fptype *v) const = 0;
    inline void InvTransformPrimal(const Array<int> & face_orientation,
                                   Vector &v) const
    { InvTransformPrimal(face_orientation, v.GetData()); }
@@ -104,14 +104,14 @@ public:
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
    virtual void TransformDual(const Array<int> & face_orientation,
-                              double *v) const = 0;
+                              fptype *v) const = 0;
    inline void TransformDual(const Array<int> & face_orientation,
                              Vector &v) const
    { TransformDual(face_orientation, v.GetData()); }
 
    /** Inverse Transform dual DoFs */
    virtual void InvTransformDual(const Array<int> & face_orientation,
-                                 double *v) const = 0;
+                                 fptype *v) const = 0;
    inline void InvTransformDual(const Array<int> & face_orientation,
                                 Vector &v) const
    { InvTransformDual(face_orientation, v.GetData()); }
@@ -160,7 +160,7 @@ public:
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
-   inline void TransformPrimal(double *v) const
+   inline void TransformPrimal(fptype *v) const
    { TransformPrimal(Fo, v); }
    inline void TransformPrimal(Vector &v) const
    { TransformPrimal(v.GetData()); }
@@ -179,20 +179,20 @@ public:
        transform the vector obtained using GridFunction::GetSubVector before it
        can be used to compute a local interpolation.
    */
-   inline void InvTransformPrimal(double *v) const
+   inline void InvTransformPrimal(fptype *v) const
    { InvTransformPrimal(Fo, v); }
    inline void InvTransformPrimal(Vector &v) const
    { InvTransformPrimal(v.GetData()); }
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
-   inline void TransformDual(double *v) const
+   inline void TransformDual(fptype *v) const
    { TransformDual(Fo, v); }
    inline void TransformDual(Vector &v) const
    { TransformDual(v.GetData()); }
 
    /** Inverse Transform dual DoFs */
-   inline void InvTransformDual(double *v) const
+   inline void InvTransformDual(fptype *v) const
    { InvTransformDual(Fo, v); }
    inline void InvTransformDual(Vector &v) const
    { InvTransformDual(v.GetData()); }
@@ -308,10 +308,10 @@ public:
    /** Specializations of these base class methods which account for the vdim
        and ordering of the full set of DoFs.
    */
-   void TransformPrimal(const Array<int> & face_ori, double *v) const;
-   void InvTransformPrimal(const Array<int> & face_ori, double *v) const;
-   void TransformDual(const Array<int> & face_ori, double *v) const;
-   void InvTransformDual(const Array<int> & face_ori, double *v) const;
+   void TransformPrimal(const Array<int> & face_ori, fptype *v) const;
+   void InvTransformPrimal(const Array<int> & face_ori, fptype *v) const;
+   void TransformDual(const Array<int> & face_ori, fptype *v) const;
+   void InvTransformDual(const Array<int> & face_ori, fptype *v) const;
 };
 
 /** The VDofTransformation class implements a nested transformation where an
@@ -374,13 +374,13 @@ public:
    using DofTransformation::TransformDual;
    using DofTransformation::InvTransformDual;
 
-   inline void TransformPrimal(double *v) const
+   inline void TransformPrimal(fptype *v) const
    { TransformPrimal(Fo, v); }
-   inline void InvTransformPrimal(double *v) const
+   inline void InvTransformPrimal(fptype *v) const
    { InvTransformPrimal(Fo, v); }
-   inline void TransformDual(double *v) const
+   inline void TransformDual(fptype *v) const
    { TransformDual(Fo, v); }
-   inline void InvTransformDual(double *v) const
+   inline void InvTransformDual(fptype *v) const
    { InvTransformDual(Fo, v); }
 };
 
@@ -399,8 +399,8 @@ public:
 class ND_StatelessDofTransformation : virtual public StatelessDofTransformation
 {
 private:
-   static const double T_data[24];
-   static const double TInv_data[24];
+   static const fptype T_data[24];
+   static const fptype TInv_data[24];
    static const DenseTensor T, TInv;
 
 protected:
@@ -422,16 +422,16 @@ public:
    { return TInv(ori); }
 
    void TransformPrimal(const Array<int> & face_orientation,
-                        double *v) const;
+                        fptype *v) const;
 
    void InvTransformPrimal(const Array<int> & face_orientation,
-                           double *v) const;
+                           fptype *v) const;
 
    void TransformDual(const Array<int> & face_orientation,
-                      double *v) const;
+                      fptype *v) const;
 
    void InvTransformDual(const Array<int> & face_orientation,
-                         double *v) const;
+                         fptype *v) const;
 };
 
 /// Stateless DoF transformation implementation for the Nedelec basis on

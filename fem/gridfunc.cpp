@@ -108,38 +108,38 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
       int l_nedofs = l_fes->GetNEDofs();
       int l_nfdofs = l_fes->GetNFDofs();
       int l_nddofs = l_ndofs - (l_nvdofs + l_nedofs + l_nfdofs);
-      const double *l_data = gf_array[i]->GetData();
-      double *g_data = data;
+      const fptype *l_data = gf_array[i]->GetData();
+      fptype *g_data = data;
       if (ordering == Ordering::byNODES)
       {
          for (int d = 0; d < vdim; d++)
          {
-            memcpy(g_data+vi, l_data, l_nvdofs*sizeof(double));
+            memcpy(g_data+vi, l_data, l_nvdofs*sizeof(fptype));
             l_data += l_nvdofs;
             g_data += g_nvdofs;
-            memcpy(g_data+ei, l_data, l_nedofs*sizeof(double));
+            memcpy(g_data+ei, l_data, l_nedofs*sizeof(fptype));
             l_data += l_nedofs;
             g_data += g_nedofs;
-            memcpy(g_data+fi, l_data, l_nfdofs*sizeof(double));
+            memcpy(g_data+fi, l_data, l_nfdofs*sizeof(fptype));
             l_data += l_nfdofs;
             g_data += g_nfdofs;
-            memcpy(g_data+di, l_data, l_nddofs*sizeof(double));
+            memcpy(g_data+di, l_data, l_nddofs*sizeof(fptype));
             l_data += l_nddofs;
             g_data += g_nddofs;
          }
       }
       else
       {
-         memcpy(g_data+vdim*vi, l_data, l_nvdofs*sizeof(double)*vdim);
+         memcpy(g_data+vdim*vi, l_data, l_nvdofs*sizeof(fptype)*vdim);
          l_data += vdim*l_nvdofs;
          g_data += vdim*g_nvdofs;
-         memcpy(g_data+vdim*ei, l_data, l_nedofs*sizeof(double)*vdim);
+         memcpy(g_data+vdim*ei, l_data, l_nedofs*sizeof(fptype)*vdim);
          l_data += vdim*l_nedofs;
          g_data += vdim*g_nedofs;
-         memcpy(g_data+vdim*fi, l_data, l_nfdofs*sizeof(double)*vdim);
+         memcpy(g_data+vdim*fi, l_data, l_nfdofs*sizeof(fptype)*vdim);
          l_data += vdim*l_nfdofs;
          g_data += vdim*g_nfdofs;
-         memcpy(g_data+vdim*di, l_data, l_nddofs*sizeof(double)*vdim);
+         memcpy(g_data+vdim*di, l_data, l_nddofs*sizeof(fptype)*vdim);
          l_data += vdim*l_nddofs;
          g_data += vdim*g_nddofs;
       }
@@ -200,7 +200,7 @@ void GridFunction::SetSpace(FiniteElementSpace *f)
    fes_sequence = fes->GetSequence();
 }
 
-void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
+void GridFunction::MakeRef(FiniteElementSpace *f, fptype *v)
 {
    if (f != fes) { Destroy(); }
    fes = f;
@@ -218,7 +218,7 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    fes_sequence = fes->GetSequence();
 }
 
-void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
+void GridFunction::MakeTRef(FiniteElementSpace *f, fptype *tv)
 {
    if (IsIdentityProlongation(f->GetProlongationMatrix()))
    {
@@ -392,7 +392,7 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    }
 }
 
-void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
+void GridFunction::GetNodalValues(int i, Array<fptype> &nval, int vdim) const
 {
    Array<int> vdofs;
 
@@ -446,7 +446,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    }
 }
 
-double GridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
+fptype GridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
 const
 {
    Array<int> dofs;
@@ -770,7 +770,7 @@ void be_to_bfe(Geometry::Type geom, int o, const IntegrationPoint &ip,
    fip.index  = ip.index;
 }
 
-double GridFunction::GetValue(ElementTransformation &T,
+fptype GridFunction::GetValue(ElementTransformation &T,
                               const IntegrationPoint &ip,
                               int comp, Vector *tr) const
 {
@@ -1286,7 +1286,7 @@ void GridFunction::ReorderByNodes()
    int i, j, k;
    int vdim = fes->GetVDim();
    int ndofs = fes->GetNDofs();
-   double *temp = new double[size];
+   fptype *temp = new fptype[size];
 
    k = 0;
    for (j = 0; j < ndofs; j++)
@@ -1385,7 +1385,7 @@ void GridFunction::AccumulateAndCountDerivativeValues(int comp, int der_comp,
    DenseMatrix dshape, inv_jac;
    Vector pt_grad, loc_func;
    int i, j, k, dim, dof, der_dof, ind;
-   double a;
+   fptype a;
 
    zones_per_dof = 0;
    der = 0.0;
@@ -1454,7 +1454,7 @@ void GridFunction::GetVectorGradientHat(
    MultAtB(loc_data_mat, dshape, gh);
 }
 
-double GridFunction::GetDivergence(ElementTransformation &T) const
+fptype GridFunction::GetDivergence(ElementTransformation &T) const
 {
    switch (T.ElementType)
    {
@@ -1469,7 +1469,7 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
             DenseMatrix grad_hat;
             GetVectorGradientHat(T, grad_hat);
             const DenseMatrix &Jinv = T.InverseJacobian();
-            double div_v = 0.0;
+            fptype div_v = 0.0;
             for (int i = 0; i < Jinv.Width(); i++)
             {
                for (int j = 0; j < Jinv.Height(); j++)
@@ -1917,7 +1917,7 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
    MFEM_ASSERT(hi_.Size() == size, "Different # of upper bounds and dofs.");
 
    int max_iter = 30;
-   double tol = 1.e-12;
+   fptype tol = 1.e-12;
    SLBQPOptimizer slbqp;
    slbqp.SetMaxIter(max_iter);
    slbqp.SetAbsTol(1.0e-18);
@@ -1935,7 +1935,7 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
 }
 
 void GridFunction::ImposeBounds(int i, const Vector &weights,
-                                double min_, double max_)
+                                fptype min_, fptype max_)
 {
    Array<int> vdofs;
    DofTransformation * doftrans = fes->GetElementVDofs(i, vdofs);
@@ -1947,8 +1947,8 @@ void GridFunction::ImposeBounds(int i, const Vector &weights,
       doftrans->InvTransformPrimal(vals);
    }
 
-   double max_val = vals.Max();
-   double min_val = vals.Min();
+   fptype max_val = vals.Max();
+   fptype min_val = vals.Min();
 
    if (max_val <= min_)
    {
@@ -1990,7 +1990,7 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 {
    int i, j;
    Array<int> vertices;
-   Array<double> values;
+   Array<fptype> values;
    Array<int> overlap(fes->GetNV());
    nval.SetSize(fes->GetNV());
 
@@ -2131,7 +2131,7 @@ void GridFunction::AccumulateAndCountBdrValues(
    Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
-   double val;
+   fptype val;
    const FiniteElement *fe;
    ElementTransformation *transf;
    Array<int> vdofs;
@@ -2255,7 +2255,7 @@ static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
    for (int i = 0; i < dofs.Size(); i++)
    {
       int k = dofs[i];
-      double val = vals(i);
+      fptype val = vals(i);
       if (k < 0) { k = -1 - k; val = -val; }
       if (++values_counter[k] == 1)
       {
@@ -2346,7 +2346,7 @@ void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 }
 
 void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
-                                           double &integral)
+                                           fptype &integral)
 {
    if (!fes->GetNE())
    {
@@ -2356,9 +2356,9 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
-   const double *center = delta_coeff.Center();
-   const double *vert = mesh->GetVertex(0);
-   double min_dist, dist;
+   const fptype *center = delta_coeff.Center();
+   const fptype *vert = mesh->GetVertex(0);
+   fptype min_dist, dist;
    int v_idx = 0;
 
    // find the vertex closest to the center of the delta function
@@ -2436,7 +2436,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
    }
    else
    {
-      double integral;
+      fptype integral;
 
       ProjectDeltaCoefficient(*delta_c, integral);
 
@@ -2552,7 +2552,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
 void GridFunction::ProjectCoefficient(Coefficient *coeff[])
 {
    int i, j, fdof, d, ind, vdim;
-   double val;
+   fptype val;
    const FiniteElement *fe;
    ElementTransformation *transf;
    // DofTransformation * doftrans;
@@ -2783,11 +2783,11 @@ void GridFunction::ProjectBdrCoefficientTangent(
 #endif
 }
 
-double GridFunction::ComputeL2Error(
+fptype GridFunction::ComputeL2Error(
    Coefficient *exsol[], const IntegrationRule *irs[],
    const Array<int> *elems) const
 {
-   double error = 0.0, a;
+   fptype error = 0.0, a;
    const FiniteElement *fe;
    ElementTransformation *transf;
    Vector shape;
@@ -2838,11 +2838,11 @@ double GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeL2Error(
+fptype GridFunction::ComputeL2Error(
    VectorCoefficient &exsol, const IntegrationRule *irs[],
    const Array<int> *elems) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
    DenseMatrix vals, exact_vals;
@@ -2879,11 +2879,11 @@ double GridFunction::ComputeL2Error(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeElementGradError(int ielem,
+fptype GridFunction::ComputeElementGradError(int ielem,
                                              VectorCoefficient *exgrad,
                                              const IntegrationRule *irs[]) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
@@ -2917,10 +2917,10 @@ double GridFunction::ComputeElementGradError(int ielem,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
+fptype GridFunction::ComputeGradError(VectorCoefficient *exgrad,
                                       const IntegrationRule *irs[]) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
@@ -2957,10 +2957,10 @@ double GridFunction::ComputeGradError(VectorCoefficient *exgrad,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
+fptype GridFunction::ComputeCurlError(VectorCoefficient *excurl,
                                       const IntegrationRule *irs[]) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
@@ -2998,10 +2998,10 @@ double GridFunction::ComputeCurlError(VectorCoefficient *excurl,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeDivError(
+fptype GridFunction::ComputeDivError(
    Coefficient *exdiv, const IntegrationRule *irs[]) const
 {
-   double error = 0.0, a;
+   fptype error = 0.0, a;
    const FiniteElement *fe;
    ElementTransformation *Tr;
    Array<int> dofs;
@@ -3034,7 +3034,7 @@ double GridFunction::ComputeDivError(
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+fptype GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             Coefficient *ell_coeff,
                                             class JumpScaling jump_scaling,
                                             const IntegrationRule *irs[])  const
@@ -3047,7 +3047,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    Vector shape, el_dofs, err_val, ell_coeff_val;
    Array<int> vdofs;
    IntegrationPoint eip;
-   double error = 0.0;
+   fptype error = 0.0;
 
    mesh = fes->GetMesh();
 
@@ -3055,7 +3055,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    {
       int i1, i2;
       mesh->GetFaceElements(i, &i1, &i2);
-      double h = mesh->GetElementSize(i1);
+      fptype h = mesh->GetElementSize(i1);
       intorder = fes->GetFE(i1)->GetOrder();
       if (i2 >= 0)
       {
@@ -3138,7 +3138,7 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         double nu = jump_scaling.Eval(h, p);
+         fptype nu = jump_scaling.Eval(h, p);
          error += (ip.weight * nu * ell_coeff_val(j) *
                    transf->Weight() *
                    err_val(j) * err_val(j));
@@ -3148,22 +3148,22 @@ double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    return (error < 0.0) ? -sqrt(-error) : sqrt(error);
 }
 
-double GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+fptype GridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                             Coefficient *ell_coeff,
-                                            double Nu,
+                                            fptype Nu,
                                             const IntegrationRule *irs[])  const
 {
    return ComputeDGFaceJumpError(
              exsol, ell_coeff, {Nu, JumpScaling::ONE_OVER_H}, irs);
 }
 
-double GridFunction::ComputeH1Error(Coefficient *exsol,
+fptype GridFunction::ComputeH1Error(Coefficient *exsol,
                                     VectorCoefficient *exgrad,
-                                    Coefficient *ell_coef, double Nu,
+                                    Coefficient *ell_coef, fptype Nu,
                                     int norm_type) const
 {
-   double error1 = 0.0;
-   double error2 = 0.0;
+   fptype error1 = 0.0;
+   fptype error2 = 0.0;
    if (norm_type & 1) { error1 = GridFunction::ComputeGradError(exgrad); }
    if (norm_type & 2)
    {
@@ -3174,37 +3174,37 @@ double GridFunction::ComputeH1Error(Coefficient *exsol,
    return sqrt(error1 * error1 + error2 * error2);
 }
 
-double GridFunction::ComputeH1Error(Coefficient *exsol,
+fptype GridFunction::ComputeH1Error(Coefficient *exsol,
                                     VectorCoefficient *exgrad,
                                     const IntegrationRule *irs[]) const
 {
-   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,irs);
-   double GradError = GridFunction::ComputeGradError(exgrad,irs);
+   fptype L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,irs);
+   fptype GradError = GridFunction::ComputeGradError(exgrad,irs);
    return sqrt(L2error*L2error + GradError*GradError);
 }
 
-double GridFunction::ComputeHDivError(VectorCoefficient *exsol,
+fptype GridFunction::ComputeHDivError(VectorCoefficient *exsol,
                                       Coefficient *exdiv,
                                       const IntegrationRule *irs[]) const
 {
-   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
-   double DivError = GridFunction::ComputeDivError(exdiv,irs);
+   fptype L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   fptype DivError = GridFunction::ComputeDivError(exdiv,irs);
    return sqrt(L2error*L2error + DivError*DivError);
 }
 
-double GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
+fptype GridFunction::ComputeHCurlError(VectorCoefficient *exsol,
                                        VectorCoefficient *excurl,
                                        const IntegrationRule *irs[]) const
 {
-   double L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
-   double CurlError = GridFunction::ComputeCurlError(excurl,irs);
+   fptype L2error = GridFunction::ComputeLpError(2.0,*exsol,NULL,NULL,irs);
+   fptype CurlError = GridFunction::ComputeCurlError(excurl,irs);
    return sqrt(L2error*L2error + CurlError*CurlError);
 }
 
-double GridFunction::ComputeMaxError(
+fptype GridFunction::ComputeMaxError(
    Coefficient *exsol[], const IntegrationRule *irs[]) const
 {
-   double error = 0.0, a;
+   fptype error = 0.0, a;
    const FiniteElement *fe;
    ElementTransformation *transf;
    Vector shape;
@@ -3257,7 +3257,7 @@ double GridFunction::ComputeMaxError(
    return error;
 }
 
-double GridFunction::ComputeW11Error(
+fptype GridFunction::ComputeW11Error(
    Coefficient *exsol, VectorCoefficient *exgrad, int norm_type,
    const Array<int> *elems, const IntegrationRule *irs[]) const
 {
@@ -3269,7 +3269,7 @@ double GridFunction::ComputeW11Error(
    Vector e_grad, a_grad, shape, el_dofs, err_val, ell_coeff_val;
    DenseMatrix dshape, dshapet, Jinv;
    Array<int> vdofs;
-   double a, error = 0.0;
+   fptype a, error = 0.0;
 
    mesh = fes->GetMesh();
    dim = mesh->Dimension();
@@ -3363,12 +3363,12 @@ double GridFunction::ComputeW11Error(
    return error;
 }
 
-double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
+fptype GridFunction::ComputeLpError(const fptype p, Coefficient &exsol,
                                     Coefficient *weight,
                                     const IntegrationRule *irs[],
                                     const Array<int> *elems) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
    Vector vals;
@@ -3393,7 +3393,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
+         fptype diff = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
          {
             diff = pow(diff, p);
@@ -3430,7 +3430,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
    return error;
 }
 
-void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
+void GridFunction::ComputeElementLpErrors(const fptype p, Coefficient &exsol,
                                           Vector &error,
                                           Coefficient *weight,
                                           const IntegrationRule *irs[]) const
@@ -3462,7 +3462,7 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double diff = fabs(vals(j) - exsol.Eval(*T, ip));
+         fptype diff = fabs(vals(j) - exsol.Eval(*T, ip));
          if (p < infinity())
          {
             diff = pow(diff, p);
@@ -3496,12 +3496,12 @@ void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
    }
 }
 
-double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
+fptype GridFunction::ComputeLpError(const fptype p, VectorCoefficient &exsol,
                                     Coefficient *weight,
                                     VectorCoefficient *v_weight,
                                     const IntegrationRule *irs[]) const
 {
-   double error = 0.0;
+   fptype error = 0.0;
    const FiniteElement *fe;
    ElementTransformation *T;
    DenseMatrix vals, exact_vals;
@@ -3538,7 +3538,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
          // vector weight (in exact_vals)
          for (int j = 0; j < vals.Width(); j++)
          {
-            double errj = 0.0;
+            fptype errj = 0.0;
             for (int d = 0; d < vals.Height(); d++)
             {
                errj += vals(d,j)*exact_vals(d,j);
@@ -3550,7 +3550,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double errj = loc_errs(j);
+         fptype errj = loc_errs(j);
          if (p < infinity())
          {
             errj = pow(errj, p);
@@ -3587,7 +3587,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
    return error;
 }
 
-void GridFunction::ComputeElementLpErrors(const double p,
+void GridFunction::ComputeElementLpErrors(const fptype p,
                                           VectorCoefficient &exsol,
                                           Vector &error,
                                           Coefficient *weight,
@@ -3634,7 +3634,7 @@ void GridFunction::ComputeElementLpErrors(const double p,
          // weight (in exact_vals)
          for (int j = 0; j < vals.Width(); j++)
          {
-            double errj = 0.0;
+            fptype errj = 0.0;
             for (int d = 0; d < vals.Height(); d++)
             {
                errj += vals(d,j)*exact_vals(d,j);
@@ -3646,7 +3646,7 @@ void GridFunction::ComputeElementLpErrors(const double p,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double errj = loc_errs(j);
+         fptype errj = loc_errs(j);
          if (p < infinity())
          {
             errj = pow(errj, p);
@@ -3680,7 +3680,7 @@ void GridFunction::ComputeElementLpErrors(const double p,
    }
 }
 
-GridFunction & GridFunction::operator=(double value)
+GridFunction & GridFunction::operator=(fptype value)
 {
    Vector::operator=(value);
    return *this;
@@ -3813,16 +3813,16 @@ void GridFunction::SaveVTK(std::ostream &os, const std::string &field_name,
    os.flush();
 }
 
-void GridFunction::SaveSTLTri(std::ostream &os, double p1[], double p2[],
-                              double p3[])
+void GridFunction::SaveSTLTri(std::ostream &os, fptype p1[], fptype p2[],
+                              fptype p3[])
 {
-   double v1[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
-   double v2[3] = { p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2] };
-   double n[] = {  v1[1] * v2[2] - v1[2] * v2[1],
+   fptype v1[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+   fptype v2[3] = { p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2] };
+   fptype n[] = {  v1[1] * v2[2] - v1[2] * v2[1],
                    v1[2] * v2[0] - v1[0] * v2[2],
                    v1[0] * v2[1] - v1[1] * v2[0]
                 };
-   double rl = 1.0 / sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+   fptype rl = 1.0 / sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
    n[0] *= rl; n[1] *= rl; n[2] *= rl;
 
    os << " facet normal " << n[0] << ' ' << n[1] << ' ' << n[2]
@@ -3846,7 +3846,7 @@ void GridFunction::SaveSTL(std::ostream &os, int TimesToRefine)
    DenseMatrix pointmat;
    Vector values;
    RefinedGeometry * RefG;
-   double pts[4][3], bbox[3][2];
+   fptype pts[4][3], bbox[3][2];
 
    os << "solid GridFunction\n";
 
@@ -3985,7 +3985,7 @@ void GridFunction::LegacyNCReorder()
                int new_vdof = fes->DofToVDof(new_dof, j);
                int old_vdof = fes->DofToVDof(old_dof, j);
 
-               double sign = (ind[k] < 0) ? -1.0 : 1.0;
+               fptype sign = (ind[k] < 0) ? -1.0 : 1.0;
                tmp(new_vdof) = sign * (*this)(old_vdof);
             }
          }
@@ -3995,7 +3995,7 @@ void GridFunction::LegacyNCReorder()
    Vector::Swap(tmp);
 }
 
-double ZZErrorEstimator(BilinearFormIntegrator &blfi,
+fptype ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,
                         GridFunction &flux, Vector &error_estimates,
                         Array<int>* aniso_flags,
@@ -4026,7 +4026,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
       nsd = ufes->GetMesh()->attributes.Max();
    }
 
-   double total_error = 0.0;
+   fptype total_error = 0.0;
    for (int s = 1; s <= nsd; s++)
    {
       // This calls the parallel version when u is a ParGridFunction
@@ -4056,7 +4056,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          fl -= fla;
 
-         double eng = blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl,
+         fptype eng = blfi.ComputeFluxEnergy(*ffes->GetFE(i), *Transf, fl,
                                              (aniso_flags ? &d_xyz : NULL));
 
          error_estimates(i) = std::sqrt(eng);
@@ -4064,13 +4064,13 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
 
          if (aniso_flags)
          {
-            double sum = 0;
+            fptype sum = 0;
             for (int k = 0; k < dim; k++)
             {
                sum += d_xyz[k];
             }
 
-            double thresh = 0.15 * 3.0/dim;
+            fptype thresh = 0.15 * 3.0/dim;
             int flag = 0;
             for (int k = 0; k < dim; k++)
             {
@@ -4099,7 +4099,7 @@ void TensorProductLegendre(int dim,                // input
                            const Vector &xmax,     // input
                            const Vector &xmin,     // input
                            Vector &poly,           // output
-                           double angle,           // input (optional)
+                           fptype angle,           // input (optional)
                            const Vector *midpoint) // input (optional)
 {
    MFEM_VERIFY(dim >= 1, "dim must be positive");
@@ -4125,7 +4125,7 @@ void TensorProductLegendre(int dim,                // input
    }
 
    // Map x to [0, 1] to use CalcLegendre since it uses shifted Legendre Polynomials.
-   double x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
+   fptype x1 = (x(0) - xmin(0))/(xmax(0)-xmin(0)), x2, x3;
    Vector poly_x(order+1), poly_y(order+1), poly_z(order+1);
    poly1d.CalcLegendre(order, x1, poly_x.GetData());
    if (dim > 1)
@@ -4190,7 +4190,7 @@ void BoundingBox(const Array<int> &patch,  // input
                  int order,                // input
                  Vector &xmin,             // output
                  Vector &xmax,             // output
-                 double &angle,            // output
+                 fptype &angle,            // output
                  Vector &midpoint,         // output
                  int iface)                // input (optional)
 {
@@ -4217,7 +4217,7 @@ void BoundingBox(const Array<int> &patch,  // input
       // then compute midpoint and angle
       for (int i = 0; i < 2; i++)
       {
-         reference_pt.Set1w((double)i, 0.0);
+         reference_pt.Set1w((fptype)i, 0.0);
          Tr.Transform(reference_pt, physical_pt);
          midpoint += physical_pt;
          physical_pt *= pow(-1.0,i);
@@ -4252,12 +4252,12 @@ void BoundingBox(const Array<int> &patch,  // input
    }
 }
 
-double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
+fptype LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                           GridFunction &u,               // input
                           Vector &error_estimates,       // output
                           bool subdomain_reconstruction, // input (optional)
                           bool with_coeff,               // input (optional)
-                          double tichonov_coeff)         // input (optional)
+                          fptype tichonov_coeff)         // input (optional)
 {
    MFEM_VERIFY(tichonov_coeff >= 0.0, "tichonov_coeff cannot be negative");
    FiniteElementSpace *ufes = u.FESpace();
@@ -4280,7 +4280,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
 
    Vector xmax(dim);
    Vector xmin(dim);
-   double angle = 0.0;
+   fptype angle = 0.0;
    Vector midpoint(dim);
 
    // Compute the number of subdomains
@@ -4290,7 +4290,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       nsd = ufes->GetMesh()->attributes.Max();
    }
 
-   double total_error = 0.0;
+   fptype total_error = 0.0;
    for (int iface = 0; iface < nfaces; iface++)
    {
       // 1.A. Find all elements in the face patch.
@@ -4324,7 +4324,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       int num_basis_functions = static_cast<int>(pow(patch_order+1,dim));
       int flux_order = 2*patch_order + 1;
       DenseMatrix A(num_basis_functions);
-      Array<double> b(sdim * num_basis_functions);
+      Array<fptype> b(sdim * num_basis_functions);
       A = 0.0;
       b = 0.0;
 
@@ -4359,7 +4359,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
          for (int k = 0; k < num_integration_pts; k++)
          {
             const IntegrationPoint ip = ir->IntPoint(k);
-            double tmp[3];
+            fptype tmp[3];
             Vector transip(tmp, 3);
             Transf->Transform(ip, transip);
 
@@ -4393,7 +4393,7 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       // 2.E. Solve for polynomial coefficients
       Array<int> ipiv(num_basis_functions);
       LUFactors lu(A.Data(), ipiv);
-      double TOL = 1e-9;
+      fptype TOL = 1e-9;
       if (!lu.Factor(num_basis_functions,TOL))
       {
          // Singular matrix
@@ -4424,8 +4424,8 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
       VectorFunctionCoefficient global_poly(sdim, global_poly_tmp);
 
       // 3. Compute error contributions from the face.
-      double element_error = 0.0;
-      double patch_error = 0.0;
+      fptype element_error = 0.0;
+      fptype patch_error = 0.0;
       for (int i = 0; i < patch.Size(); i++)
       {
          int ielem = patch[i];
@@ -4459,10 +4459,10 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
    return std::sqrt(total_error/dim);
 }
 
-double ComputeElementLpDistance(double p, int i,
+fptype ComputeElementLpDistance(fptype p, int i,
                                 GridFunction& gf1, GridFunction& gf2)
 {
-   double norm = 0.0;
+   fptype norm = 0.0;
 
    FiniteElementSpace *fes1 = gf1.FESpace();
    FiniteElementSpace *fes2 = gf2.FESpace();
@@ -4487,7 +4487,7 @@ double ComputeElementLpDistance(double p, int i,
       gf2.GetVectorValue(i, ip, val2);
 
       val1 -= val2;
-      double errj = val1.Norml2();
+      fptype errj = val1.Norml2();
       if (p < infinity())
       {
          errj = pow(errj, p);
@@ -4516,7 +4516,7 @@ double ComputeElementLpDistance(double p, int i,
 }
 
 
-double ExtrudeCoefficient::Eval(ElementTransformation &T,
+fptype ExtrudeCoefficient::Eval(ElementTransformation &T,
                                 const IntegrationPoint &ip)
 {
    ElementTransformation *T_in =

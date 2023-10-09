@@ -48,7 +48,7 @@ void DenseSymmetricMatrix::SetSize(int s)
    }
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(fptype c)
 {
    const int s = (Height()*(Height()+1))/2;
    for (int i = 0; i < s; i++)
@@ -58,17 +58,17 @@ DenseSymmetricMatrix &DenseSymmetricMatrix::operator=(double c)
    return *this;
 }
 
-double &DenseSymmetricMatrix::Elem(int i, int j)
+fptype &DenseSymmetricMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
 }
 
-const double &DenseSymmetricMatrix::Elem(int i, int j) const
+const fptype &DenseSymmetricMatrix::Elem(int i, int j) const
 {
    return (*this)(i,j);
 }
 
-DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(double c)
+DenseSymmetricMatrix &DenseSymmetricMatrix::operator*=(fptype c)
 {
    int s = GetStoredSize();
    for (int i = 0; i < s; i++)

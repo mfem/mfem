@@ -26,14 +26,14 @@ class DenseMatrix : public Matrix
    friend class DenseMatrixInverse;
 
 private:
-   Memory<double> data;
+   Memory<fptype> data;
 
    void Eigensystem(Vector &ev, DenseMatrix *evect = NULL);
 
    void Eigensystem(DenseMatrix &b, Vector &ev, DenseMatrix *evect = NULL);
 
    // Auxiliary method used in FNorm2() and FNorm()
-   void FNorm(double &scale_factor, double &scaled_fnorm2) const;
+   void FNorm(fptype &scale_factor, fptype &scaled_fnorm2) const;
 
 public:
    /** Default constructor for DenseMatrix.
@@ -55,13 +55,13 @@ public:
    /// Construct a DenseMatrix using an existing data array.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the array. */
-   DenseMatrix(double *d, int h, int w)
+   DenseMatrix(fptype *d, int h, int w)
       : Matrix(h, w) { UseExternalData(d, h, w); }
 
    /// Create a dense matrix using a braced initializer list
    /// The inner lists correspond to rows of the matrix
    template <int M, int N>
-   explicit DenseMatrix(const double (&values)[M][N]) : DenseMatrix(M, N)
+   explicit DenseMatrix(const fptype (&values)[M][N]) : DenseMatrix(M, N)
    {
       // DenseMatrix is column-major so copies have to be element-wise
       for (int i = 0; i < M; i++)
@@ -77,7 +77,7 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
-   void UseExternalData(double *d, int h, int w)
+   void UseExternalData(fptype *d, int h, int w)
    {
       data.Wrap(d, h*w, false);
       height = h; width = w;
@@ -87,7 +87,7 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
-   void Reset(double *d, int h, int w)
+   void Reset(fptype *d, int h, int w)
    { if (OwnsData()) { data.Delete(); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
@@ -108,56 +108,56 @@ public:
    void SetSize(int h, int w);
 
    /// Returns the matrix data array.
-   inline double *Data() const
-   { return const_cast<double*>((const double*)data);}
+   inline fptype *Data() const
+   { return const_cast<fptype*>((const fptype*)data);}
 
    /// Returns the matrix data array.
-   inline double *GetData() const { return Data(); }
+   inline fptype *GetData() const { return Data(); }
 
-   Memory<double> &GetMemory() { return data; }
-   const Memory<double> &GetMemory() const { return data; }
+   Memory<fptype> &GetMemory() { return data; }
+   const Memory<fptype> &GetMemory() const { return data; }
 
    /// Return the DenseMatrix data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
-   inline double &operator()(int i, int j);
+   inline fptype &operator()(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   inline const double &operator()(int i, int j) const;
+   inline const fptype &operator()(int i, int j) const;
 
    /// Matrix inner product: tr(A^t B)
-   double operator*(const DenseMatrix &m) const;
+   fptype operator*(const DenseMatrix &m) const;
 
    /// Trace of a square matrix
-   double Trace() const;
+   fptype Trace() const;
 
    /// Returns reference to a_{ij}.
-   virtual double &Elem(int i, int j);
+   virtual fptype &Elem(int i, int j);
 
    /// Returns constant reference to a_{ij}.
-   virtual const double &Elem(int i, int j) const;
+   virtual const fptype &Elem(int i, int j) const;
 
    /// Matrix vector multiplication.
-   void Mult(const double *x, double *y) const;
+   void Mult(const fptype *x, fptype *y) const;
 
    /// Matrix vector multiplication.
-   void Mult(const double *x, Vector &y) const;
+   void Mult(const fptype *x, Vector &y) const;
 
    /// Matrix vector multiplication.
-   void Mult(const Vector &x, double *y) const;
+   void Mult(const Vector &x, fptype *y) const;
 
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const double *x, double *y) const;
+   void MultTranspose(const fptype *x, fptype *y) const;
 
    /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const double *x, Vector &y) const;
+   void MultTranspose(const fptype *x, Vector &y) const;
 
    /// Multiply a vector with the transpose matrix.
-   void MultTranspose(const Vector &x, double *y) const;
+   void MultTranspose(const Vector &x, fptype *y) const;
 
    /// Multiply a vector with the transpose matrix.
    virtual void MultTranspose(const Vector &x, Vector &y) const;
@@ -166,20 +166,20 @@ public:
    using Operator::MultTranspose;
 
    /// y += a * A.x
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y, const fptype a = 1.0) const;
 
    /// y += a * A^t x
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+                                 const fptype a = 1.0) const;
 
    /// y += a * A.x
-   void AddMult_a(double a, const Vector &x, Vector &y) const;
+   void AddMult_a(fptype a, const Vector &x, Vector &y) const;
 
    /// y += a * A^t x
-   void AddMultTranspose_a(double a, const Vector &x, Vector &y) const;
+   void AddMultTranspose_a(fptype a, const Vector &x, Vector &y) const;
 
    /// Compute y^t A x
-   double InnerProduct(const double *x, const double *y) const;
+   fptype InnerProduct(const fptype *x, const fptype *y) const;
 
    /// LeftScaling this = diag(s) * this
    void LeftScaling(const Vector & s);
@@ -195,7 +195,7 @@ public:
    void InvSymmetricScaling(const Vector & s);
 
    /// Compute y^t A x
-   double InnerProduct(const Vector &x, const Vector &y) const
+   fptype InnerProduct(const Vector &x, const Vector &y) const
    { return InnerProduct(x.GetData(), y.GetData()); }
 
    /// Returns a pointer to the inverse matrix.
@@ -209,48 +209,48 @@ public:
 
    /// Calculates the determinant of the matrix
    /// (optimized for 2x2, 3x3, and 4x4 matrices)
-   double Det() const;
+   fptype Det() const;
 
-   double Weight() const;
+   fptype Weight() const;
 
    /** @brief Set the matrix to alpha * A, assuming that A has the same
        dimensions as the matrix and uses column-major layout. */
-   void Set(double alpha, const double *A);
+   void Set(fptype alpha, const fptype *A);
    /// Set the matrix to alpha * A.
-   void Set(double alpha, const DenseMatrix &A)
+   void Set(fptype alpha, const DenseMatrix &A)
    {
       SetSize(A.Height(), A.Width());
       Set(alpha, A.GetData());
    }
 
    /// Adds the matrix A multiplied by the number c to the matrix.
-   void Add(const double c, const DenseMatrix &A);
+   void Add(const fptype c, const DenseMatrix &A);
 
    /// Adds the matrix A multiplied by the number c to the matrix,
    /// assuming A has the same dimensions and uses column-major layout.
-   void Add(const double c, const double *A);
+   void Add(const fptype c, const fptype *A);
 
    /// Sets the matrix elements equal to constant c
-   DenseMatrix &operator=(double c);
+   DenseMatrix &operator=(fptype c);
 
    /// Copy the matrix entries from the given array
-   DenseMatrix &operator=(const double *d);
+   DenseMatrix &operator=(const fptype *d);
 
    /// Sets the matrix size and elements equal to those of m
    DenseMatrix &operator=(const DenseMatrix &m);
 
-   DenseMatrix &operator+=(const double *m);
+   DenseMatrix &operator+=(const fptype *m);
    DenseMatrix &operator+=(const DenseMatrix &m);
 
    DenseMatrix &operator-=(const DenseMatrix &m);
 
-   DenseMatrix &operator*=(double c);
+   DenseMatrix &operator*=(fptype c);
 
    /// (*this) = -(*this)
    void Neg();
 
    /// Take the 2-norm of the columns of A and store in v
-   void Norm2(double *v) const;
+   void Norm2(fptype *v) const;
 
    /// Take the 2-norm of the columns of A and store in v
    void Norm2(Vector &v) const
@@ -260,13 +260,13 @@ public:
    }
 
    /// Compute the norm ||A|| = max_{ij} |A_{ij}|
-   double MaxMaxNorm() const;
+   fptype MaxMaxNorm() const;
 
    /// Compute the Frobenius norm of the matrix
-   double FNorm() const { double s, n2; FNorm(s, n2); return s*sqrt(n2); }
+   fptype FNorm() const { fptype s, n2; FNorm(s, n2); return s*sqrt(n2); }
 
    /// Compute the square of the Frobenius norm of the matrix
-   double FNorm2() const { double s, n2; FNorm(s, n2); return s*s*n2; }
+   fptype FNorm2() const { fptype s, n2; FNorm(s, n2); return s*s*n2; }
 
    /// Compute eigenvalues of A x = ev x where A = *this
    void Eigenvalues(Vector &ev)
@@ -295,34 +295,34 @@ public:
    { Eigensystem(b, ev, &evect); }
 
    void SingularValues(Vector &sv) const;
-   int Rank(double tol) const;
+   int Rank(fptype tol) const;
 
    /// Return the i-th singular value (decreasing order) of NxN matrix, N=1,2,3.
-   double CalcSingularvalue(const int i) const;
+   fptype CalcSingularvalue(const int i) const;
 
    /** Return the eigenvalues (in increasing order) and eigenvectors of a
        2x2 or 3x3 symmetric matrix. */
-   void CalcEigenvalues(double *lambda, double *vec) const;
+   void CalcEigenvalues(fptype *lambda, fptype *vec) const;
 
    void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
-   double *GetColumn(int col) { return data + col*height; }
-   const double *GetColumn(int col) const { return data + col*height; }
+   fptype *GetColumn(int col) { return data + col*height; }
+   const fptype *GetColumn(int col) const { return data + col*height; }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
 
-   void SetRow(int r, const double* row);
+   void SetRow(int r, const fptype* row);
    void SetRow(int r, const Vector &row);
 
-   void SetCol(int c, const double* col);
+   void SetCol(int c, const fptype* col);
    void SetCol(int c, const Vector &col);
 
 
    /// Set all entries of a row to the specified value.
-   void SetRow(int row, double value);
+   void SetRow(int row, fptype value);
    /// Set all entries of a column to the specified value.
-   void SetCol(int col, double value);
+   void SetCol(int col, fptype value);
 
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
@@ -332,9 +332,9 @@ public:
    void GetRowSums(Vector &l) const;
 
    /// Creates n x n diagonal matrix with diagonal elements c
-   void Diag(double c, int n);
+   void Diag(fptype c, int n);
    /// Creates n x n diagonal matrix with diagonal given by diag
-   void Diag(double *diag, int n);
+   void Diag(fptype *diag, int n);
 
    /// (*this) = (*this)^t
    void Transpose();
@@ -376,16 +376,16 @@ public:
    void CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
                int row_offset, int col_offset);
    /// Copy c on the diagonal of size n to *this at row_offset, col_offset
-   void CopyMNDiag(double c, int n, int row_offset, int col_offset);
+   void CopyMNDiag(fptype c, int n, int row_offset, int col_offset);
    /// Copy diag on the diagonal of size n to *this at row_offset, col_offset
-   void CopyMNDiag(double *diag, int n, int row_offset, int col_offset);
+   void CopyMNDiag(fptype *diag, int n, int row_offset, int col_offset);
    /// Copy All rows and columns except m and n from A
    void CopyExceptMN(const DenseMatrix &A, int m, int n);
 
    /// Perform (ro+i,co+j)+=A(i,j) for 0<=i<A.Height, 0<=j<A.Width
    void AddMatrix(DenseMatrix &A, int ro, int co);
    /// Perform (ro+i,co+j)+=a*A(i,j) for 0<=i<A.Height, 0<=j<A.Width
-   void AddMatrix(double a, const DenseMatrix &A, int ro, int co);
+   void AddMatrix(fptype a, const DenseMatrix &A, int ro, int co);
 
    /** Get the square submatrix which corresponds to the given indices @a idx.
        Note: the @a A matrix will be resized to accommodate the data */
@@ -445,7 +445,7 @@ public:
    void AdjustDofDirection(Array<int> &dofs);
 
    /// Replace small entries, abs(a_ij) <= eps, with zero.
-   void Threshold(double eps);
+   void Threshold(fptype eps);
 
    /** Count the number of entries in the matrix for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -460,30 +460,30 @@ public:
    /// Invert and print the numerical conditioning of the inversion.
    void TestInversion();
 
-   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(double); }
+   std::size_t MemoryUsage() const { return data.Capacity() * sizeof(fptype); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const double *Read(bool on_dev = true) const
+   const fptype *Read(bool on_dev = true) const
    { return mfem::Read(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const double *HostRead() const
+   const fptype *HostRead() const
    { return mfem::Read(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   double *Write(bool on_dev = true)
+   fptype *Write(bool on_dev = true)
    { return mfem::Write(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   double *HostWrite()
+   fptype *HostWrite()
    { return mfem::Write(data, Height()*Width(), false); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   fptype *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   double *HostReadWrite()
+   fptype *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
    void Swap(DenseMatrix &other);
@@ -494,15 +494,15 @@ public:
 
 /// C = A + alpha*B
 void Add(const DenseMatrix &A, const DenseMatrix &B,
-         double alpha, DenseMatrix &C);
+         fptype alpha, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
-void Add(double alpha, const double *A,
-         double beta,  const double *B, DenseMatrix &C);
+void Add(fptype alpha, const fptype *A,
+         fptype beta,  const fptype *B, DenseMatrix &C);
 
 /// C = alpha*A + beta*B
-void Add(double alpha, const DenseMatrix &A,
-         double beta,  const DenseMatrix &B, DenseMatrix &C);
+void Add(fptype alpha, const DenseMatrix &A,
+         fptype beta,  const DenseMatrix &B, DenseMatrix &C);
 
 /// @brief Solves the dense linear system, `A * X = B` for `X`
 ///
@@ -518,7 +518,7 @@ void Add(double alpha, const DenseMatrix &A,
 ///
 /// @pre A.IsSquare() == true
 /// @pre X != nullptr
-bool LinearSolve(DenseMatrix& A, double* X, double TOL = 1.e-9);
+bool LinearSolve(DenseMatrix& A, fptype* X, fptype TOL = 1.e-9);
 
 /// Matrix matrix multiplication.  A = B * C.
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
@@ -527,7 +527,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a);
 
 /// Matrix matrix multiplication.  A += alpha * B * C.
-void AddMult_a(double alpha, const DenseMatrix &b, const DenseMatrix &c,
+void AddMult_a(fptype alpha, const DenseMatrix &b, const DenseMatrix &c,
                DenseMatrix &a);
 
 /** Calculate the adjugate of a matrix (for NxN matrices, N=1,2,3) or the matrix
@@ -574,17 +574,17 @@ void AddMultADBt(const DenseMatrix &A, const Vector &D,
                  const DenseMatrix &B, DenseMatrix &ADBt);
 
 /// ABt += a * A * B^t
-void AddMult_a_ABt(double a, const DenseMatrix &A, const DenseMatrix &B,
+void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
                    DenseMatrix &ABt);
 
 /// Multiply the transpose of a matrix A with a matrix B:   At*B
 void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB);
 
 /// AAt += a * A * A^t
-void AddMult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt);
+void AddMult_a_AAt(fptype a, const DenseMatrix &A, DenseMatrix &AAt);
 
 /// AAt = a * A * A^t
-void Mult_a_AAt(double a, const DenseMatrix &A, DenseMatrix &AAt);
+void Mult_a_AAt(fptype a, const DenseMatrix &A, DenseMatrix &AAt);
 
 /// Make a matrix from a vector V.Vt
 void MultVVt(const Vector &v, DenseMatrix &vvt);
@@ -598,11 +598,11 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt);
 void AddMultVVt(const Vector &v, DenseMatrix &VWt);
 
 /// VWt += a * v w^t
-void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
+void AddMult_a_VWt(const fptype a, const Vector &v, const Vector &w,
                    DenseMatrix &VWt);
 
 /// VVt += a * v v^t
-void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
+void AddMult_a_VVt(const fptype a, const Vector &v, DenseMatrix &VVt);
 
 /** Computes matrix P^t * A * P. Note: The @a RAP matrix will be resized
     to accommodate the data */
@@ -619,30 +619,30 @@ class Factors
 {
 public:
 
-   double *data;
+   fptype *data;
 
    Factors() { }
 
-   Factors(double *data_) : data(data_) { }
+   Factors(fptype *data_) : data(data_) { }
 
-   virtual bool Factor(int m, double TOL = 0.0)
+   virtual bool Factor(int m, fptype TOL = 0.0)
    {
       mfem_error("Factors::Factors(...)");
       return false;
    }
 
-   virtual double Det(int m) const
+   virtual fptype Det(int m) const
    {
       mfem_error("Factors::Det(...)");
       return 0.;
    }
 
-   virtual void Solve(int m, int n, double *X) const
+   virtual void Solve(int m, int n, fptype *X) const
    {
       mfem_error("Factors::Solve(...)");
    }
 
-   virtual void GetInverseMatrix(int m, double *X) const
+   virtual void GetInverseMatrix(int m, fptype *X) const
    {
       mfem_error("Factors::GetInverseMatrix(...)");
    }
@@ -667,7 +667,7 @@ public:
        explicitly before calling class methods. */
    LUFactors(): Factors() { }
 
-   LUFactors(double *data_, int *ipiv_) : Factors(data_), ipiv(ipiv_) { }
+   LUFactors(fptype *data_, int *ipiv_) : Factors(data_), ipiv(ipiv_) { }
 
    /**
     * @brief Compute the LU factorization of the current matrix
@@ -681,39 +681,39 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, double TOL = 0.0);
+   virtual bool Factor(int m, fptype TOL = 0.0);
 
    /** Assuming L.U = P.A factored data of size (m x m), compute |A|
        from the diagonal values of U and the permutation information. */
-   virtual double Det(int m) const;
+   virtual fptype Det(int m) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A X,
        for a matrix X of size (m x n). */
-   void Mult(int m, int n, double *X) const;
+   void Mult(int m, int n, fptype *X) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute
        X <- L^{-1} P X, for a matrix X of size (m x n). */
-   void LSolve(int m, int n, double *X) const;
+   void LSolve(int m, int n, fptype *X) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute
        X <- U^{-1} X, for a matrix X of size (m x n). */
-   void USolve(int m, int n, double *X) const;
+   void USolve(int m, int n, fptype *X) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, double *X) const;
+   virtual void Solve(int m, int n, fptype *X) const;
 
    /** Assuming L.U = P.A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
-   void RightSolve(int m, int n, double *X) const;
+   void RightSolve(int m, int n, fptype *X) const;
 
    /// Assuming L.U = P.A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, double *X) const;
+   virtual void GetInverseMatrix(int m, fptype *X) const;
 
    /** Given an (n x m) matrix A21, compute X2 <- X2 - A21 X1, for matrices X1,
        and X2 of size (m x r) and (n x r), respectively. */
-   static void SubMult(int m, int n, int r, const double *A21,
-                       const double *X1, double *X2);
+   static void SubMult(int m, int n, int r, const fptype *A21,
+                       const fptype *X1, fptype *X2);
 
    /** Assuming P.A = L.U factored data of size (m x m), compute the 2x2 block
        decomposition:
@@ -725,7 +725,7 @@ public:
           A21 <- L21 = A21 U^{-1}
           A22 <- S22 = A22 - L21 U12.
        The block S22 is the Schur complement. */
-   void BlockFactor(int m, int n, double *A12, double *A21, double *A22) const;
+   void BlockFactor(int m, int n, fptype *A12, fptype *A21, fptype *A22) const;
 
    /** Given BlockFactor()'d data, perform the forward block solve for the
        linear system:
@@ -742,8 +742,8 @@ public:
           B2 <- Y2 = B2 - L21 Y1 = B2 - A21 A^{-1} B1
        The blocks B1/Y1 and B2/Y2 are of size (m x r) and (n x r), respectively.
        The Schur complement system is given by: S22 X2 = Y2. */
-   void BlockForwSolve(int m, int n, int r, const double *L21,
-                       double *B1, double *B2) const;
+   void BlockForwSolve(int m, int n, int r, const fptype *L21,
+                       fptype *B1, fptype *B2) const;
 
    /** Given BlockFactor()'d data, perform the backward block solve in
           | U U12 | | X1 | = | Y1 |
@@ -751,8 +751,8 @@ public:
        The input is the solution block X2 and the block Y1 resulting from
        BlockForwSolve(). The result block X1 overwrites input block Y1:
           Y1 <- X1 = U^{-1} (Y1 - U12 X2). */
-   void BlockBackSolve(int m, int n, int r, const double *U12,
-                       const double *X2, double *Y1) const;
+   void BlockBackSolve(int m, int n, int r, const fptype *U12,
+                       const fptype *X2, fptype *Y1) const;
 };
 
 
@@ -766,7 +766,7 @@ public:
        explicitly before calling class methods. */
    CholeskyFactors() : Factors() { }
 
-   CholeskyFactors(double *data_) : Factors(data_) { }
+   CholeskyFactors(fptype *data_) : Factors(data_) { }
 
    /**
     * @brief Compute the Cholesky factorization of the current matrix
@@ -780,38 +780,38 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   virtual bool Factor(int m, double TOL = 0.0);
+   virtual bool Factor(int m, fptype TOL = 0.0);
 
    /** Assuming LL^t = A factored data of size (m x m), compute |A|
        from the diagonal values of L */
-   virtual double Det(int m) const;
+   virtual fptype Det(int m) const;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- L X,
        for a matrix X of size (m x n). */
-   void LMult(int m, int n, double *X) const;
+   void LMult(int m, int n, fptype *X) const;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- L^t X,
        for a matrix X of size (m x n). */
-   void UMult(int m, int n, double *X) const;
+   void UMult(int m, int n, fptype *X) const;
 
    /** Assuming L L^t = A factored data of size (m x m), compute
        X <- L^{-1} X, for a matrix X of size (m x n). */
-   void LSolve(int m, int n, double *X) const;
+   void LSolve(int m, int n, fptype *X) const;
 
    /** Assuming L L^t = A factored data of size (m x m), compute
        X <- L^{-t} X, for a matrix X of size (m x n). */
-   void USolve(int m, int n, double *X) const;
+   void USolve(int m, int n, fptype *X) const;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1} X,
        for a matrix X of size (m x n). */
-   virtual void Solve(int m, int n, double *X) const;
+   virtual void Solve(int m, int n, fptype *X) const;
 
    /** Assuming L.L^t = A factored data of size (m x m), compute X <- X A^{-1},
        for a matrix X of size (n x m). */
-   void RightSolve(int m, int n, double *X) const;
+   void RightSolve(int m, int n, fptype *X) const;
 
    /// Assuming L.L^t = A factored data of size (m x m), compute X <- A^{-1}.
-   virtual void GetInverseMatrix(int m, double *X) const;
+   virtual void GetInverseMatrix(int m, fptype *X) const;
 
 };
 
@@ -851,7 +851,7 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Matrix vector multiplication with the inverse of dense matrix.
-   void Mult(const double *x, double *y) const;
+   void Mult(const fptype *x, fptype *y) const;
 
    /// Matrix vector multiplication with the inverse of dense matrix.
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -868,7 +868,7 @@ public:
    void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
-   double Det() const { return factors->Det(width); }
+   fptype Det() const { return factors->Det(width); }
 
    /// Print the numerical conditioning of the inversion: ||A^{-1} A - I||.
    void TestInversion();
@@ -1097,7 +1097,7 @@ class DenseTensor
 {
 private:
    mutable DenseMatrix Mk;
-   Memory<double> tdata;
+   Memory<fptype> tdata;
    int nk;
 
 public:
@@ -1113,7 +1113,7 @@ public:
       tdata.New(i*j*k);
    }
 
-   DenseTensor(double *d, int i, int j, int k)
+   DenseTensor(fptype *d, int i, int j, int k)
       : Mk(NULL, i, j)
    {
       nk = k;
@@ -1154,7 +1154,7 @@ public:
       tdata.New(i*j*k, mt);
    }
 
-   void UseExternalData(double *ext_data, int i, int j, int k)
+   void UseExternalData(fptype *ext_data, int i, int j, int k)
    {
       tdata.Delete();
       Mk.UseExternalData(NULL, i, j);
@@ -1163,7 +1163,7 @@ public:
    }
 
    /// Sets the tensor elements equal to constant c
-   DenseTensor &operator=(double c);
+   DenseTensor &operator=(fptype c);
 
    /// Copy assignment operator (performs a deep copy)
    DenseTensor &operator=(const DenseTensor &other);
@@ -1171,18 +1171,18 @@ public:
    DenseMatrix &operator()(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<double>(GetData(k), SizeI()*SizeJ(), false);
+      Mk.data = Memory<fptype>(GetData(k), SizeI()*SizeJ(), false);
       return Mk;
    }
    const DenseMatrix &operator()(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      Mk.data = Memory<double>(const_cast<double*>(GetData(k)), SizeI()*SizeJ(),
+      Mk.data = Memory<fptype>(const_cast<fptype*>(GetData(k)), SizeI()*SizeJ(),
                                false);
       return Mk;
    }
 
-   double &operator()(int i, int j, int k)
+   fptype &operator()(int i, int j, int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
       MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
@@ -1190,7 +1190,7 @@ public:
       return tdata[i+SizeI()*(j+SizeJ()*k)];
    }
 
-   const double &operator()(int i, int j, int k) const
+   const fptype &operator()(int i, int j, int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI());
       MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ());
@@ -1198,24 +1198,24 @@ public:
       return tdata[i+SizeI()*(j+SizeJ()*k)];
    }
 
-   double *GetData(int k)
+   fptype *GetData(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata+k*Mk.Height()*Mk.Width();
    }
 
-   const double *GetData(int k) const
+   const fptype *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
       return tdata+k*Mk.Height()*Mk.Width();
    }
 
-   double *Data() { return tdata; }
+   fptype *Data() { return tdata; }
 
-   const double *Data() const { return tdata; }
+   const fptype *Data() const { return tdata; }
 
-   Memory<double> &GetMemory() { return tdata; }
-   const Memory<double> &GetMemory() const { return tdata; }
+   Memory<fptype> &GetMemory() { return tdata; }
+   const Memory<fptype> &GetMemory() const { return tdata; }
 
    /** Matrix-vector product from unassembled element matrices, assuming both
        'x' and 'y' use the same elem_dof table. */
@@ -1227,27 +1227,27 @@ public:
    std::size_t MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const double *Read(bool on_dev = true) const
+   const fptype *Read(bool on_dev = true) const
    { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const double *HostRead() const
+   const fptype *HostRead() const
    { return mfem::Read(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   double *Write(bool on_dev = true)
+   fptype *Write(bool on_dev = true)
    { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   double *HostWrite()
+   fptype *HostWrite()
    { return mfem::Write(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   double *ReadWrite(bool on_dev = true)
+   fptype *ReadWrite(bool on_dev = true)
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   double *HostReadWrite()
+   fptype *HostReadWrite()
    { return mfem::ReadWrite(tdata, Mk.Height()*Mk.Width()*nk, false); }
 
    void Swap(DenseTensor &t)
@@ -1269,7 +1269,7 @@ public:
     @param [in, out] Mlu batch of square matrices - dimension m x m x n.
     @param [out] P array storing pivot information - dimension m x n.
     @param [in] TOL optional fuzzy comparison tolerance. Defaults to 0.0. */
-void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const double TOL = 0.0);
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL = 0.0);
 
 /** @brief Solve batch linear systems
 
@@ -1285,13 +1285,13 @@ void BatchLUSolve(const DenseTensor &Mlu, const Array<int> &P, Vector &X);
 
 // Inline methods
 
-inline double &DenseMatrix::operator()(int i, int j)
+inline fptype &DenseMatrix::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];
 }
 
-inline const double &DenseMatrix::operator()(int i, int j) const
+inline const fptype &DenseMatrix::operator()(int i, int j) const
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];

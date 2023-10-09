@@ -28,7 +28,7 @@ void SetupPatch3D(const int Q1Dx,
                   const int Q1Dz,
                   const int coeffDim,
                   const bool symmetric,
-                  const Array<double> &w,
+                  const Array<fptype> &w,
                   const Vector &j,
                   const Vector &c,
                   Vector &d)
@@ -52,64 +52,64 @@ void SetupPatch3D(const int Q1Dx,
          {
             MFEM_FOREACH_THREAD(qz,z,Q1Dz)
             {
-               const double J11 = J(qx,qy,qz,0,0);
-               const double J21 = J(qx,qy,qz,1,0);
-               const double J31 = J(qx,qy,qz,2,0);
-               const double J12 = J(qx,qy,qz,0,1);
-               const double J22 = J(qx,qy,qz,1,1);
-               const double J32 = J(qx,qy,qz,2,1);
-               const double J13 = J(qx,qy,qz,0,2);
-               const double J23 = J(qx,qy,qz,1,2);
-               const double J33 = J(qx,qy,qz,2,2);
-               const double detJ = J11 * (J22 * J33 - J32 * J23) -
+               const fptype J11 = J(qx,qy,qz,0,0);
+               const fptype J21 = J(qx,qy,qz,1,0);
+               const fptype J31 = J(qx,qy,qz,2,0);
+               const fptype J12 = J(qx,qy,qz,0,1);
+               const fptype J22 = J(qx,qy,qz,1,1);
+               const fptype J32 = J(qx,qy,qz,2,1);
+               const fptype J13 = J(qx,qy,qz,0,2);
+               const fptype J23 = J(qx,qy,qz,1,2);
+               const fptype J33 = J(qx,qy,qz,2,2);
+               const fptype detJ = J11 * (J22 * J33 - J32 * J23) -
                /* */               J21 * (J12 * J33 - J32 * J13) +
                /* */               J31 * (J12 * J23 - J22 * J13);
-               const double w_detJ = W(qx,qy,qz) / detJ;
+               const fptype w_detJ = W(qx,qy,qz) / detJ;
                // adj(J)
-               const double A11 = (J22 * J33) - (J23 * J32);
-               const double A12 = (J32 * J13) - (J12 * J33);
-               const double A13 = (J12 * J23) - (J22 * J13);
-               const double A21 = (J31 * J23) - (J21 * J33);
-               const double A22 = (J11 * J33) - (J13 * J31);
-               const double A23 = (J21 * J13) - (J11 * J23);
-               const double A31 = (J21 * J32) - (J31 * J22);
-               const double A32 = (J31 * J12) - (J11 * J32);
-               const double A33 = (J11 * J22) - (J12 * J21);
+               const fptype A11 = (J22 * J33) - (J23 * J32);
+               const fptype A12 = (J32 * J13) - (J12 * J33);
+               const fptype A13 = (J12 * J23) - (J22 * J13);
+               const fptype A21 = (J31 * J23) - (J21 * J33);
+               const fptype A22 = (J11 * J33) - (J13 * J31);
+               const fptype A23 = (J21 * J13) - (J11 * J23);
+               const fptype A31 = (J21 * J32) - (J31 * J22);
+               const fptype A32 = (J31 * J12) - (J11 * J32);
+               const fptype A33 = (J11 * J22) - (J12 * J21);
 
                if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
                {
                   // Compute entries of R = MJ^{-T} = M adj(J)^T, without det J.
-                  const double M11 = C(0, qx,qy,qz);
-                  const double M12 = C(1, qx,qy,qz);
-                  const double M13 = C(2, qx,qy,qz);
-                  const double M21 = (!symmetric) ? C(3, qx,qy,qz) : M12;
-                  const double M22 = (!symmetric) ? C(4, qx,qy,qz) : C(3, qx,qy,qz);
-                  const double M23 = (!symmetric) ? C(5, qx,qy,qz) : C(4, qx,qy,qz);
-                  const double M31 = (!symmetric) ? C(6, qx,qy,qz) : M13;
-                  const double M32 = (!symmetric) ? C(7, qx,qy,qz) : M23;
-                  const double M33 = (!symmetric) ? C(8, qx,qy,qz) : C(5, qx,qy,qz);
+                  const fptype M11 = C(0, qx,qy,qz);
+                  const fptype M12 = C(1, qx,qy,qz);
+                  const fptype M13 = C(2, qx,qy,qz);
+                  const fptype M21 = (!symmetric) ? C(3, qx,qy,qz) : M12;
+                  const fptype M22 = (!symmetric) ? C(4, qx,qy,qz) : C(3, qx,qy,qz);
+                  const fptype M23 = (!symmetric) ? C(5, qx,qy,qz) : C(4, qx,qy,qz);
+                  const fptype M31 = (!symmetric) ? C(6, qx,qy,qz) : M13;
+                  const fptype M32 = (!symmetric) ? C(7, qx,qy,qz) : M23;
+                  const fptype M33 = (!symmetric) ? C(8, qx,qy,qz) : C(5, qx,qy,qz);
 
-                  const double R11 = M11*A11 + M12*A12 + M13*A13;
-                  const double R12 = M11*A21 + M12*A22 + M13*A23;
-                  const double R13 = M11*A31 + M12*A32 + M13*A33;
-                  const double R21 = M21*A11 + M22*A12 + M23*A13;
-                  const double R22 = M21*A21 + M22*A22 + M23*A23;
-                  const double R23 = M21*A31 + M22*A32 + M23*A33;
-                  const double R31 = M31*A11 + M32*A12 + M33*A13;
-                  const double R32 = M31*A21 + M32*A22 + M33*A23;
-                  const double R33 = M31*A31 + M32*A32 + M33*A33;
+                  const fptype R11 = M11*A11 + M12*A12 + M13*A13;
+                  const fptype R12 = M11*A21 + M12*A22 + M13*A23;
+                  const fptype R13 = M11*A31 + M12*A32 + M13*A33;
+                  const fptype R21 = M21*A11 + M22*A12 + M23*A13;
+                  const fptype R22 = M21*A21 + M22*A22 + M23*A23;
+                  const fptype R23 = M21*A31 + M22*A32 + M23*A33;
+                  const fptype R31 = M31*A11 + M32*A12 + M33*A13;
+                  const fptype R32 = M31*A21 + M32*A22 + M33*A23;
+                  const fptype R33 = M31*A31 + M32*A32 + M33*A33;
 
                   // Now set D to J^{-1} R = adj(J) R
                   D(qx,qy,qz,0) = w_detJ * (A11*R11 + A12*R21 + A13*R31); // 1,1
-                  const double D12 = w_detJ * (A11*R12 + A12*R22 + A13*R32);
+                  const fptype D12 = w_detJ * (A11*R12 + A12*R22 + A13*R32);
                   D(qx,qy,qz,1) = D12; // 1,2
                   D(qx,qy,qz,2) = w_detJ * (A11*R13 + A12*R23 + A13*R33); // 1,3
 
-                  const double D21 = w_detJ * (A21*R11 + A22*R21 + A23*R31);
-                  const double D22 = w_detJ * (A21*R12 + A22*R22 + A23*R32);
-                  const double D23 = w_detJ * (A21*R13 + A22*R23 + A23*R33);
+                  const fptype D21 = w_detJ * (A21*R11 + A22*R21 + A23*R31);
+                  const fptype D22 = w_detJ * (A21*R12 + A22*R22 + A23*R32);
+                  const fptype D23 = w_detJ * (A21*R13 + A22*R23 + A23*R33);
 
-                  const double D33 = w_detJ * (A31*R13 + A32*R23 + A33*R33);
+                  const fptype D33 = w_detJ * (A31*R13 + A32*R23 + A33*R33);
 
                   D(qx,qy,qz,3) = symmetric ? D22 : D21; // 2,2 or 2,1
                   D(qx,qy,qz,4) = symmetric ? D23 : D22; // 2,3 or 2,2
@@ -124,10 +124,10 @@ void SetupPatch3D(const int Q1Dx,
                }
                else  // Vector or scalar coefficient version
                {
-                  const double C1 = const_c ? C(0,0,0,0) : C(0,qx,qy,qz);
-                  const double C2 = const_c ? C(0,0,0,0) :
+                  const fptype C1 = const_c ? C(0,0,0,0) : C(0,qx,qy,qz);
+                  const fptype C2 = const_c ? C(0,0,0,0) :
                                     (coeffDim == 3 ? C(1,qx,qy,qz) : C(0,qx,qy,qz));
-                  const double C3 = const_c ? C(0,0,0,0) :
+                  const fptype C3 = const_c ? C(0,0,0,0) :
                                     (coeffDim == 3 ? C(2,qx,qy,qz) : C(0,qx,qy,qz));
 
                   // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
@@ -147,8 +147,8 @@ void SetupPatch3D(const int Q1Dx,
 // Compute a reduced integration rule, using NNLSSolver, for DiffusionIntegrator
 // on a NURBS patch with partial assembly.
 void GetReducedRule(const int nq, const int nd,
-                    Array2D<double> const& B,
-                    Array2D<double> const& G,
+                    Array2D<fptype> const& B,
+                    Array2D<fptype> const& G,
                     std::vector<int> minQ,
                     std::vector<int> maxQ,
                     std::vector<int> minD,
@@ -185,15 +185,15 @@ void GetReducedRule(const int nq, const int nd,
 
       for (int qx = minD[dof]; qx <= maxD[dof]; ++qx)
       {
-         const double Bq = zeroOrder ? B(qx,dof) : G(qx,dof);
+         const fptype Bq = zeroOrder ? B(qx,dof) : G(qx,dof);
 
          const IntegrationPoint &ip = ir->IntPoint(qx);
-         const double w_qx = ip.weight;
+         const fptype w_qx = ip.weight;
          w[qx - minD[dof]] = w_qx;
 
          for (int dx = minQ[qx]; dx <= maxQ[qx]; ++dx)
          {
-            const double Bd = zeroOrder ? B(qx,dx) : G(qx,dx);
+            const fptype Bd = zeroOrder ? B(qx,dx) : G(qx,dx);
 
             Gmat(dx - minDD[dof], qx - minD[dof]) = Bq * Bd;
          }
@@ -245,8 +245,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 {
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<double>>& B = pB[patch];
-   const std::vector<Array2D<double>>& G = pG[patch];
+   const std::vector<Array2D<fptype>>& B = pB[patch];
+   const std::vector<Array2D<fptype>>& G = pG[patch];
 
    const IntArrayVar2D& minD = pminD[patch];
    const IntArrayVar2D& maxD = pmaxD[patch];
@@ -271,7 +271,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
    int coeffDim = 1;
    Vector coeff;
-   Array<double> weights(nq);
+   Array<fptype> weights(nq);
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
    IntegrationPoint ip;
 
@@ -508,8 +508,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<double>>& B = pB[patch];
-   const std::vector<Array2D<double>>& G = pG[patch];
+   const std::vector<Array2D<fptype>>& B = pB[patch];
+   const std::vector<Array2D<fptype>>& G = pG[patch];
 
    const IntArrayVar2D& minD = pminD[patch];
    const IntArrayVar2D& maxD = pmaxD[patch];
@@ -532,22 +532,22 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from PADiffusionApply3D.
-   std::vector<Array3D<double>> grad(dim);
+   std::vector<Array3D<fptype>> grad(dim);
 
    for (int d=0; d<dim; ++d)
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
    }
 
-   Array3D<double> gradDXY(D1D[0], D1D[1], dim);
-   Array2D<double> gradDX(D1D[0], dim);
+   Array3D<fptype> gradDXY(D1D[0], D1D[1], dim);
+   Array2D<fptype> gradDX(D1D[0], dim);
 
    int nd[3];
    Array3D<int> cdofs;
 
    int *smati = nullptr;
    int *smatj = nullptr;
-   double *smata = nullptr;
+   fptype *smata = nullptr;
    int nnz = 0;
 
    Array<int> maxw(dim);
@@ -588,7 +588,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
    }
 
    smatj = new int[nnz];
-   smata = new double[nnz];
+   smata = new fptype[nnz];
 
    for (int i=0; i<nnz; ++i)
    {
@@ -630,33 +630,33 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
 
       for (int qz = minD[2][jdz]; qz <= maxD[2][jdz]; ++qz)
       {
-         const double wz  = B[2](qz,jdz);
-         const double wDz = G[2](qz,jdz);
+         const fptype wz  = B[2](qz,jdz);
+         const fptype wDz = G[2](qz,jdz);
 
          for (int qy = minD[1][jdy]; qy <= maxD[1][jdy]; ++qy)
          {
-            const double wy  = B[1](qy,jdy);
-            const double wDy = G[1](qy,jdy);
+            const fptype wy  = B[1](qy,jdy);
+            const fptype wDy = G[1](qy,jdy);
 
             for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
             {
                const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-               const double O11 = qd(q,0);
-               const double O12 = qd(q,1);
-               const double O13 = qd(q,2);
-               const double O21 = symmetric ? O12 : qd(q,3);
-               const double O22 = symmetric ? qd(q,3) : qd(q,4);
-               const double O23 = symmetric ? qd(q,4) : qd(q,5);
-               const double O31 = symmetric ? O13 : qd(q,6);
-               const double O32 = symmetric ? O23 : qd(q,7);
-               const double O33 = symmetric ? qd(q,5) : qd(q,8);
+               const fptype O11 = qd(q,0);
+               const fptype O12 = qd(q,1);
+               const fptype O13 = qd(q,2);
+               const fptype O21 = symmetric ? O12 : qd(q,3);
+               const fptype O22 = symmetric ? qd(q,3) : qd(q,4);
+               const fptype O23 = symmetric ? qd(q,4) : qd(q,5);
+               const fptype O31 = symmetric ? O13 : qd(q,6);
+               const fptype O32 = symmetric ? O23 : qd(q,7);
+               const fptype O33 = symmetric ? qd(q,5) : qd(q,8);
 
-               const double wx  = B[0](qx,jdx);
-               const double wDx = G[0](qx,jdx);
+               const fptype wx  = B[0](qx,jdx);
+               const fptype wDx = G[0](qx,jdx);
 
-               const double gradX = wDx * wy * wz;
-               const double gradY = wx  * wDy * wz;
-               const double gradZ = wx  * wy * wDz;
+               const fptype gradX = wDx * wy * wz;
+               const fptype gradY = wx  * wDy * wz;
+               const fptype gradZ = wx  * wy * wDz;
 
                grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
                grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
@@ -688,13 +688,13 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
             }
             for (int qx = minD[0][jdx]; qx <= maxD[0][jdx]; ++qx)
             {
-               const double gX = grad[0](qx,qy,qz);
-               const double gY = grad[1](qx,qy,qz);
-               const double gZ = grad[2](qx,qy,qz);
+               const fptype gX = grad[0](qx,qy,qz);
+               const fptype gY = grad[1](qx,qy,qz);
+               const fptype gZ = grad[2](qx,qy,qz);
                for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                {
-                  const double wx  = B[0](qx,dx);
-                  const double wDx = G[0](qx,dx);
+                  const fptype wx  = B[0](qx,dx);
+                  const fptype wDx = G[0](qx,dx);
                   gradDX(dx,0) += gX * wDx;
                   gradDX(dx,1) += gY * wx;
                   gradDX(dx,2) += gZ * wx;
@@ -702,8 +702,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
             }
             for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
             {
-               const double wy  = B[1](qy,dy);
-               const double wDy = G[1](qy,dy);
+               const fptype wy  = B[1](qy,dy);
+               const fptype wDy = G[1](qy,dy);
                for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                {
                   gradDXY(dx,dy,0) += gradDX(dx,0) * wy;
@@ -714,13 +714,13 @@ void DiffusionIntegrator::AssemblePatchMatrix_fullQuadrature(
          }
          for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
          {
-            const double wz  = B[2](qz,dz);
-            const double wDz = G[2](qz,dz);
+            const fptype wz  = B[2](qz,dz);
+            const fptype wDz = G[2](qz,dz);
             for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
             {
                for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                {
-                  const double v = (gradDXY(dx,dy,0) * wz) +
+                  const fptype v = (gradDXY(dx,dy,0) * wz) +
                                    (gradDXY(dx,dy,1) * wz) +
                                    (gradDXY(dx,dy,2) * wDz);
 
@@ -762,8 +762,8 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
    Array<int> Q1D(dim);
    Array<int> orders(dim);
    Array<int> D1D(dim);
-   std::vector<Array2D<double>> B(dim);
-   std::vector<Array2D<double>> G(dim);
+   std::vector<Array2D<fptype>> B(dim);
+   std::vector<Array2D<fptype>> G(dim);
    Array<const IntegrationRule*> ir1d(dim);
 
    IntArrayVar2D minD(dim);
@@ -805,8 +805,8 @@ void DiffusionIntegrator::SetupPatchBasisData(Mesh *mesh, unsigned int patch)
       {
          const IntegrationPoint &ip = ir1d[d]->IntPoint(i);
          const int ijk = knotSpan1D[i];
-         const double kv0 = (*pkv[d])[orders[d] + ijk];
-         double kv1 = (*pkv[d])[0];
+         const fptype kv0 = (*pkv[d])[orders[d] + ijk];
+         fptype kv1 = (*pkv[d])[0];
          for (int j = orders[d] + ijk + 1; j < pkv[d]->Size(); ++j)
          {
             if ((*pkv[d])[j] > kv0)
@@ -912,8 +912,8 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
 
    const Array<int>& Q1D = pQ1D[patch];
    const Array<int>& D1D = pD1D[patch];
-   const std::vector<Array2D<double>>& B = pB[patch];
-   const std::vector<Array2D<double>>& G = pG[patch];
+   const std::vector<Array2D<fptype>>& B = pB[patch];
+   const std::vector<Array2D<fptype>>& G = pG[patch];
 
    const IntArrayVar2D& minD = pminD[patch];
    const IntArrayVar2D& maxD = pmaxD[patch];
@@ -936,7 +936,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                            (symmetric ? 6 : 9));
 
    // NOTE: the following is adapted from PADiffusionApply3D.
-   std::vector<Array3D<double>> grad(dim);
+   std::vector<Array3D<fptype>> grad(dim);
    for (int d=0; d<dim; ++d)
    {
       grad[d].SetSize(Q1D[0], Q1D[1], Q1D[2]);
@@ -948,15 +948,15 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    Array3D<bool> gradUsed;
    gradUsed.SetSize(Q1D[0], Q1D[1], Q1D[2]);
 
-   Array3D<double> gradDXY(D1D[0], D1D[1], dim);
-   Array2D<double> gradDX(D1D[0], dim);
+   Array3D<fptype> gradDXY(D1D[0], D1D[1], dim);
+   Array2D<fptype> gradDX(D1D[0], dim);
 
    int nd[3];
    Array3D<int> cdofs;
 
    int *smati = nullptr;
    int *smatj = nullptr;
-   double *smata = nullptr;
+   fptype *smata = nullptr;
    bool bugfound = false;
    int nnz = 0;
 
@@ -998,7 +998,7 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
    }
 
    smatj = new int[nnz];
-   smata = new double[nnz];
+   smata = new fptype[nnz];
 
    for (int i=0; i<nnz; ++i)
    {
@@ -1044,10 +1044,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
          for (int irz=0; irz < nwz; ++irz)
          {
             const int qz = rid(zquad,2,patch)[jdz][irz] + minD[2][jdz];
-            const double zw = rw(zquad,2,patch)[jdz][irz];
+            const fptype zw = rw(zquad,2,patch)[jdz][irz];
 
-            const double gwz  = B[2](qz,jdz);
-            const double gwDz = G[2](qz,jdz);
+            const fptype gwz  = B[2](qz,jdz);
+            const fptype gwDz = G[2](qz,jdz);
 
             for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
             {
@@ -1067,10 +1067,10 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                for (int iry=0; iry < nwy; ++iry)
                {
                   const int qy = rid(yquad,1,patch)[jdy][iry] + minD[1][jdy];
-                  const double yw = rw(yquad,1,patch)[jdy][iry];
+                  const fptype yw = rw(yquad,1,patch)[jdy][iry];
 
-                  const double gwy  = B[1](qy,jdy);
-                  const double gwDy = G[1](qy,jdy);
+                  const fptype gwy  = B[1](qy,jdy);
+                  const fptype gwDy = G[1](qy,jdy);
 
                   for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                   {
@@ -1090,23 +1090,23 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
 
                         if (!gradUsed(qx,qy,qz))
                         {
-                           const double gwx  = B[0](qx,jdx);
-                           const double gwDx = G[0](qx,jdx);
+                           const fptype gwx  = B[0](qx,jdx);
+                           const fptype gwDx = G[0](qx,jdx);
 
                            const int q = qx + ((qy + (qz * Q1D[1])) * Q1D[0]);
-                           const double O11 = qd(q,0);
-                           const double O12 = qd(q,1);
-                           const double O13 = qd(q,2);
-                           const double O21 = symmetric ? O12 : qd(q,3);
-                           const double O22 = symmetric ? qd(q,3) : qd(q,4);
-                           const double O23 = symmetric ? qd(q,4) : qd(q,5);
-                           const double O31 = symmetric ? O13 : qd(q,6);
-                           const double O32 = symmetric ? O23 : qd(q,7);
-                           const double O33 = symmetric ? qd(q,5) : qd(q,8);
+                           const fptype O11 = qd(q,0);
+                           const fptype O12 = qd(q,1);
+                           const fptype O13 = qd(q,2);
+                           const fptype O21 = symmetric ? O12 : qd(q,3);
+                           const fptype O22 = symmetric ? qd(q,3) : qd(q,4);
+                           const fptype O23 = symmetric ? qd(q,4) : qd(q,5);
+                           const fptype O31 = symmetric ? O13 : qd(q,6);
+                           const fptype O32 = symmetric ? O23 : qd(q,7);
+                           const fptype O33 = symmetric ? qd(q,5) : qd(q,8);
 
-                           const double gradX = gwDx * gwy * gwz;
-                           const double gradY = gwx * gwDy * gwz;
-                           const double gradZ = gwx * gwy * gwDz;
+                           const fptype gradX = gwDx * gwy * gwz;
+                           const fptype gradY = gwx * gwDy * gwz;
+                           const fptype gradZ = gwx * gwy * gwDz;
 
                            grad[0](qx,qy,qz) = (O11*gradX)+(O12*gradY)+(O13*gradZ);
                            grad[1](qx,qy,qz) = (O21*gradX)+(O22*gradY)+(O23*gradZ);
@@ -1123,12 +1123,12 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   {
                      const int qx = rid(0,0,patch)[jdx][irx] + minD[0][jdx];
 
-                     const double gY = grad[1](qx,qy,qz);
-                     const double gZ = grad[2](qx,qy,qz);
-                     const double xw = rw(0,0,patch)[jdx][irx];
+                     const fptype gY = grad[1](qx,qy,qz);
+                     const fptype gZ = grad[2](qx,qy,qz);
+                     const fptype xw = rw(0,0,patch)[jdx][irx];
                      for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
-                        const double wx  = B[0](qx,dx);
+                        const fptype wx  = B[0](qx,dx);
                         if (yquad == 1)
                         {
                            gradDX(dx,1) += gY * wx * xw;
@@ -1147,19 +1147,19 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
                   {
                      const int qx = rid(1,0,patch)[jdx][irx] + minD[0][jdx];
 
-                     const double gX = grad[0](qx,qy,qz);
-                     const double xw = rw(1,0,patch)[jdx][irx];
+                     const fptype gX = grad[0](qx,qy,qz);
+                     const fptype xw = rw(1,0,patch)[jdx][irx];
                      for (int dx = minQ[0][qx]; dx <= maxQ[0][qx]; ++dx)
                      {
-                        const double wDx = G[0](qx,dx);
+                        const fptype wDx = G[0](qx,dx);
                         gradDX(dx,0) += gX * wDx * xw;
                      }
                   }
 
                   for (int dy = minQ[1][qy]; dy <= maxQ[1][qy]; ++dy)
                   {
-                     const double wy  = B[1](qy,dy);
-                     const double wDy = G[1](qy,dy);
+                     const fptype wy  = B[1](qy,dy);
+                     const fptype wDy = G[1](qy,dy);
                      for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                      {
                         if (yquad == 0)
@@ -1183,13 +1183,13 @@ void DiffusionIntegrator::AssemblePatchMatrix_reducedQuadrature(
             } // y quadrature type
             for (int dz = minQ[2][qz]; dz <= maxQ[2][qz]; ++dz)
             {
-               const double wz  = B[2](qz,dz);
-               const double wDz = G[2](qz,dz);
+               const fptype wz  = B[2](qz,dz);
+               const fptype wDz = G[2](qz,dz);
                for (int dy = minDD[1][jdy]; dy <= maxDD[1][jdy]; ++dy)
                {
                   for (int dx = minDD[0][jdx]; dx <= maxDD[0][jdx]; ++dx)
                   {
-                     double v = (zquad == 0) ? (gradDXY(dx,dy,0) * wz) +
+                     fptype v = (zquad == 0) ? (gradDXY(dx,dy,0) * wz) +
                                 (gradDXY(dx,dy,1) * wz) : gradDXY(dx,dy,2) * wDz;
 
                      v *= zw;

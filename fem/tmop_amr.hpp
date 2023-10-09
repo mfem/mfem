@@ -34,9 +34,9 @@ protected:
    Array<int> aniso_flags;
    // An element is refined only if
    // [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
-   double energy_scaling_factor;
+   fptype energy_scaling_factor;
    GridFunction *spat_gf;   // If specified, can be used to specify the
-   double spat_gf_critical; // region where hr-adaptivity is done.
+   fptype spat_gf_critical; // region where hr-adaptivity is done.
 
    /// Check if the mesh of the solution was modified.
    bool MeshIsModified()
@@ -113,15 +113,15 @@ public:
 
    /// Scaling factor for the TMOP refinement energy. An element is refined if
    /// [mean TMOPEnergy(children)]*energy_scaling_factor < TMOPEnergy(parent)
-   void SetEnergyScalingFactor(double scale) { energy_scaling_factor = scale; }
+   void SetEnergyScalingFactor(fptype scale) { energy_scaling_factor = scale; }
 
    /// Spatial indicator function (eta) that can be used to prevent elements
    /// from being refined even if the energy criterion is met. Using this,
    /// an element E is not refined if mean(@a spat_gf(E)) < @a spat_gf_critical.
    void SetSpatialIndicator(GridFunction &spat_gf_,
-                            double spat_gf_critical_ = 0.5)
+                            fptype spat_gf_critical_ = 0.5)
    { spat_gf = &spat_gf_; spat_gf_critical = spat_gf_critical_; }
-   void SetSpatialIndicatorCritical(double val_) { spat_gf_critical = val_; }
+   void SetSpatialIndicatorCritical(fptype val_) { spat_gf_critical = val_; }
 
    /// Reset the error estimator.
    virtual void Reset() { current_sequence = -1; }

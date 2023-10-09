@@ -45,13 +45,13 @@ public:
    virtual ~IterativeSolverMonitor() {}
 
    /// Monitor the residual vector r
-   virtual void MonitorResidual(int it, double norm, const Vector &r,
+   virtual void MonitorResidual(int it, fptype norm, const Vector &r,
                                 bool final)
    {
    }
 
    /// Monitor the solution vector x
-   virtual void MonitorSolution(int it, double norm, const Vector &x,
+   virtual void MonitorSolution(int it, fptype norm, const Vector &x,
                                 bool final)
    {
    }
@@ -151,10 +151,10 @@ protected:
    int max_iter;
 
    /// Relative tolerance.
-   double rel_tol;
+   fptype rel_tol;
 
    /// Absolute tolerance.
-   double abs_tol;
+   fptype abs_tol;
 
    ///@}
 
@@ -164,13 +164,13 @@ protected:
 
    mutable int final_iter = -1;
    mutable bool converged = false;
-   mutable double initial_norm = -1.0, final_norm = -1.0;
+   mutable fptype initial_norm = -1.0, final_norm = -1.0;
 
    ///@}
 
-   double Dot(const Vector &x, const Vector &y) const;
-   double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
-   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+   fptype Dot(const Vector &x, const Vector &y) const;
+   fptype Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   void Monitor(int it, fptype norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
@@ -196,8 +196,8 @@ public:
        X depends on the specific iterative solver.
       */
    ///@{
-   void SetRelTol(double rtol) { rel_tol = rtol; }
-   void SetAbsTol(double atol) { abs_tol = atol; }
+   void SetRelTol(fptype rtol) { rel_tol = rtol; }
+   void SetAbsTol(fptype atol) { abs_tol = atol; }
    void SetMaxIter(int max_it) { max_iter = max_it; }
    ///@}
 
@@ -255,20 +255,20 @@ public:
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), computed before the start of the
    /// iteration.
-   double GetInitialNorm() const { return initial_norm; }
+   fptype GetInitialNorm() const { return initial_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult().
    ///
    /// This function returns the norm of the residual (or preconditioned
    /// residual, depending on the solver), corresponding to the returned
    /// solution.
-   double GetFinalNorm() const { return final_norm; }
+   fptype GetFinalNorm() const { return final_norm; }
    /// @brief Returns the final residual norm after termination of the solver
    /// during the last call to Mult(), divided by the initial residual norm.
    /// Returns -1 if one of these norms is left undefined by the solver.
    ///
    /// @sa GetFinalNorm(), GetInitialNorm()
-   double GetFinalRelNorm() const
+   fptype GetFinalRelNorm() const
    {
       if (final_norm < 0.0 || initial_norm < 0.0) { return -1.0; }
       return final_norm / initial_norm;
@@ -305,7 +305,7 @@ public:
    /** @brief Default constructor: the diagonal will be computed by subsequent
        calls to SetOperator() using the Operator method AssembleDiagonal. */
    /** In this case the array of essential tdofs will be empty. */
-   OperatorJacobiSmoother(const double damping=1.0);
+   OperatorJacobiSmoother(const fptype damping=1.0);
 
    /** Setup a Jacobi smoother with the diagonal of @a a obtained by calling
        a.AssembleDiagonal(). It is assumed that the underlying operator acts as
@@ -318,7 +318,7 @@ public:
        original behavior of this class. */
    OperatorJacobiSmoother(const BilinearForm &a,
                           const Array<int> &ess_tdof_list,
-                          const double damping=1.0);
+                          const fptype damping=1.0);
 
    /** Application is by the *inverse* of the given vector. It is assumed that
        the underlying operator acts as the identity on entries in ess_tdof_list,
@@ -331,7 +331,7 @@ public:
        original behavior of this class. */
    OperatorJacobiSmoother(const Vector &d,
                           const Array<int> &ess_tdof_list,
-                          const double damping=1.0);
+                          const fptype damping=1.0);
 
    ~OperatorJacobiSmoother() {}
 
@@ -356,7 +356,7 @@ public:
 
 private:
    Vector dinv;
-   const double damping;
+   const fptype damping;
    const Array<int> *ess_tdof_list; // not owned; may be NULL
    mutable Vector residual;
    /// Uses absolute values of the diagonal entries.
@@ -387,13 +387,13 @@ public:
        max_eig_estimate. */
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, double max_eig_estimate);
+                             int order, fptype max_eig_estimate);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
-                             int order, double max_eig_estimate);
+                             int order, fptype max_eig_estimate);
 
    /** Application is by *inverse* of the given vector. It is assumed the
        underlying operator acts as the identity on entries in ess_tdof_list,
@@ -407,7 +407,7 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             fptype power_tolerance = 1e-8);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
@@ -415,19 +415,19 @@ public:
                              const Array<int>& ess_tdof_list,
                              int order, MPI_Comm comm = MPI_COMM_NULL,
                              int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             fptype power_tolerance = 1e-8);
 #else
    OperatorChebyshevSmoother(const Operator &oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             fptype power_tolerance = 1e-8);
 
    /// Deprecated: see pass-by-reference version above
    MFEM_DEPRECATED
    OperatorChebyshevSmoother(const Operator* oper_, const Vector &d,
                              const Array<int>& ess_tdof_list,
                              int order, int power_iterations = 10,
-                             double power_tolerance = 1e-8);
+                             fptype power_tolerance = 1e-8);
 #endif
 
    ~OperatorChebyshevSmoother() {}
@@ -445,11 +445,11 @@ public:
 
 private:
    const int order;
-   double max_eig_estimate;
+   fptype max_eig_estimate;
    const int N;
    Vector dinv;
    const Vector &diag;
-   Array<double> coeffs;
+   Array<fptype> coeffs;
    const Array<int>& ess_tdof_list;
    mutable Vector residual;
    mutable Vector helperVector;
@@ -481,12 +481,12 @@ public:
 /// Stationary linear iteration. (tolerances are squared)
 void SLI(const Operator &A, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         fptype RTOLERANCE = 1e-12, fptype ATOLERANCE = 1e-24);
 
 /// Preconditioned stationary linear iteration. (tolerances are squared)
 void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         fptype RTOLERANCE = 1e-12, fptype ATOLERANCE = 1e-24);
 
 
 /// Conjugate gradient method
@@ -513,12 +513,12 @@ public:
 /// Conjugate gradient method. (tolerances are squared)
 void CG(const Operator &A, const Vector &b, Vector &x,
         int print_iter = 0, int max_num_iter = 1000,
-        double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+        fptype RTOLERANCE = 1e-12, fptype ATOLERANCE = 1e-24);
 
 /// Preconditioned conjugate gradient method. (tolerances are squared)
 void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          int print_iter = 0, int max_num_iter = 1000,
-         double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
+         fptype RTOLERANCE = 1e-12, fptype ATOLERANCE = 1e-24);
 
 
 /// GMRES method
@@ -560,12 +560,12 @@ public:
 
 /// GMRES method. (tolerances are squared)
 int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit);
+          int &max_iter, int m, fptype &tol, fptype atol, int printit);
 
 /// GMRES method. (tolerances are squared)
 void GMRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
            int print_iter = 0, int max_num_iter = 1000, int m = 50,
-           double rtol = 1e-12, double atol = 1e-24);
+           fptype rtol = 1e-12, fptype atol = 1e-24);
 
 
 /// BiCGSTAB method
@@ -591,12 +591,12 @@ public:
 
 /// BiCGSTAB method. (tolerances are squared)
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
-             int &max_iter, double &tol, double atol, int printit);
+             int &max_iter, fptype &tol, fptype atol, int printit);
 
 /// BiCGSTAB method. (tolerances are squared)
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
               int print_iter = 0, int max_num_iter = 1000,
-              double rtol = 1e-12, double atol = 1e-24);
+              fptype rtol = 1e-12, fptype atol = 1e-24);
 
 
 /// MINRES method
@@ -626,12 +626,12 @@ public:
 
 /// MINRES method without preconditioner. (tolerances are squared)
 void MINRES(const Operator &A, const Vector &b, Vector &x, int print_it = 0,
-            int max_it = 1000, double rtol = 1e-12, double atol = 1e-24);
+            int max_it = 1000, fptype rtol = 1e-12, fptype atol = 1e-24);
 
 /// MINRES method with preconditioner. (tolerances are squared)
 void MINRES(const Operator &A, Solver &B, const Vector &b, Vector &x,
             int print_it = 0, int max_it = 1000,
-            double rtol = 1e-12, double atol = 1e-24);
+            fptype rtol = 1e-12, fptype atol = 1e-24);
 
 
 /// Newton's method for solving F(x)=b for a given operator F.
@@ -649,32 +649,32 @@ protected:
    // Method to determine rtol, 0 means the adaptive algorithm is deactivated.
    int lin_rtol_type = 0;
    // rtol to use in first iteration
-   double lin_rtol0;
+   fptype lin_rtol0;
    // Maximum rtol
-   double lin_rtol_max;
+   fptype lin_rtol_max;
    // Function norm ||F(x)|| of the previous iterate
-   mutable double fnorm_last = 0.0;
+   mutable fptype fnorm_last = 0.0;
    // Linear residual norm of the previous iterate
-   mutable double lnorm_last = 0.0;
+   mutable fptype lnorm_last = 0.0;
    // Forcing term (linear residual rtol) from the previous iterate
-   mutable double eta_last = 0.0;
+   mutable fptype eta_last = 0.0;
    // Eisenstat-Walker factor gamma
-   double gamma;
+   fptype gamma;
    // Eisenstat-Walker factor alpha
-   double alpha;
+   fptype alpha;
 
    /** @brief Method for the adaptive linear solver rtol invoked before the
        linear solve. */
    void AdaptiveLinRtolPreSolve(const Vector &x,
                                 const int it,
-                                const double fnorm) const;
+                                const fptype fnorm) const;
 
    /** @brief Method for the adaptive linear solver rtol invoked after the
        linear solve. */
    void AdaptiveLinRtolPostSolve(const Vector &x,
                                  const Vector &b,
                                  const int it,
-                                 const double fnorm) const;
+                                 const fptype fnorm) const;
 
 public:
    NewtonSolver() { }
@@ -696,7 +696,7 @@ public:
        search algorithms. */
    /** The base class implementation (NewtonSolver) simply returns 1. A return
        value of 0 indicates a failure, interrupting the Newton iteration. */
-   virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
+   virtual fptype ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
 
    /** @brief This method can be overloaded in derived classes to perform
@@ -715,10 +715,10 @@ public:
     in an inexact Newton method."
     */
    void SetAdaptiveLinRtol(const int type = 2,
-                           const double rtol0 = 0.5,
-                           const double rtol_max = 0.9,
-                           const double alpha = 0.5 * (1.0 + sqrt(5.0)),
-                           const double gamma = 1.0);
+                           const fptype rtol0 = 0.5,
+                           const fptype rtol_max = 0.9,
+                           const fptype alpha = 0.5 * (1.0 + sqrt(5.0)),
+                           const fptype gamma = 1.0);
 };
 
 /** L-BFGS method for solving F(x)=b for a given operator F, by minimizing
@@ -790,8 +790,8 @@ public:
     cf(=0.4) is a desired convergence factor. */
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,
-           int m_max, int m_min, int m_step, double cf,
-           double &tol, double &atol, int printit);
+           int m_max, int m_min, int m_step, fptype cf,
+           fptype &tol, fptype &atol, int printit);
 
 #ifdef MFEM_USE_HIOP
 class HiopOptimizationProblem;
@@ -841,7 +841,7 @@ public:
    OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
 
    /// Objective F(x). In parallel, the result should be reduced over tasks.
-   virtual double CalcObjective(const Vector &x) const = 0;
+   virtual fptype CalcObjective(const Vector &x) const = 0;
    /// The result grad is expected to enter with the correct size.
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
@@ -898,10 +898,10 @@ class SLBQPOptimizer : public OptimizationSolver
 {
 protected:
    Vector lo, hi, w;
-   double a;
+   fptype a;
 
    /// Solve QP at fixed lambda
-   inline double solve(double l, const Vector &xt, Vector &x, int &nclip) const
+   inline fptype solve(fptype l, const Vector &xt, Vector &x, int &nclip) const
    {
       add(xt, l, w, x);
       if (problem == NULL) { x.median(lo,hi); }
@@ -922,7 +922,7 @@ protected:
       }
    }
 
-   inline void print_iteration(int it, double r, double l) const;
+   inline void print_iteration(int it, fptype r, fptype l) const;
 
 public:
    SLBQPOptimizer() { }
@@ -937,7 +937,7 @@ public:
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    void SetBounds(const Vector &lo_, const Vector &hi_);
-   void SetLinearConstraint(const Vector &w_, double a_);
+   void SetLinearConstraint(const Vector &w_, fptype a_);
 
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
@@ -1009,7 +1009,7 @@ public:
    /** Get the data array for the block CSR representation of the factorization.
     *  Similar to SparseMatrix::GetData(). Mostly used for testing.
     */
-   double *GetBlockData() { return AB.Data(); }
+   fptype *GetBlockData() { return AB.Data(); }
 
 private:
    /// Set up the block CSR structure corresponding to a sparse matrix @a A
@@ -1059,7 +1059,7 @@ public:
    ResidualBCMonitor(const Array<int> &ess_dofs_list_)
       : ess_dofs_list(&ess_dofs_list_) { }
 
-   void MonitorResidual(int it, double norm, const Vector &r,
+   void MonitorResidual(int it, fptype norm, const Vector &r,
                         bool final) override;
 };
 
@@ -1078,8 +1078,8 @@ protected:
    void Init();
 
 public:
-   double Control[UMFPACK_CONTROL];
-   mutable double Info[UMFPACK_INFO];
+   fptype Control[UMFPACK_CONTROL];
+   mutable fptype Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        use_long_ints_ = true. */
@@ -1268,7 +1268,7 @@ public:
      */
    void SetVerbosity(int v) { verbosity_ = v; }
 
-   void SetTolerance(double tol) { const_tol_ = tol; }
+   void SetTolerance(fptype tol) { const_tol_ = tol; }
 
    /// Set the minimum number of nonzeros required for the solution.
    void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
@@ -1278,13 +1278,13 @@ public:
    void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
 
    /// Set threshold on relative change in residual over nStallCheck_ iterations.
-   void SetResidualChangeTolerance(double tol)
+   void SetResidualChangeTolerance(fptype tol)
    { res_change_termination_tol_ = tol; }
 
-   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+   void SetZeroTolerance(fptype tol) { zero_tol_ = tol; }
 
    /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
-   void SetRHSDelta(double d) { rhs_delta_ = d; }
+   void SetRHSDelta(fptype d) { rhs_delta_ = d; }
 
    /// Set the maximum number of outer iterations in Solve().
    void SetOuterIterations(int n) { n_outer_ = n; }
@@ -1339,7 +1339,7 @@ public:
 private:
    const DenseMatrix *mat;
 
-   double const_tol_;
+   fptype const_tol_;
    int min_nnz_; // minimum number of nonzero entries
    mutable int max_nnz_; // maximum number of nonzero entries
    int verbosity_;
@@ -1348,10 +1348,10 @@ private:
     * @brief Threshold on relative change in residual over nStallCheck_
     * iterations, for stall sensing.
     */
-   double res_change_termination_tol_;
+   fptype res_change_termination_tol_;
 
-   double zero_tol_;
-   double rhs_delta_;
+   fptype zero_tol_;
+   fptype rhs_delta_;
    int n_outer_;
    int n_inner_;
    int nStallCheck_;
