@@ -278,14 +278,14 @@ public:
         E.SetSIMP(vv);
     }
 
-    double MeanCompliance(mfem::Vector& grad)
+    double MeanCompliance(mfem::Vector& grad, double tt=0.1, double shift=100.0)
     {
         mfem::Vector lgr(grad.Size());
         grad=0.0;
 
         //set all bc
         esolv->DelDispBC();
-        for(int i=3;i<23;i++){
+        for(int i=3;i<10;i++){
             esolv->AddDispBC(i,4,0.0);
         }
         esolv->AddSurfLoad(1,0.00,1.00,0.0);
@@ -337,7 +337,7 @@ public:
 
                     if(myrank==0){std::cout<<"vtr="<<vtr<<std::endl;}
 
-                    if(vtr>0.01*ovol){flag=1;}
+                    if((vtr>0.003*ovol)&&(vtr<0.01*ovol)){flag=1;}
                     else{bulk_samples++;}
                 }
                 seeds.push_back(seed);
@@ -347,40 +347,33 @@ public:
         }
 
 
+        std::vector<double> om;
 
         int n=num_samples;
         double obj=0.0;
-        double var=0.0;
 
         for(int i=0;i<n;i++){
-
-            if(seeds.size()<(i+1)){
-                int seed1 = uint(generator);
-                int seed2 = static_cast<int>(std::time(nullptr));
-                int seed=seed1/2+seed2/2;
-                seeds.push_back(seed);
-            }
 
             rf->Sample(seeds[i]);
             E.SetScaling(&sca);
             esolv->FSolve();
             esolv->GetSol(sol);
 
-            double rez=cobj->Eval(sol);
+            double rez=cobj->Eval(sol); om.push_back(rez);
             cobj->Grad(sol,lgr);
-            grad.Add(1.0,lgr);
-            obj=obj+rez;
-            var=var+rez*rez;
+            grad.Add(exp((rez-shift)/tt),lgr);
+            obj=obj+exp((rez-shift)/tt);
         }
 
         E.SetScaling(nullptr);
 
-        grad/=double(n);
-        var=var/double(n);
-        obj=obj/double(n);
+        grad/=obj;
+        obj=shift+tt*log(obj/double(n));
 
         if(myrank==0){
-        std::cout<<"Var="<<var-obj*obj<<std::endl;}
+            std::sort(om.begin(),om.end());
+            std::cout<<"["<<om[0]<<","<<om[n-1]<<"]"<<std::endl;
+        }
 
         return obj;
     }
@@ -460,7 +453,8 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
    // Parse command-line options.
-   const char *mesh_file = "./canti_2D_m.msh";
+   //const char *mesh_file = "./canti_2D_m.msh";
+   const char *mesh_file = "./bar2D.msh";
    int order = 1;
    bool static_cond = false;
    int ser_ref_levels = 0;
@@ -605,7 +599,7 @@ int main(int argc, char *argv[])
    fsolv->SetSolver(1e-8,1e-12,100,0);
    fsolv->AddBC(1,1.0);
    fsolv->AddBC(2,0.0);
-   for(int i=3;i<23;i++){
+   for(int i=3;i<10;i++){
        fsolv->AddBC(i,1.0);
    }
 

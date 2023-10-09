@@ -14,6 +14,37 @@
 
 namespace mfem {
 
+//evaluates [ n ]
+//over      [ k ]
+int binomialCoeff(int n, int k)
+{
+    int C[k + 1];
+    memset(C, 0, sizeof(C));
+
+    C[0] = 1; // nC0 is 1
+
+    for (int i = 1; i <= n; i++)
+    {
+
+        // Compute next row of pascal triangle using
+        // the previous row
+        for (int j = std::min(i, k); j > 0; j--)
+            C[j] = C[j] + C[j - 1];
+    }
+    return C[k];
+}
+
+int CombinatorialNumber(std::vector<char> vv)
+{
+    std::sort(vv.begin(),vv.end());
+    for(int i=vv.size();i>0;i++){
+
+    }
+
+}
+
+
+
 class RiskMeasures{
 public:
     RiskMeasures(const std::vector<double>& samples_)
