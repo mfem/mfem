@@ -250,8 +250,6 @@ int main(int argc, char *argv[])
    {
       a.SetAssemblyLevel(
          AssemblyLevel::PARTIAL);
-      a.ExtUseTensorBasis(false);
-      a.ExtUseTensorBasis(false);
    }
    a.AddDomainIntegrator(&integrator);
    a.UseExternalIntegrators();
@@ -330,7 +328,6 @@ int main(int argc, char *argv[])
                             (block->GetFESpace()));//If get fespace was part of bilinear form, wouldn't need static_cast above.
          bilinear_forms.emplace_back(new ParBilinearForm(fes_block));
          bilinear_forms[j]->SetAssemblyLevel(AssemblyLevel::FULL);
-         bilinear_forms[j]->ExtUseTensorBasis(false);
          bilinear_forms[j]->EnableSparseMatrixSorting(Device::IsEnabled());
          bilinear_forms[j]->AddDomainIntegrator(block);
          bilinear_forms[j]->Assemble();
@@ -365,7 +362,6 @@ int main(int argc, char *argv[])
                pa_components.emplace_back(new ParBilinearForm(action_fes_block));
                pa_components[i + dim*j]->SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL :
                                                           AssemblyLevel::FULL);
-               pa_components[i + dim*j]->ExtUseTensorBasis(false);
                pa_components[i + dim*j]->EnableSparseMatrixSorting(Device::IsEnabled());
                pa_components[i + dim*j]->AddDomainIntegrator(action_block);
                pa_components[i + dim*j]->Assemble();
@@ -386,7 +382,6 @@ int main(int argc, char *argv[])
             fes_block->GetEssentialTrueDofs(ess_bdr_block_ho, ess_tdof_list_block_ho);
             ho_bilinear_form_blocks.emplace_back(new ParBilinearForm(fes_block));
             ho_bilinear_form_blocks[i]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            ho_bilinear_form_blocks[i]->ExtUseTensorBasis(false);
             ho_bilinear_form_blocks[i]->AddDomainIntegrator(block);
             ho_bilinear_form_blocks[i]->Assemble();
             const auto *prolong = fes_block->GetProlongationMatrix();

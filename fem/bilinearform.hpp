@@ -199,16 +199,6 @@ public:
       sort_sparse_matrix = enable_it;
    }
 
-   /** @brief Whether or not to allow tensor basis, if available, in the
-    * extension.
-    *
-    * By default, the element restriction operators in PABilinearFormExtension
-    * will use the tensor basis ordering if the elements are tensor elements.
-    * This option disables that. assembly must have been set to something
-    * besides AssemblyLevel::LEGACY before calling this.
-   */
-   void ExtUseTensorBasis(const bool use_tensor_basis);
-
    /// Returns the assembly level
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 

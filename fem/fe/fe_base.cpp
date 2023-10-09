@@ -496,7 +496,7 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                              DofToQuad::Mode mode,
                                              const ElementDofOrdering ordering) const
 {
-   MFEM_ABORT("method is not implemented for this element");
+   MFEM_VERIFY(ordering == ElementDofOrdering::NATIVE, "invalid mode requested");
    return GetDofToQuad(ir, mode);
 }
 

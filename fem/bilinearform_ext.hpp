@@ -33,7 +33,6 @@ class BilinearFormExtension : public Operator
 {
 protected:
    BilinearForm *a; ///< Not owned
-   bool use_tensor_basis = true;
 
 public:
    BilinearFormExtension(BilinearForm *form);
@@ -62,8 +61,6 @@ public:
                                  OperatorHandle &A, Vector &X, Vector &B,
                                  int copy_interior = 0) = 0;
    virtual void Update() = 0;
-   /** @brief Whether or not ext will use tensor basis, if available.*/
-   void UseTensorBasis(const bool use_tensor_basis_);
 };
 
 /// Data and methods for partially-assembled bilinear forms
