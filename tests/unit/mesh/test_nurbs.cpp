@@ -14,6 +14,36 @@ using namespace mfem;
 
 #include "unit_tests.hpp"
 
+TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
+{
+   auto mesh_fname = "../../data/pipe-nurbs.mesh";
+   Mesh mesh1(mesh_fname, 1, 1);
+   Mesh mesh2(mesh_fname, 1, 1);
+
+   Vector k0(1);
+   Vector k1(1);
+   Vector k2(1);
+
+   Array<Vector*> knots(3);
+   knots[0] = &k0;
+   knots[1] = &k1;
+   knots[2] = &k2;
+
+   mesh1.KnotInsert(knots);
+   REQUIRE(mesh1.GetNodes()->Size() > mesh2.GetNodes()->Size());
+
+   mesh1.KnotRemove(knots);
+
+   // At this point, mesh1 and mesh2 should coincide. Verify this by comparing
+   // their Nodes GridFunctions.
+   REQUIRE(mesh1.GetNodes()->Size() == mesh2.GetNodes()->Size());
+
+   Vector d(*mesh1.GetNodes());
+   d -= *mesh2.GetNodes();
+   const double error = d.Norml2();
+   REQUIRE(error == MFEM_Approx(0.0));
+}
+
 TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
 {
    auto mesh_fname = GENERATE("../../data/beam-quad-nurbs-sf.mesh",
@@ -30,12 +60,15 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
    rf[1] = beam ? 12 : 24;
 
    mesh1.UniformRefinement(rf);
-   mesh1.NURBSCoarsening(2);
 
    rf[0] = 12;
    rf[1] = beam ? 6 : 12;
 
    mesh2.UniformRefinement(rf);
+
+   REQUIRE(mesh1.GetNodes()->Size() > mesh2.GetNodes()->Size());
+
+   mesh1.NURBSCoarsening(2);
 
    // At this point, mesh1 and mesh2 should coincide. Verify this by comparing
    // their Nodes GridFunctions.
