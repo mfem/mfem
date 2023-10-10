@@ -35,7 +35,7 @@ class KnotVector
 protected:
    static const int MaxOrder;
 
-   Vector knot;
+   Vector knot; // Values of knots
    int Order, NumOfControlPoints, NumOfElements;
 
 public:
@@ -78,6 +78,7 @@ public:
       controlpoints of the interpolated curve are given in @a x in the same form.*/
    void FindInterpolant(Array<Vector*> &x);
 
+   /// Finds the knots in the larger of this and kv, not contained in the other.
    void Difference(const KnotVector &kv, Vector &diff) const;
 
    /// Refine uniformly with refinement factor @a rf.
@@ -85,8 +86,13 @@ public:
    /// Refine with refinement factor @a rf.
    void Refinement(Vector &newknots, int rf) const;
 
+   /** Returns the coarsening factor needed for non-nested nonuniform spacing
+       functions, to result in a single element from which refinement can be
+       done. The return value is 1 if uniform or nested spacing is used. */
    int GetCoarseningFactor() const;
 
+   /** For a given coarsening factor @a cf, find the fine knots between the
+       coarse knots. */
    void GetFineKnots(const int cf, Vector & fine);
 
    /** Return a new KnotVector with elevated degree by repeating the endpoints
@@ -106,8 +112,11 @@ public:
    double &operator[](int i) { return knot(i); }
    const double &operator[](int i) const { return knot(i); }
 
+   /// Function to define the distribution of knots for any number of knot spans.
    std::shared_ptr<SpacingFunction> spacing;
 
+   /** Flag to indicate whether the KnotVector has been coarsened, which means
+       it is ready for non-nested refinement. */
    bool coarse;
 };
 
@@ -158,30 +167,57 @@ public:
    void Print(std::ostream &out) const;
 
    void DegreeElevate(int dir, int t);
-   void KnotInsert   (int dir, const KnotVector &knot);
-   void KnotInsert   (int dir, const Vector     &knot);
 
+   /// Insert knots from @a knot determined by @a Difference, in direction @a dir.
+   void KnotInsert(int dir, const KnotVector &knot);
+   /// Insert knots from @a knot, in direction @a dir.
+   void KnotInsert(int dir, const Vector     &knot);
+
+   /// Insert knots from @a knot, in each direction.
    void KnotInsert(Array<Vector *> &knot);
+   /// Insert knots from @a knot determined by @a Difference, in each direction.
    void KnotInsert(Array<KnotVector *> &knot);
 
+   /** @brief Remove knot with value @a knot from direction @a dir.
+
+       The optional input parameter @a ntimes specifies the number of times the
+       knot should be removed, default 1. The knot is removed only if the new
+       curve (in direction @a dir) deviates from the old curve by less than
+       @a tol.
+
+       @returns The number of times the knot was successfully removed. */
    int KnotRemove(int dir, double knot, int ntimes=1, double tol=1.0e-12);
+
+   /// Remove all knots in @a knot once.
    void KnotRemove(int dir, Vector const& knot, double tol=1.0e-12);
+   /// Remove all knots in @a knot once, for each direction.
    void KnotRemove(Array<Vector *> &knot, double tol=1.0e-12);
 
    void DegreeElevate(int t);
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
-   refinement is done everywhere by the same factor, although nonuniform
-   spacing formulas may be used.
-   */
+       refinement is done everywhere by the same factor, although nonuniform
+       spacing functions may be used.
+
+       @param[in] rf Optional refinement factor. If scalar, the factor is used
+                     for all dimensions. If an array, factors can be specified
+                     for each dimension. */
    void UniformRefinement(int rf=2);
    void UniformRefinement(Array<int> const& rf);
 
+   /** @brief Coarsen with optional coarsening factor @a cf. Nonuniform spacing
+       functions may be used in each direction.
+
+       @param[in] cf Optional coarsening factor. If scalar, the factor is used
+                     for all dimensions. If an array, factors can be specified
+                     for each dimension. */
    void Coarsen(int cf=2);
    void Coarsen(Array<int> const& cf);
 
+   /// Calls KnotVector::GetCoarseningFactor for each direction.
    void GetCoarseningFactors(Array<int> & f) const;
 
+   /// Marks the KnotVector in each dimension as coarse.
    void SetKnotVectorsCoarse(bool c);
 
    // Return the number of components stored in the NURBSPatch
@@ -523,7 +559,7 @@ public:
 
    /** @brief Refine with optional refinement factor @a rf. Uniform means
    refinement is done everywhere by the same factor, although nonuniform
-   spacing formulas may be used.
+   spacing functions may be used.
    */
    void UniformRefinement(int rf=2);
    void UniformRefinement(Array<int> const& rf);
@@ -534,6 +570,9 @@ public:
 
    void KnotRemove(Array<Vector *> &kv, double tol=1.0e-12);
 
+   /** Calls GetCoarseningFactors for each patch and finds the minimum factor
+       for each direction that ensures refinement will work in the case of
+       non-nested spacing functions. */
    void GetCoarseningFactors(Array<int> & f) const;
 
    /// Returns the index of the patch containing element @a elem.

@@ -409,7 +409,11 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
-   /// Refine NURBS mesh.
+   /** @brief Refine NURBS mesh, with an optional refinement factor.
+
+       @param[in] rf Optional refinement factor. If scalar, the factor is used
+                     for all dimensions. If an array, factors can be specified
+                     for each dimension. */
    virtual void NURBSUniformRefinement(int rf = 2);
    virtual void NURBSUniformRefinement(Array<int> const& rf);
 
@@ -1922,6 +1926,7 @@ public:
    /** @param[in] rf % Refinement factors in each dimension. */
    void UniformRefinement(Array<int> const& rf);
 
+   /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf.
    void NURBSCoarsening(int cf = 2);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
@@ -2003,11 +2008,18 @@ public:
        is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
    void RefineNURBSFromFile(std::string ref_file);
-   void KnotInsert(Array<KnotVector *> &kv);
-   void KnotInsert(Array<Vector *> &kv);
-   void KnotRemove(Array<Vector *> &kv);
+
+   /// For NURBS meshes, insert the new knots in @a kv, for each direction.
+   void KnotInsert(Array<KnotVector*> &kv);
+
+   /// For NURBS meshes, insert the knots in @a kv, for each direction.
+   void KnotInsert(Array<Vector*> &kv);
+
+   /// For NURBS meshes, remove the knots in @a kv, for each direction.
+   void KnotRemove(Array<Vector*> &kv);
+
    /* For each knot vector:
-         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
+          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
