@@ -699,12 +699,15 @@ The specific libraries and their options are:
   PETSc has been cloned on the same level as mfem and hypre:
     ./configure --download-fblaslapack=yes --download-scalapack=yes \
                 --download-mumps=yes --download-suitesparse=yes \
-                --with-hypre-dir=../hypre-2.10.0b/src/hypre \
+                --with-hypre-dir=../hypre/src/hypre \
                 --with-shared-libraries=0
+  When building PETSc with HIP, one may need to add a flag like -std=c2x to
+  CFLAGS to allow proper parsing of the hipsparse header under C.
   URL: https://www.mcs.anl.gov/petsc
   Options: PETSC_OPT, PETSC_LIB.
-  Versions: PETSc >= 3.8.0   (PETSc build without CUDA)
+  Versions: PETSc >= 3.8.0   (PETSc build without CUDA/HIP)
             PETSc >= 3.15.0  (PETSc built with CUDA)
+            PETSc >= 3.19.0  (PETSc built with HIP, older versions may work too)
 
 - SLEPc (optional), used when MFEM_USE_SLEPC = YES. SLEPc depends on PETSc and
   uses some of the PETSc options when compiled.

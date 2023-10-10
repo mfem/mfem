@@ -8,104 +8,120 @@
                                https://mfem.org
 
 
-Version 4.5.3 (development)
+Version 4.6.1 (development)
 ===========================
-- Added curve interpolation method for NURBS.
+
+
+Version 4.6, released on September 27, 2023
+===========================================
+
+- MFEM is now available in Homebrew and can be installed on a Mac with just
+  "brew install mfem". See https://formulae.brew.sh/formula/mfem.
+
+Meshing improvements
+--------------------
+- Added asymptotically-balanced TMOP compound metrics 90, 94, 328, 338. A new
+  tool, tmop-metric-magnitude, can be used to track how metrics change under
+  geometric perturbations. See miniapps/tools.
+
+- Several NURBS meshing improvements:
+  * Support for free connectivity of NURBS patches allowing for more complex
+    patch configurations such as C-meshes.
+  * New methods to set and get attributes on NURBS patches and patch boundaries.
+  * The edge to knot map for NURBS meshes can be determined automatically. It is
+    no longer needed to specify this in the NURBS mesh.
+  * Added curve interpolation method for NURBS.
+  * See miniapps/nurbs for example meshes and miniapps.
+
+Discretization improvements
+---------------------------
+- SubMesh and ParSubMesh have been extended to support the transfer of
+  Nedelec and Raviart-Thomas finite element spaces.
+
+- Added support for partial assembly on NURBS patches, and NURBS-patch sparse
+  matrix assembly. Patch matrix assembly includes the option to use reduced
+  approximate integration rules, computed by the newly implemented non-negative
+  least-squares (NNLS) solver.
+
+- Support for parallel transfer of H1 fields using the low-order refined (LOR)
+  transfer operators in L2ProjectionGridTransfer
+
+- Added KDTree class for 2D/3D set of points, which is then utilized in the new
+  KDTreeNodalProjection class to project a function defined on an arbitrary set
+  of points onto an MFEM grid function. This functionality is demonstrated in
+  the nodal-transfer miniapp. The current implementation is serial only. Further
+  extensions can include search in arbitrary dimensional spaces.
+
+- Added support for p-refined meshes in GSLIB-FindPoints.
+
+- Device kernels can now access device-specific DOF and quadrature limits using
+  the DofQuadLimits structure, allowing increased limits when executing on CPU.
+  The limits for the runtime selected device can be accessed in host code using
+  DeviceDofQuadLimits::Get(). The global constants MAX_D1D and MAX_Q1D are no
+  longer available.
+
+- Face restriction operators for Nedelec and Raviart-Thomas finite element
+  spaces are now supported through the ConformingFaceRestriction class.
+
+- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
+
+Linear and nonlinear solvers
+----------------------------
+- Updated the MUMPS interface to support multiple right-hand sides, block
+  low-rank compression, builds using 64-bit integers, and other improvements.
+
+- Added an interface to the MKL Pardiso sparse direct solver developed by Intel.
+  The interface provides a serial (OpenMP shared memory) version of Pardiso for
+  use with SparseMatrix. This complements the existing parallel (MPI distributed
+  memory) version already available through the CPardiso MFEM integration.
+
+- Added HIP support to the PETSc and SUNDIALS interfaces.
 
 New and updated examples and miniapps
 -------------------------------------
-- Added a new example code, Example 36/36p, to demonstrate the solution of
-  the obstacle problem with a new finite element method.
-
-- Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
-  skewness, and aspect-ratio computed from the Jacobian of the transformation.
-
-- Added a new miniapp for interface and boundary fitting to implicit domains
-  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp.
-
-- Added a new miniapp for fitting of selected mesh nodes to specified positions,
-  while maintaining mesh quality. See miniapps/meshing/fit-node-position.cpp.
+- Added a new H(div) solver miniapp demonstrating the use of a matrix-free
+  saddle-point solver methodology, suitable for high-order discretizations and
+  for GPU acceleration. Examples illustrating the solution of Darcy and grad-div
+  problems are included. See miniapps/hdiv-linear-solver.
 
 - Added new Discontinuous Petrov-Galerkin (DPG) miniapp which includes serial
   and parallel examples for diffusion, convection-diffusion, acoustics and
   Maxwell equations. The miniapp includes new classes such as (Par)DPGWeakForm,
   (Par)ComplexDPGWeakForm and (Complex)BlockStaticCondensation. Three new
   integrators are added in support of DPG systems: TraceIntegrator,
-  NormalTraceIntegrator and TangentTraceIntegrator.
+  NormalTraceIntegrator and TangentTraceIntegrator. See miniapps/dpg.
 
-- Added new SubMesh examples demonstrating source terms and boundary conditions
-  transferred from SubMesh objects.
+- Added a new miniapp that implements the SPDE method for generating Gaussian
+  random fields of Matern covariance. The resulting random field can be used,
+  e.g., to model material uncertainties. See miniapps/spde.
 
-- Added a miniapp for interpolation of NURBS.
+- Added a new parallel LOR transfer miniapp, plor-transfer, which mirrors the
+  functionality of the serial LOR transfer miniapp. See miniapps/tools.
 
-- Added a new H(div) solvers miniapp in miniapps/hdiv-linear-solver,
-  demonstrating the use of a matrix-free saddle-point solver methodology,
-  suitable for high-order discretizations and for GPU acceleration. Examples
-  illustrating the solution of Darcy and grad-div problems are included.
+- New serial miniapp, nodal-transfer, demonstrating the use of KDTree to map a
+  parallel grid function to a different parallel partitioning of the same mesh.
+
+- Added 3 additional TMOP miniapps in miniapps/meshing:
+  * Mesh-Quality evaluates quality using size, skewness, and aspect-ratio
+    computed from the Jacobian of the transformation.
+  * Mesh-Fitting can be used for interface and boundary fitting to implicit
+    domains defined using level-set functions.
+  * Fit-Node-Position fits selected mesh nodes to specified positions, while
+    maintaining overall mesh quality.
+
+- Added 4 new example codes:
+  * Example 34/34p solves a simple magnetostatic problem where source terms and
+    boundary conditions are transferred with SubMesh objects.
+  * Example 35p implements H1, H(curl) and H(div) variants of a damped harmonic
+    oscillator with field transfer using SubMesh objects.
+  * Example 36/36p demonstrates the solution of the obstacle problem with a new
+    finite element method (proximal Galerkin).
+  * Example 37/37p demonstrates topology optimization with MFEM.
 
 - Added a random refinement option to the mesh-explorer miniapp to assist users
   in experimenting with nonconforming meshes.
 
 - Moved the distance solver methods from miniapps/shifted to miniapps/common.
-
-- Added a new parallel LOR transfer miniapp, miniapps/tools/plor-transfer, which
-  mirrors the functionality of the serial LOR transfer miniapp,
-  miniapps/tools/lor-transfer
-
-Meshing improvements
---------------------
-- Added support for free connectivity of NURBS patches allowing for more complex
-  patch configurations such as C-meshes. This is demonstrated in a new NURBS
-  miniapp.
-  
-- The edge to knot map for NURBS meshes can be determined automatically. It is no
-  longer needed to specify this in the NURBS mesh. A mesh in the NURBS miniapp
-  demonstrates this.
-
-- Added new methods in the Mesh class to set and get attributes on NURBS patches
-  and patch boundaries.
-
-- Added HIP support to the SUNDIALS interface.
-
-- TMOP improvement: added asymptotically-balanced compound metrics 90, 94, 328,
-  338. Added the tmop-metric-magnitude tool for tracking how metrics change
-  under geometric perturbations.
-
-Discretization improvements
----------------------------
-- Face restriction operators for Nedelec and Raviart-Thomas finite element
-  spaces are now supported through the ConformingFaceRestriction class.
-
-- SubMesh and ParSubMesh have been extended to support the transfer of
-  Nedelec and Raviart-Thomas finite element spaces.
-
-- VectorFEBoundaryFluxLFIntegrator is now supported on device/GPU.
-
-- Added support for partial assembly on NURBS patches and NURBS patch sparse
-  matrix assembly. Patch matrix assembly includes the option to use reduced
-  approximate integration rules, computed by the newly implemented non-negative
-  least-squares (NNLS) solver.
-
-- Added support for p-refined meshes in FindPointsGSLIB.
-
-- Support for parallel transfer of H1 fields using the low-order refined (LOR)
-  transfer operators in L2ProjectionGridTransfer
-
-Linear and nonlinear solvers
-----------------------------
-- Updated interface to MUMPS direct solver to support multiple right-hand
-  sides, block low-rank compression, builds using 64-bit integers, and other
-  improvements.
-
-- Added an interface to the MKL Pardiso sparse direct solver developed by Intel.
-  This interface provides a serial (OpenMP shared memory) version of Pardiso for
-  use with SparseMatrix. This complements the existing parallel (MPI distributed
-  memory) version already available through the CPardiso MFEM integration.
-
-Integrations, testing and documentation
----------------------------------------
-- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
-  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
 
 Miscellaneous
 -------------
@@ -113,11 +129,17 @@ Miscellaneous
   These functions can take the place of the MFEM_FORALL macros, which have been
   preserved for backwards compatibility.
 
+- Added an address sanitizer GitHub action for a serial build/test on Ubuntu,
+  based on Clang/LLVM (https://clang.llvm.org/docs/AddressSanitizer.html).
+
 - Reorganized files for bilinear form, linear form, and nonlinear form integrators
   in the fem/integ/ subdirectory.
 
 - FiniteElementSpace::GetFE has been updated to abort instead of returning NULL for
   an empty partition.
+
+- Various other simplifications, extensions, and bugfixes in the code.
+
 
 Version 4.5.2, released on March 23, 2023
 =========================================

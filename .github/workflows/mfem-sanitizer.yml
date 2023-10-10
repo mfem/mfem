@@ -27,44 +27,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.11.0
-      with:
-        access_token: ${{ github.token }}
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
 
-    - name: MFEM Checkout
-      uses: actions/checkout@v3
-      with:
-        path: mfem
+      - name: MFEM Checkout
+        uses: actions/checkout@v3
+        with:
+          path: mfem
 
-    - name: MFEM Build
-      uses: mfem/github-actions/build-mfem@v2.4
-      with:
-        os: ${{ runner.os }}
-        target: opt
-        mpi: seq
-        hypre-dir: unused-hypre-dir
-        metis-dir: unused-metis-dir
-        mfem-dir: mfem
-        build-system: make
-        library-only: false
-        config-options:
-          CXX="clang++-14"
-          CXXFLAGS="-g -O1 -std=c++11
-                    -fsanitize=address
-                    -fno-omit-frame-pointer
-                    -fsanitize-address-use-after-scope"
+      - name: MFEM Build
+        uses: mfem/github-actions/build-mfem@v2.4
+        with:
+          os: ${{ runner.os }}
+          target: opt
+          mpi: seq
+          hypre-dir: unused-hypre-dir
+          metis-dir: unused-metis-dir
+          mfem-dir: mfem
+          build-system: make
+          library-only: false
+          config-options:
+            CXX="clang++-14"
+            CXXFLAGS="-g -O1 -std=c++11
+                      -fsanitize=address
+                      -fno-omit-frame-pointer
+                      -fsanitize-address-use-after-scope"
 
-    - name: MFEM Info
-      working-directory: mfem
-      run: make info
+      - name: MFEM Info
+        working-directory: mfem
+        run: make info
 
-    - name: MFEM Sanitize
-      working-directory: mfem
-      run:
-        ASAN_OPTIONS="detect_leaks=1,
-                      strict_init_order=1,
-                      strict_string_checks=1,
-                      check_initialization_order=1,
-                      detect_stack_use_after_return=1"
-        make test
+      - name: MFEM Sanitize
+        working-directory: mfem
+        run:
+          ASAN_OPTIONS="detect_leaks=1,
+                        strict_init_order=1,
+                        strict_string_checks=1,
+                        check_initialization_order=1,
+                        detect_stack_use_after_return=1"
+          make test
