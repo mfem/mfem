@@ -13,7 +13,7 @@ using namespace mfem;
 class ParInteriorPointSolver
 {
 protected:
-    ParOptProblem* problem;
+    ParGeneralOptProblem* problem;
     double OptTol;
     int  max_iter;
     double mu_k; // \mu_k
@@ -50,7 +50,7 @@ protected:
     int linSolver;
     double linSolveTol;
 public:
-    ParInteriorPointSolver(ParOptProblem*);
+    ParInteriorPointSolver(ParGeneralOptProblem*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
     double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);

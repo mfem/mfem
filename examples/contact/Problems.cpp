@@ -120,6 +120,7 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   dimS = dimD;
   InitializeParentData(dimD, dimS);
 
+  
   Kform = new BilinearForm(Vh);
   Kform->AddDomainIntegrator(new DiffusionIntegrator);
   Kform->AddDomainIntegrator(new MassIntegrator);
@@ -144,6 +145,9 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   // ------ construct dimS x dimD Jacobian with zero columns correspodning to Dirichlet dofs
   Vector one(dimD); one = 1.0;
   J = new SparseMatrix(one);
+
+  // constant term in energy function
+  Ce = 0.0;
 }
 
 
@@ -157,6 +161,12 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (
 
   xDC.SetSize(dimD);
   xDC.Set(1.0, x0DC);
+  // constant term in energy function to ensure
+  // that the energy at the optimal 
+  // point converges under mesh refinement
+  Vector local_DC;
+  xDC.GetSubVector(ess_tdof_list, local_DC);
+  Ce = pow(local_DC.Norml2(), 2) / 2.;
   
   // define Hessian of energy objective
   // K = [[ \hat{K}   0]
@@ -205,6 +215,12 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, Vector &x0DC, double (
 
   xDC.SetSize(dimD);
   xDC.Set(1.0, x0DC);
+  // constant term in energy function to ensure
+  // that the energy at the optimal 
+  // point converges under mesh refinement
+  Vector local_DC;
+  xDC.GetSubVector(ess_tdof_list, local_DC);
+  Ce = pow(local_DC.Norml2(), 2) / 2.;
   
   // define Hessian of energy objective
   // K = [[ \hat{K}   0]
@@ -251,7 +267,7 @@ double ObstacleProblem::E(const Vector &d) const
 {
   Vector Kd(dimD); Kd = 0.0;
   K->Mult(d, Kd);
-  return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d);
+  return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d) + Ce;
 }
 
 void ObstacleProblem::DdE(const Vector &d, Vector &gradE) const
@@ -1026,7 +1042,7 @@ ExContactBlockTL::ExContactBlockTL(Mesh * mesh1in, Mesh * mesh2in, int FEorder)
    zeroMatdd = nullptr;
    // ---
    
-   M = new SparseMatrix(nnd,ndofs);
+   M  = new SparseMatrix(nnd,ndofs);
    dM = new std::vector<SparseMatrix>(nnd, SparseMatrix(ndofs,ndofs));
 
    Assemble_Contact(nnd, npoints, ndofs, xs, m_xi, *coordsm, s_conn, m_conn, gapv, *M, *dM);

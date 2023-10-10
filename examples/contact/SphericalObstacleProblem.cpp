@@ -91,6 +91,12 @@ int main(int argc, char *argv[])
   optimizer.SetLinearSolver(linSolver);
   optimizer.SetMaxIter(maxIPMiters);
   optimizer.Mult(x0, xf);
+  
+  
+  double Einitial = problem.E(x0);
+  double Efinal = problem.E(xf);
+  cout << "Energy objective at initial point = " << Einitial << endl;
+  cout << "Energy objective at optimizer = " << Efinal << endl;
 
   GridFunction d_gf(Vh);
   d_gf = xf;

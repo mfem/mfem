@@ -9,7 +9,7 @@ using namespace std;
 using namespace mfem;
 
 
-ParInteriorPointSolver::ParInteriorPointSolver(ParOptProblem * problem_) 
+ParInteriorPointSolver::ParInteriorPointSolver(ParGeneralOptProblem * problem_) 
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
                        Huu(nullptr), Hum(nullptr), Hmu(nullptr), 

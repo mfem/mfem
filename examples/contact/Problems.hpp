@@ -109,6 +109,7 @@ protected:
    Vector psiu;
    bool twoBounds;
    Vector xDC;
+   double Ce;
 public : 
    ObstacleProblem(FiniteElementSpace*, double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &));
    ObstacleProblem(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);

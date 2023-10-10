@@ -8,13 +8,13 @@ using namespace mfem;
 #ifndef PARPROBLEM_DEFS
 #define PARPROBLEM_DEFS
 
-// abstract ParOptProblem class
+// abstract ParGeneralOptProblem class
 // of the form
 // min_(u,m) f(u,m) s.t. c(u,m)=0 and m>=ml
 // the primal variable (u, m) is represented as a BlockVector
 // think about supporting general lower and upper bounds (see HiOP user manual) 
 
-class ParOptProblem
+class ParGeneralOptProblem
 {
 protected:
     int dimU, dimM, dimC;
@@ -23,7 +23,7 @@ protected:
     Array<int> block_offsetsx;
     Vector ml;
 public:
-    ParOptProblem(ParFiniteElementSpace * fesU_, ParFiniteElementSpace * fesM_); // constructor
+    ParGeneralOptProblem(ParFiniteElementSpace * fesU_, ParFiniteElementSpace * fesM_); // constructor
     virtual double CalcObjective(const BlockVector &) const = 0;
     virtual void Duf(const BlockVector &, Vector &) const = 0;
     virtual void Dmf(const BlockVector &, Vector &) const = 0;
@@ -42,21 +42,20 @@ public:
     ParFiniteElementSpace * GetfesU() {return fesU;}
     ParFiniteElementSpace * GetfesM() {return fesM;}
     Vector Getml() const { return ml; };
-    ~ParOptProblem(); // destructor
+    ~ParGeneralOptProblem(); // destructor
 };
 
 
 // abstract ContactProblem class
 // of the form
 // min_d e(d) s.t. g(d) >= 0
-// TO DO: add functionality for gap function Hessian apply 
-class ParContactProblem : public ParOptProblem
+class ParOptProblem : public ParGeneralOptProblem
 {
 protected:
     Array<int> block_offsetsx;
     HypreParMatrix * Ih;
 public:
-    ParContactProblem(ParFiniteElementSpace * fesU_, ParFiniteElementSpace * fesM_);        // constructor
+    ParOptProblem(ParFiniteElementSpace * fesU_, ParFiniteElementSpace * fesM_);        // constructor
     double CalcObjective(const BlockVector &) const; // objective e
     void Duf(const BlockVector &, Vector &) const;
     void Dmf(const BlockVector &, Vector &) const;
@@ -78,10 +77,10 @@ public:
     virtual void g(const Vector &, Vector &) const = 0;       // inequality constraint g(d) >= 0 (gap function)
     int GetDimD() const { return fesU->GetTrueVSize(); };
     int GetDimS() const { return fesM->GetTrueVSize(); };
-    virtual ~ParContactProblem();
+    virtual ~ParOptProblem();
 };
 
-class ParObstacleProblem : public ParContactProblem
+class ParObstacleProblem : public ParOptProblem
 {
 protected:
    // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \psi
