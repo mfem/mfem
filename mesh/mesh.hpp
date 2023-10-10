@@ -2019,7 +2019,7 @@ public:
    void KnotRemove(Array<Vector*> &kv);
 
    /* For each knot vector:
-          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
+         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
