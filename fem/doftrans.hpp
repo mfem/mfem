@@ -125,7 +125,7 @@ public:
     DofTransformation objects are provided by the FiniteElementSpace which has
     access to the mesh and can therefore provide the face orientations. This is
     convenient when working with GridFunction, LinearForm, or BilinearForm
-    obejcts or their parallel counterparts.
+    objects or their parallel counterparts.
 
     StatelessDofTransformation objects are provided by FiniteElement or
     FiniteElementCollection objects which do not have access to face
