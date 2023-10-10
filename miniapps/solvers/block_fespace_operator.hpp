@@ -46,6 +46,9 @@ public:
    const Operator* GetProlongation () const override;
    const Operator* GetRestriction () const override;
    void Mult(const Vector &x, Vector &y) const override {A.Mult(x,y);};
+   /// @brief Wraps BlockOperator::SetBlock. Eventually would like this class to inherit
+   /// from BlockOperator instead, but can't easily due to ownership of offset data
+   /// in BlockOperator being by reference.
    void SetBlock( int   iRow,
                   int   iCol,
                   Operator *  op,
