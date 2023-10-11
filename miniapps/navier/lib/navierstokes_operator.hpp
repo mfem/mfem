@@ -1,45 +1,14 @@
 #pragma once
 
-#include <transient_newton_residual.hpp>
 #include <mfem.hpp>
+#include <transient_newton_residual.hpp>
+#include <cahouet_chabard_pc.hpp>
 
 namespace mfem
 {
 
 using VelDirichletBC = std::pair<VectorCoefficient *, Array<int> *>;
 using PresDirichletBC = std::pair<Coefficient *, Array<int> *>;
-
-struct CahouetChabardPC : Solver
-{
-   Solver &Mp_inv;
-   Solver &Lp_inv;
-   OperatorHandle Fp;
-   mutable Vector z;
-   double dt;
-   Array<int> &pres_ess_tdofs;
-   CahouetChabardPC(Solver &Mp_inv_, Solver &Lp_inv_, const double dt, Array<int> &pres_ess_tdofs) :
-      Solver(Mp_inv_.Height()),
-      Mp_inv(Mp_inv_),
-      Lp_inv(Lp_inv_),
-      dt(dt),
-      z(Mp_inv_.Height()),
-      pres_ess_tdofs(pres_ess_tdofs) { }
-   void Mult(const Vector &x, Vector &y) const
-   {
-      z.SetSize(y.Size());
-
-      Lp_inv.Mult(x, y);
-      y /= dt;
-      Mp_inv.Mult(x, z);
-      y += z;
-
-      for (int i = 0; i < pres_ess_tdofs.Size(); i++)
-      {
-         y[pres_ess_tdofs[i]] = x[pres_ess_tdofs[i]];
-      }
-   }
-   void SetOperator(const Operator &op) { }
-};
 
 /// Constructs an operator of the form
 ///
@@ -65,8 +34,8 @@ public:
    /// @param pres_ess_bdr
    NavierStokesOperator(ParFiniteElementSpace &vel_fes,
                         ParFiniteElementSpace &pres_fes,
-                        std::vector<VelDirichletBC> velocity_dbcs,
-                        std::vector<PresDirichletBC> pressure_dbcs,
+                        std::vector<VelDirichletBC> &velocity_dbcs,
+                        std::vector<PresDirichletBC> &pressure_dbcs,
                         ParGridFunction &u_gf,
                         bool convection = true,
                         bool convection_explicit = true,
@@ -119,8 +88,8 @@ public:
 
    Array<int> schur_ess_tdofs;
 
-   std::vector<VelDirichletBC> velocity_dbcs;
-   std::vector<PresDirichletBC> pressure_dbcs;
+   std::vector<VelDirichletBC> &velocity_dbcs;
+   std::vector<PresDirichletBC> &pressure_dbcs;
 
    bool convection;
    bool convection_explicit;
@@ -129,7 +98,7 @@ public:
    Array<int> offsets;
 
    IntegrationRules intrules;
-   IntegrationRule ir, ir_nl;
+   IntegrationRule ir, ir_nl, ir_face;
 
    double time = 0.0;
 
@@ -149,7 +118,7 @@ public:
    ParMixedBilinearForm *g_form = nullptr;
    ParMixedBilinearForm *dmono_form = nullptr;
    ParMixedBilinearForm *gmono_form = nullptr;
-   ParBilinearForm *cmono_form = nullptr;   
+   ParBilinearForm *cmono_form = nullptr;
    ParBilinearForm *mdta_form = nullptr;
    ParNonlinearForm *n_form = nullptr;
    OperatorHandle Mv;
@@ -169,7 +138,6 @@ public:
    BlockOperator *Amonoe_matfree = nullptr;
 
    std::unique_ptr<TransientNewtonResidual> trans_newton_residual;
-   std::unique_ptr<MUMPSSolver> mumps;
    std::unique_ptr<Solver> pc;
    std::unique_ptr<Solver> MdtAinv;
    std::unique_ptr<Solver> MdtAinvPC;
@@ -178,9 +146,6 @@ public:
    std::unique_ptr<Solver> Lpinv;
    std::unique_ptr<Solver> LpinvPC;
    std::unique_ptr<Operator> SchurInv;
-
-   STRUMPACKRowLocMatrix *Amonoe_rowloc = nullptr;
-   std::unique_ptr<STRUMPACKSolver> strumpack;
 
    Solver *krylov = nullptr;
    Solver *solver = nullptr;
