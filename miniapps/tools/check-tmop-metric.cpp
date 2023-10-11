@@ -9,9 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
-//   ./check-tmop-metric -mid 360
+//         ------------------------------------------------------
+//         Check Metric Miniapp: Check TMOP Metric Implementation
+//         ------------------------------------------------------
 //
+// This miniapp checks the evaluation, 1st, and 2nd derivatives of a TMOP
+// metric. Works only in serial.
+//
+// Compile with: make check-tmop-metric
+//
+// Sample runs:  check-tmop-metric -mid 360
 
 #include "mfem.hpp"
 #include <iostream>
@@ -153,9 +160,7 @@ int main(int argc, char *argv[])
    Vector x_loc(x.Size());
    x.GetSubVector(vdofs, x_loc);
 
-   //
    // Test 1st derivative (assuming EvalW is correct). Should be 2nd order.
-   //
    Vector dF_0;
    const double F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
@@ -192,9 +197,7 @@ int main(int argc, char *argv[])
    std::cout << "--- EvalP:     avg rate of convergence (should be 2): "
              << rate_dF_sum / (convergence_iter - 1) << endl;
 
-   //
    // Test 2nd derivative (assuming EvalP is correct).
-   //
    double min_avg_rate = 7.0;
    DenseMatrix ddF_0;
    integ->AssembleElementGrad(fe, Tr, x_loc, ddF_0);
