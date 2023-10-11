@@ -301,7 +301,7 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 // Given a parallel and a serial mesh, perform an L2 projection and check the
 // solutions match exactly.
 std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
-                       std::function<double(Vector const&)> exact_soln)
+                                        std::function<double(Vector const&)> exact_soln)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -625,15 +625,17 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       }
       ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.get());
 
-      constexpr int dim = 3;
-      constexpr int order = 1;
-      ND_FECollection nd_fec(order, dim);
-      FiniteElementSpace fes(&smesh, &nd_fec);
-      const auto serial_ntdof = fes.GetTrueVSize();
-      ParFiniteElementSpace pfes(&pmesh, &nd_fec);
-      pfes.ExchangeFaceNbrData();
-      const auto parallel_ntdof = pfes.GlobalTrueVSize();
-      CHECK(serial_ntdof == parallel_ntdof);
+      {
+         constexpr int dim = 3;
+         constexpr int order = 1;
+         ND_FECollection nd_fec(order, dim);
+         FiniteElementSpace fes(&smesh, &nd_fec);
+         const auto serial_ntdof = fes.GetTrueVSize();
+         ParFiniteElementSpace pfes(&pmesh, &nd_fec);
+         pfes.ExchangeFaceNbrData();
+         const auto parallel_ntdof = pfes.GlobalTrueVSize();
+         CHECK(serial_ntdof == parallel_ntdof);
+      }
 
       for (int order = 1; order <= 4; order++)
       {
