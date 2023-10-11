@@ -105,8 +105,13 @@ namespace mfem {
  * - <a class="el" href="ex32p_8cpp_source.html">Example 32p</a>: parallel anisotropic Maxwell eigensolver
  * - <a class="el" href="ex33_8cpp_source.html">Example 33</a>: nodal H1 FEM for the fractional Laplacian problem
  * - <a class="el" href="ex33p_8cpp_source.html">Example 33p</a>: parallel nodal H1 FEM for the fractional Laplacian problem
+ * - <a class="el" href="ex34_8cpp_source.html">Example 34</a>: multi-domain magnetostatics
+ * - <a class="el" href="ex34p_8cpp_source.html">Example 34p</a>: parallel multi-domain magnetostatics
+ * - <a class="el" href="ex35p_8cpp_source.html">Example 35p</a>: parallel multi-domain damped harmonic oscillators
  * - <a class="el" href="ex36_8cpp_source.html">Example 36</a>: Proximal Galerkin FEM for the obstacle problem
  * - <a class="el" href="ex36p_8cpp_source.html">Example 36p</a>: parallel Proximal Galerkin FEM for the obstacle problem
+ * - <a class="el" href="ex37_8cpp_source.html">Example 37</a>: Topology optimization
+ * - <a class="el" href="ex37p_8cpp_source.html">Example 37p</a>: parallel topology optimization
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples

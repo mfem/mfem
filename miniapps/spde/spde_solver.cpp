@@ -442,7 +442,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
    restriction_matrix_ = fespace->GetRestrictionMatrix();
    prolongation_matrix_ = fespace->GetProlongationMatrix();
 
-   // Resize the the vectors B and X to the appropriate size
+   // Resize the vectors B and X to the appropriate size
    if (prolongation_matrix_)
    {
       B_.SetSize(prolongation_matrix_->Width());
