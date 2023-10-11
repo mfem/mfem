@@ -16,16 +16,16 @@ namespace mfem {
 
 //evaluates [ n ]
 //over      [ k ]
-int binomialCoeff(int n, int k)
+inline
+unsigned int BinomialCoeff(int n, int k)
 {
-    int C[k + 1];
+    unsigned int C[k + 1];
     memset(C, 0, sizeof(C));
 
     C[0] = 1; // nC0 is 1
 
     for (int i = 1; i <= n; i++)
     {
-
         // Compute next row of pascal triangle using
         // the previous row
         for (int j = std::min(i, k); j > 0; j--)
@@ -34,15 +34,42 @@ int binomialCoeff(int n, int k)
     return C[k];
 }
 
-int CombinatorialNumber(std::vector<char> vv)
+//convert a combinatorial number to int
+inline
+unsigned int Comb2NaturalNum(std::vector<int>& vv)
 {
+    unsigned int rez=0;
     std::sort(vv.begin(),vv.end());
-    for(int i=vv.size();i>0;i++){
-
+    for(int i=vv.size();i>0;i--){
+        rez=rez+BinomialCoeff(vv[i-1]-1,i);
     }
-
+    return rez;
 }
 
+//convert a natural number int ind to CombinatorialNumber
+inline
+void Natural2CombNum(unsigned int ind, std::vector<int>& vv)
+{
+
+    int c;
+    unsigned int cbc;
+    bool flag;
+
+    for(int i=vv.size();i>0;i--){
+        flag=true;
+        c=i-1;
+        while(flag){
+            cbc=BinomialCoeff(c+1,i);
+            if(cbc>ind){
+                flag=false;
+                vv[i-1]=c+1;
+                ind=ind-BinomialCoeff(c,i);
+            }else{
+                c++;
+            }
+        }
+    }
+}
 
 
 class RiskMeasures{

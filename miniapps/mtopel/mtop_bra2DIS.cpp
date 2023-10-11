@@ -278,6 +278,42 @@ public:
         E.SetSIMP(vv);
     }
 
+
+    double ImportanceSampling()
+    {
+        int num_sup=20;
+        int max_sup=5;
+        unsigned int tot_ind=mfem::BinomialCoeff(num_sup,max_sup);
+
+        //create an uniform distribution for the natural number
+        double event_prob=1.0;
+        std::uniform_int_distribution<int> uint(0,tot_ind-1);
+
+
+
+        //create a discrete distribution for the sampled numbers
+        std::vector<double> wwe; wwe.resize(sampled_numbers.size());
+        std::vector<unsigned int> inn; inn.resize(sampled_numbers.size());
+        double sampled_prob=0.0;
+        double originl_prob=0.0;
+
+
+        auto it=sampled_numbers.begin();
+        for(size_t i=0;i<sampled_numbers.size();i++){
+            wwe[i]=it->second;
+            sampled_prob=sampled_prob+it->second;
+            inn[i]=it->first;
+            it++;
+        }
+
+        std::discrete_distribution<int> ddis(wwe.begin(),wwe.end());
+
+
+
+
+    }
+
+
     double MeanCompliance(mfem::Vector& grad, double tt=0.1, double shift=100.0)
     {
         mfem::Vector lgr(grad.Size());
@@ -440,6 +476,8 @@ private:
     std::vector<int> seeds;
     std::default_random_engine generator;
 
+    std::map<unsigned int,double> sampled_numbers;
+
 };
 
 
@@ -470,6 +508,20 @@ int main(int argc, char *argv[])
    bool visualization = false;
    const char *petscrc_file = "";
    int restart=0;
+
+
+   std::cout<<"(4 over 5)="<<mfem::BinomialCoeff(4,5)<<std::endl;
+   std::vector<int> vv={20,19,18,17,16};
+   std::cout<<"number="<<mfem::Comb2NaturalNum(vv)<<std::endl;
+
+   int nnum=100;
+   mfem::Natural2CombNum(nnum,vv);
+   std::cout<<"number"<<nnum<<" =(";
+   for(int i=0;i<vv.size();i++){
+       std::cout<<vv[i]<<" ";
+   }
+   std::cout<<")"<<std::endl;
+   std::cout<<"number="<<mfem::Comb2NaturalNum(vv)<<std::endl;
 
    mfem::OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
