@@ -60,8 +60,8 @@ endif
 ifeq (gcc,$$(MFEM_PERF_SW))
    ifeq ($$(MFEM_MACHINE),x86_64)
       MFEM_PERF_SW = gcc_x86_64
-   else ifneq (,$$(findstring ppc64,$$(MFEM_MACHINE)))
-      MFEM_PERF_SW = gcc_ppc64
+   else ifneq (,$$(findstring ppc,$$(MFEM_MACHINE)))
+      MFEM_PERF_SW = gcc_ppc
    endif
 endif
 # Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
@@ -91,7 +91,7 @@ ifeq ($(MFEM_USE_SIMD),NO)
 endif
 #MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
-MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
+MFEM_PERF_CXXFLAGS_gcc_ppc = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
 
 # - XLC extra options:

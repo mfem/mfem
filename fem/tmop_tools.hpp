@@ -170,9 +170,6 @@ protected:
       return ir;
    }
 
-   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
-                         int x_ordering = Ordering::byNODES) const;
-
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
@@ -184,7 +181,8 @@ protected:
    /// Get the average and maximum surface fitting error at the marked nodes.
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
-   virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
+   virtual void GetSurfaceFittingError(const Vector &x_loc,
+                                       double &err_avg, double &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;

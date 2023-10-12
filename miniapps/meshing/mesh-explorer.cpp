@@ -408,6 +408,7 @@ int main (int argc, char *argv[])
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "l) refine locally using the region() function\n"
+              "r) random refinement with a probability\n"
               "--> " << flush;
          char sk;
          cin >> sk;
@@ -453,6 +454,17 @@ int main (int argc, char *argv[])
                   }
                }
                mesh->GeneralRefinement(marked_elements);
+               break;
+            }
+            case 'r':
+            {
+               bool nc_simplices = true;
+               mesh->EnsureNCMesh(nc_simplices);
+               cout << "enter probability --> " << flush;
+               double probability;
+               cin >> probability;
+               if (probability < 0.0 || probability > 1.0) { break; }
+               mesh->RandomRefinement(probability);
                break;
             }
          }

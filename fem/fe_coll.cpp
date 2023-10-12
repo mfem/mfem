@@ -1713,7 +1713,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
       }
 
-      SegDofOrd[0] = new int[2*pm1];
+      SegDofOrd[0] = (pm1 > 0) ? new int[2*pm1] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + pm1;
       for (int i = 0; i < pm1; i++)
       {
@@ -1751,7 +1751,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
       const int &QuadDof = H1_dof[Geometry::SQUARE];
-      TriDofOrd[0] = new int[6*TriDof];
+      TriDofOrd[0] = (TriDof > 0) ? new int[6*TriDof] : nullptr;
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -1772,7 +1772,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
 
-      QuadDofOrd[0] = new int[8*QuadDof];
+      QuadDofOrd[0] = (QuadDof > 0) ? new int[8*QuadDof] : nullptr;
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -1855,7 +1855,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
          const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
-         TetDofOrd[0] = new int[24*TetDof];
+         TetDofOrd[0] = (TetDof > 0) ? new int[24*TetDof] : nullptr;
          for (int i = 1; i < 24; i++)
          {
             TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
@@ -2127,7 +2127,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       // No need to set the map_type for Tr_Elements.
 
       const int pp1 = p + 1;
-      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[0] = (pp1 > 0) ? new int[2*pp1] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {
@@ -2160,7 +2160,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       }
 
       const int TriDof = L2_Elements[Geometry::TRIANGLE]->GetDof();
-      TriDofOrd[0] = new int[6*TriDof];
+      TriDofOrd[0] = (TriDof > 0) ? new int[6*TriDof] : nullptr;
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -2181,7 +2181,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          }
       }
       const int QuadDof = L2_Elements[Geometry::SQUARE]->GetDof();
-      OtherDofOrd = new int[QuadDof];
+      OtherDofOrd = (QuadDof > 0) ? new int[QuadDof] : nullptr;
       for (int j = 0; j < QuadDof; j++)
       {
          OtherDofOrd[j] = j; // for Or == 0
@@ -2225,7 +2225,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
 
-      TetDofOrd[0] = new int[24*TetDof];
+      TetDofOrd[0] = (TetDof > 0) ? new int[24*TetDof] : nullptr;
       for (int i = 1; i < 24; i++)
       {
          TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
@@ -2314,7 +2314,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             }
          }
       }
-      OtherDofOrd = new int[MaxDof];
+      OtherDofOrd = (MaxDof > 0) ? new int[MaxDof] : nullptr;
       for (int j = 0; j < MaxDof; j++)
       {
          OtherDofOrd[j] = j; // for Or == 0
@@ -2502,7 +2502,7 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
 
-      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[0] = (pp1 > 0) ? new int[2*pp1] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {
@@ -2523,7 +2523,7 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
       RT_dof[Geometry::SQUARE] = pp1*pp1;
 
       int TriDof = RT_dof[Geometry::TRIANGLE];
-      TriDofOrd[0] = new int[6*TriDof];
+      TriDofOrd[0] = (TriDof > 0) ? new int[6*TriDof] : nullptr;
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -2553,7 +2553,7 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
       }
 
       int QuadDof = RT_dof[Geometry::SQUARE];
-      QuadDofOrd[0] = new int[8*QuadDof];
+      QuadDofOrd[0] = (QuadDof > 0) ? new int[8*QuadDof] : nullptr;
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -2749,7 +2749,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, ob_type);
       ND_dof[Geometry::SEGMENT] = p;
 
-      SegDofOrd[0] = new int[2*p];
+      SegDofOrd[0] = (p > 0) ? new int[2*p] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + p;
       for (int i = 0; i < p; i++)
       {
@@ -2769,7 +2769,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_dof[Geometry::TRIANGLE] = p*pm1;
 
       int QuadDof = ND_dof[Geometry::SQUARE];
-      QuadDofOrd[0] = new int[8*QuadDof];
+      QuadDofOrd[0] = (QuadDof > 0) ? new int[8*QuadDof] : nullptr;
       for (int i = 1; i < 8; i++)
       {
          QuadDofOrd[i] = QuadDofOrd[i-1] + QuadDof;
@@ -2813,7 +2813,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       }
 
       int TriDof = ND_dof[Geometry::TRIANGLE];
-      TriDofOrd[0] = new int[6*TriDof];
+      TriDofOrd[0] = (TriDof > 0) ? new int[6*TriDof] : nullptr;
       for (int i = 1; i < 6; i++)
       {
          TriDofOrd[i] = TriDofOrd[i-1] + TriDof;
@@ -2882,6 +2882,19 @@ ND_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       if (error_mode == RETURN_NULL) { return nullptr; }
       MFEM_ABORT("ND Pyramid basis functions are not yet supported "
                  "for order > 1.");
+      return NULL;
+   }
+}
+
+StatelessDofTransformation *
+ND_FECollection::DofTransformationForGeometry(Geometry::Type GeomType) const
+{
+   if (!Geometry::IsTensorProduct(GeomType) && this->GetOrder() > 1)
+   {
+      return FiniteElementForGeometry(GeomType)->GetDofTransformation();
+   }
+   else
+   {
       return NULL;
    }
 }
@@ -3150,7 +3163,7 @@ ND_R2D_FECollection::ND_R2D_FECollection(const int p, const int dim,
                                                                  ob_type);
       ND_dof[Geometry::SEGMENT] = 2 * p - 1;
 
-      SegDofOrd[0] = new int[4 * p - 2];
+      SegDofOrd[0] = (4*p > 2) ? new int[4 * p - 2] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + 2 * p - 1;
       for (int i = 0; i < p; i++)
       {
@@ -3334,7 +3347,7 @@ void RT_R2D_FECollection::InitFaces(const int p, const int dim,
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
 
-      SegDofOrd[0] = new int[2*pp1];
+      SegDofOrd[0] = (pp1 > 0) ? new int[2*pp1] : nullptr;
       SegDofOrd[1] = SegDofOrd[0] + pp1;
       for (int i = 0; i <= p; i++)
       {

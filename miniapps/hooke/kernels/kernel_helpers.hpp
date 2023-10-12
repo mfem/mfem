@@ -48,11 +48,12 @@ inline void CheckMemoryRestriction(int d1d, int q1d)
    MFEM_VERIFY(d1d <= q1d,
                "There should be more or equal quadrature points "
                "as there are dofs");
-   MFEM_VERIFY(d1d <= MAX_D1D,
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D,
                "Maximum number of degrees of freedom in 1D reached."
                "This number can be increased globally in general/forall.hpp if "
                "device memory allows.");
-   MFEM_VERIFY(q1d <= MAX_Q1D, "Maximum quadrature points 1D reached."
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D,
+               "Maximum quadrature points 1D reached."
                "This number can be increased globally in "
                "general/forall.hpp if device memory allows.");
 }
