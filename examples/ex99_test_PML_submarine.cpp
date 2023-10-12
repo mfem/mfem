@@ -1,26 +1,26 @@
-//                                MFEM Example 22
+//                                MFEM Example 98 seismic
 //
-// Compile with: make ex22
+// Compile with: make ex98_test_seismic
 //
-// Sample runs:  ex22 -m ../data/inline-segment.mesh -o 3
-//               ex22 -m ../data/inline-tri.mesh -o 3
-//               ex22 -m ../data/inline-quad.mesh -o 3
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 2
-//               ex22 -m ../data/inline-tet.mesh -o 2
-//               ex22 -m ../data/inline-hex.mesh -o 2
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
-//               ex22 -m ../data/inline-wedge.mesh -o 1
-//               ex22 -m ../data/inline-pyramid.mesh -o 1
-//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
+// Sample runs:  ex98_test_seismic -m ../data/inline-segment.mesh -o 3
+//               ex98_test_seismic -m ../data/inline-tri.mesh -o 3
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3 -p 1
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3 -p 1 -pa
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3 -p 2
+//               ex98_test_seismic -m ../data/inline-tet.mesh -o 2
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2 -p 1
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2 -p 2
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2 -p 2 -pa
+//               ex98_test_seismic -m ../data/inline-wedge.mesh -o 1
+//               ex98_test_seismic -m ../data/inline-pyramid.mesh -o 1
+//               ex98_test_seismic -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
 //
 // Device sample runs:
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa -d cuda
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa -d cuda
-//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa -d cuda
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3 -p 1 -pa -d cuda
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2 -p 2 -pa -d cuda
+//               ex98_test_seismic -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems. It implements three
@@ -231,14 +231,14 @@ int main(int argc, char* argv[])
     //const char* mesh_file = "../data/cube_comsol_pml.mphtxt";
      //const char* mesh_file = "../data/cube_comsol_coarse.mphtxt";
     //const char* mesh_file = "../data/cube_comsol_ex_coarse.mphtxt";
-    const char* mesh_file = "../data/cube_comsol_rf1.mphtxt";
+    const char* mesh_file = "../data/comsol_submarine.mphtxt";
     //const char* mesh_file = "../data/inline-tet.mesh";
     int ref_levels = 0;
     int order = 1;
     int prob = 1;
-    double freq = 1200.0e6;
+    double freq = 6.0e6;
     double a_coef = 0.0;
-    bool visualization = 0;
+    bool visualization = 1;
     bool herm_conv = true;
     bool exact_sol = true;
     bool pa = false;
@@ -251,16 +251,18 @@ int main(int argc, char* argv[])
     bool comp_solver = true;
     int bprint = 1;
 
-    std::vector<int> values = {1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 14, \
+ /*   std::vector<int> values = {1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 14, \
         17, 20, 21, 23, 24, 27, 30, 31, 32, 33, 35, 36, 38, \
         41, 43, 46, 53, 56, 63, 64, 65, 66, 76, 77, 79, 82, \
         84, 87, 94, 97, 104, 105, 106, 107, 108, 109, 110, \
-        111, 112, 113, 114, 115, 116};
+        111, 112, 113, 114, 115, 116};*/
+    std::vector<int> values = { 1, 2, 4, 5, 6, 9, 11, 13, 16, 21, 22, 28, 33, 59, 60, 66, 71, 73, 74, 75, 76, 77 };
     Array<int> abcs(values.data(), values.size());
     Array<int> dbcs;
-    std::vector<int> values_pml = {1, 2, 3, 4, 5, 6, 7, 8, 9, \
+    /*std::vector<int> values_pml = {1, 2, 3, 4, 5, 6, 7, 8, 9, \
         10, 11, 12, 13, 15, 16, 17, 18, 20, 21, 22, 23, 24, \
-        25, 26, 27, 28};
+        25, 26, 27, 28};*/
+    std::vector<int> values_pml = { 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15 };
     Array<int> pmls(values_pml.data(), values_pml.size());
 
     OptionsParser args(argc, argv);
@@ -366,7 +368,7 @@ int main(int argc, char* argv[])
     //    PML region
     // Setup PML length
     Array2D<double> length(dim, 2); 
-    length = 0.1;
+    length = 1.5;
     PML * pml = new PML(mesh,length);
     comp_domain_bdr = pml->GetCompDomainBdr();
     domain_bdr = pml->GetDomainBdr();
@@ -417,7 +419,7 @@ int main(int argc, char* argv[])
     //    the FEM linear system.
     VectorDeltaCoefficient* delta_one; // add point source
     double src_scalar = omega_ * 1.0;
-    double position = 0.50;
+    double position = 0.00;
     if (dim == 1)
     {
         Vector dir(1);
@@ -791,8 +793,9 @@ int main(int argc, char* argv[])
         else {
             timer.Start();
             PardisoCompSolver pardiso_comp_solver;
-            pardiso_comp_solver.SetOperator(*Asp_blk);
+            //pardiso_comp_solver.SetMatrixType(PardisoCompSolver::MatType::COMPLEX_SYMMETRIC); // MKL needs only the upper triangular part of the system
             pardiso_comp_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_comp_solver.SetOperator(*Asp_blk);
             pardiso_comp_solver.Mult(B, U);
             timer.Stop();
             double elapsed_time = timer.RealTime();
@@ -914,7 +917,7 @@ int main(int argc, char* argv[])
     }
 
     // 14b. Save data in the ParaView format
-    ParaViewDataCollection paraview_dc("ex99_test_PML", mesh);
+    ParaViewDataCollection paraview_dc("ex98_test_seismic", mesh);
     paraview_dc.SetDataFormat(VTKFormat::ASCII);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order>1 ? order-1 : order);
@@ -961,7 +964,6 @@ int main(int argc, char* argv[])
 #endif
     delete fespace;
     delete fec;
-    // delete Asp;
     // delete mesh;
 
     return 0;

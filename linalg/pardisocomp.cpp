@@ -18,137 +18,143 @@
 namespace mfem
 {
 
-PardisoCompSolver::PardisoCompSolver(MatType mat_type)
-{
-   // Indicate that default parameters are changed
-   iparm[0] = 1;
-   // Use METIS for fill-in reordering
-   iparm[1] = 3;
-   // Preconditioned CGS/CG.
-   iparm[3] = 0;
-   // Write the solution into the x vector data
-   iparm[5] = 0;
-   // Maximum number of iterative refinement steps
-   iparm[7] = 20;
-   // Perturb the pivot elements with 1E-13
-   iparm[9] = 13;
-   // Scaling vectors.
-   iparm[10] = 1;
-   // Maximum weighted matching algorithm is switched-on (default for non-symmetric)
-   iparm[12] = 1;
-   // Pivoting for symmetric indefinite matrices.
-   iparm[20] = 1;
-   // Parallel factorization control.
-   iparm[23] = 1;
-   // Parallel forward/backward solve control.
-   iparm[24] = 0;
-   // Perform a check on the input data
-   iparm[26] = 1;
-   // 0-based indexing in CSR data structure
-   iparm[34] = 1;
-   // Enable low rank update 
-   iparm[38] = 0;
-   // in-core (0, 1) or out-of-core (2) https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html
-   // remember to set MKL_PARDISO_OOC_MAX_CORE_SIZE=XXXXXXX in the environment variable
-   iparm[59] = 1;
-   // Maximum number of numerical factorizations
-   maxfct = 1;
-   // Which factorization to use. This parameter is ignored and always assumed
-   // to be equal to 1. See MKL documentation.
-   mnum = 1;
-   // Print statistical information in file
-   msglvl = 0;
-   // Initialize error flag
-   error = 0;
-   // complex nonsymmetric matrix
-   mtype = mat_type;
-   // Number of right hand sides
-   nrhs = 1;
-}
-
-void PardisoCompSolver::CSRRealToComplex(const SparseMatrix* x_r, const SparseMatrix* x_i)
-{
-    MFEM_ASSERT(x_r->Height() == x_i->Height() &&
-        x_r->Width() == x_i->Width() && 
-        x_r->NumNonZeroElems()== x_i->NumNonZeroElems(),
-        "Matrices must have the same dimensions and NNZ.");
-
-    complexCSR = new ComplexCSRMatrix();
-
-    int numRows = x_r->Height();
-    complexCSR->numNonZeros = x_r->NumNonZeroElems();
-
-    complexCSR->row_offsets.assign(x_r->GetI(), x_r->GetI() + numRows + 1);
-
-    // Allocate space for values and cols
-    complexCSR->values.resize(complexCSR->numNonZeros);
-    complexCSR->cols.resize(complexCSR->numNonZeros);
-
-    // Combine real and imaginary parts into complex values and copy cols
-    for (int i = 0; i < complexCSR->numNonZeros; ++i)
+    PardisoCompSolver::PardisoCompSolver(MatType mat_type)
     {
-        complexCSR->values[i] = std::complex<double>(x_r->GetData()[i], x_i->GetData()[i]);
-        complexCSR->cols[i] = x_r->GetJ()[i];
+        // Indicate that default parameters are changed
+        iparm[0] = 1;
+        // Use METIS for fill-in reordering
+        iparm[1] = 3;
+        // Preconditioned CGS/CG.
+        iparm[3] = 0;
+        // Write the solution into the x vector data
+        iparm[5] = 0;
+        // Maximum number of iterative refinement steps
+        iparm[7] = 20;
+        // Perturb the pivot elements with 1E-13
+        iparm[9] = 13;
+        // Scaling vectors.
+        iparm[10] = 1;
+        // Maximum weighted matching algorithm is switched-on (default for non-symmetric)
+        iparm[12] = 1;
+        // Pivoting for symmetric indefinite matrices.
+        iparm[20] = 1;
+        // Parallel factorization control.
+        iparm[23] = 1;
+        // Parallel forward/backward solve control.
+        iparm[24] = 0;
+        // Perform a check on the input data
+        iparm[26] = 1;
+        // 0-based indexing in CSR data structure
+        iparm[34] = 1;
+        // Enable low rank update 
+        iparm[38] = 0;
+        // in-core (0, 1) or out-of-core (2) https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html
+        // remember to set MKL_PARDISO_OOC_MAX_CORE_SIZE=XXXXXXX in the environment variable
+        iparm[59] = 1;
+        // Maximum number of numerical factorizations
+        maxfct = 1;
+        // Which factorization to use. This parameter is ignored and always assumed
+        // to be equal to 1. See MKL documentation.
+        mnum = 1;
+        // Print statistical information in file
+        msglvl = 0;
+        // Initialize error flag
+        error = 0;
+        // complex nonsymmetric matrix
+        mtype = mat_type;
+        // Number of right hand sides
+        nrhs = 1;
     }
-}
 
-void PardisoCompSolver::SetOperator(const Operator &op)
-{
-   auto mat = const_cast<ComplexSparseMatrix *>(dynamic_cast<const ComplexSparseMatrix *>(&op));
+    void PardisoCompSolver::CSRRealToComplex(const SparseMatrix* x_r, const SparseMatrix* x_i)
+    {
+        MFEM_ASSERT(x_r->Height() == x_i->Height() &&
+            x_r->Width() == x_i->Width() &&
+            x_r->NumNonZeroElems() == x_i->NumNonZeroElems(),
+            "Matrices must have the same dimensions and NNZ.");
 
-   MFEM_ASSERT(mat, "Must pass ComplexSparseMatrix as Operator");
+        complexCSR = new ComplexCSRMatrix();
 
-   height = op.Height();
+        int numRows = x_r->Height();
+        complexCSR->row_offsets.assign(x_r->GetI(), x_r->GetI() + numRows + 1);
 
-   width = op.Width();
+        if (mtype == COMPLEX_UNSYMMETRIC)
+        {
+            // Allocate space for values and cols
+            complexCSR->numNonZeros = x_r->NumNonZeroElems();
+            complexCSR->values.resize(complexCSR->numNonZeros);
+            complexCSR->cols.resize(complexCSR->numNonZeros);
 
-   MFEM_ASSERT(height==width, "Must pass ComplexSparseMatrix as a square matrix");
+            // Combine real and imaginary parts into complex values and copy cols
+            for (int i = 0; i < complexCSR->numNonZeros; ++i)
+            {
+                complexCSR->values[i] = std::complex<double>(x_r->GetData()[i], x_i->GetData()[i]);
+                complexCSR->cols[i] = x_r->GetJ()[i];
+            }
+        }
+        else if (mtype == COMPLEX_SYMMETRIC)
+        {
+            mfem_error("Complex symmetric matrix in Parsido is not supported yet!")
+        }
+    }
 
-   m = height/2;
+    void PardisoCompSolver::SetOperator(const Operator& op)
+    {
+        auto mat = const_cast<ComplexSparseMatrix*>(dynamic_cast<const ComplexSparseMatrix*>(&op));
 
-   // returns a new complex array
-   // Pardiso expects the column indices to be sorted for each row
-   mat->real().SortColumnIndices();
-   mat->imag().SortColumnIndices();
-   CSRRealToComplex(&mat->real(), &mat->imag());
+        MFEM_ASSERT(mat, "Must pass ComplexSparseMatrix as Operator");
 
-   nnz = complexCSR->numNonZeros;
+        height = op.Height();
 
-   const int *Ap = complexCSR->row_offsets.data();
-   const int *Ai = complexCSR->cols.data();
-   const std::complex<double> *Ax = complexCSR->values.data();
+        width = op.Width();
 
-   csr_rowptr = new int[m + 1];
-   reordered_csr_colind = new int[nnz];
-   reordered_csr_nzval = new std::complex<double>[nnz];
+        MFEM_ASSERT(height == width, "Must pass ComplexSparseMatrix as a square matrix");
 
-   for (int i = 0; i <= m; i++)
-   {
-      csr_rowptr[i] = Ap[i];
-   }
+        m = height / 2;
 
-   for (int i = 0; i < nnz; i++)
-   {
-      reordered_csr_colind[i] = Ai[i];
-      reordered_csr_nzval[i] = Ax[i];
-   }
+        // returns a new complex array
+        // Pardiso expects the column indices to be sorted for each row
+        mat->real().SortColumnIndices(mtype == 6);
+        mat->imag().SortColumnIndices(mtype == 6);
+        CSRRealToComplex(&mat->real(), &mat->imag());
 
-   // Analyze inputs
-   phase = 11;
-   PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
-           reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, &ddum, &ddum, &error);
+        nnz = complexCSR->numNonZeros;
 
-   MFEM_ASSERT(error == 0, "Pardiso symbolic factorization error");
+        const int* Ap = complexCSR->row_offsets.data();
+        const int* Ai = complexCSR->cols.data();
+        const std::complex<double>* Ax = complexCSR->values.data();
 
-   // Numerical factorization
-   phase = 22;
-   PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
-           reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, &ddum, &ddum, &error);
+        csr_rowptr = new int[m + 1];
+        reordered_csr_colind = new int[nnz];
+        reordered_csr_nzval = new std::complex<double>[nnz];
 
-   MFEM_ASSERT(error == 0, "Pardiso numerical factorization error");
-}
+        for (int i = 0; i <= m; i++)
+        {
+            csr_rowptr[i] = Ap[i];
+        }
+
+        for (int i = 0; i < nnz; i++)
+        {
+            reordered_csr_colind[i] = Ai[i];
+            reordered_csr_nzval[i] = Ax[i];
+        }
+
+        // Analyze inputs
+        phase = 11;
+        PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
+            reordered_csr_colind, &idum, &nrhs,
+            iparm, &msglvl, &ddum, &ddum, &error);
+
+        MFEM_ASSERT(error == 0, "Pardiso symbolic factorization error");
+
+        // Numerical factorization
+        phase = 22;
+        PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
+            reordered_csr_colind, &idum, &nrhs,
+            iparm, &msglvl, &ddum, &ddum, &error);
+
+        MFEM_ASSERT(error == 0, "Pardiso numerical factorization error");
+    }
 
 void PardisoCompSolver::Mult(const Vector &b, Vector &x) const
 {

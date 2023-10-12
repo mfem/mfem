@@ -12347,7 +12347,7 @@ int Mesh::FindVertex(Vector& point, Array<int>& elem_ids,
             }
         }
     }
-    if (elems_found)
+    if (elems_found) // find point on element vertex
     {
         std::cout << "found " << elems_found << " elements in FindVertex" << std::endl;
         ips.SetSize(elems_found);
@@ -12358,7 +12358,18 @@ int Mesh::FindVertex(Vector& point, Array<int>& elem_ids,
             MFEM_VERIFY(res == InverseElementTransformation::Inside, "Point is not inside element");
         }
     }
-    else
+    else // find point inside element
+    {
+        DenseMatrix points_mat(point.Size(), 1);
+
+        // Copy data from the Vector to the DenseMatrix
+        for (int i = 0; i < point.Size(); i++)
+        {
+            points_mat(i, 0) = point(i);
+        }
+        elems_found = FindPoints(points_mat, elem_ids, ips); //find if point is inside a element
+    }
+    if (!elems_found)
     {
         MFEM_VERIFY(elems_found > 0, "No valid element is found!");
     }

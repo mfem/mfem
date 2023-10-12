@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.f90": "FortranFreeForm",
         "xstring": "cpp",
         "algorithm": "cpp",
         "array": "cpp",
@@ -84,6 +85,11 @@
         "xstddef": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp"
-    }
+        "xutility": "cpp",
+        "coroutine": "cpp",
+        "resumable": "cpp"
+    },
+    "cSpell.words": [
+        "pmls"
+    ]
 }

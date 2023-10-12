@@ -1,53 +1,27 @@
-//                                MFEM Example 22
+//                                MFEM Example 98 seismic
 //
-// Compile with: make ex22
+// Compile with: make ex98_test_seismic (modified from Example 23)
 //
-// Sample runs:  ex22 -m ../data/inline-segment.mesh -o 3
-//               ex22 -m ../data/inline-tri.mesh -o 3
-//               ex22 -m ../data/inline-quad.mesh -o 3
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 2
-//               ex22 -m ../data/inline-tet.mesh -o 2
-//               ex22 -m ../data/inline-hex.mesh -o 2
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 1
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa
-//               ex22 -m ../data/inline-wedge.mesh -o 1
-//               ex22 -m ../data/inline-pyramid.mesh -o 1
-//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0
+// Sample runs:  ex98_test_seismic
+//               ex98_test_seismic -o 4 -tf 5
+//               ex98_test_seismic -m ../data/square-disc.mesh -o 2 -tf 2 --neumann
+//               ex98_test_seismic -m ../data/disc-nurbs.mesh -r 3 -o 4 -tf 2
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 1 -tf 2 --neumann
+//               ex98_test_seismic -m ../data/inline-tet.mesh -o 1 -tf 2 --neumann
 //
 // Device sample runs:
-//               ex22 -m ../data/inline-quad.mesh -o 3 -p 1 -pa -d cuda
-//               ex22 -m ../data/inline-hex.mesh -o 2 -p 2 -pa -d cuda
-//               ex22 -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa -d cuda
+//               ex98_test_seismic -m ../data/inline-quad.mesh -o 3 -p 1 -pa -d cuda
+//               ex98_test_seismic -m ../data/inline-hex.mesh -o 2 -p 2 -pa -d cuda
+//               ex98_test_seismic -m ../data/star.mesh -r 1 -o 2 -sigma 10.0 -pa -d cuda
 //
-// Description:  This example code demonstrates the use of MFEM to define and
-//               solve simple complex-valued linear systems. It implements three
-//               variants of a damped harmonic oscillator:
+// Description:  This example solves the wave equation problem of the form:
 //
-//               1) A scalar H1 field
-//                  -Div(a Grad u) - omega^2 b u + i omega c u = 0
+//                               d^2u/dt^2 = c^2 \Delta u.
 //
-//               2) A vector H(Curl) field
-//                  Curl(a Curl u) - omega^2 b u + i omega c u = 0
+//               The example demonstrates the use of time dependent operators,
+//               implicit solvers and second order time integration.
 //
-//               3) A vector H(Div) field
-//                  -Grad(a Div u) - omega^2 b u + i omega c u = 0
-//
-//               In each case the field is driven by a forced oscillation, with
-//               angular frequency omega, imposed at the boundary or a portion
-//               of the boundary.
-//
-//               In electromagnetics, the coefficients are typically named the
-//               permeability, mu = 1/a, permittivity, epsilon = b, and
-//               conductivity, sigma = c. The user can specify these constants
-//               using either set of names.
-//
-//               The example also demonstrates how to display a time-varying
-//               solution as a sequence of fields sent to a single GLVis socket.
-//
-//               We recommend viewing examples 1, 3 and 4 before viewing this
+//               We recommend viewing examples 9 and 10 before viewing this
 //               example.
 
 // add MKL Pardiso solver from ex3
@@ -76,27 +50,137 @@ using namespace mfem;
 
 const auto MSH_FLT_PRECISION = std::numeric_limits<double>::max_digits10;
 
-// Permittivity of free space [F/m].
-static constexpr double epsilon0_ = 8.8541878176e-12;
+class WaveOperator : public SecondOrderTimeDependentOperator
+{
+protected:
+   FiniteElementSpace &fespace;
+   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
-// Permeability of free space [H/m].
-static constexpr double mu0_ = 4.0e-7 * M_PI;
+   BilinearForm *M;
+   BilinearForm *K;
 
-static double mu_ = 1.0;
-static double epsilon_ = 1.0;
-static double sigma_ = 0.0;
-double omega_ = 10.0;
+   SparseMatrix Mmat, Kmat, Kmat0;
+   SparseMatrix *T; // T = M + dt K
+   double current_dt;
 
-double u0_real_exact(const Vector&);
-double u0_imag_exact(const Vector&);
+   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-void u1_real_exact(const Vector&, Vector&);
-void u1_imag_exact(const Vector&, Vector&);
+   CGSolver T_solver; // Implicit solver for T = M + fac0*K
+   DSmoother T_prec;  // Preconditioner for the implicit solver
 
-void u2_real_exact(const Vector&, Vector&);
-void u2_imag_exact(const Vector&, Vector&);
+   Coefficient *c2;
+   mutable Vector z; // auxiliary vector
 
-bool check_for_inline_mesh(const char* mesh_file);
+public:
+   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
+
+   using SecondOrderTimeDependentOperator::Mult;
+   virtual void Mult(const Vector &u, const Vector &du_dt,
+                     Vector &d2udt2) const;
+
+   /** Solve the Backward-Euler equation:
+       d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
+       for the unknown d2udt2. */
+   using SecondOrderTimeDependentOperator::ImplicitSolve;
+   virtual void ImplicitSolve(const double fac0, const double fac1,
+                              const Vector &u, const Vector &dudt, Vector &d2udt2);
+
+   ///
+   void SetParameters(const Vector &u);
+
+   virtual ~WaveOperator();
+};
+
+
+WaveOperator::WaveOperator(FiniteElementSpace &f,
+                           Array<int> &ess_bdr, double speed)
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
+     K(NULL),
+     T(NULL), current_dt(0.0), z(height)
+{
+   const double rel_tol = 1e-8;
+
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   c2 = new ConstantCoefficient(speed*speed);
+
+   K = new BilinearForm(&fespace);
+   K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
+   K->Assemble();
+
+   Array<int> dummy;
+   K->FormSystemMatrix(dummy, Kmat0);
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
+
+   M = new BilinearForm(&fespace);
+   M->AddDomainIntegrator(new MassIntegrator());
+   M->Assemble();
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetRelTol(rel_tol);
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(30);
+   M_solver.SetPrintLevel(0);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(Mmat);
+
+   T_solver.iterative_mode = false;
+   T_solver.SetRelTol(rel_tol);
+   T_solver.SetAbsTol(0.0);
+   T_solver.SetMaxIter(100);
+   T_solver.SetPrintLevel(0);
+   T_solver.SetPreconditioner(T_prec);
+
+   T = NULL;
+}
+
+void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
+                        Vector &d2udt2)  const
+{
+   // Compute:
+   //    d2udt2 = M^{-1}*-K(u)
+   // for d2udt2
+   Kmat.Mult(u, z);
+   z.Neg(); // z = -z
+   M_solver.Mult(z, d2udt2);
+}
+
+void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
+                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
+{
+   // Solve the equation:
+   //    d2udt2 = M^{-1}*[-K(u + fac0*d2udt2)]
+   // for d2udt2
+   if (!T)
+   {
+      T = Add(1.0, Mmat, fac0, Kmat);
+      T_solver.SetOperator(*T);
+   }
+   Kmat0.Mult(u, z);
+   z.Neg();
+
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      z[ess_tdof_list[i]] = 0.0;
+   }
+   T_solver.Mult(z, d2udt2);
+}
+
+void WaveOperator::SetParameters(const Vector &u)
+{
+   delete T;
+   T = NULL; // re-compute T on the next ImplicitSolve
+}
+
+WaveOperator::~WaveOperator()
+{
+   delete T;
+   delete M;
+   delete K;
+   delete c2;
+}
 
 Mesh* LoadMeshNew(const std::string& path);
 
@@ -113,90 +197,15 @@ void AttrToMarker(int max_attr, const Array<int>& attrs, Array<int>& marker);
 
 void PrintArray2D(const Array2D<double>& arr);
 
-// Class for setting up a simple Cartesian PML region
-class PML
+double InitialSolution(const Vector &x)
 {
-private:
-   Mesh *mesh;
+   return exp(-x.Norml2()*x.Norml2()*30);
+}
 
-   int dim;
-
-   // Length of the PML Region in each direction
-   Array2D<double> length;
-
-   // Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
-
-   // Domain Boundary
-   Array2D<double> dom_bdr;
-
-   // Integer Array identifying elements in the PML
-   // 0: in the PML, 1: not in the PML
-   Array<int> elems;
-
-   // Compute Domain and Computational Domain Boundaries
-   void SetBoundaries();
-
-public:
-   // Constructor
-   PML(Mesh *mesh_,Array2D<double> length_);
-
-   // Return Computational Domain Boundary
-   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
-
-   // Return Domain Boundary
-   Array2D<double> GetDomainBdr() {return dom_bdr;}
-
-   // Return Markers list for elements
-   Array<int> * GetMarkedPMLElements() {return &elems;}
-
-   // Mark elements in the PML region
-   void SetAttributes(Mesh *mesh_);
-   void SetAttributes(Mesh *mesh_, Array<int> pmlmaker_);
-
-   // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
-};
-
-// Class for returning the PML coefficients of the bilinear form
-class PMLDiagMatrixCoefficient : public VectorCoefficient
+double InitialRate(const Vector &x)
 {
-private:
-   PML * pml = nullptr;
-   void (*Function)(const Vector &, PML *, Vector &, int);
-   int dim;
-public:
-   PMLDiagMatrixCoefficient(int dim_, void(*F)(const Vector &, PML *,
-                                              Vector &, int),
-                            PML * pml_)
-      : VectorCoefficient(dim_), pml(pml_), Function(F), dim(dim_)
-   {}
-
-   using VectorCoefficient::Eval;
-
-   virtual void Eval(Vector &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3);
-      T.Transform(ip, transip);
-      K.SetSize(vdim);
-      (*Function)(transip, pml, K, dim);
-   }
-};
-
-// Functions for computing the necessary coefficients after PML stretching.
-// J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector &D, int dim);
-void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector &D, int dim);
-void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector &D, int dim);
-
-void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D, int dim);
-void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector &D, int dim);
-void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D, int dim);
-
-Array2D<double> comp_domain_bdr;
-Array2D<double> domain_bdr;
+   return 0.0;
+}
 
 int dim;
 
@@ -231,88 +240,59 @@ int main(int argc, char* argv[])
     //const char* mesh_file = "../data/cube_comsol_pml.mphtxt";
      //const char* mesh_file = "../data/cube_comsol_coarse.mphtxt";
     //const char* mesh_file = "../data/cube_comsol_ex_coarse.mphtxt";
-    const char* mesh_file = "../data/cube_comsol_rf1.mphtxt";
+    const char* mesh_file = "../data/comsol_submarine_acoustic.mphtxt";
     //const char* mesh_file = "../data/inline-tet.mesh";
-    int ref_levels = 0;
-    int order = 1;
-    int prob = 1;
-    double freq = 1200.0e6;
-    double a_coef = 0.0;
-    bool visualization = 0;
-    bool herm_conv = true;
-    bool exact_sol = true;
-    bool pa = false;
-    const char* device_config = "cpu";
-    bool use_gmres = true;
-    double mat_val = 1.0;
-    double rbc_a_val = 1.0; // du/dn + a * u = b
-    double rbc_b_val = 1.0;
+    int ref_levels = 2;
+    int order = 2;
+    int ode_solver_type = 10;
+    double t_final = 0.5;
+    double dt = 1.0e-2;
+    double speed = 1.0;
+    bool visualization = true;
+    bool visit = true;
+    bool dirichlet = true;
+    int vis_steps = 5;
+
     int logging_ = 1;
     bool comp_solver = true;
     int bprint = 1;
 
-    std::vector<int> values = {1, 2, 3, 4, 5, 7, 8, 10, 11, 13, 14, \
-        17, 20, 21, 23, 24, 27, 30, 31, 32, 33, 35, 36, 38, \
-        41, 43, 46, 53, 56, 63, 64, 65, 66, 76, 77, 79, 82, \
-        84, 87, 94, 97, 104, 105, 106, 107, 108, 109, 110, \
-        111, 112, 113, 114, 115, 116};
+    std::vector<int> values = { 1, 2, 4, 5, 6, 9, 11, 13, 16, 21, 22, 28, 33, 59, 60, 66, 71, 73, 74, 75, 76, 77 };
     Array<int> abcs(values.data(), values.size());
     Array<int> dbcs;
-    std::vector<int> values_pml = {1, 2, 3, 4, 5, 6, 7, 8, 9, \
-        10, 11, 12, 13, 15, 16, 17, 18, 20, 21, 22, 23, 24, \
-        25, 26, 27, 28};
+    std::vector<int> values_pml = { 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15 };
     Array<int> pmls(values_pml.data(), values_pml.size());
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh",
-        "Mesh file to use.");
+                    "Mesh file to use.");
     args.AddOption(&ref_levels, "-r", "--refine",
-        "Number of times to refine the mesh uniformly.");
+                    "Number of times to refine the mesh uniformly.");
     args.AddOption(&order, "-o", "--order",
-        "Finite element order (polynomial degree).");
-    args.AddOption(&prob, "-p", "--problem-type",
-        "Choose between 0: H_1, 1: H(Curl), or 2: H(Div) "
-        "damped harmonic oscillator.");
-    args.AddOption(&a_coef, "-a", "--stiffness-coef",
-        "Stiffness coefficient (spring constant or 1/mu).");
-    args.AddOption(&epsilon_, "-b", "--mass-coef",
-        "Mass coefficient (or epsilon).");
-    args.AddOption(&sigma_, "-c", "--damping-coef",
-        "Damping coefficient (or sigma).");
-    args.AddOption(&mu_, "-mu", "--permeability",
-        "Permeability of free space (or 1/(spring constant)).");
-    args.AddOption(&epsilon_, "-eps", "--permittivity",
-        "Permittivity of free space (or mass constant).");
-    args.AddOption(&sigma_, "-sigma", "--conductivity",
-        "Conductivity (or damping constant).");
-    args.AddOption(&freq, "-f", "--frequency",
-        "Frequency (in Hz).");
-    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
-        "--no-hermitian", "Use convention for Hermitian operators.");
+                    "Order (degree) of the finite elements.");
+    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                    "ODE solver: [0--10] - GeneralizedAlpha(0.1 * s),\n\t"
+                    "\t   11 - Average Acceleration, 12 - Linear Acceleration\n"
+                    "\t   13 - CentralDifference, 14 - FoxGoodwin");
+    args.AddOption(&t_final, "-tf", "--t-final",
+                    "Final time; start time is 0.");
+    args.AddOption(&dt, "-dt", "--time-step",
+                    "Time step.");
+    args.AddOption(&speed, "-c", "--speed",
+                    "Wave speed.");
+    args.AddOption(&dirichlet, "-dir", "--dirichlet", "-neu",
+                    "--neumann",
+                    "BC switch.");
+    args.AddOption(&ref_dir, "-r", "--ref",
+                    "Reference directory for checking final solution.");
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-        "--no-visualization",
-        "Enable or disable GLVis visualization.");
-    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-        "--no-partial-assembly", "Enable Partial Assembly.");
-    args.AddOption(&device_config, "-d", "--device",
-        "Device configuration string, see Device::Configure().");
-    args.AddOption(&use_gmres, "-g", "--gmres", "-no-g",
-        "--no-grems", "Use GMRES solver or FGRMES solver.");
-    args.AddOption(&mat_val, "-mat", "--material-value",
-                  "Constant value for material coefficient "
-                  "in the Laplace operator.");
-    args.AddOption(&rbc_a_val, "-rbc-a", "--robin-a-value",
-                  "Constant 'a' value for Robin Boundary Condition: "
-                  "du/dn + a * u = b.");
-    args.AddOption(&rbc_b_val, "-rbc-b", "--robin-b-value",
-                  "Constant 'b' value for Robin Boundary Condition: "
-                  "du/dn + a * u = b.");
-    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
-        "Absorbing Boundary Condition Surfaces");
-    args.AddOption(&pmls, "-pmls", "--pml-region",
-        "Perfectly Matched Layer Regions");
-    args.AddOption(&comp_solver, "-complex-sol", "--complex-solver",
-        "-no-complex-sol", "--no-complex-solver", "Enable complex solver");
+                    "--no-visualization",
+                    "Enable or disable GLVis visualization.");
+    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                    "--no-visit-datafiles",
+                    "Save data files for VisIt (visit.llnl.gov) visualization.");
+    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                    "Visualize every n-th timestep.");
     args.Parse();
     if (!args.Good())
     {
@@ -320,24 +300,6 @@ int main(int argc, char* argv[])
         return 1;
     }
     args.PrintOptions(cout);
-
-    MFEM_VERIFY(prob >= 0 && prob <= 2,
-        "Unrecognized problem type: " << prob);
-
-    if (a_coef != 0.0)
-    {
-        mu_ = 1.0 / a_coef;
-    }
-    if (freq > 0.0)
-    {
-        omega_ = 2.0 * M_PI * freq;
-    }
-
-    exact_sol = check_for_inline_mesh(mesh_file);
-    if (exact_sol)
-    {
-        cout << "Identified a mesh with known exact solution" << endl;
-    }
 
     ComplexOperator::Convention conv =
         herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -354,6 +316,35 @@ int main(int argc, char* argv[])
     Mesh* mesh = LoadMeshNew(mesh_file);
     dim = mesh->Dimension();
 
+    // 3a. Define the ODE solver used for time integration. Several second order
+    //    time integrators are available.
+    SecondOrderODESolver *ode_solver;
+    switch (ode_solver_type)
+    {
+        // Implicit methods
+        case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
+        case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
+        case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
+        case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
+        case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
+        case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+        case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
+        case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
+        case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
+        case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
+        case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
+
+        case 11: ode_solver = new AverageAccelerationSolver(); break;
+        case 12: ode_solver = new LinearAccelerationSolver(); break;
+        case 13: ode_solver = new CentralDifferenceSolver(); break;
+        case 14: ode_solver = new FoxGoodwinSolver(); break;
+
+        default:
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+            delete mesh;
+            return 3;
+    }
+
     // 4. Refine the mesh to increase resolution. In this example we do
     //    'ref_levels' of uniform refinement where the user specifies
     //    the number of levels with the '-r' option.
@@ -366,7 +357,7 @@ int main(int argc, char* argv[])
     //    PML region
     // Setup PML length
     Array2D<double> length(dim, 2); 
-    length = 0.1;
+    length = 1.5;
     PML * pml = new PML(mesh,length);
     comp_domain_bdr = pml->GetCompDomainBdr();
     domain_bdr = pml->GetDomainBdr();
@@ -417,7 +408,7 @@ int main(int argc, char* argv[])
     //    the FEM linear system.
     VectorDeltaCoefficient* delta_one; // add point source
     double src_scalar = omega_ * 1.0;
-    double position = 0.50;
+    double position = 0.00;
     if (dim == 1)
     {
         Vector dir(1);
@@ -791,8 +782,9 @@ int main(int argc, char* argv[])
         else {
             timer.Start();
             PardisoCompSolver pardiso_comp_solver;
-            pardiso_comp_solver.SetOperator(*Asp_blk);
+            //pardiso_comp_solver.SetMatrixType(PardisoCompSolver::MatType::COMPLEX_SYMMETRIC); // MKL needs only the upper triangular part of the system
             pardiso_comp_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_comp_solver.SetOperator(*Asp_blk);
             pardiso_comp_solver.Mult(B, U);
             timer.Stop();
             double elapsed_time = timer.RealTime();
@@ -914,7 +906,7 @@ int main(int argc, char* argv[])
     }
 
     // 14b. Save data in the ParaView format
-    ParaViewDataCollection paraview_dc("ex99_test_PML", mesh);
+    ParaViewDataCollection paraview_dc("ex98_test_seismic", mesh);
     paraview_dc.SetDataFormat(VTKFormat::ASCII);
     paraview_dc.SetPrefixPath("ParaView");
     paraview_dc.SetLevelsOfDetail(order>1 ? order-1 : order);
@@ -961,7 +953,6 @@ int main(int argc, char* argv[])
 #endif
     delete fespace;
     delete fec;
-    // delete Asp;
     // delete mesh;
 
     return 0;
