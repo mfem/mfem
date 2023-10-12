@@ -433,7 +433,7 @@ complex<double> D_cold_plasma(double omega,
 
       if (i == 0)
       {
-         suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)+complex<double>(0,nui/omega);
+         suscept_particle = ((w_p*w_p) / ((omega+w_c) * (omega-w_c)))*(w_c/omega)-complex<double>(0,nui/omega);
       }
       // SPARC Case 1: D-T (He3 Minority)
       // First Harmonic:
@@ -1995,8 +1995,10 @@ double PlasmaProfile::EvalByType(Type type,
          //return nu0*exp(-pow(sqrt(val)-location, 2)/width); //+ nu0*exp(-pow(r-sincfunc, 2.0)/width);
 
          // IONS: N_||^2 = R and S = 0
+         double rho = sqrt(pow(r,2.0)+pow(z,2.0));
+
          double nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.001);
-	 if ( r < 1.56) {nu = nu0*exp(-pow(sqrt(val)-0.98, 2)/0.001); }
+         if ( rho < 1.925) {nu = nu0*exp(-pow(sqrt(val)-0.99, 2)/0.001); }
 
          //if (val < 1.0 && params[1] == 0) {nu = 0.0;}
          //else if (val >= 1.0 && params[1] == 0){nu = nu0;}
@@ -2005,7 +2007,7 @@ double PlasmaProfile::EvalByType(Type type,
          if (width == 0.0)
             {
                nu = 0.0;
-               if ( r > 1.56) {nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.0001); }
+               if ( rho > 1.925) {nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.0001); }
             }
          return nu;
       }
@@ -2225,6 +2227,9 @@ double PlasmaProfile::EvalByType(Type type,
 
          double pmin = params[0];
          double pmax = params[1];
+         double sl1 = params[2];
+         double sl2 = params[3];
+         double sl3 = params[4];
 
          // FLOOR VALUE:
          double pval = pmin;
@@ -2236,12 +2241,13 @@ double PlasmaProfile::EvalByType(Type type,
          else if (val < 1.0 && bool_limits == 0) {pval = pmax;}
 
          // SOL VALUE:
+         
          else if ( val >= 1.0)
          {
             // Scale lengths:
-            double sl1 = 0.01; //0.006;
-            double sl2 = 0.006; //0.002;
-            double sl3 = 0.001;
+            //double sl1 = 0.01; //0.006;
+            //double sl2 = 0.006; //0.002;
+            //double sl3 = 0.001;
 
             /*
             double Olim = pmax*exp(-(2.425 - 2.415)/sl1);
@@ -2265,6 +2271,7 @@ double PlasmaProfile::EvalByType(Type type,
             }
          }
          */
+         /* 
          if (sqrt(val) > 1.0 && sqrt(val) <= 1.01)
             {
                pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
@@ -2279,6 +2286,28 @@ double PlasmaProfile::EvalByType(Type type,
                if (pval < 1e14){pval = 1e14;}
             }
          }
+         */
+          // LFS:
+            double rho = sqrt(pow(r,2.0)+pow(z,2.0));
+            if ( rho > 1.925)
+            {
+               if (sqrt(val) > 1.0 && sqrt(val) <= 1.0178)
+               {
+                  pval = pmax*exp(-(sqrt(val) - 1.0)/sl1);
+               }
+               else
+              {
+                  pval = (pmax*exp(-(1.0178 - 1.0)/sl1))*exp(-(sqrt(val) - 1.0178)/sl2);
+                  if (pval < 1e12){pval = 1e12;}
+               }
+            }
+            else
+            {
+               pval = pmax*exp(-(sqrt(val) - 1.0)/sl3);
+               if (pval < 1e12){pval = 1e12;}
+            }
+         }
+            
          return pval;
       }
       break;

@@ -1762,9 +1762,9 @@ CPDSolverDH::Solve()
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(400);
-         gmres.SetRelTol(5e-5);
-         gmres.SetAbsTol(5e-5);
-         gmres.SetMaxIter(500);
+         gmres.SetRelTol(1e-5);
+         gmres.SetAbsTol(1e-5);
+         gmres.SetMaxIter(600);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 
@@ -1982,7 +1982,7 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
      diag.owns_blocks = 0;
 
      MINRESSolver minres(HCurlFESpace_->GetComm());
-     //minres.SetPreconditioner(diag);
+     minres.SetPreconditioner(diag);
      minres.SetOperator(*M1.Ptr());
      minres.SetRelTol(solOpts_.relTol);
      minres.SetMaxIter(solOpts_.maxIter);
