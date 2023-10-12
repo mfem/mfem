@@ -94,7 +94,7 @@ namespace mfem
         }
         else if (mtype == COMPLEX_SYMMETRIC)
         {
-            mfem_error("Complex symmetric matrix in Parsido is not supported yet!")
+            mfem_error("Complex symmetric matrix in Parsido is not supported yet!");
         }
     }
 
@@ -114,8 +114,8 @@ namespace mfem
 
         // returns a new complex array
         // Pardiso expects the column indices to be sorted for each row
-        mat->real().SortColumnIndices(mtype == 6);
-        mat->imag().SortColumnIndices(mtype == 6);
+        mat->real().SortColumnIndices();
+        mat->imag().SortColumnIndices();
         CSRRealToComplex(&mat->real(), &mat->imag());
 
         nnz = complexCSR->numNonZeros;
