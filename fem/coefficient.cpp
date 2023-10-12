@@ -177,12 +177,12 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
 {
    if (Q2)
    {
-      return (*Transform2)(Q1->Eval(T, ip, GetTime()),
-                           Q2->Eval(T, ip, GetTime()));
+      return Transform2(Q1->Eval(T, ip, GetTime()),
+                        Q2->Eval(T, ip, GetTime()));
    }
    else
    {
-      return (*Transform1)(Q1->Eval(T, ip, GetTime()));
+      return Transform1(Q1->Eval(T, ip, GetTime()));
    }
 }
 
