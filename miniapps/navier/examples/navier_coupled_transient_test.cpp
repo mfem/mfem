@@ -1,5 +1,6 @@
 #include <mfem.hpp>
 #include <navierstokes_operator.hpp>
+#include <boundary_normal_stress_integrator.hpp>
 #include <caliper/cali.h>
 #include <fstream>
 #include <iostream>
@@ -16,12 +17,12 @@ void vel_dfg(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   const double U = 1.5;
+   const double U = 1.5 * sin(M_PI * t / 8.0);
 
    if (xi == 0.0)
    {
       u(0) = 4.0 * U * yi * (0.41 - yi) / (pow(0.41, 2.0));
-      u(1) = 0.0; 
+      u(1) = 0.0;
    }
    else
    {
@@ -154,7 +155,8 @@ int main(int argc, char *argv[])
 
    ParMesh mesh = LoadParMesh(mesh_file, ser_ref, par_ref);
 
-   if (problem_type == 4) {
+   if (problem_type == 4)
+   {
       mesh.EnsureNodes();
       GridFunction *nodes = mesh.GetNodes();
       *nodes -= -1.0;
@@ -179,47 +181,67 @@ int main(int argc, char *argv[])
    vel_ess_bdr.SetSize(mesh.bdr_attributes.Max());
    pres_ess_bdr.SetSize(mesh.bdr_attributes.Max());
 
-   if (problem_type == 1) {
-      vel_ess_bdr = 1;
-      pres_ess_bdr = 0;
-   } else if (problem_type == 4) {
-      vel_ess_bdr = 0;
-      pres_ess_bdr = 0;
-   } else if (problem_type == 5) {
-      vel_ess_bdr = 1;
-      vel_ess_bdr[1] = 0;
-      pres_ess_bdr = 0;
-      pres_ess_bdr[1] = 1;
-   } else {
+   if (problem_type == 1)
+   {
       vel_ess_bdr = 1;
       pres_ess_bdr = 0;
    }
+   else if (problem_type == 4)
+   {
+      vel_ess_bdr = 0;
+      pres_ess_bdr = 0;
+   }
+   else if (problem_type == 5)
+   {
+      vel_ess_bdr = 1;
+      vel_ess_bdr[1] = 0;
+      vel_ess_bdr[4] = 0;
+      pres_ess_bdr = 0;
+      pres_ess_bdr[1] = 1;
+   }
+   else
+   {
+      vel_ess_bdr = 1;
+      pres_ess_bdr = 0;
+   }
+
+   vel_ess_bdr.Print();
+   pres_ess_bdr.Print();
 
    VectorCoefficient *velocity_mms_coeff = nullptr;
    Coefficient *pressure_mms_coeff = nullptr;
    VectorCoefficient *forcing_coeff = nullptr;
 
-   if (problem_type == 1) {
+   if (problem_type == 1)
+   {
       out << "problem type 1" << std::endl;
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, velocity_mms_1);
       pressure_mms_coeff = new FunctionCoefficient(pressure_mms_1);
       forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_1);
-   } else if (problem_type == 2) {
+   }
+   else if (problem_type == 2)
+   {
       out << "problem type 2" << std::endl;
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, velocity_mms_2);
       pressure_mms_coeff = new FunctionCoefficient(pressure_mms_2);
       forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_2);
-   } else if (problem_type == 3) {
+   }
+   else if (problem_type == 3)
+   {
       out << "problem type 3" << std::endl;
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, velocity_mms_3);
       pressure_mms_coeff = new FunctionCoefficient(pressure_mms_3);
       forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_3);
-   } else if (problem_type == 4) {
+   }
+   else if (problem_type == 4)
+   {
       out << "problem type 4" << std::endl;
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, vel_shear_ic);
       pressure_mms_coeff = new ConstantCoefficient(0.0);
       forcing_coeff = new VectorFunctionCoefficient(dim, forcing_mms_3);
-   } else if (problem_type == 5) {
+   }
+   else if (problem_type == 5)
+   {
       out << "problem type 5" << std::endl;
       velocity_mms_coeff = new VectorFunctionCoefficient(dim, vel_dfg);
       pressure_mms_coeff = new ConstantCoefficient(0.0);
@@ -237,6 +259,11 @@ int main(int argc, char *argv[])
 
    std::vector<VelDirichletBC> vel_dbcs;
    vel_dbcs.emplace_back(std::make_pair(velocity_mms_coeff, &vel_ess_bdr));
+
+   for (auto &bc : vel_dbcs)
+   {
+      bc.second->Print();
+   }
 
    std::vector<PresDirichletBC> pres_dbcs;
    pres_dbcs.emplace_back(std::make_pair(pressure_mms_coeff, &pres_ess_bdr));
@@ -294,6 +321,24 @@ int main(int argc, char *argv[])
 
    save_callback(num_steps, t);
 
+   ParLinearForm lift_drag_form(&vel_fes);
+   Array<int> solid_interface_attr(mesh.bdr_attributes.Max());
+   std::ofstream drag_lift_outfile;
+   if (problem_type == 5)
+   {
+      solid_interface_attr = 0;
+      solid_interface_attr[5] = 1;
+      solid_interface_attr[6] = 1;
+      auto stress_integ = new BoundaryNormalStressIntegrator(u_gf, p_gf, nu_gf);
+      stress_integ->SetIntRule(&navier.ir_face);
+      lift_drag_form.AddBoundaryIntegrator(stress_integ,
+                                           solid_interface_attr);
+      if (Mpi::Root())
+      {
+         drag_lift_outfile.open("drag_lift.dat");
+      }
+   }
+
    CALI_MARK_FUNCTION_BEGIN;
    CALI_CXX_MARK_LOOP_BEGIN(odesolve_loop_ann, "ODE Solve");
    while (t < tf)
@@ -334,20 +379,63 @@ int main(int argc, char *argv[])
       //    div_u_l2 = div_u.Norml2();
       // }
 
-      if (Mpi::Root()) {
+      if (Mpi::Root())
+      {
          printf("u_l2err = %.5E\np_l2err = %.5E\n", vel_l2_err, pres_l2_err);
       }
 
-      if (num_steps % 10 == 0) {
+      if (problem_type == 5)
+      {
+         double drag = 0.0, lift = 0.0;
+
+         lift_drag_form.Assemble();
+
+         for (int i = 0; i < lift_drag_form.FESpace()->GetNDofs(); i++)
+         {
+            int idx_x = Ordering::Map<Ordering::byNODES>(
+                           lift_drag_form.FESpace()->GetNDofs(),
+                           lift_drag_form.FESpace()->GetVDim(),
+                           i,
+                           0);
+            drag += lift_drag_form[idx_x];
+
+            int idx_y = Ordering::Map<Ordering::byNODES>(
+                           lift_drag_form.FESpace()->GetNDofs(),
+                           lift_drag_form.FESpace()->GetVDim(),
+                           i,
+                           1);
+            lift += lift_drag_form[idx_y];
+         }
+
+         if (Mpi::Root())
+         {
+            printf("C_D = %.5E\nC_L = %.5E\n", 2.0 * drag / 0.1,
+                   2.0 * lift / 0.1);
+
+            drag_lift_outfile << t << " "
+                              << 2.0 * drag / 0.1 << " "
+                              << 2.0 * lift / 0.1 << "\n";
+         }
+      }
+
+      if (num_steps % 50 == 0)
+      {
          save_callback(num_steps, t);
       }
 
-      if (Mpi::Root()) {
+      if (Mpi::Root())
+      {
          std::cout << std::endl;
       }
    }
    CALI_CXX_MARK_LOOP_END(odesolve_loop_ann);
    CALI_MARK_FUNCTION_END;
+
+   if (Mpi::Root())
+   {
+      drag_lift_outfile.close();
+   }
+
    return 0;
 }
 

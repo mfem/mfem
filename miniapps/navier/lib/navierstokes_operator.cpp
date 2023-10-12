@@ -6,8 +6,8 @@ using namespace mfem;
 
 NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
                                            ParFiniteElementSpace &pres_fes,
-                                           std::vector<VelDirichletBC> velocity_dbcs,
-                                           std::vector<PresDirichletBC> pressure_dbcs,
+                                           std::vector<VelDirichletBC> &velocity_dbcs,
+                                           std::vector<PresDirichletBC> &pressure_dbcs,
                                            ParGridFunction &nu_gf,
                                            bool convection,
                                            bool convection_explicit,
@@ -22,13 +22,15 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
    convection_explicit(convection_explicit),
    matrix_free(matrix_free),
    offsets({0, vel_fes.GetTrueVSize(), pres_fes.GetTrueVSize()}),
-   intrules(0, Quadrature1D::GaussLobatto),
-   zero_coeff(0.0)
+        intrules(0, Quadrature1D::GaussLobatto),
+        zero_coeff(0.0)
 {
-   if (vel_fes.GetParMesh()->bdr_attributes.Size() > 0) {
+   if (vel_fes.GetParMesh()->bdr_attributes.Size() > 0)
+   {
       vel_ess_bdr.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
+      vel_ess_bdr = 0.0;
       pres_ess_bdr.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
-      schur_ess_tdofs.SetSize(vel_fes.GetParMesh()->bdr_attributes.Max());
+      pres_ess_bdr = 0.0;
    }
 
    for (auto &bc : velocity_dbcs)
@@ -53,23 +55,8 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
       }
    }
 
-   if (Mpi::Root())
-   {
-      out << "velocity ess bdr\n";
-      vel_ess_bdr.Print();
-
-      out << "pressure ess bdr\n";
-      pres_ess_bdr.Print();
-   }
-
    vel_fes.GetEssentialTrueDofs(vel_ess_bdr, vel_ess_tdofs);
    pres_fes.GetEssentialTrueDofs(pres_ess_bdr, pres_ess_tdofs);
-
-   if (Mpi::Root())
-   {
-      out << "velocity ess tdofs size " << vel_ess_tdofs.Size() << "\n";
-      out << "pressure ess tdofs size " << pres_ess_tdofs.Size() << "\n";
-   }
 
    offsets.PartialSum();
 
@@ -85,14 +72,17 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
    pres_bc_gf = std::make_unique<ParGridFunction>(&pres_fes);
    *pres_bc_gf = 0.0;
 
+   // The nonlinear convective integrators use over-integration (dealiasing) as
+   // a stabilization mechanism.
    ir_nl = intrules.Get(vel_fes.GetFE(0)->GetGeomType(),
-                             (int)(ceil(1.5 * 2*(vel_fes.GetOrder(0)+1) - 3)));
+                        (int)(ceil(1.5 * 2*(vel_fes.GetOrder(0)+1) - 3)));
 
    ir = intrules.Get(vel_fes.GetFE(0)->GetGeomType(),
-                             (int)(2*(vel_fes.GetOrder(0)+1) - 3));
+                     (int)(2*(vel_fes.GetOrder(0)+1) - 3));
 
-   // strumpack.reset(new STRUMPACKSolver(0, nullptr, MPI_COMM_WORLD));
-   // mumps.reset(new MUMPSSolver);
+   ir_face = intrules.Get(vel_fes.GetFaceElement(0)->GetGeomType(),
+                          (int)(2*(vel_fes.GetOrder(0)+1) - 3));
+
    pc.reset(new BlockLowerTriangularPreconditioner(offsets));
 }
 
@@ -111,19 +101,7 @@ void NavierStokesOperator::MultImplicit(const Vector &xb, Vector &yb) const
    A->Mult(x, y);
    y.Neg();
 
-   // yu += fu_rhs;
-
-   // for (int i = 0; i < vel_ess_tdofs.Size(); i++)
-   // {
-   //    yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
-   // }
-
    yp = 0.0;
-
-   // for (int i = 0; i < pres_ess_tdofs.Size(); i++)
-   // {
-   //    yp[pres_ess_tdofs[i]] = xp[pres_ess_tdofs[i]];
-   // }
 
    CALI_MARK_END("MultImplicit");
 }
@@ -144,54 +122,14 @@ void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
    yu.Neg();
 
    yu += fu_rhs;
-
-   // for (int i = 0; i < vel_ess_tdofs.Size(); i++)
-   // {
-   //    yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
-   // }
-
    yp = 0.0;
-
-   // for (int i = 0; i < pres_ess_tdofs.Size(); i++)
-   // {
-   //    yp[pres_ess_tdofs[i]] = xp[pres_ess_tdofs[i]];
-   // }
 
    CALI_MARK_END("NavierStokesOperator::MultExplicit");
 }
 
 void NavierStokesOperator::Mult(const Vector &xb, Vector &yb) const
 {
-   CALI_MARK_BEGIN("Mult");
-
-   const BlockVector x(xb.GetData(), offsets);
-   BlockVector y(yb.GetData(), offsets);
-
-   const Vector &xu = x.GetBlock(0);
-   Vector &zu = z.GetBlock(0);
-   Vector &yu = y.GetBlock(0);
-
-   if (convection_explicit) {
-      n_form->Mult(xu, yu);
-   } else {
-      A->Mult(x, y);
-      y.Neg();
-
-      yu += fu_rhs;
-
-      if (convection)
-      {
-         n_form->Mult(xu, zu);
-         yu -= zu;
-      }
-   }
-
-   for (int i = 0; i < vel_ess_tdofs.Size(); i++)
-   {
-      yu[vel_ess_tdofs[i]] = xu[vel_ess_tdofs[i]];
-   }
-
-   CALI_MARK_END("Mult");
+   MFEM_ABORT("Mult not implemented. Use MultExplicit and MultImplicit");
 }
 
 void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
@@ -199,38 +137,20 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
    CALI_MARK_BEGIN("NavierStokesOperator::Step");
 
    FGMRESSolver krylov(MPI_COMM_WORLD);
-   krylov.SetRelTol(1e-6);
+   krylov.SetRelTol(1e-4);
    krylov.SetAbsTol(1e-12);
-   // krylov.SetKDim(200);
-   krylov.SetMaxIter(5000);
+   krylov.SetKDim(100);
+   krylov.SetMaxIter(100);
    krylov.SetPreconditioner(*pc.get());
    krylov.SetPrintLevel(IterativeSolver::PrintLevel().Summary());
 
-   // {
-   //    BlockVector B(offsets);
-   //    B.Randomize(1);
-   //    B *= 1e-4;
-   //    B.GetBlock(0).SetSubVector(vel_ess_tdofs, 0.0);
-   //    B.GetBlock(1) = 0.0;
-
-   //    X = 0.0;
-   //    SetTime(t);
-   //    Setup(dt);
-   //    RebuildPC(X);
-   //    krylov.SetOperator(*Amonoe_matfree);
-   //    krylov.Mult(B, X);
-
-   //    exit(0);
-   // }
-
    NewtonSolver newton(MPI_COMM_WORLD);
-   newton.SetRelTol(1e-12);
+   newton.SetRelTol(1e-3);
    newton.SetAbsTol(1e-9);
-   newton.SetMaxIter(10);
+   newton.SetMaxIter(1);
    newton.SetPrintLevel(IterativeSolver::PrintLevel().Iterations());
    newton.SetOperator(*trans_newton_residual);
    newton.SetPreconditioner(krylov);
-   // newton.SetAdaptiveLinRtol();
 
    int method = 4;
 
@@ -273,9 +193,12 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          CALI_MARK_END("Newton");
          X = Y;
       }
-    } else if (method == 5) {
+   }
+   else if (method == 5)
+   {
       // IMEX-SSP2(3,2,2)
-      const double aI_11 = 0.25, aI_22 = 0.25, aI_31 = 1.0 / 3.0, aI_32 = 1.0 / 3.0, aI_33 = 1.0 / 3.0;
+      const double aI_11 = 0.25, aI_22 = 0.25, aI_31 = 1.0 / 3.0, aI_32 = 1.0 / 3.0,
+                   aI_33 = 1.0 / 3.0;
       const double cI_1 = 0.25, cI_2 = 0.25;
       const double aE_21 = 0.5, aE_31 = 0.5, aE_32 = 0.5;
       const double cE_2 = 0.5;
@@ -360,7 +283,8 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          newton.Mult(z, Y);
          X = Y;
       }
-   } else if (method == 6)
+   }
+   else if (method == 6)
    {
       // IMEX ARS(2,2,2)
       const double gamma = (2.0 - sqrt(2)) / 2.0;
@@ -756,7 +680,7 @@ void NavierStokesOperator::RebuildPC(const Vector &x)
       // cg->SetMaxIter(10);
       // cg->SetOperator(*MdtAe.Ptr());
       // cg->SetPreconditioner(*MdtAinvPC);
-      MdtAinv.reset(amg);
+      MdtAinv.reset(jacobi);
    }
 
    {
@@ -786,11 +710,15 @@ void NavierStokesOperator::RebuildPC(const Vector &x)
       Lpinv.reset(amg);
    }
 
-   Sinv = new CahouetChabardPC(*Mpinv.get(), *Lpinv.get(), cached_dt, pres_ess_tdofs);
-   
-   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(0, 0, MdtAinv.get());
-   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 0, D.Ptr());
-   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 1, Sinv);
+   Sinv = new CahouetChabardPC(*Mpinv.get(), *Lpinv.get(), cached_dt,
+                               pres_ess_tdofs);
+
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(0, 0,
+                                                                         MdtAinv.get());
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 0,
+                                                                         D.Ptr());
+   static_cast<BlockLowerTriangularPreconditioner *>(pc.get())->SetBlock(1, 1,
+                                                                         Sinv);
 
    // auto block_pc = static_cast<BlockLowerTriangularPreconditioner *>(pc.get());
    // block_pc->SetBlock(0, 0, MdtAeGradinv.get());

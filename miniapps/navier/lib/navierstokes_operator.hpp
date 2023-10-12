@@ -86,8 +86,6 @@ public:
    Array<int> vel_ess_tdofs;
    Array<int> pres_ess_tdofs;
 
-   Array<int> schur_ess_tdofs;
-
    std::vector<VelDirichletBC> &velocity_dbcs;
    std::vector<PresDirichletBC> &pressure_dbcs;
 
