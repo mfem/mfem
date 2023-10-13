@@ -752,6 +752,576 @@ LinearElasticitySolver::~LinearElasticitySolver()
    delete b;
 }
 
+class EllipticSolver
+{
+public:
+   EllipticSolver(BilinearForm *a, LinearForm *b, Array<int> &ess_bdr): a(a), b(b),
+      ess_bdr(ess_bdr), parallel(false)
+   {
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace());
+      if (pfes) {parallel = true;}
+#endif
+   };
+   bool Solve(GridFunction *x)
+   {
+      OperatorPtr A;
+      Vector B, X;
+      Array<int> ess_tdof_list;
+
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         dynamic_cast<ParFiniteElementSpace*>(a->FESpace())->GetEssentialTrueDofs(
+            ess_bdr,ess_tdof_list);
+      }
+      else
+      {
+         a->FESpace()->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+      }
+#else
+      a->FESpace()->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+#endif
+      b->Assemble();
+      a->Assemble();
+
+      a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B);
+
+      CGSolver * cg = nullptr;
+      Solver * M = nullptr;
+#ifdef MFEM_USE_MPI
+      if (parallel)
+      {
+         M = new HypreBoomerAMG;
+         dynamic_cast<HypreBoomerAMG*>(M)->SetPrintLevel(0);
+         cg = new CGSolver(dynamic_cast<ParFiniteElementSpace*>
+                           (a->FESpace())->GetComm());
+      }
+      else
+      {
+         M = new GSSmoother((SparseMatrix&)(*A));
+         cg = new CGSolver;
+      }
+#else
+      M = new GSSmoother((SparseMatrix&)(*A));
+      cg = new CGSolver;
+#endif
+      cg->SetRelTol(1e-12);
+      cg->SetMaxIter(10000);
+      cg->SetPrintLevel(0);
+      cg->SetPreconditioner(*M);
+      cg->SetOperator(*A);
+      cg->Mult(B, X);
+      a->RecoverFEMSolution(X, *b, *x);
+      bool converged = cg->GetConverged();
+
+      delete M;
+      delete cg;
+      return converged;
+   };
+protected:
+   BilinearForm *a;
+   LinearForm *b;
+   bool parallel;
+   Array<int> &ess_bdr;
+private:
+};
+
+class ObjectiveFunction
+{
+public:
+   ObjectiveFunction(
+   ) {}
+
+   void SetGridFunction(GridFunction *x) {x_gf = x;}
+   void SetCoefficient(Coefficient *x) {x_cf = x;}
+   GridFunction *GetGridFunction() {return x_gf;}
+   Coefficient *GetCoefficient() {return x_cf;}
+
+   virtual double Eval() {mfem_error("Eval is not implemented"); return infinity();}
+   virtual double Eval(GridFunction *x) { x_gf = x; return Eval(); }
+   virtual double Eval(Coefficient *x) { x_cf = x; return Eval(); }
+   virtual GridFunction *Gradient() {mfem_error("Gradient is not implemented"); return nullptr;};
+   virtual GridFunction *Gradient(GridFunction *x) { x_gf = x; return Gradient(); };
+   virtual GridFunction *Gradient(Coefficient *x) { x_cf = x; return Gradient(); };
+   double GetValue() {return current_val;}
+   GridFunction * GetGradient() { return gradF_gf; }
+   virtual Coefficient * dcf_dgf() { return nullptr; }
+protected:
+   GridFunction *x_gf = nullptr;
+   GridFunction *gradF_gf = nullptr;
+   Coefficient *x_cf = nullptr;
+   double current_val = infinity();
+};
+
+class SIMPElasticCompliance : public ObjectiveFunction
+{
+public:
+   SIMPElasticCompliance(Coefficient *lambda, Coefficient *mu, double epsilon,
+                         Coefficient *rho, VectorCoefficient *force, const double target_volume,
+                         Array<int> &ess_bdr,
+                         FiniteElementSpace *displacement_space,
+                         FiniteElementSpace *filter_space, double exponent, double rho_min):
+      SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
+      eps2(epsilon*epsilon), ess_bdr(ess_bdr), target_volume(target_volume),
+      u(nullptr), frho(nullptr),
+      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent),
+      drho_dpsi(x_gf, sigmoid)
+   {
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(displacement_space);
+      if (pfes)
+      {
+         u = new ParGridFunction(pfes);
+      }
+      else
+      {
+         u = new GridFunction(displacement_space);
+      }
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(filter_space);
+      if (pfes)
+      {
+         frho = new ParGridFunction(pfes);
+      }
+      else
+      {
+         frho = new GridFunction(filter_space);
+      }
+#else
+      u = new GridFunction(displacement_space);
+      frho = new GridFunction(filter_space);
+#endif
+
+      design_density.SetFunction([exponent, rho_min](const double rho)
+      {
+         return simp(rho, rho_min, exponent);
+      });
+      design_density.SetGridFunction(frho);
+      SIMPlambda.SetBCoef(design_density);
+      SIMPmu.SetBCoef(design_density);
+      strainEnergy.SetDisplacement(u);
+      strainEnergy.SetFilteredDensity(frho);
+      drho_dpsi.SetFunction([](const double x)
+      {
+         double density = sigmoid(x);
+         return density * (1.0 - density);
+      });
+   }
+
+   virtual double Eval()
+   {
+      BilinearForm *elasticity, *filter;
+      LinearForm *load, *filterRHS;
+      FiniteElementSpace * fes;
+
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+
+      fes = frho->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         filter = new ParBilinearForm(pfes);
+         filterRHS = new ParLinearForm(pfes);
+      }
+      else
+      {
+         filter = new BilinearForm(fes);
+         filterRHS = new LinearForm(fes);
+      }
+
+      fes = u->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         elasticity = new ParBilinearForm(pfes);
+         load = new ParLinearForm(pfes);
+      }
+      else
+      {
+         elasticity = new BilinearForm(fes);
+         load = new LinearForm(fes);
+      }
+#else
+      fes = frho->FESpace();
+      filter = new BilinearForm(fes);
+      filterRHS = new LinearForm(fes);
+
+      fes = u->FESpace();
+      elasticity = new BilinearForm(fes);
+      load = new LinearForm(fes);
+#endif
+      // Step 1. Projection
+      proj();
+
+      // Step 2. Filter equation
+      filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
+      filter->AddDomainIntegrator(new MassIntegrator());
+      filterRHS->AddDomainIntegrator(new DomainLFIntegrator(*rho));
+      Array<int> ess_bdr_filter;
+      if (filter->FESpace()->GetMesh()->bdr_attributes.Size())
+      {
+         ess_bdr_filter.SetSize(filter->FESpace()->GetMesh()->bdr_attributes.Max());
+         ess_bdr_filter = 0;
+      }
+      EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
+      filterSolver.Solve(frho);
+
+      // Step 3. Linear Elasticity
+      elasticity->AddDomainIntegrator(new ElasticityIntegrator(SIMPlambda, SIMPmu));
+      load->AddDomainIntegrator(new VectorDomainLFIntegrator(*force));
+      EllipticSolver elasticitySolver(elasticity, load, ess_bdr);
+      elasticitySolver.Solve(u);
+      current_val = (*load)(*u);
+
+      delete elasticity;
+      delete load;
+      delete filter;
+      delete filterRHS;
+
+      return current_val;
+   }
+
+   virtual GridFunction *Gradient()
+   {
+      BilinearForm *filter, *invmass;
+      LinearForm *filterRHS, *gradH1form;
+      FiniteElementSpace * fes;
+      GridFunction *gradH1;
+      if (!x_gf)
+      {
+         mfem_error("Gradient should be called after SetGridFunction(psi).");
+      }
+
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+      fes = frho->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         filter = new ParBilinearForm(pfes);
+         filterRHS = new ParLinearForm(pfes);
+         gradH1 = new ParGridFunction(pfes);
+      }
+      else
+      {
+         filter = new BilinearForm(fes);
+         filterRHS = new LinearForm(fes);
+         gradH1 = new GridFunction(fes);
+      }
+
+      fes = x_gf->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         invmass = new ParBilinearForm(pfes);
+         gradH1form = new ParLinearForm(pfes);
+      }
+      else
+      {
+         invmass = new BilinearForm(fes);
+         gradH1form = new LinearForm(fes);
+      }
+#else
+      fes = frho->FESpace();
+      filter = new BilinearForm(fes);
+      filterRHS = new LinearForm(fes);
+      gradH1 = new GridFunction(fes);
+      fes = x_gf->FESpace();
+      invmass = new BilinearForm(fes);
+      gradH1form = new LinearForm(fes);
+
+#endif
+
+      // Step 1. Dual Filter Equation with Strain Density Energy
+      filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
+      filter->AddDomainIntegrator(new MassIntegrator());
+      filterRHS->AddDomainIntegrator(new DomainLFIntegrator(strainEnergy));
+      Array<int> ess_bdr_filter(0);
+      if (filter->FESpace()->GetMesh()->bdr_attributes.Size())
+      {
+         ess_bdr_filter.SetSize(filter->FESpace()->GetMesh()->bdr_attributes.Max());
+         ess_bdr_filter = 0;
+      }
+      EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
+      filterSolver.Solve(gradH1);
+
+      // Step 2. Project gradient to Control space
+      invmass->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+      invmass->Assemble();
+      GridFunctionCoefficient gradH1cf(gradH1);
+      gradH1form->AddDomainIntegrator(new DomainLFIntegrator(gradH1cf));
+      gradH1form->Assemble();
+      invmass->Mult(*gradH1form, *gradF_gf);
+
+      delete filter;
+      delete invmass;
+      delete filterRHS;
+      delete gradH1form;
+      delete gradH1;
+      return gradF_gf;
+   }
+   double GetVolume() {return current_volume;}
+
+   GridFunction *GetDisplacement() { return u; }
+   GridFunction *GetFilteredDensity() { return frho; }
+   MappedGridFunctionCoefficient &GetDesignDensity() { return design_density; }
+
+   ~SIMPElasticCompliance()
+   {
+      delete u;
+      delete frho;
+   }
+
+   void SetGridFunction(GridFunction* x)
+   {
+      ObjectiveFunction::SetGridFunction(x);
+      drho_dpsi.SetGridFunction(x_gf);
+      FiniteElementSpace *fes = x->FESpace();
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         gradF_gf = new ParGridFunction(pfes);
+      }
+      else
+      {
+         gradF_gf = new GridFunction(fes);
+      }
+#else
+      gradF_gf = new GridFunction(fes);
+#endif
+   }
+   Coefficient * dcf_dgf()
+   {
+      return &drho_dpsi;
+   }
+   MappedGridFunctionCoefficient drho_dpsi;
+
+protected:
+
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   double proj(double tol=1e-12, int max_its=10)
+   {
+      double c = 0;
+      MappedGridFunctionCoefficient proj_rho(x_gf, [&c](const double x) {return sigmoid(x + c);});
+      MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
+      FiniteElementSpace * fes = x_gf->FESpace();
+      LinearForm *V, *dV;
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         V = new ParLinearForm(pfes);
+         dV = new ParLinearForm(pfes);
+      }
+      else
+      {
+         V = new LinearForm(fes);
+         dV = new LinearForm(fes);
+      }
+#else
+      V = new LinearForm(fes);
+      dV = new LinearForm(fes);
+#endif
+      V->AddDomainIntegrator(new DomainLFIntegrator(proj_rho));
+      dV->AddDomainIntegrator(new DomainLFIntegrator(proj_drho));
+
+      V->Assemble();
+      dV->Assemble();
+      double Vc = V->Sum();
+      double dVc = dV->Sum();
+      if (fabs(Vc - target_volume) > tol)
+      {
+         double dc = -(Vc - target_volume) / dVc;
+         c += dc;
+         int k;
+         // Find an interval (c, c+dc) that contains c⋆.
+         for (k=0; k < max_its; k++)
+         {
+            double Vc_old = Vc;
+            V->Assemble();
+            Vc = V->Sum();
+            if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
+            {
+               break;
+            }
+            c += dc;
+         }
+         if (k == max_its) // if failed to find the search interval
+         {
+            return infinity();
+         }
+         // Bisection
+         dc = fabs(dc);
+         while (fabs(dc) > 1e-08)
+         {
+            dc /= 2.0;
+            c = Vc > target_volume ? c - dc : c + dc;
+            V->Assemble();
+            Vc = V->Sum();
+         }
+         *x_gf += c;
+         c = 0;
+         V->Assemble();
+      }
+      current_volume = Vc;
+
+      delete V;
+      delete dV;
+      return Vc;
+   }
+   double current_volume;
+
+private:
+   Array<int> &ess_bdr;
+   Coefficient *rho;
+   VectorCoefficient *force;
+   ProductCoefficient SIMPlambda, SIMPmu;
+   ConstantCoefficient eps2;
+   GridFunction *frho, *u;
+   MappedGridFunctionCoefficient design_density;
+   StrainEnergyDensityCoefficient strainEnergy;
+   double target_volume;
+};
+
+class LineSearchAlgorithm
+{
+public:
+   LineSearchAlgorithm(ObjectiveFunction &F):F(F) {}
+   virtual double Step(GridFunction &x, const GridFunction &d) = 0;
+   double GetStepSize() { return step_size; }
+   void SetStepSize(double s) { step_size = s; }
+
+protected:
+   ObjectiveFunction &F;
+   double step_size;
+private:
+};
+
+class LinearGrowth : public LineSearchAlgorithm
+{
+public:
+   LinearGrowth(ObjectiveFunction &F,
+                const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha){}
+   double Step(GridFunction &x, const GridFunction &d)
+   {
+      k++;
+      step_size = alpha * k;
+      x.Add(step_size, d);
+      return F.Eval();
+   }
+protected:
+private:
+   int k = 0;
+   double alpha;
+};
+
+class BackTracking : public LineSearchAlgorithm
+{
+public:
+   BackTracking(ObjectiveFunction &F,
+                const double alpha=1.0, const double growthRate=2.0, const double c1 = 1e-04,
+                const int maxit = 10):
+      LineSearchAlgorithm(F), growthRate(growthRate), c1(c1),
+      maxit(maxit) {step_size = alpha;}
+
+   double Step(GridFunction &x, const GridFunction &d)
+   {
+      FiniteElementSpace *fes = x.FESpace();
+      LinearForm *directionalDer;
+      GridFunction *x0, *d0;
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         directionalDer = new ParLinearForm(pfes);
+         x0 = new ParGridFunction(pfes);
+         d0 = new ParGridFunction(pfes);
+      }
+      else
+      {
+         directionalDer = new LinearForm(fes);
+         x0 = new GridFunction(fes);
+         d0 = new GridFunction(fes);
+      }
+#else
+      directionalDer = new LinearForm(fes);
+      x0 = new GridFunction(fes);
+      d0 = new GridFunction(fes);
+#endif
+      DiffMappedGridFunctionCoefficient d_cf(&x, x0, [](double x) {return x;});
+      Coefficient * directionalDer_cf;
+      if (F.dcf_dgf())
+      {
+         directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
+      }
+      else
+      {
+         directionalDer_cf = &d_cf;
+      }
+      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(*directionalDer_cf));
+      directionalDer->Assemble();
+
+      double val = F.GetValue();
+      double d2 = (*directionalDer)(*(F.GetGradient()));
+      out << "Current Value = " << val << std::endl;
+
+      *x0 = x;
+      *d0 = d;
+      int k;
+      double new_val;
+      for (k=0; k<maxit; k++)
+      {
+         x = *x0;
+         x.Add(step_size, *d0);
+         new_val = F.Eval();
+         d2 = (*directionalDer)(*(F.GetGradient()));
+         out << "step_size = " << step_size << ": (" << new_val << ", " << val + c1 * d2
+             << ")" << std::endl;
+         if (new_val < val + c1 * d2)
+         {
+
+            out << "Final step size: " << step_size << std::endl;
+            break;
+         }
+         step_size /= growthRate;
+      }
+
+      step_size *= growthRate;
+      delete directionalDer;
+      delete x0;
+      delete d0;
+      if (F.dcf_dgf()) { delete directionalDer_cf; }
+      MFEM_VERIFY(k < maxit,
+                  "Maximum number of iterations reached. Results may not be reliable.");
+      return new_val;
+   }
+protected:
+   double growthRate, c1;
+   int maxit;
+private:
+};
+
 class ExBiSecLVPGTopOpt
 {
 public:
