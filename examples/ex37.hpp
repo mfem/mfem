@@ -1420,7 +1420,7 @@ public:
       {
          current_compliance = (*elasticitySolver->GetLinearForm())(*u);
       }
-#elif
+#else
       current_compliance = (*elasticitySolver->GetLinearForm())(*u);
 #endif
       grad_evaluated = false;
@@ -1461,12 +1461,15 @@ public:
 
    double Step()
    {
-      double alpha(alpha0), L(0.0), U(infinity());
+      double alpha(alpha0*2), L(0.0), U(alpha0*2);
       GridFunction *psi_k = newGridFunction(control_fes);
       GridFunction *direction = newGridFunction(control_fes);
       LinearForm *directionalDer = newLinearForm(control_fes);
       *psi_k = *psi;
-      Eval();
+      if (current_compliance == infinity())
+      {
+         Eval();
+      }
       *direction = *GetGradient();
       direction->Neg();
 
@@ -1477,21 +1480,25 @@ public:
 
       // Measure the downhill slope using weighted inner product,
       // <d, grad>_w = (d, sigmoid'(ψ_k) grad)
+      MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
+      GridFunctionCoefficient direction_cf(direction);
+      ProductCoefficient gradG(direction_cf, der_sigmoid_psi);
+      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(gradG));
       //
       // MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
-      LinearForm* int_der_sigmoid = newLinearForm(control_fes);
-      MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
-      int_der_sigmoid->AddDomainIntegrator(new DomainLFIntegrator(der_sigmoid_psi));
-      int_der_sigmoid->Assemble();
-      double z = int_der_sigmoid->Sum();
-      MappedGridFunctionCoefficient cf(psi, [&z](double x){
-         double r = sigmoid(x);
-         return r*(1.0-r)*(1.0 - r*(1.0-r) / z);
-      });
-      GridFunctionCoefficient direction_cf(direction);
-      ProductCoefficient gradRho_and_direction(direction_cf, cf);
-      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
-                                             gradRho_and_direction));
+      // LinearForm* int_der_sigmoid = newLinearForm(control_fes);
+      // MappedGridFunctionCoefficient der_sigmoid_psi(psi, der_sigmoid);
+      // int_der_sigmoid->AddDomainIntegrator(new DomainLFIntegrator(der_sigmoid_psi));
+      // int_der_sigmoid->Assemble();
+      // double z = int_der_sigmoid->Sum();
+      // MappedGridFunctionCoefficient cf(psi, [&z](double x){
+      //    double r = sigmoid(x);
+      //    return r*(1.0-r)*(1.0 - r*(1.0-r) / z);
+      // });
+      // GridFunctionCoefficient direction_cf(direction);
+      // ProductCoefficient gradRho_and_direction(direction_cf, cf);
+      // directionalDer->AddDomainIntegrator(new DomainLFIntegrator(
+      //                                        gradRho_and_direction));
 
       // Measure the downhill slope using change of rho for given direction
       // ρ = sigmoid(sigmoid⁻¹(ρ_k) + α d) = sigmoid(ψ)
@@ -1506,13 +1513,11 @@ public:
       // directionalDer->AddDomainIntegrator(new DomainLFIntegrator(directional));
 
       directionalDer->Assemble();
-
       const double d = (*directionalDer)(*grad);
 
       const double compliance = current_compliance;
-      out << "(" << compliance << ", " << d << ")" << std::endl;
       int k = 0;
-      int maxit = 3;
+      int maxit = 30;
       for (; k<maxit; k++)
       {
          // update and evaluate F
@@ -1544,8 +1549,8 @@ public:
             else
             {
                out << "Success." << std::endl;
-               int_der_sigmoid->Assemble();
-               z = int_der_sigmoid->Sum();
+               out << "Final alpha: " << alpha << std::endl;
+               break;
                directionalDer->Assemble();
                const double current_d = (*directionalDer)(*GetGradient());
 
