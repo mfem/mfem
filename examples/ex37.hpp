@@ -165,6 +165,8 @@ public:
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
    }
+   void SetDisplacement(GridFunction *u_) { u = u_; }
+   void SetFilteredDensity(GridFunction *frho) { rho_filter = frho; }
 };
 
 /**
