@@ -1238,6 +1238,23 @@ private:
    double alpha;
 };
 
+class ExponentialGrowth : public LineSearchAlgorithm
+{
+public:
+   ExponentialGrowth(ObjectiveFunction &F, const double growthRate=2.0,
+                const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha), growthRate(growthRate) {}
+   double Step(GridFunction &x, const GridFunction &d)
+   {
+      step_size = alpha * pow(growthRate, k++);
+      x.Add(step_size, d);
+      return F.Eval();
+   }
+protected:
+private:
+   int k = 0;
+   double alpha, growthRate;
+};
+
 class BackTracking : public LineSearchAlgorithm
 {
 public:
