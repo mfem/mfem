@@ -193,33 +193,6 @@ int main(int argc, char *argv[])
 
    int dim = mesh.Dimension();
 
-   // 2. Set BCs.
-   for (int i = 0; i<mesh.GetNBE(); i++)
-   {
-      Element * be = mesh.GetBdrElement(i);
-      Array<int> vertices;
-      be->GetVertices(vertices);
-
-      double * coords1 = mesh.GetVertex(vertices[0]);
-      double * coords2 = mesh.GetVertex(vertices[1]);
-
-      Vector center(2);
-      center(0) = 0.5*(coords1[0] + coords2[0]);
-      center(1) = 0.5*(coords1[1] + coords2[1]);
-
-      if (abs(center(0) - 0.0) < 1e-10)
-      {
-         // the left edge
-         be->SetAttribute(1);
-      }
-      else
-      {
-         // all other boundaries
-         be->SetAttribute(2);
-      }
-   }
-   mesh.SetAttributes();
-
    // 3. Refine the mesh.
    for (int lev = 0; lev < ref_levels; lev++)
    {
@@ -228,7 +201,7 @@ int main(int argc, char *argv[])
    int maxat = mesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
-   ess_bdr[0] = 1;
+   ess_bdr[3] = 1;
    Array<int> ess_bdr_filter;
    if (mesh.bdr_attributes.Size())
    {
