@@ -242,12 +242,14 @@ void BlockHybridizationSolver::ConstructH(const shared_ptr<ParBilinearForm> &a,
    }
    H.Finalize(1, true);  // skip_zeros = 1 (default), fix_empty_rows = true
 
-   pH.SetType(Operator::Hypre_ParCSR);
-   OperatorPtr pP(pH.Type()), dH(pH.Type());
+   OperatorPtr pP(Operator::Hypre_ParCSR);
    pP.ConvertFrom(c_space.Dof_TrueDof_Matrix());
+   OperatorPtr dH(pP.Type());
    dH.MakeSquareBlockDiag(c_space.GetComm(), c_space.GlobalVSize(),
                           c_space.GetDofOffsets(), &H);
-   pH.MakePtAP(dH, pP);
+   OperatorPtr AP(ParMult(dH.As<HypreParMatrix>(), pP.As<HypreParMatrix>()));
+   OperatorPtr R(pP.As<HypreParMatrix>()->Transpose());
+   pH = ParMult(R.As<HypreParMatrix>(), AP.As<HypreParMatrix>());
 }
 
 BlockHybridizationSolver::BlockHybridizationSolver(const
@@ -285,7 +287,7 @@ BlockHybridizationSolver::BlockHybridizationSolver(const
    ConstructCt(c_space);
    ConstructH(a, b, ess_dof_marker, c_space);
 
-   M = new HypreBoomerAMG(*pH.As<HypreParMatrix>());
+   M = new HypreBoomerAMG(*pH);
    M->SetPrintLevel(0);
 
    SetOptions(solver_, param);
@@ -413,7 +415,7 @@ void BlockHybridizationSolver::Mult(const Vector &x, Vector &y) const
    rhs_r = 0.0;
    ReduceRHS(x, y, rhs, rhs_r);
 
-   Vector rhs_true(pH.Ptr()->Height());
+   Vector rhs_true(pH->Height());
    const Operator &P(*c_fes->GetProlongationMatrix());
    P.MultTranspose(rhs_r, rhs_true);
 
