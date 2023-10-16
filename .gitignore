@@ -391,3 +391,8 @@ pkg.gitcommit
 
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
+
+
+examples/**/*.gf
+examples/**/*.mesh
+examples/**/*.txt
