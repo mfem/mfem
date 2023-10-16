@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 4;
-   int order = 3;
+   int ref_levels = 7;
+   int order = 1;
    double alpha = 1.0;
    double epsilon = 0.02;
    double vol_fraction = 0.5;
@@ -328,6 +328,12 @@ int main(int argc, char *argv[])
          designDensity_gf.ProjectCoefficient(designDensity);
          sout_r << "solution\n" << mesh << designDensity_gf
                 << flush;
+         
+         ostringstream sol_name;
+         sol_name << "sol-" << k << ".gf";
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(8);
+         sol_ofs << designDensity_gf;
       }
 
       if (paraview_output)
