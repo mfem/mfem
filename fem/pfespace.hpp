@@ -348,14 +348,14 @@ public:
 
    /// Determine the boundary degrees of freedom
    void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs,
-                                  int component = -1) const override;
+                          Array<int> &ess_dofs,
+                          int component = -1) const override;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
    void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                     Array<int> &ess_tdof_list,
-                                     int component = -1) override;
+                             Array<int> &ess_tdof_list,
+                             int component = -1) override;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
@@ -403,7 +403,7 @@ public:
    // to this FE space, defined on a refined mesh. See full documentation in the
    // base class, FiniteElementSpace::GetTrueTransferOperator.
    void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
-                                        OperatorHandle &T) const override;
+                                OperatorHandle &T) const override;
 
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
