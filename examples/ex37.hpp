@@ -1288,16 +1288,16 @@ public:
       x0 = new GridFunction(fes);
       d0 = new GridFunction(fes);
 #endif
-      DiffMappedGridFunctionCoefficient d_cf(&x, x0, [](double x) {return x;});
+      DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
       Coefficient * directionalDer_cf;
-      if (F.dcf_dgf())
-      {
-         directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
-      }
-      else
-      {
+      // if (F.dcf_dgf())
+      // {
+         // directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
+      // }
+      // else
+      // {
          directionalDer_cf = &d_cf;
-      }
+      // }
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(*directionalDer_cf));
       directionalDer->Assemble();
 
@@ -1330,7 +1330,7 @@ public:
       delete directionalDer;
       delete x0;
       delete d0;
-      if (F.dcf_dgf()) { delete directionalDer_cf; }
+      // if (F.dcf_dgf()) { delete directionalDer_cf; }
       MFEM_VERIFY(k < maxit,
                   "Maximum number of iterations reached. Results may not be reliable.");
       return new_val;
