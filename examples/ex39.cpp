@@ -262,6 +262,7 @@ int main(int argc, char *argv[])
    
    BackTracking lineSearch(obj, alpha, 2.0, c1);
    // LinearGrowth lineSearch(obj, alpha);
+   // ExponentialGrowth lineSearch(obj, 2.0, alpha);
    MappedGridFunctionCoefficient &designDensity = obj.GetDesignDensity();
    GridFunction designDensity_gf(&filter_fes);
    designDensity_gf = pow(vol_fraction, exponent);
