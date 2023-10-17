@@ -419,8 +419,8 @@ public:
     where T is the transformation rule, and Q1/Q2 are the parent coefficients.*/
 class TransformedCoefficient : public Coefficient
 {
-   using t1_f = std::function<double(const double)>;
-   using t2_f = std::function<double(const double, const double)>;
+   using t1_f = std::function<double(double)>;
+   using t2_f = std::function<double(double, double)>;
 
 private:
    Coefficient * Q1;
