@@ -598,6 +598,7 @@ public:
    /** @brief Constructor for PiecewiseSpacingFunction.
    @param[in] n_   Size or number of intervals, which defines elements.
    @param[in] np_  Number of pieces (subintervals of unit interval).
+   @param[in] r_   Whether to reverse the spacings.
    @param[in] ipar Integer parameters for all np_ spacing functions. For each
                    piece, these parameters are type, number of integer
                    parameters, number of double parameters, integer parameters.

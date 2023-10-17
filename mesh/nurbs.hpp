@@ -211,8 +211,8 @@ public:
        @param[in] cf Optional coarsening factor. If scalar, the factor is used
                      for all dimensions. If an array, factors can be specified
                      for each dimension. */
-   void Coarsen(int cf=2);
-   void Coarsen(Array<int> const& cf);
+   void Coarsen(int cf=2, double tol=1.0e-12);
+   void Coarsen(Array<int> const& cf, double tol=1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
    void GetCoarseningFactors(Array<int> & f) const;
@@ -563,8 +563,8 @@ public:
    */
    void UniformRefinement(int rf=2);
    void UniformRefinement(Array<int> const& rf);
-   void Coarsen(int cf=2);
-   void Coarsen(Array<int> const& cf);
+   void Coarsen(int cf=2, double tol=1.0e-12);
+   void Coarsen(Array<int> const& cf, double tol=1.0e-12);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
