@@ -144,6 +144,12 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    void UniformRefinement3D() override;
 
+   /** @brief Refine NURBS mesh, with an optional refinement factor.
+
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance. */
    void NURBSUniformRefinement(int rf = 2, double tol=1.0e-12) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.

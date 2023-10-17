@@ -411,11 +411,12 @@ protected:
 
    /** @brief Refine NURBS mesh, with an optional refinement factor.
 
-       @param[in] rf Optional refinement factor. If scalar, the factor is used
-                     for all dimensions. If an array, factors can be specified
-                     for each dimension. */
-   virtual void NURBSUniformRefinement(int rf = 2, double tol=1.0e-12);
-   virtual void NURBSUniformRefinement(Array<int> const& rf, double tol=1.0e-12);
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance. */
+   virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
+   virtual void NURBSUniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
@@ -1919,15 +1920,16 @@ public:
        FiniteElementSpace%s and GridFunction%s defined on the mesh.
 
        @param[in] rf % Refinement factor for NURBS meshes.
-   */
-   void UniformRefinement(int ref_algo = 0, int rf = 2, double tol=1.0e-12);
+       @param[in] tol % NURBS geometry deviation tolerance. */
+   void UniformRefinement(int ref_algo = 0, int rf = 2, double tol = 1.0e-12);
 
    /// Refinement, generally anisotropic, for all mesh elements on NURBS meshes.
-   /** @param[in] rf % Refinement factors in each dimension. */
-   void UniformRefinement(Array<int> const& rf, double tol=1.0e-12);
+   /** @param[in] rf  % Refinement factors in each dimension.
+       @param[in] tol % NURBS geometry deviation tolerance. */
+   void UniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf.
-   void NURBSCoarsening(int cf = 2, double tol=1.0e-12);
+   void NURBSCoarsening(int cf = 2, double tol = 1.0e-12);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
