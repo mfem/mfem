@@ -186,12 +186,12 @@ public:
        @a tol.
 
        @returns The number of times the knot was successfully removed. */
-   int KnotRemove(int dir, double knot, int ntimes=1, double tol=1.0e-12);
+   int KnotRemove(int dir, double knot, int ntimes=1, double tol = 1.0e-12);
 
    /// Remove all knots in @a knot once.
-   void KnotRemove(int dir, Vector const& knot, double tol=1.0e-12);
+   void KnotRemove(int dir, Vector const& knot, double tol = 1.0e-12);
    /// Remove all knots in @a knot once, for each direction.
-   void KnotRemove(Array<Vector *> &knot, double tol=1.0e-12);
+   void KnotRemove(Array<Vector *> &knot, double tol = 1.0e-12);
 
    void DegreeElevate(int t);
 
@@ -202,17 +202,18 @@ public:
        @param[in] rf Optional refinement factor. If scalar, the factor is used
                      for all dimensions. If an array, factors can be specified
                      for each dimension. */
-   void UniformRefinement(int rf=2);
+   void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf);
 
    /** @brief Coarsen with optional coarsening factor @a cf. Nonuniform spacing
        functions may be used in each direction.
 
-       @param[in] cf Optional coarsening factor. If scalar, the factor is used
-                     for all dimensions. If an array, factors can be specified
-                     for each dimension. */
-   void Coarsen(int cf=2, double tol=1.0e-12);
-   void Coarsen(Array<int> const& cf, double tol=1.0e-12);
+       @param[in] cf  Optional coarsening factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension.
+       @param[in] tol NURBS geometry deviation tolerance. */
+   void Coarsen(int cf = 2, double tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, double tol = 1.0e-12);
 
    /// Calls KnotVector::GetCoarseningFactor for each direction.
    void GetCoarseningFactors(Array<int> & f) const;
@@ -561,14 +562,14 @@ public:
    refinement is done everywhere by the same factor, although nonuniform
    spacing functions may be used.
    */
-   void UniformRefinement(int rf=2);
+   void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf);
-   void Coarsen(int cf=2, double tol=1.0e-12);
-   void Coarsen(Array<int> const& cf, double tol=1.0e-12);
+   void Coarsen(int cf = 2, double tol = 1.0e-12);
+   void Coarsen(Array<int> const& cf, double tol = 1.0e-12);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
-   void KnotRemove(Array<Vector *> &kv, double tol=1.0e-12);
+   void KnotRemove(Array<Vector *> &kv, double tol = 1.0e-12);
 
    /** Calls GetCoarseningFactors for each patch and finds the minimum factor
        for each direction that ensures refinement will work in the case of
