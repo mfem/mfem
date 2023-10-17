@@ -144,7 +144,7 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    void UniformRefinement3D() override;
 
-   void NURBSUniformRefinement(int rf = 2) override;
+   void NURBSUniformRefinement(int rf = 2, double tol=1.0e-12) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;

@@ -75,6 +75,7 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    NumOfControlPoints = kv.NumOfControlPoints;
    NumOfElements = kv.NumOfElements;
    knot = kv.knot;
+   coarse = kv.coarse;
    if (kv.spacing)
    {
       spacing.reset(kv.spacing->Clone());
@@ -959,8 +960,11 @@ void NURBSPatch::UniformRefinement(Array<int> const& rf)
    Vector newknots;
    for (int dir = 0; dir < kv.Size(); dir++)
    {
-      kv[dir]->Refinement(newknots, rf[dir]);
-      KnotInsert(dir, newknots);
+      if (rf[dir] != 1)
+      {
+         kv[dir]->Refinement(newknots, rf[dir]);
+         KnotInsert(dir, newknots);
+      }
    }
 }
 
@@ -971,7 +975,7 @@ void NURBSPatch::UniformRefinement(int rf)
    UniformRefinement(rf_array);
 }
 
-void NURBSPatch::Coarsen(Array<int> const& cf)
+void NURBSPatch::Coarsen(Array<int> const& cf, double tol)
 {
    for (int dir = 0; dir < kv.Size(); dir++)
    {
@@ -980,7 +984,7 @@ void NURBSPatch::Coarsen(Array<int> const& cf)
          const int ne_fine = kv[dir]->GetNE();
          Vector fineKnots;
          kv[dir]->GetFineKnots(cf[dir], fineKnots);
-         KnotRemove(dir, fineKnots);
+         KnotRemove(dir, fineKnots, tol);
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
@@ -995,11 +999,11 @@ void NURBSPatch::Coarsen(Array<int> const& cf)
    }
 }
 
-void NURBSPatch::Coarsen(int cf)
+void NURBSPatch::Coarsen(int cf, double tol)
 {
    Array<int> cf_array(kv.Size());
    cf_array = cf;
-   Coarsen(cf_array);
+   Coarsen(cf_array, tol);
 }
 
 void NURBSPatch::GetCoarseningFactors(Array<int> & f) const
@@ -3040,7 +3044,7 @@ bool NURBSExtension::ConsistentKVSets()
    Array<int> edges, orient, kvdir;
    Vector diff;
 
-   Array<int>e(Dimension());
+   Array<int> e(Dimension());
 
    e[0] = 0;
 
@@ -4218,7 +4222,7 @@ void NURBSExtension::UniformRefinement(int rf)
    UniformRefinement(rf_array);
 }
 
-void NURBSExtension::Coarsen(Array<int> const& cf)
+void NURBSExtension::Coarsen(Array<int> const& cf, double tol)
 {
    // First, mark all knot vectors on all patches as not coarse. This prevents
    // coarsening the same knot vector twice.
@@ -4229,15 +4233,15 @@ void NURBSExtension::Coarsen(Array<int> const& cf)
 
    for (int p = 0; p < patches.Size(); p++)
    {
-      patches[p]->Coarsen(cf);
+      patches[p]->Coarsen(cf, tol);
    }
 }
 
-void NURBSExtension::Coarsen(int cf)
+void NURBSExtension::Coarsen(int cf, double tol)
 {
    Array<int> cf_array(Dimension());
    cf_array = cf;
-   Coarsen(cf_array);
+   Coarsen(cf_array, tol);
 }
 
 void NURBSExtension::GetCoarseningFactors(Array<int> & f) const

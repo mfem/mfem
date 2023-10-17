@@ -452,7 +452,18 @@ int main (int argc, char *argv[])
                for (auto ref_factor : ref_factors)
                   if (ref_factor <= 1 || ref_factor > 32) { break; }
 
-               mesh->UniformRefinement(ref_factors);
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cin >> input_tol;
+
+               double tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance ---> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->UniformRefinement(ref_factors, tol);
                break;
             }
             case 'c':
@@ -461,7 +472,19 @@ int main (int argc, char *argv[])
                int coarsen_factor;
                cin >> coarsen_factor;
                if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
-               mesh->NURBSCoarsening(coarsen_factor);
+
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cin >> input_tol;
+
+               double tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance ---> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->NURBSCoarsening(coarsen_factor, tol);
                break;
             }
             case 'l':

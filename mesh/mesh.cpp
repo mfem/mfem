@@ -5210,14 +5210,14 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
-void Mesh::NURBSUniformRefinement(int rf)
+void Mesh::NURBSUniformRefinement(int rf, double tol)
 {
    Array<int> rf_array(Dim);
    rf_array = rf;
-   NURBSUniformRefinement(rf_array);
+   NURBSUniformRefinement(rf_array, tol);
 }
 
-void Mesh::NURBSUniformRefinement(Array<int> const& rf)
+void Mesh::NURBSUniformRefinement(Array<int> const& rf, double tol)
 {
    MFEM_VERIFY(rf.Size() == Dim,
                "Refinement factors must be defined for each dimension");
@@ -5240,7 +5240,7 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf)
    }
    else
    {
-      NURBSext->Coarsen(cf);
+      NURBSext->Coarsen(cf, tol);
 
       last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
       sequence++;
@@ -9845,13 +9845,13 @@ static Array<int>& AllElements(Array<int> &list, int nelem)
    return list;
 }
 
-void Mesh::UniformRefinement(int ref_algo, int rf)
+void Mesh::UniformRefinement(int ref_algo, int rf, double tol)
 {
    Array<int> list;
 
    if (NURBSext)
    {
-      NURBSUniformRefinement(rf);
+      NURBSUniformRefinement(rf, tol);
    }
    else if (ncmesh)
    {
@@ -9874,11 +9874,11 @@ void Mesh::UniformRefinement(int ref_algo, int rf)
    }
 }
 
-void Mesh::UniformRefinement(Array<int> const& rf)
+void Mesh::UniformRefinement(Array<int> const& rf, double tol)
 {
    if (NURBSext)
    {
-      NURBSUniformRefinement(rf);
+      NURBSUniformRefinement(rf, tol);
    }
    else
    {
@@ -9886,7 +9886,7 @@ void Mesh::UniformRefinement(Array<int> const& rf)
    }
 }
 
-void Mesh::NURBSCoarsening(int cf)
+void Mesh::NURBSCoarsening(int cf, double tol)
 {
    if (NURBSext && cf > 1)
    {
@@ -9902,11 +9902,11 @@ void Mesh::NURBSCoarsening(int cf)
 
       if (initcf1)
       {
-         NURBSext->Coarsen(cf);
+         NURBSext->Coarsen(cf, tol);
       }
       else
       {
-         NURBSext->Coarsen(initcf);
+         NURBSext->Coarsen(initcf, tol);
 
          last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
          sequence++;
