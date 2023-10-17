@@ -36,6 +36,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
    ny = iry.GetNPoints();
    SetSize(nx * ny);
    SetPointIndices();
+   Order = std::min(irx.GetOrder(), iry.GetOrder());
 
    for (j = 0; j < ny; j++)
    {
@@ -60,6 +61,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
    const int nz = irz.GetNPoints();
    SetSize(nx*ny*nz);
    SetPointIndices();
+   Order = std::min({irx.GetOrder(), iry.GetOrder(), irz.GetOrder()});
 
    for (int iz = 0; iz < nz; ++iz)
    {
@@ -125,6 +127,7 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
    np /= f;
    SetSize(np);
    SetPointIndices();
+   Order = 2*s + 1;
 
    int pt = 0;
    for (int i = 0; i <= s; i++)
@@ -181,6 +184,7 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    const int ne = kv.GetNE();
 
    IntegrationRule *kvir = new IntegrationRule(ne * np);
+   kvir->SetOrder(GetOrder());
 
    double x0 = kv[0];
    double x1 = x0;
@@ -421,6 +425,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(2*np - 1);
 
    switch (np)
    {
@@ -527,9 +532,11 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    if ( np == 1 )
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
+      ir->SetOrder(1);
    }
    else
    {
+      ir->SetOrder(2*np - 3);
 
 #ifndef MFEM_USE_MPFR
 
@@ -624,6 +631,7 @@ void QuadratureFunctions1D::OpenUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
 
    // The Newton-Cotes quadrature is based on weights that integrate exactly the
    // interpolatory polynomial through the equally spaced quadrature points.
@@ -640,6 +648,7 @@ void QuadratureFunctions1D::ClosedUniform(const int np,
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
    if ( np == 1 ) // allow this case as "closed"
    {
       ir->IntPoint(0).Set1w(0.5, 1.0);
@@ -658,6 +667,7 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 {
    ir->SetSize(np);
    ir->SetPointIndices();
+   ir->SetOrder(np - 1 + np%2);
 
    // Open half points: the centers of np uniform intervals
    for (int i = 0; i < np ; ++i)
@@ -674,6 +684,7 @@ void QuadratureFunctions1D::ClosedGL(const int np, IntegrationRule* ir)
    ir->SetPointIndices();
    ir->IntPoint(0).x = 0.0;
    ir->IntPoint(np-1).x = 1.0;
+   ir->SetOrder(np - 1 + np%2); // Is this the correct order?
 
    if ( np > 2 )
    {
@@ -999,13 +1010,17 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
          if (!HaveIntRule(*ir_array, Order))
          {
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
+#ifdef MFEM_DEBUG
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
                    (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
-            ir->SetOrder(RealOrder);
+            MFEM_VERIFY(RealOrder == ir->GetOrder(), "internal error");
+#else
+            MFEM_CONTRACT_VAR(ir);
+#endif
          }
       }
    }
@@ -1114,6 +1129,7 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
    IntegrationRule *ir = new IntegrationRule(1);
    ir->IntPoint(0).x = .0;
    ir->IntPoint(0).weight = 1.;
+   ir->SetOrder(1);
 
    PointIntRules[1] = PointIntRules[0] = ir;
 
@@ -1178,6 +1194,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    {
       // Effectively passing memory management to SegmentIntegrationRules
       IntegrationRule *refined_ir = new IntegrationRule(2*n);
+      refined_ir->SetOrder(ir->GetOrder());
       for (int j = 0; j < n; j++)
       {
          refined_ir->IntPoint(j).x = ir->IntPoint(j).x/2.0;
@@ -1202,16 +1219,18 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
    // assuming that orders <= 25 are pre-allocated
    switch (Order)
    {
-      case 0:  // 1 point - 0 degree
+      case 0:  // 1 point - degree 1
       case 1:
          ir = new IntegrationRule(1);
          ir->AddTriMidPoint(0, 0.5);
+         ir->SetOrder(1);
          TriangleIntRules[0] = TriangleIntRules[1] = ir;
          return ir;
 
       case 2:  // 3 point - 2 degree
          ir = new IntegrationRule(3);
          ir->AddTriPoints3(0, 1./6., 1./6.);
+         ir->SetOrder(2);
          TriangleIntRules[2] = ir;
          // interior points
          return ir;
@@ -1220,6 +1239,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir = new IntegrationRule(4);
          ir->AddTriMidPoint(0, -0.28125); // -9./32.
          ir->AddTriPoints3(1, 0.2, 25./96.);
+         ir->SetOrder(3);
          TriangleIntRules[3] = ir;
          return ir;
 
@@ -1227,6 +1247,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir = new IntegrationRule(6);
          ir->AddTriPoints3(0, 0.091576213509770743460, 0.054975871827660933819);
          ir->AddTriPoints3(3, 0.44594849091596488632, 0.11169079483900573285);
+         ir->SetOrder(4);
          TriangleIntRules[4] = ir;
          return ir;
 
@@ -1235,6 +1256,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriMidPoint(0, 0.1125);
          ir->AddTriPoints3(1, 0.10128650732345633880, 0.062969590272413576298);
          ir->AddTriPoints3(4, 0.47014206410511508977, 0.066197076394253090369);
+         ir->SetOrder(5);
          TriangleIntRules[5] = ir;
          return ir;
 
@@ -1244,6 +1266,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints3(3, 0.24928674517091042129, 0.058393137863189683013);
          ir->AddTriPoints6(6, 0.053145049844816947353, 0.31035245103378440542,
                            0.041425537809186787597);
+         ir->SetOrder(6);
          TriangleIntRules[6] = ir;
          return ir;
 
@@ -1258,6 +1281,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             0.30472650086816719592, 0.028775042784981585738);
          ir->AddTriPoints3R(9, 0.51584233435359177926, 0.27771616697639178257,
                             0.20644149867001643817, 0.067493187009802774463);
+         ir->SetOrder(7);
          TriangleIntRules[7] = ir;
          return ir;
 
@@ -1273,6 +1297,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(10, 0.008394777409957605337213834539296,
                            0.263112829634638113421785786284643,
                            0.0136151570872174971324223450369544);
+         ir->SetOrder(8);
          TriangleIntRules[8] = ir;
          return ir;
 
@@ -1290,6 +1315,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(13, 0.0368384120547362836348175987833851,
                            0.2219629891607656956751025276931919,
                            0.0216417696886446886446886446886446);
+         ir->SetOrder(9);
          TriangleIntRules[9] = ir;
          return ir;
 
@@ -1309,6 +1335,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(19, 0.0095408154002994575801528096228873,
                            0.0668032510122002657735402127620247,
                            4.71083348186641172996373548344341E-03);
+         ir->SetOrder(10);
          TriangleIntRules[10] = ir;
          return ir;
 
@@ -1331,6 +1358,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(22, 0.0448416775891304433090523914688007,
                            0.2772206675282791551488214673424523,
                            0.0205281577146442833208261574536469);
+         ir->SetOrder(11);
          TriangleIntRules[11] = ir;
          return ir;
 
@@ -1347,6 +1375,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            1.11783866011515E-02);
          ir->AddTriPoints6(27, 2.57340505483300E-02, 1.16251915907597E-01,
                            8.65811555432950E-03);
+         ir->SetOrder(12);
          TriangleIntRules[12] = ir;
          return ir;
 
@@ -1374,6 +1403,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          ir->AddTriPoints6(31, 0.0897330604516053590796290561145196,
                            0.2723110556841851025078181617634414,
                            0.0182757511120486476280967518782978);
+         ir->SetOrder(13);
          TriangleIntRules[13] = ir;
          return ir;
 
@@ -1393,6 +1423,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            7.21815405676700E-03);
          ir->AddTriPoints6(36, 1.26833093287200E-03, 1.18974497696957E-01,
                            2.50511441925050E-03);
+         ir->SetOrder(14);
          TriangleIntRules[14] = ir;
          return ir;
 
@@ -1416,6 +1447,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.012803670460631195);
          ir->AddTriPoints6(48, 0.1684044181246992, 0.281835668099084562,
                            0.016544097765822835);
+         ir->SetOrder(15);
          TriangleIntRules[15] = ir;
          return ir;
 
@@ -1443,6 +1475,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             9.14639838501250E-03);
          ir->AddTriPoints6 (55, 1.46631822248280E-02, 8.07113136795640E-02,
                             3.33281600208250E-03);
+         ir->SetOrder(17);
          TriangleIntRules[16] = TriangleIntRules[17] = ir;
          return ir;
 
@@ -1474,6 +1507,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                             0.0051292818680995);
          ir->AddTriPoints6 (67, 0.065494628082938, 0.010161119296278,
                             0.001899964427651);
+         ir->SetOrder(19);
          TriangleIntRules[18] = TriangleIntRules[19] = ir;
          return ir;
 
@@ -1508,6 +1542,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.009336472951467735);
          ir->AddTriPoints6(79, 0.140710844943938733,   0.323170566536257485,
                            0.01140911202919763);
+         ir->SetOrder(20);
          TriangleIntRules[20] = ir;
          return ir;
 
@@ -1559,6 +1594,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
                            0.00707722325261307);
          ir->AddTriPoints6(120, 0.191771865867325067,   0.325618122595983752,
                            0.007440689780584005);
+         ir->SetOrder(25);
          TriangleIntRules[21] =
             TriangleIntRules[22] =
                TriangleIntRules[23] =
@@ -1609,6 +1645,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
       case 1:
          ir = new IntegrationRule(1);
          ir->AddTetMidPoint(0, 1./6.);
+         ir->SetOrder(1);
          TetrahedronIntRules[0] = TetrahedronIntRules[1] = ir;
          return ir;
 
@@ -1616,6 +1653,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir = new IntegrationRule(4);
          // ir->AddTetPoints4(0, 0.13819660112501051518, 1./24.);
          ir->AddTetPoints4b(0, 0.58541019662496845446, 1./24.);
+         ir->SetOrder(2);
          TetrahedronIntRules[2] = ir;
          return ir;
 
@@ -1623,6 +1661,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir = new IntegrationRule(5);
          ir->AddTetMidPoint(0, -2./15.);
          ir->AddTetPoints4b(1, 0.5, 0.075);
+         ir->SetOrder(3);
          TetrahedronIntRules[3] = ir;
          return ir;
 
@@ -1631,6 +1670,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4(0, 1./14., 343./45000.);
          ir->AddTetMidPoint(4, -74./5625.);
          ir->AddTetPoints6(5, 0.10059642383320079500, 28./1125.);
+         ir->SetOrder(4);
          TetrahedronIntRules[4] = ir;
          return ir;
 
@@ -1641,6 +1681,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4(6, 0.092735250310891226402, 0.012248840519393658257);
          ir->AddTetPoints4b(10, 0.067342242210098170608,
                             0.018781320953002641800);
+         ir->SetOrder(5);
          TetrahedronIntRules[5] = ir;
          return ir;
 
@@ -1654,6 +1695,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
                             9.2261969239424536825E-03);
          ir->AddTetPoints12(12, 0.063661001875017525299, 0.26967233145831580803,
                             8.0357142857142857143E-03);
+         ir->SetOrder(6);
          TetrahedronIntRules[6] = ir;
          return ir;
 
@@ -1667,6 +1709,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          ir->AddTetPoints4b(15, 2.3825066607381275412E-03,
                             4.8914252630734993858E-03);
          ir->AddTetPoints12(19, 0.1, 0.2, 0.027557319223985890653);
+         ir->SetOrder(7);
          TetrahedronIntRules[7] = ir;
          return ir;
 
@@ -1684,6 +1727,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
                             5.7044858086819185068E-03);
          ir->AddTetPoints4(38, 0.20682993161067320408, 0.014250305822866901248);
          ir->AddTetMidPoint(42, -0.020500188658639915841);
+         ir->SetOrder(8);
          TetrahedronIntRules[8] = ir;
          return ir;
 
@@ -1714,6 +1758,7 @@ IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
    int npts = irc.GetNPoints();
    AllocIntRule(PyramidIntRules, Order);
    PyramidIntRules[Order] = new IntegrationRule(npts);
+   PyramidIntRules[Order]->SetOrder(Order); // FIXME: see comment above
 
    for (int k=0; k<npts; k++)
    {
@@ -1736,6 +1781,7 @@ IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
    int ns = irs.GetNPoints();
    AllocIntRule(PrismIntRules, Order);
    PrismIntRules[Order] = new IntegrationRule(nt * ns);
+   PrismIntRules[Order]->SetOrder(std::min(irt.GetOrder(), irs.GetOrder()));
 
    for (int ks=0; ks<ns; ks++)
    {
