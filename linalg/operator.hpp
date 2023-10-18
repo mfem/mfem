@@ -784,10 +784,10 @@ public:
       bool ownA, bool ownB);
 
    virtual void Mult(const Vector &x, Vector &y) const
-   { A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
 
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
 
    virtual ~SumOperator();
 };
