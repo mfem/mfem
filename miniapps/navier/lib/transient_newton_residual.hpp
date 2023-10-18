@@ -1,6 +1,5 @@
 #pragma once
 
-#include "linearized_newton_residual.hpp"
 #include "util.hpp"
 #include <mfem.hpp>
 
