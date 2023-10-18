@@ -214,7 +214,7 @@ class FaceQuadratureInterpolator;
     @par
     Clearly the notion of a @b vdof is relevant in each of the three contexts
     mentioned above so extra care must be taken whenever @b vdim != 1 to ensure
-    that the @b edof, @b ldof, or @b tdof is being interpretted correctly.
+    that the @b edof, @b ldof, or @b tdof is being interpreted correctly.
  */
 class FiniteElementSpace
 {
@@ -277,12 +277,14 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   mutable SparseMatrix *cP; // owned
+   mutable std::unique_ptr<SparseMatrix> cP;
    /// Conforming restriction matrix such that cR.cP=I.
-   mutable SparseMatrix *cR; // owned
+   mutable std::unique_ptr<SparseMatrix> cR;
    /// A version of the conforming restriction matrix for variable-order spaces.
-   mutable SparseMatrix *cR_hp; // owned
+   mutable std::unique_ptr<SparseMatrix> cR_hp;
    mutable bool cP_is_set;
+   /// Operator computing the action of the transpose of the restriction.
+   mutable std::unique_ptr<Operator> R_transpose;
 
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
@@ -592,10 +594,17 @@ public:
    { return GetConformingProlongation(); }
 
    /// Return an operator that performs the transpose of GetRestrictionOperator
-   /** The returned operator is owned by the FiniteElementSpace. In serial this
-       is the same as GetProlongationMatrix() */
-   virtual const Operator *GetRestrictionTransposeOperator() const
-   { return GetConformingProlongation(); }
+   /** The returned operator is owned by the FiniteElementSpace.
+
+       For a serial conforming space, this returns NULL, indicating the identity
+       operator.
+
+       For a parallel conforming space, this will return a matrix-free
+       (Device)ConformingProlongationOperator.
+
+       For a non-conforming mesh this will return a TransposeOperator wrapping
+       the restriction matrix. */
+   const Operator *GetRestrictionTransposeOperator() const;
 
    /// An abstract operator that performs the same action as GetRestrictionMatrix
    /** In some cases this is an optimized matrix-free implementation. The
@@ -898,7 +907,7 @@ public:
    /// changed in the forward mappings by passing a value for @a ndofs which
    /// differs from that returned by GetNDofs().
    ///
-   /// @note Thse methods, with the exception of VDofToDof(), are designed to
+   /// @note These methods, with the exception of VDofToDof(), are designed to
    /// produce the correctly encoded values when dof entries are negative,
    /// see @ref ldof for more on negative dof indices.
    ///

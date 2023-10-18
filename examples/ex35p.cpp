@@ -35,10 +35,10 @@
 //               conductivity, sigma = c. The user can specify these constants
 //               using either set of names.
 //
-//               This example demonstrates how to transfer fields computed on
-//               a boundary generated SubMesh to the full mesh and apply them
-//               as boundary conditions. The default mesh and corresponding
-//               boundary attriburtes were chosen to verify proper behavior on
+//               This example demonstrates how to transfer fields computed on a
+//               boundary generated SubMesh to the full mesh and apply them as
+//               boundary conditions. The default mesh and corresponding
+//               boundary attributes were chosen to verify proper behavior on
 //               both triangular and quadrilateral faces of tetrahedral,
 //               wedge-shaped, and hexahedral elements.
 //
@@ -420,7 +420,6 @@ int main(int argc, char *argv[])
       //
       //      2) A vector H(Div) field
       //         -Grad(a Div) - omega^2 b + i omega c
-      //
       ParBilinearForm pcOp(&fespace);
       if (pa) { pcOp.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       switch (prob)
@@ -445,8 +444,8 @@ int main(int argc, char *argv[])
       pcOp.Assemble();
 
       // 14b. Define and apply a parallel FGMRES solver for AU=B with a block
-      //     diagonal preconditioner based on the appropriate multigrid
-      //     preconditioner from hypre.
+      //      diagonal preconditioner based on the appropriate multigrid
+      //      preconditioner from hypre.
       Array<int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
       blockTrueOffsets[0] = 0;
@@ -609,10 +608,9 @@ int main(int argc, char *argv[])
 }
 
 /**
-   Solves the eigenvalue problem -Div(Grad x) = lambda x with
-   homogeneous Dirichlet boundary conditions on the boundary of the
-   domain. Returns mode number "mode" (counting from zero) in the
-   ParGridFunction "x".
+   Solves the eigenvalue problem -Div(Grad x) = lambda x with homogeneous
+   Dirichlet boundary conditions on the boundary of the domain. Returns mode
+   number "mode" (counting from zero) in the ParGridFunction "x".
 */
 void ScalarWaveGuide(int mode, ParGridFunction &x)
 {
@@ -667,10 +665,10 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
 }
 
 /**
-   Solves the eigenvalue problem -Curl(Curl x) = lambda x with
-   homogeneous Dirichlet boundary conditions, on the tangential
-   component of x, on the boundary of the domain. Returns mode number
-   "mode" (counting from zero) in the ParGridFunction "x".
+   Solves the eigenvalue problem -Curl(Curl x) = lambda x with homogeneous
+   Dirichlet boundary conditions, on the tangential component of x, on the
+   boundary of the domain. Returns mode number "mode" (counting from zero) in
+   the ParGridFunction "x".
 */
 void VectorWaveGuide(int mode, ParGridFunction &x)
 {
@@ -723,13 +721,12 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
 }
 
 /**
-   Solves the eigenvalue problem -Div(Grad x) = lambda x with
-   homogeneous Neumann boundary conditions on the boundary of the
-   domain. Returns mode number "mode" (counting from zero) in the
-   ParGridFunction "x_l2". Note that mode 0 is a constant field so
-   higher mode numbers are often more interesting. The eigenmode is
-   solved using continuous H1 basis of the appropriate order and then
-   projected onto the L2 basis and returned.
+   Solves the eigenvalue problem -Div(Grad x) = lambda x with homogeneous
+   Neumann boundary conditions on the boundary of the domain. Returns mode
+   number "mode" (counting from zero) in the ParGridFunction "x_l2". Note that
+   mode 0 is a constant field so higher mode numbers are often more
+   interesting. The eigenmode is solved using continuous H1 basis of the
+   appropriate order and then projected onto the L2 basis and returned.
 */
 void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
 {
@@ -791,9 +788,9 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
    delete M;
 }
 
-// Compute eigenmode "mode" of either a Dirichlet or Neumann Laplacian
-// or of a Dirichlet curl curl operator based on the problem type and
-// dimension of the domain.
+// Compute eigenmode "mode" of either a Dirichlet or Neumann Laplacian or of a
+// Dirichlet curl curl operator based on the problem type and dimension of the
+// domain.
 void SetPortBC(int prob, int dim, int mode, ParGridFunction &port_bc)
 {
    switch (prob)

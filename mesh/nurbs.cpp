@@ -2146,7 +2146,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
    if (p2g0.ny() != p2g1.ny()) { compatible = false; }
 
    if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
-   if (kv0[1]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[1]->GetNKS() != kv1[1]->GetNKS()) { compatible = false; }
 
    if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
    if (kv0[1]->GetOrder() != kv1[1]->GetOrder()) { compatible = false; }
@@ -2157,7 +2157,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
       mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
 
       mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[1]->GetNKS()<<endl;
 
       mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
       mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
@@ -4374,7 +4374,7 @@ Table *ParNURBSExtension::Get1DGlobalElementDofTable()
             Connection conn(el,0);
             for (int ii = 0; ii <= ord0; ii++)
             {
-               conn.to = p2g(i+ii);
+               conn.to = DofMap(p2g(i+ii));
                gel_dof_list.Append(conn);
             }
             el++;
@@ -4412,7 +4412,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
                   {
                      for (int ii = 0; ii <= ord0; ii++)
                      {
-                        conn.to = p2g(i+ii,j+jj);
+                        conn.to = DofMap(p2g(i+ii,j+jj));
                         gel_dof_list.Append(conn);
                      }
                   }
@@ -4460,7 +4460,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
                            {
                               for (int ii = 0; ii <= ord0; ii++)
                               {
-                                 conn.to = p2g(i+ii,j+jj,k+kk);
+                                 conn.to = DofMap(p2g(i+ii,j+jj,k+kk));
                                  gel_dof_list.Append(conn);
                               }
                            }
