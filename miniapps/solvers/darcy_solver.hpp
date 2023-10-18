@@ -36,12 +36,12 @@ class DarcySolver : public Solver
 protected:
    Array<int> offsets_;
 public:
-   DarcySolver(int size0, int size1) : Solver(size0 + size1), offsets_(3)
-   { offsets_[0] = 0; offsets_[1] = size0; offsets_[2] = height; }
+   DarcySolver(int size0, int size1) : Solver(size0 + size1),
+      offsets_({0, size0, height}) { }
    virtual int GetNumIterations() const = 0;
 };
 
-/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
+/// Wrapper for the block-diagonal-preconditioned MINRES employed in ex5p.cpp
 class BDPMinresSolver : public DarcySolver
 {
    BlockOperator op_;

@@ -251,7 +251,6 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    StopWatch chrono;
-   auto ResetTimer = [&chrono]() { chrono.Clear(); chrono.Start(); };
 
    // Parse command-line options.
    const char *mesh_file = "../../data/beam-hex.mesh";
@@ -273,9 +272,9 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&ser_ref_levels, "-sr", "--serial-ref",
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of serial refinement steps.");
-   args.AddOption(&par_ref_levels, "-pr", "--parallel-ref",
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
                   "Number of parallel refinement steps.");
    args.AddOption(&coef_file, "-c", "--coef",
                   "Coefficient file to use.");
@@ -288,12 +287,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
+   if (Mpi::Root()) { args.ParseCheck(); }
 
    if (Mpi::Root() && par_ref_levels == 0)
    {
@@ -308,8 +302,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << "Number of serial refinements: " << ser_ref_levels << "\n"
-           << "Number of serial refinements: " << par_ref_levels << "\n";
+      cout << "Number of serial refinements:   " << ser_ref_levels << "\n"
+           << "Number of parallel refinements: " << par_ref_levels << "\n";
    }
 
    for (int i = 0; i < ser_ref_levels; ++i)
@@ -346,7 +340,7 @@ int main(int argc, char *argv[])
 
    string line = "**********************************************************\n";
 
-   ResetTimer();
+   chrono.Restart();
 
    // Generate components of the saddle point problem
    DarcyProblem darcy(*mesh, par_ref_levels, order, coef_file, ess_bdr, param);
@@ -369,25 +363,25 @@ int main(int argc, char *argv[])
 
    // Setup various solvers for the discrete problem
    std::map<const DarcySolver*, double> setup_time;
-   ResetTimer();
+   chrono.Restart();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
 
-   ResetTimer();
+   chrono.Restart();
    DivFreeSolver dfs_dm(M, B, DFS_data);
    setup_time[&dfs_dm] = chrono.RealTime();
 
-   ResetTimer();
+   chrono.Restart();
    const_cast<bool&>(DFS_data.param.coupled_solve) = true;
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
 
 #ifdef MFEM_USE_LAPACK
-   ResetTimer();
+   chrono.Restart();
    BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_bpcg] = chrono.RealTime();
 
-   ResetTimer();
+   chrono.Restart();
    bps_param.use_bpcg = false;
    BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_pcg] = chrono.RealTime();
@@ -412,7 +406,7 @@ int main(int argc, char *argv[])
 
       Vector sol = darcy.GetEssentialBC();
 
-      ResetTimer();
+      chrono.Restart();
       solver->Mult(darcy.GetRHS(), sol);
       chrono.Stop();
 

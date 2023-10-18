@@ -13,8 +13,6 @@
 #include "bramble_pasciak.hpp"
 
 using namespace std;
-using namespace mfem;
-using namespace blocksolvers;
 
 namespace mfem
 {
