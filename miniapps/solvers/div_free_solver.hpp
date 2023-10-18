@@ -195,7 +195,9 @@ public:
    virtual void SetOperator(const Operator &op) { }
    virtual int GetNumIterations() const;
 };
+
 } // namespace blocksolvers
+
 } // namespace mfem
 
 #endif // MFEM_DIVFREE_SOLVER_HPP

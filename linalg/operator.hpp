@@ -775,7 +775,7 @@ class SumOperator : public Operator
    const Operator *A, *B;
    const double alpha, beta;
    bool ownA, ownB;
-   mutable Vector a, b;
+   mutable Vector z;
 
 public:
    SumOperator(
@@ -784,10 +784,10 @@ public:
       bool ownA, bool ownB);
 
    virtual void Mult(const Vector &x, Vector &y) const
-   { A->Mult(x, a); B->Mult(x, b); add(alpha, a, beta, b, y); }
+   { A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
 
    virtual void MultTranspose(const Vector &x, Vector &y) const
-   { A->MultTranspose(x, a); B->MultTranspose(x, b); add(alpha, a, beta, b, y); }
+   { A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
 
    virtual ~SumOperator();
 };

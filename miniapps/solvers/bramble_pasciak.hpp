@@ -66,23 +66,13 @@ class BPCGSolver : public IterativeSolver
 {
 protected:
    mutable Vector r, p, g, t, r_bar, r_red, g_red;
-   /// Remaining required operators
-   /*  Operator list
-    *  From IterativeSolver:
-    *  *oper  -> A  = [M, Bt; B, 0]
-    *  From this class:
-    *  *iprec -> N  = diag(M0, 0)
-    *  *pprec -> P' = diag(M0, M1) * [Id, 0; B*M0, -Id]
-    */
    const Operator *iprec, *pprec;
    void UpdateVectors();
 
 public:
-   BPCGSolver() { }
    BPCGSolver(const Operator &ipc, const Operator &ppc) { pprec = &ppc; iprec = &ipc; }
 
 #ifdef MFEM_USE_MPI
-   BPCGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
    BPCGSolver(MPI_Comm comm_, const Operator &ipc, const Operator &ppc)
       : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
 #endif
@@ -91,7 +81,7 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    virtual void SetPreconditioner(Solver &pc)
-   { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner does NO effect to BPCGSolver.\n"); } }
+   { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner has no effect on BPCGSolver.\n"); } }
 
    virtual void SetIncompletePreconditioner(const Operator &ipc)
    { iprec = &ipc; }

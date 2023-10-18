@@ -12,8 +12,6 @@
 #include "div_free_solver.hpp"
 
 using namespace std;
-using namespace mfem;
-using namespace blocksolvers;
 
 namespace mfem
 {

@@ -370,7 +370,7 @@ SumOperator::SumOperator(const Operator *A, const double alpha,
                          bool ownA, bool ownB)
    : Operator(A->Height(), A->Width()),
      A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),
-     a(A->Width()), b(B->Width())
+     z(A->Width())
 {
    MFEM_VERIFY(A->Width() == B->Width(),
                "incompatible Operators: different widths\n"
