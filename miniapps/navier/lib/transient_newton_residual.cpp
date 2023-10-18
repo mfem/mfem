@@ -8,7 +8,6 @@ using namespace mfem;
 TransientNewtonResidual::TransientNewtonResidual(NavierStokesOperator &nav) :
    Operator(nav.offsets.Last()),
    nav(nav),
-   linearized(nav),
    z(nav.offsets) {}
 
 void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
@@ -63,5 +62,4 @@ void TransientNewtonResidual::Setup(const double dt)
       rebuild_pc = true;
    }
    this->dt = dt;
-   linearized.Setup(dt);
 }

@@ -24,7 +24,6 @@ public:
    void Setup(const double dt);
 
    NavierStokesOperator &nav;
-   mutable LinearizedTransientNewtonResidual linearized;
    mutable std::shared_ptr<FDJacobian> fd_linearized;
    mutable BlockVector z;
    double dt;
