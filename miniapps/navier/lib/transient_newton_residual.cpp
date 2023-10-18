@@ -30,16 +30,11 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
    nav.G->Mult(xp, zu);
    zu *= dt;
    yu += zu;
-  
+
    nav.D->Mult(xu, yp);
 
    nav.Mv->Mult(xu, zu);
    yu += zu;
-
-   // zu = nav.fu_rhs;
-   // zu.Neg();
-   // zu *= dt;
-   // yu += zu;
 
    yu.SetSubVector(nav.vel_ess_tdofs, 0.0);
    yp.SetSubVector(nav.pres_ess_tdofs, 0.0);
@@ -50,7 +45,8 @@ Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
 {
    // Build preconditioner
 
-   if (nav.Amonoe_matfree == nullptr || rebuild_pc) {
+   if (nav.Amonoe_matfree == nullptr || rebuild_pc)
+   {
       nav.RebuildPC(x);
       rebuild_pc = false;
    }

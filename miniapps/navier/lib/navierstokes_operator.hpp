@@ -20,10 +20,9 @@ using PresDirichletBC = std::pair<Coefficient *, Array<int> *>;
 /// N(w) is the convective term in the Navier-Stokes equations and w represents
 /// a velocity value that is already known. That means there is no nonlinear
 /// contribution to the implicit terms. The term can be enabled/disabled.
-class NavierStokesOperator : public Operator
+class NavierStokesOperator : public TimeDependentOperator
 {
    friend class TransientNewtonResidual;
-   friend class LinearizedTransientNewtonResidual;
    friend class CahouetChabardPC;
 
 public:
@@ -51,17 +50,46 @@ public:
 
    void SetForcing(VectorCoefficient *f);
 
-   void Setup(const double dt);
+   int Setup(const double dt);
 
    void Assemble();
 
-   void SetTime(double t);
+   void SetTime(double t) override;
+
+   int SUNImplicitSetup(const Vector &x, const Vector &fx,
+                        int jok, int *jcur, double gamma) override;
+
+   int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
+
+   int SUNMassSetup() override { return 0; };
+
+   int SUNMassMult(const Vector &x, Vector &y) override;
+
+   int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
 
    const Array<int>& GetOffsets() const;
 
    void ProjectVelocityDirichletBC(Vector &v);
 
    void ProjectPressureDirichletBC(Vector &p);
+
+   static int ARKStagePredictPostProcess(double t,
+                                         N_Vector zpred_nv,
+                                         void *user_data)
+   {
+      SundialsNVector zpred(zpred_nv);
+
+      auto *ark = static_cast<ARKStepSolver*>(user_data);
+      auto *self = static_cast<NavierStokesOperator*>(ark->GetOperator());
+
+      BlockVector zpredb(zpred.GetData(), self->offsets);
+
+      self->SetTime(t);
+      self->ProjectVelocityDirichletBC(zpredb.GetBlock(0));
+      self->ProjectPressureDirichletBC(zpredb.GetBlock(1));
+
+      return 0;
+   }
 
    /// @brief Set the parameters and prepare forms
    /// @param am_coeff Coefficient that scales mass matrix
