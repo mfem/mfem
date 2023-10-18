@@ -25,8 +25,6 @@ static void PAMassAssembleDiagonal1D(const int NE,
                                      const int D1D,
                                      const int Q1D)
 {
-   MFEM_VERIFY(D1D <= MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "");
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, NE);
@@ -34,7 +32,6 @@ static void PAMassAssembleDiagonal1D(const int NE,
    {
       for (int dx = 0; dx < D1D; ++dx)
       {
-         Y(dx, e) = 0.0;
          for (int qx = 0; qx < Q1D; ++qx)
          {
             Y(dx, e) += B(qx, dx) * B(qx, dx) * D(qx, e);
@@ -198,8 +195,7 @@ void PAMassApply1D_Element(const int e,
    auto X = ConstDeviceMatrix(x_, D1D, NE);
    auto Y = DeviceMatrix(y_, D1D, NE);
 
-   constexpr int max_Q1D = MAX_Q1D;
-   double XQ[max_Q1D];
+   double XQ[DofQuadLimits::MAX_Q1D];
    for (int qx = 0; qx < Q1D; ++qx)
    {
       XQ[qx] = 0.0;
@@ -232,8 +228,8 @@ static void PAMassApply1D(const int NE,
                           const int d1d = 0,
                           const int q1d = 0)
 {
-   MFEM_VERIFY(d1d <= MAX_D1D, "");
-   MFEM_VERIFY(q1d <= MAX_Q1D, "");
+   MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
    const auto B = b_.Read();
    const auto Bt = bt_.Read();

@@ -39,7 +39,7 @@ private:
 
 public:
    /** Constructor of the PML region using the mesh @a mesh_ and
-       the 2D array of size (dim,2) @a length_ which reprensents the
+       the 2D array of size (dim,2) @a length_ which represents the
        length of the PML in each direction. */
    CartesianPML(Mesh *mesh_, const Array2D<double> &length_);
 
