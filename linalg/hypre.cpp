@@ -5297,7 +5297,7 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
       edge_fespace = new ParFiniteElementSpace(pmesh, nd_tr_fec);
    }
 
-   int vdim = edge_fespace->FEColl()->GetRangeDim(trace_space ? dim - 1 : dim);
+   int vdim = edge_fespace->FEColl()->GetRangeDim(dim - trace_space);
 
    MakeSolver(std::max(sdim, vdim), cycle_type);
    MakeGradientAndInterpolation(edge_fespace, cycle_type);
@@ -5342,7 +5342,7 @@ void HypreAMS::MakeSolver(int sdim, int cycle_type)
    HYPRE_AMSSetCycleType(ams, cycle_type);
    HYPRE_AMSSetPrintLevel(ams, 1);
 
-   // set additional AMS options
+   // Set additional AMS options
    HYPRE_AMSSetSmoothingOptions(ams, rlx_type, rlx_sweeps, rlx_weight, rlx_omega);
    HYPRE_AMSSetAlphaAMGOptions(ams, amg_coarsen_type, amg_agg_levels, amg_rlx_type,
                                theta, amg_interp_type, amg_Pmax);
@@ -5368,14 +5368,14 @@ void HypreAMS::MakeGradientAndInterpolation(
    ParMesh *pmesh = edge_fespace->GetParMesh();
    int dim = pmesh->Dimension();
    int sdim = pmesh->SpaceDimension();
-   int vdim = edge_fespace->FEColl()->GetRangeDim(trace_space ? dim - 1 : dim);
+   int vdim = edge_fespace->FEColl()->GetRangeDim(dim - trace_space);
 
    // For dim = 1, ND_FECollection::GetOrder() returns p - 1
    MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
                "HypreAMS does not support variable order spaces");
-   int p = std::max(edge_fec->GetOrder(), 1);
+   int p = edge_fec->GetOrder() + (dim - trace_space == 1 ? 1 : 0);
 
-   // define the nodal linear finite element space associated with edge_fespace
+   // Define the nodal linear finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
    if (trace_space)
    {
