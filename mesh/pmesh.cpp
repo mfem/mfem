@@ -927,15 +927,15 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, int generate_edges,
    , glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
-   , pncmesh(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   Load(input, generate_edges, refine, fix_orientation);
-
    have_face_nbr_data = false;
+   pncmesh = NULL;
+
+   Load(input, generate_edges, refine, fix_orientation);
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
