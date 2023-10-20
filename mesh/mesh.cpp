@@ -9564,7 +9564,8 @@ double Mesh::AggregateError(const Array<double> &elem_error,
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
 
-      double err_fine = (op == 3) ? std::pow(elem_error[fine[i]], 2.0) : elem_error[fine[i]];
+      double err_fine = (op == 3) ? std::pow(elem_error[fine[i]],
+                                             2.0) : elem_error[fine[i]];
       switch (op)
       {
          case 0: error = std::min(error, err_fine); break;
