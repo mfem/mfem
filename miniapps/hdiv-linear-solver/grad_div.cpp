@@ -15,7 +15,7 @@
 //
 // Solves the grad-div problem u - grad(div(u)) = f using a variety of solver
 // techniques. This miniapp supports solving this problem using a variety of
-// matrix-free and matrix-based preconditioning methods, inclding:
+// matrix-free and matrix-based preconditioning methods, including:
 //
 // * Matrix-free block-diagonal preconditioning for the saddle-point system.
 // * ADS-AMG preconditioning.

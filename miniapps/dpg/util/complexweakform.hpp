@@ -69,7 +69,7 @@ protected:
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_r;
    Array2D<Array<BilinearFormIntegrator * > * > test_integs_i;
 
-   /// Set of Liniear Froem Integrators to be applied.
+   /// Set of LinearForm Integrators to be applied.
    Array<Array<LinearFormIntegrator * > * > lfis_r;
    Array<Array<LinearFormIntegrator * > * > lfis_i;
 
