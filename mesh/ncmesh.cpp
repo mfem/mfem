@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2176,9 +2176,9 @@ void NCMesh::UpdateVertices()
    //   - ghost (non-local) vertices (code -3)
    //   - vertices beyond the ghost layer (code -4)
 
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto & node : nodes)
    {
-      node->vert_index = -4; // assume beyond ghost layer
+      node.vert_index = -4; // assume beyond ghost layer
    }
 
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -2208,11 +2208,11 @@ void NCMesh::UpdateVertices()
    // STEP 2: assign indices of top-level local vertices, in original order
 
    NVertices = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->vert_index == -1)
+      if (node.vert_index == -1)
       {
-         node->vert_index = NVertices++;
+         node.vert_index = NVertices++;
       }
    }
 
@@ -2308,20 +2308,20 @@ void NCMesh::UpdateVertices()
       }
 
       vertex_nodeId.SetSize(NVertices);
-      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      for (auto &node : nodes)
       {
-         if (node->HasVertex() && node->vert_index >= 0)
+         if (node.HasVertex() && node.vert_index >= 0)
          {
-            vertex_nodeId[node->vert_index] = node.index();
+            vertex_nodeId[node.vert_index] = node.index();
          }
       }
 
       NGhostVertices = 0;
-      for (auto node = nodes.begin(); node != nodes.end(); ++node)
+      for (auto &node : nodes)
       {
-         if (node->HasVertex() && node->vert_index < 0)
+         if (node.HasVertex() && node.vert_index < 0)
          {
-            node->vert_index = NVertices + (NGhostVertices++);
+            node.vert_index = NVertices + (NGhostVertices++);
          }
       }
    }
@@ -2449,8 +2449,16 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
+   for (int i = 0; i < mesh.NumOfElements; i++)
+   {
+      mesh.FreeElement(mesh.elements[i]);
+   }
    mesh.elements.SetSize(0);
 
+   for (int i = 0; i < mesh.NumOfBdrElements; i++)
+   {
+      mesh.FreeElement(mesh.boundary[i]);
+   }
    mesh.boundary.SetSize(0);
 
    // create an mfem::Element for each leaf Element
@@ -2537,13 +2545,13 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    NFaces = mesh->GetNumFaces();
    if (Dim < 2) { NFaces = 0; }
    // clear Node::edge_index and Face::index
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->HasEdge()) { node->edge_index = -1; }
+      if (node.HasEdge()) { node.edge_index = -1; }
    }
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      face->index = -1;
+      face.index = -1;
    }
 
    // get edge enumeration from the Mesh
@@ -2607,19 +2615,19 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
    // count ghost edges and assign their indices
    NGhostEdges = 0;
-   for (auto node = nodes.begin(); node != nodes.end(); ++node)
+   for (auto &node : nodes)
    {
-      if (node->HasEdge() && node->edge_index < 0)
+      if (node.HasEdge() && node.edge_index < 0)
       {
-         node->edge_index = NEdges + (NGhostEdges++);
+         node.edge_index = NEdges + (NGhostEdges++);
       }
    }
 
    // count ghost faces
    NGhostFaces = 0;
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      if (face->index < 0) { NGhostFaces++; }
+      if (face.index < 0) { NGhostFaces++; }
    }
 
    if (Dim == 2)
@@ -2663,9 +2671,9 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    }
 
    // assign valid indices also to faces beyond the ghost layer
-   for (auto face = faces.begin(); face != faces.end(); ++face)
+   for (auto &face : faces)
    {
-      if (face->index < 0) { face->index = NFaces + (nghosts++); }
+      if (face.index < 0) { face.index = NFaces + (nghosts++); }
    }
    MFEM_ASSERT(nghosts == NGhostFaces, "");
 }
@@ -3444,7 +3452,7 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 
    if (!type)
    {
-      MFEM_VERIFY(key >= 0, "entity not found.");
+      MFEM_VERIFY(key >= 0, "index " << index << " not found.");
    }
    else // return entity type if requested, don't abort when not found
    {
@@ -3706,19 +3714,27 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
 
 static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
 {
-   if (!na || !nb) { return false; }
-   int a_last = a[na-1], b_last = b[nb-1];
-   if (*b < *a) { goto l2; }  // woo-hoo! I always wanted to use a goto! :)
-l1:
-   if (a_last < *b) { return false; }
-   while (*a < *b) { a++; }
-   if (*a == *b) { return true; }
-l2:
-   if (b_last < *a) { return false; }
-   while (*b < *a) { b++; }
-   if (*a == *b) { return true; }
-   goto l1;
+   // pointers to "end" sentinel, not last entry. Not for dereferencing.
+   const int * const a_end = a + na;
+   const int * const b_end = b + nb;
+   while (a != a_end && b != b_end)
+   {
+      if (*a < *b)
+      {
+         ++a;
+      }
+      else if (*b < *a)
+      {
+         ++b;
+      }
+      else
+      {
+         return true; // neither *a < *b nor *b < *a thus a == b
+      }
+   }
+   return false; // no common element found
 }
+
 
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                            const Array<int> *search_set)
@@ -4478,6 +4494,19 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          else if (child == 3)
          {
             pm = PointMatrix(mid12, mid20, mid01);
+         }
+      }
+      else if (geom == Geometry::SEGMENT)
+      {
+         Point mid01(pm(0), pm(1));
+
+         if (child == 0)
+         {
+            pm = PointMatrix(pm(0), mid01);
+         }
+         else if (child == 1)
+         {
+            pm = PointMatrix(mid01, pm(1));
          }
       }
    }
@@ -6172,6 +6201,7 @@ void NCMesh::LegacyToNewVertexOrdering(Array<int> &order) const
       }
    }
    MFEM_ASSERT(count == order.Size(), "");
+   MFEM_CONTRACT_VAR(count);
 }
 
 

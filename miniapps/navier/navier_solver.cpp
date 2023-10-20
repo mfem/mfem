@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -422,10 +422,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto ab1_ = ab1;
       const auto ab2_ = ab2;
       const auto ab3_ = ab3;
-      MFEM_FORALL(i, Fext.Size(),
-                  d_Fext[i] = ab1_ * d_Nun[i] +
-                              ab2_ * d_Nunm1[i] +
-                              ab3_ * d_Nunm2[i];);
+      mfem::forall(Fext.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_Fext[i] = ab1_ * d_Nun[i] +
+                     ab2_ * d_Nunm1[i] +
+                     ab3_ * d_Nunm2[i];
+      });
    }
 
    Fext.Add(1.0, fn);
@@ -445,10 +447,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto d_unm1 = unm1.Read();
       const auto d_unm2 = unm2.Read();
       auto d_Fext = Fext.ReadWrite();
-      MFEM_FORALL(i, Fext.Size(),
-                  d_Fext[i] += bd1idt * d_un[i] +
-                               bd2idt * d_unm1[i] +
-                               bd3idt * d_unm2[i];);
+      mfem::forall(Fext.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_Fext[i] += bd1idt * d_un[i] +
+                      bd2idt * d_unm1[i] +
+                      bd3idt * d_unm2[i];
+      });
    }
 
    sw_extrap.Stop();
@@ -463,10 +467,12 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto ab1_ = ab1;
       const auto ab2_ = ab2;
       const auto ab3_ = ab3;
-      MFEM_FORALL(i, Lext.Size(),
-                  d_Lext[i] = ab1_ * d_un[i] +
-                              ab2_ * d_unm1[i] +
-                              ab3_ * d_unm2[i];);
+      mfem::forall(Lext.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_Lext[i] = ab1_ * d_un[i] +
+                     ab2_ * d_unm1[i] +
+                     ab3_ * d_unm2[i];
+      });
    }
 
    Lext_gf.SetFromTrueDofs(Lext);
@@ -593,10 +599,11 @@ void NavierSolver::Step(double &time, double dt, int current_step,
       const auto d_un_filtered_gf = un_filtered_gf.Read();
       auto d_un_gf = un_gf.ReadWrite();
       const auto filter_alpha_ = filter_alpha;
-      MFEM_FORALL(i,
-                  un_gf.Size(),
-                  d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
-                               + filter_alpha_ * d_un_filtered_gf[i];);
+      mfem::forall(un_gf.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_un_gf[i] = (1.0 - filter_alpha_) * d_un_gf[i]
+                      + filter_alpha_ * d_un_filtered_gf[i];
+      });
    }
 
    sw_step.Stop();

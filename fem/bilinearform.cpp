@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
+#include "../mesh/nurbs.hpp"
 #include <cmath>
 
 namespace mfem
@@ -447,11 +448,17 @@ void BilinearForm::Assemble(int skip_zeros)
                         "invalid element marker for domain integrator #"
                         << k << ", counting from zero");
          }
+
+         if (domain_integs[k]->Patchwise())
+         {
+            MFEM_VERIFY(fes->GetNURBSext(), "Patchwise integration requires a "
+                        << "NURBS FE space");
+         }
       }
 
+      // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
-         int elem_attr = fes->GetMesh()->GetAttribute(i);
          doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
@@ -459,11 +466,13 @@ void BilinearForm::Assemble(int skip_zeros)
          }
          else
          {
+            const int elem_attr = fes->GetMesh()->GetAttribute(i);
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
-               if ( domain_integs_marker[k] == NULL ||
+               if ((domain_integs_marker[k] == NULL ||
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)
+                   && !domain_integs[k]->Patchwise())
                {
                   const FiniteElement &fe = *fes->GetFE(i);
                   eltrans = fes->GetElementTransformation(i);
@@ -502,6 +511,43 @@ void BilinearForm::Assemble(int skip_zeros)
             if (hybridization)
             {
                hybridization->AssembleMatrix(i, *elmat_p);
+            }
+         }
+      }
+
+      // Patch-wise integration
+      if (fes->GetNURBSext())
+      {
+         for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
+         {
+            bool vdofsSet = false;
+            for (int k = 0; k < domain_integs.Size(); k++)
+            {
+               if (domain_integs[k]->Patchwise())
+               {
+                  if (!vdofsSet)
+                  {
+                     fes->GetPatchVDofs(p, vdofs);
+                     vdofsSet = true;
+                  }
+
+                  SparseMatrix* spmat = nullptr;
+                  domain_integs[k]->AssemblePatchMatrix(p, *fes, spmat);
+                  Array<int> cols;
+                  Vector srow;
+
+                  for (int r=0; r<spmat->Height(); ++r)
+                  {
+                     spmat->GetRow(r, cols, srow);
+                     for (int i=0; i<cols.Size(); ++i)
+                     {
+                        cols[i] = vdofs[cols[i]];
+                     }
+                     mat->AddRow(vdofs[r], cols, srow);
+                  }
+
+                  delete spmat;
+               }
             }
          }
       }

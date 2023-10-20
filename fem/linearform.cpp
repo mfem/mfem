@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -120,7 +120,7 @@ void LinearForm::AddSktInteriorFaceIntegrator(LinearFormIntegrator * lfi)
    interiorsklfi.Append (lfi);
 }
 
-bool LinearForm::SupportsDevice()
+bool LinearForm::SupportsDevice() const
 {
    // return false for NURBS meshes, so we don’t convert it to non-NURBS
    // through Assemble, AssembleDevice, GetGeometricFactors and EnsureNodes
