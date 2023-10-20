@@ -306,6 +306,32 @@ void Vector::Neg()
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
 }
 
+void Vector::Sqrt()
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::sqrt(y[i]); });
+}
+
+void Vector::Clip(const double lower, const double upper)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::max(lower, std::min(upper, y[i])); });
+}
+
+void Vector::Clip(const Vector &lower, const Vector &upper)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   auto l = lower.Read(use_dev);
+   auto u = upper.Read(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::max(l[i], std::min(u[i], y[i])); });
+}
+
 void Vector::Reciprocal()
 {
    const bool use_dev = UseDevice();

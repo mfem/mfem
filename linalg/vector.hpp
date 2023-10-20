@@ -321,6 +321,15 @@ public:
    /// (*this) = -(*this)
    void Neg();
 
+   /// (*this) = sqrt(*this)
+   void Sqrt();
+
+   /// (*this) = -(*this)
+   void Clip(const double lower, const double upper);
+
+   /// (*this) = -(*this)
+   void Clip(const Vector &lower, const Vector &upper);
+
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();
 
