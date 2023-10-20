@@ -1411,9 +1411,9 @@ public:
 
    /** @brief For the face of a boundary element with the orientation @a o (3D),
        return the transformation of the boundary element integration point @ ip
-       to the face element. */
-   static IntegrationPoint TransformBdrElementFace(Geometry::Type geom, int o,
-                                                   const IntegrationPoint &ip);
+       to the face element. Supports both internal and external boundaries. */
+   static IntegrationPoint TransformBdrElementToFace(Geometry::Type geom, int o,
+                                                     const IntegrationPoint &ip);
 
    /// @anchor mfem_Mesh_elem_trans
    /// @name Access the coordinate transformation for individual elements

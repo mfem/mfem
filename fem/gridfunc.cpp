@@ -794,7 +794,7 @@ double GridFunction::GetValue(ElementTransformation &T,
                fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
             }
             IntegrationPoint fip =
-               Mesh::TransformBdrElementFace(FET->GetGeometryType(), o, ip);
+               Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
             // Compute and set the point in element 1 from fip
             FET->SetAllIntPoints(&fip);
@@ -932,7 +932,7 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
                fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
             }
             IntegrationPoint fip =
-               Mesh::TransformBdrElementFace(FET->GetGeometryType(), o, ip);
+               Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
             // Compute and set the point in element 1 from fip
             FET->SetAllIntPoints(&fip);
@@ -1461,8 +1461,8 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
             fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          }
          IntegrationPoint fip =
-            Mesh::TransformBdrElementFace(FET->GetGeometryType(), o,
-                                          T.GetIntPoint());
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1558,8 +1558,8 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
             fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          }
          IntegrationPoint fip =
-            Mesh::TransformBdrElementFace(FET->GetGeometryType(), o,
-                                          T.GetIntPoint());
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1627,8 +1627,8 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
             fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          }
          IntegrationPoint fip =
-            Mesh::TransformBdrElementFace(FET->GetGeometryType(), o,
-                                          T.GetIntPoint());
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1713,8 +1713,8 @@ void GridFunction::GetVectorGradient(
             fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          }
          IntegrationPoint fip =
-            Mesh::TransformBdrElementFace(FET->GetGeometryType(), o,
-                                          T.GetIntPoint());
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);

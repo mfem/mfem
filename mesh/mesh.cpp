@@ -6271,8 +6271,8 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
    return wo;
 }
 
-IntegrationPoint Mesh::TransformBdrElementFace(Geometry::Type geom, int o,
-                                               const IntegrationPoint &ip)
+IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
+                                                 const IntegrationPoint &ip)
 {
    IntegrationPoint fip = {};
    if (geom == Geometry::TRIANGLE)
