@@ -9564,13 +9564,13 @@ double Mesh::AggregateError(const Array<double> &elem_error,
    {
       MFEM_VERIFY(fine[i] < elem_error.Size(), "");
 
-      double err_fine = elem_error[fine[i]];
+      double err_fine = (op == 3) ? std::pow(elem_error[fine[i]], 2.0) : elem_error[fine[i]];
       switch (op)
       {
          case 0: error = std::min(error, err_fine); break;
          case 1: error += err_fine; break;
          case 2: error = std::max(error, err_fine); break;
-         case 3: error = std::pow(err_fine, 2.0); break;
+         case 3: error += std::pow(err_fine, 2.0); break;
          default: MFEM_ABORT("Invalid operation.");
       }
    }
