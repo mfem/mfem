@@ -241,6 +241,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0), zero(0.0), eps_cf(epsilon), lambda_cf(lambda), mu_cf(mu);
    StrainEnergyDensityCoefficient strainEnergyDensity_cf(&lambda_cf, &mu_cf, &u, &frho, rho_min, exponent);
    
+   ProductCoefficient SIMP_lam(lambda, SIMP_cf), SIMP_mu(mu, SIMP_cf);
 
 
    // 10. Connect to GLVis. Prepare for VisIt output.
