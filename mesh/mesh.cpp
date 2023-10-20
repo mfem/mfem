@@ -9558,7 +9558,8 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = (op == 3) ? std::pow(elem_error[fine[0]], 2.0) : elem_error[fine[0]];
+   double error = (op == 3) ? std::pow(elem_error[fine[0]],
+                                       2.0) : elem_error[fine[0]];
 
    for (int i = 1; i < nfine; i++)
    {
