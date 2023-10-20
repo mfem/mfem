@@ -276,6 +276,27 @@ int main(int argc, char *argv[])
       paraview_dc.Save();
    }
    // 11. Iterate
+   BilinearForm filterForm(&filter_fes);
+   filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
+   filterForm.AddDomainIntegrator(new MassIntegrator());
+
+   LinearForm filterRHS(&filter_fes);
+   filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
+
+   LinearForm dualFilterRHS(&filter_fes);
+   dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(strainEnergyDensity_cf));
+
+   EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
+
+   
+   BilinearForm elasticityForm(&state_fes);
+   elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
+
+   LinearForm elasticityRHS(&state_fes);
+   elasticityRHS.AddDomainIntegrator(new VectorDomainLFIntegrator(vforce_cf));
+
+   EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
+
    for (int k = 1; k <= max_it; k++)
    {
       mfem::out << "\nStep = " << k << std::endl;
