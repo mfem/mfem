@@ -6271,6 +6271,99 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
    return wo;
 }
 
+IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
+                                                 const IntegrationPoint &ip)
+{
+   IntegrationPoint fip = {};
+   if (geom == Geometry::TRIANGLE)
+   {
+      MFEM_ASSERT(o < 6, "Invalid orientation for Geometry::TRIANGLE!");
+      if (o == 0)  // 0, 1, 2
+      {
+         fip.x = ip.x;
+         fip.y = ip.y;
+      }
+      else if (o == 5)  // 0, 2, 1
+      {
+         fip.x = ip.y;
+         fip.y = ip.x;
+      }
+      else if (o == 2)  // 1, 2, 0
+      {
+         fip.x = 1.0 - ip.x - ip.y;
+         fip.y = ip.x;
+      }
+      else if (o == 1)  // 1, 0, 2
+      {
+         fip.x = 1.0 - ip.x - ip.y;
+         fip.y = ip.y;
+      }
+      else if (o == 4)  // 2, 0, 1
+      {
+         fip.x = ip.y;
+         fip.y = 1.0 - ip.x - ip.y;
+      }
+      else if (o == 3)  // 2, 1, 0
+      {
+         fip.x = ip.x;
+         fip.y = 1.0 - ip.x - ip.y;
+      }
+   }
+   else if (geom == Geometry::SQUARE)
+   {
+      MFEM_ASSERT(o < 8, "Invalid orientation for Geometry::SQUARE!");
+      if (o == 0)  // 0, 1, 2, 3
+      {
+         fip.x = ip.x;
+         fip.y = ip.y;
+      }
+      else if (o == 1)  // 0, 3, 2, 1
+      {
+         fip.x = ip.y;
+         fip.y = ip.x;
+      }
+      else if (o == 2)  // 1, 2, 3, 0
+      {
+         fip.x = ip.y;
+         fip.y = 1.0 - ip.x;
+      }
+      else if (o == 3)  // 1, 0, 3, 2
+      {
+         fip.x = 1.0 - ip.x;
+         fip.y = ip.y;
+      }
+      else if (o == 4)  // 2, 3, 0, 1
+      {
+         fip.x = 1.0 - ip.x;
+         fip.y = 1.0 - ip.y;
+      }
+      else if (o == 5)  // 2, 1, 0, 3
+      {
+         fip.x = 1.0 - ip.y;
+         fip.y = 1.0 - ip.x;
+      }
+      else if (o == 6)  // 3, 0, 1, 2
+      {
+         fip.x = 1.0 - ip.y;
+         fip.y = ip.x;
+      }
+      else if (o == 7)  // 3, 2, 1, 0
+      {
+         fip.x = ip.x;
+         fip.y = 1.0 - ip.y;
+      }
+   }
+   else
+   {
+      fip.x = ip.x;
+      fip.y = ip.y;
+   }
+   fip.z = ip.z;
+   fip.weight = ip.weight;
+   fip.index = ip.index;
+   return fip;
+}
+
 int Mesh::GetNumGeometries(int dim) const
 {
    MFEM_ASSERT(0 <= dim && dim <= Dim, "invalid dim: " << dim);
