@@ -340,7 +340,7 @@ int GridFunction::VectorDim() const
       return fes->GetVDim();
    }
    return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetVDim());
+                                  fe->GetRangeDim());
 }
 
 int GridFunction::CurlDim() const
@@ -1041,7 +1041,7 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, fe->GetVDim());
+      int vdim = std::max(spaceDim, fe->GetRangeDim());
       DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
       val.SetSize(vdim);
@@ -1093,7 +1093,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, FElem->GetVDim());
+      int vdim = std::max(spaceDim, FElem->GetRangeDim());
       DenseMatrix vshape(dof, vdim);
 
       vals.SetSize(vdim, nip);
