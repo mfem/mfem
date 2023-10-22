@@ -254,6 +254,12 @@ public:
    /// Access all the integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &domain_integs; }
 
+   /// @brief Access all boundary markers added with AddDomainIntegrator().
+   ///
+   /// If no marker was specified when the integrator was added, the
+   /// corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetDBFI_Marker() { return &domain_integs_marker; }
+
    /// Access all the integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
@@ -452,7 +458,7 @@ public:
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
    virtual const Operator *GetOutputRestrictionTranspose() const
-   { return GetOutputProlongation(); }
+   { return fes->GetRestrictionTransposeOperator(); }
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }

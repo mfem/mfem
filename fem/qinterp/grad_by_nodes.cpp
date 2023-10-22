@@ -47,7 +47,7 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
 
    if (dim == 1)
    {
-      return Derivatives1D<L,P>(NE,G,J,X,Y,vdim,D1D,Q1D);
+      return Derivatives1D<L,P>(NE,G,J,X,Y,dim,vdim,D1D,Q1D);
    }
    if (dim == 2)
    {
@@ -77,13 +77,13 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x256: return Derivatives2D<L,P,2,5,6,2>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             if (D1D > MD || Q1D > MQ)
             {
                MFEM_ABORT("");
             }
-            Derivatives2D<L,P,0,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives2D<L,P>(NE,B,G,J,X,Y,dim,vdim,D1D,Q1D);
             return;
          }
       }
@@ -114,13 +114,13 @@ void TensorDerivatives<QVectorLayout::byNODES>(const int NE,
          case 0x348: return Derivatives3D<L,P,3,4,8>(NE,B,G,J,X,Y);
          default:
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Derivatives3D<L,P,0,0,0,MD,MQ>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
+            Derivatives3D<L,P>(NE,B,G,J,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
