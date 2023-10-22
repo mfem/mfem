@@ -434,7 +434,6 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
-         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -442,6 +441,9 @@ void BilinearForm::Assemble(int skip_zeros)
          else
          {
             const int elem_attr = fes->GetMesh()->GetAttribute(i);
+            doftrans = fes->GetElementVDofs(i, vdofs);
+            eltrans = fes->GetElementTransformation(i);
+
             elmat.SetSize(0);
             for (int k = 0; k < domain_integs.Size(); k++)
             {
@@ -449,9 +451,8 @@ void BilinearForm::Assemble(int skip_zeros)
                     (*(domain_integs_marker[k]))[elem_attr-1] == 1)
                    && !domain_integs[k]->Patchwise())
                {
-                  const FiniteElement &fe = *fes->GetFE(i);
-                  eltrans = fes->GetElementTransformation(i);
-                  domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
+                  domain_integs[k]->AssembleElementMatrix(*fes->GetFE(i),
+                                                          *eltrans, elemmat);
                   if (elmat.Size() == 0)
                   {
                      elmat = elemmat;
@@ -2001,33 +2002,24 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
          eltrans = test_fes->GetElementTransformation(i);
 
-         bool first = true;
+         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+         elmat = 0.0;
          for (int k = 0; k < domain_integs.Size(); k++)
          {
             if (domain_integs_marker[k] == NULL ||
                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
-               if (first)
-               {
-                  domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
-                                                           *test_fes->GetFE(i),
-                                                           *eltrans, elmat);
-                  first = false;
-               }
-               else
-               {
-                  domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
-                                                           *test_fes->GetFE(i),
-                                                           *eltrans, elemmat);
-                  elmat += elemmat;
-               }
+               domain_integs[k]->AssembleElementMatrix2(*trial_fes->GetFE(i),
+                                                        *test_fes->GetFE(i),
+                                                        *eltrans, elemmat);
+               elmat += elemmat;
             }
          }
          if (ran_dof_trans || dom_dof_trans)
          {
-            TransformPrimal(ran_dof_trans, dom_dof_trans, elmat);
+            TransformPrimal(ran_dof_trans, dom_dof_trans, elemmat);
          }
-         mat->SetSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+         mat->SetSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
       }
    }
 
@@ -2040,23 +2032,14 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          test_fes->GetFaceVDofs(i, test_vdofs);
          eltrans = test_fes->GetMesh()->GetFaceTransformation(i);
 
-         bool first = true;
+         elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+         elmat = 0.0;
          for (int k = 0; k < trace_face_integs.Size(); k++)
          {
-            if (first)
-            {
-               trace_face_integs[k]->AssembleElementMatrix2(*trial_fes->GetFaceElement(i),
-                                                            *test_fes->GetFaceElement(i),
-                                                            *eltrans, elmat);
-               first = false;
-            }
-            else
-            {
-               trace_face_integs[k]->AssembleElementMatrix2(*trial_fes->GetFaceElement(i),
-                                                            *test_fes->GetFaceElement(i),
-                                                            *eltrans, elemmat);
-               elmat += elemmat;
-            }
+            trace_face_integs[k]->AssembleElementMatrix2(*trial_fes->GetFaceElement(i),
+                                                         *test_fes->GetFaceElement(i),
+                                                         *eltrans, elemmat);
+            elmat += elemmat;
          }
          mat->SetSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
       }
