@@ -612,6 +612,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
       MFEM_SHARED double y_s[MD];
       MFEM_SHARED int pp[MD];
       MFEM_SHARED int jj;
+      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj = 0; }
+
       MFEM_SHARED double BG[MD*MD];
       DeviceMatrix G(BG, q, d);
 
@@ -733,6 +735,8 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
       MFEM_SHARED int pp[MD][MD];
       MFEM_SHARED double y_s[MD*MD];
       MFEM_SHARED int jj;
+      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj = 0; }
+
       MFEM_SHARED double xx_s[MD*MD*MD];
       auto xx = Reshape(xx_s, d, d, d);
 
