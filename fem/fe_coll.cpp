@@ -87,6 +87,16 @@ int FiniteElementCollection::GetDerivMapType(int dim) const
    return FiniteElement::UNKNOWN_MAP_TYPE;
 }
 
+int FiniteElementCollection::GetRangeDim(int dim) const
+{
+   const FiniteElement *fe = FiniteElementForDim(dim);
+   if (fe)
+   {
+      return fe->GetRangeDim();
+   }
+   return 0;
+}
+
 int FiniteElementCollection::HasFaceDofs(Geometry::Type geom, int p) const
 {
    switch (geom)
