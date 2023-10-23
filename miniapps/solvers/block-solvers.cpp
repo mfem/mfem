@@ -185,6 +185,7 @@ DarcyProblem::DarcyProblem(MPI_Comm comm, Mesh &mesh, int num_refs, int order,
    Bform_->Finalize();
 
    ess_data_.SetSize(rhs_.Size());
+   ess_data_ = 0.0;
    Vector ess_data_block0(ess_data_.GetData(), offsets_[1]);
    u_.ParallelProject(ess_data_block0);
 
