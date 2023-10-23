@@ -3464,7 +3464,8 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      ir = &GetRule(el1.GetOrder(), Trans);
+      const int order = (ndof2) ? max(el1.GetOrder(), el2.GetOrder()) : el1.GetOrder();
+      ir = &GetRule(order, Trans);
    }
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
