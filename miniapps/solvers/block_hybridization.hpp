@@ -30,7 +30,7 @@ class BlockHybridizationSolver : public DarcySolver
    bool elimination_;
    SparseMatrix *Ct;
    HypreBoomerAMG *M;
-   OperatorPtr pH;
+   HypreParMatrix *pH;
    CGSolver solver_;
 
    void Init(const int ne);
