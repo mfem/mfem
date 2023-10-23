@@ -224,11 +224,40 @@ public:
       AddMultTranspose(x, y);
    }
 
+   /** @brief For each face, sets @a y to the partial derivative of @a x with
+              respect to the reference coordinate whose direction is
+              perpendicular to the face on the reference element.
+
+    @details This is not the normal derivative in physical coordinates, but can
+             be mapped to the physical normal derivative using the element
+             Jacobian and the tangential derivatives (in reference coordinates)
+             which can be computed from the face values (provided by Mult).
+             
+             Note that due to the polynomial degree of the element mapping, the
+             physical normal derivative may be a higher degree polynomial than
+             the restriction of the values to the face. However, the normal
+             derivative in reference coordinates has degree-1, and therefore can
+             be exactly represented with the degrees of freedom of a face
+             E-vector.
+
+    @param[in]     x The L-vector degrees of freedom.
+    @param[in,out] y The reference normal derivative degrees of freedom. Is
+                     E-vector like.
+    */ 
    virtual void NormalDerivativeMult(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
    }
 
+    /** @brief Add the face reference-normal derivative degrees of freedom in @a
+               x to the element degrees of freedom in @a y.
+
+        @details see NormalDerivativeMult.
+
+        @param[in]     x The degrees of freedom of the face reference-normal
+                         derivative. Is E-vector like.
+        @param[in,out] y The L-vector degrees of freedom.
+    */
    virtual void NormalDerivativeAddMultTranspose(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
@@ -502,8 +531,28 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
+   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
+      face E-Vector.
+   
+      @param[in]  x The L-vector degrees of freedom.
+      @param[out] y The face E-Vector degrees of freedom with the given format:
+                    if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf)
+                    if L2FacesValues::SingleValued (face_dofs x vdim x nf)
+                    where nf is the number of interior or boundary faces
+                    requested by @a type in the constructor.
+                    The face_dofs are ordered according to the given
+                    ElementDofOrdering. */
    void NormalDerivativeMult(const Vector &x, Vector &y) const override;
 
+   /** @brief Add the face reference-normal derivative degrees of freedom in @a
+              x to the element degrees of freedom in @a y.
+   
+       @details see NormalDerivativeMult.
+
+       @param[in]     x The degrees of freedom of the face reference-normal
+                        derivative. Is E-vector like.
+       @param[in,out] y The L-vector degrees of freedom.
+   */
    void NormalDerivativeAddMultTranspose(const Vector &x,
                                          Vector &y) const override;
 private:
@@ -524,7 +573,7 @@ private:
    */
    void ComputeGatherIndices();
 
-   /// Lazily create the internal normal derivative restriction operator.
+   /// Create the internal normal derivative restriction operator if needed.
    void EnsureNormalDerivativeRestriction() const;
 
 protected:

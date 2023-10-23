@@ -266,8 +266,35 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
+   /** @brief For Bilinear forms on element faces, specifies if the normal
+              derivatives are needed on the faces or just the face restriction.
+
+       @details if RequiresFaceNormalDerivatives() == true, then
+                AddMultPAFaceNormalDerivatives(...) should be invoked in place
+                of AddMultPA(...) and L2NormalDerivativeFaceRestriction should
+                be used to compute the normal derivatives.
+
+       @returns whether normal derivatives appear in the bilinear form.
+   */
    virtual bool RequiresFaceNormalDerivatives() const { return false; }
 
+   /// Method for partially assembled transposed action.
+   /** @brief For bilinear forms on element faces that depend on the normal
+              derivative on the faces, computes the action of integrator to the
+              face values @a x and reference-normal derivatives @a dxdn and adds
+              the result to @a y and @a dydn. 
+
+      @details This method can be called only after the method AssemblePA() has
+               been called.
+
+      @param[in]     x E-vector of face values (provided by
+                       FaceRestriction::Mult)
+      @param[in]     dxdn E-vector of face reference-normal derivatives
+                          (provided by FaceRestriction::NormalDerivativeMult)
+      @param[in,out] y E-vector of face values to add action to.
+      @param[in,out] dydn E-vector of face reference-normal derivative values to
+                          add action to.
+   */
    virtual void AddMultPAFaceNormalDerivatives(const Vector &x, const Vector &dxdn,
                                                Vector &y, Vector &dydn) const;
 
