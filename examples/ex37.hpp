@@ -1260,9 +1260,9 @@ class BackTracking : public LineSearchAlgorithm
 public:
    BackTracking(ObjectiveFunction &F,
                 const double alpha=1.0, const double growthRate=2.0, const double c1 = 1e-04,
-                const int maxit = 10):
+                const int maxit = 10, const double max_step=infinity()):
       LineSearchAlgorithm(F), growthRate(growthRate), c1(c1),
-      maxit(maxit) {step_size = alpha;}
+      maxit(maxit), max_step(max_step) {step_size = alpha;}
 
    double Step(GridFunction &x, const GridFunction &d)
    {
@@ -1327,6 +1327,7 @@ public:
       }
 
       step_size *= growthRate;
+      step_size = std::min(step_size, max_step);
       delete directionalDer;
       delete x0;
       delete d0;
@@ -1338,6 +1339,7 @@ public:
 protected:
    double growthRate, c1;
    int maxit;
+   double max_step;
 private:
 };
 
