@@ -2054,6 +2054,7 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -2074,6 +2075,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
+   DeleteFaceNbrData();
    ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
    if (npfes)
    {
@@ -2087,6 +2089,7 @@ void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
 {
+   DeleteFaceNbrData();
    ParGridFunction *nodes = new ParGridFunction(npfes);
    SetNodalGridFunction(nodes, true);
 }
@@ -2095,6 +2098,7 @@ void ParMesh::EnsureParNodes()
 {
    if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
    {
+      DeleteFaceNbrData();
       ParFiniteElementSpace *pfes =
          new ParFiniteElementSpace(*Nodes->FESpace(), *this);
       ParGridFunction *new_nodes = new ParGridFunction(pfes);
