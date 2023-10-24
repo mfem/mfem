@@ -785,14 +785,10 @@ double GridFunction::GetValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-            // Boundary elements and Boundary Faces may have different
+            // Boundary elements and boundary faces may have different
             // orientations so adjust the integration point if necessary.
-            int o = 0;
-            if (fes->GetMesh()->Dimension() == 3)
-            {
-               int f;
-               fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-            }
+            int f, o;
+            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
             IntegrationPoint fip =
                Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
@@ -923,14 +919,10 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-            // Boundary elements and Boundary Faces may have different
+            // Boundary elements and boundary faces may have different
             // orientations so adjust the integration point if necessary.
-            int o = 0;
-            if (fes->GetMesh()->Dimension() == 3)
-            {
-               int f;
-               fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-            }
+            int f, o;
+            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
             IntegrationPoint fip =
                Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
@@ -1452,14 +1444,10 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          IntegrationPoint fip =
             Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
                                             T.GetIntPoint());
@@ -1549,14 +1537,10 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          IntegrationPoint fip =
             Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
                                             T.GetIntPoint());
@@ -1618,14 +1602,10 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          IntegrationPoint fip =
             Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
                                             T.GetIntPoint());
@@ -1704,14 +1684,10 @@ void GridFunction::GetVectorGradient(
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
          IntegrationPoint fip =
             Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
                                             T.GetIntPoint());
