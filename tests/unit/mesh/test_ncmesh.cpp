@@ -518,23 +518,19 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
          {
             auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
             double constexpr tol = 1e-9;
-            // std::cout << "R" << Mpi::WorldRank() << ": " << error[0] << " " << error[1] << std::endl;
             CHECK(std::abs(error[1] - error[0]) < tol);
          }
          ttmp.ExchangeFaceNbrData();
          ttmp.Rebalance();
-         MPI_Barrier(MPI_COMM_WORLD);
-
          {
             auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
             double constexpr tol = 1e-9;
-            // std::cout << "R" << Mpi::WorldRank() << ": " << error[0] << " " << error[1] << std::endl;
             CHECK(std::abs(error[1] - error[0]) < tol);
          }
       }
    }
 
-   auto CheckSerialParalelH1Equivalence = [](Mesh &smesh)
+   auto CheckSerialParallelH1Equivalence = [](Mesh &smesh)
    {
       constexpr int dim = 3;
       constexpr int order = 2;
@@ -552,7 +548,7 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       CHECK(serial_ntdof == parallel_ntdof);
    };
 
-   auto CheckSerialParalelNDEquivalence = [](Mesh &smesh)
+   auto CheckSerialParallelNDEquivalence = [](Mesh &smesh)
    {
       constexpr int dim = 3;
       constexpr int order = 1;
@@ -592,8 +588,8 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
             el_to_refine[0] = m;
             smesh3.GeneralRefinement(el_to_refine);
             CAPTURE(n,m);
-            CheckSerialParalelNDEquivalence(smesh3);
-            CheckSerialParalelH1Equivalence(smesh3);
+            CheckSerialParallelNDEquivalence(smesh3);
+            CheckSerialParallelH1Equivalence(smesh3);
          }
       }
    }
