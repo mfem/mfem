@@ -3415,10 +3415,6 @@ NCMesh::NCList::MeshIdAndType
 NCMesh::NCList::GetMeshIdAndType(int index) const
 {
    BuildIndex();
-   if (inv_index.size() == 0)
-   {
-      MFEM_ABORT("Inverse index not built.");
-   }
    const auto it = inv_index.find(index);
    auto ft = it != inv_index.end() ? it->second.first : MeshIdType::UNRECOGNIZED;
    switch (ft)
@@ -3481,6 +3477,9 @@ NCMesh::NCList::BuildIndex() const
          inv_index.emplace(slaves[i].index, std::make_pair(MeshIdType::SLAVE, i));
       }
    }
+
+   MFEM_ASSERT(inv_index.size() > 0,
+               "Empty inverse index, member lists must be populated before BuildIndex is called!");
 }
 
 //// Neighbors /////////////////////////////////////////////////////////////////

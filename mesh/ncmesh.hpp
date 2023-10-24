@@ -238,14 +238,16 @@ public:
       void OrientedPointMatrix(const Slave &slave,
                                DenseMatrix &oriented_matrix) const;
 
-      /// Particular MeshId type, used for allowing static casting to the appropriate
-      /// child type after searching the NCList. UNRECOGNIZED denotes that an instance is not
-      /// known within the NCList, meaning that it does not play a part in NC mechanics.
-      /// This can be because the index did not exist in the original Mesh, or because the
-      /// entry is a boundary face, whose NC status is always conforming.
+      /// Particular MeshId type, used for allowing static casting to the
+      /// appropriate child type after searching the NCList. UNRECOGNIZED
+      /// denotes that an instance is not known within the NCList, meaning that
+      /// it does not play a part in NC mechanics. This can be because the index
+      /// did not exist in the original Mesh, or because the entry is a boundary
+      /// face, whose NC status is always conforming.
       enum class MeshIdType : char {CONFORMING, MASTER, SLAVE, UNRECOGNIZED};
 
-      /// Helper storing a reference to a MeshId type, and the face type it can be cast to
+      /// Helper storing a reference to a MeshId type, and the face type it can
+      /// be cast to
       struct MeshIdAndType
       {
          const MeshId * const id; ///< Pointer to a possible MeshId, nullptr if not found
@@ -275,17 +277,19 @@ public:
       {
          return conforming.Size() + masters.Size() + slaves.Size();
       }
-      /// The memory usage of the three public arrays. Does not account for the inverse index.
+      /// The memory usage of the three public arrays. Does not account for the
+      /// inverse index.
       long MemoryUsage() const;
       ~NCList() { Clear(); }
    private:
-      // Check for existence or construct the inv_index list map if necessary. const because only
-      // modifies the mutable member inv_index.
+      // Check for existence or construct the inv_index list map if necessary.
+      // const because only modifies the mutable member inv_index.
       void BuildIndex() const;
 
-      /// A lazily constructed map from index to MeshId. Built whenever GetMeshIdAndType, GetMeshIdType or
-      /// CheckMeshIdType is called for the first time. The MeshIdType is stored with, to enable
-      /// casting to Slave or Master elements appropriately.
+      /// A lazily constructed map from index to MeshId. Built whenever
+      /// GetMeshIdAndType, GetMeshIdType or CheckMeshIdType is called for the
+      /// first time. The MeshIdType is stored with, to enable casting to Slave
+      /// or Master elements appropriately.
       mutable std::unordered_map<int, std::pair<MeshIdType, int>> inv_index;
    };
 
