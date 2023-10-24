@@ -1812,22 +1812,22 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
       switch (betype)
       {
          case Element::POINT:
-            bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrFace(i));
             break;
          case Element::SEGMENT:
-            bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrFace(i));
             break;
          case Element::TRIANGLE:
-            bdr_eles[FMS_TRIANGLE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_TRIANGLE].push_back(mmesh->GetBdrFace(i));
             break;
          case Element::QUADRILATERAL:
-            bdr_eles[FMS_QUADRILATERAL].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_QUADRILATERAL].push_back(mmesh->GetBdrFace(i));
             break;
          case Element::TETRAHEDRON:
-            bdr_eles[FMS_TETRAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_TETRAHEDRON].push_back(mmesh->GetBdrFace(i));
             break;
          case Element::HEXAHEDRON:
-            bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrFace(i));
             break;
          default:
             MFEM_WARNING("Unsupported boundary element " << betype << " at boundary index "
