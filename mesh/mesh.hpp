@@ -1332,7 +1332,10 @@ public:
 
    /** Return the index and the orientation of the vertex of bdr element i. (1D)
        Return the index and the orientation of the edge of bdr element i. (2D)
-       Return the index and the orientation of the face of bdr element i. (3D) */
+       Return the index and the orientation of the face of bdr element i. (3D)
+
+       In 2D, the returned edge orientation is 0 or 1, not +/-1 as returned by
+       GetElementEdges/GetBdrElementEdges. */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
@@ -1411,10 +1414,11 @@ public:
    /// should not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
-   /** @brief For the edge or face of a boundary element with the orientation
-       @a o (2D or 3D), return the transformation of the boundary element
-       integration point @ ip to the face element. Supports both internal and
-       external boundaries. */
+   /** @brief For the vertex (1D), edge (2D), or face (3D) of a boundary element
+       with the orientation @a o, return the transformation of the boundary
+       element integration point @ ip to the face element. In 2D, the
+       the orientation is 0 or 1 as returned by GetBdrElementFace, not +/-1.
+       Supports both internal and external boundaries. */
    static IntegrationPoint TransformBdrElementToFace(Geometry::Type geom, int o,
                                                      const IntegrationPoint &ip);
 
