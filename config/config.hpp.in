@@ -104,7 +104,6 @@
 
 // Enable MFEM features based on the Ginkgo library.
 // #define MFEM_USE_GINKGO
-// #define MFEM_GINKGO_WITH_OMP @MFEM_GINKGO_WITH_OMP@
 
 // Enable MFEM functionality based on the AmgX library.
 // #define MFEM_USE_AMGX

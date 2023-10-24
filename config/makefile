@@ -46,11 +46,6 @@ MUMPS = $(MFEM_USE_MUMPS:NO=)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
 GMV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
-GINKGO = $(MFEM_USE_GINKGO:NO=)
-GGOC_CXX ?= $(MFEM_CXX)
-GGOC = get_ginkgo_omp_config
-GGOC_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(GINKGO_OPT))
-GGOC_LIB = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(GINKGO_LIB))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
@@ -65,13 +60,6 @@ $(GMV): $(SRC)$(GMV).cpp
 $(GMV).out: $(GMV)
 	./$(GMV) > $(GMV).out
 .INTERMEDIATE: $(GMV) $(GMV).out
-
-$(GGOC): $(SRC)$(GGOC).cpp
-	$(call mfem-info, Determining Ginkgo OpenMP configuration ...)
-	$(GGOC_CXX) ${GGOC_FLAGS} $(SRC)$(GGOC).cpp -o $(GGOC) $(GGOC_LIB)
-$(GGOC).out: $(GGOC)
-	./$(GGOC) > $(GGOC).out
-.INTERMEDIATE: $(GGOC) $(GGOC).out
 
 get-hypre-version: $(GHV).out
 	$(eval MFEM_HYPRE_VERSION:=$(shell cat $(GHV).out))
@@ -91,20 +79,12 @@ get-mumps-version: $(GMV).out
 	$(info MUMPS version: $(MFEM_MUMPS_VERSION)),\
 	$(error Unable to determine MUMPS version))
 
-get-ginkgo-omp-config: $(GGOC).out
-	$(eval MFEM_GINKGO_WITH_OMP:=$(shell cat $(GGOC).out))
-	$(if $(MFEM_GINKGO_WITH_OMP),$(eval export MFEM_GINKGO_WITH_OMP)\
-	$(info MFEM_GINKGO_WITH_OMP: $(MFEM_GINKGO_WITH_OMP)),\
-	$(error Unable to determine Ginkgo OpenMP configuration))
-
 header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx,) \
- $(if $(MUMPS),get-mumps-version,) \
- $(if $(GINKGO),get-ginkgo-omp-config,)
+ $(if $(MUMPS),get-mumps-version,)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
 	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX) \
-	           $(if $(MUMPS),MFEM_MUMPS_VERSION) \
-                   $(if $(GINKGO),MFEM_GINKGO_WITH_OMP); do \
+	           $(if $(MUMPS),MFEM_MUMPS_VERSION); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
