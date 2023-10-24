@@ -1102,7 +1102,7 @@ void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
 FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
 {
    FaceElementTransformations *tr;
-   int fn = GetBdrFace(BdrElemNo);
+   int fn = GetBdrElementFaceIndex(BdrElemNo);
 
    // Check if the face is interior, shared, or nonconforming.
    if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
@@ -1430,7 +1430,7 @@ Array<int> Mesh::GetFaceToBdrElMap() const
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {
-      face_to_be[GetBdrFace(i)] = i;
+      face_to_be[GetBdrElementFaceIndex(i)] = i;
    }
    return face_to_be;
 }
@@ -6573,14 +6573,14 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
-int Mesh::GetBdrFace(int i) const
+int Mesh::GetBdrElementFaceIndex(int i) const
 {
    return be_to_face[i];
 }
 
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
-   int fid = GetBdrFace(bdr_el);
+   int fid = GetBdrElementFaceIndex(bdr_el);
 
    const FaceInfo &fi = faces_info[fid];
    MFEM_ASSERT(fi.Elem1Inf % 64 == 0, "internal error"); // orientation == 0
@@ -6602,7 +6602,7 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 
 void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
 {
-   int fid = GetBdrFace(bdr_el);
+   int fid = GetBdrElementFaceIndex(bdr_el);
 
    const FaceInfo &fi = faces_info[fid];
    MFEM_ASSERT(fi.Elem1Inf % 64 == 0, "internal error"); // orientation == 0
@@ -12188,7 +12188,7 @@ void Mesh::RemoveInternalBoundaries()
    int new_bel_to_edge_nnz = 0;
    for (int i = 0; i < GetNBE(); i++)
    {
-      if (FaceIsInterior(GetBdrFace(i)))
+      if (FaceIsInterior(GetBdrElementFaceIndex(i)))
       {
          FreeElement(boundary[i]);
       }
@@ -12216,7 +12216,7 @@ void Mesh::RemoveInternalBoundaries()
    }
    for (int i = 0; i < GetNBE(); i++)
    {
-      if (!FaceIsInterior(GetBdrFace(i)))
+      if (!FaceIsInterior(GetBdrElementFaceIndex(i)))
       {
          new_boundary.Append(boundary[i]);
          int row = new_be_to_face.Size();
