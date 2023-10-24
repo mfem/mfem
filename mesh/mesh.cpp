@@ -6274,10 +6274,22 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
 IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
                                                  const IntegrationPoint &ip)
 {
-   IntegrationPoint fip = {};
-   if (geom == Geometry::TRIANGLE)
+   IntegrationPoint fip = ip;
+   if (geom == Geometry::SEGMENT)
    {
-      MFEM_ASSERT(o < 6, "Invalid orientation for Geometry::TRIANGLE!");
+      MFEM_ASSERT(o != 1 && o != -1, "Invalid orientation for Geometry::SEGMENT!");
+      if (o == 1)
+      {
+         fip.x = ip.x;
+      }
+      else if (o == -1)
+      {
+         fip.x = 1.0 - ip.x;
+      }
+   }
+   else if (geom == Geometry::TRIANGLE)
+   {
+      MFEM_ASSERT(o >= 0 && o < 6, "Invalid orientation for Geometry::TRIANGLE!");
       if (o == 0)  // 0, 1, 2
       {
          fip.x = ip.x;
@@ -6311,7 +6323,7 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
    }
    else if (geom == Geometry::SQUARE)
    {
-      MFEM_ASSERT(o < 8, "Invalid orientation for Geometry::SQUARE!");
+      MFEM_ASSERT(o >= 0 && o < 8, "Invalid orientation for Geometry::SQUARE!");
       if (o == 0)  // 0, 1, 2, 3
       {
          fip.x = ip.x;
@@ -6355,12 +6367,8 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
    }
    else
    {
-      fip.x = ip.x;
-      fip.y = ip.y;
+      MFEM_ABORT("Unsupported face geometry for TransformBdrElementToFace!");
    }
-   fip.z = ip.z;
-   fip.weight = ip.weight;
-   fip.index = ip.index;
    return fip;
 }
 
