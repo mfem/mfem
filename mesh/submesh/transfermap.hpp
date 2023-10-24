@@ -36,7 +36,7 @@ public:
     * freedom from the source GridFunction to the destination GridFunction.
     *
     * @param src The source GridFunction
-    * @param dst The destination Gridfunction
+    * @param dst The destination GridFunction
     */
    TransferMap(const GridFunction &src,
                const GridFunction &dst);
@@ -47,7 +47,7 @@ public:
     * Uses the precomputed maps for the transfer.
     *
     * @param src The source GridFunction
-    * @param dst The destination Gridfunction
+    * @param dst The destination GridFunction
     */
    void Transfer(const GridFunction &src, GridFunction &dst) const;
 
@@ -60,7 +60,7 @@ private:
 
    TransferCategory category_;
 
-   /// Mapping of the GridFunction defined on the SubMesh to the Gridfunction
+   /// Mapping of the GridFunction defined on the SubMesh to the GridFunction
    /// of its parent Mesh.
    Array<int> sub1_to_parent_map_;
 

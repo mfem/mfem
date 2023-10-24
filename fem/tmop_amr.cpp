@@ -582,8 +582,9 @@ TMOPHRSolver::TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
 void TMOPHRSolver::Mult()
 {
    Vector b(0);
+#ifdef MFEM_USE_MPI
    int myid = 0;
-   MFEM_CONTRACT_VAR(myid);
+#endif
    if (serial)
    {
       tmopns->SetOperator(*nlf);
