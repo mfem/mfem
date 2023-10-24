@@ -14,6 +14,134 @@
 namespace mfem
 {
 
+void DofTransformation::TransformPrimal(double *v) const
+{
+   MFEM_ASSERT(dof_trans_,
+               "DofTransformation has no local transformation, call "
+               "SetDofTransformation first!");
+   int size = dof_trans_->Size();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->TransformPrimal(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->TransformPrimal(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
+}
+
+void DofTransformation::InvTransformPrimal(double *v) const
+{
+   MFEM_ASSERT(dof_trans_,
+               "DofTransformation has no local transformation, call "
+               "SetDofTransformation first!");
+   int size = dof_trans_->Height();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->InvTransformPrimal(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->InvTransformPrimal(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
+}
+
+void DofTransformation::TransformDual(double *v) const
+{
+   MFEM_ASSERT(dof_trans_,
+               "DofTransformation has no local transformation, call "
+               "SetDofTransformation first!");
+   int size = dof_trans_->Size();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->TransformDual(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->TransformDual(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
+}
+
+void DofTransformation::InvTransformDual(double *v) const
+{
+   MFEM_ASSERT(dof_trans_,
+               "DofTransformation has no local transformation, call "
+               "SetDofTransformation first!");
+   int size = dof_trans_->Size();
+
+   if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
+   {
+      for (int i=0; i<vdim_; i++)
+      {
+         dof_trans_->InvTransformDual(Fo_, &v[i*size]);
+      }
+   }
+   else
+   {
+      Vector vec(size);
+      for (int i=0; i<vdim_; i++)
+      {
+         for (int j=0; j<size; j++)
+         {
+            vec(j) = v[j*vdim_+i];
+         }
+         dof_trans_->InvTransformDual(Fo_, vec);
+         for (int j=0; j<size; j++)
+         {
+            v[j*vdim_+i] = vec(j);
+         }
+      }
+   }
+}
+
 void TransformPrimal(const DofTransformation *ran_dof_trans,
                      const DofTransformation *dom_dof_trans,
                      DenseMatrix &elmat)
@@ -57,122 +185,6 @@ void TransformDual(const DofTransformation *ran_dof_trans,
    else
    {
       // If both transformations are NULL this function should not be called
-   }
-}
-
-void VDofTransformation::TransformPrimal(double *v) const
-{
-   int size = dof_trans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES || vdim_ == 1)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         dof_trans_->TransformPrimal(Fo, &v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         dof_trans_->TransformPrimal(Fo, vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::InvTransformPrimal(double *v) const
-{
-   int size = dof_trans_->Height();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         dof_trans_->InvTransformPrimal(Fo, &v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         dof_trans_->InvTransformPrimal(Fo, vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::TransformDual(double *v) const
-{
-   int size = dof_trans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         dof_trans_->TransformDual(Fo, &v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         dof_trans_->TransformDual(Fo, vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
-   }
-}
-
-void VDofTransformation::InvTransformDual(double *v) const
-{
-   int size = dof_trans_->Size();
-
-   if ((Ordering::Type)ordering_ == Ordering::byNODES)
-   {
-      for (int i=0; i<vdim_; i++)
-      {
-         dof_trans_->InvTransformDual(Fo, &v[i*size]);
-      }
-   }
-   else
-   {
-      Vector vec(size);
-      for (int i=0; i<vdim_; i++)
-      {
-         for (int j=0; j<size; j++)
-         {
-            vec(j) = v[j*vdim_+i];
-         }
-         dof_trans_->InvTransformDual(Fo, vec);
-         for (int j=0; j<size; j++)
-         {
-            v[j*vdim_+i] = vec(j);
-         }
-      }
    }
 }
 

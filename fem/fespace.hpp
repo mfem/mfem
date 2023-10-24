@@ -273,7 +273,6 @@ protected:
 
    Array<StatelessDofTransformation *> DoFTransArray;
    mutable DofTransformation DoFTrans;
-   mutable VDofTransformation VDoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
@@ -419,7 +418,6 @@ protected:
 
       Array<StatelessDofTransformation*> old_DoFTransArray;
       mutable DofTransformation old_DoFTrans;
-      mutable VDofTransformation old_VDoFTrans;
 
       void ConstructDoFTransArray();
 
@@ -805,7 +803,7 @@ public:
    /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
-   virtual DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
+   DofTransformation *GetElementDofs(int elem, Array<int> &dofs) const;
 
    /// @brief The same as GetElementDofs(), but with a user-allocated
    /// DofTransformation object. @a doftrans must be allocated in advance and
@@ -828,8 +826,7 @@ public:
    /// with triangular faces.
    ///
    /// @note The returned object should NOT be deleted by the caller.
-   virtual DofTransformation *GetBdrElementDofs(int bel,
-                                                Array<int> &dofs) const;
+   DofTransformation *GetBdrElementDofs(int bel, Array<int> &dofs) const;
 
    /// @brief The same as GetBdrElementDofs(), but with a user-allocated
    /// DofTransformation object. @a doftrans must be allocated in advance and
@@ -1043,6 +1040,15 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetElementVDofs(int i, Array<int> &vdofs) const;
 
+   /// @brief The same as GetElementVDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   void GetElementVDofs(int i, Array<int> &vdofs,
+                        DofTransformation &doftrans) const;
+
    /// @brief Returns indices of degrees of freedom for @a i'th boundary
    /// element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
@@ -1057,6 +1063,15 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+
+   /// @brief The same as GetBdrElementVDofs(), but with a user-allocated
+   /// DofTransformation object. @a doftrans must be allocated in advance and
+   /// will be owned by the caller. The user can use the
+   /// DofTransformation::GetDofTransformation method on the returned
+   /// @a doftrans object to detect if the DofTransformation should actually be
+   /// used.
+   void GetBdrElementVDofs(int i, Array<int> &vdofs,
+                           DofTransformation &doftrans) const;
 
    /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
    void GetPatchVDofs(int i, Array<int> &vdofs) const;

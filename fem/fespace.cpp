@@ -63,7 +63,6 @@ FiniteElementSpace::FiniteElementSpace()
      elem_dof(NULL), elem_fos(NULL), bdr_elem_dof(NULL), bdr_elem_fos(NULL),
      face_dof(NULL),
      NURBSext(NULL), own_ext(false),
-     VDoFTrans(vdim, ordering),
      cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0), mesh_sequence(0), orders_changed(false), relaxed_hp(false)
@@ -72,7 +71,6 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh_,
                                        const FiniteElementCollection *fec_)
-   : VDoFTrans(orig.vdim, orig.ordering)
 {
    mesh_ = mesh_ ? mesh_ : orig.mesh;
    fec_ = fec_ ? fec_ : orig.fec;
@@ -277,38 +275,36 @@ void FiniteElementSpace::AdjustVDofs(Array<int> &vdofs)
    }
 }
 
+void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
+                                         DofTransformation &doftrans) const
+{
+   GetElementDofs(i, vdofs, doftrans);
+   DofsToVDofs(vdofs);
+   doftrans.SetVDim(vdim, ordering);
+}
+
 DofTransformation *
 FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
-   DofTransformation *doftrans = GetElementDofs(i, vdofs);
+   DoFTrans.SetDofTransformation(NULL);
+   GetElementVDofs(i, vdofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
+}
+
+void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs,
+                                            DofTransformation &doftrans) const
+{
+   GetBdrElementDofs(i, vdofs, doftrans);
    DofsToVDofs(vdofs);
-   if (vdim == 1 || doftrans == NULL)
-   {
-      return doftrans;
-   }
-   else
-   {
-      VDoFTrans.SetDofTransformation(*doftrans->GetDofTransformation());
-      VDoFTrans.SetFaceOrientations(doftrans->GetFaceOrientations());
-      return &VDoFTrans;
-   }
+   doftrans.SetVDim(vdim, ordering);
 }
 
 DofTransformation *
 FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
 {
-   DofTransformation *doftrans = GetBdrElementDofs(i, vdofs);
-   DofsToVDofs(vdofs);
-   if (vdim == 1 || doftrans == NULL)
-   {
-      return doftrans;
-   }
-   else
-   {
-      VDoFTrans.SetDofTransformation(*doftrans->GetDofTransformation());
-      VDoFTrans.SetFaceOrientations(doftrans->GetFaceOrientations());
-      return &VDoFTrans;
-   }
+   DoFTrans.SetDofTransformation(NULL);
+   GetBdrElementVDofs(i, vdofs, DoFTrans);
+   return DoFTrans.GetDofTransformation() ? &DoFTrans : NULL;
 }
 
 void FiniteElementSpace::GetPatchVDofs(int i, Array<int> &vdofs) const
@@ -1661,6 +1657,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
             fespace->DofsToVDofs(vd, vdofs);
             old_dofs.Copy(old_vdofs);
             fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
+
             x.GetSubVector(old_vdofs, subX);
             lP.Mult(subX, subY);
             y.SetSubVector(vdofs, subY);
@@ -1672,32 +1669,21 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
          old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         VDofTransformation *vdoftrans =
-            dynamic_cast<VDofTransformation*>(doftrans);
-         int vdoftrans_vdim = 1;
-         if (vdoftrans)
-         {
-            vdoftrans_vdim = vdoftrans->GetVDim();
-            vdoftrans->SetVDim(1);
-         }
-
+         doftrans->SetVDim();
          for (int vd = 0; vd < rvdim; vd++)
          {
             dofs.Copy(vdofs);
             fespace->DofsToVDofs(vd, vdofs);
             old_dofs.Copy(old_vdofs);
             fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
+
             x.GetSubVector(old_vdofs, subX);
             old_DoFTrans.InvTransformPrimal(subX);
             lP.Mult(subX, subY);
             doftrans->TransformPrimal(subY);
             y.SetSubVector(vdofs, subY);
          }
-
-         if (vdoftrans)
-         {
-            vdoftrans->SetVDim(vdoftrans_vdim);
-         }
+         doftrans->SetVDim(rvdim, fespace->GetOrdering());
       }
    }
 }
@@ -1742,7 +1728,6 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
                if (processed[DecodeDof(f_dofs[p])])
@@ -1750,7 +1735,6 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
                   subX[p] = 0.0;
                }
             }
-
             lP.MultTranspose(subX, subY);
             y.AddElementVector(c_vdofs, subY);
          }
@@ -1763,15 +1747,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
          old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
          old_DoFTrans.SetFaceOrientations(old_Fo);
 
-         VDofTransformation *vdoftrans =
-            dynamic_cast<VDofTransformation*>(doftrans);
-         int vdoftrans_vdim = 1;
-         if (vdoftrans)
-         {
-            vdoftrans_vdim = vdoftrans->GetVDim();
-            vdoftrans->SetVDim(1);
-         }
-
+         doftrans->SetVDim();
          for (int vd = 0; vd < rvdim; vd++)
          {
             f_dofs.Copy(f_vdofs);
@@ -1788,16 +1764,11 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
                   subX[p] = 0.0;
                }
             }
-
             lP.MultTranspose(subX, subYt);
             old_DoFTrans.TransformDual(subYt);
             y.AddElementVector(c_vdofs, subYt);
          }
-
-         if (vdoftrans)
-         {
-            vdoftrans->SetVDim(vdoftrans_vdim);
-         }
+         doftrans->SetVDim(rvdim, fespace->GetOrdering());
       }
 
       for (int p = 0; p < f_dofs.Size(); ++p)
@@ -2742,6 +2713,7 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
          doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
          doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
       }
       return;
    }
@@ -2772,6 +2744,7 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
          doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
          doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
       }
    }
 
@@ -2856,6 +2829,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
          doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
       }
       return;
    }
@@ -2891,6 +2865,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
          doftrans.SetDofTransformation(
             *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
+         doftrans.SetVDim();
       }
    }
 
