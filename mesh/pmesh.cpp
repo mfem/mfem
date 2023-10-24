@@ -437,7 +437,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
 
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrFace(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
@@ -453,7 +453,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
       boundary.SetSize(nbdry);
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrFace(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
