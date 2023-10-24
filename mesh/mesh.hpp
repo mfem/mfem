@@ -1409,9 +1409,10 @@ public:
    /// should not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
-   /** @brief For the face of a boundary element with the orientation @a o (3D),
-       return the transformation of the boundary element integration point @ ip
-       to the face element. Supports both internal and external boundaries. */
+   /** @brief For the edge or face of a boundary element with the orientation
+       @a o (2D or 3D), return the transformation of the boundary element
+       integration point @ ip to the face element. Supports both internal and
+       external boundaries. */
    static IntegrationPoint TransformBdrElementToFace(Geometry::Type geom, int o,
                                                      const IntegrationPoint &ip);
 
