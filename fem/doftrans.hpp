@@ -141,57 +141,73 @@ public:
 class DofTransformation
 {
 protected:
-   Array<int> Fo;
-   StatelessDofTransformation * dof_trans_;
+   Array<int> Fo_;
+   const StatelessDofTransformation * dof_trans_;
+   int vdim_;
+   int ordering_;
 
 public:
    /** @brief Default constructor which requires that SetDofTransformation be
        called before use. */
-   DofTransformation() : dof_trans_(NULL)
+   DofTransformation(int vdim = 1, int ordering = 0)
+      : dof_trans_(NULL)
+      , vdim_(vdim)
+      , ordering_(ordering)
    {}
 
    /// Constructor with a known StatelessDofTransformation
-   DofTransformation(StatelessDofTransformation & dof_trans)
+   DofTransformation(const StatelessDofTransformation & dof_trans,
+                     int vdim = 1, int ordering = 0)
       : dof_trans_(&dof_trans)
+      , vdim_(vdim)
+      , ordering_(ordering)
    {}
 
    /** @brief Configure the transformation using face orientations for the
        current element. */
    /// The face_orientation array can be obtained from Mesh::GetElementFaces.
-   inline void SetFaceOrientations(const Array<int> & face_orientation)
-   { Fo = face_orientation; }
+   inline void SetFaceOrientations(const Array<int> & Fo)
+   { Fo_ = Fo; }
 
    /// Return the face orientations for the current element
-   inline const Array<int> & GetFaceOrientations() const { return Fo; }
+   inline const Array<int> & GetFaceOrientations() const { return Fo_; }
 
    /// Set or change the nested StatelessDofTransformation object
-   inline void SetDofTransformation(StatelessDofTransformation & dof_trans)
+   inline void SetDofTransformation(const StatelessDofTransformation & dof_trans)
    {
       dof_trans_ = &dof_trans;
    }
-   inline void SetDofTransformation(StatelessDofTransformation * dof_trans)
+   inline void SetDofTransformation(const StatelessDofTransformation * dof_trans)
    {
       dof_trans_ = dof_trans;
    }
 
    /// Return the nested StatelessDofTransformation object
-   inline StatelessDofTransformation * GetDofTransformation() const
+   inline const StatelessDofTransformation * GetDofTransformation() const
    { return dof_trans_; }
+
+   /// Set or change the vdim and ordering parameter
+   inline void SetVDim(int vdim = 1, int ordering = 0)
+   {
+      vdim_ = vdim;
+      ordering_ = ordering;
+   }
+
+   /// Return the current vdim value
+   inline int GetVDim() const { return vdim_; }
 
    inline int Size() const { return dof_trans_->Size(); }
    inline int Height() const { return dof_trans_->Height(); }
    inline int NumRows() const { return dof_trans_->NumRows(); }
    inline int Width() const { return dof_trans_->Width(); }
    inline int NumCols() const { return dof_trans_->NumCols(); }
-
    inline bool IsEmpty() const { return dof_trans_->IsEmpty(); }
 
    /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
        FiniteElement::Project() to the transformed vector stored within a
        GridFunction object. */
-   virtual inline void TransformPrimal(double *v) const
-   { dof_trans_->TransformPrimal(Fo, v); }
+   void TransformPrimal(double *v) const;
    inline void TransformPrimal(Vector &v) const
    { TransformPrimal(v.GetData()); }
 
@@ -209,21 +225,18 @@ public:
        transform the vector obtained using GridFunction::GetSubVector before it
        can be used to compute a local interpolation.
    */
-   virtual inline void InvTransformPrimal(double *v) const
-   { dof_trans_->InvTransformPrimal(Fo, v); }
+   void InvTransformPrimal(double *v) const;
    inline void InvTransformPrimal(Vector &v) const
    { InvTransformPrimal(v.GetData()); }
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
-   virtual inline void TransformDual(double *v) const
-   { dof_trans_->TransformDual(Fo, v); }
+   void TransformDual(double *v) const;
    inline void TransformDual(Vector &v) const
    { TransformDual(v.GetData()); }
 
    /** Inverse Transform dual DoFs */
-   virtual inline void InvTransformDual(double *v) const
-   { dof_trans_->InvTransformDual(Fo, v); }
+   void InvTransformDual(double *v) const;
    inline void InvTransformDual(Vector &v) const
    { InvTransformDual(v.GetData()); }
 
@@ -255,8 +268,6 @@ public:
          TransformDual(V.GetColumn(c));
       }
    }
-
-   virtual ~DofTransformation() = default;
 };
 
 /** Transform a matrix of DoFs entries from different finite element spaces as
@@ -274,52 +285,6 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
 void TransformDual(const DofTransformation *ran_dof_trans,
                    const DofTransformation *dom_dof_trans,
                    DenseMatrix &elmat);
-
-/** The VDofTransformation class implements a nested transformation where an
-    arbitrary StatelessDofTransformation is replicated with a vdim >= 1.
-*/
-class VDofTransformation : public DofTransformation
-{
-protected:
-   int vdim_;
-   int ordering_;
-
-public:
-   /** @brief Default constructor which requires that SetDofTransformation be
-       called before use. */
-   VDofTransformation(int vdim = 1, int ordering = 0)
-      : DofTransformation()
-      , vdim_(vdim)
-      , ordering_(ordering)
-   {}
-
-   /// Constructor with a known StatelessDofTransformation
-   VDofTransformation(StatelessDofTransformation & dof_trans, int vdim = 1,
-                      int ordering = 0)
-      : DofTransformation(dof_trans)
-      , vdim_(vdim)
-      , ordering_(ordering)
-   {}
-
-   /// Set or change the vdim parameter
-   inline void SetVDim(int vdim) { vdim_ = vdim; }
-
-   /// Return the current vdim value
-   inline int GetVDim() const { return vdim_; }
-
-   using DofTransformation::TransformPrimal;
-   using DofTransformation::InvTransformPrimal;
-   using DofTransformation::TransformDual;
-   using DofTransformation::InvTransformDual;
-
-   /** Specializations of these base class methods which account for the vdim
-       and ordering of the full set of DoFs.
-   */
-   void TransformPrimal(double *v) const;
-   void InvTransformPrimal(double *v) const;
-   void TransformDual(double *v) const;
-   void InvTransformDual(double *v) const;
-};
 
 /** Abstract base class for high-order Nedelec spaces on elements with
     triangular faces.
@@ -357,12 +322,12 @@ public:
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
 
-   bool IsEmpty() const { return nfdofs < 2; }
+   bool IsEmpty() const override { return nfdofs < 2; }
 
-   void TransformPrimal(const Array<int> & face_orientation, double *v) const;
-   void InvTransformPrimal(const Array<int> & face_orientation, double *v) const;
-   void TransformDual(const Array<int> & face_orientation, double *v) const;
-   void InvTransformDual(const Array<int> & face_orientation, double *v) const;
+   void TransformPrimal(const Array<int> & Fo, double *v) const override;
+   void InvTransformPrimal(const Array<int> & Fo, double *v) const override;
+   void TransformDual(const Array<int> & Fo, double *v) const override;
+   void InvTransformDual(const Array<int> & Fo, double *v) const override;
 };
 
 /// Stateless DoF transformation implementation for the Nedelec basis on
