@@ -282,18 +282,6 @@ if (MFEM_USE_GINKGO)
     get_target_property(Ginkgo_INCLUDE_DIRS
       Ginkgo::ginkgo INTERFACE_INCLUDE_DIRECTORIES)
     set(Ginkgo_LIBRARIES Ginkgo::ginkgo)
-    try_run(Ginkgo_OMP_CONFIG_RUN_RESULT Ginkgo_OMP_CONFIG_COMPILE_RESULT
-            ${CMAKE_CURRENT_BINARY_DIR}/config
-            ${CMAKE_CURRENT_SOURCE_DIR}/config/get_ginkgo_omp_config.cpp
-            CMAKE_FLAGS -DINCLUDE_DIRECTORIES:STRING=${Ginkgo_INCLUDE_DIRS}
-            LINK_LIBRARIES ${Ginkgo_LIBRARIES}
-            RUN_OUTPUT_VARIABLE Ginkgo_OMP_CONFIG_OUTPUT)
-    if (Ginkgo_OMP_CONFIG_RUN_RESULT EQUAL 0)
-      set(MFEM_GINKGO_WITH_OMP "${Ginkgo_OMP_CONFIG_OUTPUT}" CACHE STRING "Ginkgo OpenMP support" FORCE)
-      message(STATUS "Ginkgo OpenMP support: ${MFEM_GINKGO_WITH_OMP}")
-    else()
-      message(FATAL_ERROR "Unable to determine Ginkgo OpenMP support.")
-    endif()
   endif()
 endif()
 

@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace mfem
 {
@@ -31,6 +32,13 @@ namespace Ginkgo
 // Create a GinkgoExecutor of type exec_type.
 GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_omp_status = true;
+   if (strcmp(gko_version.omp_version.tag, "not compiled") == 0)
+   {
+      gko_omp_status = false;
+   }
+
    switch (exec_type)
    {
       case GinkgoExecutor::REFERENCE:
@@ -50,8 +58,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_CUDA
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-            executor = gko::CudaExecutor::create(current_device,
-                                                 GKO_DEFAULT_CPU_CREATE);
+            if (gko_omp_status == true)
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::OmpExecutor::create());
+            else
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::ReferenceExecutor::create());
 #endif
          }
          else
@@ -66,8 +78,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_HIP
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
-            executor = gko::HipExecutor::create(current_device,
-                                                GKO_DEFAULT_CPU_CREATE);
+            if (gko_omp_status == true)
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::OmpExecutor::create());
+            else
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::ReferenceExecutor::create());
 #endif
          }
          else
@@ -146,6 +162,12 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
 // Create a GinkgoExecutor to match MFEM's device configuration.
 GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 {
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_omp_status = true;
+   if (strcmp(gko_version.omp_version.tag, "not compiled") == 0)
+   {
+      gko_omp_status = false;
+   }
 
    if (mfem_device.Allows(Backend::CUDA_MASK))
    {
@@ -154,8 +176,12 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_CUDA
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-         executor = gko::CudaExecutor::create(current_device,
-                                              GKO_DEFAULT_CPU_CREATE);
+         if (gko_omp_status == true)
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+         else
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::ReferenceExecutor::create());
 #endif
       }
       else
@@ -169,8 +195,12 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_HIP
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
-         executor = gko::HipExecutor::create(current_device,
-                                             GKO_DEFAULT_CPU_CREATE);
+         if (gko_omp_status == true)
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+         else
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::ReferenceExecutor::create());
 #endif
       }
       else
@@ -181,7 +211,16 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
    {
       if (mfem_device.Allows(Backend::OMP_MASK))
       {
-         executor = GKO_DEFAULT_CPU_CREATE;   // Will also be OpenMP if Ginkgo allows it
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         gko::version_info gko_version = gko::version_info::get();
+         if (strcmp(gko_version.omp_version.tag, "not compiled") != 0)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
       }
       else
       {
@@ -239,7 +278,16 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
       MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
       if (mfem_device.Allows(Backend::OMP_MASK))
       {
-         executor = GKO_DEFAULT_CPU_CREATE;   // Will also be OpenMP if Ginkgo allows it
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         gko::version_info gko_version = gko::version_info::get();
+         if (strcmp(gko_version.omp_version.tag, "not compiled") != 0)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
       }
       else
       {

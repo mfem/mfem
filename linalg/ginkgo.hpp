@@ -51,12 +51,6 @@ template <typename T> using gko_array = gko::array<T>;
 #define GKO_LEND(x) x
 #endif
 
-#ifdef MFEM_GINKGO_WITH_OMP
-#define GKO_DEFAULT_CPU_CREATE gko::OmpExecutor::create()
-#else
-#define GKO_DEFAULT_CPU_CREATE gko::ReferenceExecutor::create()
-#endif
-
 /**
 * Helper class for a case where a wrapped MFEM Vector
 * should be owned by Ginkgo, and deleted when the wrapper
