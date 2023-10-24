@@ -1330,7 +1330,9 @@ public:
        element @a elem, including @a elem. */
    Array<int> FindFaceNeighbors(const int elem) const;
 
-   /// Return the index and the orientation of the face of bdr element i. (3D)
+   /** Return the index and the orientation of the vertex of bdr element i. (1D)
+       Return the index and the orientation of the edge of bdr element i. (2D)
+       Return the index and the orientation of the face of bdr element i. (3D) */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)

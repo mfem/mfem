@@ -6275,14 +6275,18 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
                                                  const IntegrationPoint &ip)
 {
    IntegrationPoint fip = ip;
-   if (geom == Geometry::SEGMENT)
+   if (geom == Geometry::POINT)
    {
-      MFEM_ASSERT(o == 1 || o == -1, "Invalid orientation for Geometry::SEGMENT!");
-      if (o == 1)
+      return fip;
+   }
+   else if (geom == Geometry::SEGMENT)
+   {
+      MFEM_ASSERT(o >= 0 && o < 2, "Invalid orientation for Geometry::SEGMENT!");
+      if (o == 0)
       {
          fip.x = ip.x;
       }
-      else if (o == -1)
+      else if (o == 1)
       {
          fip.x = 1.0 - ip.x;
       }
@@ -6665,24 +6669,20 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 {
-   const int *bv, *fv;
+   *f = GetBdrElementEdgeIndex(i);
 
-   *f = be_to_face[i];
-   bv = boundary[i]->GetVertices();
-   fv = faces[be_to_face[i]]->GetVertices();
+   const int *fv = (Dim > 1) ? faces[*f]->GetVertices() : NULL;
+   const int *bv = boundary[i]->GetVertices();
 
    // find the orientation of the bdr. elem. w.r.t.
    // the corresponding face element (that's the base)
-   switch (GetBdrElementType(i))
+   switch (GetBdrElementGeometry(i))
    {
-      case Element::TRIANGLE:
-         *o = GetTriOrientation(fv, bv);
-         break;
-      case Element::QUADRILATERAL:
-         *o = GetQuadOrientation(fv, bv);
-         break;
-      default:
-         MFEM_ABORT("invalid geometry");
+      case Geometry::POINT:    *o = 0; break;
+      case Geometry::SEGMENT:  *o = (fv[0] == bv[0]) ? 0 : 1; break;
+      case Geometry::TRIANGLE: *o = GetTriOrientation(fv, bv); break;
+      case Geometry::SQUARE:   *o = GetQuadOrientation(fv, bv); break;
+      default: MFEM_ABORT("invalid geometry");
    }
 }
 
