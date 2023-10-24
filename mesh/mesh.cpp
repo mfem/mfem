@@ -6277,7 +6277,7 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
    IntegrationPoint fip = ip;
    if (geom == Geometry::SEGMENT)
    {
-      MFEM_ASSERT(o != 1 && o != -1, "Invalid orientation for Geometry::SEGMENT!");
+      MFEM_ASSERT(o == 1 || o == -1, "Invalid orientation for Geometry::SEGMENT!");
       if (o == 1)
       {
          fip.x = ip.x;
