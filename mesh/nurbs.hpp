@@ -69,13 +69,14 @@ public:
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
-   /** Gives the locations of the maxima of the knotvector in reference space. The
-      function gives the knotspan @a ks, the coordinate in the knotspan @a xi
-      and the coordinate of the maximum in parameter space @a u */
+   /** Gives the locations of the maxima of the knotvector in reference space.
+       The function gives the knotspan @a ks, the coordinate in the knotspan
+       @a xi and the coordinate of the maximum in parameter space @a u */
    void FindMaxima(Array<int> &ks, Vector &xi, Vector &u);
-   /** Global curve interpolation through the points @a x. @a x is an array with the
-      length of the spatial dimension containing vectors with spatial coordinates. The
-      controlpoints of the interpolated curve are given in @a x in the same form.*/
+   /** Global curve interpolation through the points @a x. @a x is an array with
+       the length of the spatial dimension containing vectors with spatial
+       coordinates. The controlpoints of the interpolated curve are given in
+       @a x in the same form.*/
    void FindInterpolant(Array<Vector*> &x);
 
    /// Finds the knots in the larger of this and kv, not contained in the other.
@@ -205,13 +206,15 @@ public:
    void UniformRefinement(int rf = 2);
    void UniformRefinement(Array<int> const& rf);
 
-   /** @brief Coarsen with optional coarsening factor @a cf. Nonuniform spacing
-       functions may be used in each direction.
+   /** @brief Coarsen with optional coarsening factor @a cf which divides the
+       number of elements in each dimension. Nonuniform spacing functions may be
+       used in each direction.
 
        @param[in] cf  Optional coarsening factor. If scalar, the factor is used
                       for all dimensions. If an array, factors can be specified
                       for each dimension.
-       @param[in] tol NURBS geometry deviation tolerance. */
+       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
+       "The NURBS Book", 2nd ed, Piegl and Tiller. */
    void Coarsen(int cf = 2, double tol = 1.0e-12);
    void Coarsen(Array<int> const& cf, double tol = 1.0e-12);
 

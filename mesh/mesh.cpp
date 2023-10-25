@@ -9891,28 +9891,33 @@ void Mesh::NURBSCoarsening(int cf, double tol)
    if (NURBSext && cf > 1)
    {
       NURBSext->ConvertToPatches(*Nodes);
-      Array<int> initcf;
-      NURBSext->GetCoarseningFactors(initcf);
+      Array<int> initialCoarsening;  // Initial coarsening factors
+      NURBSext->GetCoarseningFactors(initialCoarsening);
 
-      bool initcf1 = true;
-      for (auto f : initcf)
+      // If refinement formulas are nested, then initial coarsening is skipped.
+      bool noInitialCoarsening = true;
+      for (auto f : initialCoarsening)
       {
-         initcf1 = (initcf1 && f == 1);
+         noInitialCoarsening = (noInitialCoarsening && f == 1);
       }
 
-      if (initcf1)
+      if (noInitialCoarsening)
       {
          NURBSext->Coarsen(cf, tol);
       }
       else
       {
-         NURBSext->Coarsen(initcf, tol);
+         // Perform an initial full coarsening, and then refine. This is
+         // necessary only for non-nested refinement formulas.
+         NURBSext->Coarsen(initialCoarsening, tol);
 
-         last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+         // FiniteElementSpace::Update is not supported
+         last_operation = Mesh::NONE;
          sequence++;
 
          UpdateNURBS();
 
+         // Prepare for refinement by factors.
          NURBSext->ConvertToPatches(*Nodes);
 
          Array<int> rf(initcf);
@@ -9920,11 +9925,13 @@ void Mesh::NURBSCoarsening(int cf, double tol)
          for (int i=0; i<rf.Size(); ++i)
          {
             rf[i] /= cf;
-            divisible = divisible && cf * rf[i] == initcf[i];
+            divisible = divisible && cf * rf[i] == initialCoarsening[i];
          }
 
          MFEM_VERIFY(divisible, "Invalid coarsening");
 
+         // Refine from the fully coarsened mesh to the mesh coarsened by the
+         // factor cf.
          NURBSext->UniformRefinement(rf);
       }
 
