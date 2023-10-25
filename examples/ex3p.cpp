@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex3p -m ../data/star.mesh
 //               mpirun -np 4 ex3p -m ../data/square-disc.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex3p -m ../data/beam-tet.mesh -nc
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh -o 2 -pa
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
@@ -88,8 +89,9 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&nc, "-nc", "--non-conforming", "-no-nc",
-                  "--no-non-conforming", "Enable Nonconforming Refinement.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -158,6 +160,7 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
    }
+
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);

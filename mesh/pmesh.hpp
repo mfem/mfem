@@ -130,13 +130,13 @@ protected:
     * 4 for everything else.
     *
     * @tparam N Inner dimension on the fvert variable, 3 for tet, 4 otherwise
-    * @param v Set of vertices for this element
-    * @param faces Table of faces interior to this rank
-    * @param shared_faces Table of faces shared by this rank and another
-    * @param elem The face neighbor element
-    * @param start Starting index into fverts
-    * @param end End index into fverts
-    * @param fverts Array of face vertices for this particular geometry.
+    * @param[in] v Set of vertices for this element
+    * @param[in] faces Table of faces interior to this rank
+    * @param[in] shared_faces Table of faces shared by this rank and another
+    * @param[in] elem The face neighbor element
+    * @param[in] start Starting index into fverts
+    * @param[in] end End index into fverts
+    * @param[in] fverts Array of face vertices for this particular geometry.
     */
    template <int N>
    void AddTriFaces(const Array<int> &v, const std::unique_ptr<STable3D> &faces,
