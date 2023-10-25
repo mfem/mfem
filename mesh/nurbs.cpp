@@ -30,8 +30,12 @@ const int KnotVector::MaxOrder = 10;
 KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
+
+   // A negative number of control points in the mesh file denotes that a
+   // spacing formula is specified. The negative number is used in the mesh file
+   // but nowhere in the code, so the absolute value is taken here.
    bool spacingFormula = (NumOfControlPoints < 0);
-   NumOfControlPoints = std::abs(NumOfControlPoints);
+   NumOfControlPoints = abs(NumOfControlPoints);
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
 

@@ -71,11 +71,11 @@ public:
    /// Returns the spacing type, indicating the derived class.
    virtual SPACING_TYPE SpacingType() const = 0;
 
-   /* @brief Prints all the data necessary to define the spacing function and
-      its current state (size and other parameters).
+   /** @brief Prints all the data necessary to define the spacing function and
+       its current state (size and other parameters).
 
-      The format is generally
-      SPACING_TYPE numIntParam numDoubleParam {int params} {double params} */
+       The format is generally
+       SPACING_TYPE numIntParam numDoubleParam {int params} {double params} */
    virtual void Print(std::ostream &os) const = 0;
 
    /// Returns the number of integer parameters defining the spacing function.
