@@ -1443,8 +1443,8 @@ void MixedBilinearForm::Assemble (int skip_zeros)
                TransformDual(ran_dof_trans, dom_dof_trans, elmat);
             }
             elmat_p = &elmat;
-            mat->AddSubMatrix(test_vdofs, trial_vdofs, *elmat_p, skip_zeros);
          }
+         mat->AddSubMatrix(test_vdofs, trial_vdofs, *elmat_p, skip_zeros);
       }
    }
 
