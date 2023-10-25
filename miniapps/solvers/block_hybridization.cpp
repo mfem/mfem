@@ -249,7 +249,7 @@ void BlockHybridizationSolver::ConstructH(const shared_ptr<ParBilinearForm> &a,
                           c_space.GetDofOffsets(), &H);
    OperatorPtr AP(ParMult(dH.As<HypreParMatrix>(), pP.As<HypreParMatrix>()));
    OperatorPtr R(pP.As<HypreParMatrix>()->Transpose());
-   pH = ParMult(R.As<HypreParMatrix>(), AP.As<HypreParMatrix>());
+   pH = ParMult(R.As<HypreParMatrix>(), AP.As<HypreParMatrix>(), true);
 }
 
 BlockHybridizationSolver::BlockHybridizationSolver(const
