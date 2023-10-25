@@ -9920,7 +9920,7 @@ void Mesh::NURBSCoarsening(int cf, double tol)
          // Prepare for refinement by factors.
          NURBSext->ConvertToPatches(*Nodes);
 
-         Array<int> rf(initcf);
+         Array<int> rf(initialCoarsening);
          bool divisible = true;
          for (int i=0; i<rf.Size(); ++i)
          {
