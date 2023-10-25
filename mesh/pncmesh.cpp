@@ -1213,9 +1213,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          constexpr std::array<int, 6> unset_ori{{-1,-1,-1,-1,-1,-1}};
          const int rank = pmesh.GetMyRank();
 
-         // Loop over send elems, compute the orientation and place in the buffer to
-         // send to each processor. Note elements are lexicographically sorted
-         // with rank and element number, and this ordering holds across processors.
+         // Loop over send elems, compute the orientation and place in the
+         // buffer to send to each processor. Note elements are
+         // lexicographically sorted with rank and element number, and this
+         // ordering holds across processors.
          RankToOrientation send_rank_to_face_neighbor_orientations;
          Array<int> orientations, faces;
 
@@ -1256,12 +1257,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          recv_requests.reserve(nranks);
 
          // Shared face communication is bidirectional -> any rank to whom
-         // orientations must be sent, will need to send orientations back.
-         // The orientation data is contiguous because std::array<int,6> is an
-         // aggregate.
-
-         // Loop over each communication pairing, and dispatch the buffer loaded
-         // with  all the orientation data.
+         // orientations must be sent, will need to send orientations back. The
+         // orientation data is contiguous because std::array<int,6> is an
+         // aggregate. Loop over each communication pairing, and dispatch the
+         // buffer loaded with  all the orientation data.
          for (const auto &kv : send_rank_to_face_neighbor_orientations)
          {
             send_requests.emplace_back(); // instantiate a request for tracking.

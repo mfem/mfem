@@ -780,7 +780,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
    };
 
    smesh.Finalize();
-   smesh.EnsureNCMesh(true); // uncomment this to trigger the failure
+   smesh.EnsureNCMesh(true);
 
    auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
 

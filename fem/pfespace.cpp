@@ -2134,8 +2134,7 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   // read rows
-   // ent = {0,1,2} means vertex, edge and face entity
+   // read rows ent = {0,1,2} means vertex, edge and face entity
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
       // extract the vertex list, edge list or face list.
@@ -2146,12 +2145,9 @@ void NeighborRowMessage::Decode(int rank)
          // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
 
-         // Handle orientation and sign change.
-         // This flips the sign on dofs where necessary, and for edges and faces
-         // also reorders if flipped, i.e. an edge with
-         //    1 -> 2 -> 3 -> 4
-         // might become
-         //    -4 -> -3 -> -2 -> -1
+         // Handle orientation and sign change. This flips the sign on dofs
+         // where necessary, and for edges and faces also reorders if flipped,
+         // i.e. an edge with 1 -> 2 -> 3 -> 4 might become -4 -> -3 -> -2 -> -1
          // This cannot treat all face dofs, as they can have rotations and
          // reflections.
          const int *ind = nullptr;
@@ -2186,7 +2182,8 @@ void NeighborRowMessage::Decode(int rank)
             s *= -1.0;
          }
 
-         // Create a row for this entity, recording the index of the mesh element
+         // Create a row for this entity, recording the index of the mesh
+         // element
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream, s);
 
@@ -2202,26 +2199,29 @@ void NeighborRowMessage::Decode(int rank)
          {
             // ND face dofs need to be processed together, as the transformation
             // is given by a 2x2 matrix, so we manually apply an extra increment
-            // to the loop counter and add in a new row. Once these rows are placed, they
-            // represent the Identity transformation. To map across the
-            // processor boundary, we also need to apply a Primal Transformation
-            // (see doftrans.hpp) to a notional "global dof" orientation.
-            // For simplicity we perform the action of these 2x2 matrices
-            // manually using the AddRow capability, followed by a Collapse.
+            // to the loop counter and add in a new row. Once these rows are
+            // placed, they represent the Identity transformation. To map across
+            // the processor boundary, we also need to apply a Primal
+            // Transformation (see doftrans.hpp) to a notional "global dof"
+            // orientation. For simplicity we perform the action of these 2x2
+            // matrices manually using the AddRow capability, followed by a
+            // Collapse.
 
             // To perform the operations, we add and subtract initial versions
-            // of the rows, that represent [1 0; 0 1] in row major notation.
-            // The first row represents the 1 at (0,0) in [1 0; 0 1]
-            // The second row represents the 1 at (1,1) in [1 0; 0 1]
+            // of the rows, that represent [1 0; 0 1] in row major notation. The
+            // first row represents the 1 at (0,0) in [1 0; 0 1] The second row
+            // represents the 1 at (1,1) in [1 0; 0 1]
 
             // We can safely bind this reference as rows was reserved above so
-            // there is no hidden copying that could result in a dangling reference.
+            // there is no hidden copying that could result in a dangling
+            // reference.
             auto &first_row = rows.back().row;
             // This is the first "fundamental unit" used in the transformation.
             const auto initial_first_row = first_row;
-            // Extract the next dof too, and apply any dof order transformation expected.
+            // Extract the next dof too, and apply any dof order transformation
+            // expected.
             const MeshId &next_id = ids[++i];
-            int fo = pncmesh->GetFaceOrientation(next_id.index);
+            const int fo = pncmesh->GetFaceOrientation(next_id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
 
             s = 1.0;

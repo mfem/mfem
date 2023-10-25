@@ -2758,7 +2758,7 @@ void ParMesh::BuildFaceNbrElementToFaceTable()
 
    face_nbr_el_to_face.reset(new Table(face_nbr_elements.Size(), 6));
 
-   mfem::Array<int> v;
+   Array<int> v;
 
    // Helper for adding quadrilateral faces.
    auto add_quad_faces = [&faces, &shared_faces, &v, this]
