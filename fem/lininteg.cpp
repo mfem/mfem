@@ -455,7 +455,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetVDim());
+   int vdim = std::max(spaceDim, el.GetRangeDim());
 
    vshape.SetSize(dof,vdim);
    vec.SetSize(vdim);
@@ -656,7 +656,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int dim = el.GetDim();
-   int vdim = el.GetVDim();
+   int vdim = el.GetRangeDim();
    DenseMatrix vshape(dof, vdim);
    Vector f_loc(3);
    Vector f_hat(2);
