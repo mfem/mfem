@@ -1109,7 +1109,6 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    {
       return NULL;
    }
-
    tr = GetFaceElementTransformations(fn, 21);
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;

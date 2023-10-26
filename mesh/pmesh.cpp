@@ -2315,7 +2315,6 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
    el_marker = -1;
    vertex_marker = -1;
    const int nst = shared_trias.Size();
-
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_group = face_nbr_group[fn];
