@@ -1172,7 +1172,6 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
             Pconf = new DeviceConformingProlongationOperator(*this);
          }
       }
-
       return Pconf;
    }
    else
@@ -1286,7 +1285,6 @@ void ParFiniteElementSpace::ExchangeFaceNbrData()
    // respectively (they contain the number of dofs for each face-neighbor
    // element)
    face_nbr_element_dof.MakeI(recv_el_off[num_face_nbrs]);
-
 
    int *send_I = send_nbr_elem_dof.GetI();
    int *recv_I = face_nbr_element_dof.GetI();
@@ -2083,7 +2081,6 @@ void NeighborRowMessage::Encode(int rank)
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
-
          const RowInfo &ri = rows[row_idx[ent][i]];
          MFEM_ASSERT(ent == ri.entity, "");
 
