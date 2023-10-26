@@ -1308,8 +1308,10 @@ public:
       delete x0;
       delete d0;
       // if (F.dcf_dgf()) { delete directionalDer_cf; }
-      MFEM_VERIFY(k < maxit,
-                  "Maximum number of iterations reached. Results may not be reliable.");
+      if (k == maxit)
+      {
+         MFEM_WARNING("Maximum number of iterations reached. Results may not be reliable.");
+      }
       return new_val;
    }
 protected:
