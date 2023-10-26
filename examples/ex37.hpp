@@ -1199,7 +1199,7 @@ class LinearGrowth : public LineSearchAlgorithm
 {
 public:
    LinearGrowth(ObjectiveFunction &F,
-                const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha){}
+                const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha) {}
    double Step(GridFunction &x, const GridFunction &d)
    {
       k++;
@@ -1217,7 +1217,8 @@ class ExponentialGrowth : public LineSearchAlgorithm
 {
 public:
    ExponentialGrowth(ObjectiveFunction &F, const double growthRate=2.0,
-                const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha), growthRate(growthRate) {}
+                     const double alpha=1.0): LineSearchAlgorithm(F), alpha(alpha),
+      growthRate(growthRate) {}
    double Step(GridFunction &x, const GridFunction &d)
    {
       step_size = alpha * pow(growthRate, k++);
@@ -1267,11 +1268,11 @@ public:
       Coefficient * directionalDer_cf;
       // if (F.dcf_dgf())
       // {
-         // directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
+      // directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
       // }
       // else
       // {
-         directionalDer_cf = &d_cf;
+      directionalDer_cf = &d_cf;
       // }
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(*directionalDer_cf));
       directionalDer->Assemble();
