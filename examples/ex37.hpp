@@ -1320,6 +1320,44 @@ protected:
 private:
 };
 
+class LipschitzBregmanMirror : public LineSearchAlgorithm
+{
+public:
+   LipschitzBregmanMirror(ObjectiveFunction &F, LinearForm &diff_primal,
+                          GridFunction &grad, GridFunction &latent, double weight=1.0, double eps=1e-10, double max_step_size=1e06):
+      LineSearchAlgorithm(F, max_step_size), diff_primal(diff_primal),
+      grad(grad), old_grad(grad), latent(latent), old_latent(latent), L(0), k(0),
+      weight(weight), eps(eps) {}
+   virtual double Step(GridFunction &x, const GridFunction &d)
+   {
+      if (k++ == 0)
+      {
+         step_size = 1.0;
+      }
+      else
+      {
+         double diff_grad = diff_primal(grad) - diff_primal(old_grad);
+         double diff_latent = diff_primal(latent) - diff_primal(old_latent);
+         out << "( " << diff_grad << " / " << diff_latent << " = " << diff_grad /
+             (diff_latent + eps) << ")" << std::endl;
+         L = std::abs(diff_grad / (diff_latent + eps));
+         step_size = std::min(weight / L, max_step_size);
+         old_grad = grad;
+         old_latent = latent;
+      }
+      x.Add(step_size, d);
+      diff_primal.Assemble();
+      return F.Eval();
+
+   }
+protected:
+   double L, eps, weight;
+   int k;
+   LinearForm &diff_primal;
+   GridFunction &grad, &latent;
+   GridFunction old_grad, old_latent;
+};
+
 class ExBiSecLVPGTopOpt
 {
 public:
