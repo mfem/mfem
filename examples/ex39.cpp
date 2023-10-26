@@ -138,10 +138,10 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 0.02;
+   double epsilon = 1e-2;
    double vol_fraction = 0.5;
    int max_it = 1e3;
-   double itol = 1e-1;
+   double itol = 1e-2;
    double ntol = 1e-6;
    double rho_min = 1e-6;
    double exponent = 3.0;
@@ -245,8 +245,8 @@ int main(int argc, char *argv[])
 
    // 9. Define some tools for later
    ConstantCoefficient one(1.0);
-   GridFunction zerogf(&control_fes);
-   zerogf = 0.0;
+   GridFunction zero_gf(&control_fes);
+   zero_gf = 0.0;
    LinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
@@ -254,13 +254,13 @@ int main(int argc, char *argv[])
    const double target_volume = domain_volume * vol_fraction;
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    SIMPElasticCompliance obj(&lambda_cf, &mu_cf, epsilon,
-                         &rho, &vforce_cf, target_volume,
-                         ess_bdr,
-                         &state_fes,
-                         &filter_fes, exponent, rho_min);
+                             &rho, &vforce_cf, target_volume,
+                             ess_bdr,
+                             &state_fes,
+                             &filter_fes, exponent, rho_min);
    obj.SetGridFunction(&psi);
-   
-   BackTracking lineSearch(obj, alpha, 2.0, c1);
+
+   BackTracking lineSearch(obj, alpha, 2.0, c1, 10, 1e6);
    // LinearGrowth lineSearch(obj, alpha);
    // ExponentialGrowth lineSearch(obj, 2.0, alpha);
    MappedGridFunctionCoefficient &designDensity = obj.GetDesignDensity();
@@ -280,9 +280,9 @@ int main(int argc, char *argv[])
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << designDensity_gf
-               << "window_title 'Design density r(ρ̃)'\n"
-               << "keys Rj***************\n"
-               << flush;
+             << "window_title 'Design density r(ρ̃)'\n"
+             << "keys Rj***************\n"
+             << flush;
    }
 
    mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);
