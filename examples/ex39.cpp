@@ -306,6 +306,8 @@ int main(int argc, char *argv[])
    for (int k = 1; k <= max_it; k++)
    {
       mfem::out << "\nStep = " << k << std::endl;
+      psi_old = psi;
+
       d = *obj.Gradient();
       d.Neg();
       double compliance = lineSearch.Step(psi, d);
@@ -316,12 +318,8 @@ int main(int argc, char *argv[])
       mfem::out << "current step size = " <<  lineSearch.GetStepSize() << std::endl;
 
       // Compute ||ρ - ρ_old|| in control fes.
-      double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
-      double norm_reduced_gradient = norm_increment/lineSearch.GetStepSize();
-      psi_old = psi;
+      double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
 
-      mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient <<
-                std::endl;
       mfem::out << "norm of the increment = " << norm_increment << endl;
 
       if (glvis_visualization)
@@ -345,7 +343,7 @@ int main(int argc, char *argv[])
          paraview_dc.Save();
       }
 
-      if (norm_reduced_gradient < ntol && norm_increment < itol)
+      if (norm_increment < itol)
       {
          break;
       }
