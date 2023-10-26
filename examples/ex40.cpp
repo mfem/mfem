@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 0.02;
+   double epsilon = 1e-2;
    double vol_fraction = 0.5;
    int max_it = 1e3;
    double itol = 1e-2;
@@ -149,6 +149,7 @@ int main(int argc, char *argv[])
    double mu = 1.0;
    double c1 = 1e-04;
    double c2 = 0.9;
+
    bool glvis_visualization = true;
    bool paraview_output = false;
    double mv = 0.2;
@@ -191,10 +192,10 @@ int main(int argc, char *argv[])
    args.PrintOptions(mfem::out);
 
    // 3. Problem definition
-   const int numel = std::pow(2, ref_levels);
-   Mesh mesh = Mesh::MakeCartesian2D(3*numel,numel,
+   Mesh mesh = Mesh::MakeCartesian2D(3,1,
                                      mfem::Element::Type::QUADRILATERAL,true,
-                                     3*numel,numel);
+                                     3,1);
+   for(int i=0; i<ref_levels; i++) { mesh.UniformRefinement(); }
    int dim = mesh.Dimension();
    int maxat = mesh.bdr_attributes.Max();
    Array<int> ess_bdr(maxat);
@@ -238,10 +239,17 @@ int main(int argc, char *argv[])
    GridFunction u(&state_fes);
    u = 0.0;
 
-   ConstantCoefficient one(1.0), zero(0.0), eps_cf(epsilon), lambda_cf(lambda), mu_cf(mu);
-   StrainEnergyDensityCoefficient strainEnergyDensity_cf(&lambda_cf, &mu_cf, &u, &frho, rho_min, exponent);
-   
+   ConstantCoefficient one(1.0), zero(0.0), eps2_cf(epsilon*epsilon), lambda_cf(lambda),
+                       mu_cf(mu);
+   StrainEnergyDensityCoefficient strainEnergyDensity_cf(&lambda_cf, &mu_cf, &u,
+                                                         &frho, rho_min, exponent);
+
    ProductCoefficient SIMP_lam(lambda, SIMP_cf), SIMP_mu(mu, SIMP_cf);
+   GridFunction zero_gf(&control_fes);
+   zero_gf = 0.0;
+   GridFunction dv(&control_fes);
+   zero_gf.ComputeElementL1Errors(one, dv);
+   dv.Reciprocal();
 
 
    // 10. Connect to GLVis. Prepare for VisIt output.
@@ -250,7 +258,7 @@ int main(int argc, char *argv[])
    socketstream sout_r;
    if (glvis_visualization)
    {
-      GridFunction designDensity_gf(&control_fes);
+      GridFunction designDensity_gf(&filter_fes);
       designDensity_gf.ProjectCoefficient(SIMP_cf);
       sout_r.open(vishost, visport);
       sout_r.precision(8);
@@ -275,50 +283,101 @@ int main(int argc, char *argv[])
       paraview_dc.RegisterField("filtered_density",&frho);
       paraview_dc.Save();
    }
-   // 11. Iterate
-   BilinearForm filterForm(&filter_fes);
-   filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
-   filterForm.AddDomainIntegrator(new MassIntegrator());
 
-   LinearForm filterRHS(&filter_fes);
-   filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
 
-   LinearForm dualFilterRHS(&filter_fes);
-   dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(strainEnergyDensity_cf));
+   double domain_volume = zero_gf.ComputeL1Error(one);
+   double target_volume = domain_volume * vol_fraction;
 
-   EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
-
-   
-   BilinearForm elasticityForm(&state_fes);
-   elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
-
-   LinearForm elasticityRHS(&state_fes);
-   elasticityRHS.AddDomainIntegrator(new VectorDomainLFIntegrator(vforce_cf));
-
-   EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
+   GridFunction gradH1(&filter_fes), gradL2(&control_fes);
+   GridFunctionCoefficient gradH1_cf(&gradH1);
+   BilinearForm invMass(&control_fes);
+   invMass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+   invMass.Assemble();
+   LinearForm gradH1Form(&control_fes);
+   gradH1Form.AddDomainIntegrator(new DomainLFIntegrator(gradH1_cf));
 
    for (int k = 1; k <= max_it; k++)
    {
       mfem::out << "\nStep = " << k << std::endl;
 
+      BilinearForm filterForm(&filter_fes);
+      filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
+      filterForm.AddDomainIntegrator(new MassIntegrator());
 
-      mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
+      LinearForm filterRHS(&filter_fes);
+      filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
+
+      EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
+      filterSolver.Solve(&frho);
+
+
+      BilinearForm elasticityForm(&state_fes);
+      elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
+
+      LinearForm elasticityRHS(&state_fes);
+      elasticityRHS.AddDomainIntegrator(new VectorDomainLFIntegrator(vforce_cf));
+
+      EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
+      elasticitySolver.Solve(&u);
+
+
+      BilinearForm dualFilterForm(&filter_fes);
+      dualFilterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
+      dualFilterForm.AddDomainIntegrator(new MassIntegrator());
+
+      LinearForm dualFilterRHS(&filter_fes);
+      dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(strainEnergyDensity_cf));
+
+      EllipticSolver dualFilterSolver(&dualFilterForm, &dualFilterRHS,
+                                      ess_bdr_filter);
+      dualFilterSolver.Solve(&gradH1);
+
+      gradH1Form.Assemble();
+      invMass.Mult(gradH1Form, gradL2);
+
+      Vector B(gradL2);
+      B.Neg();
+      B *= dv;
+      B.Sqrt();
+      Vector lower(rho), upper(rho);
+      lower -= mv; lower.Clip(0, 1);
+      upper += mv; upper.Clip(0, 1);
+      double l1(0.0), l2(1e09);
+      rho_old = rho;
+      while ((l2 - l1) > 1e-5)
+      {
+         double lmid = (l1 + l2) / 2.0;
+         rho = rho_old;
+         rho *= B;
+         rho *= 1.0 / std::sqrt(lmid);
+         rho.Clip(lower, upper);
+         filterRHS.Assemble();
+         if (filterRHS.Sum() > target_volume)
+         {
+            l1 = lmid;
+         }
+         else
+         {
+            l2 = lmid;
+         }
+      }
+      double compliance = elasticityRHS(u);
+
+      mfem::out << "volume fraction = " <<  filterRHS.Sum() / domain_volume <<
                 std::endl;
       mfem::out << "compliance = " <<  compliance << std::endl;
-      mfem::out << "current step size = " <<  lineSearch.GetStepSize() << std::endl;
 
       // Compute ||ρ - ρ_old|| in control fes.
       // double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
 
-      double norm_increment = rho_old.Normlinf();
-      
-      
+      rho_old -= rho;
+      double norm_increment = rho_old.ComputeL1Error(zero);
 
       mfem::out << "norm of the increment = " << norm_increment << endl;
 
       if (glvis_visualization)
       {
-         GridFunction designDensity_gf(&control_fes);
+         GridFunction designDensity_gf(&filter_fes);
          designDensity_gf.ProjectCoefficient(SIMP_cf);
          sout_r << "solution\n" << mesh << designDensity_gf
                 << flush;
