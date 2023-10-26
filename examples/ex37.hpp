@@ -60,33 +60,6 @@ double der_simp(const double x, const double rho_min=1e-06,
 }
 
 
-/**
- * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
- *
- */
-class MappedGridFunctionCoefficient : public GridFunctionCoefficient
-{
-protected:
-   std::function<double(const double)> fun; // f:R → R
-public:
-   MappedGridFunctionCoefficient()
-      :GridFunctionCoefficient(),
-       fun([](const double x) {return x;}) {}
-   MappedGridFunctionCoefficient(const GridFunction *gf,
-                                 std::function<double(const double)> fun_,
-                                 int comp=1)
-      :GridFunctionCoefficient(gf, comp),
-       fun(fun_) {}
-
-
-   virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   {
-      return fun(GridFunctionCoefficient::Eval(T, ip));
-   }
-   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
-};
-
 
 /**
  * @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R

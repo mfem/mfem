@@ -411,6 +411,80 @@ public:
 };
 
 
+/**
+ * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+ *
+ */
+class MappedGridFunctionCoefficient : public GridFunctionCoefficient
+{
+protected:
+   std::function<double(const double)> fun; // f:R → R
+public:
+   MappedGridFunctionCoefficient()
+      :GridFunctionCoefficient(),
+       fun([](const double x) {return x;}) {}
+   MappedGridFunctionCoefficient(const GridFunction *gf,
+                                 std::function<double(const double)> fun_,
+                                 int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip));
+   }
+   void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
+};
+
+
+/**
+ * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
+ *
+ */
+class BregmanDistanceFunction : public GridFunctionCoefficient
+{
+protected:
+   std::function<double(const double)> *h; // f:R → R
+   std::function<double(const double)> *Dh; // f:R → R
+   std::function<double(const double)> *invDh; // f:R → R
+   bool mirror_mode = false;
+   GridFunctionCoefficient other;
+public:
+   BregmanDistanceFunction()
+      :GridFunctionCoefficient(),
+       h(nullptr), Dh(nullptr), invDh(nullptr) {}
+   BregmanDistanceFunction(const GridFunction *gf,
+                           const GridFunction *otherGF,
+                           std::function<double(const double)> *h,
+                           std::function<double(const double)> *Dh,
+                           std::function<double(const double)> *invDh=nullptr)
+      :GridFunctionCoefficient(gf),
+       h(h), Dh(Dh), invDh(invDh), other(otherGF) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      double val = GridFunctionCoefficient::Eval(T, ip);
+      double otherval = other.Eval(T, ip);
+      if (mirror_mode)
+      {
+         val = (*invDh)(val);
+         otherval = (*invDh)(otherval);
+      }
+      return (*h)(val) - (*h)(otherval) - (*Dh)(otherval)*(val - otherval);
+   }
+   void SetMirrorMode(bool mirror_mode_on = true)
+   {
+      if (mirror_mode_on)
+      {
+         MFEM_ASSERT(invDh != nullptr,
+                     "Mirror mode can only be activated when invDh is provided.");
+      }
+      mirror_mode = mirror_mode_on;
+   }
+};
+
 /** @brief A coefficient that depends on 1 or 2 parent coefficients and a
     transformation rule represented by a C-function.
 
