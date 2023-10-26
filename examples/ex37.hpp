@@ -738,6 +738,8 @@ public:
       if (pfes) {parallel = true;}
 #endif
    };
+   void ChangeLHS(BilinearForm *a_) { a = a_; }
+   void ChangeRHS(LinearForm *b_) { b = b_; }
    bool Solve(GridFunction *x)
    {
       OperatorPtr A;
