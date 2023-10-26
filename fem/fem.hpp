@@ -47,9 +47,6 @@
 #include "ceed/solvers/algebraic.hpp"
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
-/* HDG */
-#include "hdg_integrators.hpp"
-#include "HDGBilinearForm.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

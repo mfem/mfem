@@ -395,8 +395,8 @@ public:
    /* HDG */
    void ProjectCoefficientSkeleton(Coefficient &coeff);
    void ProjectCoefficientSkeleton(VectorCoefficient &vcoeff);
-//   void ProjectCoefficientSkeletonBdr(Coefficient &coeff,
-//		   Array<int> &bdr_attr_marker);
+   //   void ProjectCoefficientSkeletonBdr(Coefficient &coeff,
+   //       Array<int> &bdr_attr_marker);
    void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
    void ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff);
 
