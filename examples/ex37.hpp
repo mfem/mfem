@@ -1184,14 +1184,14 @@ private:
 class LineSearchAlgorithm
 {
 public:
-   LineSearchAlgorithm(ObjectiveFunction &F):F(F) {}
+   LineSearchAlgorithm(ObjectiveFunction &F, double max_step_size=1e06):F(F), max_step_size(max_step_size) {}
    virtual double Step(GridFunction &x, const GridFunction &d) = 0;
    double GetStepSize() { return step_size; }
    void SetStepSize(double s) { step_size = s; }
 
 protected:
    ObjectiveFunction &F;
-   double step_size;
+   double step_size, max_step_size;
 private:
 };
 
