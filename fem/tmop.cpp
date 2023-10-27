@@ -3538,6 +3538,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
+      // change comes here for DSh?
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -3546,7 +3547,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
 
       P *= weight_m;
-      AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
+      AddMultABt(DS, P, PMatO);
 
       if (exact_action)
       {
@@ -3666,6 +3667,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       double weight_m = weights(q) * metric_normal;
 
       el.CalcDShape(ip, DSh);
+      // change comes here for DSh?
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
