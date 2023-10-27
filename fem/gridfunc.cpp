@@ -834,7 +834,6 @@ double GridFunction::GetValue(ElementTransformation &T,
             // boundary so we'll evaluate it in the neighboring element.
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
-
             MFEM_ASSERT(FET != nullptr,
                         "FaceElementTransformation must be valid for a boundary element");
 
@@ -976,7 +975,6 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             // the boundary so we'll evaluate it in the neighboring element.
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
-
             MFEM_ASSERT(FET != nullptr,
                         "FaceElementTransformation must be valid for a boundary element");
 
@@ -1003,9 +1001,9 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
       {
          FaceElementTransformations * FET =
             dynamic_cast<FaceElementTransformations *>(&T);
-
          MFEM_ASSERT(FET != nullptr,
                      "FaceElementTransformation must be valid for a boundary element");
+
          // Evaluate in neighboring element for both continuous and
          // discontinuous fields (the integration point in T1 should have
          // already been set).
@@ -1148,14 +1146,14 @@ int GridFunction::GetFaceVectorValues(
    if (di == 0)
    {
       Transf = fes->GetMesh()->GetFaceElementTransformations(i, 5);
-      MFEM_ASSERT(Transf != nullptr, "!");
+      MFEM_ASSERT(Transf != nullptr, "FaceElementTransformation cannot be null!");
       Transf->Loc1.Transform(ir, eir);
       GetVectorValues(*Transf->Elem1, eir, vals, &tr);
    }
    else
    {
       Transf = fes->GetMesh()->GetFaceElementTransformations(i, 10);
-      MFEM_ASSERT(Transf != nullptr, "!");
+      MFEM_ASSERT(Transf != nullptr, "FaceElementTransformation cannot be null!");
       Transf->Loc2.Transform(ir, eir);
       GetVectorValues(*Transf->Elem2, eir, vals, &tr);
    }

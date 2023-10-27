@@ -103,6 +103,10 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   if (nc)
+   {
+      mesh->EnsureNCMesh(true);
+   }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
@@ -110,11 +114,6 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
-   }
-
-   if (nc)
-   {
-      mesh->EnsureNCMesh(true);
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
