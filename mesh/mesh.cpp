@@ -1444,7 +1444,7 @@ Element::Type Mesh::GetFaceElementType(int Face) const
 
 Array<int> Mesh::GetFaceToBdrElMap() const
 {
-   Array<int> face_to_be(GetNumFaces());
+   Array<int> face_to_be(Dim == 2 ? NumOfEdges : NumOfFaces);
    face_to_be = -1;
    for (int i = 0; i < NumOfBdrElements; i++)
    {
@@ -9558,7 +9558,8 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
 double Mesh::AggregateError(const Array<double> &elem_error,
                             const int *fine, int nfine, int op)
 {
-   double error = elem_error[fine[0]];
+   double error = (op == 3) ? std::pow(elem_error[fine[0]],
+                                       2.0) : elem_error[fine[0]];
 
    for (int i = 1; i < nfine; i++)
    {
@@ -9570,9 +9571,11 @@ double Mesh::AggregateError(const Array<double> &elem_error,
          case 0: error = std::min(error, err_fine); break;
          case 1: error += err_fine; break;
          case 2: error = std::max(error, err_fine); break;
+         case 3: error += std::pow(err_fine, 2.0); break;
+         default: MFEM_ABORT("Invalid operation.");
       }
    }
-   return error;
+   return (op == 3) ? std::sqrt(error) : error;
 }
 
 bool Mesh::NonconformingDerefinement(Array<double> &elem_error,

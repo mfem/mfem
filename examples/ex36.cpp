@@ -1,11 +1,9 @@
 //                                MFEM Example 36
 //
-//
 // Compile with: make ex36
 //
 // Sample runs: ex36 -o 2
 //              ex36 -o 2 -r 4
-//
 //
 // Description: This example code demonstrates the use of MFEM to solve the
 //              bound-constrained energy minimization problem
@@ -28,11 +26,9 @@
 //              order solutions to variation inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods.
 //
-//
 // [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
 //     preserving finite element method for pointwise bound constraints.
 //     arXiv:2307.12444 [math.NA]
-
 
 #include "mfem.hpp"
 #include <fstream>
@@ -63,7 +59,7 @@ public:
 class ExponentialGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
+   GridFunction *u;
    Coefficient *obstacle;
    double min_val;
    double max_val;
@@ -88,7 +84,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree)");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
@@ -198,7 +194,7 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(IC_coef);
    u_old_gf = u_gf;
 
-   // 9. Initialize the slack variable ψₕ = exp(uₕ)
+   // 9. Initialize the slack variable ψₕ = ln(uₕ)
    LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;
