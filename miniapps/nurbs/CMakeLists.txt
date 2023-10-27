@@ -110,6 +110,10 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_two_cubes_autoedge_knot_insert
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/two-cubes.ref)
+
+  add_test(NAME nurbs_ex1_periodic_3d
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube.ref)
 endif()
 
 if (MFEM_USE_MPI)
@@ -133,6 +137,13 @@ if (MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
       -m ${PROJECT_SOURCE_DIR}/data/ball-nurbs.mesh -o 2 --weak-bc -r 0
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME nurbs_ex1p_periodic_np=4
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
+      -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/square-nurbs.mesh
+      -r 4  -pm "1" -ps "2"
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME nurbs_ex1_weak_patch_format_np=4
