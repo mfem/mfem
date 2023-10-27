@@ -29,6 +29,34 @@ typedef HYPRE_Int HYPRE_BigInt;
 #define HYPRE_MPI_BIG_INT HYPRE_MPI_INT
 #endif
 
+
+namespace mfem
+{
+#if MFEM_HYPRE_VERSION >= 22600
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc;
+}
+inline HYPRE_ExecutionPolicy GetHypreExecutionPolicy()
+{
+   HYPRE_ExecutionPolicy pol;
+   HYPRE_GetExecutionPolicy(&pol);
+   return pol;
+}
+#else
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+#ifdef HYPRE_USING_GPU
+   return HYPRE_MEMORY_DEVICE;
+#else
+   return HYPRE_MEMORY_HOST;
+#endif // HYPRE_USING_GPU
+}
+#endif
+};
+
 // Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
 // mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
 // Note: these macros are used in hypre.cpp, hypre_parcsr.cpp, and perhaps
@@ -46,10 +74,10 @@ typedef HYPRE_Int HYPRE_BigInt;
 #else // MFEM_HYPRE_VERSION >= 21400
 
 #define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_DEVICE)
+   hypre_TAlloc(type, size, mfem::GetHypreMemoryLocation())
 #define mfem_hypre_CTAlloc(type, size) \
-   hypre_CTAlloc(type, size, HYPRE_MEMORY_DEVICE)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_DEVICE)
+   hypre_CTAlloc(type, size, mfem::GetHypreMemoryLocation())
+#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, mfem::GetHypreMemoryLocation())
 
 #define mfem_hypre_TAlloc_host(type, size) \
    hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
