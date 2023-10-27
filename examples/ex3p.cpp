@@ -129,17 +129,16 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
-
-   // 5. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 1,000 elements.
    if (nc)
    {
       // Can set to false to use conformal refinement for simplices.
       mesh->EnsureNCMesh(true);
    }
 
+   // 5. Refine the serial mesh on all processors to increase the resolution. In
+   //    this example we do 'ref_levels' of uniform refinement. We choose
+   //    'ref_levels' to be the largest number that gives a final mesh with no
+   //    more than 1,000 elements.
    {
       int ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)

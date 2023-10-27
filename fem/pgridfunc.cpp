@@ -479,7 +479,6 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
 
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
    const int dof = fe->GetDof();
-
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
