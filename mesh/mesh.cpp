@@ -6274,10 +6274,26 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
 IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
                                                  const IntegrationPoint &ip)
 {
-   IntegrationPoint fip = {};
-   if (geom == Geometry::TRIANGLE)
+   IntegrationPoint fip = ip;
+   if (geom == Geometry::POINT)
    {
-      MFEM_ASSERT(o < 6, "Invalid orientation for Geometry::TRIANGLE!");
+      return fip;
+   }
+   else if (geom == Geometry::SEGMENT)
+   {
+      MFEM_ASSERT(o >= 0 && o < 2, "Invalid orientation for Geometry::SEGMENT!");
+      if (o == 0)
+      {
+         fip.x = ip.x;
+      }
+      else if (o == 1)
+      {
+         fip.x = 1.0 - ip.x;
+      }
+   }
+   else if (geom == Geometry::TRIANGLE)
+   {
+      MFEM_ASSERT(o >= 0 && o < 6, "Invalid orientation for Geometry::TRIANGLE!");
       if (o == 0)  // 0, 1, 2
       {
          fip.x = ip.x;
@@ -6311,7 +6327,7 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
    }
    else if (geom == Geometry::SQUARE)
    {
-      MFEM_ASSERT(o < 8, "Invalid orientation for Geometry::SQUARE!");
+      MFEM_ASSERT(o >= 0 && o < 8, "Invalid orientation for Geometry::SQUARE!");
       if (o == 0)  // 0, 1, 2, 3
       {
          fip.x = ip.x;
@@ -6355,12 +6371,8 @@ IntegrationPoint Mesh::TransformBdrElementToFace(Geometry::Type geom, int o,
    }
    else
    {
-      fip.x = ip.x;
-      fip.y = ip.y;
+      MFEM_ABORT("Unsupported face geometry for TransformBdrElementToFace!");
    }
-   fip.z = ip.z;
-   fip.weight = ip.weight;
-   fip.index = ip.index;
    return fip;
 }
 
@@ -6657,24 +6669,20 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 {
-   const int *bv, *fv;
+   *f = GetBdrElementEdgeIndex(i);
 
-   *f = be_to_face[i];
-   bv = boundary[i]->GetVertices();
-   fv = faces[be_to_face[i]]->GetVertices();
+   const int *fv = (Dim > 1) ? faces[*f]->GetVertices() : NULL;
+   const int *bv = boundary[i]->GetVertices();
 
    // find the orientation of the bdr. elem. w.r.t.
    // the corresponding face element (that's the base)
-   switch (GetBdrElementType(i))
+   switch (GetBdrElementGeometry(i))
    {
-      case Element::TRIANGLE:
-         *o = GetTriOrientation(fv, bv);
-         break;
-      case Element::QUADRILATERAL:
-         *o = GetQuadOrientation(fv, bv);
-         break;
-      default:
-         MFEM_ABORT("invalid geometry");
+      case Geometry::POINT:    *o = 0; break;
+      case Geometry::SEGMENT:  *o = (fv[0] == bv[0]) ? 0 : 1; break;
+      case Geometry::TRIANGLE: *o = GetTriOrientation(fv, bv); break;
+      case Geometry::SQUARE:   *o = GetQuadOrientation(fv, bv); break;
+      default: MFEM_ABORT("invalid geometry");
    }
 }
 
