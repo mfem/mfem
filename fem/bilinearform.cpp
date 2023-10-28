@@ -1436,7 +1436,6 @@ void MixedBilinearForm::Assemble (int skip_zeros)
                                                         *eltrans, elemmat);
                elmat += elemmat;
             }
-            elmat_p = &elmat;
             if (ran_dof_trans || dom_dof_trans)
             {
                TransformDual(ran_dof_trans, dom_dof_trans, elmat);
