@@ -1418,16 +1418,15 @@ void MixedBilinearForm::Assemble (int skip_zeros)
    {
       for (int i = 0; i < test_fes -> GetNE(); i++)
       {
+         dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
+         ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
          }
          else
          {
-            dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
-            ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
             eltrans = test_fes->GetElementTransformation(i);
-
             elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
             elmat = 0.0;
             for (int k = 0; k < domain_integs.Size(); k++)
