@@ -117,7 +117,7 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI           = NO
+MFEM_USE_MPI           = YES
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
 MFEM_DEBUG             = NO
@@ -131,7 +131,7 @@ MFEM_USE_LEGACY_OPENMP = NO
 MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
-MFEM_USE_SUITESPARSE   = NO
+MFEM_USE_SUITESPARSE   = YES
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_MUMPS         = NO
@@ -139,7 +139,7 @@ MFEM_USE_STRUMPACK     = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_GNUTLS        = NO
-MFEM_USE_NETCDF        = NO
+MFEM_USE_NETCDF        = YES
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
@@ -160,7 +160,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
-MFEM_USE_MKL_PARDISO   = NO
+MFEM_USE_MKL_PARDISO   = YES
 MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
@@ -276,7 +276,7 @@ endif
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
-SUITESPARSE_DIR = @MFEM_DIR@/../SuiteSparse
+SUITESPARSE_DIR = 'D:/Dropbox/Github/suitesparse-metis-for-windows/SuiteSparse'
 SUITESPARSE_OPT = -I$(SUITESPARSE_DIR)/include
 SUITESPARSE_LIB = $(XLINKER)-rpath,$(SUITESPARSE_DIR)/lib\
  -L$(SUITESPARSE_DIR)/lib -lklu -lbtf -lumfpack -lcholmod -lcolamd -lamd -lcamd\
@@ -362,8 +362,8 @@ GNUTLS_OPT =
 GNUTLS_LIB = -lgnutls
 
 # NetCDF library configuration
-NETCDF_DIR = $(HOME)/local
-HDF5_DIR   = $(HOME)/local
+NETCDF_DIR = 'C:/Program Files/netCDF4'
+HDF5_DIR   = 'C:/Program Files/HDF_Group/HDF5/1.14.0'
 NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = $(XLINKER)-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
@@ -544,12 +544,12 @@ MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # MKL Pardiso library configuration
-MKL_PARDISO_DIR ?=
-MKL_LIBRARY_SUBDIR ?= lib
+MKL_PARDISO_DIR = 'C:/Program Files (x86)/Intel/oneAPI/mkl/latest'
+MKL_LIBRARY_SUBDIR ?= lib/intel64
 MKL_PARDISO_OPT = -I$(MKL_PARDISO_DIR)/include
 MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
-   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lmkl_intel_thread
 
 # PARELAG library configuration
 PARELAG_DIR = @MFEM_DIR@/../parelag
