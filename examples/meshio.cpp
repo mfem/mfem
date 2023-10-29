@@ -839,9 +839,9 @@ namespace palace
                                 }
 
                                 // Debug
-                                // std::cout << "Finished parsing " << num_elem
-                                //           << " elements with type " << elem_type
-                                //           << " (parsed types " << parsed_types + 1 << ")\n";
+                                std::cout << "Finished parsing " << num_elem
+                                          << " elements with type " << elem_type
+                                          << " (parsed types " << parsed_types + 1 << ")\n";
 
                                 // Finished with this element type, on to the next.
                                 parsed_types++;
