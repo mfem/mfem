@@ -3525,6 +3525,10 @@ namespace comsol
 {
    static int ElemTypeComsol(const std::string &type)
    {
+       if (!type.compare("edg")) // 3-node triangle
+       {
+           return 1;
+       }
       if (!type.compare("tri")) // 3-node triangle
       {
          return 2;
@@ -3650,11 +3654,11 @@ namespace comsol
       return lo_type;
    }
 
-   static const int ElemNumNodes[] = {-1, // 2-node edge
+   static const int ElemNumNodes[] = {2, // 2-node edge
                                       3, 4, 4, 8, 6, 5,
-                                      -1, // 3-node edge
+                                      3, // 3-node edge
                                       6, 9, 10, 27, 18, 14,
-                                      -1, // 1-node node
+                                      1, // 1-node node
                                       8, 20, 15, 13};
 
    // From COMSOL or Nastran to Gmsh ordering. See:
@@ -3669,6 +3673,9 @@ namespace comsol
    static const int Msh8[] = {0, 1, 2, 3, 4, 5, 6, 7};
    static const int Msh9[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
+   static const int MphPt[] = { 0 };
+   static const int MphEdg2[] = { 0, 1 };
+   static const int MphEdg3[] = { 0, 2, 1 };
    static const int MphQuad4[] = {0, 1, 3, 2};
    static const int MphHex8[] = {0, 1, 3, 2, 4, 5, 7, 6};
    static const int MphPyr5[] = {0, 1, 3, 2, 4};
@@ -3687,9 +3694,9 @@ namespace comsol
    static const int NasWdg15[] = {0, 1, 2, 3, 4, 5, 6, 9, 7, 8, 10, 11, 12, 14, 13};
    static const int NasPyr13[] = {0, 1, 2, 3, 4, 5, 8, 10, 6, 7, 9, 11, 12};
 
-   static const int *ElemNodesComsol[] = {SkipElem, Msh3, MphQuad4, Msh4, MphHex8,
-                                          Msh6, MphPyr5, SkipElem, MphTri6, MphQuad9,
-                                          MphTet10, MphHex27, MphWdg18, MphPyr14, SkipElem,
+   static const int *ElemNodesComsol[] = { MphEdg2, Msh3, MphQuad4, Msh4, MphHex8,
+                                          Msh6, MphPyr5, MphEdg3, MphTri6, MphQuad9,
+                                          MphTet10, MphHex27, MphWdg18, MphPyr14, MphPt,
                                           SkipElem, SkipElem, SkipElem, SkipElem};
    static const int *ElemNodesNastran[] = {SkipElem, Msh3, Msh4, Msh4, Msh8,
                                            Msh6, Msh5, SkipElem, Msh6, Msh9,
@@ -4326,9 +4333,9 @@ void Mesh::ConvertMeshComsol(const std::string &filename, std::ostream &buffer)
                   }
 
                   // Debug
-                  // std::cout << "Finished parsing " << num_elem
-                  //           << " elements with type " << elem_type
-                  //           << " (parsed types " << parsed_types + 1 << ")\n";
+                   std::cout << "Finished parsing " << num_elem
+                             << " elements with type " << elem_type
+                             << " (parsed types " << parsed_types + 1 << ")\n";
 
                   // Finished with this element type, on to the next.
                   parsed_types++;
@@ -4400,9 +4407,9 @@ void Mesh::ConvertMeshComsol(const std::string &filename, std::ostream &buffer)
             }
 
             // Debug
-            // std::cout << "Finished parsing " << num_elem
-            //           << " elements with type " << elem_type
-            //           << " (parsed types " << parsed_types + 1 << ")\n";
+             std::cout << "Finished parsing " << num_elem
+                       << " elements with type " << elem_type
+                       << " (parsed types " << parsed_types + 1 << ")\n";
 
             // Finished with this element type, on to the next.
             parsed_types++;
