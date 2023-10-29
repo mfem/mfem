@@ -57,7 +57,6 @@
 // add Laplace B.C. from ex27
 
 #include "mfem.hpp"
-#include "meshio.hpp"
 #include "mkl.h"
 
 #include <fstream>
@@ -70,6 +69,7 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <cstdlib> // for env
 
 using namespace std;
 using namespace mfem;
@@ -85,7 +85,7 @@ static constexpr double mu0_ = 4.0e-7 * M_PI;
 static double mu_ = 1.0;
 static double epsilon_ = 1.0;
 static double sigma_ = 0.0;
-static double omega_ = 10.0;
+double omega_ = 10.0;
 
 double u0_real_exact(const Vector&);
 double u0_imag_exact(const Vector&);
@@ -100,6 +100,8 @@ bool check_for_inline_mesh(const char* mesh_file);
 
 Mesh* LoadMeshNew(const std::string& path);
 
+void source(const Vector& x, Vector& f);
+
 void PrintMatrixConstantCoefficient(mfem::MatrixConstantCoefficient& coeff);
 
 /// Convert a set of attribute numbers to a marker array
@@ -108,6 +110,8 @@ void PrintMatrixConstantCoefficient(mfem::MatrixConstantCoefficient& coeff);
     array. In the special case when attrs has a single entry equal to -1 the
     marker array will contain all ones. */
 void AttrToMarker(int max_attr, const Array<int>& attrs, Array<int>& marker);
+
+void PrintArray2D(const Array2D<double>& arr);
 
 // Class for setting up a simple Cartesian PML region
 class PML
@@ -194,15 +198,39 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D, int dim);
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
 
+int meshdim;
+
 int main(int argc, char* argv[])
 {
     std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+    mkl_set_dynamic(0);
+    mkl_set_num_threads(30);
+    std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+
+    int result = 0;
+    #if defined(_WIN32) || defined(_WIN64)
+        result = _putenv("MKL_PARDISO_OOC_MAX_CORE_SIZE=60000");
+    #elif defined(__unix__) || defined(__APPLE__)
+        result = setenv("MKL_PARDISO_OOC_MAX_CORE_SIZE", "60000", 1);
+    #else
+        #error "Unknown compiler";
+    #endif
+
+    if (result != 0) {
+        std::cerr << "Failed to set environment variable." << std::endl;
+        return 2;
+    }
+    else {
+        std::cout << "MKL_PARDISO_OOC_MAX_CORE_SIZE=" << getenv("MKL_PARDISO_OOC_MAX_CORE_SIZE") << std::endl;
+    }
 
     // 1. Parse command-line options.
     //const char* mesh_file = "../data/em_sphere_mfem_ex0_coarse.mphtxt";
     //const char* mesh_file = "../data/em_sphere_mfem_ex0.mphtxt";
     //const char* mesh_file = "../data/simple_cube.mphtxt";
-    const char* mesh_file = "../data/squre_comsol_pml.mphtxt";
+     const char* mesh_file = "../data/squre_comsol_pml.mphtxt";
+     //const char* mesh_file = "../data/squre_comsol_pml.nas";
+    //const char* mesh_file = "../data/inline-quad.mesh";
     // const char* mesh_file = "../data/cube_comsol_coarse.mphtxt";
     //const char* mesh_file = "../data/inline-tet.mesh";
     int ref_levels = 0;
@@ -210,7 +238,7 @@ int main(int argc, char* argv[])
     int prob = 1;
     double freq = 600.0e6;
     double a_coef = 0.0;
-    bool visualization = 1;
+    bool visualization = 0;
     bool herm_conv = true;
     bool exact_sol = true;
     bool pa = false;
@@ -220,11 +248,13 @@ int main(int argc, char* argv[])
     double rbc_a_val = 1.0; // du/dn + a * u = b
     double rbc_b_val = 1.0;
     int logging_ = 1;
+    bool comp_solver = true;
+    int bprint = 1;
 
     std::vector<int> values = {1, 2, 3, 5, 7, 9, 14, 16, 21, 22, 23, 24};
     Array<int> abcs(values.data(), values.size());
     Array<int> dbcs;
-    std::vector<int> values_pml = {1, 2, 3, 4, 6,7, 8, 9};
+    std::vector<int> values_pml = {1, 2, 3, 4, 6, 7, 8, 9};
     Array<int> pmls(values_pml.data(), values_pml.size());
 
     OptionsParser args(argc, argv);
@@ -275,6 +305,8 @@ int main(int argc, char* argv[])
         "Absorbing Boundary Condition Surfaces");
     args.AddOption(&pmls, "-pmls", "--pml-region",
         "Perfectly Matched Layer Regions");
+    args.AddOption(&comp_solver, "-complex-sol", "--complex-solver",
+        "-no-complex-sol", "--no-complex-solver", "Enable complex solver");
     args.Parse();
     if (!args.Good())
     {
@@ -314,7 +346,7 @@ int main(int argc, char* argv[])
     //    with the same code.
     //Mesh* mesh = new Mesh(mesh_file, 1, 1);
     Mesh* mesh = LoadMeshNew(mesh_file);
-    int dim = mesh->Dimension();
+    meshdim = mesh->Dimension();
 
     // 4. Refine the mesh to increase resolution. In this example we do
     //    'ref_levels' of uniform refinement where the user specifies
@@ -327,7 +359,7 @@ int main(int argc, char* argv[])
     // 4a. Set element attributes in order to distinguish elements in the
     //    PML region
     // Setup PML length
-    Array2D<double> length(dim, 2); 
+    Array2D<double> length(meshdim, 2);
     length = 0.1;
     PML * pml = new PML(mesh,length);
     comp_domain_bdr = pml->GetCompDomainBdr();
@@ -337,7 +369,7 @@ int main(int argc, char* argv[])
     // 5. Define a finite element space on the mesh. Here we use continuous
     //    Lagrange, Nedelec, or Raviart-Thomas finite elements of the specified
     //    order.
-    if (dim == 1 && prob != 0)
+    if (meshdim == 1 && prob != 0)
     {
         cout << "Switching to problem type 0, H1 basis functions, "
             << "for 1 dimensional mesh." << endl;
@@ -347,9 +379,9 @@ int main(int argc, char* argv[])
     FiniteElementCollection* fec = NULL;
     switch (prob)
     {
-    case 0:  fec = new H1_FECollection(order, dim);      break;
-    case 1:  fec = new ND_FECollection(order, dim);      break;
-    case 2:  fec = new RT_FECollection(order - 1, dim);  break;
+    case 0:  fec = new H1_FECollection(order, meshdim);      break;
+    case 1:  fec = new ND_FECollection(order, meshdim);      break;
+    case 2:  fec = new RT_FECollection(order - 1, meshdim);  break;
     default: break; // This should be unreachable
     }
     FiniteElementSpace* fespace = new FiniteElementSpace(mesh, fec);
@@ -374,40 +406,35 @@ int main(int argc, char* argv[])
     AttrToMarker(mesh->bdr_attributes.Max(), abcs, abc_marker_);
     etaInvCoef_ = new ConstantCoefficient(omega_*sqrt(epsilon0_ / mu0_));
 
-    ConstantCoefficient matCoef(mat_val);
-    ConstantCoefficient rbcACoef(rbc_a_val);
-    ConstantCoefficient rbcBCoef(rbc_b_val);
-
-    ProductCoefficient m_rbcACoef(matCoef, rbcACoef);
-    ProductCoefficient m_rbcBCoef(matCoef, rbcBCoef);
 
     // 7. Set up the linear form b(.) which corresponds to the right-hand side of
     //    the FEM linear system.
     VectorDeltaCoefficient* delta_one; // add point source
     double src_scalar = omega_ * 1.0;
     double position = 0.50;
-    if (dim == 1)
+    if (meshdim == 1)
     {
         Vector dir(1);
         dir[0] = 1.0;
         delta_one = new VectorDeltaCoefficient(dir, position, src_scalar);
     }
-    else if (dim == 2)
+    else if (meshdim == 2)
     {
         Vector dir(2);
         dir[0] = 0.0; dir[1] = 1.0;
         delta_one = new VectorDeltaCoefficient(dir, position, position, src_scalar);
     }
-    else if (dim == 3)
+    else if (meshdim == 3)
     {
         Vector dir(3);
         dir[0] = 0;
         dir[1] = 0;
         dir[2] = 1;
-        delta_one = new VectorDeltaCoefficient(dir, 0.5, 0.5, 0.5, src_scalar);
+        delta_one = new VectorDeltaCoefficient(dir, position, position, position, src_scalar);
     }
     ComplexLinearForm b(fespace, conv);
     b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(*delta_one));
+    // b.AddDomainIntegrator(NULL, new VectorFEDomainLFIntegrator(f)); // add Gaussian point source
     //b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(m_rbcBCoef), NULL, rbc_bdr);
     b.Vector::operator=(0.0);
     b.Assemble();
@@ -421,16 +448,16 @@ int main(int argc, char* argv[])
 
     FunctionCoefficient u0_r(u0_real_exact);
     FunctionCoefficient u0_i(u0_imag_exact);
-    VectorFunctionCoefficient u1_r(dim, u1_real_exact);
-    VectorFunctionCoefficient u1_i(dim, u1_imag_exact);
-    VectorFunctionCoefficient u2_r(dim, u2_real_exact);
-    VectorFunctionCoefficient u2_i(dim, u2_imag_exact);
+    VectorFunctionCoefficient u1_r(meshdim, u1_real_exact);
+    VectorFunctionCoefficient u1_i(meshdim, u1_imag_exact);
+    VectorFunctionCoefficient u2_r(meshdim, u2_real_exact);
+    VectorFunctionCoefficient u2_i(meshdim, u2_imag_exact);
 
     ConstantCoefficient zeroCoef(0.0);
     ConstantCoefficient oneCoef(1.0);
 
-    Vector zeroVec(dim); zeroVec = 0.0;
-    Vector oneVec(dim);  oneVec = 0.0; oneVec[(prob == 2) ? (dim - 1) : 0] = 1.0;
+    Vector zeroVec(meshdim); zeroVec = 0.0;
+    Vector oneVec(meshdim);  oneVec = 0.0; oneVec[(prob == 2) ? (meshdim - 1) : 0] = 1.0;
     VectorConstantCoefficient zeroVecCoef(zeroVec);
     VectorConstantCoefficient oneVecCoef(oneVec);
 
@@ -457,7 +484,7 @@ int main(int argc, char* argv[])
     sigmaMat(0, 2) = 0.0; sigmaMat(2, 0) = 0.0;
     sigmaMat(0, 1) = M_SQRT1_2; sigmaMat(1, 0) = M_SQRT1_2; // 1/sqrt(2) in cmath
     sigmaMat(1, 2) = M_SQRT1_2; sigmaMat(2, 1) = M_SQRT1_2;
-    Vector omega(dim); omega = omega_;
+    Vector omega(meshdim); omega = omega_;
     sigmaMat.LeftScaling(omega);
     MatrixConstantCoefficient aniLossCoef(sigmaMat);
     //PrintMatrixConstantCoefficient(aniLossCoef);
@@ -481,21 +508,36 @@ int main(int argc, char* argv[])
         attr = 1;
         attrPML = 0;
         if (mesh->attributes.Max() > 1)
-        for(int i = 0; i<mesh->attributes.Max(); ++i)
-        {
-            bool found = false;
-            for (int j = 0; j < pmls.Size(); j++) {
-                if (i == pmls[j]) {
-                    found = true;
-                    break;
+            for(int i = 0; i<mesh->attributes.Max(); ++i)
+            {
+                bool found = false;
+                for (int j = 0; j < pmls.Size(); j++) {
+                    if (i == pmls[j]-1) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    attr[i] = 0;
+                    attrPML[i] = 1;
                 }
             }
-            if (found) {
-                attr[i] = 0;
-                attrPML[i] = 1;
-            }
-        }
     }
+
+    for (int i = 0; i < attr.Size(); i++)
+    {
+        std::cout << i << "th domain: " << attr[i] << " " << std::endl;
+        std::cout << i << "th PML: " << attrPML[i] << " " << std::endl;
+    }
+    std::cout << std::endl;
+
+    // Print comp_domain_bdr
+    std::cout << "comp_domain_bdr:" << std::endl;
+    PrintArray2D(comp_domain_bdr);
+
+    // Print domain_bdr
+    std::cout << "domain_bdr:" << std::endl;
+    PrintArray2D(domain_bdr);
 
     ConstantCoefficient muinv(1.0 / mu_ / mu0_);
     ConstantCoefficient omeg(-pow(omega_, 2) * epsilon_ * epsilon0_);
@@ -504,7 +546,7 @@ int main(int argc, char* argv[])
     RestrictedCoefficient restr_omeg(omeg,attr);
     RestrictedCoefficient restr_loss(loss,attr);
 
-    int cdim = (dim == 2) ? 1 : dim;
+    int cdim = (meshdim == 2) ? 1 : meshdim;
     PMLDiagMatrixCoefficient pml_c1_Re(cdim,detJ_inv_JT_J_Re, pml);
     PMLDiagMatrixCoefficient pml_c1_Im(cdim,detJ_inv_JT_J_Im, pml);
     ScalarVectorProductCoefficient c1_Re(muinv,pml_c1_Re);
@@ -512,8 +554,8 @@ int main(int argc, char* argv[])
     VectorRestrictedCoefficient restr_c1_Re(c1_Re,attrPML);
     VectorRestrictedCoefficient restr_c1_Im(c1_Im,attrPML);
 
-    PMLDiagMatrixCoefficient pml_c2_Re(dim, detJ_JT_J_inv_Re,pml);
-    PMLDiagMatrixCoefficient pml_c2_Im(dim, detJ_JT_J_inv_Im,pml);
+    PMLDiagMatrixCoefficient pml_c2_Re(meshdim, detJ_JT_J_inv_Re,pml);
+    PMLDiagMatrixCoefficient pml_c2_Im(meshdim, detJ_JT_J_inv_Im,pml);
     ScalarVectorProductCoefficient c2_Re(omeg,pml_c2_Re);
     ScalarVectorProductCoefficient c2_Im(omeg,pml_c2_Im);
     VectorRestrictedCoefficient restr_c2_Re(c2_Re,attrPML);
@@ -721,14 +763,26 @@ int main(int argc, char* argv[])
     }
 #else
     {
-        timer.Start();
-        PardisoSolver pardiso_solver;
-        pardiso_solver.SetPrintLevel(1); // set to 1 if want to see details
-        pardiso_solver.SetOperator(*Asp);
-        pardiso_solver.Mult(B, U);
-        timer.Stop();
-        double elapsed_time = timer.RealTime();
-        mfem::out << "Pardiso solver took " << elapsed_time << " seconds." << std::endl;
+        if (!comp_solver) {
+            timer.Start();
+            PardisoSolver pardiso_solver;
+            pardiso_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_solver.SetOperator(*Asp);
+            pardiso_solver.Mult(B, U);
+            timer.Stop();
+            double elapsed_time = timer.RealTime();
+            mfem::out << "Pardiso real solver took " << elapsed_time << " seconds." << std::endl;
+        }
+        else {
+            timer.Start();
+            PardisoCompSolver pardiso_comp_solver;
+            pardiso_comp_solver.SetOperator(*Asp_blk);
+            pardiso_comp_solver.SetPrintLevel(bprint); // set to 1 if want to see details
+            pardiso_comp_solver.Mult(B, U);
+            timer.Stop();
+            double elapsed_time = timer.RealTime();
+            mfem::out << "Pardiso complex solver took " << elapsed_time << " seconds." << std::endl;
+        }
     }
 #endif
 
@@ -848,10 +902,10 @@ int main(int argc, char* argv[])
     ParaViewDataCollection paraview_dc("ex98_2D_PML", mesh);
     paraview_dc.SetDataFormat(VTKFormat::ASCII);
     paraview_dc.SetPrefixPath("ParaView");
-    paraview_dc.SetLevelsOfDetail(order+1);
+    paraview_dc.SetLevelsOfDetail(order>1 ? order-1 : order);
     //paraview_dc.SetCycle(0);
     paraview_dc.SetDataFormat(VTKFormat::BINARY);
-    paraview_dc.SetHighOrderOutput(true);
+    // paraview_dc.SetHighOrderOutput(true);
     paraview_dc.SetTime(0.0); // set the time
     paraview_dc.RegisterField("real", &u.real());
     paraview_dc.RegisterField("imag", &u.imag());
@@ -965,16 +1019,18 @@ Mesh* LoadMeshNew(const std::string& path)
         fi << std::scientific;
         fi.precision(MSH_FLT_PRECISION);
 
+        Mesh* tempmesh = new Mesh();
+
         if (mfile.extension() == ".mphtxt" || mfile.extension() == ".mphbin")
         {
-            palace::mesh::ConvertMeshComsol(path, fi);
-            // mesh::ConvertMeshComsol(path, fo);
+            tempmesh->ConvertMeshComsol(path, fi);
         }
         else
         {
-            palace::mesh::ConvertMeshNastran(path, fi);
-            // mesh::ConvertMeshNastran(path, fo);
+            tempmesh->ConvertMeshNastran(path, fi);
         }
+
+        delete tempmesh;
 
         return new Mesh(fi, 1, 1, true);
     }
@@ -1003,6 +1059,19 @@ void PrintMatrixConstantCoefficient(mfem::MatrixConstantCoefficient& coeff)
         for (int j = 0; j < width; j++)
         {
             std::cout << std::setw(16) << mat(i, j) << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+// Function to print Array2D<double>
+void PrintArray2D(const mfem::Array2D<double>& arr)
+{
+    for (int i = 0; i < arr.NumRows(); i++)
+    {
+        for (int j = 0; j < arr.NumCols(); j++)
+        {
+            std::cout << arr(i, j) << " ";
         }
         std::cout << std::endl;
     }
@@ -1085,6 +1154,7 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D, int dim)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
+   std::cout << (dim) << std::endl;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
