@@ -57,7 +57,6 @@
 // add Laplace B.C. from ex27
 
 #include "mfem.hpp"
-#include "meshio.hpp"
 #include "mkl.h"
 
 #include <fstream>
@@ -70,6 +69,7 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <cstdlib> // for env
 
 using namespace std;
 using namespace mfem;
@@ -85,7 +85,7 @@ static constexpr double mu0_ = 4.0e-7 * M_PI;
 static double mu_ = 1.0;
 static double epsilon_ = 1.0;
 static double sigma_ = 0.0;
-static double omega_ = 10.0;
+double omega_ = 10.0;
 
 double u0_real_exact(const Vector&);
 double u0_imag_exact(const Vector&);
@@ -112,7 +112,26 @@ void AttrToMarker(int max_attr, const Array<int>& attrs, Array<int>& marker);
 int main(int argc, char* argv[])
 {
     std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+    mkl_set_dynamic(0);
+    mkl_set_num_threads(30);
+    std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
 
+    int result = 0;
+    #if defined(_WIN32) || defined(_WIN64)
+        result = _putenv("MKL_PARDISO_OOC_MAX_CORE_SIZE=60000");
+    #elif defined(__unix__) || defined(__APPLE__)
+        result = setenv("MKL_PARDISO_OOC_MAX_CORE_SIZE", "60000", 1);
+    #else
+        #error "Unknown compiler";
+    #endif
+
+    if (result != 0) {
+        std::cerr << "Failed to set environment variable." << std::endl;
+        return 2;
+    }
+    else {
+        std::cout << "MKL_PARDISO_OOC_MAX_CORE_SIZE=" << getenv("MKL_PARDISO_OOC_MAX_CORE_SIZE") << std::endl;
+    }
     // 1. Parse command-line options.
     //const char* mesh_file = "../data/em_sphere_mfem_ex0_coarse.mphtxt";
     //const char* mesh_file = "../data/em_sphere_mfem_ex0.mphtxt";
@@ -826,15 +845,15 @@ Mesh* LoadMeshNew(const std::string& path)
         fi << std::scientific;
         fi.precision(MSH_FLT_PRECISION);
 
+        Mesh* tempmesh = new Mesh();
+
         if (mfile.extension() == ".mphtxt" || mfile.extension() == ".mphbin")
         {
-            palace::mesh::ConvertMeshComsol(path, fi);
-            // mesh::ConvertMeshComsol(path, fo);
+            tempmesh->ConvertMeshComsol(path, fi);
         }
         else
         {
-            palace::mesh::ConvertMeshNastran(path, fi);
-            // mesh::ConvertMeshNastran(path, fo);
+            tempmesh->ConvertMeshNastran(path, fi);
         }
 
         return new Mesh(fi, 1, 1, true);
