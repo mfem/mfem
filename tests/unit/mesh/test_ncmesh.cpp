@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <array>
 namespace mfem
 {
 
@@ -299,8 +300,8 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
 
 // Given a parallel and a serial mesh, perform an L2 projection and check the
 // solutions match exactly.
-void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
-                       std::function<double(Vector const&)> exact_soln)
+std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
+                                        std::function<double(Vector const&)> exact_soln)
 {
    REQUIRE(pmesh.GetGlobalNE() == smesh.GetNE());
    REQUIRE(pmesh.Dimension() == smesh.Dimension());
@@ -393,26 +394,12 @@ void CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
       return x.ComputeL2Error(rhs_coef) / pnorm;
    }();
 
-   constexpr double test_tol = 1e-9;
-   CHECK(std::abs(serror - perror) < test_tol);
+   return {serror, perror};
 };
 
 
-TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
+TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
 {
-   constexpr int refining_rank = 0;
-   auto smesh = Mesh("../../data/ref-tetrahedron.mesh");
-
-   REQUIRE(smesh.GetNE() == 1);
-   {
-      // Start the test with two tetrahedra attached by triangle.
-      auto single_edge_refine = Array<Refinement>(1);
-      single_edge_refine[0].index = 0;
-      single_edge_refine[0].ref_type = Refinement::X;
-
-      smesh.GeneralRefinement(single_edge_refine, 0); // conformal
-   }
-
    auto exact_soln = [](const Vector& x)
    {
       // sin(|| x - d ||^2) -> non polynomial but very smooth.
@@ -422,103 +409,239 @@ TEST_CASE("FaceEdgeConstraint",  "[Parallel], [NCMesh]")
       return std::sin(d * d);
    };
 
-   REQUIRE(smesh.GetNE() == 2);
-   smesh.EnsureNCMesh(true);
-   smesh.Finalize();
-
-   auto partition = std::unique_ptr<int[]>(new int[smesh.GetNE()]);
-   partition[0] = 0;
-   partition[1] = Mpi::WorldSize() > 1 ? 1 : 0;
-
-   auto pmesh = ParMesh(MPI_COMM_WORLD, smesh, partition.get());
-
-   // Construct the NC refined mesh in parallel and serial. Once constructed a
-   // global L2 projected solution should match exactly on each.
-   Array<int> refines, serial_refines(1);
-   if (Mpi::WorldRank() == refining_rank)
+   SECTION("ReferenceTet")
    {
-      refines.Append(0);
-   }
+      constexpr int refining_rank = 0;
+      auto smesh = Mesh("../../data/ref-tetrahedron.mesh");
 
-   // Must be called on all ranks as it uses MPI calls internally.
-   // All ranks will use the global element number dictated by rank 0 though.
-   serial_refines[0] = pmesh.GetGlobalElementNum(0);
-   MPI_Bcast(&serial_refines[0], 1, MPI_INT, refining_rank, MPI_COMM_WORLD);
+      REQUIRE(smesh.GetNE() == 1);
+      {
+         // Start the test with two tetrahedra attached by triangle.
+         auto single_edge_refine = Array<Refinement>(1);
+         single_edge_refine[0].index = 0;
+         single_edge_refine[0].ref_type = Refinement::X;
 
-   // Rank 0 refines the parallel mesh, all ranks refine the serial mesh
-   smesh.GeneralRefinement(serial_refines, 1); // nonconformal
-   pmesh.GeneralRefinement(refines, 1); // nonconformal
+         smesh.GeneralRefinement(single_edge_refine, 0); // conformal
+      }
 
-   REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
-   REQUIRE(smesh.GetNE() == 8 + 1);
 
-   // Each pair of indices here represents sequential element indices to refine.
-   // First the i element is refined, then in the resulting mesh the j element is
-   // refined. These pairs were arrived at by looping over all possible i,j pairs and
-   // checking for the addition of a face-edge constraint.
-   std::vector<std::pair<int,int>> indices{{2,13}, {3,13}, {6,2}, {6,3}};
+      REQUIRE(smesh.GetNE() == 2);
+      smesh.EnsureNCMesh(true);
+      smesh.Finalize();
 
-   // Rank 0 has all but one element in the parallel mesh. The remaining element
-   // is owned by another processor if the number of ranks is greater than one.
-   for (const auto &ij : indices)
-   {
-      int i = ij.first;
-      int j = ij.second;
+      auto partition = std::unique_ptr<int[]>(new int[smesh.GetNE()]);
+      partition[0] = 0;
+      partition[1] = Mpi::WorldSize() > 1 ? 1 : 0;
+
+      auto pmesh = ParMesh(MPI_COMM_WORLD, smesh, partition.get());
+
+      // Construct the NC refined mesh in parallel and serial. Once constructed a
+      // global L2 projected solution should match exactly on each.
+      Array<int> refines, serial_refines(1);
       if (Mpi::WorldRank() == refining_rank)
       {
-         refines[0] = i;
+         refines.Append(0);
       }
-      // Inform all ranks of the serial mesh
-      serial_refines[0] = pmesh.GetGlobalElementNum(i);
-      MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-      ParMesh tmp(pmesh);
-      tmp.GeneralRefinement(refines);
+      // Must be called on all ranks as it uses MPI calls internally.
+      // All ranks will use the global element number dictated by rank 0 though.
+      serial_refines[0] = pmesh.GetGlobalElementNum(0);
+      MPI_Bcast(&serial_refines[0], 1, MPI_INT, refining_rank, MPI_COMM_WORLD);
 
-      REQUIRE(tmp.GetGlobalNE() == 1 + 8 - 1 + 8); // 16 elements
+      // Rank 0 refines the parallel mesh, all ranks refine the serial mesh
+      smesh.GeneralRefinement(serial_refines, 1); // nonconformal
+      pmesh.GeneralRefinement(refines, 1); // nonconformal
 
-      Mesh stmp(smesh);
-      stmp.GeneralRefinement(serial_refines);
-      REQUIRE(stmp.GetNE() == 1 + 8 - 1 + 8); // 16 elements
+      REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
+      REQUIRE(smesh.GetNE() == 8 + 1);
 
-      if (Mpi::WorldRank() == refining_rank)
+      // Each pair of indices here represents sequential element indices to refine.
+      // First the i element is refined, then in the resulting mesh the j element is
+      // refined. These pairs were arrived at by looping over all possible i,j pairs and
+      // checking for the addition of a face-edge constraint.
+      std::vector<std::pair<int,int>> indices{{2,13}, {3,13}, {6,2}, {6,3}};
+
+      // Rank 0 has all but one element in the parallel mesh. The remaining element
+      // is owned by another processor if the number of ranks is greater than one.
+      for (const auto &ij : indices)
       {
-         refines[0] = j;
+         int i = ij.first;
+         int j = ij.second;
+         if (Mpi::WorldRank() == refining_rank)
+         {
+            refines[0] = i;
+         }
+         // Inform all ranks of the serial mesh
+         serial_refines[0] = pmesh.GetGlobalElementNum(i);
+         MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+         ParMesh tmp(pmesh);
+         tmp.GeneralRefinement(refines);
+
+         REQUIRE(tmp.GetGlobalNE() == 1 + 8 - 1 + 8); // 16 elements
+
+         Mesh stmp(smesh);
+         stmp.GeneralRefinement(serial_refines);
+         REQUIRE(stmp.GetNE() == 1 + 8 - 1 + 8); // 16 elements
+
+         if (Mpi::WorldRank() == refining_rank)
+         {
+            refines[0] = j;
+         }
+         // Inform all ranks of the serial mesh
+         serial_refines[0] = tmp.GetGlobalElementNum(j);
+         MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+         ParMesh ttmp(tmp);
+         ttmp.GeneralRefinement(refines);
+
+         REQUIRE(ttmp.GetGlobalNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
+
+         Mesh sttmp(stmp);
+         sttmp.GeneralRefinement(serial_refines);
+         REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
+
+         // Loop over interior faces, fill and check face transform on the serial.
+         for (int iface = 0; iface < sttmp.GetNumFaces(); ++iface)
+         {
+            const auto face_transform = sttmp.GetFaceElementTransformations(iface);
+            CHECK(face_transform->CheckConsistency(0) < 1e-12);
+         }
+
+         for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
+         {
+            const auto face_transform = ttmp.GetFaceElementTransformations(iface);
+            CHECK(face_transform->CheckConsistency(0) < 1e-12);
+         }
+
+         // Use P4 to ensure there's a few fully interior DOF.
+         {
+            auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
+            double constexpr tol = 1e-9;
+            CHECK(std::abs(error[1] - error[0]) < tol);
+         }
+         ttmp.ExchangeFaceNbrData();
+         ttmp.Rebalance();
+         {
+            auto error = CheckL2Projection(ttmp, sttmp, 4, exact_soln);
+            double constexpr tol = 1e-9;
+            CHECK(std::abs(error[1] - error[0]) < tol);
+         }
       }
-      // Inform all ranks of the serial mesh
-      serial_refines[0] = tmp.GetGlobalElementNum(j);
-      MPI_Bcast(&serial_refines[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-      ParMesh ttmp(tmp);
-      ttmp.GeneralRefinement(refines);
-
-      REQUIRE(ttmp.GetGlobalNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
-
-      Mesh sttmp(stmp);
-      sttmp.GeneralRefinement(serial_refines);
-      REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
-
-      // Loop over interior faces, fill and check face transform on the serial.
-      for (int iface = 0; iface < sttmp.GetNumFaces(); ++iface)
-      {
-         const auto face_transform = sttmp.GetFaceElementTransformations(iface);
-         CHECK(face_transform->CheckConsistency(0) < 1e-12);
-      }
-
-      for (int iface = 0; iface < ttmp.GetNumFacesWithGhost(); ++iface)
-      {
-         const auto face_transform = ttmp.GetFaceElementTransformations(iface);
-         CHECK(face_transform->CheckConsistency(0) < 1e-12);
-      }
-
-      // Use P4 to ensure there's a few fully interior DOF.
-      CheckL2Projection(ttmp, sttmp, 4, exact_soln);
-
-      ttmp.ExchangeFaceNbrData();
-      ttmp.Rebalance();
-
-      CheckL2Projection(ttmp, sttmp, 4, exact_soln);
    }
+
+   auto CheckSerialParallelH1Equivalence = [](Mesh &smesh)
+   {
+      constexpr int dim = 3;
+      constexpr int order = 2;
+      H1_FECollection nd_fec(order, dim);
+      FiniteElementSpace fes(&smesh, &nd_fec);
+      const auto serial_ntdof = fes.GetTrueVSize();
+
+      ParMesh mesh(MPI_COMM_WORLD, smesh);
+      ParFiniteElementSpace pfes(&mesh, &nd_fec);
+      const auto parallel_ntdof = pfes.GlobalTrueVSize();
+
+      // If nc constraints have been observed correctly, the number of true dof in
+      // parallel should match the number of true dof in serial. If the number of
+      // parallel dofs is greater, then a slave constraint has not been fully labeled.
+      CHECK(serial_ntdof == parallel_ntdof);
+   };
+
+   auto CheckSerialParallelNDEquivalence = [](Mesh &smesh)
+   {
+      constexpr int dim = 3;
+      constexpr int order = 1;
+      ND_FECollection nd_fec(order, dim);
+      FiniteElementSpace fes(&smesh, &nd_fec);
+      const auto serial_ntdof = fes.GetTrueVSize();
+
+      ParMesh mesh(MPI_COMM_WORLD, smesh);
+      ParFiniteElementSpace pfes(&mesh, &nd_fec);
+      const auto parallel_ntdof = pfes.GlobalTrueVSize();
+
+      // If nc constraints have been observed correctly, the number of true dof in
+      // parallel should match the number of true dof in serial. If the number of
+      // parallel dofs is greater, then a slave constraint has not been fully labeled.
+      CHECK(serial_ntdof == parallel_ntdof);
+   };
+
+   SECTION("LevelTwoRefinement")
+   {
+      Mesh smesh("../../data/ref-tetrahedron.mesh");
+      Array<Refinement> aniso_ref(1);
+      aniso_ref[0].index = 0;
+      aniso_ref[0].ref_type = Refinement::X;
+      smesh.GeneralRefinement(aniso_ref);
+      smesh.UniformRefinement();
+      smesh.EnsureNCMesh(true);
+      Array<int> el_to_refine(1);
+
+      for (int n = 0; n < smesh.GetNE(); n++)
+      {
+         Mesh smesh2(smesh);
+         el_to_refine[0] = n;
+         smesh2.GeneralRefinement(el_to_refine);
+         for (int m = 0; m < smesh2.GetNE(); m++)
+         {
+            Mesh smesh3(smesh2);
+            el_to_refine[0] = m;
+            smesh3.GeneralRefinement(el_to_refine);
+            CAPTURE(n,m);
+            CheckSerialParallelNDEquivalence(smesh3);
+            CheckSerialParallelH1Equivalence(smesh3);
+         }
+      }
+   }
+
+   SECTION("EdgeCasePartition")
+   {
+      Mesh smesh("../../data/ref-tetrahedron.mesh");
+      smesh.UniformRefinement();
+      smesh.EnsureNCMesh(true);
+      Array<int> el_to_refine(1);
+
+      el_to_refine[0] = 0;
+      smesh.GeneralRefinement(el_to_refine);
+
+      // This particular partition was found by brute force search. The default rebalancing
+      // can in rare cases produce similar local patterns, particularly for highly adapted meshes.
+      auto partition = std::unique_ptr<int[]>(new int[smesh.GetNE()]);
+      if (Mpi::WorldSize() > 1)
+      {
+         auto bad_partition = std::vector<int> {0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+         std::copy(bad_partition.begin(), bad_partition.end(), partition.get());
+      }
+      else
+      {
+         for (int i = 0; i < smesh.GetNE(); i++)
+         {
+            partition[i] = 0;
+         }
+      }
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.get());
+
+      {
+         constexpr int dim = 3;
+         constexpr int order = 1;
+         ND_FECollection nd_fec(order, dim);
+         FiniteElementSpace fes(&smesh, &nd_fec);
+         const auto serial_ntdof = fes.GetTrueVSize();
+         ParFiniteElementSpace pfes(&pmesh, &nd_fec);
+         pfes.ExchangeFaceNbrData();
+         const auto parallel_ntdof = pfes.GlobalTrueVSize();
+         CHECK(serial_ntdof == parallel_ntdof);
+      }
+
+      for (int order = 1; order <= 4; order++)
+      {
+         CAPTURE(order);
+         auto error = CheckL2Projection(pmesh, smesh, order, exact_soln);
+         double constexpr tol = 1e-9;
+         CHECK(std::abs(error[1] - error[0]) < tol);
+      }
+   }
+
 } // test case
 
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0)
@@ -716,7 +839,8 @@ TEST_CASE("P2Q1PureTetHexPri",  "[Parallel], [NCMesh]")
       auto pmesh = ParMesh(MPI_COMM_WORLD, smesh);
 
       // P2 ensures there are triangles without dofs
-      CheckL2Projection(pmesh, smesh, 2, exact_soln);
+      auto error = CheckL2Projection(pmesh, smesh, 2, exact_soln);
+      CHECK(std::abs(error[1] - error[0]) < 1e-9);
    }
 } // test case
 
@@ -759,7 +883,8 @@ TEST_CASE("PNQ2PureTetHexPri",  "[Parallel], [NCMesh]")
 
       for (int p = 1; p < 3; ++p)
       {
-         CheckL2Projection(pmesh, smesh, p, exact_soln);
+         auto error = CheckL2Projection(pmesh, smesh, p, exact_soln);
+         CHECK(std::abs(error[1] - error[0]) < 1e-9);
       }
    }
 } // test case
