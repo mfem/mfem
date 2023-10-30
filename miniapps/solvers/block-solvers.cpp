@@ -326,12 +326,6 @@ int main(int argc, char *argv[])
 
    int dim = mesh->Dimension();
 
-   if (Mpi::Root())
-   {
-      cout << "Number of serial refinements: " << ser_ref_levels << "\n"
-           << "Number of parallel refinements: " << par_ref_levels << "\n";
-   }
-
    for (int i = 0; i < ser_ref_levels; ++i)
    {
       mesh->UniformRefinement();
