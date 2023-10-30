@@ -936,7 +936,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       for (int j = mf.slaves_begin; j < mf.slaves_end; j++)
       {
          const Slave &sf = full_list.slaves[j];
-         if (sf.element < 0) { continue; }
+         if (sf.element < 0 || sf.index < 0) { continue; }
 
          MFEM_ASSERT(mf.element >= 0, "");
          Element* e[2] = { &elements[mf.element], &elements[sf.element] };
