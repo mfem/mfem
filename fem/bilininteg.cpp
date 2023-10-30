@@ -2456,7 +2456,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
 {
    int dof = el.GetDof();
    int spaceDim = Trans.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetVDim());
+   int vdim = std::max(spaceDim, el.GetRangeDim());
 
    double w;
 
@@ -2524,7 +2524,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int spaceDim = Trans.GetSpaceDim();
-      int vdim = std::max(spaceDim, trial_fe.GetVDim());
+      int vdim = std::max(spaceDim, trial_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
@@ -2622,8 +2622,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    {
       // assume both test_fe and trial_fe are vector FE
       int spaceDim = Trans.GetSpaceDim();
-      int trial_vdim = std::max(spaceDim, trial_fe.GetVDim());
-      int test_vdim = std::max(spaceDim, test_fe.GetVDim());
+      int trial_vdim = std::max(spaceDim, trial_fe.GetRangeDim());
+      int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
