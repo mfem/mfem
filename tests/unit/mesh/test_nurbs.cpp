@@ -24,12 +24,17 @@ TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
    Vector k1(1);
    Vector k2(1);
 
+   k0[0] = 0.5;
+   k1[0] = 0.5;
+   k2[0] = 0.5;
+
    Array<Vector*> knots(3);
    knots[0] = &k0;
    knots[1] = &k1;
    knots[2] = &k2;
 
    mesh1.KnotInsert(knots);
+
    REQUIRE(mesh1.GetNodes()->Size() > mesh2.GetNodes()->Size());
 
    mesh1.KnotRemove(knots);
