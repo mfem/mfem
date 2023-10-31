@@ -1301,7 +1301,7 @@ protected:
    double current_volume;
 
 private:
-   Array<int> &ess_bdr;
+   Array2D<int> ess_bdr;
    Coefficient *rho;
    VectorCoefficient *force;
    ProductCoefficient SIMPlambda, SIMPmu;
@@ -1315,7 +1315,8 @@ private:
 class LineSearchAlgorithm
 {
 public:
-   LineSearchAlgorithm(ObjectiveFunction &F, double max_step_size=1e06):F(F), max_step_size(max_step_size) {}
+   LineSearchAlgorithm(ObjectiveFunction &F, double max_step_size=1e06):F(F),
+      max_step_size(max_step_size) {}
    virtual double Step(GridFunction &x, const GridFunction &d) = 0;
    double GetStepSize() { return step_size; }
    void SetStepSize(double s) { step_size = s; }
