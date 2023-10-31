@@ -36,9 +36,10 @@ extern "C" {
       uint *offset;
    };
 
-   struct findpts_dummy_ms_data {
-       unsigned int *nsid;
-       double       *distfint;
+   struct findpts_dummy_ms_data
+   {
+      unsigned int *nsid;
+      double       *distfint;
    };
 
    struct findpts_data_3
@@ -68,9 +69,9 @@ namespace mfem
 dlong getHashSize(const struct gslib::findpts_data_3 *fd,
                   dlong nel, dlong max_hash_size)
 {
-  const gslib::findpts_local_data_3 *fd_local = &fd->local;
-  auto hash_data_copy = fd_local->hd;
-  return hash_opt_size_3(&hash_data_copy, fd_local->obb, nel, max_hash_size);
+   const gslib::findpts_local_data_3 *fd_local = &fd->local;
+   auto hash_data_copy = fd_local->hd;
+   return hash_opt_size_3(&hash_data_copy, fd_local->obb, nel, max_hash_size);
 }
 
 FindPointsGSLIB::FindPointsGSLIB()
@@ -227,8 +228,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    bool dev_mode = point_pos.UseDevice();
    if (dev_mode)
    {
-       FindPointsOnDevice(point_pos, point_pos_ordering);
-       return;
+      FindPointsOnDevice(point_pos, point_pos_ordering);
+      return;
    }
 
    points_cnt = point_pos.Size() / dim;
@@ -318,41 +319,41 @@ static inline void device_copy(T1 *d_dest, const T2 *d_src, int size)
 
 void FindPointsGSLIB::
 FindPointsOnDevice(const Vector &point_pos,
-                                         int point_pos_ordering)
+                   int point_pos_ordering)
 {
-    points_cnt = point_pos.Size() / dim;
-    MemoryType mt = point_pos.GetMemory().GetMemoryType();
-    SetupDevice(mt);
+   points_cnt = point_pos.Size() / dim;
+   MemoryType mt = point_pos.GetMemory().GetMemoryType();
+   SetupDevice(mt);
 
-    gsl_code_dev.SetSize(points_cnt, mt);
-    gsl_proc_dev.SetSize(points_cnt, mt);
-    gsl_elem_dev.SetSize(points_cnt, mt);
+   gsl_code_dev.SetSize(points_cnt, mt);
+   gsl_proc_dev.SetSize(points_cnt, mt);
+   gsl_elem_dev.SetSize(points_cnt, mt);
 
-    gsl_ref.SetSize(points_cnt * dim);
-    gsl_dist.SetSize(points_cnt);
-    gsl_ref.UseDevice(true);
-    gsl_dist.UseDevice(true);
+   gsl_ref.SetSize(points_cnt * dim);
+   gsl_dist.SetSize(points_cnt);
+   gsl_ref.UseDevice(true);
+   gsl_dist.UseDevice(true);
 
-    MFEM_VERIFY(point_pos_ordering == Ordering::byNODES,
-                "Only byNodes ordering supported on device right now");
+   MFEM_VERIFY(point_pos_ordering == Ordering::byNODES,
+               "Only byNodes ordering supported on device right now");
 
-    FindPointsLocal(point_pos);
+   FindPointsLocal(point_pos);
 
-    gsl_code.SetSize(points_cnt);
-    gsl_proc.SetSize(points_cnt);
-    gsl_elem.SetSize(points_cnt);
+   gsl_code.SetSize(points_cnt);
+   gsl_proc.SetSize(points_cnt);
+   gsl_elem.SetSize(points_cnt);
 
-    gsl_code_dev.HostRead();
-    gsl_proc_dev.HostRead();
-    gsl_elem_dev.HostRead();
+   gsl_code_dev.HostRead();
+   gsl_proc_dev.HostRead();
+   gsl_elem_dev.HostRead();
 
-    gsl_ref.HostReadWrite();
-    gsl_dist.HostReadWrite();
-    DEV.info.HostReadWrite();
+   gsl_ref.HostReadWrite();
+   gsl_dist.HostReadWrite();
+   DEV.info.HostReadWrite();
 
-    internal::device_copy(gsl_code.GetData(), gsl_code_dev.Read(), points_cnt);
-    internal::device_copy(gsl_proc.GetData(), gsl_proc_dev.Read(), points_cnt);
-    internal::device_copy(gsl_elem.GetData(), gsl_elem_dev.Read(), points_cnt);
+   internal::device_copy(gsl_code.GetData(), gsl_code_dev.Read(), points_cnt);
+   internal::device_copy(gsl_proc.GetData(), gsl_proc_dev.Read(), points_cnt);
+   internal::device_copy(gsl_elem.GetData(), gsl_elem_dev.Read(), points_cnt);
 }
 
 void FindPointsGSLIB::SetupDevice(MemoryType mt)
@@ -404,7 +405,7 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
 
       for (int d = 0; d < dim; d++)
       {
-//         DEV.o_c(dim * e + d) = box.c0[d];
+         //         DEV.o_c(dim * e + d) = box.c0[d];
          p_o_c[dim*e+d] = box.c0[d];
          p_o_min[dim*e+d] = box.x[d].min;
          p_o_max[dim*e+d] = box.x[d].max;

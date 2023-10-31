@@ -25,19 +25,23 @@ namespace mfem
 #define pDIM 3
 #define dlong int
 #define dfloat double
-struct findptsElementPoint_t {
-  dfloat x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
-  dlong flags;
+struct findptsElementPoint_t
+{
+   dfloat x[pDIM], r[pDIM], oldr[pDIM], dist2, dist2p, tr;
+   dlong flags;
 };
 
-struct findptsElementGFace_t {
-  dfloat *x[pDIM], *dxdn[pDIM];
+struct findptsElementGFace_t
+{
+   dfloat *x[pDIM], *dxdn[pDIM];
 };
-struct findptsElementGEdge_t {
-  dfloat *x[pDIM], *dxdn1[pDIM], *dxdn2[pDIM], *d2xdn1[pDIM], *d2xdn2[pDIM];
+struct findptsElementGEdge_t
+{
+   dfloat *x[pDIM], *dxdn1[pDIM], *dxdn2[pDIM], *d2xdn1[pDIM], *d2xdn2[pDIM];
 };
-struct findptsElementGPT_t {
-  dfloat x[pDIM], jac[pDIM * pDIM], hes[18];
+struct findptsElementGPT_t
+{
+   dfloat x[pDIM], jac[pDIM * pDIM], hes[18];
 };
 
 //struct findptsElementData_t {
@@ -59,20 +63,23 @@ struct findptsElementGPT_t {
 //  dfloat *work;
 //};
 
-struct dbl_range_t {
-  dfloat min, max;
+struct dbl_range_t
+{
+   dfloat min, max;
 };
-struct obbox_t {
-  dfloat c0[pDIM], A[pDIM * pDIM];
-  dbl_range_t x[pDIM];
+struct obbox_t
+{
+   dfloat c0[pDIM], A[pDIM * pDIM];
+   dbl_range_t x[pDIM];
 };
 
-struct findptsLocalHashData_t {
-  dlong hash_n;
-  dbl_range_t bnd[pDIM];
-  dfloat fac[pDIM];
-  dlong *offset;
-  dlong max;
+struct findptsLocalHashData_t
+{
+   dlong hash_n;
+   dbl_range_t bnd[pDIM];
+   dfloat fac[pDIM];
+   dlong *offset;
+   dlong max;
 };
 #undef dlong
 #undef dfloat
