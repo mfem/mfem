@@ -150,8 +150,8 @@ class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
    double r;
-   Vector center;
-   Vector force;
+   Vector &center;
+   Vector &force;
 public:
    VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
       VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
