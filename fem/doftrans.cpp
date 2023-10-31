@@ -146,22 +146,14 @@ void TransformPrimal(const DofTransformation *ran_dof_trans,
                      const DofTransformation *dom_dof_trans,
                      DenseMatrix &elmat)
 {
-   if (ran_dof_trans && dom_dof_trans)
-   {
-      ran_dof_trans->TransformPrimalCols(elmat);
-      dom_dof_trans->TransformDualRows(elmat);
-   }
-   else if (ran_dof_trans)
+   // No action if both transformations are NULL
+   if (ran_dof_trans)
    {
       ran_dof_trans->TransformPrimalCols(elmat);
    }
-   else if (dom_dof_trans)
+   if (dom_dof_trans)
    {
       dom_dof_trans->TransformDualRows(elmat);
-   }
-   else
-   {
-      // If both transformations are NULL this function should not be called
    }
 }
 
@@ -169,22 +161,14 @@ void TransformDual(const DofTransformation *ran_dof_trans,
                    const DofTransformation *dom_dof_trans,
                    DenseMatrix &elmat)
 {
-   if (ran_dof_trans && dom_dof_trans)
-   {
-      ran_dof_trans->TransformDualCols(elmat);
-      dom_dof_trans->TransformDualRows(elmat);
-   }
-   else if (ran_dof_trans)
+   // No action if both transformations are NULL
+   if (ran_dof_trans)
    {
       ran_dof_trans->TransformDualCols(elmat);
    }
-   else if (dom_dof_trans)
+   if (dom_dof_trans)
    {
       dom_dof_trans->TransformDualRows(elmat);
-   }
-   else
-   {
-      // If both transformations are NULL this function should not be called
    }
 }
 
@@ -231,7 +215,7 @@ void ND_DofTransformation::TransformPrimal(const Array<int> & Fo,
                                            double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (IsEmpty()) { return; }
+   if (IsIdentity()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
@@ -257,7 +241,7 @@ void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
                                               double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (IsEmpty()) { return; }
+   if (IsIdentity()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
@@ -282,7 +266,7 @@ void ND_DofTransformation::InvTransformPrimal(const Array<int> & Fo,
 void ND_DofTransformation::TransformDual(const Array<int> & Fo, double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (IsEmpty()) { return; }
+   if (IsIdentity()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "
@@ -308,7 +292,7 @@ void ND_DofTransformation::InvTransformDual(const Array<int> & Fo,
                                             double *v) const
 {
    // Return immediately when no face DoFs are present
-   if (IsEmpty()) { return; }
+   if (IsIdentity()) { return; }
 
    MFEM_VERIFY(Fo.Size() >= nfaces,
                "Face orientation array is shorter than the number of faces in "

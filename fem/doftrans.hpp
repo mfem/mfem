@@ -81,7 +81,7 @@ public:
    inline int NumCols() const { return size_; }
 
    /// If the DofTransformation performs no transformation
-   virtual bool IsEmpty() const = 0;
+   virtual bool IsIdentity() const = 0;
 
    /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
@@ -201,7 +201,7 @@ public:
    inline int NumRows() const { return dof_trans_->NumRows(); }
    inline int Width() const { return dof_trans_->Width(); }
    inline int NumCols() const { return dof_trans_->NumCols(); }
-   inline bool IsEmpty() const { return dof_trans_->IsEmpty(); }
+   inline bool IsIdentity() const { return dof_trans_->IsIdentity(); }
 
    /** Transform local DoFs to align with the global DoFs. For example, this
        transformation can be used to map the local vector computed by
@@ -322,7 +322,7 @@ public:
    static const DenseMatrix & GetFaceInverseTransform(int ori)
    { return TInv(ori); }
 
-   bool IsEmpty() const override { return nfdofs < 2; }
+   bool IsIdentity() const override { return nfdofs < 2; }
 
    void TransformPrimal(const Array<int> & Fo, double *v) const override;
    void InvTransformPrimal(const Array<int> & Fo, double *v) const override;
