@@ -350,21 +350,21 @@ int main (int argc, char *argv[])
             vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
             vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
-//          if (i == 0) {
-//              vxyz(i) = 0.5;
-//              vxyz(i + pts_cnt) = 0.5;
-//              vxyz(i + 2*pts_cnt) = 0.5;
-//          }
-//          else if (i == 1) {
-//              vxyz(i) = 0.333;
-//              vxyz(i + pts_cnt) = 0.33;
-//              vxyz(i + 2*pts_cnt) = 0.33;
-//          }
-//          else if (i == 2) {
-//              vxyz(i) = 1.0;
-//              vxyz(i + pts_cnt) = 0.3;
-//              vxyz(i + 2*pts_cnt) = 0.33;
-//          }
+         //          if (i == 0) {
+         //              vxyz(i) = 0.5;
+         //              vxyz(i + pts_cnt) = 0.5;
+         //              vxyz(i + 2*pts_cnt) = 0.5;
+         //          }
+         //          else if (i == 1) {
+         //              vxyz(i) = 0.333;
+         //              vxyz(i + pts_cnt) = 0.33;
+         //              vxyz(i + 2*pts_cnt) = 0.33;
+         //          }
+         //          else if (i == 2) {
+         //              vxyz(i) = 1.0;
+         //              vxyz(i + pts_cnt) = 0.3;
+         //              vxyz(i + 2*pts_cnt) = 0.33;
+         //          }
       }
    }
    vxyz.ReadWrite();
@@ -429,30 +429,32 @@ int main (int argc, char *argv[])
    int notfound = 0;
    for (int i = 0; i < code_out1.Size(); i++)
    {
-       int c1 = code_out1[i];
-       int c2 = code_out2[i];
-       int e1 = el_out1[i];
-       int e2 = el_out2[i];
-       Vector ref1(ref_rst1.GetData()+i*dim, dim);
-       Vector ref2(ref_rst2.GetData()+i*dim, dim);
-       Vector dref = ref1;
-       dref -= ref2;
+      int c1 = code_out1[i];
+      int c2 = code_out2[i];
+      int e1 = el_out1[i];
+      int e2 = el_out2[i];
+      Vector ref1(ref_rst1.GetData()+i*dim, dim);
+      Vector ref2(ref_rst2.GetData()+i*dim, dim);
+      Vector dref = ref1;
+      dref -= ref2;
 
-       //       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
-       if (std::fabs(dist1(i)) > 1e-10)
-       {
-           notfound++;
-           std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
-                        vxyz(i+2*pts_cnt) << " k10\n";
-           std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
-                        c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
-           std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
-           std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " << ref1(0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
-       }
+      //       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
+      if (std::fabs(dist1(i)) > 1e-10)
+      {
+         notfound++;
+         std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
+                   vxyz(i+2*pts_cnt) << " k10\n";
+         std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
+                   c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
+         std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(
+                      0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
+         std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " << ref1(
+                      0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
+      }
    }
 
    std::cout << notfound << " k10donefindpoints\n";
-//   std::cout << info1(0) << " " << info1(1) << " k10c\n";
+   //   std::cout << info1(0) << " " << info1(1) << " k10c\n";
    MFEM_ABORT("aboritng in miniapp\n");
    finder.Interpolate(field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
