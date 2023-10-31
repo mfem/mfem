@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
    GridFunction designDensity_gf(&filter_fes);
    designDensity_gf = pow(vol_fraction, exponent);
    // designDensity_gf.ProjectCoefficient(designDensity);
-   
+
    GridFunction &u = *obj.GetDisplacement();
    GridFunction &rho_filter = *obj.GetFilteredDensity();
 
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
       double compliance = lineSearch.Step(psi, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
       psi_old = psi;
-      
+
       mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
                 std::endl;
       mfem::out << "compliance = " <<  compliance << std::endl;
