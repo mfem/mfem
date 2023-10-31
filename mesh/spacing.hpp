@@ -655,6 +655,11 @@ public:
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
    virtual bool Nested() const override;
 
+   ~PiecewiseSpacingFunction()
+   {
+      for (auto p : pieces) { delete p; }
+   }
+
 private:
    int np;  // Number of pieces
    Vector partition;
