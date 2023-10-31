@@ -398,6 +398,7 @@ int main(int argc, char *argv[])
          designDensity_gf.ProjectCoefficient(designDensity);
          sout_SIMP << "solution\n" << mesh << designDensity_gf
                    << flush;
+         rho_gf.ProjectCoefficient(rho);
          sout_r << "solution\n" << mesh << rho_gf
                 << flush;
 
