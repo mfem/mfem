@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
-#include "geom.hpp"
 
 #ifdef MFEM_USE_GSLIB
 

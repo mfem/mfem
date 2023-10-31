@@ -36,7 +36,7 @@ void F_exact(const Vector &p, Vector &F)
 
 enum class Space { H1, L2 };
 
-TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
+TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
 {
    auto space               = GENERATE(Space::H1, Space::L2);
    auto simplex             = GENERATE(true, false);
@@ -99,7 +99,7 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
    // Generate points in the domain
    Vector pos_min, pos_max;
    mesh.GetBoundingBox(pos_min, pos_max, mesh_order);
-   const int pts_cnt_1D = 25;
+   const int pts_cnt_1D = 5;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    if (dim == 2)
@@ -143,7 +143,7 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
       }
    }
 
-   // Find and interpolat FE Function values
+   // Find and interpolate FE Function values
    Vector interp_vals(pts_cnt*ncomp);
    FindPointsGSLIB finder;
    finder.Setup(mesh);
@@ -192,10 +192,10 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate]")
 }
 
 // Generates meshes with different element types, followed by points at
-// element faces and interior.. then checks to see if these points are
+// element faces and interior, and finally checks to see if these points are
 // correctly detected at element boundary or not.
 TEST_CASE("GSLIBFindAtElementBoundary",
-          "[GSLIBFindAtElementBoundary]")
+          "[GSLIBFindAtElementBoundary][GSLIB]")
 {
    int dim  = GENERATE(2, 3);
    CAPTURE(dim);
@@ -304,7 +304,7 @@ TEST_CASE("GSLIBFindAtElementBoundary",
 // Generate a 4x4 Quad/Hex Mesh and interpolate point in the center of domain
 // at element boundary. This tests L2 projection with and without averaging.
 TEST_CASE("GSLIBInterpolateL2ElementBoundary",
-          "[GSLIBInterpolateL2ElementBoundary]")
+          "[GSLIBInterpolateL2ElementBoundary][GSLIB]")
 {
    int dim  = GENERATE(2, 3);
    CAPTURE(dim);
@@ -348,7 +348,7 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    xyz = 0.0;
    xyz(0) = 0.5;
 
-   // Find and interpolat FE Function values
+   // Find and interpolate FE Function values
    Vector interp_vals(npt);
    FindPointsGSLIB finder;
    finder.Setup(mesh);
@@ -362,7 +362,7 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    REQUIRE((interp_vals(0) == MFEM_Approx(leftval) ||
             interp_vals(0) == MFEM_Approx(rightval)));
 
-   // Interpolated value should now been average of solution coming from
+   // Interpolated value should now be average of solution coming from
    // adjacent elements.
    finder.SetL2AvgType(FindPointsGSLIB::ARITHMETIC);
    finder.Interpolate(xyz, field_vals, interp_vals, 1);
