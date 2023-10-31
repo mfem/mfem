@@ -1496,6 +1496,30 @@ protected:
    GridFunction old_grad, old_latent;
 };
 
+
+class BackTrackingLipschitzBregmanMirror : public LipschitzBregmanMirror
+{
+public:
+   BackTrackingLipschitzBregmanMirror(ObjectiveFunction &F,
+                                      LinearForm &diff_primal,
+                                      GridFunction &grad, GridFunction &latent, double c1, double weight=1.0,
+                                      double eps=1e-10, double max_step_size=1e06):
+      LipschitzBregmanMirror(F, diff_primal, grad, latent, weight, eps,
+                             max_step_size), backTrackingLineSearch(F, 1.0, 1.0, c1) {}
+   virtual double Step(GridFunction &x, const GridFunction &d)
+   {
+      GridFunction xold(x);
+      LipschitzBregmanMirror::EstimateStepSize();
+      backTrackingLineSearch.SetStepSize(step_size);
+      double value = backTrackingLineSearch.Step(x, d);
+      diff_primal.Assemble();
+      return value;
+   }
+protected:
+   BackTracking backTrackingLineSearch;
+};
+
+
 class ExBiSecLVPGTopOpt
 {
 public:
