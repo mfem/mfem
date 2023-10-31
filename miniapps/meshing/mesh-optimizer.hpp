@@ -27,8 +27,8 @@ double size_indicator(const Vector &x)
    double r1 = 0.45; double r2 = 0.55; double sf=30.0;
    double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
-   val = fmax(0.,val);
-   val = fmin(1.,val);
+   val = std::max(0.,val);
+   val = std::min(1.,val);
    return val;
 }
 

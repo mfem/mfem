@@ -646,16 +646,16 @@ int main (int argc, char *argv[])
                double kappa =
                   J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
 
-               min_det_J_z = fmin(min_det_J_z, det_J);
-               max_det_J_z = fmax(max_det_J_z, det_J);
+               min_det_J_z = std::min(min_det_J_z, det_J);
+               max_det_J_z = std::max(max_det_J_z, det_J);
 
-               min_kappa = fmin(min_kappa, kappa);
-               max_kappa = fmax(max_kappa, kappa);
+               min_kappa = std::min(min_kappa, kappa);
+               max_kappa = std::max(max_kappa, kappa);
             }
             max_ratio_det_J_z =
-               fmax(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
-            min_det_J = fmin(min_det_J, min_det_J_z);
-            max_det_J = fmax(max_det_J, max_det_J_z);
+               std::max(max_ratio_det_J_z, max_det_J_z/min_det_J_z);
+            min_det_J = std::min(min_det_J, min_det_J_z);
+            max_det_J = std::max(max_det_J, max_det_J_z);
             if (min_det_J_z <= 0.0)
             {
                if (nz < max_to_print)
@@ -936,7 +936,7 @@ int main (int argc, char *argv[])
                      sJ /= col.Norml2();
                   }
 
-                  attr(i) = fmin(sJ, attr(i));
+                  attr(i) = std::min(sJ, attr(i));
                }
             }
          }

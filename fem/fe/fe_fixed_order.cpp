@@ -2379,9 +2379,11 @@ void RT2TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
                                             Vector &divshape) const
 {
    fptype x = ip.x, y = ip.y;
+   constexpr fptype f2 = 2.0;
+   constexpr fptype f4 = 4.0;
 
-   fptype DivB[15] = {0., 0., 1., 0., 0., 1., 2.*x, 0., y, x, 0., 2.*y,
-                      4.*x*x, 4.*x*y, 4.*y*y
+   fptype DivB[15] = {0., 0., 1., 0., 0., 1., f2*x, 0., y, x, 0., f2*y,
+                      f4*x*x, f4*x*y, f4*y*y
                      };
 
    for (int i = 0; i < 15; i++)

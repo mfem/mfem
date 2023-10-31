@@ -469,7 +469,11 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          if (done) { break; }
 
          dz = p1/pp;
-         if (fabs(dz) < 1e-16)
+#ifdef MFEM_USE_FLOAT
+         if (std::abs(dz) < 1e-7)
+#else
+         if (std::abs(dz) < 1e-16)
+#endif
          {
             done = true;
             // map the new point (z-dz) to (0,1):
@@ -584,7 +588,11 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 
             // compute dx = resid/deriv
             fptype dx = (x_i*p_l - p_lm1) / (np*p_l);
+#ifdef MFEM_USE_FLOAT
+            if (std::abs(dx) < 1e-8)
+#else
             if (std::abs(dx) < 1e-16)
+#endif
             {
                done = true;
                // Map the point to the interval [0,1]

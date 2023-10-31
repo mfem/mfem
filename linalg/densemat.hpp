@@ -886,7 +886,7 @@ class DenseMatrixEigensystem
    DenseMatrix EVect;
    Vector ev;
    int n;
-   double *work;
+   fptype *work;
    char jobz, uplo;
    int lwork, info;
 public:
@@ -896,7 +896,7 @@ public:
    void Eval();
    Vector &Eigenvalues() { return EVal; }
    DenseMatrix &Eigenvectors() { return EVect; }
-   double Eigenvalue(int i) { return EVal(i); }
+   fptype Eigenvalue(int i) { return EVal(i); }
    const Vector &Eigenvector(int i)
    {
       ev.SetData(EVect.Data() + i * EVect.Height());
@@ -917,10 +917,10 @@ class DenseMatrixGeneralizedEigensystem
    DenseMatrix Vl;
    int n;
 
-   double *alphar;
-   double *alphai;
-   double *beta;
-   double *work;
+   fptype *alphar;
+   fptype *alphai;
+   fptype *beta;
+   fptype *work;
    char jobvl, jobvr;
    int lwork, info;
 
@@ -932,8 +932,8 @@ public:
    void Eval();
    Vector &EigenvaluesRealPart() { return evalues_r; }
    Vector &EigenvaluesImagPart() { return evalues_i; }
-   double EigenvalueRealPart(int i) { return evalues_r(i); }
-   double EigenvalueImagPart(int i) { return evalues_i(i); }
+   fptype EigenvalueRealPart(int i) { return evalues_r(i); }
+   fptype EigenvalueImagPart(int i) { return evalues_i(i); }
    DenseMatrix &LeftEigenvectors() { return Vl; }
    DenseMatrix &RightEigenvectors() { return Vr; }
    ~DenseMatrixGeneralizedEigensystem();
@@ -953,7 +953,7 @@ class DenseMatrixSVD
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
-   double *work;
+   fptype *work;
    char jobu, jobvt;
    int lwork, info;
 #endif
@@ -1069,7 +1069,7 @@ public:
 
     @return sv(i) i-th singular value
     */
-   double Singularvalue(int i) { return sv(i); }
+   fptype Singularvalue(int i) { return sv(i); }
 
    /**
     @brief Return left singular vectors

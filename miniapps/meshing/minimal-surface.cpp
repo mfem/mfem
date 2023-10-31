@@ -416,8 +416,8 @@ public:
                Jadjt = Jadj;
                Jadjt.Transpose();
                const double w = Jadjt.Weight();
-               minW = std::fmin(minW, w);
-               maxW = std::fmax(maxW, w);
+               minW = std::min(minW, w);
+               maxW = std::max(maxW, w);
             }
             if (std::fabs(maxW) != 0.0)
             {
@@ -845,9 +845,9 @@ struct Costa: public Surface
       if (x_top) { p[0] *= -1.0; }
       const bool nan = std::isnan(p[0]) || std::isnan(p[1]) || std::isnan(p[2]);
       MFEM_VERIFY(!nan, "nan");
-      ALPHA[0] = std::fmax(p[0], ALPHA[0]);
-      ALPHA[1] = std::fmax(p[1], ALPHA[1]);
-      ALPHA[2] = std::fmax(p[2], ALPHA[2]);
+      ALPHA[0] = std::max(p[0], ALPHA[0]);
+      ALPHA[1] = std::max(p[1], ALPHA[1]);
+      ALPHA[2] = std::max(p[2], ALPHA[2]);
    }
 
    void Snap()

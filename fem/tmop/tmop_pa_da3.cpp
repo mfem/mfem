@@ -92,7 +92,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
          {
             if (t < wrk && MFEM_THREAD_ID(y)==0 && MFEM_THREAD_ID(z)==0)
             {
-               min_size[t] = fmin(min_size[t], min_size[t+wrk]);
+               min_size[t] = std::min(min_size[t], min_size[t+wrk]);
             }
          }
          MFEM_SYNC_THREAD;
@@ -111,7 +111,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                fptype T;
                kernels::internal::PullEval(qx,qy,qz,QQQ,T);
                const fptype shape_par_vals = T;
-               const fptype size = fmax(shape_par_vals, min) / nc_red[e];
+               const fptype size = std::max(shape_par_vals, min) / nc_red[e];
                const fptype alpha = std::pow(size, 1.0/DIM);
                for (int i = 0; i < DIM; i++)
                {

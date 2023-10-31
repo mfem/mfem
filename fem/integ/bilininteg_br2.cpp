@@ -184,7 +184,7 @@ void DGDiffusionBR2Integrator::AssembleFaceMatrix(
       }
       // Take sqrt here because
       //    eta (r_e([u]), r_e([v])) = (sqrt(eta) r_e([u]), sqrt(eta) r_e([v]))
-      fptype w = sqrt((factor + 1)*eta*q)*ip.weight*Trans.Face->Weight();
+      fptype w = sqrt((factor + (fptype) 1.0)*eta*q)*ip.weight*Trans.Face->Weight();
       // r_e is defined by, (r_e([u]), tau) = <[u], {tau}>, so we pick up a
       // factor of 0.5 on interior faces from the average term.
       if (ndof2) { w *= 0.5; }

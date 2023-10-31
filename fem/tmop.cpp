@@ -187,7 +187,7 @@ fptype TMOP_WorstCaseUntangleOptimizer_Metric::EvalWBarrier(
    fptype denominator = 1.0;
    if (btype == BarrierType::Shifted)
    {
-     denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (fptype) 0.0));
+      denominator = 2.0*(Jpt.Det()-std::min(alpha*min_detT-detT_ep, (fptype) 0.0));
    }
    else if (btype == BarrierType::Pseudo)
    {
@@ -2172,7 +2172,7 @@ void DiscreteAdaptTC::ComputeElementTargets(int e_id, const FiniteElement &fe,
                MFEM_VERIFY(min_size > 0.0,
                            "Non-positive size propagated in the target definition.");
 
-               fptype size = fmax(shape * par_vals, min_size);
+               fptype size = std::max(shape * par_vals, min_size);
                NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
                if (ncmesh)
                {
@@ -3089,7 +3089,7 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
          sigma_s = pos_s.DistanceTo(pos_s_target);
       }
 
-      err_max  = fmax(err_max, sigma_s);
+      err_max  = std::max(err_max, sigma_s);
       err_sum += sigma_s;
    }
 
