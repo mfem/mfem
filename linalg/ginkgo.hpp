@@ -45,12 +45,6 @@ template <typename T> using gko_array = gko::Array<T>;
 template <typename T> using gko_array = gko::array<T>;
 #endif
 
-#if MFEM_GINKGO_VERSION < 10600
-#define GKO_LEND(x) gko::lend(x)
-#else
-#define GKO_LEND(x) x
-#endif
-
 /**
 * Helper class for a case where a wrapped MFEM Vector
 * should be owned by Ginkgo, and deleted when the wrapper
@@ -271,7 +265,11 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
    // Initialize a result scalar containing the value 0.0.
    auto b_norm = gko::initialize<gko::matrix::Dense<ValueType>>({0.0}, exec);
    // Use the dense `compute_norm2` function to compute the norm.
-   b->compute_norm2(GKO_LEND(b_norm));
+#if MFEM_GINKGO_VERSION < 10600
+   b->compute_norm2(gko::lend(b_norm));
+#else
+   b->compute_norm2(b_norm);
+#endif
    // Use the other utility function to return the norm contained in `b_norm``
    return std::pow(get_norm(b_norm.get()),2);
 }
@@ -409,8 +407,11 @@ private:
          auto exec = matrix->get_executor();
          // Compute the real residual vector by calling apply on the system
          // First, compute res = A * x
-         matrix->apply(GKO_LEND(solution), GKO_LEND(res));
-
+#if MFEM_GINKGO_VERSION < 10600
+         matrix->apply(gko::lend(solution), gko::lend(res));
+#else
+         matrix->apply(solution, res);
+#endif
          // Now do res = res - b, depending on which vector/oper type
          // Check if b is a Ginkgo vector or wrapped MFEM Vector
          if (dynamic_cast<const VectorWrapper*>(b))
@@ -424,12 +425,20 @@ private:
          {
             // Create a scalar containing the value -1.0
             auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
-            res->add_scaled(GKO_LEND(neg_one), GKO_LEND(b));
+#if MFEM_GINKGO_VERSION < 10600
+            res->add_scaled(gko::lend(neg_one), gko::lend(b));
+#else
+            res->add_scaled(neg_one, b);
+#endif
          }
 
          // Compute the norm of the residual vector and add it to the
          // `residual_norms` vector
-         residual_norms.push_back(compute_norm(GKO_LEND(res)));
+#if MFEM_GINKGO_VERSION < 10600
+         residual_norms.push_back(compute_norm(gko::lend(res)));
+#else
+         residual_norms.push_back(compute_norm(res));
+#endif
       }
       else
       {
@@ -452,7 +461,11 @@ private:
          {
             auto dense_residual = gko::as<gko_dense>(residual);
             // Compute the residual vector's norm
-            auto norm = compute_norm(GKO_LEND(dense_residual));
+#if MFEM_GINKGO_VERSION < 10600
+            auto norm = compute_norm(gko::lend(dense_residual));
+#else
+            auto norm = compute_norm(dense_residual);
+#endif
             // Add the computed norm to the `residual_norms` vector
             residual_norms.push_back(norm);
          }
