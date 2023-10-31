@@ -1456,15 +1456,25 @@ class LipschitzBregmanMirror : public LineSearchAlgorithm
 {
 public:
    LipschitzBregmanMirror(ObjectiveFunction &F, LinearForm &diff_primal,
-                          GridFunction &grad, GridFunction &latent, double weight=1.0, double eps=1e-10, double max_step_size=1e06):
+                          GridFunction &grad, GridFunction &latent, double weight=1.0, double eps=1e-10,
+                          double max_step_size=1e06):
       LineSearchAlgorithm(F, max_step_size), diff_primal(diff_primal),
       grad(grad), old_grad(grad), latent(latent), old_latent(latent), L(0), k(0),
       weight(weight), eps(eps) {}
    virtual double Step(GridFunction &x, const GridFunction &d)
    {
+      EstimateStepSize();
+      x.Add(step_size, d);
+      diff_primal.Assemble();
+      return F.Eval();
+   }
+   void EstimateStepSize()
+   {
       if (k++ == 0)
       {
          step_size = 1.0;
+         old_grad = grad;
+         old_latent = latent;
       }
       else
       {
@@ -1477,10 +1487,6 @@ public:
          old_grad = grad;
          old_latent = latent;
       }
-      x.Add(step_size, d);
-      diff_primal.Assemble();
-      return F.Eval();
-
    }
 protected:
    double L, eps, weight;
