@@ -312,6 +312,8 @@ int main(int argc, char *argv[])
    GridFunction rho_gf(&control_fes);
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
+   LinearForm succ_diff_rho_form(&control_fes);
+   succ_diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(succ_diff_rho));
 
    // 9. Define some tools for later
    ConstantCoefficient one(1.0);
@@ -333,6 +335,8 @@ int main(int argc, char *argv[])
    BackTracking lineSearch(obj, alpha, 2.0, c1, 10, 1e6);
    // LinearGrowth lineSearch(obj, alpha);
    // ExponentialGrowth lineSearch(obj, 2.0, alpha);
+   // BackTrackingLipschitzBregmanMirror lineSearch(obj, succ_diff_rho_form,
+   //                                               *(obj.Gradient()), psi, c1);
    MappedGridFunctionCoefficient &designDensity = obj.GetDesignDensity();
    GridFunction designDensity_gf(&filter_fes);
    designDensity_gf = pow(vol_fraction, exponent);
@@ -371,19 +375,17 @@ int main(int argc, char *argv[])
    for (int k = 1; k <= max_it; k++)
    {
       mfem::out << "\nStep = " << k << std::endl;
-      psi_old = psi;
 
       d = *obj.Gradient();
       d.Neg();
       double compliance = lineSearch.Step(psi, d);
-
+      double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
+      psi_old = psi;
+      
       mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
                 std::endl;
       mfem::out << "compliance = " <<  compliance << std::endl;
       mfem::out << "current step size = " <<  lineSearch.GetStepSize() << std::endl;
-
-      // Compute ||ρ - ρ_old|| in control fes.
-      double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
 
       mfem::out << "norm of the increment = " << norm_increment << endl;
 
