@@ -131,6 +131,12 @@ using namespace mfem;
  *
  */
 
+enum Problem
+{
+   Cantilever,
+   MBB,
+   LBracket
+};
 int main(int argc, char *argv[])
 {
 
@@ -141,21 +147,22 @@ int main(int argc, char *argv[])
    double epsilon = 1e-2;
    double vol_fraction = 0.5;
    int max_it = 1e3;
-   double itol = 1e-2;
+   double itol = 1e-3;
    double ntol = 1e-6;
    double rho_min = 1e-6;
    double exponent = 3.0;
    double lambda = 1.0;
    double mu = 1.0;
    double c1 = 1e-04;
-   double c2 = 0.9;
-
-   bool glvis_visualization = true;
-   bool paraview_output = false;
    double mv = 0.2;
+   bool glvis_visualization = true;
+
+   int problem = Problem::Cantilever;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&problem, "-p", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
@@ -180,9 +187,6 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&paraview_output, "-pv", "--paraview", "-no-pv",
-                  "--no-paraview",
-                  "Enable or disable ParaView output.");
    args.Parse();
    if (!args.Good())
    {
@@ -191,23 +195,94 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   // 3. Problem definition
-   Mesh mesh = Mesh::MakeCartesian2D(3,1,
-                                     mfem::Element::Type::QUADRILATERAL,true,
-                                     3,1);
-   for(int i=0; i<ref_levels; i++) { mesh.UniformRefinement(); }
-   int dim = mesh.Dimension();
-   int maxat = mesh.bdr_attributes.Max();
-   Array<int> ess_bdr(maxat);
-   ess_bdr = 0;
-   ess_bdr[3] = 1;
-   Array<int> ess_bdr_filter(maxat);
-   ess_bdr_filter = 0;
-
-   Vector center(2); center(0) = 2.9; center(1) = 0.5;
-   Vector force(2); force(0) = 0.0; force(1) = -1.0;
+   Mesh mesh;
+   Array2D<int> ess_bdr;
+   Array<int> ess_bdr_filter;
+   Vector center(2), force(2);
    double r = 0.05;
    VolumeForceCoefficient vforce_cf(r,center,force);
+   string mesh_file;
+   switch (problem)
+   {
+      case Problem::Cantilever:
+         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
+                                     1.0);
+         ess_bdr.SetSize(3, 4);
+         ess_bdr_filter.SetSize(4);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(2, 3) = 1;
+         center(0) = 2.9; center(1) = 0.5;
+         force(0) = 0.0; force(1) = -1.0;
+         break;
+      case Problem::LBracket:
+         mesh_file = "../data/lbracket_square.mesh";
+         mesh = mesh.LoadFromFile(mesh_file);
+         ess_bdr.SetSize(3, 6);
+         ess_bdr_filter.SetSize(6);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(2, 4) = 1;
+         center(0) = 0.95; center(1) = 0.35;
+         force(0) = 0.0; force(1) = -1.0;
+         break;
+      case Problem::MBB:
+         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
+                                     1.0);
+         ess_bdr.SetSize(3, 3);
+         ess_bdr_filter.SetSize(4);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(0, 0) = 1;
+         ess_bdr(1, 1) = 1;
+         center(0) = 0.05; center(1) = 0.95;
+         force(0) = 0.0; force(1) = -1.0;
+         break;
+      default:
+         mfem_error("Undefined problem.");
+   }
+
+   int dim = mesh.Dimension();
+   double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
+
+   // 3. Refine the mesh.
+   if (problem == Problem::LBracket) {ref_levels--;}
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+      mesh.UniformRefinement();
+      h *= 0.5;
+   }
+   epsilon = 3 * h;
+
+   if (problem == Problem::MBB)
+   {
+
+      for (int i = 0; i<mesh.GetNBE(); i++)
+      {
+         Element * be = mesh.GetBdrElement(i);
+         Array<int> vertices;
+         be->GetVertices(vertices);
+
+         double * coords1 = mesh.GetVertex(vertices[0]);
+         double * coords2 = mesh.GetVertex(vertices[1]);
+
+         Vector center(2);
+         center(0) = 0.5*(coords1[0] + coords2[0]);
+         center(1) = 0.5*(coords1[1] + coords2[1]);
+
+         if (abs(center(0) - 0.0) < 1e-10)
+         {
+            // the left edge
+            be->SetAttribute(1);
+         }
+         else if ((center(0) > (3 - std::pow(2, -ref_levels + 1))) & (center(1) < 1e-10))
+         {
+            // all other boundaries
+            be->SetAttribute(2);
+         }
+         else
+         {
+            be->SetAttribute(3);
+         }
+      }
+   }
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -239,7 +314,8 @@ int main(int argc, char *argv[])
    GridFunction u(&state_fes);
    u = 0.0;
 
-   ConstantCoefficient one(1.0), zero(0.0), eps2_cf(epsilon*epsilon), lambda_cf(lambda),
+   ConstantCoefficient one(1.0), zero(0.0), eps2_cf(epsilon*epsilon),
+                       lambda_cf(lambda),
                        mu_cf(mu);
    StrainEnergyDensityCoefficient strainEnergyDensity_cf(&lambda_cf, &mu_cf, &u,
                                                          &frho, rho_min, exponent);
@@ -263,25 +339,9 @@ int main(int argc, char *argv[])
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << designDensity_gf
-             << "window_title 'Design density r(ρ̃)'\n"
+             << "window_title 'Design density r(ρ̃) - OC'\n"
              << "keys Rj***************\n"
              << flush;
-   }
-
-   mfem::ParaViewDataCollection paraview_dc("ex40", &mesh);
-   if (paraview_output)
-   {
-      // rho_gf.ProjectCoefficient(rho);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(0.0);
-      paraview_dc.RegisterField("displacement",&u);
-      paraview_dc.RegisterField("density",&rho);
-      paraview_dc.RegisterField("filtered_density",&frho);
-      paraview_dc.Save();
    }
 
 
@@ -326,7 +386,8 @@ int main(int argc, char *argv[])
       dualFilterForm.AddDomainIntegrator(new MassIntegrator());
 
       LinearForm dualFilterRHS(&filter_fes);
-      dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(strainEnergyDensity_cf));
+      dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(
+                                           strainEnergyDensity_cf));
 
       EllipticSolver dualFilterSolver(&dualFilterForm, &dualFilterRHS,
                                       ess_bdr_filter);
@@ -387,13 +448,6 @@ int main(int argc, char *argv[])
          ofstream sol_ofs(sol_name.str().c_str());
          sol_ofs.precision(8);
          sol_ofs << designDensity_gf;
-      }
-
-      if (paraview_output)
-      {
-         paraview_dc.SetCycle(k);
-         paraview_dc.SetTime((double)k);
-         paraview_dc.Save();
       }
 
       if (norm_increment < itol)
