@@ -43,295 +43,15 @@ namespace mfem
 #define CODE_NOT_FOUND 2
 #define dlong int
 #define dfloat double
-#define p_Nq 4
-#define p_Nfp p_Nq*p_Nq
-#define p_Np p_Nq*p_Nq*p_Nq
 
-#if p_Nq == 2
-static const dfloat z[] = {-1.0, 1.0};
-static const dfloat lagrangeCoeff[] = {-0.25, 0.25};
-#elif p_Nq == 3
-static const dfloat z[] = {-1.0, 0.0, 1.0};
-static const dfloat lagrangeCoeff[] = {0.125, -0.25, 0.125};
-#elif p_Nq == 4
-static const dfloat z[] = {-1.0,
-                           -0.44721359549995793928183473374625524708812367192231,
-                           0.44721359549995793928183473374625524708812367192231,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.078125, 0.1746928107421710508, -0.1746928107421710508, 0.078125};
-#elif p_Nq == 5
-static const dfloat z[] = {-1.0,
-                           -0.65465367070797714379829245624685835556920808239542,
-                           0.0,
-                           0.65465367070797714379829245624685835556920808239542,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.0546875,
-                                       -0.1276041666666666574,
-                                       0.1458333333333333148,
-                                       -0.1276041666666666574,
-                                       0.0546875};
-#elif p_Nq == 6
-static const dfloat z[] = {-1.0,
-                           -0.7650553239294646928510029739593381503657356885361,
-                           -0.28523151648064509631415099404087907191900347272643,
-                           0.28523151648064509631415099404087907191900347272643,
-                           0.7650553239294646928510029739593381503657356885361,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.04101562500000000694,
-                                       0.09772676820929485086,
-                                       -0.1183275948092223501,
-                                       0.1183275948092223501,
-                                       -0.09772676820929485086,
-                                       0.04101562500000000694};
-#elif p_Nq == 7
-static const dfloat z[] = {-1.0,
-                           -0.830223896278566929872032213967465139587170364872,
-                           -0.46884879347071421380377188190876632940559747167184,
-                           0.0,
-                           0.46884879347071421380377188190876632940559747167184,
-                           0.830223896278566929872032213967465139587170364872,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.03222656250000000694,
-                                       -0.0777010891576087187,
-                                       0.09703702665760870205,
-                                       -0.1031249999999999944,
-                                       0.09703702665760870205,
-                                       -0.0777010891576087187,
-                                       0.03222656250000000694};
-#elif p_Nq == 8
-static const dfloat z[] = {-1.0,
-                           -0.87174014850960661533744576122066343810378066967698,
-                           -0.59170018143314230214451073139795318994570098951733,
-                           -0.20929921790247886876865726034535125529554540508668,
-                           0.20929921790247886876865726034535125529554540508668,
-                           0.59170018143314230214451073139795318994570098951733,
-                           0.87174014850960661533744576122066343810378066967698,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.02618408203124998959,
-                                       0.06359939623635832429,
-                                       -0.08092294397617547097,
-                                       0.08898291991005151391,
-                                       -0.08898291991005151391,
-                                       0.08092294397617547097,
-                                       -0.06359939623635832429,
-                                       0.02618408203124998959};
-#elif p_Nq == 9
-static const dfloat z[] = {-1.0,
-                           -0.8997579954114601573123452444183379580514802955661,
-                           -0.67718627951073775344588542709134245071102964761391,
-                           -0.36311746382617815871075206870865921302064227760088,
-                           0.0,
-                           0.36311746382617815871075206870865921302064227760088,
-                           0.67718627951073775344588542709134245071102964761391,
-                           0.8997579954114601573123452444183379580514802955661,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.02182006835937500347,
-                                       -0.05325989062691450365,
-                                       0.06859763665802226518,
-                                       -0.07705736796191132998,
-                                       0.07979910714285713691,
-                                       -0.07705736796191132998,
-                                       0.06859763665802226518,
-                                       -0.05325989062691450365,
-                                       0.02182006835937500347};
-#elif p_Nq == 10
-static const dfloat z[] = {-1.0,
-                           -0.91953390816645881382893266082233813415354307544628,
-                           -0.73877386510550507500310617485983072501618510137693,
-                           -0.47792494981044449566117509273125799788677289333057,
-                           -0.16527895766638702462621976595817353323115034354948,
-                           0.16527895766638702462621976595817353323115034354948,
-                           0.47792494981044449566117509273125799788677289333057,
-                           0.73877386510550507500310617485983072501618510137693,
-                           0.91953390816645881382893266082233813415354307544628,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.01854705810546875347,
-                                       0.04542617013071789667,
-                                       -0.05900186321127775385,
-                                       0.06723640039745379382,
-                                       -0.07120546115728704217,
-                                       0.07120546115728704217,
-                                       -0.06723640039745379382,
-                                       0.05900186321127775385,
-                                       -0.04542617013071789667,
-                                       0.01854705810546875347};
-#elif p_Nq == 11
-static const dfloat z[] = {-1.0,
-                           -0.93400143040805913433227413609938363453991733010996,
-                           -0.78448347366314441862241781610845810350719745509406,
-                           -0.56523532699620500647096396947775166428305214556202,
-                           -0.2957581355869393914319115155590575089410064343486,
-                           0.0,
-                           0.2957581355869393914319115155590575089410064343486,
-                           0.56523532699620500647096396947775166428305214556202,
-                           0.78448347366314441862241781610845810350719745509406,
-                           0.93400143040805913433227413609938363453991733010996,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.01601791381835937847,
-                                       -0.03932936095453774122,
-                                       0.05139315509829563838,
-                                       -0.05916369009885511648,
-                                       0.06362631497403944958,
-                                       -0.06508866567460314112,
-                                       0.06362631497403944958,
-                                       -0.05916369009885511648,
-                                       0.05139315509829563838,
-                                       -0.03932936095453774122,
-                                       0.01601791381835937847};
-#elif p_Nq == 12
-static const dfloat z[] = {-1.0,
-                           -0.94489927222288222340758013830321871361125655195003,
-                           -0.81927932164400667834864158171690266069046665790364,
-                           -0.6328761530318606776624048544436558582438437454015,
-                           -0.39953094096534893226434979156696690052774803279531,
-                           -0.13655293285492755486406185573969389689841411128206,
-                           0.13655293285492755486406185573969389689841411128206,
-                           0.39953094096534893226434979156696690052774803279531,
-                           0.6328761530318606776624048544436558582438437454015,
-                           0.81927932164400667834864158171690266069046665790364,
-                           0.94489927222288222340758013830321871361125655195003,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.01401567459106443751,
-                                       0.03447735774085045751,
-                                       -0.04525637358381184167,
-                                       0.05248969416828376533,
-                                       -0.05707699964624000921,
-                                       0.05931917309373647973,
-                                       -0.05931917309373647973,
-                                       0.05707699964624000921,
-                                       -0.05248969416828376533,
-                                       0.04525637358381184167,
-                                       -0.03447735774085045751,
-                                       0.01401567459106443751};
-#elif p_Nq == 13
-static const dfloat z[] = {-1.0,
-                           -0.95330984664216391189690546475544915162650788869736,
-                           -0.84634756465187231686592560709875335957803665971441,
-                           -0.68618846908175742607275903956635555292917619812438,
-                           -0.48290982109133620174693723363693362077219326211859,
-                           -0.24928693010623999256867370037422698148881131249298,
-                           0.0,
-                           0.24928693010623999256867370037422698148881131249298,
-                           0.48290982109133620174693723363693362077219326211859,
-                           0.68618846908175742607275903956635555292917619812438,
-                           0.84634756465187231686592560709875335957803665971441,
-                           0.95330984664216391189690546475544915162650788869736,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.01239848136901855295,
-                                       -0.03054290219172335966,
-                                       0.04023033106666238506,
-                                       -0.0469253537036122409,
-                                       0.05144979559418408344,
-                                       -0.05409096884854457804,
-                                       0.05496123342803031775,
-                                       -0.05409096884854457804,
-                                       0.05144979559418408344,
-                                       -0.0469253537036122409,
-                                       0.04023033106666238506,
-                                       -0.03054290219172335966,
-                                       0.01239848136901855295};
-#elif p_Nq == 14
-static const dfloat z[] = {-1.0,
-                           -0.95993504526726090135510016201542438906639151857265,
-                           -0.86780105383034725100022020290826421324987235309444,
-                           -0.72886859909132614058467240052088159565733953169432,
-                           -0.55063940292864705531662270585908063446213831955391,
-                           -0.34272401334271284504390340364167464483311353414031,
-                           -0.11633186888370386765877670973616016794150904425628,
-                           0.11633186888370386765877670973616016794150904425628,
-                           0.34272401334271284504390340364167464483311353414031,
-                           0.55063940292864705531662270585908063446213831955391,
-                           0.72886859909132614058467240052088159565733953169432,
-                           0.86780105383034725100022020290826421324987235309444,
-                           0.95993504526726090135510016201542438906639151857265,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.01107007265090943077,
-                                       0.02730112639771617444,
-                                       -0.03605749815512778594,
-                                       0.04224358943932098043,
-                                       -0.0466116837029693365,
-                                       0.0494331600000309096,
-                                       -0.05082208058466127637,
-                                       0.05082208058466127637,
-                                       -0.0494331600000309096,
-                                       0.0466116837029693365,
-                                       -0.04224358943932098043,
-                                       0.03605749815512778594,
-                                       -0.02730112639771617444,
-                                       0.01107007265090943077};
-#elif p_Nq == 15
-static const dfloat z[] = {-1.0,
-                           -0.96524592650383857279585139206960117770765013599709,
-                           -0.88508204422297629882540163148222965198871408520748,
-                           -0.76351968995181520070411847597629161817736852031529,
-                           -0.60625320546984571112352993863673350717973103375992,
-                           -0.42063805471367248092189693873858041298433820549243,
-                           -0.21535395536379423822567944627291771265215790120304,
-                           0.0,
-                           0.21535395536379423822567944627291771265215790120304,
-                           0.42063805471367248092189693873858041298433820549243,
-                           0.60625320546984571112352993863673350717973103375992,
-                           0.76351968995181520070411847597629161817736852031529,
-                           0.88508204422297629882540163148222965198871408520748,
-                           0.96524592650383857279585139206960117770765013599709,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {0.009963065385818477976,
-                                       -0.02459311355360203205,
-                                       0.03255088741411670678,
-                                       -0.0382687144946599403,
-                                       0.04243717728944146339,
-                                       -0.0453113157356326568,
-                                       0.04700331662010798911,
-                                       -0.04756260585118009254,
-                                       0.04700331662010798911,
-                                       -0.0453113157356326568,
-                                       0.04243717728944146339,
-                                       -0.0382687144946599403,
-                                       0.03255088741411670678,
-                                       -0.02459311355360203205,
-                                       0.009963065385818477976};
-#elif p_Nq == 16
-static const dfloat z[] = {-1.0,
-                           -0.96956804627021793295224273836745924138899074650383,
-                           -0.89920053309347209299462826151984947674999760904514,
-                           -0.7920082918618150639310882709631457058080738279802,
-                           -0.65238870288249308946788321964058148032155801282957,
-                           -0.48605942188713761178189078584687469688897730429825,
-                           -0.29983046890076320809835345472230064781546097690778,
-                           -0.10132627352194944784303300504591776253324091440019,
-                           0.10132627352194944784303300504591776253324091440019,
-                           0.29983046890076320809835345472230064781546097690778,
-                           0.48605942188713761178189078584687469688897730429825,
-                           0.65238870288249308946788321964058148032155801282957,
-                           0.7920082918618150639310882709631457058080738279802,
-                           0.89920053309347209299462826151984947674999760904514,
-                           0.96956804627021793295224273836745924138899074650383,
-                           1.0};
-static const dfloat lagrangeCoeff[] = {-0.009029028005898016157,
-                                       0.02230378876791179119,
-                                       -0.02957229794796584904,
-                                       0.03486496453602312001,
-                                       -0.03881772012210338296,
-                                       0.04166975132745391608,
-                                       -0.04352965743585947289,
-                                       0.04444905018046432787,
-                                       -0.04444905018046432787,
-                                       0.04352965743585947289,
-                                       -0.04166975132745391608,
-                                       0.03881772012210338296,
-                                       -0.03486496453602312001,
-                                       0.02957229794796584904,
-                                       -0.02230378876791179119,
-                                       0.009029028005898016157};
-#endif
 
 ////// OBBOX //////
 
-static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0, dfloat x, dlong i)//,
-//                                                  dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0, dfloat x, dlong i,
+                                                  dfloat *z, dfloat *lagrangeCoeff, dlong p_Nr)
 {
   dfloat u0 = 1, u1 = 0;
-  for (dlong j = 0; j < p_Nq; ++j)
+  for (dlong j = 0; j < p_Nr; ++j)
   {
     if (i != j)
     {
@@ -340,16 +60,16 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0, d
       u0 = d_j * u0;
     }
   }
-  dfloat *p1 = p0 + p_Nq;
+  dfloat *p1 = p0 + p_Nr;
   p0[i] = lagrangeCoeff[i] * u0;
   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
 }
-static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0, dfloat x, dlong i) //,
-//                                                                    dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0, dfloat x, dlong i,
+                                                                    dfloat *z, dfloat *lagrangeCoeff, dlong p_Nr)
 {
   dfloat u0 = 1, u1 = 0, u2 = 0;
 //#pragma unroll p_Nq
-  for (dlong j = 0; j < p_Nq; ++j)
+  for (dlong j = 0; j < p_Nr; ++j)
   {
     if (i != j)
     {
@@ -359,7 +79,7 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0, 
       u0 = d_j * u0;
     }
   }
-  dfloat *p1 = p0 + p_Nq, *p2 = p0 + 2 * p_Nq;
+  dfloat *p1 = p0 + p_Nr, *p2 = p0 + 2 * p_Nr;
   p0[i] = lagrangeCoeff[i] * u0;
   p1[i] = 2.0 * lagrangeCoeff[i] * u1;
   p2[i] = 8.0 * lagrangeCoeff[i] * u2;
@@ -493,33 +213,33 @@ static MFEM_HOST_DEVICE inline dlong point_index(const dlong x) { return ((x >> 
 // workspace is a shared workspace
 // side_init indicates the mode the workspace is set to
 static MFEM_HOST_DEVICE inline findptsElementGFace_t
-get_face(const dfloat *elx[3], dfloat *wtend[3], dlong fi, dfloat *workspace, dlong &side_init, dlong j)
+get_face(const dfloat *elx[3], dfloat *wtend[3], dlong fi, dfloat *workspace, dlong &side_init, dlong j, dlong p_Nr)
 {
   const dlong dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
   const dlong side_n = fi & 1;
+  const dlong p_Nfr = p_Nr*p_Nr;
   findptsElementGFace_t face;
   for (dlong d = 0; d < 3; ++d) {
-    face.x[d] = workspace + d * p_Nfp;
-    face.dxdn[d] = workspace + (3 + d) * p_Nfp;
+    face.x[d] = workspace + d * p_Nfr;
+    face.dxdn[d] = workspace + (3 + d) * p_Nfr;
   }
 
   const dlong mask = 1u << (fi / 2);
   if ((side_init & mask) == 0) {
-    const dlong elx_stride[3] = {1, p_Nq, p_Nq * p_Nq};
+    const dlong elx_stride[3] = {1, p_Nr, p_Nr * p_Nr};
 #define ELX(d, j, k, l) elx[d][j * elx_stride[d1] + k * elx_stride[d2] + l * elx_stride[dn]]
-//#define ELX(d, j, k, l) j * elx_stride[d1] + k * elx_stride[d2] + l * elx_stride[dn]
-    if (j < p_Nq) {
+    if (j < p_Nr) {
       for (dlong d = 0; d < 3; ++d) {
-        for (dlong k = 0; k < p_Nq; ++k) {
+        for (dlong k = 0; k < p_Nr; ++k) {
           // copy first/last entries in normal direction
-          face.x[d][j + k * p_Nq] = ELX(d, j, k, side_n * (p_Nq - 1));
+          face.x[d][j + k * p_Nr] = ELX(d, j, k, side_n * (p_Nr - 1));
 
           // tensor product between elx and the derivative in the normal direction
           dfloat sum_l = 0;
-          for (dlong l = 0; l < p_Nq; ++l) {
-            sum_l += wtend[dn][p_Nq + l] * ELX(d, j, k, l);
+          for (dlong l = 0; l < p_Nr; ++l) {
+            sum_l += wtend[dn][p_Nr + l] * ELX(d, j, k, l);
           }
-          face.dxdn[d][j + k * p_Nq] = sum_l;
+          face.dxdn[d][j + k * p_Nr] = sum_l;
         }
       }
     }
@@ -530,27 +250,27 @@ get_face(const dfloat *elx[3], dfloat *wtend[3], dlong fi, dfloat *workspace, dl
 }
 
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t
-get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace, dlong &side_init, dlong j)
+get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace, dlong &side_init, dlong j, dlong p_Nr)
 {
   findptsElementGEdge_t edge;
   const dlong de = ei >> 2, dn1 = plus_1_mod_3(de), dn2 = plus_2_mod_3(de);
   const dlong side_n1 = ei & 1, side_n2 = (ei & 2) >> 1;
 
-  const dlong in1 = side_n1 * (p_Nq - 1), in2 = side_n2 * (p_Nq - 1);
-  const dfloat *wt1 = wtend[dn1] + side_n1 * p_Nq * 3;
-  const dfloat *wt2 = wtend[dn2] + side_n2 * p_Nq * 3;
+  const dlong in1 = side_n1 * (p_Nr - 1), in2 = side_n2 * (p_Nr - 1);
+  const dfloat *wt1 = wtend[dn1] + side_n1 * p_Nr * 3;
+  const dfloat *wt2 = wtend[dn2] + side_n2 * p_Nr * 3;
   for (dlong d = 0; d < 3; ++d) {
-    edge.x[d] = workspace + d * p_Nq;
-    edge.dxdn1[d] = workspace + (3 + d) * p_Nq;
-    edge.dxdn2[d] = workspace + (6 + d) * p_Nq;
-    edge.d2xdn1[d] = workspace + (7 + d) * p_Nq;
-    edge.d2xdn2[d] = workspace + (8 + d) * p_Nq;
+    edge.x[d] = workspace + d * p_Nr;
+    edge.dxdn1[d] = workspace + (3 + d) * p_Nr;
+    edge.dxdn2[d] = workspace + (6 + d) * p_Nr;
+    edge.d2xdn1[d] = workspace + (7 + d) * p_Nr;
+    edge.d2xdn2[d] = workspace + (8 + d) * p_Nr;
   }
 
   const dlong mask = 8u << (ei / 2);
   if ((side_init & mask) == 0) {
-    if (j < p_Nq) {
-      const dlong elx_stride[3] = {1, p_Nq, p_Nq * p_Nq};
+    if (j < p_Nr) {
+      const dlong elx_stride[3] = {1, p_Nr, p_Nr * p_Nr};
 #define ELX(d, j, k, l) elx[d][j * elx_stride[de] + k * elx_stride[dn1] + l * elx_stride[dn2]]
       for (dlong d = 0; d < 3; ++d) {
         // copy first/last entries in normal directions
@@ -558,18 +278,18 @@ get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace, dl
         // tensor product between elx (w/ first/last entries in second direction)
         // and the derivatives in the first normal direction
         dfloat sums_k[2] = {0, 0};
-        for (dlong k = 0; k < p_Nq; ++k) {
-          sums_k[0] += wt1[p_Nq + k] * ELX(d, j, k, in2);
-          sums_k[1] += wt1[2 * p_Nq + k] * ELX(d, j, k, in2);
+        for (dlong k = 0; k < p_Nr; ++k) {
+          sums_k[0] += wt1[p_Nr + k] * ELX(d, j, k, in2);
+          sums_k[1] += wt1[2 * p_Nr + k] * ELX(d, j, k, in2);
         }
         edge.dxdn1[d][j] = sums_k[0];
         edge.d2xdn1[d][j] = sums_k[1];
         // tensor product between elx (w/ first/last entries in first direction)
         // and the derivatives in the second normal direction
         sums_k[0] = 0, sums_k[1] = 0;
-        for (dlong k = 0; k < p_Nq; ++k) {
-          sums_k[0] += wt2[p_Nq + k] * ELX(d, j, in1, k);
-          sums_k[1] += wt2[2 * p_Nq + k] * ELX(d, j, in1, k);
+        for (dlong k = 0; k < p_Nr; ++k) {
+          sums_k[0] += wt2[p_Nr + k] * ELX(d, j, in1, k);
+          sums_k[1] += wt2[2 * p_Nr + k] * ELX(d, j, in1, k);
         }
         edge.dxdn2[d][j] = sums_k[0];
         edge.d2xdn2[d][j] = sums_k[1];
@@ -580,56 +300,56 @@ get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace, dl
   }
   return edge;
 }
-static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3], dfloat *wtend[3], dlong pi)
+static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3], dfloat *wtend[3], dlong pi, dlong p_Nr)
 {
   const dlong side_n1 = pi & 1, side_n2 = (pi >> 1) & 1, side_n3 = (pi >> 2) & 1;
-  const dlong in1 = side_n1 * (p_Nq - 1), in2 = side_n2 * (p_Nq - 1), in3 = side_n3 * (p_Nq - 1);
+  const dlong in1 = side_n1 * (p_Nr - 1), in2 = side_n2 * (p_Nr - 1), in3 = side_n3 * (p_Nr - 1);
   const dlong hes_stride = (3 + 1) * 3 / 2;
   findptsElementGPT_t pt;
 
-#define ELX(d, j, k, l) elx[d][j + k * p_Nq + l * p_Nq * p_Nq]
+#define ELX(d, j, k, l) elx[d][j + k * p_Nr + l * p_Nr * p_Nr]
   for (dlong d = 0; d < 3; ++d) {
-    pt.x[d] = ELX(d, side_n1 * (p_Nq - 1), side_n2 * (p_Nq - 1), side_n3 * (p_Nq - 1));
+    pt.x[d] = ELX(d, side_n1 * (p_Nr - 1), side_n2 * (p_Nr - 1), side_n3 * (p_Nr - 1));
 
-    dfloat *wt1 = wtend[0] + p_Nq * (1 + 3 * side_n1);
-    dfloat *wt2 = wtend[1] + p_Nq * (1 + 3 * side_n2);
-    dfloat *wt3 = wtend[2] + p_Nq * (1 + 3 * side_n3);
+    dfloat *wt1 = wtend[0] + p_Nr * (1 + 3 * side_n1);
+    dfloat *wt2 = wtend[1] + p_Nr * (1 + 3 * side_n2);
+    dfloat *wt3 = wtend[2] + p_Nr * (1 + 3 * side_n3);
 
     for (dlong i = 0; i < 3; ++i)
       pt.jac[3 * d + i] = 0;
     for (dlong i = 0; i < hes_stride; ++i)
       pt.hes[hes_stride * d + i] = 0;
 
-    for (dlong j = 0; j < p_Nq; ++j) {
+    for (dlong j = 0; j < p_Nr; ++j) {
       pt.jac[3 * d + 0] += wt1[j] * ELX(d, j, in2, in3);
-      pt.hes[hes_stride * d] += wt1[p_Nq + j] * ELX(d, j, in2, in3);
+      pt.hes[hes_stride * d] += wt1[p_Nr + j] * ELX(d, j, in2, in3);
     }
 
     const dlong hes_off = hes_stride * d + hes_stride / 2;
-    for (dlong k = 0; k < p_Nq; ++k) {
+    for (dlong k = 0; k < p_Nr; ++k) {
       pt.jac[3 * d + 1] += wt2[k] * ELX(d, in1, k, in3);
-      pt.hes[hes_off] += wt2[p_Nq + k] * ELX(d, in1, k, in3);
+      pt.hes[hes_off] += wt2[p_Nr + k] * ELX(d, in1, k, in3);
     }
 
-    for (dlong l = 0; l < p_Nq; ++l) {
+    for (dlong l = 0; l < p_Nr; ++l) {
       pt.jac[3 * d + 2] += wt3[l] * ELX(d, in1, in2, l);
-      pt.hes[hes_stride * d + 5] += wt3[p_Nq + l] * ELX(d, in1, in2, l);
+      pt.hes[hes_stride * d + 5] += wt3[p_Nr + l] * ELX(d, in1, in2, l);
     }
 
-    for (dlong l = 0; l < p_Nq; ++l) {
+    for (dlong l = 0; l < p_Nr; ++l) {
       dfloat sum_k = 0, sum_j = 0;
-      for (dlong k = 0; k < p_Nq; ++k) {
+      for (dlong k = 0; k < p_Nr; ++k) {
         sum_k += wt2[k] * ELX(d, in1, k, l);
       }
-      for (dlong j = 0; j < p_Nq; ++j) {
+      for (dlong j = 0; j < p_Nr; ++j) {
         sum_j += wt1[j] * ELX(d, j, in2, l);
       }
       pt.hes[hes_stride * d + 2] += wt3[l] * sum_j;
       pt.hes[hes_stride * d + 4] += wt3[l] * sum_k;
     }
-    for (dlong k = 0; k < p_Nq; ++k) {
+    for (dlong k = 0; k < p_Nr; ++k) {
       dfloat sum_j = 0;
-      for (dlong j = 0; j < p_Nq; ++j) {
+      for (dlong j = 0; j < p_Nr; ++j) {
         sum_j += wt1[j] * ELX(d, j, k, in3);
       }
       pt.hes[hes_stride * d + 1] += wt2[k] * sum_j;
@@ -1021,23 +741,24 @@ newton_edge_fin:
 
 void seed_j(const dfloat *elx[3],
             const dfloat x[3],
-//            dfloat *z, //GLL point locations [-1, 1]
-            dfloat dist2[p_Nq],
+            dfloat *z, //GLL point locations [-1, 1]
+            dfloat dist2[0],
             dfloat *r[3],
-            const int j)
+            const int j,
+            const dlong p_Nr)
 {
-  if (j >= p_Nq)
+  if (j >= p_Nr)
     return;
 
   dist2[j] = DBL_MAX;
 
   dfloat zr = z[j];
-  for (dlong l = 0; l < p_Nq; ++l) {
+  for (dlong l = 0; l < p_Nr; ++l) {
     const dfloat zt = z[l];
-    for (dlong k = 0; k < p_Nq; ++k) {
+    for (dlong k = 0; k < p_Nr; ++k) {
       dfloat zs = z[k];
 
-      const dlong jkl = j + k * p_Nq + l * p_Nq * p_Nq;
+      const dlong jkl = j + k * p_Nr + l * p_Nr * p_Nr;
       dfloat dx[3];
       for (dlong d = 0; d < 3; ++d) {
         dx[d] = x[d] - elx[d][jkl];
@@ -1061,17 +782,18 @@ dfloat tensor_ig3_j(dfloat *g_partials,
                     const dfloat *Jt,
                     const dfloat *Dt,
                     const dfloat *u,
-                    const dlong j)
+                    const dlong j,
+                    const dlong p_Nr)
 {
   dfloat uJtJs = 0.0;
   dfloat uDtJs = 0.0;
   dfloat uJtDs = 0.0;
-  for (dlong k = 0; k < p_Nq; ++k) {
+  for (dlong k = 0; k < p_Nr; ++k) {
     dfloat uJt = 0.0;
     dfloat uDt = 0.0;
-    for (dlong l = 0; l < p_Nq; ++l) {
-      uJt += u[j + k * p_Nq + l * p_Nq * p_Nq] * Jt[l];
-      uDt += u[j + k * p_Nq + l * p_Nq * p_Nq] * Dt[l];
+    for (dlong l = 0; l < p_Nr; ++l) {
+      uJt += u[j + k * p_Nr + l * p_Nr * p_Nr] * Jt[l];
+      uDt += u[j + k * p_Nr + l * p_Nr * p_Nr] * Dt[l];
     }
 
     uJtJs += uJt * Js[k];
@@ -1110,15 +832,17 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                      dfloat *const dist2_base,
                                      dfloat *gll1D,
                                      double *lagcoeff,
-                                     dfloat *infok)
+                                     dfloat *infok,
+                                     const dlong p_Nr)
 {
     #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
     #define p_innerSize 32
     const int dim = 3;
+    const dlong p_NE = p_Nr*p_Nr*p_Nr;
     mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
     {
-        const int size1 = MAX_CONST(4, p_Nq + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nq + 5; 
-        int size2 = MAX_CONST(p_Nq *p_Nq * 6, p_Nq * 3 * 3);
+        const int size1 = MAX_CONST(4, p_Nr + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr + 5;
+        int size2 = MAX_CONST(p_Nr *p_Nr * 6, p_Nr * 3 * 3);
         dfloat r_workspace[size1];
         findptsElementPoint_t el_pts[2];
 #define CONSTRAINT_SIZE size2
@@ -1177,9 +901,9 @@ static void FindPointsLocal3D_Kernel(const int npt,
                 {
                   const dfloat *elx[3];
 
-                  elx[0] = xElemCoord + el * p_Np;
-                  elx[1] = yElemCoord + el * p_Np;
-                  elx[2] = zElemCoord + el * p_Np;
+                  elx[0] = xElemCoord + el * p_NE;
+                  elx[1] = yElemCoord + el * p_NE;
+                  elx[2] = zElemCoord + el * p_NE;
 
                   //// findpts_el ////
                   {
@@ -1201,19 +925,19 @@ static void FindPointsLocal3D_Kernel(const int npt,
                       dfloat *r_temp[3];
                       for (dlong d = 0; d < 3; ++d)
                       {
-                        r_temp[d] = dist2_temp + (1 + d) * p_Nq;
+                        r_temp[d] = dist2_temp + (1 + d) * p_Nr;
                       }
                       for (dlong j = 0; j < p_innerSize; ++j)  //inner
                       {
-//                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j);
-                        seed_j(elx, x_i, dist2_temp, r_temp, j);
+                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, p_Nr);
+//                        seed_j(elx, x_i, dist2_temp, r_temp, j);
                       }
                       for (dlong j = 0; j < p_innerSize; ++j) //inner
                       {
                         if (j == 0)
                         {
                           fpt->dist2 = DBL_MAX;
-                          for (dlong j = 0; j < p_Nq; ++j)
+                          for (dlong j = 0; j < p_Nr; ++j)
                           {
                             if (dist2_temp[j] < fpt->dist2)
                             {
@@ -1251,42 +975,43 @@ static void FindPointsLocal3D_Kernel(const int npt,
                       case 0: { // findpt_vol
                                 // need 3 dimensions to have a volume
                         dfloat *wtr = r_workspace_ptr;
-                        dfloat *wts = wtr + 2 * p_Nq;
-                        dfloat *wtt = wts + 2 * p_Nq;
+                        dfloat *wts = wtr + 2 * p_Nr;
+                        dfloat *wtt = wts + 2 * p_Nr;
 
-                        dfloat *resid = wtt + 2 * p_Nq;
+                        dfloat *resid = wtt + 2 * p_Nr;
                         dfloat *jac = resid + 3;
                         dfloat *resid_temp = jac + 9;
-                        dfloat *jac_temp = resid_temp + 3 * p_Nq;
+                        dfloat *jac_temp = resid_temp + 3 * p_Nr;
 
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
-                          if (j < p_Nq)
+                          if (j < p_Nr)
                           {
-//                            lagrange_eval_first_derivative(wtr, tmp->r[0], j, gll1D, lagcoeff);
-//                            lagrange_eval_first_derivative(wts, tmp->r[1], j, gll1D, lagcoeff);
-//                            lagrange_eval_first_derivative(wtt, tmp->r[2], j, gll1D, lagcoeff);
-                              lagrange_eval_first_derivative(wtr, tmp->r[0], j);
-                              lagrange_eval_first_derivative(wts, tmp->r[1], j);
-                              lagrange_eval_first_derivative(wtt, tmp->r[2], j);
+                            lagrange_eval_first_derivative(wtr, tmp->r[0], j, gll1D, lagcoeff, p_Nr);
+                            lagrange_eval_first_derivative(wts, tmp->r[1], j, gll1D, lagcoeff, p_Nr);
+                            lagrange_eval_first_derivative(wtt, tmp->r[2], j, gll1D, lagcoeff, p_Nr);
+//                              lagrange_eval_first_derivative(wtr, tmp->r[0], j);
+//                              lagrange_eval_first_derivative(wts, tmp->r[1], j);
+//                              lagrange_eval_first_derivative(wtt, tmp->r[2], j);
                           }
                         }
 
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
-                          if (j < p_Nq * 3)
+                          if (j < p_Nr * 3)
                           {
                             const int qp = j / 3;
                             const int d = j % 3;
                             resid_temp[d + qp * 3] = tensor_ig3_j(jac_temp + 3 * d + 9 * qp,
                                                                   wtr,
-                                                                  wtr + p_Nq,
+                                                                  wtr + p_Nr,
                                                                   wts,
-                                                                  wts + p_Nq,
+                                                                  wts + p_Nr,
                                                                   wtt,
-                                                                  wtt + p_Nq,
+                                                                  wtt + p_Nr,
                                                                   elx[d],
-                                                                  qp);
+                                                                  qp,
+                                                                  p_Nr);
                           }
                         }
 
@@ -1295,7 +1020,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (l < 3)
                           {
                             resid[l] = tmp->x[l];
-                            for (dlong j = 0; j < p_Nq; ++j)
+                            for (dlong j = 0; j < p_Nr; ++j)
                             {
                               resid[l] -= resid_temp[l + j * 3];
                             }
@@ -1303,7 +1028,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (l < 9)
                           {
                             jac[l] = 0;
-                            for (dlong j = 0; j < p_Nq; ++j)
+                            for (dlong j = 0; j < p_Nr; ++j)
                             {
                               jac[l] += jac_temp[l + j * 9];
                             }
@@ -1326,33 +1051,33 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         const dlong d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
 
                         dfloat *wt1 = r_workspace_ptr;
-                        dfloat *wt2 = wt1 + 3 * p_Nq;
-                        dfloat *resid = wt2 + 3 * p_Nq;
+                        dfloat *wt2 = wt1 + 3 * p_Nr;
+                        dfloat *resid = wt2 + 3 * p_Nr;
                         dfloat *jac = resid + 3;
                         dfloat *resid_temp = jac + 3 * 3;
-                        dfloat *jac_temp = resid_temp + 3 * p_Nq;
-                        dfloat *hes = jac_temp + 3 * 3 * p_Nq;
+                        dfloat *jac_temp = resid_temp + 3 * p_Nr;
+                        dfloat *hes = jac_temp + 3 * 3 * p_Nr;
                         dfloat *hes_temp = hes + 3;
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
-                          if (j < p_Nq)
+                          if (j < p_Nr)
                           {
-//                            lagrange_eval_second_derivative(wt1, tmp->r[d1], j, gll1D, lagcoeff);
-//                            lagrange_eval_second_derivative(wt2, tmp->r[d2], j, gll1D, lagcoeff);
-                              lagrange_eval_second_derivative(wt1, tmp->r[d1], j);
-                              lagrange_eval_second_derivative(wt2, tmp->r[d2], j);
+                            lagrange_eval_second_derivative(wt1, tmp->r[d1], j, gll1D, lagcoeff, p_Nr);
+                            lagrange_eval_second_derivative(wt2, tmp->r[d2], j, gll1D, lagcoeff, p_Nr);
+//                              lagrange_eval_second_derivative(wt1, tmp->r[d1], j);
+//                              lagrange_eval_second_derivative(wt2, tmp->r[d2], j);
                           }
                         }
 
-                        dfloat *J1 = wt1, *D1 = wt1 + p_Nq;
-                        dfloat *J2 = wt2, *D2 = wt2 + p_Nq;
-                        dfloat *DD1 = D1 + p_Nq, *DD2 = D2 + p_Nq;
+                        dfloat *J1 = wt1, *D1 = wt1 + p_Nr;
+                        dfloat *J2 = wt2, *D2 = wt2 + p_Nr;
+                        dfloat *DD1 = D1 + p_Nr, *DD2 = D2 + p_Nr;
                         findptsElementGFace_t face;
 
                         for (dlong j = 0; j < p_innerSize; j++)
                         {
                           dlong constraint_init_dummy = constraint_init;
-                          face = get_face(elx, wtend, fi, constraint_workspace, constraint_init_dummy, j);
+                          face = get_face(elx, wtend, fi, constraint_workspace, constraint_init_dummy, j, p_Nr);
                           if (j==p_innerSize-1) {
                               constraint_init = constraint_init_dummy;
                           }
@@ -1360,19 +1085,19 @@ static void FindPointsLocal3D_Kernel(const int npt,
 
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
-                          if (j < p_Nq * 3)
+                          if (j < p_Nr * 3)
                           {
                             const int d = j % 3;
                             const int qp = j / 3;
                             const dfloat *u = face.x[d];
                             const dfloat *du = face.dxdn[d];
                             dfloat sums_k[4] = {0.0, 0.0, 0.0, 0.0};
-                            for (dlong k = 0; k < p_Nq; ++k)
+                            for (dlong k = 0; k < p_Nr; ++k)
                             {
-                              sums_k[0] += u[qp + k * p_Nq] * J2[k];
-                              sums_k[1] += u[qp + k * p_Nq] * D2[k];
-                              sums_k[2] += u[qp + k * p_Nq] * DD2[k];
-                              sums_k[3] += du[qp + k * p_Nq] * J2[k];
+                              sums_k[0] += u[qp + k * p_Nr] * J2[k];
+                              sums_k[1] += u[qp + k * p_Nr] * D2[k];
+                              sums_k[2] += u[qp + k * p_Nr] * DD2[k];
+                              sums_k[3] += du[qp + k * p_Nr] * J2[k];
                             }
 
                             resid_temp[3 * qp + d] = sums_k[0] * J1[qp];
@@ -1393,7 +1118,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (l < 3)
                           {
                             resid[l] = fpt->x[l];
-                            for (dlong j = 0; j < p_Nq; ++j)
+                            for (dlong j = 0; j < p_Nr; ++j)
                             {
                               resid[l] -= resid_temp[l + j * 3];
                             }
@@ -1402,7 +1127,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (l < 3 * 3)
                           {
                             jac[l] = 0;
-                            for (dlong j = 0; j < p_Nq; ++j)
+                            for (dlong j = 0; j < p_Nr; ++j)
                             {
                               jac[l] += jac_temp[l + j * 3 * 3];
                             }
@@ -1410,7 +1135,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (l < 3)
                           {
                             hes[l] = 0;
-                            for (dlong j = 0; j < p_Nq; ++j)
+                            for (dlong j = 0; j < p_Nr; ++j)
                               hes[l] += hes_temp[l + 3 * j];
                             hes[l] *= resid[l];
                           }
@@ -1447,7 +1172,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         const dlong hes_count = 2 * 3 - 1; // 3=3 ? 5 : 1;
 
                         dfloat *wt = r_workspace_ptr;
-                        dfloat *resid = wt + 3 * p_Nq;
+                        dfloat *resid = wt + 3 * p_Nr;
                         dfloat *jac = resid + 3;
                         dfloat *hes_T = jac + 3 * 3;
                         dfloat *hes = hes_T + hes_count * 3;
@@ -1455,7 +1180,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
                           dlong constraint_init_dummy = constraint_init;
-                          edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_dummy, j);
+                          edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_dummy, j, p_Nr);
                           if (j==p_innerSize-1) {
                               constraint_init = constraint_init_dummy;
                           }
@@ -1465,10 +1190,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                             {edge.x, edge.x, edge.dxdn1, edge.dxdn2, edge.d2xdn1, edge.d2xdn2};
                         for (dlong j = 0; j < p_innerSize; ++j)
                         {
-                          if (j < p_Nq)
+                          if (j < p_Nr)
                           {
-//                            lagrange_eval_second_derivative(wt, tmp->r[de], j, gll1D, lagcoeff);
-                              lagrange_eval_second_derivative(wt, tmp->r[de], j);
+                            lagrange_eval_second_derivative(wt, tmp->r[de], j, gll1D, lagcoeff, p_Nr);
+//                              lagrange_eval_second_derivative(wt, tmp->r[de], j);
                           }
                         }
 
@@ -1480,10 +1205,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           {
                             // resid and jac_T
                             // [0, 1, 0, 0]
-                            dfloat *wt_j = wt + (row == 1 ? p_Nq : 0);
+                            dfloat *wt_j = wt + (row == 1 ? p_Nr : 0);
                             const dfloat *x = e_x[row][d];
                             dfloat sum = 0.0;
-                            for (dlong k = 0; k < p_Nq; ++k)
+                            for (dlong k = 0; k < p_Nr; ++k)
                             {
                               // resid+3 == jac_T
                               sum += wt_j[k] * x[k];
@@ -1504,10 +1229,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
 
                             // n1*[2, 1, 1, 0, 0]
                             // j==1 => wt_j = wt+n1
-                            dfloat *wt_j = wt + p_Nq * (2 - (row + 1) / 2);
+                            dfloat *wt_j = wt + p_Nr * (2 - (row + 1) / 2);
                             const dfloat *x = e_x[row + 1][d];
                             hes_T[j] = 0.0;
-                            for (dlong k = 0; k < p_Nq; ++k)
+                            for (dlong k = 0; k < p_Nr; ++k)
                             {
                               hes_T[j] += wt_j[k] * x[k];
                             }
@@ -1609,7 +1334,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                           if (j == 0)
                           {
                             const dlong pi = point_index(tmp->flags & FLAG_MASK);
-                            const findptsElementGPT_t gpt = get_pt(elx, wtend, pi);
+                            const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, p_Nr);
                             const dfloat *const pt_x = gpt.x, *const jac = gpt.jac, *const hes = gpt.hes;
 
                             dfloat resid[3], steep[3];
@@ -1833,7 +1558,8 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos)
                                  gsl_dist.ReadWrite(),
                                  DEV.gll1d.ReadWrite(),
                                  DEV.lagcoeff.ReadWrite(),
-                                 DEV.info.ReadWrite());
+                                 DEV.info.ReadWrite(),
+                                 DEV.dof1D);
     }
     else
     {
@@ -1848,9 +1574,6 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos)
 #undef CODE_NOT_FOUND
 #undef dlong
 #undef dfloat
-#undef p_Nq
-#undef p_Nfp
-#undef p_Np
 
 } // namespace mfem
 

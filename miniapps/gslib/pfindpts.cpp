@@ -46,7 +46,7 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
-// make pfindpts -j && mpirun -np 1 pfindpts -m hex1.mesh -o 3 -d debug
+// make pfindpts -j && mpirun -np 1 pfindpts -m hex1.mesh -d debug -rs 0 -mo 3 -ji 0.01
 #include "mfem.hpp"
 #include "general/forall.hpp"
 
@@ -409,8 +409,6 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh, 0.01);
    finder.FindPoints(vxyz, point_ordering);
-   std::cout << " k10donefindpoints\n";
-
 
    FindPointsGSLIB finder2(MPI_COMM_WORLD);
    finder2.Setup(pmesh);
@@ -421,20 +419,12 @@ int main (int argc, char *argv[])
    Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
    Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
    Vector dist2    = finder2.GetDist();
-//   std::cout << " Print rst on cpu\n";
-//   ref_rst2.Print(mfem::out, 3);
-//   std::cout << " Print dist on cpu\n";
-//   dist2.Print();
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
    Vector ref_rst1    = finder.GetGSLIBReferencePosition();
    Vector dist1    = finder.GetDist();
    Vector info1    = finder.GetInfo();
-//   std::cout << " Print rst on dev\n";
-//   ref_rst1.Print(mfem::out, 3);
-//   std::cout << " Print dist on dev\n";
-//   dist1.Print();
 
    int notfound = 0;
    for (int i = 0; i < code_out1.Size(); i++)
@@ -447,9 +437,8 @@ int main (int argc, char *argv[])
        Vector ref2(ref_rst2.GetData()+i*dim, dim);
        Vector dref = ref1;
        dref -= ref2;
-//       std::cout << "FPT DEV: " <<  ref1(0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
 
-//       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
+       //       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
        if (std::fabs(dist1(i)) > 1e-10)
        {
            notfound++;
@@ -462,13 +451,8 @@ int main (int argc, char *argv[])
        }
    }
 
-//   info1.Print(mfem::out, 10);
-
-   // MAX_CONST(4, p_Nq + 1) * (15) + 3 * 2 * p_Nq]
-   // MAX_CONST(p_Nq *p_Nq * 6, p_Nq * 3 * 3)
-
    std::cout << notfound << " k10donefindpoints\n";
-   std::cout << info1(0) << " " << info1(1) << " k10c\n";
+//   std::cout << info1(0) << " " << info1(1) << " k10c\n";
    MFEM_ABORT("aboritng in miniapp\n");
    finder.Interpolate(field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
