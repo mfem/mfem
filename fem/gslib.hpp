@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
+#include <limits>
 
 #ifdef MFEM_USE_GSLIB
 
@@ -21,8 +22,11 @@ namespace gslib
 {
 struct comm;
 struct findpts_data_2;
-struct findpts_data_3;
+//struct findpts_data_3;
 struct crystal;
+struct hash_data_3;
+//struct findpts_local_hash_data_3;
+//struct obbox_3;
 }
 
 namespace mfem
@@ -65,11 +69,13 @@ protected:
    Array<GridFunction *> gf_rst_map; // GridFunctions to map info Quad/Hex->Simplex
    FiniteElementCollection *fec_map_lin;
    struct gslib::findpts_data_2 *fdata2D; // gslib's internal data
-   struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
+   //   struct gslib::findpts_data_3 *fdata3D; // gslib's internal data
+   void *fdataD;
    struct gslib::crystal *cr;             // gslib's internal data
    struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
+   Array<int> gsl_code_dev, gsl_proc_dev, gsl_elem_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
@@ -77,8 +83,38 @@ protected:
    Array<int> split_element_map;
    Array<int> split_element_index;
    int        NE_split_total;
+   int        mesh_points_cnt;
    // Tolerance to ignore points just outside elements at the boundary.
    double     bdr_tol;
+
+   void * findptsData;
+
+#define dlong int
+#define dfloat double
+   struct
+   {
+      int local_hash_size;
+      int dof1D;
+      double tol;
+      struct gslib::crystal *cr;
+      struct gslib::hash_data_3 *hash;
+      mutable Vector o_x, o_y, o_z;
+      mutable Vector o_c, o_A, o_min, o_max;
+      mutable Vector o_wtend_x, o_wtend_y, o_wtend_z;
+      mutable Vector gll1d;
+      mutable Vector lagcoeff;
+
+      mutable Array<unsigned int> o_code, o_proc, o_el;
+      mutable DenseTensor o_r;
+
+      mutable Array<dlong> o_offset;
+      mutable dlong hash_n;
+      mutable Vector o_hashMin;
+      mutable Vector o_hashFac;
+      mutable Vector info;
+   } DEV;
+#undef dlong
+#undef dfloat
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -104,6 +140,9 @@ protected:
    /// find the original element number (that was split into micro quads/hexes)
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
+
+   virtual void SetupDevice(MemoryType mt); // probably should be internal
+   void FindPointsLocal(const Vector &point_pos);
 
 public:
    FindPointsGSLIB();
@@ -152,6 +191,8 @@ public:
                         in physical space. */
    void FindPoints(const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES);
+   void FindPointsOnDevice(const Vector &point_pos,
+                           int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES,
@@ -215,6 +256,8 @@ public:
    /// Return distance between the sought and the found point in physical space,
    /// for each point found by FindPoints.
    virtual const Vector &GetDist()              const { return gsl_dist; }
+
+   virtual const Vector &GetInfo()              const { DEV.info.HostReadWrite(); return DEV.info; }
 
    /// Return element number for each point found by FindPoints corresponding to
    /// GSLIB mesh. gsl_mfem_elem != gsl_elem for mesh with simplices.

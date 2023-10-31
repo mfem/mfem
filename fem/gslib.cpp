@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "gslib.hpp"
+#include "../general/forall.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -19,11 +20,44 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
+#define dlong int
+#define dfloat double
+
 // External GSLIB header (the MFEM header is gslib.hpp)
 namespace gslib
 {
 #include "gslib.h"
-}
+extern "C" {
+   struct hash_data_3
+   {
+      ulong hash_n;
+      struct dbl_range bnd[3];
+      double fac[3];
+      uint *offset;
+   };
+
+   struct findpts_dummy_ms_data {
+       unsigned int *nsid;
+       double       *distfint;
+   };
+
+   struct findpts_data_3
+   {
+      struct crystal cr;
+      struct findpts_local_data_3 local;
+      struct hash_data_3 hash;
+      struct array savpt;
+      struct findpts_dummy_ms_data fdms;
+      uint   fevsetup;
+   };
+
+   uint hash_opt_size_3(struct findpts_local_hash_data_3 *p,
+                        const struct obbox_3 *const obb,
+                        const uint nel,
+                        const uint max_size);
+} //extern C
+
+} //namespace gslib
 
 #ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
 #pragma GCC diagnostic pop
@@ -31,11 +65,18 @@ namespace gslib
 
 namespace mfem
 {
+dlong getHashSize(const struct gslib::findpts_data_3 *fd,
+                  dlong nel, dlong max_hash_size)
+{
+  const gslib::findpts_local_data_3 *fd_local = &fd->local;
+  auto hash_data_copy = fd_local->hd;
+  return hash_opt_size_3(&hash_data_copy, fd_local->obb, nel, max_hash_size);
+}
 
 FindPointsGSLIB::FindPointsGSLIB()
    : mesh(NULL),
      fec_map_lin(NULL),
-     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     fdata2D(NULL), fdataD(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
@@ -82,7 +123,7 @@ FindPointsGSLIB::~FindPointsGSLIB()
 FindPointsGSLIB::FindPointsGSLIB(MPI_Comm comm_)
    : mesh(NULL),
      fec_map_lin(NULL),
-     fdata2D(NULL), fdata3D(NULL), cr(NULL), gsl_comm(NULL),
+     fdata2D(NULL), fdataD(NULL), cr(NULL), gsl_comm(NULL),
      dim(-1), points_cnt(0), setupflag(false), default_interp_value(0),
      avgtype(AvgType::ARITHMETIC), bdr_tol(1e-8)
 {
@@ -109,6 +150,8 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 {
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
+
+   std::cout << m.GetNodes()->UseDevice() << " k10nodesdevicestatus\n";
 
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
@@ -150,25 +193,29 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
 
    GetNodalValues(mesh->GetNodes(), gsl_mesh);
 
-   const int pts_cnt = gsl_mesh.Size()/dim,
-             NEtot = pts_cnt/(int)pow(dof1D, dim);
+   mesh_points_cnt = gsl_mesh.Size()/dim;
+
+   DEV.local_hash_size = mesh_points_cnt;
+   DEV.dof1D = (int)dof1D;
 
    if (dim == 2)
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
-      fdata2D = findpts_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
-                                pts_cnt, pts_cnt, npt_max, newt_tol);
+      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(mesh_points_cnt) };
+      fdata2D = findpts_setup_2(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
+                                DEV.local_hash_size,
+                                mesh_points_cnt, npt_max, newt_tol);
    }
    else
    {
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
-      fdata3D = findpts_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
-                                pts_cnt, pts_cnt, npt_max, newt_tol);
+      { &gsl_mesh(0), &gsl_mesh(mesh_points_cnt), &gsl_mesh(2*mesh_points_cnt) };
+      fdataD = findpts_setup_3(gsl_comm, elx, nr, NE_split_total, mr, bb_t,
+                               DEV.local_hash_size,
+                               mesh_points_cnt, npt_max, newt_tol);
    }
    setupflag = true;
 }
@@ -177,6 +224,16 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                                  int point_pos_ordering)
 {
    MFEM_VERIFY(setupflag, "Use FindPointsGSLIB::Setup before finding points.");
+   auto *findptsData = (gslib::findpts_data_3 *)this->fdataD;
+
+   bool dev_mode = point_pos.UseDevice();
+   std::cout << dev_mode << " k10pointusedev\n";
+   if (dev_mode)
+   {
+       FindPointsOnDevice(point_pos, point_pos_ordering);
+       return;
+   }
+
    points_cnt = point_pos.Size() / dim;
    gsl_code.SetSize(points_cnt);
    gsl_proc.SetSize(points_cnt);
@@ -200,6 +257,8 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
          }
       }
    };
+
+   std::cout << " k10do finding\n";
    if (dim == 2)
    {
       const double *xv_base[2];
@@ -222,8 +281,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                 gsl_elem.GetData(), sizeof(unsigned int),
                 gsl_ref.GetData(),  sizeof(double) * dim,
                 gsl_dist.GetData(), sizeof(double),
-                xv_base, xv_stride, points_cnt, fdata3D);
+                xv_base, xv_stride, points_cnt,
+                findptsData);
    }
+   std::cout << " k10done finding\n";
+   return;
 
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
@@ -240,6 +302,225 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
    // both simplices and quads.
    MapRefPosAndElemIndices();
+}
+
+namespace internal
+{
+// mfem::forall-based copy kernel -- used by protected methods below.
+// Needed as a workaround for the nvcc restriction that methods with mfem::forall
+// in them must to be public.
+template <typename T>
+static inline void device_copy(T *d_dest, const T *d_src, int size)
+{
+   mfem::forall(size, [=] MFEM_HOST_DEVICE (int i) { d_dest[i] = d_src[i]; });
+}
+
+template <typename T1, typename T2>
+static inline void device_copy(T1 *d_dest, const T2 *d_src, int size)
+{
+   mfem::forall(size, [=] MFEM_HOST_DEVICE (int i) { d_dest[i] = (T1)d_src[i]; });
+}
+} // namespace internal
+
+void FindPointsGSLIB::
+FindPointsOnDevice(const Vector &point_pos,
+                                         int point_pos_ordering)
+{
+    points_cnt = point_pos.Size() / dim;
+    MemoryType mt = point_pos.GetMemory().GetMemoryType();
+    SetupDevice(mt);
+
+    gsl_code_dev.SetSize(points_cnt, mt);
+    gsl_proc_dev.SetSize(points_cnt, mt);
+    gsl_elem_dev.SetSize(points_cnt, mt);
+
+    gsl_ref.SetSize(points_cnt * dim);
+    gsl_dist.SetSize(points_cnt);
+    gsl_ref.UseDevice(true);
+    gsl_dist.UseDevice(true);
+
+    MFEM_VERIFY(point_pos_ordering == Ordering::byNODES,
+                "Only byNodes ordering supported on device right now");
+
+    FindPointsLocal(point_pos);
+
+    gsl_code.SetSize(points_cnt);
+    gsl_proc.SetSize(points_cnt);
+    gsl_elem.SetSize(points_cnt);
+
+    gsl_code_dev.HostRead();
+    gsl_proc_dev.HostRead();
+    gsl_elem_dev.HostRead();
+
+    gsl_ref.HostReadWrite();
+    gsl_dist.HostReadWrite();
+    DEV.info.HostReadWrite();
+
+    internal::device_copy(gsl_code.GetData(), gsl_code_dev.Read(), points_cnt);
+    internal::device_copy(gsl_proc.GetData(), gsl_proc_dev.Read(), points_cnt);
+    internal::device_copy(gsl_elem.GetData(), gsl_elem_dev.Read(), points_cnt);
+}
+
+void FindPointsGSLIB::SetupDevice(MemoryType mt)
+{
+   MFEM_VERIFY(dim == 3,"GPU stuff only supported for dim=3");
+   auto *findptsData = (gslib::findpts_data_3 *)this->fdataD;
+   DEV.tol = findptsData->local.tol;
+   DEV.hash = &findptsData->hash;
+   DEV.cr = &findptsData->cr;
+   std::cout << DEV.tol << " " << gsl_mesh.Size() << " k10devtol\n";
+
+   const int mesh_pts_cnt = gsl_mesh.Size()/dim;
+
+   //TO DO: make DEV.O_x/y/z point to gsl_mesh if it is already on device?
+   // will gsl_mesh ever be on device since we do setup on cpu
+   DEV.o_x.SetSize(mesh_pts_cnt);
+   DEV.o_x.UseDevice(true);
+   DEV.o_y.SetSize(mesh_pts_cnt);
+   DEV.o_y.UseDevice(true);
+   DEV.o_z.SetSize(mesh_pts_cnt);
+   DEV.o_z.UseDevice(true);
+
+   internal::device_copy(DEV.o_x.ReadWrite(), gsl_mesh.HostRead(), mesh_pts_cnt);
+   internal::device_copy(DEV.o_y.ReadWrite(), gsl_mesh.HostRead()+mesh_pts_cnt,
+                         mesh_pts_cnt);
+   internal::device_copy(DEV.o_z.ReadWrite(), gsl_mesh.HostRead()+2*mesh_pts_cnt,
+                         mesh_pts_cnt);
+
+   DEV.o_c.SetSize(dim*NE_split_total);
+   DEV.o_c.UseDevice(true);
+   auto p_o_c = DEV.o_c.HostReadWrite();
+
+   DEV.o_A.SetSize(dim*dim*NE_split_total);
+   DEV.o_A.UseDevice(true);
+   auto p_o_A = DEV.o_A.HostReadWrite();
+
+   DEV.o_min.SetSize(dim*NE_split_total);
+   DEV.o_min.UseDevice(true);
+   auto p_o_min = DEV.o_min.HostReadWrite();
+
+   DEV.o_max.SetSize(dim*NE_split_total);
+   DEV.o_max.UseDevice(true);
+   auto p_o_max = DEV.o_max.HostReadWrite();
+
+   const int dim2 = dim*dim;
+
+   for (int e = 0; e < NE_split_total; ++e)
+   {
+      auto box = findptsData->local.obb[e];
+
+      for (int d = 0; d < dim; d++)
+      {
+//         DEV.o_c(dim * e + d) = box.c0[d];
+         p_o_c[dim*e+d] = box.c0[d];
+         p_o_min[dim*e+d] = box.x[d].min;
+         p_o_max[dim*e+d] = box.x[d].max;
+//         DEV.o_min(dim * e + d) = box.x[d].min;
+//         DEV.o_max(dim * e + d) = box.x[d].max;
+      }
+
+      for (int i = 0; i < dim2; ++i)
+      {
+//         DEV.o_A(dim2 * e + i) = box.A[i];
+         p_o_A[dim2*e+i] = box.A[i];
+      }
+   }
+
+//   DEV.o_c.Print(mfem::out, 3);
+//   DEV.o_min.Print(mfem::out, 3);
+//   DEV.o_max.Print(mfem::out, 3);
+//   DEV.o_A.Print(mfem::out, 9);
+//   MFEM_ABORT(" ");
+
+   DEV.o_hashMin.SetSize(dim); DEV.o_hashMin.UseDevice(true);
+   DEV.o_hashFac.SetSize(dim); DEV.o_hashFac.UseDevice(true);
+   auto hash = findptsData->local.hd;
+
+   auto p_o_hashMin = DEV.o_hashMin.HostReadWrite();
+   auto p_o_hashFac = DEV.o_hashFac.HostReadWrite();
+//   Vector hashMin(dim);
+//   Vector hashFac(dim);
+   for (int d = 0; d < dim; ++d)
+   {
+//      hashMin(d) = hash.bnd[d].min;
+//      hashFac(d) = hash.fac[d];
+      p_o_hashMin[d] = hash.bnd[d].min;
+      p_o_hashFac[d] = hash.fac[d];
+   }
+
+   DEV.hash_n = hash.hash_n;
+//   internal::device_copy(DEV.o_hashMin.ReadWrite(), hashMin.HostRead(), dim);
+//   internal::device_copy(DEV.o_hashFac.ReadWrite(), hashFac.HostRead(), dim);
+
+   const auto hd_d_size = getHashSize(findptsData,
+                                      NE_split_total,
+                                      DEV.local_hash_size);
+
+//   Array<dlong> offsets(hd_d_size);
+//   for (int i = 0; i < hd_d_size; ++i)
+//   {
+//      offsets[i] = findptsData->local.hd.offset[i];
+//   }
+   DEV.o_offset.SetSize(hd_d_size, mt);
+   auto p_o_offset = DEV.o_offset.ReadWrite();
+   mfem::forall(hd_d_size, [=] MFEM_HOST_DEVICE (int i) { p_o_offset[i] = findptsData->local.hd.offset[i]; });
+
+   DEV.o_wtend_x.SetSize(6*DEV.dof1D);
+   DEV.o_wtend_x.UseDevice(true);
+   DEV.o_wtend_y.SetSize(6*DEV.dof1D);
+   DEV.o_wtend_y.UseDevice(true);
+
+   internal::device_copy(DEV.o_wtend_x.ReadWrite(),
+                         findptsData->local.fed.wtend[0],
+                         6*DEV.dof1D);
+   internal::device_copy(DEV.o_wtend_y.ReadWrite(),
+                         findptsData->local.fed.wtend[1],
+                         6*DEV.dof1D);
+   if (dim == 3)
+   {
+      DEV.o_wtend_z.SetSize(6*DEV.dof1D);
+      DEV.o_wtend_z.UseDevice(true);
+      internal::device_copy(DEV.o_wtend_z.ReadWrite(),
+                            findptsData->local.fed.wtend[2],
+                            6*DEV.dof1D);
+   }
+
+   // Get gll points
+   DEV.gll1d.SetSize(DEV.dof1D*dim);
+   DEV.gll1d.UseDevice(true);
+   internal::device_copy(DEV.gll1d.ReadWrite(),
+                         findptsData->local.fed.z[0],
+                         DEV.dof1D*dim);
+
+   DEV.lagcoeff.SetSize(DEV.dof1D*dim);
+   DEV.lagcoeff.UseDevice(true);
+   internal::device_copy(DEV.lagcoeff.ReadWrite(),
+                         findptsData->local.fed.lag_data[0],
+                         DEV.dof1D*dim);
+   DEV.lagcoeff.Print();
+
+   DEV.info.SetSize(50*points_cnt);
+   DEV.info.UseDevice(true);
+   DEV.info = -1.0;
+   std::cout << " k10donesetupondevice\n";
+
+//   DEV.o_hashMin.Print(mfem::out, 3);
+//   DEV.o_hashFac.Print(mfem::out, 3);
+//   DEV.o_offset.HostReadWrite();
+//   DEV.o_offset.Print(mfem::out);
+//   std::cout << hd_d_size << " hashdatasize\n";
+//   std::cout << DEV.dof1D << " k101Ddof\n";
+//   DEV.o_wtend_x.Print(mfem::out, DEV.dof1D*6);
+//   DEV.o_wtend_y.Print(mfem::out, DEV.dof1D*6);
+//   DEV.o_wtend_z.Print(mfem::out, DEV.dof1D*6);
+//   DEV.gll1d.Print(mfem::out, DEV.dof1D*dim);
+//   DEV.lagcoeff.Print(mfem::out, DEV.dof1D*dim);
+//   DEV.o_x.Print();
+//   DEV.o_y.Print();
+//   DEV.o_z.Print();
+//   std::cout << " Done print\n";
+//   MFEM_ABORT(" ");
+//   MFEM_ABORT(" ");
 }
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
@@ -279,7 +560,7 @@ void FindPointsGSLIB::FreeData()
    }
    else
    {
-      findpts_free_3(fdata3D);
+      findpts_free_3((gslib::findpts_data_3 *)this->fdataD);
    }
    gsl_code.DeleteAll();
    gsl_proc.DeleteAll();
@@ -956,7 +1237,7 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
                         gsl_proc.GetData(),    sizeof(unsigned int),
                         gsl_elem.GetData(),    sizeof(unsigned int),
                         gsl_ref.GetData(),     sizeof(double) * dim,
-                        points_cnt, node_vals.GetData(), fdata3D);
+                        points_cnt, node_vals.GetData(), (gslib::findpts_data_3 *)this->fdataD);
       }
    }
    if (field_in.FESpace()->GetOrdering() == Ordering::byVDIM)
@@ -1212,9 +1493,9 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
       { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
-      fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
-                                  pts_cnt, pts_cnt, npt_max, newt_tol,
-                                  &u_meshid, &distfint(0));
+      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
+                                 pts_cnt, pts_cnt, npt_max, newt_tol,
+                                 &u_meshid, &distfint(0));
    }
    setupflag = true;
    overset   = true;
@@ -1278,7 +1559,7 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
                   gsl_dist.GetData(), sizeof(double),
                   xv_base,            xv_stride,
                   point_id.GetData(), sizeof(unsigned int), &match,
-                  points_cnt, fdata3D);
+                  points_cnt, (gslib::findpts_data_3 *)this->fdataD);
    }
 
    // Set the element number and reference position to 0 for points not found
@@ -1310,5 +1591,7 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 
 
 } // namespace mfem
+#undef dlong
+#undef dfloat
 
 #endif // MFEM_USE_GSLIB
