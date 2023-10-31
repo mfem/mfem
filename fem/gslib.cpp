@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "gslib.hpp"
+#include "geom.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -682,7 +683,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    int nptorig = points_cnt,
        npt = points_cnt;
 
-   // tolerance for point to be marked as on element boundary
+   // tolerance for point to be marked as on element edge/face
    double btol = 1e-12;
 
    GridFunction *gf_rst_map_temp = NULL;
