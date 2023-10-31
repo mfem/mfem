@@ -46,7 +46,9 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
+// make pfindpts -j && mpirun -np 1 pfindpts -m hex1.mesh -o 3 -d debug
 #include "mfem.hpp"
+#include "general/forall.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -89,6 +91,8 @@ int main (int argc, char *argv[])
    bool hrefinement      = false;
    int point_ordering    = 0;
    int gf_ordering       = 0;
+   const char *devopt    = "cpu";
+   double jitter         = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -121,6 +125,11 @@ int main (int argc, char *argv[])
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
                   "Ordering of fespace that will be used for gridfunction to be interpolated."
                   "0 (default): byNodes, 1: byVDIM");
+   args.AddOption(&devopt, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&jitter, "-ji", "--jitter",
+                  "Random perturbation scaling factor.");
+
 
    args.Parse();
    if (!args.Good())
@@ -129,6 +138,14 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   if (hrefinement)
+   {
+      MFEM_VERIFY(strcmp(devopt,"cpu")==0, "HR-adaptivity is currently only"
+                  " supported on cpus.");
+   }
+   Device device(devopt);
+   if (myid == 0) { device.Print();}
 
    func_order = std::min(order, 2);
 
@@ -172,10 +189,55 @@ int main (int argc, char *argv[])
    H1_FECollection fecm(mesh_poly_deg, dim);
    ParFiniteElementSpace pfespace(&pmesh, &fecm, dim);
    pmesh.SetNodalFESpace(&pfespace);
+   ParGridFunction x(&pfespace);
+   pmesh.SetNodalGridFunction(&x);
    if (myid == 0)
    {
       cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
    }
+
+   Vector h0(pfespace.GetNDofs());
+   h0 = infinity();
+   double vol_loc = 0.0;
+   Array<int> dofs;
+   for (int i = 0; i < pmesh.GetNE(); i++)
+   {
+      // Get the local scalar element degrees of freedom in dofs.
+      pfespace.GetElementDofs(i, dofs);
+      // Adjust the value of h0 in dofs based on the local mesh size.
+      const double hi = pmesh.GetElementSize(i);
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
+      }
+      vol_loc += pmesh.GetElementVolume(i);
+   }
+
+   ParGridFunction rdm(&pfespace);
+   rdm.Randomize();
+   rdm -= 0.25; // Shift to random values in [-0.5,0.5].
+   rdm *= jitter;
+   rdm.HostReadWrite();
+   // Scale the random values to be of order of the local mesh size.
+   for (int i = 0; i < pfespace.GetNDofs(); i++)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         rdm(pfespace.DofToVDof(i,d)) *= h0(i);
+      }
+   }
+   Array<int> vdofs;
+   for (int i = 0; i < pfespace.GetNBE(); i++)
+   {
+      // Get the vector degrees of freedom in the boundary element.
+      pfespace.GetBdrElementVDofs(i, vdofs);
+      // Set the boundary values to zero.
+      for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
+   }
+   x -= rdm;
+   // Set the perturbation of all nodes from the true nodes.
+   x.SetTrueVector();
+   x.SetFromTrueVector();
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
@@ -244,9 +306,12 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 25;
+   const int pts_cnt_1D = 31;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
+   vxyz.UseDevice(true);
+   vxyz.HostReadWrite();
+   vxyz.Randomize(myid+1);
    if (dim == 2)
    {
       L2_QuadrilateralElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
@@ -285,8 +350,52 @@ int main (int argc, char *argv[])
             vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
             vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
+//          if (i == 0) {
+//              vxyz(i) = 0.5;
+//              vxyz(i + pts_cnt) = 0.5;
+//              vxyz(i + 2*pts_cnt) = 0.5;
+//          }
+//          else if (i == 1) {
+//              vxyz(i) = 0.333;
+//              vxyz(i + pts_cnt) = 0.33;
+//              vxyz(i + 2*pts_cnt) = 0.33;
+//          }
+//          else if (i == 2) {
+//              vxyz(i) = 1.0;
+//              vxyz(i + pts_cnt) = 0.3;
+//              vxyz(i + 2*pts_cnt) = 0.33;
+//          }
       }
    }
+   vxyz.ReadWrite();
+
+   //   Vector vxyz2(vxyz.Size());
+   //   vxyz2.UseDevice(true);
+   //   vxyz2 = -1.0;
+
+   //   const auto u_data = vxyz2.Write(); // Express the intent to read u
+   //   auto v_data = vxyz.HostRead(); // Express the intent to read and write v
+   //   std::cout << " k101\n";
+
+   //   // Abstract the loop: for(int i=0; i<u.Size(); i++)
+   //   mfem::forall(vxyz.Size(), [=] MFEM_HOST_DEVICE (int i)
+   //   {
+   //         u_data[i] = v_data[i]; // This block of code is executed on the chosen device
+   //   });
+
+   //   auto u_data2 = vxyz2.HostRead();
+   //   for (int i = 0; i < vxyz2.Size(); i++){
+   //      std::cout << i << " " << u_data2[i] << " k10i\n";
+   //   }
+   //   MFEM_ABORT(" ");
+
+   //   {
+   //       const auto u_data2 = vxyz2.HostWrite();
+   //       mfem::forall(vxyz2.Size(), [=] MFEM_HOST_DEVICE (int i)
+   //       {
+   //             u_data2[i] = -1.0; // This block of code is executed on the chosen device
+   //       });
+   //   }
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -296,9 +405,72 @@ int main (int argc, char *argv[])
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
+
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);
-   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
+   finder.Setup(pmesh, 0.01);
+   finder.FindPoints(vxyz, point_ordering);
+   std::cout << " k10donefindpoints\n";
+
+
+   FindPointsGSLIB finder2(MPI_COMM_WORLD);
+   finder2.Setup(pmesh);
+   vxyz.HostReadWrite();
+   vxyz.UseDevice(false);
+   finder2.FindPoints(vxyz, point_ordering);
+   Array<unsigned int> code_out2    = finder2.GetCode();
+   Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
+   Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
+   Vector dist2    = finder2.GetDist();
+//   std::cout << " Print rst on cpu\n";
+//   ref_rst2.Print(mfem::out, 3);
+//   std::cout << " Print dist on cpu\n";
+//   dist2.Print();
+
+   Array<unsigned int> code_out1    = finder.GetCode();
+   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
+   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
+   Vector dist1    = finder.GetDist();
+   Vector info1    = finder.GetInfo();
+//   std::cout << " Print rst on dev\n";
+//   ref_rst1.Print(mfem::out, 3);
+//   std::cout << " Print dist on dev\n";
+//   dist1.Print();
+
+   int notfound = 0;
+   for (int i = 0; i < code_out1.Size(); i++)
+   {
+       int c1 = code_out1[i];
+       int c2 = code_out2[i];
+       int e1 = el_out1[i];
+       int e2 = el_out2[i];
+       Vector ref1(ref_rst1.GetData()+i*dim, dim);
+       Vector ref2(ref_rst2.GetData()+i*dim, dim);
+       Vector dref = ref1;
+       dref -= ref2;
+//       std::cout << "FPT DEV: " <<  ref1(0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
+
+//       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
+       if (std::fabs(dist1(i)) > 1e-10)
+       {
+           notfound++;
+           std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
+                        vxyz(i+2*pts_cnt) << " k10\n";
+           std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
+                        c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
+           std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
+           std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " << ref1(0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
+       }
+   }
+
+//   info1.Print(mfem::out, 10);
+
+   // MAX_CONST(4, p_Nq + 1) * (15) + 3 * 2 * p_Nq]
+   // MAX_CONST(p_Nq *p_Nq * 6, p_Nq * 3 * 3)
+
+   std::cout << notfound << " k10donefindpoints\n";
+   std::cout << info1(0) << " " << info1(1) << " k10c\n";
+   MFEM_ABORT("aboritng in miniapp\n");
+   finder.Interpolate(field_vals, interp_vals);
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
