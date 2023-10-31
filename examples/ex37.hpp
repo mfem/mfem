@@ -911,11 +911,67 @@ class SIMPElasticCompliance : public ObjectiveFunction
 public:
    SIMPElasticCompliance(Coefficient *lambda, Coefficient *mu, double epsilon,
                          Coefficient *rho, VectorCoefficient *force, const double target_volume,
-                         Array<int> &ess_bdr,
+                         Array<int> &ess_bdr_list,
                          FiniteElementSpace *displacement_space,
                          FiniteElementSpace *filter_space, double exponent, double rho_min):
       SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
-      eps2(epsilon*epsilon), ess_bdr(ess_bdr), target_volume(target_volume),
+      eps2(epsilon*epsilon), ess_bdr(1, ess_bdr_list.Size()),
+      target_volume(target_volume),
+      u(nullptr), frho(nullptr),
+      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent),
+      drho_dpsi(x_gf, sigmoid)
+   {
+      for (int i=0; i<ess_bdr_list.Size(); i++) {ess_bdr(0, i) = ess_bdr_list[i]; };
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(displacement_space);
+      if (pfes)
+      {
+         u = new ParGridFunction(pfes);
+      }
+      else
+      {
+         u = new GridFunction(displacement_space);
+      }
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(filter_space);
+      if (pfes)
+      {
+         frho = new ParGridFunction(pfes);
+      }
+      else
+      {
+         frho = new GridFunction(filter_space);
+      }
+#else
+      u = new GridFunction(displacement_space);
+      frho = new GridFunction(filter_space);
+#endif
+
+      design_density.SetFunction([exponent, rho_min](const double rho)
+      {
+         return simp(rho, rho_min, exponent);
+      });
+      design_density.SetGridFunction(frho);
+      SIMPlambda.SetBCoef(design_density);
+      SIMPmu.SetBCoef(design_density);
+      strainEnergy.SetDisplacement(u);
+      strainEnergy.SetFilteredDensity(frho);
+      drho_dpsi.SetFunction([](const double x)
+      {
+         double density = sigmoid(x);
+         return density * (1.0 - density);
+      });
+   }
+   SIMPElasticCompliance(Coefficient *lambda, Coefficient *mu, double epsilon,
+                         Coefficient *rho, VectorCoefficient *force, const double target_volume,
+                         Array2D<int> &ess_bdr,
+                         FiniteElementSpace *displacement_space,
+                         FiniteElementSpace *filter_space, double exponent, double rho_min):
+      SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
+      eps2(epsilon*epsilon), ess_bdr(ess_bdr),
+      target_volume(target_volume),
       u(nullptr), frho(nullptr),
       rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent),
       drho_dpsi(x_gf, sigmoid)
