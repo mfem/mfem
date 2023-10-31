@@ -167,6 +167,7 @@ MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_ENZYME        = NO
+MFEM_USE_FLOAT         = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
