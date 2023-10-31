@@ -332,11 +332,11 @@ int main(int argc, char *argv[])
                              &filter_fes, exponent, rho_min);
    obj.SetGridFunction(&psi);
 
-   BackTracking lineSearch(obj, alpha, 2.0, c1, 10, 1e6);
+   // BackTracking lineSearch(obj, alpha, 2.0, c1, 10, 1e6);
    // LinearGrowth lineSearch(obj, alpha);
    // ExponentialGrowth lineSearch(obj, 2.0, alpha);
-   // BackTrackingLipschitzBregmanMirror lineSearch(obj, succ_diff_rho_form,
-   //                                               *(obj.Gradient()), psi, c1);
+   BackTrackingLipschitzBregmanMirror lineSearch(obj, succ_diff_rho_form,
+                                                 *(obj.Gradient()), psi, c1);
    MappedGridFunctionCoefficient &designDensity = obj.GetDesignDensity();
    GridFunction designDensity_gf(&filter_fes);
    designDensity_gf = pow(vol_fraction, exponent);
@@ -378,10 +378,6 @@ int main(int argc, char *argv[])
 
       d = *obj.Gradient();
       d.Neg();
-      for (int i=0; i<d.Size(); i++)
-      {
-         d[i] *= (double)(std::fabs(psi[i]) < 1e05 || psi[i]*d[i] < 0);
-      }
       double compliance = lineSearch.Step(psi, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
       psi_old = psi;
