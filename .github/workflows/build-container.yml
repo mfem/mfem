@@ -33,7 +33,7 @@ jobs:
     name: Build
     steps:
       - name: Run Actions Cleaner
-        uses: easimon/maximize-build-space@master
+        uses: easimon/maximize-build-space@v8
         with:
           overprovision-lvm: 'true'
           remove-dotnet: 'true'
