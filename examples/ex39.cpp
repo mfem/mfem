@@ -378,6 +378,10 @@ int main(int argc, char *argv[])
 
       d = *obj.Gradient();
       d.Neg();
+      for (int i=0; i<d.Size(); i++)
+      {
+         d[i] *= (double)(std::fabs(psi[i]) < 1e05 || psi[i]*d[i] < 0);
+      }
       double compliance = lineSearch.Step(psi, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
       psi_old = psi;
