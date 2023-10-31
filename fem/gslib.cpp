@@ -151,8 +151,6 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    MFEM_VERIFY(m.GetNodes() != NULL, "Mesh nodes are required.");
    const int meshOrder = m.GetNodes()->FESpace()->GetMaxElementOrder();
 
-   std::cout << m.GetNodes()->UseDevice() << " k10nodesdevicestatus\n";
-
    // call FreeData if FindPointsGSLIB::Setup has been called already
    if (setupflag) { FreeData(); }
 
@@ -227,7 +225,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    auto *findptsData = (gslib::findpts_data_3 *)this->fdataD;
 
    bool dev_mode = point_pos.UseDevice();
-   std::cout << dev_mode << " k10pointusedev\n";
    if (dev_mode)
    {
        FindPointsOnDevice(point_pos, point_pos_ordering);
@@ -258,7 +255,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       }
    };
 
-   std::cout << " k10do finding\n";
    if (dim == 2)
    {
       const double *xv_base[2];
@@ -284,8 +280,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
                 xv_base, xv_stride, points_cnt,
                 findptsData);
    }
-   std::cout << " k10done finding\n";
-   return;
 
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
@@ -368,7 +362,6 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
    DEV.tol = findptsData->local.tol;
    DEV.hash = &findptsData->hash;
    DEV.cr = &findptsData->cr;
-   std::cout << DEV.tol << " " << gsl_mesh.Size() << " k10devtol\n";
 
    const int mesh_pts_cnt = gsl_mesh.Size()/dim;
 
@@ -415,22 +408,13 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
          p_o_c[dim*e+d] = box.c0[d];
          p_o_min[dim*e+d] = box.x[d].min;
          p_o_max[dim*e+d] = box.x[d].max;
-//         DEV.o_min(dim * e + d) = box.x[d].min;
-//         DEV.o_max(dim * e + d) = box.x[d].max;
       }
 
       for (int i = 0; i < dim2; ++i)
       {
-//         DEV.o_A(dim2 * e + i) = box.A[i];
          p_o_A[dim2*e+i] = box.A[i];
       }
    }
-
-//   DEV.o_c.Print(mfem::out, 3);
-//   DEV.o_min.Print(mfem::out, 3);
-//   DEV.o_max.Print(mfem::out, 3);
-//   DEV.o_A.Print(mfem::out, 9);
-//   MFEM_ABORT(" ");
 
    DEV.o_hashMin.SetSize(dim); DEV.o_hashMin.UseDevice(true);
    DEV.o_hashFac.SetSize(dim); DEV.o_hashFac.UseDevice(true);
@@ -438,29 +422,18 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
 
    auto p_o_hashMin = DEV.o_hashMin.HostReadWrite();
    auto p_o_hashFac = DEV.o_hashFac.HostReadWrite();
-//   Vector hashMin(dim);
-//   Vector hashFac(dim);
    for (int d = 0; d < dim; ++d)
    {
-//      hashMin(d) = hash.bnd[d].min;
-//      hashFac(d) = hash.fac[d];
       p_o_hashMin[d] = hash.bnd[d].min;
       p_o_hashFac[d] = hash.fac[d];
    }
 
    DEV.hash_n = hash.hash_n;
-//   internal::device_copy(DEV.o_hashMin.ReadWrite(), hashMin.HostRead(), dim);
-//   internal::device_copy(DEV.o_hashFac.ReadWrite(), hashFac.HostRead(), dim);
 
    const auto hd_d_size = getHashSize(findptsData,
                                       NE_split_total,
                                       DEV.local_hash_size);
 
-//   Array<dlong> offsets(hd_d_size);
-//   for (int i = 0; i < hd_d_size; ++i)
-//   {
-//      offsets[i] = findptsData->local.hd.offset[i];
-//   }
    DEV.o_offset.SetSize(hd_d_size, mt);
    auto p_o_offset = DEV.o_offset.ReadWrite();
    mfem::forall(hd_d_size, [=] MFEM_HOST_DEVICE (int i) { p_o_offset[i] = findptsData->local.hd.offset[i]; });
@@ -497,30 +470,10 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
    internal::device_copy(DEV.lagcoeff.ReadWrite(),
                          findptsData->local.fed.lag_data[0],
                          DEV.dof1D*dim);
-   DEV.lagcoeff.Print();
 
    DEV.info.SetSize(50*points_cnt);
    DEV.info.UseDevice(true);
    DEV.info = -1.0;
-   std::cout << " k10donesetupondevice\n";
-
-//   DEV.o_hashMin.Print(mfem::out, 3);
-//   DEV.o_hashFac.Print(mfem::out, 3);
-//   DEV.o_offset.HostReadWrite();
-//   DEV.o_offset.Print(mfem::out);
-//   std::cout << hd_d_size << " hashdatasize\n";
-//   std::cout << DEV.dof1D << " k101Ddof\n";
-//   DEV.o_wtend_x.Print(mfem::out, DEV.dof1D*6);
-//   DEV.o_wtend_y.Print(mfem::out, DEV.dof1D*6);
-//   DEV.o_wtend_z.Print(mfem::out, DEV.dof1D*6);
-//   DEV.gll1d.Print(mfem::out, DEV.dof1D*dim);
-//   DEV.lagcoeff.Print(mfem::out, DEV.dof1D*dim);
-//   DEV.o_x.Print();
-//   DEV.o_y.Print();
-//   DEV.o_z.Print();
-//   std::cout << " Done print\n";
-//   MFEM_ABORT(" ");
-//   MFEM_ABORT(" ");
 }
 
 void FindPointsGSLIB::FindPoints(Mesh &m, const Vector &point_pos,
