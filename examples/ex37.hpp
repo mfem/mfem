@@ -730,34 +730,109 @@ LinearElasticitySolver::~LinearElasticitySolver()
 class EllipticSolver
 {
 public:
-   EllipticSolver(BilinearForm *a, LinearForm *b, Array<int> &ess_bdr): a(a), b(b),
-      ess_bdr(ess_bdr), parallel(false)
+   EllipticSolver(BilinearForm *a, LinearForm *b, Array<int> &ess_bdr_list): a(a),
+      b(b),
+      ess_bdr(1, ess_bdr_list.Size()), parallel(false)
    {
+      for (int i=0; i<ess_bdr_list.Size(); i++)
+      {
+         ess_bdr(0, i) = ess_bdr_list[i];
+      }
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace());
       if (pfes) {parallel = true;}
 #endif
    };
+   EllipticSolver(BilinearForm *a, LinearForm *b, Array2D<int> &ess_bdr): a(a),
+      b(b), ess_bdr(ess_bdr), parallel(false)
+   {
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(a->FESpace());
+      if (pfes) {parallel = true;}
+#endif
+   }
    void ChangeLHS(BilinearForm *a_) { a = a_; }
    void ChangeRHS(LinearForm *b_) { b = b_; }
    bool Solve(GridFunction *x)
    {
       OperatorPtr A;
       Vector B, X;
-      Array<int> ess_tdof_list;
+      Array<int> ess_tdof_list(0);
 
 #ifdef MFEM_USE_MPI
       if (parallel)
       {
-         dynamic_cast<ParFiniteElementSpace*>(a->FESpace())->GetEssentialTrueDofs(
-            ess_bdr,ess_tdof_list);
+         if (ess_bdr.NumRows() == 1)
+         {
+            Array<int> ess_bdr_list(ess_bdr.GetRow(0), ess_bdr.NumCols());
+            dynamic_cast<ParFiniteElementSpace*>(a->FESpace())->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list);
+         }
+         else
+         {
+            Array<int> ess_tdof_list_comp;
+            for (int i=0; i<ess_bdr.NumRows() - 1; i++)
+            {
+               Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
+               dynamic_cast<ParFiniteElementSpace*>(a->FESpace())->GetEssentialTrueDofs(
+                  ess_bdr_list, ess_tdof_list_comp, i);
+               ess_tdof_list.Append(ess_tdof_list_comp);
+            }
+            Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
+                                    ess_bdr.NumCols());
+            dynamic_cast<ParFiniteElementSpace*>(a->FESpace())->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list_comp, -1);
+            ess_tdof_list.Append(ess_tdof_list_comp);
+         }
       }
       else
       {
-         a->FESpace()->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+         if (ess_bdr.NumRows() == 1)
+         {
+            Array<int> ess_bdr_list(ess_bdr.GetRow(0), ess_bdr.NumCols());
+            a->FESpace()->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list);
+         }
+         else
+         {
+            Array<int> ess_tdof_list_comp;
+            for (int i=0; i<ess_bdr.NumRows() - 1; i++)
+            {
+               Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
+               a->FESpace()->GetEssentialTrueDofs(
+                  ess_bdr_list, ess_tdof_list_comp, i);
+               ess_tdof_list.Append(ess_tdof_list_comp);
+            }
+            Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
+                                    ess_bdr.NumCols());
+            a->FESpace()->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list_comp, -1);
+            ess_tdof_list.Append(ess_tdof_list_comp);
+         }
       }
 #else
-      a->FESpace()->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
+      if (ess_bdr.NumRows() == 1)
+      {
+         Array<int> ess_bdr_list(ess_bdr.GetRow(0), ess_bdr.NumCols());
+         a->FESpace()->GetEssentialTrueDofs(
+            ess_bdr_list, ess_tdof_list);
+      }
+      else
+      {
+         Array<int> ess_tdof_list_comp;
+         for (int i=0; i<ess_bdr.NumRows() - 1; i++)
+         {
+            Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
+            a->FESpace()->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list_comp, i);
+            ess_tdof_list.Append(ess_tdof_list_comp);
+         }
+         Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
+                                 ess_bdr.NumCols());
+         a->FESpace()->GetEssentialTrueDofs(
+            ess_bdr_list, ess_tdof_list_comp, -1);
+         ess_tdof_list.Append(ess_tdof_list_comp);
+      }
 #endif
       b->Assemble();
       a->Assemble();
@@ -800,7 +875,7 @@ protected:
    BilinearForm *a;
    LinearForm *b;
    bool parallel;
-   Array<int> &ess_bdr;
+   Array2D<int> ess_bdr;
 private:
 };
 
