@@ -1410,28 +1410,26 @@ public:
       directionalDer->Assemble();
 
       double val = F.GetValue();
-      double d2 = (*directionalDer)(*(F.GetGradient()));
-      out << "Current Value = " << val << std::endl;
+      GridFunction *grad = F.GetGradient();
+      double d2 = (*directionalDer)(*grad);
+      // out << "Current Value = " << val << std::endl;
 
       *x0 = x;
-      *d0 = d;
-      int k;
-      double new_val;
-      for (k=0; k<maxit; k++)
+      // int k;
+      double new_val = infinity();
+      // for (k=0; k<maxit; k++)
+      step_size *= 2;
+      while (new_val > val + c1*d2)
       {
+         step_size *= 0.5;
+
          x = *x0;
-         x.Add(step_size, *d0);
+         x.Add(step_size, d);
          new_val = F.Eval();
-         d2 = (*directionalDer)(*(F.GetGradient()));
+         directionalDer->Assemble();
+         d2 = (*directionalDer)(*grad);
          out << "step_size = " << step_size << ": (" << new_val << ", " << val + c1 * d2
              << ")" << std::endl;
-         if (new_val < val + c1 * d2)
-         {
-
-            out << "Final step size: " << step_size << std::endl;
-            break;
-         }
-         step_size /= growthRate;
       }
 
       step_size *= growthRate;
@@ -1440,10 +1438,10 @@ public:
       delete x0;
       delete d0;
       // if (F.dcf_dgf()) { delete directionalDer_cf; }
-      if (k == maxit)
-      {
-         MFEM_WARNING("Maximum number of iterations reached. Results may not be reliable.");
-      }
+      // if (k == maxit)
+      // {
+      //    MFEM_WARNING("Maximum number of iterations reached. Results may not be reliable.");
+      // }
       return new_val;
    }
 protected:
