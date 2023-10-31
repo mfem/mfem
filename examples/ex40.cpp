@@ -331,16 +331,22 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_r;
+   socketstream sout_SIMP, sout_r;
    if (glvis_visualization)
    {
       GridFunction designDensity_gf(&filter_fes);
       designDensity_gf.ProjectCoefficient(SIMP_cf);
+      sout_SIMP.open(vishost, visport);
+      sout_SIMP.precision(8);
+      sout_SIMP << "solution\n" << mesh << designDensity_gf
+                << "window_title 'Design density r(ρ̃) - OC'\n"
+                << "keys Rjl***************\n"
+                << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << designDensity_gf
-             << "window_title 'Design density r(ρ̃) - OC'\n"
-             << "keys Rj***************\n"
+             << "window_title 'Raw density ρ - OC'\n"
+             << "keys Rjl***************\n"
              << flush;
    }
 
@@ -440,7 +446,9 @@ int main(int argc, char *argv[])
       {
          GridFunction designDensity_gf(&filter_fes);
          designDensity_gf.ProjectCoefficient(SIMP_cf);
-         sout_r << "solution\n" << mesh << designDensity_gf
+         sout_SIMP << "solution\n" << mesh << designDensity_gf
+                   << flush;
+         sout_r << "solution\n" << mesh << rho
                 << flush;
 
          ostringstream sol_name;
