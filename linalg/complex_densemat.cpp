@@ -13,6 +13,31 @@
 #include <complex>
 
 #ifdef MFEM_USE_LAPACK
+#ifdef MFEM_USE_FLOAT
+extern "C" void
+cgetrf_(int *, int *, std::complex<float> *, int *, int *, int *);
+extern "C" void
+cgetrs_(char *, int *, int *, std::complex<float> *, int *, int *,
+        std::complex<float> *, int *, int *);
+extern "C" void
+cgetri_(int *, std::complex<float> *, int *, int *,
+        std::complex<float> *, int *, int *);
+extern "C" void
+ctrsm_(char *, char *, char *, char *, int *, int *, std::complex<float> *,
+       std::complex<float> *, int *, std::complex<float> *, int *);
+extern "C" void
+cpotrf_(char *, int *, std::complex<float> *, int *, int *);
+
+extern "C" void
+ctrtrs_(char *, char*, char *, int *, int *, std::complex<float> *, int *,
+        std::complex<float> *, int *, int *);
+extern "C" void
+cpotri_(char *, int *, std::complex<float> *, int*, int *);
+
+extern "C" void
+cpotrs_(char *, int *, int *, std::complex<float> *, int *,
+        std::complex<float> *, int *, int *);
+#else // Double-precision
 extern "C" void
 zgetrf_(int *, int *, std::complex<double> *, int *, int *, int *);
 extern "C" void
@@ -36,6 +61,7 @@ zpotri_(char *, int *, std::complex<double> *, int*, int *);
 extern "C" void
 zpotrs_(char *, int *, int *, std::complex<double> *, int *,
         std::complex<double> *, int *, int *);
+#endif
 #endif
 
 namespace mfem
@@ -146,22 +172,32 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
 #ifdef MFEM_USE_LAPACK
    int   *ipiv = new int[w];
    int    lwork = -1;
-   std::complex<double> qwork, *work;
+   std::complex<fptype> qwork, *work;
    int    info;
 
+#ifdef MFEM_USE_FLOAT
+   cgetrf_(&w, &w, data, &w, ipiv, &info);
+#else
    zgetrf_(&w, &w, data, &w, ipiv, &info);
+#endif
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in ZGETRF");
    }
 
+#ifdef MFEM_USE_FLOAT
+   cgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
+#else
    zgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
-
+#endif
    lwork = (int) qwork.real();
-   work = new std::complex<double>[lwork];
+   work = new std::complex<fptype>[lwork];
 
+#ifdef MFEM_USE_FLOAT
+   cgetri_(&w, data, &w, ipiv, work, &lwork, &info);
+#else
    zgetri_(&w, data, &w, ipiv, work, &lwork, &info);
-
+#endif
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in ZGETRI");
@@ -451,7 +487,11 @@ bool ComplexLUFactors::Factor(int m, fptype TOL)
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    MFEM_VERIFY(data, "Matrix data not set");
+#ifdef MFEM_USE_FLOAT
+   if (m) { cgetrf_(&m, &m, data, &m, ipiv, &info); }
+#else
    if (m) { zgetrf_(&m, &m, data, &m, ipiv, &info); }
+#endif
    return info == 0;
 #else
    // compiling without LAPACK
@@ -610,10 +650,14 @@ void ComplexLUFactors::USolve(int m, int n, fptype *X_r, fptype * X_i) const
 void ComplexLUFactors::Solve(int m, int n, fptype *X_r, fptype * X_i) const
 {
 #ifdef MFEM_USE_LAPACK
-   std::complex<double> * x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<fptype> * x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
    char trans = 'N';
    int  info = 0;
+#ifdef MFEM_USE_FLOAT
+   if (m > 0 && n > 0) { cgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
+#else
    if (m > 0 && n > 0) { zgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
+#endif
    MFEM_VERIFY(!info, "LAPACK: error in ZGETRS");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
    delete [] x;
@@ -632,9 +676,14 @@ void ComplexLUFactors::RightSolve(int m, int n, fptype *X_r, fptype * X_i) const
    char n_ch = 'N', side = 'R', u_ch = 'U', l_ch = 'L';
    if (m > 0 && n > 0)
    {
-      std::complex<double> alpha(1.0,0.0);
+      std::complex<fptype> alpha(1.0,0.0);
+#ifdef MFEM_USE_FLOAT
+      ctrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      ctrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#else
       ztrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       ztrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#endif
    }
 #else
    // compiling without LAPACK
@@ -756,7 +805,11 @@ bool ComplexCholeskyFactors::Factor(int m, fptype TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
+#ifdef MFEM_USE_FLOAT
+   if (m) {cpotrf_(&uplo, &m, data, &m, &info);}
+#else
    if (m) {zpotrf_(&uplo, &m, data, &m, &info);}
+#endif
    return info == 0;
 #else
    // Cholesky–Crout algorithm
@@ -856,7 +909,11 @@ void ComplexCholeskyFactors::LSolve(int m, int n, fptype * X_r,
    char diag = 'N';
    int info = 0;
 
+#ifdef MFEM_USE_FLOAT
+   ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#else
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:LSolve:: info");
 #else
    for (int k = 0; k < n; k++)
@@ -889,7 +946,11 @@ void ComplexCholeskyFactors::USolve(int m, int n, fptype * X_r,
    char diag = 'N';
    int info = 0;
 
+#ifdef MFEM_USE_FLOAT
+   ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#else
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:USolve:: info");
 #else
    // X <- L^{-t} X
@@ -916,8 +977,12 @@ void ComplexCholeskyFactors::Solve(int m, int n, fptype * X_r,
 #ifdef MFEM_USE_LAPACK
    char uplo = 'L';
    int info = 0;
-   std::complex<double> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+   std::complex<fptype> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
+#ifdef MFEM_USE_FLOAT
+   cpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
+#else
    zpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
+#endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:Solve:: info");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
    delete x;
@@ -940,11 +1005,16 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, fptype * X_r,
    char trans = 'N';
    char diag = 'N';
 
-   std::complex<double> alpha(1.0,0.0);
+   std::complex<fptype> alpha(1.0,0.0);
    if (m > 0 && n > 0)
    {
+#ifdef MFEM_USE_FLOAT
+      ctrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
+      ctrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
+#else
       ztrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
       ztrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
+#endif
    }
 #else
    // X <- X L^{-H}
@@ -995,7 +1065,11 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, fptype * X_r,
    }
    char uplo = 'L';
    int info = 0;
+#ifdef MFEM_USE_FLOAT
+   cpotri_(&uplo, &m, X, &m, &info);
+#else
    zpotri_(&uplo, &m, X, &m, &info);
+#endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)

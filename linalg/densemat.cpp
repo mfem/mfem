@@ -33,6 +33,53 @@
 
 
 #ifdef MFEM_USE_LAPACK
+#ifdef MFEM_USE_FLOAT
+extern "C" void
+sgemm_(char *, char *, int *, int *, int *, float *, float *,
+       int *, float *, int *, float *, float *, int *);
+extern "C" void
+sgetrf_(int *, int *, float *, int *, int *, int *);
+extern "C" void
+sgetrs_(char *, int *, int *, float *, int *, int *, float *, int *, int *);
+extern "C" void
+sgetri_(int *N, float *A, int *LDA, int *IPIV, float *WORK,
+        int *LWORK, int *INFO);
+extern "C" void
+ssyevr_(char *JOBZ, char *RANGE, char *UPLO, int *N, float *A, int *LDA,
+        float *VL, float *VU, int *IL, int *IU, float *ABSTOL, int *M,
+        float *W, float *Z, int *LDZ, int *ISUPPZ, float *WORK, int *LWORK,
+        int *IWORK, int *LIWORK, int *INFO);
+extern "C" void
+ssyev_(char *JOBZ, char *UPLO, int *N, float *A, int *LDA, float *W,
+       float *WORK, int *LWORK, int *INFO);
+extern "C" void
+ssygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, float *A, int *LDA,
+        float *B, int *LDB, float *W,  float *WORK, int *LWORK, int *INFO);
+extern "C" void
+sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA,
+        float *S, float *U, int *LDU, float *VT, int *LDVT, float *WORK,
+        int *LWORK, int *INFO);
+extern "C" void
+strsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
+       float *alpha, float *a, int *lda, float *b, int *ldb);
+extern "C" void
+sggev_(char *jobvl, char *jobvr, int *n, float *a, int *lda, float *B,
+       int *ldb, float *alphar, float *alphai, float *beta, float *vl,
+       int * ldvl, float * vr, int * ldvr, float * work, int * lwork, int* info);
+
+// Cholesky factorizations/solves
+extern "C" void
+spotrf_(char *, int *, float *, int *, int *);
+// Solve
+extern "C" void
+spotrs_(char *, int *, int *, float *, int *, float *, int *, int *);
+// Triangular Solves
+extern "C" void
+strtrs_(char *, char*, char *, int *, int *, float *, int *, float *, int *,
+        int *);
+extern "C" void
+spotri_(char *, int *, float *, int*, int *);
+#else // Double-precision
 extern "C" void
 dgemm_(char *, char *, int *, int *, int *, double *, double *,
        int *, double *, int *, double *, double *, int *);
@@ -78,6 +125,7 @@ dtrtrs_(char *, char*, char *, int *, int *, double *, int *, double *, int *,
         int *);
 extern "C" void
 dpotri_(char *, int *, double *, int*, int *);
+#endif
 #endif
 
 
@@ -687,22 +735,35 @@ void DenseMatrix::Invert()
 #ifdef MFEM_USE_LAPACK
    int   *ipiv = new int[width];
    int    lwork = -1;
-   double qwork, *work;
+   fptype qwork, *work;
    int    info;
 
+#ifdef MFEM_USE_FLOAT
+   sgetrf_(&width, &width, data, &width, ipiv, &info);
+#else
    dgetrf_(&width, &width, data, &width, ipiv, &info);
+#endif
 
    if (info)
    {
       mfem_error("DenseMatrix::Invert() : Error in DGETRF");
    }
 
+#ifdef MFEM_USE_FLOAT
+   sgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
+
+   lwork = (int) qwork;
+   work = new float[lwork];
+
+   sgetri_(&width, data, &width, ipiv, work, &lwork, &info);
+#else
    dgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
    work = new double[lwork];
 
    dgetri_(&width, data, &width, ipiv, work, &lwork, &info);
+#endif
 
    if (info)
    {
@@ -901,21 +962,21 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    char      RANGE    = 'A';
    char      UPLO     = 'U';
    int       N        = a.Width();
-   double   *A        = new double[N*N];
+   fptype   *A        = new fptype[N*N];
    int       LDA      = N;
-   double    VL       = 0.0;
-   double    VU       = 1.0;
+   fptype    VL       = 0.0;
+   fptype    VU       = 1.0;
    int       IL       = 0;
    int       IU       = 1;
-   double    ABSTOL   = 0.0;
+   fptype    ABSTOL   = 0.0;
    int       M;
-   double   *W        = ev.GetData();
-   double   *Z        = NULL;
+   fptype   *W        = ev.GetData();
+   fptype   *Z        = NULL;
    int       LDZ      = 1;
    int      *ISUPPZ   = new int[2*N];
    int       LWORK    = -1; // query optimal (double) workspace size
-   double    QWORK;
-   double   *WORK     = NULL;
+   fptype    QWORK;
+   fptype   *WORK     = NULL;
    int       LIWORK   = -1; // query optimal (int) workspace size
    int       QIWORK;
    int      *IWORK    = NULL;
@@ -931,24 +992,32 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
 
    int hw = a.Height() * a.Width();
-   double *data = a.Data();
+   fptype *data = a.Data();
 
    for (int i = 0; i < hw; i++)
    {
       A[i] = data[i];
    }
 
+#ifdef MFEM_USE_FLOAT
+   ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#else
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#endif
             &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK, &LWORK,
             &QIWORK, &LIWORK, &INFO );
 
    LWORK  = (int) QWORK;
    LIWORK = QIWORK;
 
-   WORK  = new double[LWORK];
+   WORK  = new fptype[LWORK];
    IWORK = new int[LIWORK];
 
+#ifdef MFEM_USE_FLOAT
+   ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#else
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#endif
             &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK, &LWORK,
             IWORK, &LIWORK, &INFO );
 
@@ -1067,10 +1136,10 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    ev.SetSize(N);
 
-   double *A    = NULL;
-   double *W    = ev.GetData();
-   double *WORK = NULL;
-   double  QWORK;
+   fptype *A    = NULL;
+   fptype *W    = ev.GetData();
+   fptype *WORK = NULL;
+   fptype  QWORK;
 
    if (evect)
    {
@@ -1080,22 +1149,30 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
    else
    {
-      A = new double[N*N];
+      A = new fptype[N*N];
    }
 
    int hw = a.Height() * a.Width();
-   double *data = a.Data();
+   fptype *data = a.Data();
    for (int i = 0; i < hw; i++)
    {
       A[i] = data[i];
    }
 
+#ifdef MFEM_USE_FLOAT
+   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
+#else
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
+#endif
 
    LWORK = (int) QWORK;
-   WORK = new double[LWORK];
+   WORK = new fptype[LWORK];
 
+#ifdef MFEM_USE_FLOAT
+   ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
+#else
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
+#endif
 
    if (INFO != 0)
    {
@@ -1144,11 +1221,11 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
 
    ev.SetSize(N);
 
-   double *A    = NULL;
-   double *B    = new double[N*N];
-   double *W    = ev.GetData();
-   double *WORK = NULL;
-   double  QWORK;
+   fptype *A    = NULL;
+   fptype *B    = new fptype[N*N];
+   fptype *W    = ev.GetData();
+   fptype *WORK = NULL;
+   fptype  QWORK;
 
    if (evect)
    {
@@ -1158,24 +1235,32 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    }
    else
    {
-      A = new double[N*N];
+      A = new fptype[N*N];
    }
 
    int hw = a.Height() * a.Width();
-   double *a_data = a.Data();
-   double *b_data = b.Data();
+   fptype *a_data = a.Data();
+   fptype *b_data = b.Data();
    for (int i = 0; i < hw; i++)
    {
       A[i] = a_data[i];
       B[i] = b_data[i];
    }
 
+#ifdef MFEM_USE_FLOAT
+   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
+#else
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
+#endif
 
    LWORK = (int) QWORK;
-   WORK = new double[LWORK];
+   WORK = new fptype[LWORK];
 
+#ifdef MFEM_USE_FLOAT
+   ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
+#else
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
+#endif
 
    if (INFO != 0)
    {
@@ -1217,23 +1302,31 @@ void DenseMatrix::SingularValues(Vector &sv) const
    char        jobvt        = 'N';
    int         m            = Height();
    int         n            = Width();
-   double      *a           = copy_of_this.data;
+   fptype      *a           = copy_of_this.data;
    sv.SetSize(min(m, n));
-   double      *s           = sv.GetData();
-   double      *u           = NULL;
-   double      *vt          = NULL;
-   double      *work        = NULL;
+   fptype      *s           = sv.GetData();
+   fptype      *u           = NULL;
+   fptype      *vt          = NULL;
+   fptype      *work        = NULL;
    int         lwork        = -1;
    int         info;
-   double      qwork;
+   fptype      qwork;
 
+#ifdef MFEM_USE_FLOAT
+   sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#else
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#endif
            s, u, &m, vt, &n, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new double[lwork];
+   work = new fptype[lwork];
 
+#ifdef MFEM_USE_FLOAT
+   sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#else
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#endif
            s, u, &m, vt, &n, work, &lwork, &info);
 
    delete [] work;
@@ -2394,10 +2487,14 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static double alpha = 1.0, beta = 0.0;
+   static fptype alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#endif
           c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
@@ -2418,10 +2515,14 @@ void AddMult_a(fptype alpha, const DenseMatrix &b, const DenseMatrix &c,
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static double beta = 1.0;
+   static fptype beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#endif
           c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
@@ -2450,10 +2551,14 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static double alpha = 1.0, beta = 1.0;
+   static fptype alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#endif
           c.Data(), &k, &beta, a.Data(), &m);
 #else
    const int ah = a.Height();
@@ -2770,10 +2875,14 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   static double alpha = 1.0, beta = 0.0;
+   static fptype alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#endif
           B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
@@ -2875,10 +2984,14 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   static double alpha = 1.0, beta = 1.0;
+   static fptype alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#endif
           B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
@@ -2969,11 +3082,15 @@ void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   double alpha = a;
-   static double beta = 1.0;
+   fptype alpha = a;
+   static fptype beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
+#endif
           B.Data(), &n, &beta, ABt.Data(), &m);
 #elif 1
    const int ah = A.Height();
@@ -3027,10 +3144,14 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'T', transb = 'N';
-   static double alpha = 1.0, beta = 0.0;
+   static fptype alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
+#ifdef MFEM_USE_FLOAT
+   sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
+#endif
           B.Data(), &k, &beta, AtB.Data(), &m);
 #elif 1
    const int ah = A.Height();
@@ -3250,7 +3371,11 @@ bool LUFactors::Factor(int m, fptype TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
+#ifdef MFEM_USE_FLOAT
+   if (m) { sgetrf_(&m, &m, data, &m, ipiv, &info); }
+#else
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
+#endif
    return info == 0;
 #else
    // compiling without LAPACK
@@ -3402,7 +3527,11 @@ void LUFactors::Solve(int m, int n, fptype *X) const
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
    int  info = 0;
+#ifdef MFEM_USE_FLOAT
+   if (m > 0 && n > 0) { sgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
+#else
    if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
+#endif
    MFEM_VERIFY(!info, "LAPACK: error in DGETRS");
 #else
    // compiling without LAPACK
@@ -3416,11 +3545,16 @@ void LUFactors::RightSolve(int m, int n, fptype *X) const
    fptype *x;
 #ifdef MFEM_USE_LAPACK
    char n_ch = 'N', side = 'R', u_ch = 'U', l_ch = 'L';
-   double alpha = 1.0;
+   fptype alpha = 1.0;
    if (m > 0 && n > 0)
    {
+#ifdef MFEM_USE_FLOAT
+      strsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
+      strsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#else
       dtrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       dtrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#endif
    }
 #else
    // compiling without LAPACK
@@ -3597,7 +3731,11 @@ bool CholeskyFactors::Factor(int m, fptype TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
+#ifdef MFEM_USE_FLOAT
+   if (m) {spotrf_(&uplo, &m, data, &m, &info);}
+#else
    if (m) {dpotrf_(&uplo, &m, data, &m, &info);}
+#endif
    return info == 0;
 #else
    // Cholesky–Crout algorithm
@@ -3689,7 +3827,11 @@ void CholeskyFactors::LSolve(int m, int n, fptype * X) const
    char diag = 'N';
    int info = 0;
 
+#ifdef MFEM_USE_FLOAT
+   strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#else
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#endif
    MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
 
 #else
@@ -3719,7 +3861,11 @@ void CholeskyFactors::USolve(int m, int n, fptype * X) const
    char diag = 'N';
    int info = 0;
 
+#ifdef MFEM_USE_FLOAT
+   strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#else
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#endif
    MFEM_VERIFY(!info, "CholeskyFactors:USolve:: info");
 
 #else
@@ -3745,7 +3891,11 @@ void CholeskyFactors::Solve(int m, int n, fptype * X) const
 #ifdef MFEM_USE_LAPACK
    char uplo = 'L';
    int info = 0;
+#ifdef MFEM_USE_FLOAT
+   spotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
+#else
    dpotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
+#endif
    MFEM_VERIFY(!info, "CholeskyFactors:Solve:: info");
 
 #else
@@ -3763,11 +3913,16 @@ void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
    char trans = 'N';
    char diag = 'N';
 
-   double alpha = 1.0;
+   fptype alpha = 1.0;
    if (m > 0 && n > 0)
    {
+#ifdef MFEM_USE_FLOAT
+      strsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
+      strsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
+#else
       dtrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
       dtrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
+#endif
    }
 #else
    // X <- X L^{-t}
@@ -3815,7 +3970,11 @@ void CholeskyFactors::GetInverseMatrix(int m, fptype * X) const
    }
    char uplo = 'L';
    int info = 0;
+#ifdef MFEM_USE_FLOAT
+   spotri_(&uplo, &m, X, &m, &info);
+#else
    dpotri_(&uplo, &m, X, &m, &info);
+#endif
    MFEM_VERIFY(!info, "CholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
    for (int i = 0; i<m; i++)
@@ -3998,12 +4157,16 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    jobz = 'V';
    uplo = 'U';
    lwork = -1;
-   double qwork;
+   fptype qwork;
+#ifdef MFEM_USE_FLOAT
+   ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#else
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#endif
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new double[lwork];
+   work = new fptype[lwork];
 }
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(
@@ -4015,7 +4178,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
    uplo = other.uplo;
    lwork = other.lwork;
 
-   work = new double[lwork];
+   work = new fptype[lwork];
 }
 
 void DenseMatrixEigensystem::Eval()
@@ -4028,7 +4191,11 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
    EVect = mat;
+#ifdef MFEM_USE_FLOAT
+   ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#else
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#endif
           work, &lwork, &info);
 
    if (info != 0)
@@ -4072,21 +4239,25 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    }
 
    lwork = -1;
-   double qwork;
+   fptype qwork;
 
-   alphar = new double[n];
-   alphai = new double[n];
-   beta = new double[n];
+   alphar = new fptype[n];
+   alphai = new fptype[n];
+   beta = new fptype[n];
 
    int nl = max(1,Vl.Height());
    int nr = max(1,Vr.Height());
 
+#ifdef MFEM_USE_FLOAT
+   sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#else
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#endif
           alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new double[lwork];
+   work = new fptype[lwork];
 }
 
 void DenseMatrixGeneralizedEigensystem::Eval()
@@ -4096,10 +4267,13 @@ void DenseMatrixGeneralizedEigensystem::Eval()
 
    A_copy = A;
    B_copy = B;
+#ifdef MFEM_USE_FLOAT
+   sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#else
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#endif
           alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
           work, &lwork, &info);
-
    if (info != 0)
    {
       mfem::err << "DenseMatrixGeneralizedEigensystem::Eval(): DGGEV error code: "
@@ -4178,13 +4352,16 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w,
 void DenseMatrixSVD::Init()
 {
    sv.SetSize(min(m, n));
-   double qwork;
+   fptype qwork;
    lwork = -1;
+#ifdef MFEM_USE_FLOAT
+   sgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
+#else
    dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
+#endif
            NULL, &n, &qwork, &lwork, &info);
-
    lwork = (int) qwork;
-   work = new double[lwork];
+   work = new fptype[lwork];
 }
 
 void DenseMatrixSVD::Eval(DenseMatrix &M)
@@ -4195,8 +4372,8 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       mfem_error("DenseMatrixSVD::Eval()");
    }
 #endif
-   double * datau = nullptr;
-   double * datavt = nullptr;
+   fptype * datau = nullptr;
+   fptype * datavt = nullptr;
    if (jobu == 'A')
    {
       U.SetSize(m,m);
@@ -4218,7 +4395,11 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       datavt = Vt.Data();
    }
    Mc = M;
+#ifdef MFEM_USE_FLOAT
+   sgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
+#else
    dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
+#endif
            datavt, &n, work, &lwork, &info);
 
    if (info)

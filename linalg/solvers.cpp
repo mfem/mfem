@@ -3540,6 +3540,22 @@ void AuxSpaceSmoother::Mult(const Vector &x, Vector &y, bool transpose) const
 
 #ifdef MFEM_USE_LAPACK
 // LAPACK routines for NNLSSolver
+#ifdef MFEM_USE_FLOAT
+extern "C" void
+sormqr_(char *, char *, int *, int *, int *, float *, int*, float *,
+        float *, int *, float *, int*, int*);
+
+extern "C" void
+sgeqrf_(int *, int *, float *, int *, float *, float *, int *, int *);
+
+extern "C" void
+sgemv_(char *, int *, int *, float *, float *, int *, float *, int *,
+       float *, float *, int *);
+
+extern "C" void
+strsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
+       float *alpha, float *a, int *lda, float *b, int *ldb);
+#else // Double-precision
 extern "C" void
 dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
         double *, int *, double *, int*, int*);
@@ -3554,6 +3570,7 @@ dgemv_(char *, int *, int *, double *, double *, int *, double *, int *,
 extern "C" void
 dtrsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        double *alpha, double *a, int *lda, double *b, int *ldb);
+#endif
 
 NNLSSolver::NNLSSolver()
    : Solver(0), mat(nullptr), const_tol_(1.0e-14), min_nnz_(0),
@@ -3609,7 +3626,7 @@ void NNLSSolver::NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const
 
    for (int i=0; i<m; ++i)
    {
-      const double s = halfgap_target(i) / rhs_halfgap_glob(i);
+      const fptype s = halfgap_target(i) / rhs_halfgap_glob(i);
       row_scaling_[i] = s;
 
       rhs_lb(i) = (rhs_avg(i) * s) - halfgap_target(i);
@@ -3655,11 +3672,11 @@ void NNLSSolver::Mult(const Vector &w, Vector &sol) const
       mat->Mult(sol, res);
       res *= row_scaling_;
 
-      const double normGsol = res.Norml2();
-      const double normRHS = rhs_Gw.Norml2();
+      const fptype normGsol = res.Norml2();
+      const fptype normRHS = rhs_Gw.Norml2();
 
       res -= rhs_Gw;
-      const double relNorm = res.Norml2() / std::max(normGsol, normRHS);
+      const fptype relNorm = res.Norml2() / std::max(normGsol, normRHS);
       mfem::out << "Relative residual norm for NNLSSolver solution of Gs = Gw: "
                 << relNorm << endl;
    }
@@ -3692,7 +3709,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    Vector rhs_halfgap_glob(rhs_halfgap);
 
    int ione = 1;
-   double fone = 1.0;
+   fptype fone = 1.0;
 
    char lside = 'L';
    char trans = 'T';
@@ -3707,7 +3724,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    int m_update;
    int min_nnz_cap = std::min(static_cast<int>(min_nnz_), std::min(m,n));
    int info;
-   std::vector<double> l2_res_hist;
+   std::vector<fptype> l2_res_hist;
    std::vector<unsigned int> stalled_indices;
    int stalledFlag = 0;
    int num_stalled = 0;
@@ -3727,7 +3744,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
    // Temporary work arrays
    int lwork;
-   std::vector<double> work;
+   std::vector<fptype> work;
    int n_outer_iter = 0;
    int n_total_inner_iter = 0;
    int i_qr_start;
@@ -3742,7 +3759,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
    Vector sub_qt = rhs_avg_glob;
 
    // Compute threshold tolerance for the Lagrange multiplier mu
-   double mu_tol = 0.0;
+   fptype mu_tol = 0.0;
 
    {
       Vector rhs_scaled(rhs_halfgap_glob);
@@ -3753,8 +3770,8 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       mu_tol = 1.0e-15 * tmp.Max();
    }
 
-   double rmax = 0.0;
-   double mumax = 0.0;
+   fptype rmax = 0.0;
+   fptype mumax = 0.0;
 
    for (int oiter = 0; oiter < n_outer_; ++oiter)
    {
@@ -3807,15 +3824,15 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       // Check for stall after the first nStallCheck iterations
       if (oiter > nStallCheck_)
       {
-         double mean0 = 0.0;
-         double mean1 = 0.0;
+         fptype mean0 = 0.0;
+         fptype mean1 = 0.0;
          for (int i=0; i<nStallCheck_/2; ++i)
          {
             mean0 += l2_res_hist[oiter - i];
             mean1 += l2_res_hist[oiter - (nStallCheck_) - i];
          }
 
-         double mean_res_change = (mean1 / mean0) - 1.0;
+         fptype mean_res_change = (mean1 / mean0) - 1.0;
          if (std::abs(mean_res_change) < res_change_termination_tol_)
          {
             if (verbosity_ > 1)
@@ -3869,7 +3886,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
       int imax = 0;
       {
-         double tmax = mu(0);
+         fptype tmax = mu(0);
          for (int i=1; i<n; ++i)
          {
             if (mu(i) > tmax)
@@ -3917,14 +3934,22 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             lwork = -1;
             work.resize(10);
 
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+#else
             dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     mat_qr_data.GetData() + (i_qr_start * m), &m,
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T A update work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+#else
             dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     mat_qr_data.GetData() + (i_qr_start * m), &m,
                     work.data(), &lwork, &info);
@@ -3948,14 +3973,22 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
                sub_tau[j] = tau[i_qr_start + j];
             }
 
+#ifdef MFEM_USE_FLOAT
+            sgeqrf_(&m_update, &n_update,
+#else
             dgeqrf_(&m_update, &n_update,
+#endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization work calc
             lwork = static_cast<int>(work[0]);
             if (lwork == 0) { lwork = 1; }
             work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+            sgeqrf_(&m_update, &n_update,
+#else
             dgeqrf_(&m_update, &n_update,
+#endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR update factorization failed
@@ -3986,13 +4019,21 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             // perform qr)
             lwork = -1;
             work.resize(10);
+#ifdef MFEM_USE_FLOAT
+            sgeqrf_(&m, &n_glob,
+#else
             dgeqrf_(&m, &n_glob,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization work calculation
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+            sgeqrf_(&m, &n_glob,
+#else
             dgeqrf_(&m, &n_glob,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // QR factorization failed
@@ -4022,14 +4063,22 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
             sub_tau[0] = tau[i_qr_start];
 
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m_update, &ione, &ione,
+#else
             dormqr_(&lside, &trans, &m_update, &ione, &ione,
+#endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
                     sub_qt.GetData(), &m_update,
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // H_last y work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m_update, &ione, &ione,
+#else
             dormqr_(&lside, &trans, &m_update, &ione, &ione,
+#endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
                     sub_qt.GetData(), &m_update,
                     work.data(), &lwork, &info);
@@ -4046,14 +4095,22 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qt_rhs_glob = rhs_avg_glob;
             lwork = -1;
             work.resize(10);
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m, &ione, &n_glob,
+#else
             dormqr_(&lside, &trans, &m, &ione, &n_glob,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     qt_rhs_glob.GetData(), &m,
                     work.data(), &lwork, &info);
             MFEM_VERIFY(info == 0, ""); // Q^T b work calculation failed
             lwork = static_cast<int>(work[0]);
             work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+            sormqr_(&lside, &trans, &m, &ione, &n_glob,
+#else
             dormqr_(&lside, &trans, &m, &ione, &n_glob,
+#endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
                     qt_rhs_glob.GetData(), &m,
                     work.data(), &lwork, &info);
@@ -4069,7 +4126,11 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          char upper = 'U';
          char nounit = 'N';
          vec1 = qt_rhs_glob;
+#ifdef MFEM_USE_FLOAT
+         strsm_(&lside, &upper, &notrans, &nounit,
+#else
          dtrsm_(&lside, &upper, &notrans, &nounit,
+#endif
                 &n_glob, &ione, &fone,
                 mat_qr_data.GetData(), &m,
                 vec1.GetData(), &n_glob);
@@ -4081,7 +4142,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
          // Check if all entries are positive
          int pos_ibool = 0;
-         double smin = n_glob > 0 ? vec1(0) : 0.0;
+         fptype smin = n_glob > 0 ? vec1(0) : 0.0;
          for (int i=0; i<n_glob; ++i)
          {
             soln_nz_glob_up(i) = vec1(i);
@@ -4139,7 +4200,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             break;
          }
 
-         double alpha = 1.0e300;
+         fptype alpha = 1.0e300;
          // Find maximum permissible step
          for (int i = 0; i < n_glob; ++i)
          {
@@ -4293,8 +4354,12 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
       if (!NNLS_qrres_on_)
       {
          res_glob = rhs_avg_glob;
-         double fmone = -1.0;
+         fptype fmone = -1.0;
+#ifdef MFEM_USE_FLOAT
+         sgemv_(&notrans, &m, &n_glob, &fmone,
+#else
          dgemv_(&notrans, &m, &n_glob, &fmone,
+#endif
                 mat_0_data.GetData(), &m,
                 soln_nz_glob.GetData(), &ione, &fone,
                 res_glob.GetData(), &ione);
@@ -4311,14 +4376,22 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             qqt_rhs_glob(i) = qt_rhs_glob(i);
          }
 
+#ifdef MFEM_USE_FLOAT
+         sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+#else
          dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+#endif
                  tau.GetData(), qqt_rhs_glob.GetData(), &m,
                  work.data(), &lwork, &info);
 
          MFEM_VERIFY(info == 0, ""); // Q Q^T b work calculation failed.
          lwork = static_cast<int>(work[0]);
          work.resize(lwork);
+#ifdef MFEM_USE_FLOAT
+         sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+#else
          dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
+#endif
                  tau.GetData(), qqt_rhs_glob.GetData(), &m,
                  work.data(), &lwork, &info);
          MFEM_VERIFY(info == 0, ""); // Q Q^T b calculation failed.

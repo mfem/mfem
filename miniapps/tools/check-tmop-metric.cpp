@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
       const double i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
-      const double diff = fabs(i_form - m_form) / fabs(m_form);
+      const double diff = std::abs(i_form - m_form) / std::abs(m_form);
       if (diff > 1e-8)
       {
          bad_cnt++;
@@ -173,8 +173,8 @@ int main(int argc, char *argv[])
       for (int i = 0; i < x_loc.Size(); i++)
       {
          x_loc(i) += dx;
-         err_k = fmax(err_k, fabs(F_0 + dF_0(i) * dx -
-                                  integ->GetElementEnergy(fe, Tr, x_loc)));
+         err_k = std::max(err_k, std::abs(F_0 + dF_0(i) * dx -
+                                          integ->GetElementEnergy(fe, Tr, x_loc)));
          x_loc(i) -= dx;
       }
       dx *= 0.5;
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
             x_loc(j) += dx;
             Vector dF_dx;
             integ->AssembleElementVector(fe, Tr, x_loc, dF_dx);
-            err_k = fmax(err_k, fabs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
+            err_k = std::max(err_k, std::abs(dF_0(i) + ddF_0(i, j) * dx - dF_dx(i)));
             x_loc(j) -= dx;
          }
          dx *= 0.5;
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
          }
          err_old = err_k;
       }
-      min_avg_rate = fmin(min_avg_rate, rate_sum / (convergence_iter - 1));
+      min_avg_rate = std::min(min_avg_rate, rate_sum / (convergence_iter - 1));
    }
    std::cout << "--- AssembleH: avg rate of convergence (should be 2): "
              << min_avg_rate << endl;

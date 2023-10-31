@@ -961,7 +961,7 @@ static __global__ void cuKernelMin(const int N, fptype *gdsr, const fptype *x)
       const int rdd = bbd+dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= blockDim.x) { continue; }
-      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+      s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
    }
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
@@ -981,7 +981,7 @@ static fptype cuVectorMin(const int N, const fptype *X)
    MFEM_GPU_CHECK(cudaGetLastError());
    const fptype *h_min = buf.Read(MemoryClass::HOST, min_sz);
    fptype min = std::numeric_limits<fptype>::infinity();
-   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
+   for (int i = 0; i < min_sz; i++) { min = std::min(min, h_min[i]); }
    return min;
 }
 
@@ -1050,7 +1050,7 @@ static __global__ void hipKernelMin(const int N, fptype *gdsr, const fptype *x)
       const int rdd = bbd+dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= hipBlockDim_x) { continue; }
-      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+      s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
    }
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
@@ -1070,7 +1070,7 @@ static fptype hipVectorMin(const int N, const fptype *X)
    MFEM_GPU_CHECK(hipGetLastError());
    const fptype *h_min = buf.Read(MemoryClass::HOST, min_sz);
    fptype min = std::numeric_limits<fptype>::infinity();
-   for (int i = 0; i < min_sz; i++) { min = fmin(min, h_min[i]); }
+   for (int i = 0; i < min_sz; i++) { min = std::min(min, h_min[i]); }
    return min;
 }
 

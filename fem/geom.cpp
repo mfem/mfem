@@ -534,7 +534,7 @@ inline bool IntersectSegment(fptype lbeg[N], fptype lend[N],
    bool out = false;
    for (int i = 0; i < N; i++)
    {
-     lbeg[i] = std::max(lbeg[i], (fptype) 0.0); // remove round-off
+      lbeg[i] = std::max(lbeg[i], (fptype) 0.0); // remove round-off
       if (lend[i] < 0.0)
       {
          out = true;
@@ -583,6 +583,8 @@ inline bool ProjectTriangle(fptype &x, fptype &y)
 bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
                             IntegrationPoint &end)
 {
+   constexpr fptype fone = 1.0;
+
    switch (GeomType)
    {
       case Geometry::POINT:
@@ -598,45 +600,45 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       }
       case Geometry::TRIANGLE:
       {
-         fptype lend[3] = { end.x, end.y, 1.0-end.x-end.y };
-         fptype lbeg[3] = { beg.x, beg.y, 1.0-beg.x-beg.y };
+         fptype lend[3] = { end.x, end.y, fone-end.x-end.y };
+         fptype lbeg[3] = { beg.x, beg.y, fone-beg.x-beg.y };
          return internal::IntersectSegment<3,2>(lbeg, lend, end);
       }
       case Geometry::SQUARE:
       {
-         fptype lend[4] = { end.x, end.y, 1.0-end.x, 1.0-end.y };
-         fptype lbeg[4] = { beg.x, beg.y, 1.0-beg.x, 1.0-beg.y };
+         fptype lend[4] = { end.x, end.y, fone-end.x, fone-end.y };
+         fptype lbeg[4] = { beg.x, beg.y, fone-beg.x, fone-beg.y };
          return internal::IntersectSegment<4,2>(lbeg, lend, end);
       }
       case Geometry::TETRAHEDRON:
       {
-         fptype lend[4] = { end.x, end.y, end.z, 1.0-end.x-end.y-end.z };
-         fptype lbeg[4] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y-beg.z };
+         fptype lend[4] = { end.x, end.y, end.z, fone-end.x-end.y-end.z };
+         fptype lbeg[4] = { beg.x, beg.y, beg.z, fone-beg.x-beg.y-beg.z };
          return internal::IntersectSegment<4,3>(lbeg, lend, end);
       }
       case Geometry::CUBE:
       {
          fptype lend[6] = { end.x, end.y, end.z,
-                            1.0-end.x, 1.0-end.y, 1.0-end.z
+                            fone-end.x, fone-end.y, fone-end.z
                           };
          fptype lbeg[6] = { beg.x, beg.y, beg.z,
-                            1.0-beg.x, 1.0-beg.y, 1.0-beg.z
+                            fone-beg.x, fone-beg.y, fone-beg.z
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }
       case Geometry::PRISM:
       {
-         fptype lend[5] = { end.x, end.y, end.z, 1.0-end.x-end.y, 1.0-end.z };
-         fptype lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
+         fptype lend[5] = { end.x, end.y, end.z, fone-end.x-end.y, fone-end.z };
+         fptype lbeg[5] = { beg.x, beg.y, beg.z, fone-beg.x-beg.y, fone-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
       case Geometry::PYRAMID:
       {
          fptype lend[6] = { end.x, end.y, end.z,
-                            1.0-end.x-end.z, 1.0-end.y-end.z, 1.0-end.z
+                            fone-end.x-end.z, fone-end.y-end.z, fone-end.z
                           };
          fptype lbeg[6] = { beg.x, beg.y, beg.z,
-                            1.0-beg.x-beg.z, 1.0-beg.y-beg.z, 1.0-beg.z
+                            fone-beg.x-beg.z, fone-beg.y-beg.z, fone-beg.z
                           };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }

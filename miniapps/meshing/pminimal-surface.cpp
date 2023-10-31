@@ -423,10 +423,10 @@ public:
                Jadjt = Jadj;
                Jadjt.Transpose();
                const double w = Jadjt.Weight();
-               minW = std::fmin(minW, w);
-               maxW = std::fmax(maxW, w);
+               minW = std::min(minW, w);
+               maxW = std::max(maxW, w);
             }
-            if (std::fabs(maxW) != 0.0)
+            if (std::abs(maxW) != 0.0)
             {
                const double rho = minW / maxW;
                MFEM_VERIFY(rho <= 1.0, "");
@@ -969,8 +969,8 @@ struct FullPeach: public Surface
             const int k = dofs[dof];
             MFEM_ASSERT(k >= 0, "");
             PointMat.Mult(one, X);
-            const bool halfX = std::fabs(X[0]) < EPS && X[1] <= 0.0;
-            const bool halfY = std::fabs(X[2]) < EPS && X[1] >= 0.0;
+            const bool halfX = std::abs(X[0]) < EPS && X[1] <= 0.0;
+            const bool halfY = std::abs(X[2]) < EPS && X[1] >= 0.0;
             const bool is_on_bc = halfX || halfY;
             for (int c = 0; c < SDIM; c++)
             { ess_vdofs[fes->DofToVDof(k, c)] = is_on_bc; }
@@ -1037,7 +1037,7 @@ struct QuarterPeach: public Surface
                if (d < 2) { R[v] += x*x; }
             }
          }
-         if (std::fabs(X[0][1])<=EPS && std::fabs(X[1][1])<=EPS &&
+         if (std::abs(X[0][1])<=EPS && std::abs(X[1][1])<=EPS &&
              (R[0]>0.1 || R[1]>0.1))
          { el->SetAttribute(1); }
          else { el->SetAttribute(2); }
@@ -1272,7 +1272,7 @@ static int Problem1(Opt &opt)
       ParBilinearForm a(&fes);
       if (opt.pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
       const double q_uold = qf(order, AREA, mesh, fes, uold);
-      MFEM_VERIFY(std::fabs(q_uold) > EPS,"");
+      MFEM_VERIFY(std::abs(q_uold) > EPS,"");
       ConstantCoefficient q_uold_cc(1.0/sqrt(q_uold));
       a.AddDomainIntegrator(new DiffusionIntegrator(q_uold_cc));
       a.Assemble();
@@ -1281,7 +1281,7 @@ static int Problem1(Opt &opt)
       cg.Mult(B, X);
       a.RecoverFEMSolution(X, b, u);
       subtract(u, uold, eps);
-      const double norm = sqrt(std::fabs(qf(order, NORM, mesh, fes, eps)));
+      const double norm = sqrt(std::abs(qf(order, NORM, mesh, fes, eps)));
       const double area = qf(order, AREA, mesh, fes, u);
       if (!opt.id)
       {

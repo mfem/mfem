@@ -682,8 +682,8 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
          if (ti->IsSurfaceFittingEnabled())
          {
             ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
-            err_avg = std::fmax(err_avg_loc, err_avg);
-            err_max = std::fmax(err_max_loc, err_max);
+            err_avg = std::max(err_avg_loc, err_avg);
+            err_max = std::max(err_max_loc, err_max);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -695,8 +695,8 @@ void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
             if (ati[j]->IsSurfaceFittingEnabled())
             {
                ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
-               err_avg = std::fmax(err_avg_loc, err_avg);
-               err_max = std::fmax(err_max_loc, err_max);
+               err_avg = std::max(err_avg_loc, err_avg);
+               err_max = std::max(err_max_loc, err_max);
             }
          }
       }
