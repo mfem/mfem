@@ -344,32 +344,27 @@ int main(int argc, char *argv[])
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_r;
+   socketstream sout_SIMP, sout_r;
    if (glvis_visualization)
    {
+      sout_SIMP.open(vishost, visport);
+      sout_SIMP.precision(8);
+      sout_SIMP << "solution\n" << mesh << designDensity_gf
+                << "window_title 'Design density r(ρ̃) - MD'\n"
+                << "keys Rjl***************\n"
+                << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      sout_r << "solution\n" << mesh << designDensity_gf
-             << "window_title 'Design density r(ρ̃)'\n"
-             << "keys Rj***************\n"
+      sout_r << "solution\n" << mesh << rho_gf
+             << "window_title 'Raw density ρ - MD'\n"
+             << "keys Rjl***************\n"
              << flush;
    }
 
    mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);
-   if (paraview_output)
-   {
-      rho_gf.ProjectCoefficient(rho);
-      paraview_dc.SetPrefixPath("ParaView");
-      paraview_dc.SetLevelsOfDetail(order);
-      paraview_dc.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc.SetHighOrderOutput(true);
-      paraview_dc.SetCycle(0);
-      paraview_dc.SetTime(0.0);
-      paraview_dc.RegisterField("displacement",&u);
-      paraview_dc.RegisterField("density",&rho_gf);
-      paraview_dc.RegisterField("filtered_density",&rho_filter);
-      paraview_dc.Save();
-   }
+   ofstream mesh_ofs("ex39.mesh");
+   mesh_ofs.precision(8);
+   mesh.Print(mesh_ofs);
    // 11. Iterate
    obj.Eval();
    GridFunction d(&control_fes);
@@ -395,9 +390,11 @@ int main(int argc, char *argv[])
       if (glvis_visualization)
       {
          designDensity_gf.ProjectCoefficient(designDensity);
-         sout_r << "solution\n" << mesh << designDensity_gf
+         sout_SIMP << "solution\n" << mesh << designDensity_gf
+                   << flush;
+         sout_r << "solution\n" << mesh << rho_gf
                 << flush;
-         
+
          ostringstream sol_name;
          sol_name << "sol-" << k << ".gf";
          ofstream sol_ofs(sol_name.str().c_str());
@@ -405,13 +402,6 @@ int main(int argc, char *argv[])
          sol_ofs << designDensity_gf;
       }
 
-      if (paraview_output)
-      {
-         rho_gf.ProjectCoefficient(rho);
-         paraview_dc.SetCycle(k);
-         paraview_dc.SetTime((double)k);
-         paraview_dc.Save();
-      }
 
       if (norm_increment < itol)
       {
