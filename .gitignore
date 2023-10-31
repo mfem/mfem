@@ -266,6 +266,7 @@ miniapps/navier/*_output
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_printfunc
 miniapps/nurbs/nurbs_patch_ex1
 miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh

@@ -31,6 +31,7 @@ Meshing improvements
   * The edge to knot map for NURBS meshes can be determined automatically. It is
     no longer needed to specify this in the NURBS mesh.
   * Added curve interpolation method for NURBS.
+  * Added new small miniapp for printing of shape functions of a KnotVector
   * See miniapps/nurbs for example meshes and miniapps.
 
 Discretization improvements
