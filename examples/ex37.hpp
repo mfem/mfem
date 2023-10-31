@@ -27,14 +27,7 @@ double inv_sigmoid(const double x)
  */
 double sigmoid(const double x)
 {
-   if (x >= 0)
-   {
-      return 1.0/(1.0+std::exp(-x));
-   }
-   else
-   {
-      return std::exp(x)/(1.0+std::exp(x));
-   }
+   return (std::tanh(x*0.5) + 1.0) * 0.5;
 }
 
 /**
@@ -43,7 +36,7 @@ double sigmoid(const double x)
  */
 double der_sigmoid(const double x)
 {
-   double tmp = sigmoid(x);
+   const double tmp = sigmoid(x);
    return tmp*(1.0 - tmp);
 }
 
