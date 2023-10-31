@@ -479,7 +479,7 @@ void DiffusionSolver::Solve()
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
    }
-   a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B);
+   a->FormLinearSystem(ess_tdof_list, *u, *b, A, X, B, true);
 
    CGSolver * cg = nullptr;
    Solver * M = nullptr;
@@ -837,7 +837,7 @@ public:
       b->Assemble();
       a->Assemble();
 
-      a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B, true);
 
       CGSolver * cg = nullptr;
       Solver * M = nullptr;
