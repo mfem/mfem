@@ -580,7 +580,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return std::max(space_dim, test_fe.GetVDim()); }
+   { return std::max(space_dim, test_fe.GetRangeDim()); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -588,7 +588,7 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return std::max(space_dim, trial_fe.GetVDim()); }
+   { return std::max(space_dim, trial_fe.GetRangeDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -678,7 +678,7 @@ protected:
 
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return std::max(space_dim, vector_fe.GetVDim()); }
+   { return std::max(space_dim, vector_fe.GetRangeDim()); }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1105,7 +1105,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
@@ -1288,8 +1288,8 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetVDim() == 3 &&
-              test_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetRangeDim() == 3 &&
+              test_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1419,7 +1419,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
@@ -1489,7 +1489,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (test_fe.GetVDim() == 3 &&
+      return (test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1529,7 +1529,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1900,7 +1900,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
@@ -1959,7 +1959,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
