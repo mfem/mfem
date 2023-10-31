@@ -33,12 +33,8 @@ namespace Ginkgo
 GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
    gko::version_info gko_version = gko::version_info::get();
-   bool gko_omp_status = true;
-   if (strcmp(gko_version.omp_version.tag, "not compiled") == 0)
-   {
-      gko_omp_status = false;
-   }
-
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
    switch (exec_type)
    {
       case GinkgoExecutor::REFERENCE:
@@ -58,7 +54,7 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_CUDA
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-            if (gko_omp_status == true)
+            if (gko_with_omp_support)
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::OmpExecutor::create());
             else
@@ -78,7 +74,7 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_HIP
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
-            if (gko_omp_status == true)
+            if (gko_with_omp_support)
                executor = gko::HipExecutor::create(current_device,
                                                    gko::OmpExecutor::create());
             else
@@ -163,12 +159,8 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
 GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 {
    gko::version_info gko_version = gko::version_info::get();
-   bool gko_omp_status = true;
-   if (strcmp(gko_version.omp_version.tag, "not compiled") == 0)
-   {
-      gko_omp_status = false;
-   }
-
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
    if (mfem_device.Allows(Backend::CUDA_MASK))
    {
       if (gko::CudaExecutor::get_num_devices() > 0)
@@ -176,7 +168,7 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_CUDA
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-         if (gko_omp_status == true)
+         if (gko_with_omp_support)
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::OmpExecutor::create());
          else
@@ -195,7 +187,7 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_HIP
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
-         if (gko_omp_status == true)
+         if (gko_with_omp_support)
             executor = gko::HipExecutor::create(current_device,
                                                 gko::OmpExecutor::create());
          else
@@ -212,8 +204,7 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
       if (mfem_device.Allows(Backend::OMP_MASK))
       {
          // Also use OpenMP for Ginkgo, if Ginkgo supports it
-         gko::version_info gko_version = gko::version_info::get();
-         if (strcmp(gko_version.omp_version.tag, "not compiled") != 0)
+         if (gko_with_omp_support)
          {
             executor = gko::OmpExecutor::create();
          }
@@ -280,7 +271,9 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
       {
          // Also use OpenMP for Ginkgo, if Ginkgo supports it
          gko::version_info gko_version = gko::version_info::get();
-         if (strcmp(gko_version.omp_version.tag, "not compiled") != 0)
+         bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                             "not compiled") != 0);
+         if (gko_with_omp_support)
          {
             executor = gko::OmpExecutor::create();
          }
@@ -512,7 +505,6 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
-
    initialize_ginkgo_log(gko_x.get());
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
@@ -529,7 +521,12 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    combined_factory->add_logger(convergence_logger);
 
    // Finally, apply the solver to x and get the solution in y.
-   solver->apply(GKO_LEND(gko_x), GKO_LEND(gko_y));
+#if MFEM_GINKGO_VERSION < 10600
+   solver->apply(gko::lend(gko_x), gko::lend(gko_y));
+#else
+   solver->apply(gko_x, gko_y);
+#endif
+
    // Get the number of iterations taken to converge to the solution.
    final_iter = convergence_logger->get_num_iterations();
 
@@ -1060,8 +1057,11 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
                             gko_array<double>::view(executor,
                                                     y.Size(),
                                                     y.ReadWrite(on_device)), 1);
-   generated_precond.get()->apply(GKO_LEND(gko_x), GKO_LEND(gko_y));
-
+#if MFEM_GINKGO_VERSION < 10600
+   generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
+#else
+   generated_precond.get()->apply(gko_x, gko_y);
+#endif
 }
 
 void GinkgoPreconditioner::SetOperator(const Operator &op)
