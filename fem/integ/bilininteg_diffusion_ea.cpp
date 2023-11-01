@@ -18,8 +18,8 @@ namespace mfem
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble1D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
+                                  const Array<fptype> &b,
+                                  const Array<fptype> &g,
                                   const Vector &padata,
                                   Vector &eadata,
                                   const bool add,
@@ -38,8 +38,8 @@ static void EADiffusionAssemble1D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double r_Gi[MQ1];
-      double r_Gj[MQ1];
+      fptype r_Gi[MQ1];
+      fptype r_Gj[MQ1];
       for (int q = 0; q < Q1D; q++)
       {
          r_Gi[q] = G(q,MFEM_THREAD_ID(x));
@@ -49,7 +49,7 @@ static void EADiffusionAssemble1D(const int NE,
       {
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
-            double val = 0.0;
+            fptype val = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val += r_Gj[k1] * D(k1, e) * r_Gi[k1];
@@ -69,8 +69,8 @@ static void EADiffusionAssemble1D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble2D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
+                                  const Array<fptype> &b,
+                                  const Array<fptype> &g,
                                   const Vector &padata,
                                   Vector &eadata,
                                   const bool add,
@@ -91,8 +91,8 @@ static void EADiffusionAssemble2D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double r_B[MQ1][MD1];
-      double r_G[MQ1][MD1];
+      fptype r_B[MQ1][MD1];
+      fptype r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -110,19 +110,19 @@ static void EADiffusionAssemble2D(const int NE,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  double val = 0.0;
+                  fptype val = 0.0;
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
                      {
-                        double bgi = r_G[k1][i1] * r_B[k2][i2];
-                        double gbi = r_B[k1][i1] * r_G[k2][i2];
-                        double bgj = r_G[k1][j1] * r_B[k2][j2];
-                        double gbj = r_B[k1][j1] * r_G[k2][j2];
-                        double D00 = D(k1,k2,0,e);
-                        double D10 = D(k1,k2,1,e);
-                        double D01 = D10;
-                        double D11 = D(k1,k2,2,e);
+                        fptype bgi = r_G[k1][i1] * r_B[k2][i2];
+                        fptype gbi = r_B[k1][i1] * r_G[k2][i2];
+                        fptype bgj = r_G[k1][j1] * r_B[k2][j2];
+                        fptype gbj = r_B[k1][j1] * r_G[k2][j2];
+                        fptype D00 = D(k1,k2,0,e);
+                        fptype D10 = D(k1,k2,1,e);
+                        fptype D01 = D10;
+                        fptype D11 = D(k1,k2,2,e);
                         val += bgi * D00 * bgj
                                + gbi * D01 * bgj
                                + bgi * D10 * gbj
@@ -146,8 +146,8 @@ static void EADiffusionAssemble2D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0>
 static void EADiffusionAssemble3D(const int NE,
-                                  const Array<double> &b,
-                                  const Array<double> &g,
+                                  const Array<fptype> &b,
+                                  const Array<fptype> &g,
                                   const Vector &padata,
                                   Vector &eadata,
                                   const bool add,
@@ -168,8 +168,8 @@ static void EADiffusionAssemble3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      double r_B[MQ1][MD1];
-      double r_G[MQ1][MD1];
+      fptype r_B[MQ1][MD1];
+      fptype r_G[MQ1][MD1];
       for (int d = 0; d < D1D; d++)
       {
          for (int q = 0; q < Q1D; q++)
@@ -191,28 +191,28 @@ static void EADiffusionAssemble3D(const int NE,
                   {
                      for (int j3 = 0; j3 < D1D; ++j3)
                      {
-                        double val = 0.0;
+                        fptype val = 0.0;
                         for (int k1 = 0; k1 < Q1D; ++k1)
                         {
                            for (int k2 = 0; k2 < Q1D; ++k2)
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 double bbgi = r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3];
-                                 double bgbi = r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3];
-                                 double gbbi = r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3];
-                                 double bbgj = r_G[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
-                                 double bgbj = r_B[k1][j1] * r_G[k2][j2] * r_B[k3][j3];
-                                 double gbbj = r_B[k1][j1] * r_B[k2][j2] * r_G[k3][j3];
-                                 double D00 = D(k1,k2,k3,0,e);
-                                 double D10 = D(k1,k2,k3,1,e);
-                                 double D20 = D(k1,k2,k3,2,e);
-                                 double D01 = D10;
-                                 double D11 = D(k1,k2,k3,3,e);
-                                 double D21 = D(k1,k2,k3,4,e);
-                                 double D02 = D20;
-                                 double D12 = D21;
-                                 double D22 = D(k1,k2,k3,5,e);
+                                 fptype bbgi = r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3];
+                                 fptype bgbi = r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3];
+                                 fptype gbbi = r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3];
+                                 fptype bbgj = r_G[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
+                                 fptype bgbj = r_B[k1][j1] * r_G[k2][j2] * r_B[k3][j3];
+                                 fptype gbbj = r_B[k1][j1] * r_B[k2][j2] * r_G[k3][j3];
+                                 fptype D00 = D(k1,k2,k3,0,e);
+                                 fptype D10 = D(k1,k2,k3,1,e);
+                                 fptype D20 = D(k1,k2,k3,2,e);
+                                 fptype D01 = D10;
+                                 fptype D11 = D(k1,k2,k3,3,e);
+                                 fptype D21 = D(k1,k2,k3,4,e);
+                                 fptype D02 = D20;
+                                 fptype D12 = D21;
+                                 fptype D22 = D(k1,k2,k3,5,e);
                                  val += bbgi * D00 * bbgj
                                         + bgbi * D10 * bbgj
                                         + gbbi * D20 * bbgj
@@ -248,8 +248,8 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
 {
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
-   const Array<double> &B = maps->B;
-   const Array<double> &G = maps->G;
+   const Array<fptype> &B = maps->B;
+   const Array<fptype> &G = maps->G;
    if (dim == 1)
    {
       switch ((dofs1D << 4 ) | quad1D)
