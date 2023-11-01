@@ -47,12 +47,12 @@ private:
    int print_flag=1;
 
    // exact solution and derivatives
-   double CoeffNorm;
-   double CoeffDNorm;
+   fptype CoeffNorm;
+   fptype CoeffDNorm;
 
    // Arrays to store error/rates
-   Array<double> L2Errors, DGFaceErrors, DErrors, EnErrors;
-   Array<double> L2Rates, DGFaceRates, DRates, EnRates;
+   Array<fptype> L2Errors, DGFaceErrors, DErrors, EnErrors;
+   Array<fptype> L2Rates, DGFaceRates, DRates, EnRates;
    Array<int> ndofs;
 
    void AddL2Error(GridFunction *gf, Coefficient *scalar_u,
@@ -64,7 +64,7 @@ private:
    void AddGf(GridFunction *gf, VectorCoefficient *vector_u,
               VectorCoefficient *curl, Coefficient *div);
    // returns the L2-norm of scalar_u or vector_u
-   double GetNorm(GridFunction *gf, Coefficient *scalar_u,
+   fptype GetNorm(GridFunction *gf, Coefficient *scalar_u,
                   VectorCoefficient *vector_u);
 
 public:
@@ -104,40 +104,40 @@ public:
    }
 
    /// Get the L2 error at step n
-   double GetL2Error(int n)
+   fptype GetL2Error(int n)
    {
       MFEM_VERIFY( n <= counter,"Step out of bounds")
       return L2Errors[n];
    }
 
    /// Get all L2 errors
-   void GetL2Errors(Array<double> & L2Errors_)
+   void GetL2Errors(Array<fptype> & L2Errors_)
    {
       L2Errors_ = L2Errors;
    }
 
    /// Get the Grad/Curl/Div error at step n
-   double GetDError(int n)
+   fptype GetDError(int n)
    {
       MFEM_VERIFY(n <= dcounter,"Step out of bounds")
       return DErrors[n];
    }
 
    /// Get all Grad/Curl/Div errors
-   void GetDErrors(Array<double> & DErrors_)
+   void GetDErrors(Array<fptype> & DErrors_)
    {
       DErrors_ = DErrors;
    }
 
    /// Get the DGFaceJumps error at step n
-   double GetDGFaceJumpsError(int n)
+   fptype GetDGFaceJumpsError(int n)
    {
       MFEM_VERIFY(n<= fcounter,"Step out of bounds")
       return DGFaceErrors[n];
    }
 
    /// Get all DGFaceJumps errors
-   void GetDGFaceJumpsErrors(Array<double> & DGFaceErrors_)
+   void GetDGFaceJumpsErrors(Array<fptype> & DGFaceErrors_)
    {
       DGFaceErrors_ = DGFaceErrors;
    }

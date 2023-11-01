@@ -268,13 +268,13 @@ ComplexLinearForm::Assemble()
    lfi->SyncAliasMemory(*this);
 }
 
-complex<double>
+complex<fptype>
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   fptype s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    lfr->SyncMemory(*this);
    lfi->SyncMemory(*this);
-   return complex<double>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
+   return complex<fptype>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
                           (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
 
@@ -1011,13 +1011,13 @@ ParComplexLinearForm::ParallelAssemble()
    return tv;
 }
 
-complex<double>
+complex<fptype>
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
    plfr->SyncMemory(*this);
    plfi->SyncMemory(*this);
-   double s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
-   return complex<double>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
+   fptype s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
+   return complex<fptype>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
                           (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
 
@@ -1255,7 +1255,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          const int *d_ess_tdof_list =
             ess_tdof_list.GetMemory().Read(MemoryClass::DEVICE, n);
          const int *d_diag_i = Aih->diag->i;
-         double *d_diag_data = Aih->diag->data;
+         fptype *d_diag_data = Aih->diag->data;
          MFEM_GPU_FORALL(k, n,
          {
             const int j = d_ess_tdof_list[k];

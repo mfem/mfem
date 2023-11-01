@@ -2409,12 +2409,12 @@ fptype ComputeLpNorm(fptype p, VectorCoefficient &coeff, Mesh &mesh,
 #ifdef MFEM_USE_MPI
 /** @brief Compute the global Lp norm of a function f.
     \f$ \| f \|_{Lp} = ( \int_\Omega | f |^p d\Omega)^{1/p} \f$ */
-double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
+fptype ComputeGlobalLpNorm(fptype p, Coefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 
 /** @brief Compute the global Lp norm of a vector function f = {f_i}_i=1...N.
     \f$ \| f \|_{Lp} = ( \sum_i \| f_i \|_{Lp}^p )^{1/p} \f$ */
-double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
+fptype ComputeGlobalLpNorm(fptype p, VectorCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[]);
 #endif
 

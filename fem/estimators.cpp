@@ -50,7 +50,7 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
    smooth_flux_space->Update(false);
 
    // TODO: move these parameters in the class, and add Set* methods.
-   const double solver_tol = 1e-12;
+   const fptype solver_tol = 1e-12;
    const int solver_max_it = 200;
    total_error = L2ZZErrorEstimator(integ, solution, *smooth_flux_space,
                                     *flux_space, error_estimates,
@@ -124,7 +124,7 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
       const auto order = FT->GetFE()->GetOrder();
 
       // Poor man's face diameter.
-      double diameter = 0.0;
+      fptype diameter = 0.0;
 
       Vector p1(mesh->SpaceDimension());
       Vector p2(mesh->SpaceDimension());
@@ -145,7 +145,7 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
             auto fip2 = vtx_intrule->IntPoint(j);
             FT->Transform(fip2, p2);
 
-            diameter = std::max<double>(diameter, p2.DistanceTo(p1));
+            diameter = std::max(diameter, p2.DistanceTo(p1));
          }
       }
       return diameter/(2.0*order);
@@ -314,7 +314,7 @@ void KellyErrorEstimator::ComputeEstimates()
                jumps(i) *= jumps(i);
             }
             auto h_k_face = compute_face_coefficient(mesh, f, false);
-            double jump_integral = h_k_face*jumps.Sum();
+            fptype jump_integral = h_k_face*jumps.Sum();
 
             // A local face is shared between two local elements, so we
             // can get away with integrating the jump only once and add
@@ -442,7 +442,7 @@ void KellyErrorEstimator::ComputeEstimates()
          jumps(i) *= jumps(i);
       }
       auto h_k_face = compute_face_coefficient(mesh, sf, true);
-      double jump_integral = h_k_face*jumps.Sum();
+      fptype jump_integral = h_k_face*jumps.Sum();
 
       error_estimates(FT->Elem1No) += jump_integral;
       // We skip "error_estimates(FT->Elem2No) += jump_integral"
@@ -463,7 +463,7 @@ void KellyErrorEstimator::ComputeEstimates()
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(xfes);
    MFEM_VERIFY(pfes, "xfes is not a ParFiniteElementSpace pointer");
 
-   double process_local_error = pow(error_estimates.Norml2(),2.0);
+   fptype process_local_error = pow(error_estimates.Norml2(),2.0);
    MPI_Allreduce(&process_local_error, &total_error, 1,
                  MPITypeMap<fptype>::mpi_type, MPI_SUM, pfes->GetComm());
    total_error = sqrt(total_error);

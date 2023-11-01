@@ -27,9 +27,9 @@ ParNonlinearForm::ParNonlinearForm(ParFiniteElementSpace *pf)
    MFEM_VERIFY(!Serial(), "internal MFEM error");
 }
 
-double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
+fptype ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 {
-   double loc_energy, glob_energy;
+   fptype loc_energy, glob_energy;
 
    loc_energy = GetGridFunctionEnergy(x);
 
@@ -217,7 +217,7 @@ void ParBlockNonlinearForm::SetEssentialBC(const
    }
 }
 
-double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
+fptype ParBlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    // xs_true is not modified, so const_cast is okay
    xs_true.Update(const_cast<Vector &>(x), block_trueOffsets);
@@ -228,8 +228,8 @@ double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
       fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
-   double englo = 0.0;
+   fptype enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
+   fptype englo = 0.0;
 
    MPI_Allreduce(&enloc, &englo, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
                  ParFESpace(0)->GetComm());
