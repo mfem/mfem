@@ -32,9 +32,11 @@ namespace Ginkgo
 // Create a GinkgoExecutor of type exec_type.
 GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    gko::version_info gko_version = gko::version_info::get();
    bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
                                        "not compiled") != 0);
+#endif
    switch (exec_type)
    {
       case GinkgoExecutor::REFERENCE:
@@ -55,16 +57,22 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
             if (gko_with_omp_support)
+            {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::OmpExecutor::create());
+            }
             else
+            {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
+         {
             MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                        "any valid devices.");
+         }
          break;
       }
       case GinkgoExecutor::HIP:
@@ -75,16 +83,22 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
             if (gko_with_omp_support)
+            {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::OmpExecutor::create());
+            }
             else
+            {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
+         {
             MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
                        "any valid devices.");
+         }
          break;
       }
       default:
@@ -118,16 +132,22 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
             if (host_exec_type == GinkgoExecutor::OMP)
+            {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::OmpExecutor::create());
+            }
             else
+            {
                executor = gko::CudaExecutor::create(current_device,
                                                     gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
+         {
             MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                        "any valid devices.");
+         }
          break;
       }
       case GinkgoExecutor::HIP:
@@ -138,16 +158,22 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
             if (host_exec_type == GinkgoExecutor::OMP)
+            {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::OmpExecutor::create());
+            }
             else
+            {
                executor = gko::HipExecutor::create(current_device,
                                                    gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
+         {
             MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
                        "any valid devices.");
+         }
          break;
       }
       default:
@@ -169,16 +195,22 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
          if (gko_with_omp_support)
+         {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::OmpExecutor::create());
+         }
          else
+         {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
@@ -188,16 +220,22 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
          if (gko_with_omp_support)
+         {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::OmpExecutor::create());
+         }
          else
+         {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else
    {
@@ -234,16 +272,22 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
          if (host_exec_type == GinkgoExecutor::OMP)
+         {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::OmpExecutor::create());
+         }
          else
+         {
             executor = gko::CudaExecutor::create(current_device,
                                                  gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
@@ -253,16 +297,22 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
          if (host_exec_type == GinkgoExecutor::OMP)
+         {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::OmpExecutor::create());
+         }
          else
+         {
             executor = gko::HipExecutor::create(current_device,
                                                 gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else
    {
