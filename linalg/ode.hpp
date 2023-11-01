@@ -125,6 +125,38 @@ public:
    virtual ~ODESolver() { }
 };
 
+/// A class to deal with state data from multiple time steps
+class StateData 
+{
+protected:
+   int ss, smax;
+   std::vector<Vector> k;
+   Array<int> idx;
+
+public:
+   StateData () { ss = smax = 0;};
+   void  SetSize(int stages, int vsize);
+   inline void ShiftStages()
+   {
+      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
+   };
+
+   int  GetMaxSize() { return smax; };
+   int  GetSize() { return ss; };
+   void IncrementSize() { ss++; };
+   void ResetSize() { ss = 0; };
+
+   const Vector &Get(int i);
+   void Get(int i, Vector &state);
+   void Set(int i, Vector &state);
+   void Set(Vector &state);
+
+      /// Reference access to the ith vector.
+   inline Vector & operator[](int i){return k[idx[i]];};
+
+   /// Const reference access to the ith vector.
+   inline const Vector &operator[](int i) const {return k[idx[i]];};
+};
 
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
@@ -235,225 +267,6 @@ private:
 public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
 };
-
-
-
-
-/** An Linear Multi Step base class. */
-class StateData 
-{
-protected:
-   int ss, smax;
-   std::vector<Vector> k;
-   Array<int> idx;
-
-public:
-   StateData () { ss = smax = 0;};
-   void  SetSize(int stages, int vsize);
-   inline void ShiftStages()
-   {
-      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
-   };
-
-   int  GetMaxSize() { return smax; };
-   int  GetSize() { return ss; };
-   void  IncrementSize() { ss++; };
-   const Vector &Get(int i);
-   void Get(int i, Vector &state);
-   void Set(int i, Vector &state);
-   void Set(Vector &state);
-
-      /// Reference access to the ith vector.
-   inline Vector & operator[](int i){return k[idx[i]];};
-
-   /// Const reference access to the ith vector.
-   inline const Vector &operator[](int i) const {return k[idx[i]];};
-};
-
-
-
-/** An Linear Multi Step base class. */
-class LMSSolver : public ODESolver
-{
-protected:
-   int ss, smax;
-   std::vector<Vector> k;
-   Array<int> idx;
-   ODESolver* RKsolver;
-   double dt_;
-
-   inline bool print()
-   {
-#ifdef MFEM_USE_MPI
-      return Mpi::IsInitialized() ? Mpi::Root() : true;
-#else
-      return true;
-#endif
-   }
-
-public:
-   LMSSolver();
-   void SetStageSize(int s_);
-
-   void Init(TimeDependentOperator &f_) override;
-   void ShiftStages();
-   void CheckTimestep(double dt_);
-
-   int  GetMaxStateSize() override { return smax; };
-   int  GetStateSize() override { return ss; };
-   const Vector &GetStateVector(int i) override;
-   void GetStateVector(int i, Vector &state) override;
-   void SetStateVector(int i, Vector &state) override;
-   void SetStateVector(Vector &state) override;
-
-   ~LMSSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-   }
-};
-
-/** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public ODESolver
-{
-private:
-   const double *a;
-   int stages;
-   double dt_;
-
-protected:
-   ODESolver* RKsolver;
-   StateData state;
-
-public:
-   AdamsBashforthSolver(int s_, const double *a_);
-   void Init(TimeDependentOperator &f_) override;
-   void Step(Vector &x, double &t, double &dt) override;
-
-   /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
-   virtual int   GetStateSize() { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i)
-   {
-      return state.Get(i);
-   }
-   virtual void  GetStateVector(int i, Vector &s)
-   {
-      state.Get(i,s);
-   }
-   virtual void  SetStateVector(int i, Vector &s)
-   {
-      state.Set(i,s);
-   }
-   virtual void  SetStateVector(Vector &s)
-   {
-      state.Set(s);
-   }
-
-};
-
-/** A 1-stage, 1st order AB method.  */
-class AB1Solver : public AdamsBashforthSolver
-{
-private:
-   static MFEM_EXPORT const double a[1];
-
-public:
-   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = NULL; }
-};
-
-/** A 2-stage, 2nd order AB method.  */
-class AB2Solver : public AdamsBashforthSolver
-{
-private:
-   static MFEM_EXPORT const double a[2];
-
-public:
-   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver = new RK2Solver(); }
-};
-
-/** A 3-stage, 3rd order AB method.  */
-class AB3Solver : public AdamsBashforthSolver
-{
-private:
-   static MFEM_EXPORT const double a[3];
-
-public:
-   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver = new RK3SSPSolver(); }
-};
-
-/** A 4-stage, 4th order AB method.  */
-class AB4Solver : public AdamsBashforthSolver
-{
-private:
-   static MFEM_EXPORT const double a[4];
-
-public:
-   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver = new RK4Solver(); }
-};
-
-/** A 5-stage, 5th order AB method.  */
-class AB5Solver : public AdamsBashforthSolver
-{
-private:
-   static MFEM_EXPORT const double a[5];
-
-public:
-   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver = new RK6Solver(); }
-};
-
-
-/** An implicit Adams-Moulton method. */
-class AdamsMoultonSolver : public LMSSolver
-{
-private:
-   const double *a;
-
-public:
-   AdamsMoultonSolver(int s_, const double *a_);
-
-   void Step(Vector &x, double &t, double &dt) override;
-};
-
-/** A 1-stage, 2nd order AM method. */
-class AM1Solver : public AdamsMoultonSolver
-{
-private:
-   static MFEM_EXPORT const double a[2];
-
-public:
-   AM1Solver() : AdamsMoultonSolver(1, a) { }
-};
-
-/** A 2-stage, 3rd order AM method. */
-class AM2Solver : public AdamsMoultonSolver
-{
-private:
-   static MFEM_EXPORT const double a[3];
-
-public:
-   AM2Solver() : AdamsMoultonSolver(2, a) { }
-};
-
-/** A 3-stage, 4th order AM method. */
-class AM3Solver : public AdamsMoultonSolver
-{
-private:
-   static MFEM_EXPORT const double a[4];
-
-public:
-   AM3Solver() : AdamsMoultonSolver(3, a) { }
-};
-
-/** A 4-stage, 5th order AM method. */
-class AM4Solver : public AdamsMoultonSolver
-{
-private:
-   static MFEM_EXPORT const double a[5];
-
-public:
-   AM4Solver() : AdamsMoultonSolver(4, a) { }
-};
-
 
 /// Backward Euler ODE solver. L-stable.
 class BackwardEulerSolver : public ODESolver
@@ -599,6 +412,170 @@ public:
    void SetStateVector(int i, Vector &state) override;
 };
 
+/** An explicit Adams-Bashforth method. */
+class AdamsBashforthSolver : public ODESolver
+{
+private:
+   const double *a;
+   int stages;
+   double dt_;
+
+protected:
+   ODESolver* RKsolver;
+   StateData state;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
+
+   void CheckTimestep(double dt);
+
+public:
+   AdamsBashforthSolver(int s_, const double *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, double &t, double &dt) override;
+
+   /// Function for getting and setting the state vectors
+   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
+   virtual int   GetStateSize() { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
+   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
+   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
+   virtual void  SetStateVector(Vector &s) { state.Set(s); }
+
+};
+
+/** A 1-stage, 1st order AB method.  */
+class AB1Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const double a[1];
+
+public:
+   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = NULL; }
+};
+
+/** A 2-stage, 2nd order AB method.  */
+class AB2Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const double a[2];
+
+public:
+   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver = new RK2Solver(); }
+};
+
+/** A 3-stage, 3rd order AB method.  */
+class AB3Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const double a[3];
+
+public:
+   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver = new RK3SSPSolver(); }
+};
+
+/** A 4-stage, 4th order AB method.  */
+class AB4Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const double a[4];
+
+public:
+   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver = new RK4Solver(); }
+};
+
+/** A 5-stage, 5th order AB method.  */
+class AB5Solver : public AdamsBashforthSolver
+{
+private:
+   static MFEM_EXPORT const double a[5];
+
+public:
+   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver = new RK6Solver(); }
+};
+
+/** An implicit Adams-Moulton method. */
+class AdamsMoultonSolver : public ODESolver
+{
+private:
+   const double *a;
+   int stages;
+   double dt_;
+
+protected:
+   ODESolver* RKsolver;
+   StateData state;
+
+   inline bool print()
+   {
+#ifdef MFEM_USE_MPI
+      return Mpi::IsInitialized() ? Mpi::Root() : true;
+#else
+      return true;
+#endif
+   }
+
+   void CheckTimestep(double dt);
+
+public:
+   AdamsMoultonSolver(int s_, const double *a_);
+   void Init(TimeDependentOperator &f_) override;
+   void Step(Vector &x, double &t, double &dt) override;
+
+   /// Function for getting and setting the state vectors
+   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
+   virtual int   GetStateSize() { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
+   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
+   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
+   virtual void  SetStateVector(Vector &s) { state.Set(s); }
+};
+
+/** A 1-stage, 2nd order AM method. */
+class AM1Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const double a[2];
+
+public:
+   AM1Solver() : AdamsMoultonSolver(1, a) { RKsolver = new SDIRK23Solver(); }
+};
+
+/** A 2-stage, 3rd order AM method. */
+class AM2Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const double a[3];
+
+public:
+   AM2Solver() : AdamsMoultonSolver(2, a) { RKsolver = new SDIRK23Solver(); }
+};
+
+/** A 3-stage, 4th order AM method. */
+class AM3Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const double a[4];
+
+public:
+   AM3Solver() : AdamsMoultonSolver(3, a) { RKsolver = new SDIRK23Solver(); }
+};
+
+/** A 4-stage, 5th order AM method. */
+class AM4Solver : public AdamsMoultonSolver
+{
+private:
+   static MFEM_EXPORT const double a[5];
+
+public:
+   AM4Solver() : AdamsMoultonSolver(4, a) { RKsolver = new SDIRK34Solver(); }
+};
 
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
