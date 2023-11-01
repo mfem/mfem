@@ -175,7 +175,6 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
          }
          else
          {
-            pos.Print();
             if (j == 0) { not_found++; }
          }
       }
