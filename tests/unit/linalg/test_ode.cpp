@@ -219,7 +219,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
    SECTION("RK2Solver(0.5)")
    {
-      mfem::out<<"R2Solver"<<std::endl;
+      mfem::out<<"RK2Solver"<<std::endl;
       double conv_rate = check.order(new RK2Solver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
