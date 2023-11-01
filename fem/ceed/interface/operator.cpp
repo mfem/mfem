@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,9 +69,11 @@ void Operator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 #endif
 }
 
-void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y) const
+void Operator::AddMult(const mfem::Vector &x, mfem::Vector &y,
+                       const double a) const
 {
 #ifdef MFEM_USE_CEED
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    const CeedScalar *x_ptr;
    CeedScalar *y_ptr;
    CeedMemType mem;

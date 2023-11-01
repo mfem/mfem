@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,7 +65,7 @@
 
 // 'double' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE double atomicAdd(double *add, double val)
+MFEM_DEVICE inline double atomicAdd(double *add, double val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
    unsigned long long int old = *ptr, reg;

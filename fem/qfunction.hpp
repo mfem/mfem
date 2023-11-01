@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,7 +29,8 @@ protected:
 
 public:
    /// Default constructor, results in an empty vector.
-   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0) { }
+   QuadratureFunction() : qspace(nullptr), own_qspace(false), vdim(0)
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -38,7 +39,7 @@ public:
    QuadratureFunction(QuadratureSpaceBase &qspace_, int vdim_ = 1)
       : Vector(vdim_*qspace_.GetSize()),
         qspace(&qspace_), own_qspace(false), vdim(vdim_)
-   { }
+   { UseDevice(true); }
 
    /// Create a QuadratureFunction based on the given QuadratureSpaceBase.
    /** The QuadratureFunction does not assume ownership of the
@@ -46,6 +47,17 @@ public:
        @warning @a qspace_ may not be NULL. */
    QuadratureFunction(QuadratureSpaceBase *qspace_, int vdim_ = 1)
       : QuadratureFunction(*qspace_, vdim_) { }
+
+   /** @brief Create a QuadratureFunction based on the given QuadratureSpaceBase,
+       using the external (host) data, @a qf_data. */
+   /** The QuadratureFunction does not assume ownership of the
+       QuadratureSpaceBase or the external data.
+       @warning @a qspace_ may not be NULL.
+       @note @a qf_data must be a valid **host** pointer (see the constructor
+       Vector::Vector(double *, int)). */
+   QuadratureFunction(QuadratureSpaceBase *qspace_, double *qf_data, int vdim_ = 1)
+      : Vector(qf_data, vdim_*qspace_->GetSize()),
+        qspace(qspace_), own_qspace(false), vdim(vdim_) { UseDevice(true); }
 
    /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
        in the new object is set to false. */
@@ -173,7 +185,7 @@ public:
    /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
    /// binary data.
    void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
 
    /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
    ///
@@ -181,7 +193,7 @@ public:
    /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
    ///             int compression_level=0)
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
 
    virtual ~QuadratureFunction()
    {

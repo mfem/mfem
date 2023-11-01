@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,12 @@
 
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_MPI
+
 namespace mfem
+{
+
+namespace common
 {
 
 double AvgElementSize(ParMesh &pmesh);
@@ -303,6 +308,9 @@ private:
    ScreenedPoisson* sint;
 };
 
+} // namespace common
+
 } // namespace mfem
 
+#endif // MFEM_USE_MPI
 #endif

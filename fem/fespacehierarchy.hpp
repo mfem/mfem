@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ public:
    /// Construct an empty finite element space hierarchy. This is useful if the
    /// hierarchy is constructed by coarsening a fine space, rather than refining
    /// a coarse space.
-   FiniteElementSpaceHierarchy() { }
+   FiniteElementSpaceHierarchy() = default;
 
    /// @brief Constructs a space hierarchy with the given mesh and space on the
    /// coarsest level.
@@ -91,6 +91,7 @@ public:
 class ParFiniteElementSpaceHierarchy : public FiniteElementSpaceHierarchy
 {
 public:
+   ParFiniteElementSpaceHierarchy() = default;
    /// @brief Constructs a parallel space hierarchy with the given mesh and spaces
    /// on level zero.
    /** The ownership of the mesh and space may be transferred to the

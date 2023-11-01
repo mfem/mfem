@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,8 +44,8 @@ TEST_CASE("MemoryManager/Scopes",
       REQUIRE(h_x == x.GetData());
       REQUIRE(mem->capacity == x.Size());
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
-      constexpr unsigned REGISTERED = 1 << 0;
-      const bool registered = mem->flags & REGISTERED;
+      constexpr unsigned Registered = 1 << 0;
+      const bool registered = mem->flags & Registered;
       const bool registered_is_known = registered == mm.IsKnown(h_x);
       REQUIRE(registered_is_known);
    }

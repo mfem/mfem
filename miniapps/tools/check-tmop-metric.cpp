@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -9,9 +9,16 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Checks evaluation / 1st derivative / 2nd derivative for TMOP metrics. Serial.
-//   ./check-tmop-metric -mid 360
+//         ------------------------------------------------------
+//         Check Metric Miniapp: Check TMOP Metric Implementation
+//         ------------------------------------------------------
 //
+// This miniapp checks the evaluation, 1st, and 2nd derivatives of a TMOP
+// metric. Works only in serial.
+//
+// Compile with: make check-tmop-metric
+//
+// Sample runs:  check-tmop-metric -mid 360
 
 #include "mfem.hpp"
 #include <iostream>
@@ -60,6 +67,8 @@ int main(int argc, char *argv[])
       case 77: metric = new TMOP_Metric_077; break;
       case 80: metric = new TMOP_Metric_080(0.5); break;
       case 85: metric = new TMOP_Metric_085; break;
+      case 90: metric = new TMOP_Metric_090; break;
+      case 94: metric = new TMOP_Metric_094; break;
       case 98: metric = new TMOP_Metric_098; break;
       // case 211: metric = new TMOP_Metric_211; break;
       // case 252: metric = new TMOP_Metric_252(tauval); break;
@@ -71,13 +80,15 @@ int main(int argc, char *argv[])
       case 313: metric = new TMOP_Metric_313(tauval); break;
       case 315: metric = new TMOP_Metric_315; break;
       case 316: metric = new TMOP_Metric_316; break;
+      case 318: metric = new TMOP_Metric_318; break;
       case 321: metric = new TMOP_Metric_321; break;
       case 322: metric = new TMOP_Metric_322; break;
       case 323: metric = new TMOP_Metric_323; break;
-      case 328: metric = new TMOP_Metric_328(0.5); break;
+      case 328: metric = new TMOP_Metric_328; break;
       case 332: metric = new TMOP_Metric_332(0.5); break;
       case 333: metric = new TMOP_Metric_333(0.5); break;
       case 334: metric = new TMOP_Metric_334(0.5); break;
+      case 338: metric = new TMOP_Metric_338; break;
       case 347: metric = new TMOP_Metric_347(0.5); break;
       // case 352: metric = new TMOP_Metric_352(tauval); break;
       case 360: metric = new TMOP_Metric_360; break;
@@ -149,9 +160,7 @@ int main(int argc, char *argv[])
    Vector x_loc(x.Size());
    x.GetSubVector(vdofs, x_loc);
 
-   //
    // Test 1st derivative (assuming EvalW is correct). Should be 2nd order.
-   //
    Vector dF_0;
    const double F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
@@ -188,9 +197,7 @@ int main(int argc, char *argv[])
    std::cout << "--- EvalP:     avg rate of convergence (should be 2): "
              << rate_dF_sum / (convergence_iter - 1) << endl;
 
-   //
    // Test 2nd derivative (assuming EvalP is correct).
-   //
    double min_avg_rate = 7.0;
    DenseMatrix ddF_0;
    integ->AssembleElementGrad(fe, Tr, x_loc, ddF_0);
@@ -198,7 +205,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < x_loc.Size(); i++)
    {
       double rate_sum = 0.0;
-      double dx = 0.1;
+      dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
          double err_k = 0.0;
@@ -221,6 +228,8 @@ int main(int argc, char *argv[])
          if (k > 0)
          {
             double r = log2(err_old / err_k);
+            // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
+            if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
             if (verbose)
             {

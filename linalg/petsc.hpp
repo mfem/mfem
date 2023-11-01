@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -441,11 +441,19 @@ public:
    /// Matvec transpose: @a y = @a a A^T @a x + @a b @a y.
    void MultTranspose(double a, const Vector &x, double b, Vector &y) const;
 
-   virtual void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    { Mult(1.0, x, 0.0, y); }
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const
+   void MultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(1.0, x, 0.0, y); }
+
+   void AddMult(const Vector &x, Vector &y,
+                const double a = 1.0) const override
+   { Mult(a, x, 1.0, y); }
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const double a = 1.0) const override
+   { MultTranspose(a, x, 1.0, y); }
 
    /// Get the associated MPI communicator
    MPI_Comm GetComm() const;

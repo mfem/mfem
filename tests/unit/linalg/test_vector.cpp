@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include <numeric>
 
 using namespace mfem;
 
@@ -224,4 +225,17 @@ TEST_CASE("Vector Tests", "[Vector]")
       subtract(tmp, apb, diff);
       REQUIRE(diff.Norml2() < tol);
    }
+}
+
+TEST_CASE("Vector Sum", "[Vector],[CUDA]")
+{
+   Vector x(1024);
+   x.Randomize(1);
+   x.UseDevice(true);
+
+   x.HostRead();
+   const double sum_1 = std::accumulate(x.begin(), x.end(), 0.0);
+   const double sum_2 = x.Sum();
+
+   REQUIRE(sum_1 == MFEM_Approx(sum_2));
 }
