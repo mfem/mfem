@@ -443,15 +443,6 @@ const double RK8Solver::c[] =
    1.,
 };
 
-
-
-
-
-
-
-
-
-
 void StateData::SetSize(int stages, int vsize)
 {
    smax = stages;
@@ -500,133 +491,6 @@ void StateData::Set(Vector &state)
    ss = std::max(ss,smax);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-LMSSolver::LMSSolver()
-{
-   dt_ = -1.0;
-   smax = -1;
-   ss = 0;
-}
-
-void LMSSolver::SetStageSize(int s_)
-{
-   smax = std::min(s_,5);
-   k.resize(smax);
-   idx.SetSize(smax);
-   for (int i = 0; i < smax; i++)
-   {
-      idx[i] = smax - i - 1;
-   }
-}
-
-void LMSSolver::Init(TimeDependentOperator &f_)
-{
-   ODESolver::Init(f_);
-   RKsolver->Init(f_);
-
-   for (int i = 0; i < smax; i++)
-   {
-      k[i].SetSize(f->Width());
-   }
-
-   ss = 0;
-   dt_ = -1.0;
-}
-
-void LMSSolver::ShiftStages()
-{
-   for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
-}
-
-void LMSSolver::CheckTimestep(double dt)
-{
-   if (dt_ < 0.0)
-   {
-      dt_ = dt;
-      return;
-   }
-   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
-   {
-      ss = 0;
-      dt_ = dt;
-
-      if (print())
-      {
-         mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
-         mfem::out << " - Purging time stepping history" << std::endl;
-         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
-      }
-   }
-}
-
-void LMSSolver::GetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   state = k[idx[i]];
-}
-
-const Vector &LMSSolver::GetStateVector(int i)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   return k[idx[i]];
-}
-
-void LMSSolver::SetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " LMSSolver::SetStateVector \n" <<
-                " - Tried to set non-existent state "<<i);
-   k[idx[i]] = state;
-}
-
-void LMSSolver::SetStateVector(Vector &state)
-{
-   k[idx[0]] = state;
-   ShiftStages();
-   ss++;
-   ss = std::max(ss,smax);
-}
-
-
-
-
-
-
-
-
-
-
 AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
 {
    a = a_;
@@ -643,7 +507,7 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
-   //CheckTimestep(dt);
+   CheckTimestep(dt);
 
    if (state.GetSize() >= stages -1)
    {
@@ -665,6 +529,28 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    state.ShiftStages();
 }
 
+void AdamsBashforthSolver::CheckTimestep(double dt)
+{
+   if (dt_ < 0.0)
+   {
+      dt_ = dt;
+      return;
+   }
+   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      state.ResetSize();
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging time stepping history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+}
+
 const double AB1Solver::a[] =
 {1.0};
 const double AB2Solver::a[] =
@@ -676,51 +562,71 @@ const double AB4Solver::a[] =
 const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int stages, const double *a_)
+AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
 {
    a = a_;
-   SetStageSize(stages);
+   stages = s_;
+}
 
-   int order = stages+1;
-   if (order <= 3)
-   {
-      RKsolver = new SDIRK23Solver();
-   }
-   else
-   {
-      RKsolver = new SDIRK34Solver();
-   }
+void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   if (RKsolver) RKsolver->Init(f_);
+   state.SetSize(stages,f->Width());
+   dt_ = -1.0;
 }
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
    CheckTimestep(dt);
-   if ((ss == 0)&&(smax>1))
+   if ((state.GetSize() == 0)&&(stages>1))
    {
-      f->Mult(x,k[idx[0]]);
-      ss++;
+      f->Mult(x,state[0]);
+      state.IncrementSize();
    }
 
-   if (ss >= smax)
+   if (state.GetSize() >= stages )
    {
       f->SetTime(t);
-      for (int i = 0; i < smax; i++)
+      for (int i = 0; i < stages; i++)
       {
-         x.Add(a[i+1]*dt, k[idx[i]]);
+         x.Add(a[i+1]*dt, state[i]);
       }
-      ShiftStages();
-      f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
-      x.Add(a[0]*dt, k[idx[0]]);
+      state.ShiftStages();
+      f->ImplicitSolve(a[0]*dt, x, state[0]);
+      x.Add(a[0]*dt, state[0]);
       t += dt;
    }
    else
    {
-      ShiftStages();
+      state.ShiftStages();
       RKsolver->Step(x,t,dt);
-      f->Mult(x,k[idx[0]]);
-      ss++;
+      f->Mult(x,state[0]);
+      state.IncrementSize();
    }
 }
+void AdamsMoultonSolver::CheckTimestep(double dt)
+{
+   if (dt_ < 0.0)
+   {
+      dt_ = dt;
+      return;
+   }
+   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
+   {
+      state.ResetSize();
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging time stepping history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+}
+
 
 const double AM1Solver::a[] =
 {0.5, 0.5};
