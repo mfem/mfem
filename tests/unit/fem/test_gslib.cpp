@@ -52,9 +52,13 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
 
    int ne = 4;
 
-   int total_ne = std::pow(ne, dim);
    CAPTURE(space, simplex, dim, func_order, mesh_order, mesh_node_ordering,
            point_ordering, ncomp, gf_ordering, href, pref);
+
+   if (ncomp == 1 && gf_ordering == 1)
+   {
+      return;
+   }
 
    Mesh mesh;
    if (dim == 2)
@@ -102,46 +106,39 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    const int pts_cnt_1D = 5;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
+   NodalTensorFiniteElement *el = NULL;
    if (dim == 2)
    {
-      L2_QuadrilateralElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
-         {
-            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         }
-         else
-         {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         }
-      }
+      el = new L2_QuadrilateralElement(pts_cnt_1D-1,BasisType::ClosedUniform);
    }
    else
    {
-      L2_HexahedronElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
+      el = new L2_HexahedronElement(pts_cnt_1D - 1, BasisType::ClosedUniform);
+   }
+   const IntegrationRule &ir = el->GetNodes();
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      if (point_ordering == Ordering::byNODES)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
+         vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (dim == 3)
          {
-            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
             vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
-         else
+      }
+      else
+      {
+         vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
+         vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
+         if (dim == 3)
          {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
             vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
       }
    }
+   delete el;
 
    // Find and interpolate FE Function values
    Vector interp_vals(pts_cnt*ncomp);
@@ -152,34 +149,35 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
 
-   int face_pts = 0, not_found = 0, found = 0;
+   int not_found = 0;
    double err = 0.0, max_err = 0.0, max_dist = 0.0;
    Vector pos(dim);
-   int npt = 0;
-   for (int j = 0; j < ncomp; j++)
+
+   for (int i = 0; i < pts_cnt; i++)
    {
-      for (int i = 0; i < pts_cnt; i++)
+      max_dist = std::max(max_dist, dist_p_out(i));
+      for (int d = 0; d < dim; d++)
+      {
+         pos(d) = point_ordering == Ordering::byNODES ?
+                  vxyz(d*pts_cnt + i) :
+                  vxyz(i*dim + d);
+      }
+      Vector exact_val(ncomp);
+      F_exact(pos, exact_val);
+      for (int j = 0; j < ncomp; j++)
       {
          if (code_out[i] < 2)
          {
-            if (j == 0) { found++; }
-            for (int d = 0; d < dim; d++)
-            {
-               pos(d) = point_ordering == Ordering::byNODES ?
-                        vxyz(d*pts_cnt + i) :
-                        vxyz(i*dim + d);
-            }
-            Vector exact_val(ncomp);
-            F_exact(pos, exact_val);
             err = gf_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                   fabs(exact_val(j) - interp_vals[i*ncomp + j]);
             max_err  = std::max(max_err, err);
-            max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
-         else { if (j == 0) { not_found++; } }
-         npt++;
+         else
+         {
+            pos.Print();
+            if (j == 0) { not_found++; }
+         }
       }
    }
 
@@ -247,7 +245,6 @@ TEST_CASE("GSLIBFindAtElementBoundary",
          {
             const FiniteElement *fe = n_fespace->GetFaceElement(faces[f]);
             const IntegrationRule ir = fe->GetNodes();
-            int nqpts = ir.GetNPoints();
 
             DenseMatrix vals;
             DenseMatrix tr;
@@ -268,7 +265,6 @@ TEST_CASE("GSLIBFindAtElementBoundary",
       {
          const FiniteElement *fe = l2_fespace.GetFE(e);
          const IntegrationRule ir = fe->GetNodes();
-         int nqpts = ir.GetNPoints();
 
          nodes->GetVectorValues(e, ir, vals, tr);
          xyz.Append(vals.GetData(), vals.Height()*vals.Width());
@@ -298,6 +294,7 @@ TEST_CASE("GSLIBFindAtElementBoundary",
          cmax = std::max(code_out[i], cmax);
       }
       REQUIRE((cmin == 0 && cmax == 0)); // should be found inside element
+      delete l2_fec;
    }
 }
 
