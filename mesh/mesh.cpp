@@ -5222,7 +5222,8 @@ void Mesh::NURBSUniformRefinement(Array<int> const& rf, double tol)
    MFEM_VERIFY(rf.Size() == Dim,
                "Refinement factors must be defined for each dimension");
 
-   // do not check for NURBSext since this method is protected
+   MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
+
    NURBSext->ConvertToPatches(*Nodes);
 
    Array<int> cf;
@@ -9845,13 +9846,13 @@ static Array<int>& AllElements(Array<int> &list, int nelem)
    return list;
 }
 
-void Mesh::UniformRefinement(int ref_algo, int rf, double tol)
+void Mesh::UniformRefinement(int ref_algo)
 {
    Array<int> list;
 
    if (NURBSext)
    {
-      NURBSUniformRefinement(rf, tol);
+      NURBSUniformRefinement();
    }
    else if (ncmesh)
    {
@@ -9871,18 +9872,6 @@ void Mesh::UniformRefinement(int ref_algo, int rf, double tol)
          case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
       }
-   }
-}
-
-void Mesh::UniformRefinement(Array<int> const& rf, double tol)
-{
-   if (NURBSext)
-   {
-      NURBSUniformRefinement(rf, tol);
-   }
-   else
-   {
-      MFEM_ABORT("Anisotropic refinement is supported only for NURBS meshes");
    }
 }
 

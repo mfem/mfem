@@ -64,12 +64,12 @@ TEST_CASE("NURBS refinement and coarsening by spacing formulas", "[NURBS]")
    rf[0] = 24;
    rf[1] = beam ? 12 : 24;
 
-   mesh1.UniformRefinement(rf);
+   mesh1.NURBSUniformRefinement(rf);
 
    rf[0] = 12;
    rf[1] = beam ? 6 : 12;
 
-   mesh2.UniformRefinement(rf);
+   mesh2.NURBSUniformRefinement(rf);
 
    REQUIRE(mesh1.GetNodes()->Size() > mesh2.GetNodes()->Size());
 

@@ -409,17 +409,6 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
-   /** @brief Refine NURBS mesh, with an optional refinement factor.
-
-       @param[in] rf  Optional refinement factor. If scalar, the factor is used
-                      for all dimensions. If an array, factors can be specified
-                      for each dimension. The factor multiplies the number of
-                      elements in each dimension.
-       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
-                      "The NURBS Book", 2nd ed, Piegl and Tiller. */
-   virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
-   virtual void NURBSUniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
-
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
@@ -1919,21 +1908,20 @@ public:
        refined locally using methods like GeneralRefinement() unless it is
        re-finalized using Finalize() with the parameter @a refine set to true.
        Note that calling Finalize() in this way will generally invalidate any
-       FiniteElementSpace%s and GridFunction%s defined on the mesh.
+       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
+   void UniformRefinement(int ref_algo = 0);
 
-       @param[in] rf % Refinement factor for NURBS meshes, >= 2. The number of
-       elements in each dimension is multiplied by this factor.
-       @param[in] tol % NURBS geometry deviation tolerance, cf. Algorithm A5.8
-       of "The NURBS Book", 2nd ed, Piegl and Tiller. */
-   void UniformRefinement(int ref_algo = 0, int rf = 2, double tol = 1.0e-12);
+   /** @brief Refine NURBS mesh, with an optional refinement factor, generally
+       anisotropic.
 
-   /// Refinement, generally anisotropic, for all mesh elements on NURBS meshes.
-   /** @param[in] rf  % Refinement factors in each dimension, each >= 1. The
-       number of elements in each dimension is multipled by these factors. Some
-       factor can be 1, and the factors can differ, for anisotropic refinement.
-       @param[in] tol % NURBS geometry deviation tolerance, cf. Algorithm A5.8
-       of "The NURBS Book", 2nd ed, Piegl and Tiller. */
-   void UniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension. The factor multiplies the number of
+                      elements in each dimension. Some factors can be 1.
+       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
+                      "The NURBS Book", 2nd ed, Piegl and Tiller. */
+   virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
+   virtual void NURBSUniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.

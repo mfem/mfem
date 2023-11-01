@@ -463,7 +463,7 @@ int main (int argc, char *argv[])
                   cin >> tol;
                }
 
-               mesh->UniformRefinement(ref_factors, tol);
+               mesh->NURBSUniformRefinement(ref_factors, tol);
                break;
             }
             case 'c':
