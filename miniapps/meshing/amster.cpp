@@ -340,8 +340,6 @@ int main (int argc, char *argv[])
    }
    backgrnd.ComputeGradientAndHessian();
 
-   return 0;
-
    // Setup the quadrature rules for the TMOP integrator.
    IntegrationRules *irules = &IntRulesLo;
    if (myid == 0 && dim == 2)

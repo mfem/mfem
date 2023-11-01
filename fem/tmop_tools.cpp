@@ -553,7 +553,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       {
          GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
       }
-      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.01*max_surf_fit_err)
+      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
       {
          if (print_options.iterations)
          {
@@ -631,7 +631,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       if (!untangling && !worst_case_optimize)
       {
-         mfem::out << "Energy decrease:   "
+         mfem::out << "Energy decrease: "
                    << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";
