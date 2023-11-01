@@ -368,8 +368,9 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    {
       MFEM_ASSERT(X[i], "Missing Vector in MUMPSSolver::Mult!");
       X[i]->HostRead();
-      MPI_Gatherv(X[i]->GetData(), X[i]->Size(), MPI_DOUBLE,
-                  id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE, 0, comm);
+      MPI_Gatherv(X[i]->GetData(), X[i]->Size(), MPITypeMap<fptype>::mpi_type,
+                  id->rhs + i * id->lrhs, recv_counts, displs, MPITypeMap<fptype>::mpi_type, 0,
+                  comm);
    }
 
    // MUMPS solve
@@ -380,8 +381,9 @@ void MUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    {
       MFEM_ASSERT(Y[i], "Missing Vector in MUMPSSolver::Mult!");
       Y[i]->HostWrite();
-      MPI_Scatterv(id->rhs + i * id->lrhs, recv_counts, displs, MPI_DOUBLE,
-                   Y[i]->GetData(), Y[i]->Size(), MPI_DOUBLE, 0, comm);
+      MPI_Scatterv(id->rhs + i * id->lrhs, recv_counts, displs,
+                   MPITypeMap<fptype>::mpi_type,
+                   Y[i]->GetData(), Y[i]->Size(), MPITypeMap<fptype>::mpi_type, 0, comm);
    }
 #endif
 }
@@ -608,8 +610,9 @@ void MUMPSSolver::RedistributeSol(const int *rmap, const double *x,
          }
       }
 
-      MPI_Alltoallv(sendbuf_values, send_count, send_displ, MPI_DOUBLE,
-                    recvbuf_values, recv_count, recv_displ, MPI_DOUBLE, comm);
+      MPI_Alltoallv(sendbuf_values, send_count, send_displ,
+                    MPITypeMap<fptype>::mpi_type,
+                    recvbuf_values, recv_count, recv_displ, MPITypeMap<fptype>::mpi_type, comm);
 
       // Unpack recv buffer
       for (int i = 0; i < rbuff_size; i++)

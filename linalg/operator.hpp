@@ -94,11 +94,11 @@ public:
    { mfem_error("Operator::MultTranspose() is not overridden!"); }
 
    /// Operator application: `y+=A(x)` (default) or `y+=a*A(x)`.
-   virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const;
+   virtual void AddMult(const Vector &x, Vector &y, const fptype a = 1.0) const;
 
    /// Operator transpose application: `y+=A^t(x)` (default) or `y+=a*A^t(x)`.
    virtual void AddMultTranspose(const Vector &x, Vector &y,
-                                 const double a = 1.0) const;
+                                 const fptype a = 1.0) const;
 
    /// Operator application on a matrix: `Y=A(X)`.
    virtual void ArrayMult(const Array<const Vector *> &X,
@@ -110,12 +110,12 @@ public:
 
    /// Operator application on a matrix: `Y+=A(X)` (default) or `Y+=a*A(X)`.
    virtual void ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                             const double a = 1.0) const;
+                             const fptype a = 1.0) const;
 
    /** @brief Operator transpose application on a matrix: `Y+=A^t(X)` (default)
        or `Y+=a*A^t(X)`. */
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                      Array<Vector *> &Y, const double a = 1.0) const;
+                                      Array<Vector *> &Y, const fptype a = 1.0) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
@@ -337,27 +337,27 @@ public:
    };
 
 protected:
-   double t;  ///< Current time.
+   fptype t;  ///< Current time.
    Type type; ///< Describes the form of the TimeDependentOperator.
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
    /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
        y have the same dimension @a n. */
-   explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit TimeDependentOperator(int n = 0, fptype t_ = 0.0,
                                   Type type_ = EXPLICIT)
       : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
        dimensions @a w and @a h, respectively. */
-   TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+   TimeDependentOperator(int h, int w, fptype t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
 
    /// Read the currently set time.
-   virtual double GetTime() const { return t; }
+   virtual fptype GetTime() const { return t; }
 
    /// Set the current time.
-   virtual void SetTime(const double t_) { t = t_; }
+   virtual void SetTime(const fptype t_) { t = t_; }
 
    /// True if #type is #EXPLICIT.
    bool isExplicit() const { return (type == EXPLICIT); }
@@ -418,7 +418,7 @@ public:
        methods and the backward Euler method in particular.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const fptype dt, const Vector &x, Vector &k);
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
@@ -426,7 +426,7 @@ public:
        Presently, this method is used by some PETSc ODE solvers, for more
        details, see the PETSc Manual. */
    virtual Operator& GetImplicitGradient(const Vector &x, const Vector &k,
-                                         double shift) const;
+                                         fptype shift) const;
 
    /** @brief Return an Operator representing dG/dx at the given point @a x and
        the currently set time.
@@ -449,7 +449,7 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
    virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
-                                int jok, int *jcur, double gamma);
+                                int jok, int *jcur, fptype gamma);
 
    /** @brief Solve the ODE linear system \f$ A x = b \f$ as setup by
        the method SUNImplicitSetup().
@@ -462,7 +462,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNImplicitSolve(const Vector &b, Vector &x, fptype tol);
 
    /** @brief Setup the mass matrix in the ODE system \f$ M y' = f(y,t) \f$ .
 
@@ -483,7 +483,7 @@ public:
 
        Presently, this method is used by SUNDIALS ARKStep integrator, for more
        details, see the ARKode User Guide. */
-   virtual int SUNMassSolve(const Vector &b, Vector &x, double tol);
+   virtual int SUNMassSolve(const Vector &b, Vector &x, fptype tol);
 
    /** @brief Compute the mass matrix-vector product \f$ v = M x \f$ .
 
@@ -535,7 +535,7 @@ public:
       \param[in] t Starting time to set
       \param[in] type The TimeDependentOperator type
    */
-   TimeDependentAdjointOperator(int dim, int adjdim, double t = 0.,
+   TimeDependentAdjointOperator(int dim, int adjdim, fptype t = 0.,
                                 Type type = EXPLICIT) :
       TimeDependentOperator(dim, t, type),
       adjoint_height(adjdim)
@@ -590,9 +590,9 @@ public:
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides.
    */
-   virtual int SUNImplicitSetupB(const double t, const Vector &x,
+   virtual int SUNImplicitSetupB(const fptype t, const Vector &x,
                                  const Vector &xB, const Vector &fxB,
-                                 int jokB, int *jcurB, double gammaB)
+                                 int jokB, int *jcurB, fptype gammaB)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSetupB() is not "
                  "overridden!");
@@ -610,7 +610,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more details,
        see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol)
+   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, fptype tol)
    {
       mfem_error("TimeDependentAdjointOperator::SUNImplicitSolveB() is not "
                  "overridden!");
@@ -636,13 +636,13 @@ class SecondOrderTimeDependentOperator : public TimeDependentOperator
 public:
    /** @brief Construct a "square" SecondOrderTimeDependentOperator
        y = f(x,dxdt,t), where x, dxdt and y have the same dimension @a n. */
-   explicit SecondOrderTimeDependentOperator(int n = 0, double t_ = 0.0,
+   explicit SecondOrderTimeDependentOperator(int n = 0, fptype t_ = 0.0,
                                              Type type_ = EXPLICIT)
       : TimeDependentOperator(n, t_,type_) { }
 
    /** @brief Construct a SecondOrderTimeDependentOperator y = f(x,dxdt,t),
        where x, dxdt and y have the same dimension @a n. */
-   SecondOrderTimeDependentOperator(int h, int w, double t_ = 0.0,
+   SecondOrderTimeDependentOperator(int h, int w, fptype t_ = 0.0,
                                     Type type_ = EXPLICIT)
       : TimeDependentOperator(h, w, t_,type_) { }
 
@@ -670,7 +670,7 @@ public:
        integration methods.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double fac0, const double fac1,
+   virtual void ImplicitSolve(const fptype fac0, const fptype fac1,
                               const Vector &x, const Vector &dxdt, Vector &k);
 
 
@@ -727,11 +727,11 @@ class ScaledOperator : public Operator
 {
 private:
    const Operator &A_;
-   double a_;
+   fptype a_;
 
 public:
    /// Create an operator which is a scalar multiple of A.
-   explicit ScaledOperator(const Operator *A, double a)
+   explicit ScaledOperator(const Operator *A, fptype a)
       : Operator(A->Height(), A->Width()), A_(*A), a_(a) { }
 
    /// Operator application
@@ -1009,8 +1009,8 @@ public:
        The maximum number of iterations may set with \p numSteps, the relative
        tolerance with \p tolerance and the seed of the random initialization of
        \p v0 with \p seed. If \p seed is 0 \p v0 will not be random-initialized. */
-   double EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                    int numSteps = 10, double tolerance = 1e-8,
+   fptype EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                    int numSteps = 10, fptype tolerance = 1e-8,
                                     int seed = 12345);
 };
 

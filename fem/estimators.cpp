@@ -464,8 +464,8 @@ void KellyErrorEstimator::ComputeEstimates()
    MFEM_VERIFY(pfes, "xfes is not a ParFiniteElementSpace pointer");
 
    double process_local_error = pow(error_estimates.Norml2(),2.0);
-   MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                 MPI_SUM, pfes->GetComm());
+   MPI_Allreduce(&process_local_error, &total_error, 1,
+                 MPITypeMap<fptype>::mpi_type, MPI_SUM, pfes->GetComm());
    total_error = sqrt(total_error);
 #endif // MFEM_USE_MPI
 }
@@ -490,8 +490,8 @@ void LpErrorEstimator::ComputeEstimates()
    if (pfes)
    {
       auto process_local_error = total_error;
-      MPI_Allreduce(&process_local_error, &total_error, 1, MPI_DOUBLE,
-                    MPI_SUM, pfes->GetComm());
+      MPI_Allreduce(&process_local_error, &total_error, 1,
+                    MPITypeMap<fptype>::mpi_type, MPI_SUM, pfes->GetComm());
    }
 #endif // MFEM_USE_MPI
    total_error = pow(total_error, 1.0/local_norm_p);

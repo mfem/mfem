@@ -135,8 +135,10 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
    if (pfes)
    {
       double v_loc = v_max, h_loc = h_min;
-      MPI_Allreduce(&v_loc, &v_max, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
-      MPI_Allreduce(&h_loc, &h_min, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      MPI_Allreduce(&v_loc, &v_max, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+                    pfes->GetComm());
+      MPI_Allreduce(&h_loc, &h_min, 1, MPITypeMap<fptype>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
    }
 #endif
 
@@ -170,8 +172,10 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&minv, &glob_minv, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
-      MPI_Allreduce(&maxv, &glob_maxv, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      MPI_Allreduce(&minv, &glob_minv, 1, MPITypeMap<fptype>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
+      MPI_Allreduce(&maxv, &glob_maxv, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+                    pfes->GetComm());
    }
 #endif
 
@@ -862,7 +866,8 @@ fptype TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
    if (parallel)
    {
       auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+      MPI_Allreduce(&min_detJ, &min_detT_all, 1, MPITypeMap<fptype>::mpi_type,
+                    MPI_MIN,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif

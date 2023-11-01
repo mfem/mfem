@@ -153,8 +153,8 @@ protected:
    void NonconformingRefinement(const Array<Refinement> &refinements,
                                 int nc_limit = 0) override;
 
-   bool NonconformingDerefinement(Array<double> &elem_error,
-                                  double threshold, int nc_limit = 0,
+   bool NonconformingDerefinement(Array<fptype> &elem_error,
+                                  fptype threshold, int nc_limit = 0,
                                   int op = 1) override;
 
    void RebalanceImpl(const Array<int> *partition);
@@ -547,7 +547,7 @@ public:
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
-   double GetFaceNbrElementSize(int i, int type=0);
+   fptype GetFaceNbrElementSize(int i, int type=0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -647,8 +647,8 @@ public:
    /// high-order meshes, the geometry is refined first "ref" times.
    void GetBoundingBox(Vector &p_min, Vector &p_max, int ref = 2);
 
-   void GetCharacteristics(double &h_min, double &h_max,
-                           double &kappa_min, double &kappa_max);
+   void GetCharacteristics(fptype &h_min, fptype &h_max,
+                           fptype &kappa_min, fptype &kappa_max);
 
    /// Swaps internal data with another ParMesh, including non-geometry members.
    /// See @a Mesh::Swap

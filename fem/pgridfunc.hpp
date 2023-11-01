@@ -26,7 +26,7 @@ namespace mfem
 {
 
 /// Compute a global Lp norm from the local Lp norms computed by each processor
-double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
+fptype GlobalLpNorm(const fptype p, fptype loc_norm, MPI_Comm comm);
 
 /// Class for parallel grid function
 class ParGridFunction : public GridFunction
@@ -62,7 +62,7 @@ public:
        can be NULL. The data array can be replaced later using the method
        SetData().
     */
-   ParGridFunction(ParFiniteElementSpace *pf, double *data) :
+   ParGridFunction(ParFiniteElementSpace *pf, fptype *data) :
       GridFunction(pf, data), pfes(pf) { }
 
    /** @brief Construct a ParGridFunction using previously allocated Vector
@@ -103,7 +103,7 @@ public:
    { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
-   ParGridFunction &operator=(double value)
+   ParGridFunction &operator=(fptype value)
    { GridFunction::operator=(value); return *this; }
 
    /// Copy the data from a Vector to the ParGridFunction data.
@@ -130,14 +130,14 @@ public:
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. The new space @a f is expected to be a
        ParFiniteElementSpace. */
-   virtual void MakeRef(FiniteElementSpace *f, double *v);
+   virtual void MakeRef(FiniteElementSpace *f, fptype *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        ParFiniteElementSpace. */
    /** This method changes the ParFiniteElementSpace associated with the
        ParGridFunction and sets the pointer @a v as external data in the
        ParGridFunction. */
-   void MakeRef(ParFiniteElementSpace *f, double *v);
+   void MakeRef(ParFiniteElementSpace *f, fptype *v);
 
    /** @brief Make the ParGridFunction reference external data on a new
        FiniteElementSpace. */
@@ -162,8 +162,8 @@ public:
        true dofs, i.e. P tv. */
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
-   void AddDistribute(double a, const Vector *tv);
-   void AddDistribute(double a, const Vector &tv) { AddDistribute(a, &tv); }
+   void AddDistribute(fptype a, const Vector *tv);
+   void AddDistribute(fptype a, const Vector &tv) { AddDistribute(a, &tv); }
 
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv) { Distribute(tv); }
@@ -209,13 +209,13 @@ public:
    const Vector &FaceNbrData() const { return face_nbr_data; }
 
    // Redefine to handle the case when i is a face-neighbor element
-   virtual double GetValue(int i, const IntegrationPoint &ip,
+   virtual fptype GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
-   double GetValue(ElementTransformation &T)
+   fptype GetValue(ElementTransformation &T)
    { return GetValue(T.ElementNo, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
-   virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
+   virtual fptype GetValue(ElementTransformation &T, const IntegrationPoint &ip,
                            int comp = 0, Vector *tr = NULL) const;
 
    virtual void GetVectorValue(int i, const IntegrationPoint &ip,
@@ -267,22 +267,22 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
-   virtual double ComputeL1Error(Coefficient *exsol[],
+   virtual fptype ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(1.0, GridFunction::ComputeW11Error(
                              *exsol, NULL, 1, NULL, irs), pfes->GetComm());
    }
 
-   virtual double ComputeL1Error(Coefficient &exsol,
+   virtual fptype ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }
 
-   virtual double ComputeL1Error(VectorCoefficient &exsol,
+   virtual fptype ComputeL1Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, NULL, irs); }
 
-   virtual double ComputeL2Error(Coefficient *exsol[],
+   virtual fptype ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
    {
@@ -290,7 +290,7 @@ public:
                           pfes->GetComm());
    }
 
-   virtual double ComputeL2Error(Coefficient &exsol,
+   virtual fptype ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
    {
@@ -299,7 +299,7 @@ public:
    }
 
 
-   virtual double ComputeL2Error(VectorCoefficient &exsol,
+   virtual fptype ComputeL2Error(VectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
    {
@@ -308,7 +308,7 @@ public:
    }
 
    /// Returns ||grad u_ex - grad u_h||_L2 for H1 or L2 elements
-   virtual double ComputeGradError(VectorCoefficient *exgrad,
+   virtual fptype ComputeGradError(VectorCoefficient *exgrad,
                                    const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeGradError(exgrad,irs),
@@ -316,7 +316,7 @@ public:
    }
 
    /// Returns ||curl u_ex - curl u_h||_L2 for ND elements
-   virtual double ComputeCurlError(VectorCoefficient *excurl,
+   virtual fptype ComputeCurlError(VectorCoefficient *excurl,
                                    const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeCurlError(excurl,irs),
@@ -324,7 +324,7 @@ public:
    }
 
    /// Returns ||div u_ex - div u_h||_L2 for RT elements
-   virtual double ComputeDivError(Coefficient *exdiv,
+   virtual fptype ComputeDivError(Coefficient *exdiv,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
@@ -332,7 +332,7 @@ public:
    }
 
    /// Returns the Face Jumps error for L2 elements
-   virtual double ComputeDGFaceJumpError(Coefficient *exsol,
+   virtual fptype ComputeDGFaceJumpError(Coefficient *exsol,
                                          Coefficient *ell_coeff,
                                          JumpScaling jump_scaling,
                                          const IntegrationRule *irs[]=NULL)
@@ -340,8 +340,8 @@ public:
 
    /// Returns either the H1-seminorm or the DG Face Jumps error or both
    /// depending on norm_type = 1, 2, 3
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
-                                 Coefficient *ell_coef, double Nu,
+   virtual fptype ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+                                 Coefficient *ell_coef, fptype Nu,
                                  int norm_type) const
    {
       return GlobalLpNorm(2.0,
@@ -352,7 +352,7 @@ public:
 
    /// Returns the error measured in H1-norm for H1 elements or in "broken"
    /// H1-norm for L2 elements
-   virtual double ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
+   virtual fptype ComputeH1Error(Coefficient *exsol, VectorCoefficient *exgrad,
                                  const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(2.0, GridFunction::ComputeH1Error(exsol,exgrad,irs),
@@ -360,7 +360,7 @@ public:
    }
 
    /// Returns the error measured H(div)-norm for RT elements
-   virtual double ComputeHDivError(VectorCoefficient *exsol,
+   virtual fptype ComputeHDivError(VectorCoefficient *exsol,
                                    Coefficient *exdiv,
                                    const IntegrationRule *irs[] = NULL) const
    {
@@ -369,7 +369,7 @@ public:
    }
 
    /// Returns the error measured H(curl)-norm for ND elements
-   virtual double ComputeHCurlError(VectorCoefficient *exsol,
+   virtual fptype ComputeHCurlError(VectorCoefficient *exsol,
                                     VectorCoefficient *excurl,
                                     const IntegrationRule *irs[] = NULL) const
    {
@@ -378,7 +378,7 @@ public:
                           pfes->GetComm());
    }
 
-   virtual double ComputeMaxError(Coefficient *exsol[],
+   virtual fptype ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
       return GlobalLpNorm(infinity(),
@@ -386,19 +386,19 @@ public:
                           pfes->GetComm());
    }
 
-   virtual double ComputeMaxError(Coefficient &exsol,
+   virtual fptype ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
-   virtual double ComputeMaxError(VectorCoefficient &exsol,
+   virtual fptype ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
-   virtual double ComputeLpError(const double p, Coefficient &exsol,
+   virtual fptype ComputeLpError(const fptype p, Coefficient &exsol,
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const
@@ -410,7 +410,7 @@ public:
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
-   virtual double ComputeLpError(const double p, VectorCoefficient &exsol,
+   virtual fptype ComputeLpError(const fptype p, VectorCoefficient &exsol,
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const
@@ -469,11 +469,11 @@ public:
     least conforming) space, and computes the Lp norms of the differences
     between them on each element. This is one approach to handling conforming
     and non-conforming elements in parallel. Returns the total error estimate. */
-double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+fptype L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
                           ParFiniteElementSpace &flux_fes,
-                          Vector &errors, int norm_p = 2, double solver_tol = 1e-12,
+                          Vector &errors, int norm_p = 2, fptype solver_tol = 1e-12,
                           int solver_max_it = 200);
 
 }
