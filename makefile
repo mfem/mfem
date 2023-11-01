@@ -382,7 +382,7 @@ MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT GINKGO_OPT GINKGO_LIB
+   export VERBOSE HYPRE_OPT PUMI_DIR MUMPS_OPT
 endif
 
 # If we have 'install' target, export variables used by config/makefile
