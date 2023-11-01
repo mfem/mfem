@@ -390,7 +390,7 @@ int main (int argc, char *argv[])
       }
 
       double err_avg, err_max;
-      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(err_avg, err_max);
+      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(x, err_avg, err_max);
       if (myid == 0)
       {
          cout << "Initial Avg fitting error: " << err_avg << endl
@@ -434,7 +434,7 @@ int main (int argc, char *argv[])
    if (surface_fit_const > 0.0)
    {
       double err_avg, err_max;
-      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(err_avg, err_max);
+      mesh_opt.GetIntegrator()->GetSurfaceFittingErrors(x, err_avg, err_max);
       if (myid == 0)
       {
          std::cout << "Avg fitting error: " << err_avg << std::endl

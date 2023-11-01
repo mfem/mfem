@@ -162,15 +162,6 @@ protected:
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
-   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
-   {
-      if (IntegRules)
-      {
-         return IntegRules->Get(el.GetGeomType(), integ_order);
-      }
-      return ir;
-   }
-
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
 
@@ -209,6 +200,15 @@ public:
    {
       IntegRules = &irules;
       integ_order = order;
+   }
+
+   const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
+   {
+      if (IntegRules)
+      {
+         return IntegRules->Get(el.GetGeomType(), integ_order);
+      }
+      return ir;
    }
 
    void SetMinDetPtr(double *md_ptr) { min_det_ptr = md_ptr; }

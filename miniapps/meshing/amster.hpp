@@ -124,7 +124,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 {
    const int p = pLap;
    const int newton_iter = 50;
-   PLapDistanceSolver dist_solver(p, newton_iter);
+   common::PLapDistanceSolver dist_solver(p, newton_iter);
    dist_solver.print_level.Summary();
 
    dist_solver.ComputeScalarDistance(ls_coeff, distance_s);
