@@ -695,9 +695,14 @@ inline fptype InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 {
    fptype loc_prod = x * y;
    fptype glb_prod;
-   // TODO: ifdef for float/double
-   //MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+   // TODO: ifdef for float/double?
+   // TODO: including communication.hpp not working for MPITypeMap<fptype>::mpi_type
+   //MPI_Allreduce(&loc_prod, &glb_prod, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM, comm);
+#ifdef MFEM_USE_FLOAT
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
+#else
+   MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
+#endif
    return glb_prod;
 }
 #endif

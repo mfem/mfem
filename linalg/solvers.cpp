@@ -3063,7 +3063,8 @@ void ResidualBCMonitor::MonitorResidual(
    if (comm != MPI_COMM_NULL)
    {
       double glob_bc_norm_squared = 0.0;
-      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1, MPI_DOUBLE,
+      MPI_Reduce(&bc_norm_squared, &glob_bc_norm_squared, 1,
+                 MPITypeMap<fptype>::mpi_type,
                  MPI_SUM, 0, comm);
       bc_norm_squared = glob_bc_norm_squared;
       int rank;
@@ -3491,7 +3492,8 @@ void OrthoSolver::Orthogonalize(const Vector &v, Vector &v_ortho) const
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPI_DOUBLE, MPI_SUM, mycomm);
+      MPI_Allreduce(MPI_IN_PLACE, &global_sum, 1, MPITypeMap<fptype>::mpi_type,
+                    MPI_SUM, mycomm);
    }
 #endif
 
@@ -4200,7 +4202,8 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             break;
          }
 
-         fptype alpha = 1.0e300;
+         fptype alpha = numeric_limits<fptype>::max();
+
          // Find maximum permissible step
          for (int i = 0; i < n_glob; ++i)
          {

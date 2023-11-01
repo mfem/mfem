@@ -1516,7 +1516,8 @@ double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
 
    if (p < infinity())
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+                    comm);
 
       // negative quadrature weights may cause norm to be negative
       if (glob_norm < 0.0)
@@ -1530,7 +1531,8 @@ double ComputeGlobalLpNorm(double p, Coefficient &coeff, ParMesh &pmesh,
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+                    comm);
    }
 
    return glob_norm;
@@ -1546,7 +1548,8 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 
    if (p < infinity())
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+                    comm);
 
       // negative quadrature weights may cause norm to be negative
       if (glob_norm < 0.0)
@@ -1560,7 +1563,8 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+                    comm);
    }
 
    return glob_norm;

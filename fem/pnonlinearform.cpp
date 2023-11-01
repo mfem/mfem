@@ -38,7 +38,8 @@ double ParNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
       MFEM_ABORT("TODO: add energy contribution from shared faces");
    }
 
-   MPI_Allreduce(&loc_energy, &glob_energy, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&loc_energy, &glob_energy, 1, MPITypeMap<fptype>::mpi_type,
+                 MPI_SUM,
                  ParFESpace()->GetComm());
 
    return glob_energy;
@@ -230,7 +231,7 @@ double ParBlockNonlinearForm::GetEnergy(const Vector &x) const
    double enloc = BlockNonlinearForm::GetEnergyBlocked(xs);
    double englo = 0.0;
 
-   MPI_Allreduce(&enloc, &englo, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&enloc, &englo, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
                  ParFESpace(0)->GetComm());
 
    return englo;

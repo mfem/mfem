@@ -155,8 +155,8 @@ void TMOP_Combo_QualityMetric::ComputeAvgMetrics(const GridFunction &nodes,
    if (par_nodes)
    {
       MPI_Allreduce(MPI_IN_PLACE, averages.GetData(), m_cnt,
-                    MPI_DOUBLE, MPI_SUM, par_nodes->ParFESpace()->GetComm());
-      MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPI_DOUBLE, MPI_SUM,
+                    MPITypeMap<fptype>::mpi_type, MPI_SUM, par_nodes->ParFESpace()->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &volume, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
                     par_nodes->ParFESpace()->GetComm());
    }
 #endif
@@ -1520,7 +1520,8 @@ void TargetConstructor::ComputeAvgVolume() const
    {
       fptype area_NE[4];
       area_NE[0] = volume; area_NE[1] = NE;
-      MPI_Allreduce(area_NE, area_NE + 2, 2, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(area_NE, area_NE + 2, 2, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+                    comm);
       avg_volume = (ncmesh == NULL) ?
                    area_NE[2] / area_NE[3] : area_NE[2] / ncmesh->GetNumRootElements();
    }
@@ -3097,9 +3098,11 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
    if (parallel)
    {
       MPI_Comm comm = pfes->GetComm();
-      MPI_Allreduce(MPI_IN_PLACE, &err_max, 1, MPI_DOUBLE, MPI_MAX, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &err_max, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+                    comm);
       MPI_Allreduce(MPI_IN_PLACE, &dof_cnt, 1, MPI_INT, MPI_SUM, comm);
-      MPI_Allreduce(MPI_IN_PLACE, &err_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &err_sum, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+                    comm);
    }
 #endif
 
@@ -4223,10 +4226,11 @@ void TMOP_Integrator::EnableNormalization(const GridFunction &x)
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
 {
-   double loc[3];
+   fptype loc[3];
    ComputeNormalizationEnergies(x, loc[0], loc[1], loc[2]);
-   double rdc[3];
-   MPI_Allreduce(loc, rdc, 3, MPI_DOUBLE, MPI_SUM, x.ParFESpace()->GetComm());
+   fptype rdc[3];
+   MPI_Allreduce(loc, rdc, 3, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+                 x.ParFESpace()->GetComm());
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
    // if (surf_fit_gf) { surf_fit_normal = 1.0 / rdc[2]; }
@@ -4487,8 +4491,9 @@ void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
    if (pfes)
    {
-      double min_jac_all;
-      MPI_Allreduce(&dx, &min_jac_all, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+      fptype min_jac_all;
+      MPI_Allreduce(&dx, &min_jac_all, 1, MPITypeMap<fptype>::mpi_type, MPI_MIN,
+                    pfes->GetComm());
       dx = min_jac_all;
    }
 #endif
@@ -4658,12 +4663,13 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
    if (wcuo && wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      double min_detT = ComputeMinDetT(x, fes);
-      double min_detT_all = min_detT;
+      fptype min_detT = ComputeMinDetT(x, fes);
+      fptype min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
       {
-         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPI_DOUBLE, MPI_MIN,
+         MPI_Allreduce(&min_detT, &min_detT_all, 1, MPITypeMap<fptype>::mpi_type,
+                       MPI_MIN,
                        pfes->GetComm());
       }
 #endif
@@ -4675,7 +4681,7 @@ void TMOP_Integrator::ComputeUntangleMetricQuantiles(const Vector &x,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPI_DOUBLE, MPI_MAX,
+      MPI_Allreduce(&max_muT, &max_muT_all, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
                     pfes->GetComm());
    }
 #endif

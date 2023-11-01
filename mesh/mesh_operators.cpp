@@ -252,7 +252,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       if (par)
       {
          MPI_Comm comm = pmesh->GetComm();
-         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPI_DOUBLE, MPI_SUM, comm);
+         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPITypeMap<fptype>::mpi_type,
+                       MPI_SUM, comm);
          MPI_Comm_rank(comm, &rank);
       }
 #endif

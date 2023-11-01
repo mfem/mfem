@@ -629,8 +629,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * diag_r_J = (A_r) ? diag_r.GetJ() : NULL;
    const int * diag_i_J = (A_i) ? diag_i.GetJ() : NULL;
 
-   const double * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
-   const double * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
+   const fptype * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
+   const fptype * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
 
    int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
@@ -643,8 +643,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * offd_r_J = (A_r) ? offd_r.GetJ() : NULL;
    const int * offd_i_J = (A_i) ? offd_i.GetJ() : NULL;
 
-   const double * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
-   const double * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
+   const fptype * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
+   const fptype * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
 
    int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
    int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
@@ -653,16 +653,16 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    // Allocate CSR arrays for the combined matrix
    HYPRE_Int * diag_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * diag_J = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nnz);
-   double    * diag_D = mfem_hypre_CTAlloc_host(double, diag_nnz);
+   fptype    * diag_D = mfem_hypre_CTAlloc_host(fptype, diag_nnz);
 
    HYPRE_Int * offd_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * offd_J = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_nnz);
-   double    * offd_D = mfem_hypre_CTAlloc_host(double, offd_nnz);
+   fptype    * offd_D = mfem_hypre_CTAlloc_host(fptype, offd_nnz);
    HYPRE_BigInt * cmap = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
                                                  2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const fptype factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    diag_I[0] = 0;
    diag_I[nrows] = diag_r_nnz + diag_i_nnz;
