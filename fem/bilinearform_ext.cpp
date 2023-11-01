@@ -791,7 +791,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
-         double res = 0.0;
+         fptype res = 0.0;
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(i, j, e)*X(i, e);
@@ -826,7 +826,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
-               double res = 0.0;
+               fptype res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
                   res += A_int(i, j, 0, f)*X(i, 0, f);
@@ -845,7 +845,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            fptype res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A_ext(i, j, 0, f)*X(i, 0, f);
@@ -882,7 +882,7 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            fptype res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A(i, j, f)*X(i, f);
@@ -919,7 +919,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
       {
          const int e = glob_j/NDOFS;
          const int j = glob_j%NDOFS;
-         double res = 0.0;
+         fptype res = 0.0;
          for (int i = 0; i < NDOFS; i++)
          {
             res += A(j, i, e)*X(i, e);
@@ -954,7 +954,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
             {
                const int f = glob_j/NDOFS;
                const int j = glob_j%NDOFS;
-               double res = 0.0;
+               fptype res = 0.0;
                for (int i = 0; i < NDOFS; i++)
                {
                   res += A_int(j, i, 0, f)*X(i, 0, f);
@@ -973,7 +973,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            fptype res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A_ext(j, i, 1, f)*X(i, 0, f);
@@ -1010,7 +1010,7 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
          {
             const int f = glob_j/NDOFS;
             const int j = glob_j%NDOFS;
-            double res = 0.0;
+            fptype res = 0.0;
             for (int i = 0; i < NDOFS; i++)
             {
                res += A(j, i, f)*X(i, f);
@@ -1438,7 +1438,7 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
    const Operator *elem_restrict_y,
    Vector &y,
    Vector &localY,
-   const double c) const
+   const fptype c) const
 {
    // * G operation: localX = c*local(x)
    if (elem_restrict_x)
@@ -1478,7 +1478,7 @@ void PAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
 }
 
 void PAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
-                                           const double c) const
+                                           const fptype c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1510,7 +1510,7 @@ void PAMixedBilinearFormExtension::MultTranspose(const Vector &x,
 }
 
 void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
-                                                    const double c) const
+                                                    const fptype c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1644,7 +1644,7 @@ void PADiscreteLinearOperatorExtension::Assemble()
 }
 
 void PADiscreteLinearOperatorExtension::AddMult(
-   const Vector &x, Vector &y, const double c) const
+   const Vector &x, Vector &y, const fptype c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();
@@ -1677,7 +1677,7 @@ void PADiscreteLinearOperatorExtension::AddMult(
 }
 
 void PADiscreteLinearOperatorExtension::AddMultTranspose(
-   const Vector &x, Vector &y, const double c) const
+   const Vector &x, Vector &y, const fptype c) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int iSz = integrators.Size();

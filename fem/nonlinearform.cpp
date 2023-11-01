@@ -83,7 +83,7 @@ void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
+fptype NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 {
    if (ext)
    {
@@ -97,7 +97,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
    const FiniteElement *fe;
    ElementTransformation *T;
    DofTransformation *doftrans;
-   double energy = 0.0;
+   fptype energy = 0.0;
 
    if (dnfi.Size())
    {
@@ -584,7 +584,7 @@ void BlockNonlinearForm::SetEssentialBC(
    }
 }
 
-double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
+fptype BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
 {
    Array<Array<int> *> vdofs(fes.Size());
    Array<Vector *> el_x(fes.Size());
@@ -592,7 +592,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    Array<const FiniteElement *> fe(fes.Size());
    ElementTransformation *T;
    DofTransformation *doftrans;
-   double energy = 0.0;
+   fptype energy = 0.0;
 
    for (int i=0; i<fes.Size(); ++i)
    {
@@ -638,7 +638,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
    return energy;
 }
 
-double BlockNonlinearForm::GetEnergy(const Vector &x) const
+fptype BlockNonlinearForm::GetEnergy(const Vector &x) const
 {
    xs.Update(const_cast<Vector&>(x), block_offsets);
    return GetEnergyBlocked(xs);

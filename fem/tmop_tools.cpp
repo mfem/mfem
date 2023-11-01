@@ -134,7 +134,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 #ifdef MFEM_USE_MPI
    if (pfes)
    {
-      double v_loc = v_max, h_loc = h_min;
+      fptype v_loc = v_max, h_loc = h_min;
       MPI_Allreduce(&v_loc, &v_max, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
                     pfes->GetComm());
       MPI_Allreduce(&h_loc, &h_min, 1, MPITypeMap<fptype>::mpi_type, MPI_MIN,
