@@ -444,6 +444,87 @@ const double RK8Solver::c[] =
 };
 
 
+
+
+
+
+
+
+
+
+void StateData::SetSize(int stages, int vsize)
+{
+   smax = stages;
+   k.resize(smax);
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = smax - i - 1;
+      k[i].SetSize(vsize);
+   }
+
+   ss = 0;
+}
+
+void StateData::Get(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   state = k[idx[i]];
+}
+
+const Vector &StateData::Get(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   return k[idx[i]];
+}
+
+void StateData::Set(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+                " LMSSolver::SetStateVector \n" <<
+                " - Tried to set non-existent state "<<i);
+   k[idx[i]] = state;
+}
+
+void StateData::Set(Vector &state)
+{
+   k[idx[0]] = state;
+   ShiftStages();
+   ss++;
+   ss = std::max(ss,smax);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 LMSSolver::LMSSolver()
 {
    dt_ = -1.0;
@@ -537,52 +618,51 @@ void LMSSolver::SetStateVector(Vector &state)
    ss = std::max(ss,smax);
 }
 
-AdamsBashforthSolver::AdamsBashforthSolver(int stages, const double *a_)
+
+
+
+
+
+
+
+
+
+AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
 {
    a = a_;
-   SetStageSize(stages);
+   stages = s_;
+}
 
-   int order = stages;
-   if (order <= 2)
-   {
-      RKsolver = new RK2Solver();
-   }
-   else if (order == 3)
-   {
-      RKsolver = new RK3SSPSolver();
-   }
-   else if (order == 4)
-   {
-      RKsolver = new RK4Solver();
-   }
-   else
-   {
-      RKsolver = new RK6Solver();
-   }
+void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   if (RKsolver) RKsolver->Init(f_);
+   state.SetSize(stages,f->Width());
+   dt_ = -1.0;
 }
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
-   CheckTimestep(dt);
+   //CheckTimestep(dt);
 
-   if (ss >= smax-1)
+   if (state.GetSize() >= stages -1)
    {
       f->SetTime(t);
-      f->Mult(x, k[idx[0]]);
-      for (int i = 0; i < smax; i++)
+      f->Mult(x, state[0]);
+      for (int i = 0; i < stages; i++)
       {
-         x.Add(a[i]*dt, k[idx[i]]);
+         x.Add(a[i]*dt, state[i]);
       }
       t += dt;
    }
    else
    {
-      f->Mult(x,k[idx[0]]);
+      f->Mult(x,state[0]);
       RKsolver->Step(x,t,dt);
-      ss++;
+      state.IncrementSize();
    }
 
-   ShiftStages();
+   state.ShiftStages();
 }
 
 const double AB1Solver::a[] =

@@ -237,6 +237,41 @@ public:
 };
 
 
+
+
+/** An Linear Multi Step base class. */
+class StateData 
+{
+protected:
+   int ss, smax;
+   std::vector<Vector> k;
+   Array<int> idx;
+
+public:
+   StateData () { ss = smax = 0;};
+   void  SetSize(int stages, int vsize);
+   inline void ShiftStages()
+   {
+      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
+   };
+
+   int  GetMaxSize() { return smax; };
+   int  GetSize() { return ss; };
+   void  IncrementSize() { ss++; };
+   const Vector &Get(int i);
+   void Get(int i, Vector &state);
+   void Set(int i, Vector &state);
+   void Set(Vector &state);
+
+      /// Reference access to the ith vector.
+   inline Vector & operator[](int i){return k[idx[i]];};
+
+   /// Const reference access to the ith vector.
+   inline const Vector &operator[](int i) const {return k[idx[i]];};
+};
+
+
+
 /** An Linear Multi Step base class. */
 class LMSSolver : public ODESolver
 {
@@ -278,15 +313,42 @@ public:
 };
 
 /** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public LMSSolver
+class AdamsBashforthSolver : public ODESolver
 {
 private:
    const double *a;
+   int stages;
+   double dt_;
+
+protected:
+   ODESolver* RKsolver;
+   StateData state;
 
 public:
    AdamsBashforthSolver(int s_, const double *a_);
-
+   void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
+
+   /// Function for getting and setting the state vectors
+   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
+   virtual int   GetStateSize() { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i)
+   {
+      return state.Get(i);
+   }
+   virtual void  GetStateVector(int i, Vector &s)
+   {
+      state.Get(i,s);
+   }
+   virtual void  SetStateVector(int i, Vector &s)
+   {
+      state.Set(i,s);
+   }
+   virtual void  SetStateVector(Vector &s)
+   {
+      state.Set(s);
+   }
+
 };
 
 /** A 1-stage, 1st order AB method.  */
@@ -296,7 +358,7 @@ private:
    static MFEM_EXPORT const double a[1];
 
 public:
-   AB1Solver() : AdamsBashforthSolver(1, a) { }
+   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = NULL; }
 };
 
 /** A 2-stage, 2nd order AB method.  */
@@ -306,7 +368,7 @@ private:
    static MFEM_EXPORT const double a[2];
 
 public:
-   AB2Solver() : AdamsBashforthSolver(2, a) { }
+   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver = new RK2Solver(); }
 };
 
 /** A 3-stage, 3rd order AB method.  */
@@ -316,7 +378,7 @@ private:
    static MFEM_EXPORT const double a[3];
 
 public:
-   AB3Solver() : AdamsBashforthSolver(3, a) { }
+   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver = new RK3SSPSolver(); }
 };
 
 /** A 4-stage, 4th order AB method.  */
@@ -326,7 +388,7 @@ private:
    static MFEM_EXPORT const double a[4];
 
 public:
-   AB4Solver() : AdamsBashforthSolver(4, a) { }
+   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver = new RK4Solver(); }
 };
 
 /** A 5-stage, 5th order AB method.  */
@@ -336,7 +398,7 @@ private:
    static MFEM_EXPORT const double a[5];
 
 public:
-   AB5Solver() : AdamsBashforthSolver(5, a) { }
+   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver = new RK6Solver(); }
 };
 
 
