@@ -282,7 +282,7 @@ public:
    /** @brief For bilinear forms on element faces that depend on the normal
               derivative on the faces, computes the action of integrator to the
               face values @a x and reference-normal derivatives @a dxdn and adds
-              the result to @a y and @a dydn. 
+              the result to @a y and @a dydn.
 
       @details This method can be called only after the method AssemblePA() has
                been called.
