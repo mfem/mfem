@@ -2428,6 +2428,7 @@ void FiniteElementSpace::Construct()
       {
          // the simple case: all edges are of the same order
          nedofs = mesh->GetNEdges() * fec->GetNumDof(Geometry::SEGMENT, order);
+         var_edge_dofs.Clear(); // ensure any old var_edge_dof table is dumped.
       }
    }
 
@@ -2446,6 +2447,7 @@ void FiniteElementSpace::Construct()
          // the simple case: all faces are of the same geometry and order
          uni_fdof = fec->GetNumDof(mesh->GetFaceGeometry(0), order);
          nfdofs = mesh->GetNFaces() * uni_fdof;
+         var_face_dofs.Clear(); // ensure any old var_face_dof table is dumped.
       }
    }
 
@@ -2656,7 +2658,6 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
             int dofs = fec->GetNumDof(geom, order);
             list.Append(Connection(i, total_dofs));
             total_dofs += dofs;
-
             if (var_ent_order) { var_ent_order->Append(order); }
          }
       }
@@ -2667,7 +2668,6 @@ int FiniteElementSpace::MakeDofTable(int ent_dim,
 
    // build the table
    entity_dofs.MakeFromList(num_ent+1, list);
-
    return total_dofs;
 }
 
@@ -2996,7 +2996,14 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
 
       order = !IsVariableOrder() ? fec->GetOrder() :
               var_face_orders[var_face_dofs.GetI()[face] + variant];
-      MFEM_ASSERT(fec->GetNumDof(fgeom, order) == nf, "");
+      MFEM_ASSERT(fec->GetNumDof(fgeom, order) == nf, [&]()
+      {
+         std::stringstream msg;
+         msg << "fec->GetNumDof(" << (fgeom == Geometry::SQUARE ? "square" : "triangle")
+             << ", " << order << ") = " << fec->GetNumDof(fgeom, order) << " nf " << nf;
+         msg << " face " << face << " variant " << variant << std::endl;
+         return msg.str();
+      }());
    }
    else
    {
