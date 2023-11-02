@@ -6573,11 +6573,6 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
    }
 }
 
-int Mesh::GetBdrElementFaceIndex(int i) const
-{
-   return be_to_face[i];
-}
-
 void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementFaceIndex(bdr_el);
