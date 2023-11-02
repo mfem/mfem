@@ -6657,7 +6657,7 @@ Array<int> Mesh::FindFaceNeighbors(const int elem) const
 
 void Mesh::GetBdrElementFace(int i, int *f, int *o) const
 {
-   *f = GetBdrElementEdgeIndex(i);
+   *f = GetBdrElementFaceIndex(i);
 
    const int *fv = (Dim > 1) ? faces[*f]->GetVertices() : NULL;
    const int *bv = boundary[i]->GetVertices();
