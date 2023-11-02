@@ -21,6 +21,39 @@
 namespace mfem
 {
 
+/// A class for storing states of previous timesteps
+class StateData
+{
+protected:
+   int ss, smax;
+   std::vector<Vector> k;
+   Array<int> idx;
+
+public:
+   StateData () { ss = smax = 0;};
+   void  SetSize(int stages, int vsize);
+   inline void ShiftStages()
+   {
+      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
+   };
+
+   int  GetMaxSize() { return smax; };
+   int  GetSize() { return ss; };
+   void IncrementSize() { ss++; };
+   void ResetSize() { ss = 0; };
+
+   const Vector &Get(int i);
+   void Get(int i, Vector &state);
+   void Set(int i, Vector &state);
+   void Set(Vector &state);
+
+   /// Reference access to the ith vector.
+   inline Vector & operator[](int i) {return k[idx[i]];};
+
+   /// Const reference access to the ith vector.
+   inline const Vector &operator[](int i) const {return k[idx[i]];};
+};
+
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
 class ODESolver
 {
@@ -28,6 +61,7 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
+   StateData state;
 
 public:
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
@@ -95,25 +129,12 @@ public:
    }
 
    /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return 0; }
-   virtual int   GetStateSize() { return 0; }
-   virtual const Vector &GetStateVector(int i)
-   {
-      mfem_error("ODESolver has no state vectors");
-      Vector *s = NULL; return *s; // Make some compiler happy
-   }
-   virtual void  GetStateVector(int i, Vector &state)
-   {
-      mfem_error("ODESolver has no state vectors");
-   }
-   virtual void  SetStateVector(int i, Vector &state)
-   {
-      mfem_error("ODESolver has no state vectors");
-   }
-   virtual void  SetStateVector(Vector &state)
-   {
-      mfem_error("ODESolver has no state vectors");
-   }
+   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
+   virtual int   GetStateSize() { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
+   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
+   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
+   virtual void  SetStateVector(Vector &s) { state.Set(s); }
 
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
@@ -125,38 +146,7 @@ public:
    virtual ~ODESolver() { }
 };
 
-/// A class to deal with state data from multiple time steps
-class StateData
-{
-protected:
-   int ss, smax;
-   std::vector<Vector> k;
-   Array<int> idx;
 
-public:
-   StateData () { ss = smax = 0;};
-   void  SetSize(int stages, int vsize);
-   inline void ShiftStages()
-   {
-      for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
-   };
-
-   int  GetMaxSize() { return smax; };
-   int  GetSize() { return ss; };
-   void IncrementSize() { ss++; };
-   void ResetSize() { ss = 0; };
-
-   const Vector &Get(int i);
-   void Get(int i, Vector &state);
-   void Set(int i, Vector &state);
-   void Set(Vector &state);
-
-   /// Reference access to the ith vector.
-   inline Vector & operator[](int i) {return k[idx[i]];};
-
-   /// Const reference access to the ith vector.
-   inline const Vector &operator[](int i) const {return k[idx[i]];};
-};
 
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
@@ -422,7 +412,6 @@ private:
 
 protected:
    ODESolver* RKsolver;
-   StateData state;
 
    inline bool print()
    {
@@ -439,14 +428,6 @@ public:
    AdamsBashforthSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
-
-   /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
-   virtual int   GetStateSize() { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
-   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
-   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
-   virtual void  SetStateVector(Vector &s) { state.Set(s); }
 
 };
 
@@ -510,7 +491,6 @@ private:
 
 protected:
    ODESolver* RKsolver;
-   StateData state;
 
    inline bool print()
    {
@@ -528,13 +508,6 @@ public:
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
 
-   /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
-   virtual int   GetStateSize() { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
-   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
-   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
-   virtual void  SetStateVector(Vector &s) { state.Set(s); }
 };
 
 /** A 1-stage, 2nd order AM method. */
