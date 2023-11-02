@@ -114,6 +114,60 @@ ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
 }
 
 
+void StateData::SetSize(int stages, int vsize)
+{
+   smax = stages;
+   k.resize(smax);
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = smax - i - 1;
+      k[i].SetSize(vsize);
+   }
+
+   ss = 0;
+}
+
+void StateData::Get(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   state = k[idx[i]];
+}
+
+const Vector &StateData::Get(int i)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < ss ),
+                " LMSSolver::GetStateVector \n" <<
+                " - Tried to get non-existent state "<<i);
+
+   return k[idx[i]];
+}
+
+void StateData::Set(int i, Vector &state)
+{
+   MFEM_ASSERT( (i >= 0) && ( i < smax ),
+                " LMSSolver::SetStateVector \n" <<
+                " - Tried to set non-existent state "<<i);
+   k[idx[i]] = state;
+}
+
+void StateData::Add(Vector &state)
+{
+   ShiftStages();
+   k[idx[0]] = state;
+   IncrementSize();
+}
+
+void StateData::Print(std::ostream &out)
+{
+   out << ss <<"/" <<smax<<std::endl;
+   idx.Print(out);
+   for (int i = 0; i < ss; i++) { k[idx[i]].Print(out); }
+}
+
 
 void ODESolver::Init(TimeDependentOperator &f_)
 {
@@ -443,54 +497,6 @@ const double RK8Solver::c[] =
    1.,
 };
 
-void StateData::SetSize(int stages, int vsize)
-{
-   smax = stages;
-   k.resize(smax);
-   idx.SetSize(smax);
-   for (int i = 0; i < smax; i++)
-   {
-      idx[i] = smax - i - 1;
-      k[i].SetSize(vsize);
-   }
-
-   ss = 0;
-}
-
-void StateData::Get(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   state = k[idx[i]];
-}
-
-const Vector &StateData::Get(int i)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < ss ),
-                " LMSSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-
-   return k[idx[i]];
-}
-
-void StateData::Set(int i, Vector &state)
-{
-   MFEM_ASSERT( (i >= 0) && ( i < smax ),
-                " LMSSolver::SetStateVector \n" <<
-                " - Tried to set non-existent state "<<i);
-   k[idx[i]] = state;
-}
-
-void StateData::Set(Vector &state)
-{
-   k[idx[0]] = state;
-   ShiftStages();
-   ss++;
-   ss = std::max(ss,smax);
-}
-
 AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
 {
    a = a_;
@@ -513,6 +519,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    {
       f->SetTime(t);
       f->Mult(x, state[0]);
+      state.IncrementSize();
       for (int i = 0; i < stages; i++)
       {
          x.Add(a[i]*dt, state[i]);
