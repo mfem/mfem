@@ -11,6 +11,10 @@
 Version 4.6.1 (development)
 ===========================
 
+Miscellaneous
+-------------
+- The ReadCubit Genesis mesh importer has been rewritten to improve readability.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
