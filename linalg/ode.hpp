@@ -39,19 +39,21 @@ public:
 
    int  GetMaxSize() { return smax; };
    int  GetSize() { return ss; };
-   void IncrementSize() { ss++; };
+   void IncrementSize() { ss = std::min(++ss,smax); };
    void ResetSize() { ss = 0; };
 
    const Vector &Get(int i);
    void Get(int i, Vector &state);
    void Set(int i, Vector &state);
-   void Set(Vector &state);
+   void Add(Vector &state);
 
    /// Reference access to the ith vector.
-   inline Vector & operator[](int i) {return k[idx[i]];};
+   inline Vector & operator[](int i) { return k[idx[i]]; };
 
    /// Const reference access to the ith vector.
-   inline const Vector &operator[](int i) const {return k[idx[i]];};
+   inline const Vector &operator[](int i) const { return k[idx[i]]; };
+
+   void Print(std::ostream &out);
 };
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
@@ -61,9 +63,10 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
-   StateData state;
+
 
 public:
+   StateData state;
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
 
    /// Associate a TimeDependentOperator with the ODE solver.
@@ -134,7 +137,7 @@ public:
    virtual const Vector &GetStateVector(int i) { return state.Get(i); }
    virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
    virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
-   virtual void  SetStateVector(Vector &s) { state.Set(s); }
+   virtual void  AddStateVector(Vector &s) { state.Add(s); }
 
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
@@ -145,7 +148,6 @@ public:
 
    virtual ~ODESolver() { }
 };
-
 
 
 /// The classical forward Euler method

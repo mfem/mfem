@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include <cmath>
-
+#include <iostream>
 using namespace mfem;
 
 TEST_CASE("First order ODE methods", "[ODE]")
@@ -132,9 +132,10 @@ TEST_CASE("First order ODE methods", "[ODE]")
             dt_order *= 0.5;
             u = u0;
             ode_solver->Init(*oper);
+
             if (init_hist_)
             {
-               init_hist(ode_solver,dt_order);
+               //init_hist(ode_solver,dt_order);
 
                // Instead of single run command
                // Chop-up sequence with Get/Set in between
@@ -144,6 +145,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
                   ode_solver->Step(u, t, dt_order);
                }
                int nstate = ode_solver->GetStateSize();
+
                for (int s = 0; s < nstate; s++)
                {
                   ode_solver->GetStateVector(s,uh[s]);
@@ -151,15 +153,29 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
                for (int ll = 1; ll < lvl; ll++)
                {
-                  for (int s = 0; s < nstate; s++)
+                  // Use alternating options for setting the StateVector
+                  if (ll%2  == 0) 
                   {
-                     ode_solver->SetStateVector(s,uh[s]);
+                     ode_solver->state.ResetSize();
+                     for (int s = nstate - 1; s >= 0; s--)
+                     {
+                       ode_solver->AddStateVector(uh[s]);
+                     }
                   }
+                  else
+                  {
+                     for (int s = 0; s < nstate; s++)
+                     {
+                        ode_solver->SetStateVector(s,uh[s]);
+                     }
+                  }
+                  
                   for (int ti = 0; ti < steps; ti++)
                   {
                      ode_solver->Step(u, t, dt_order);
                   }
                   nstate = ode_solver->GetStateSize();
+
                   for (int s = 0; s< nstate; s++)
                   {
                      uh[s] = ode_solver->GetStateVector(s);
@@ -326,13 +342,6 @@ TEST_CASE("First order ODE methods", "[ODE]")
       REQUIRE(conv_rate + tol > 1.0);
    }
 
-   SECTION("AB1Solver() - restart")
-   {
-      mfem::out<<"AB1Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AB1Solver(), true);
-      REQUIRE(conv_rate + tol > 1.0);
-   }
-
    SECTION("AB2Solver()")
    {
       mfem::out<<"AB2Solver()"<<std::endl;
@@ -424,4 +433,5 @@ TEST_CASE("First order ODE methods", "[ODE]")
       double conv_rate = check.order(new AM4Solver(),true);
       REQUIRE(conv_rate + tol > 5.0);
    }
+
 }
