@@ -2172,7 +2172,6 @@ void NeighborRowMessage::Decode(int rank)
          // If edof arrived with a negative index, flip it, and the scaling.
          double s = (edof < 0) ? -1.0 : 1.0;
          edof = (edof < 0) ? -1 - edof : edof;
-
          if (ind && (edof = ind[edof]) < 0)
          {
             edof = -1 - edof;
@@ -2220,17 +2219,18 @@ void NeighborRowMessage::Decode(int rank)
             const MeshId &next_id = ids[++i];
             const int fo = pncmesh->GetFaceOrientation(next_id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
-
-            s = 1.0;
             edof = bin_io::read<int>(stream);
+
+            // If edof arrived with a negative index, flip it, and the scaling.
+            s = (edof < 0) ? -1.0 : 1.0;
+            edof = (edof < 0) ? -1 - edof : edof;
             if (ind && (edof = ind[edof]) < 0)
             {
                edof = -1 - edof;
-               s = -1.0;
+               s *= -1.0;
             }
             rows.push_back(RowInfo(ent, next_id.index, edof, group_ids[gi++]));
             rows.back().row.read(stream, s);
-
             auto &second_row = rows.back().row;
 
             // This is the second "fundamental unit" used in the transformation.
