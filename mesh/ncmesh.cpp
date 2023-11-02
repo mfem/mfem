@@ -2479,17 +2479,20 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
    // left uninitialized here; they will be initialized later by the Mesh from
    // Nodes -- here we just make sure mesh.vertices has the correct size.
 
-   for (int i = 0; i < mesh.NumOfElements; i++)
+   for (auto &elem : mesh.elements)
    {
-      mesh.FreeElement(mesh.elements[i]);
+      mesh.FreeElement(elem);
    }
    mesh.elements.SetSize(0);
 
-   for (int i = 0; i < mesh.NumOfBdrElements; i++)
+   for (auto &elem : mesh.boundary)
    {
-      mesh.FreeElement(mesh.boundary[i]);
+      mesh.FreeElement(elem);
    }
    mesh.boundary.SetSize(0);
+
+   // Save off boundary face vertices to make boundary elements later.
+   std::map<int, mfem::Array<int>> unique_boundary_faces;
 
    // create an mfem::Element for each leaf Element
    for (int i = 0; i < NElements; i++)
@@ -2508,64 +2511,82 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
          elem->GetVertices()[j] = nodes[node[j]].vert_index;
       }
 
-      // create boundary elements
-      // TODO: use boundary_faces?
-      for (int k = 0; k < gi.nf; k++)
+      // Loop over faces and collect those marked as boundaries
+      for (int k = 0; k < gi.nf; ++k)
       {
-         const int* fv = gi.faces[k];
          const int nfv = gi.nfv[k];
-         const Face* face = faces.Find(node[fv[0]], node[fv[1]],
-                                       node[fv[2]], node[fv[3]]);
-         if (face->Boundary())
+         const int * const fv = gi.faces[k];
+         const auto id = faces.FindId(node[fv[0]], node[fv[1]], node[fv[2]],
+                                      node[fv[3]]);
+         if (id >= 0 && faces[id].Boundary())
          {
-            if ((nc_elem.geom == Geometry::CUBE) ||
-                ((nc_elem.geom == Geometry::PRISM ||
-                  nc_elem.geom == Geometry::PYRAMID) && nfv == 4))
+            const auto &face = faces[id];
+            if (face.elem[0] >= 0 && face.elem[1] >= 0 &&
+                nc_elem.rank != std::min(elements[face.elem[0]].rank,
+                                         elements[face.elem[1]].rank))
             {
-               auto* quad = (Quadrilateral*) mesh.NewElement(Geometry::SQUARE);
-               quad->SetAttribute(face->attribute);
-               for (int j = 0; j < 4; j++)
-               {
-                  quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
-               }
-               mesh.boundary.Append(quad);
+               // This is a conformal internal face, but this element is not the lowest
+               // ranking attached processor, thus not the owner of the face.
+               // Consequently, we do not add this face to avoid double
+               // counting.
+               continue;
             }
-            else if (nc_elem.geom == Geometry::PRISM ||
-                     nc_elem.geom == Geometry::PYRAMID ||
-                     nc_elem.geom == Geometry::TETRAHEDRON)
+
+            // Add in all boundary faces that are actual boundaries or not masters of another face.
+            // The fv[2] in the edge split is on purpose.
+            if ((nfv == 4 &&
+                 QuadFaceNotMaster(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]))
+                || (nfv == 3 && TriFaceNotMaster(node[fv[0]], node[fv[1]], node[fv[2]]))
+                || (nfv == 2 &&
+                    EdgeSplitLevel(node[fv[0]], node[fv[2]] /* [2] not an error */) == 0))
             {
-               MFEM_ASSERT(nfv == 3, "");
-               auto* tri = (Triangle*) mesh.NewElement(Geometry::TRIANGLE);
-               tri->SetAttribute(face->attribute);
-               for (int j = 0; j < 3; j++)
+               // This face has no split faces below, it is conformal or a
+               // slave.
+               unique_boundary_faces[id].SetSize(nfv);
+               for (int v = 0; v < nfv; ++v)
                {
-                  tri->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
+                  // Using a map overwrites if a face is visited twice.
+                  // The nfv==2 is necessary because faces of 2D are storing the
+                  // second index in the 2 slot, not the 1 slot.
+                  unique_boundary_faces[id][v] = nodes[node[fv[(nfv==2) ? 2*v : v]]].vert_index;
                }
-               mesh.boundary.Append(tri);
-            }
-            else if (nc_elem.geom == Geometry::SQUARE ||
-                     nc_elem.geom == Geometry::TRIANGLE)
-            {
-               auto* segment = (Segment*) mesh.NewElement(Geometry::SEGMENT);
-               segment->SetAttribute(face->attribute);
-               for (int j = 0; j < 2; j++)
-               {
-                  segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
-               }
-               mesh.boundary.Append(segment);
-            }
-            else
-            {
-               MFEM_ASSERT(nc_elem.geom == Geometry::SEGMENT, "");
-               auto* point = (mfem::Point*) mesh.NewElement(Geometry::POINT);
-               point->SetAttribute(face->attribute);
-               point->GetVertices()[0] = nodes[node[fv[0]]].vert_index;
-               mesh.boundary.Append(point);
             }
          }
       }
    }
+
+   auto geom_from_nfv = [](int nfv)
+   {
+      switch (nfv)
+      {
+         case 1: return Geometry::POINT;
+         case 2: return Geometry::SEGMENT;
+         case 3: return Geometry::TRIANGLE;
+         case 4: return Geometry::SQUARE;
+      }
+      return Geometry::INVALID;
+   };
+
+   for (const auto &fv : unique_boundary_faces)
+   {
+      const auto f = fv.first;
+      const auto &v = fv.second;
+      const auto &face = faces.At(f);
+
+      auto geom = geom_from_nfv(v.Size());
+
+      MFEM_ASSERT(geom != Geometry::INVALID,
+                  "nfv: " << v.Size() <<
+                  " does not match a valid face geometry: Quad, Tri, Segment, Point");
+
+      // Add a new boundary element, with matching attribute and vertices
+      mesh.boundary.Append(mesh.NewElement(geom));
+      auto * const be = mesh.boundary.Last();
+      be->SetAttribute(face.attribute);
+      be->SetVertices(v);
+   }
 }
+
 
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
@@ -2681,13 +2702,14 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       for (int j = 0; j < gi.nf; j++)
       {
          const int *fv = gi.faces[j];
-         Face* face = faces.Find(el.node[fv[0]], el.node[fv[1]],
-                                 el.node[fv[2]], el.node[fv[3]]);
-         MFEM_ASSERT(face, "face not found!");
+         int fid = faces.FindId(el.node[fv[0]], el.node[fv[1]],
+                                el.node[fv[2]], el.node[fv[3]]);
+         MFEM_ASSERT(fid >= 0, "face not found!");
+         auto &face = faces[fid];
 
-         if (face->index < 0)
+         if (face.index < 0)
          {
-            face->index = NFaces + (nghosts++);
+            face.index = NFaces + (nghosts++);
 
             // store the face geometry
             static const Geometry::Type types[5] =
@@ -2695,7 +2717,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
                Geometry::INVALID, Geometry::INVALID,
                Geometry::SEGMENT, Geometry::TRIANGLE, Geometry::SQUARE
             };
-            face_geom[face->index] = types[gi.nfv[j]];
+            face_geom[face.index] = types[gi.nfv[j]];
          }
       }
    }
@@ -2771,7 +2793,7 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
 
-   // NOTE: face (v1, v2, v3) still needs to be checked
+   // This is necessary but not sufficient to determine if a face has been split.
    return true;
 }
 
@@ -3187,6 +3209,7 @@ void NCMesh::BuildFaceList()
          int fgeom = (node[3] >= 0) ? Geometry::SQUARE : Geometry::TRIANGLE;
 
          Face &fa = faces[face];
+         bool is_master = false;
          if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
          {
             // this is a conforming face, add it to the list
@@ -3213,6 +3236,7 @@ void NCMesh::BuildFaceList()
             if (sb < se)
             {
                // found slaves, so this is a master face; add it to the list
+               is_master = true;
                face_list.masters.Append(
                   Master(fa.index, elem, j, fgeom, sb, se));
 
@@ -3224,7 +3248,8 @@ void NCMesh::BuildFaceList()
             }
          }
 
-         if (fa.Boundary()) { boundary_faces.Append(face); }
+         // To support internal boundaries can only insert non-master faces.
+         if (fa.Boundary() && !is_master) { boundary_faces.Append(face); }
       }
    }
 
@@ -3300,20 +3325,22 @@ void NCMesh::BuildEdgeList()
          // tell ParNCMesh about the edge
          ElementSharesEdge(elem, j, enode);
 
-         // (2D only, store boundary faces)
-         if (Dim <= 2)
-         {
-            int face = faces.FindId(node[0], node[0], node[1], node[1]);
-            MFEM_ASSERT(face >= 0, "face not found!");
-            if (faces[face].Boundary()) { boundary_faces.Append(face); }
-         }
-
          // store element/local for later
          edge_element[nd.edge_index] = elem;
          edge_local[nd.edge_index] = j;
 
          // skip slave edges here, they will be reached from their masters
-         if (GetEdgeMaster(enode) >= 0) { continue; }
+         if (GetEdgeMaster(enode) >= 0)
+         {
+            // (2D only, store internal boundary faces)
+            if (Dim <= 2)
+            {
+               int face = faces.FindId(node[0], node[0], node[1], node[1]);
+               MFEM_ASSERT(face >= 0, "face not found!");
+               if (faces[face].Boundary()) { boundary_faces.Append(face); }
+            }
+            continue;
+         }
 
          // have we already processed this edge? skip if yes
          if (processed_edges[enode]) { continue; }
@@ -3346,6 +3373,13 @@ void NCMesh::BuildEdgeList()
          {
             // no slaves, this is a conforming edge
             edge_list.conforming.Append(MeshId(nd.edge_index, elem, j));
+            // (2D only, store boundary faces)
+            if (Dim <= 2)
+            {
+               int face = faces.FindId(node[0], node[0], node[1], node[1]);
+               MFEM_ASSERT(face >= 0, "face not found!");
+               if (faces[face].Boundary()) { boundary_faces.Append(face); }
+            }
          }
       }
    }
@@ -3507,7 +3541,6 @@ NCMesh::NCList::BuildIndex() const
          inv_index.emplace(slaves[i].index, std::make_pair(MeshIdType::SLAVE, i));
       }
    }
-
    MFEM_ASSERT(inv_index.size() > 0,
                "Empty inverse index, member lists must be populated before BuildIndex is called!");
 }
@@ -5225,22 +5258,23 @@ void NCMesh::FindFaceNodes(int face, int node[4])
 }
 
 void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                Array<int> &bdr_vertices, Array<int> &bdr_edges)
+                                Array<int> &bdr_vertices, Array<int> &bdr_edges,
+                                Array<int> &bdr_faces)
 {
    bdr_vertices.SetSize(0);
    bdr_edges.SetSize(0);
+   bdr_faces.SetSize(0);
 
    if (Dim == 3)
    {
       GetFaceList(); // make sure 'boundary_faces' is up to date
 
-      for (int i = 0; i < boundary_faces.Size(); i++)
+      for (int f : boundary_faces)
       {
-         int face = boundary_faces[i];
-         if (bdr_attr_is_ess[faces[face].attribute - 1])
+         if (bdr_attr_is_ess[faces[f].attribute - 1])
          {
             int node[4];
-            FindFaceNodes(face, node);
+            FindFaceNodes(f, node);
             int nfv = (node[3] < 0) ? 3 : 4;
 
             for (int j = 0; j < nfv; j++)
@@ -5258,6 +5292,17 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                   bdr_edges.Append(nodes[enode].edge_index);
                }
             }
+
+            // If the face is a slave face, collect any non-ghost master face
+            const Face &face = faces[f];
+
+            const auto id_and_type = GetFaceList().GetMeshIdAndType(face.index);
+            if (id_and_type.type == NCList::MeshIdType::SLAVE)
+            {
+               // A slave face must mark any masters
+               const auto &slave_face_id = static_cast<const Slave&>(*id_and_type.id);
+               bdr_faces.Append(slave_face_id.master);
+            }
          }
       }
    }
@@ -5265,27 +5310,39 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    {
       GetEdgeList(); // make sure 'boundary_faces' is up to date
 
-      for (int i = 0; i < boundary_faces.Size(); i++)
+      for (int f : boundary_faces)
       {
-         int face = boundary_faces[i];
-         Face &fc = faces[face];
-         if (bdr_attr_is_ess[fc.attribute - 1])
+         Face &face = faces[f];
+         if (bdr_attr_is_ess[face.attribute - 1])
          {
-            bdr_vertices.Append(nodes[fc.p1].vert_index);
-            bdr_vertices.Append(nodes[fc.p3].vert_index);
+            bdr_vertices.Append(nodes[face.p1].vert_index);
+            bdr_vertices.Append(nodes[face.p3].vert_index);
+         }
+
+         const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
+         if (id_and_type.type == NCList::MeshIdType::SLAVE)
+         {
+            // A slave face must mark any masters
+            const auto &slave_edge_id = static_cast<const Slave&>(*id_and_type.id);
+            bdr_edges.Append(slave_edge_id.master);
          }
       }
    }
 
-   bdr_vertices.Sort();
-   bdr_vertices.Unique();
+   // Filter, sort and unique an array, so it contains only local unique values.
+   auto FilterSortUnique = [](Array<int> &v, int N)
+   {
+      // Perform the O(N) filter before the O(NlogN) sort.
+      // begin -> it is only entries < N.
+      auto it = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
+      std::sort(v.begin(), it);
+      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), it)));
+   };
 
-   bdr_edges.Sort();
-   bdr_edges.Unique();
+   FilterSortUnique(bdr_vertices, NVertices);
+   FilterSortUnique(bdr_edges, NEdges);
+   FilterSortUnique(bdr_faces, NFaces);
 }
-
-
-
 
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
@@ -5305,10 +5362,8 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
                      TriFaceSplitLevel(mid[2], mid[1], vn3),
                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
    }
-   else // not split
-   {
-      return 0;
-   }
+
+   return 0; // not split
 }
 
 void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
@@ -5336,6 +5391,13 @@ void NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
          h_level = std::max(hl1, hl2) + 1;
          v_level = std::max(vl1, vl2);
    }
+}
+
+int NCMesh::QuadFaceSplitLevel(int vn1, int vn2, int vn3, int vn4) const
+{
+   int h_level, v_level;
+   QuadFaceSplitLevel(vn1, vn2, vn3, vn4, h_level, v_level);
+   return h_level + v_level;
 }
 
 void NCMesh::CountSplits(int elem, int splits[3]) const
@@ -5385,11 +5447,10 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      splits[0] = splits[1] =
-                     max(flevel[0][0], flevel[1][0], 0,
-                         flevel[2][0], flevel[3][0], flevel[4][0],
-                         elevel[0], elevel[1], elevel[2],
-                         elevel[3], elevel[4], elevel[5]);
+      splits[0] = splits[1] = max(flevel[0][0], flevel[1][0], 0,
+                                  flevel[2][0], flevel[3][0], flevel[4][0],
+                                  elevel[0], elevel[1], elevel[2],
+                                  elevel[3], elevel[4], elevel[5]);
 
       splits[2] = max(flevel[2][1], flevel[3][1], flevel[4][1],
                       elevel[6], elevel[7], elevel[8]);
@@ -5408,20 +5469,19 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
       splits[0] = max(flevel[0][0], flevel[1][0], flevel[2][0], flevel[3][0],
-                      elevel[0], elevel[1], elevel[2],
-                      elevel[3], elevel[4], elevel[5]);
+                      elevel[0], elevel[1], elevel[2], elevel[3], elevel[4], elevel[5]);
 
       splits[1] = splits[0];
       splits[2] = splits[0];
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      splits[0] = std::max(elevel[0], elevel[2]);
-      splits[1] = std::max(elevel[1], elevel[3]);
+      splits[0] = max(elevel[0], elevel[2]);
+      splits[1] = max(elevel[1], elevel[3]);
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      splits[0] = std::max(elevel[0], std::max(elevel[1], elevel[2]));
+      splits[0] = max(elevel[0], elevel[1], elevel[2]);
       splits[1] = splits[0];
    }
    else
@@ -6394,17 +6454,17 @@ void NCMesh::DebugDump(std::ostream &os) const
 
    // dump faces
    os << faces.Size() << "\n";
-   for (auto face = faces.cbegin(); face != faces.cend(); ++face)
+   for (const auto &face : faces)
    {
-      int elem = face->elem[0];
-      if (elem < 0) { elem = face->elem[1]; }
+      int elem = face.elem[0];
+      if (elem < 0) { elem = face.elem[1]; }
       MFEM_ASSERT(elem >= 0, "");
       const Element &el = elements[elem];
 
       int lf = find_local_face(el.Geom(),
-                               find_node(el, face->p1),
-                               find_node(el, face->p2),
-                               find_node(el, face->p3));
+                               find_node(el, face.p1),
+                               find_node(el, face.p2),
+                               find_node(el, face.p3));
 
       const int* fv = GI[el.Geom()].faces[lf];
       const int nfv = GI[el.Geom()].nfv[lf];
@@ -6414,7 +6474,7 @@ void NCMesh::DebugDump(std::ostream &os) const
       {
          os << " " << el.node[fv[i]];
       }
-      //os << " # face " << face.index() << ", index " << face->index << "\n";
+      //os << " # face " << face.index() << ", index " << face.index << "\n";
       os << "\n";
    }
 }

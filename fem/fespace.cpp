@@ -542,8 +542,9 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    // local DOFs affected by boundary elements on other processors
    if (Nonconforming())
    {
-      Array<int> bdr_verts, bdr_edges;
-      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
+      Array<int> bdr_verts, bdr_edges, bdr_faces;
+      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges,
+                                       bdr_faces);
       for (auto v : bdr_verts)
       {
          if (component < 0)
@@ -566,6 +567,19 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          else
          {
             GetEdgeDofs(e, dofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
+         }
+         MarkDofs(dofs, ess_vdofs);
+      }
+      for (auto f : bdr_faces)
+      {
+         if (component < 0)
+         {
+            GetEntityVDofs(2, f, dofs);
+         }
+         else
+         {
+            GetEntityDofs(2, f, dofs);
             for (auto &d : dofs) { d = DofToVDof(d, component); }
          }
          MarkDofs(dofs, ess_vdofs);
