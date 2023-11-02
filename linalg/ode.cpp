@@ -885,34 +885,7 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &f_)
    ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
-   xdot.SetSize(f->Width(), mem_type);
-   xdot = 0.0;
-   nstate = 0;
-}
-
-const Vector &GeneralizedAlphaSolver::GetStateVector(int i)
-{
-   MFEM_ASSERT( (i == 0) && (nstate == 1),
-                "GeneralizedAlphaSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-   return xdot;
-}
-
-void GeneralizedAlphaSolver::GetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i == 0) && (nstate == 1),
-                "GeneralizedAlphaSolver::GetStateVector \n" <<
-                " - Tried to get non-existent state "<<i);
-   state = xdot;
-}
-
-void GeneralizedAlphaSolver::SetStateVector(int i, Vector &state)
-{
-   MFEM_ASSERT( (i == 0),
-                "GeneralizedAlphaSolver::SetStateVector \n" <<
-                " - Tried to set non-existent state "<<i);
-   xdot = state;
-   nstate = 1;
+   state.SetSize(1,f->Width());
 }
 
 void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
@@ -952,17 +925,17 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
    }
 }
 
-// This routine assumes xdot is initialized.
+// This routine state[0] represents xdot
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (nstate == 0)
+   if (state.GetSize() == 0)
    {
-      f->Mult(x,xdot);
-      nstate = 1;
+      f->Mult(x,state[0]);
+      state.IncrementSize();
    }
 
    // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
-   add(x, alpha_f*(1.0 - (gamma/alpha_m))*dt, xdot, y);
+   add(x, alpha_f*(1.0 - (gamma/alpha_m))*dt, state[0], y);
 
    // Solve k = f(y + dt_eff*k)
    double dt_eff = (gamma*alpha_f/alpha_m)*dt;
@@ -970,11 +943,11 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
    f->ImplicitSolve(dt_eff, y, k);
 
    // Update x and xdot
-   x.Add((1.0 - (gamma/alpha_m))*dt, xdot);
+   x.Add((1.0 - (gamma/alpha_m))*dt, state[0]);
    x.Add(       (gamma/alpha_m) *dt, k);
 
-   xdot *= (1.0-(1.0/alpha_m));
-   xdot.Add((1.0/alpha_m),k);
+   state[0] *= (1.0-(1.0/alpha_m));
+   state[0].Add((1.0/alpha_m),k);
 
    t += dt;
 }
