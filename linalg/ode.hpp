@@ -64,10 +64,9 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
-
+   StateData state;
 
 public:
-   StateData state;
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
 
    /// Associate a TimeDependentOperator with the ODE solver.
@@ -623,7 +622,7 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    SecondOrderTimeDependentOperator *f;  // f(.,.,t) : R^n x R^n --> R^n
    MemoryType mem_type;
-   Vector d2xdt2;
+   StateData state;
 
 public:
    SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
@@ -701,21 +700,12 @@ public:
    }
 
    /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return 0; };
-   virtual int   GetStateSize() { return 0; }
-   virtual const Vector &GetStateVector(int i)
-   {
-      mfem_error("ODESolver has no state vectors");
-      Vector *s = NULL; return *s; // Make some compiler happy
-   }
-   virtual void  GetStateVector(int i, Vector &state)
-   {
-      mfem_error("ODESolver has no state vectors");
-   }
-   virtual void  SetStateVector(int i, Vector &state)
-   {
-      mfem_error("ODESolver has no state vectors");
-   }
+   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
+   virtual int   GetStateSize() { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
+   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
+   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
+   virtual void  AddStateVector(Vector &s) { state.Add(s); }
 
    static MFEM_EXPORT std::string Types;
    static MFEM_EXPORT SecondOrderODESolver *Select(const int ode_solver_type);
@@ -777,7 +767,6 @@ class GeneralizedAlpha2Solver : public SecondOrderODESolver
 protected:
    Vector xa,va,aa;
    double alpha_f, alpha_m, beta, gamma;
-   int nstate;
    bool no_mult;
 
 public:
@@ -799,11 +788,6 @@ public:
 
    void Step(Vector &x, Vector &dxdt, double &t, double &dt) override;
 
-   int  GetMaxStateSize() override { return 1; };
-   int  GetStateSize() override { return nstate; };
-   const Vector &GetStateVector(int i) override;
-   void GetStateVector(int i, Vector &state) override;
-   void SetStateVector(int i, Vector &state) override;
 };
 
 /// The classical midpoint method.
