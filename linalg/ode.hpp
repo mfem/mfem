@@ -383,25 +383,17 @@ public:
 class GeneralizedAlphaSolver : public ODESolver
 {
 protected:
-   mutable Vector xdot,k,y;
+   mutable Vector k,y;
    double alpha_f, alpha_m, gamma;
-   int  nstate;
 
    void SetRhoInf(double rho_inf);
    void PrintProperties(std::ostream &out = mfem::out);
 public:
 
    GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
-
    void Init(TimeDependentOperator &f_) override;
-
    void Step(Vector &x, double &t, double &dt) override;
 
-   int  GetMaxStateSize() override { return 1; };
-   int  GetStateSize() override { return nstate; };
-   const Vector &GetStateVector(int i) override;
-   void GetStateVector(int i, Vector &state) override;
-   void SetStateVector(int i, Vector &state) override;
 };
 
 /** An explicit Adams-Bashforth method. */
