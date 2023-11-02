@@ -232,6 +232,13 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(rmdir("base_00005") == 0);
       }
 #endif
+      delete fec;
+      delete fespace;
+      delete u;
+      delete v;
+      delete qspace;
+      delete qs;
+      delete qv;
    }
 
 }

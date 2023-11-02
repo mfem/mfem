@@ -44,7 +44,7 @@ void BatchedLOR_H1::Assemble2D()
 
    auto X = X_vert.Read();
 
-   MFEM_FORALL_2D(iel_ho, nel_ho, ORDER, ORDER, 1,
+   mfem::forall_2D(nel_ho, ORDER, ORDER, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       // Assemble a sparse matrix over the macro-element by looping over each
       // subelement.
@@ -236,7 +236,8 @@ void BatchedLOR_H1::Assemble3D()
    auto X = X_vert.Read();
 
    // Last thread dimension is lowered to avoid "too many resources" error
-   MFEM_FORALL_3D(iel_ho, nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+   mfem::forall_3D(nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+                   [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       // Assemble a sparse matrix over the macro-element by looping over each
       // subelement.
