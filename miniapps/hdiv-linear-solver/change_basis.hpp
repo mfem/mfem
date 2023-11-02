@@ -27,7 +27,7 @@ private:
    const int ne; ///< Number of elements in the mesh.
    mutable DofToQuad dof2quad; ///< 1D basis transformation.
    Array<double> B_1d; ///< 1D basis transformation matrix.
-   Array<double> Bt_1d; ///< 1D basis transformation matrix traspose.
+   Array<double> Bt_1d; ///< 1D basis transformation matrix transpose.
    bool no_op; ///< If the basis types are the same, the operation is a no-op.
 public:
    ChangeOfBasis_L2(FiniteElementSpace &fes);

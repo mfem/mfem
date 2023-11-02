@@ -27,6 +27,7 @@
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
+#include "kdtree.hpp"
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"

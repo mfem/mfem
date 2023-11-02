@@ -16,7 +16,6 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "../general/tic_toc.hpp"
 #include "solvers.hpp"
 
 namespace mfem

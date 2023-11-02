@@ -199,6 +199,10 @@ private:
    /// vertex ids.
    Array<int> parent_vertex_ids_;
 
+   /// Mapping from SubMesh edge ids (index of the array), to the parent Mesh
+   /// face ids.
+   Array<int> parent_edge_ids_;
+
    /// Mapping from SubMesh face ids (index of the array), to the parent Mesh
    /// face ids.
    Array<int> parent_face_ids_;
