@@ -505,13 +505,11 @@ void FiniteElementSpace::BuildDofToArrays()
    }
 }
 
-static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
+static void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 {
-   for (int i = 0; i < dofs.Size(); i++)
+   for (auto d : dofs)
    {
-      int k = dofs[i];
-      if (k < 0) { k = -1 - k; }
-      mark_array[k] = -1;
+      mark_array[d >= 0 ? d : -1 - d] = -1;
    }
 }
 
@@ -519,11 +517,9 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                            Array<int> &ess_vdofs,
                                            int component) const
 {
-   Array<int> vdofs, dofs;
-
+   Array<int> dofs;
    ess_vdofs.SetSize(GetVSize());
    ess_vdofs = 0;
-
    for (int i = 0; i < GetNBE(); i++)
    {
       if (bdr_attr_is_ess[GetBdrAttribute(i)-1])
@@ -531,16 +527,14 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          if (component < 0)
          {
             // Mark all components.
-            GetBdrElementVDofs(i, vdofs);
-            mark_dofs(vdofs, ess_vdofs);
+            GetBdrElementVDofs(i, dofs);
          }
          else
          {
             GetBdrElementDofs(i, dofs);
-            for (int d = 0; d < dofs.Size(); d++)
-            { dofs[d] = DofToVDof(dofs[d], component); }
-            mark_dofs(dofs, ess_vdofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
          }
+         MarkDofs(dofs, ess_vdofs);
       }
    }
 
@@ -550,36 +544,31 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    {
       Array<int> bdr_verts, bdr_edges;
       mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
-
-      for (int i = 0; i < bdr_verts.Size(); i++)
+      for (auto v : bdr_verts)
       {
          if (component < 0)
          {
-            GetVertexVDofs(bdr_verts[i], vdofs);
-            mark_dofs(vdofs, ess_vdofs);
+            GetVertexVDofs(v, dofs);
          }
          else
          {
-            GetVertexDofs(bdr_verts[i], dofs);
-            for (int d = 0; d < dofs.Size(); d++)
-            { dofs[d] = DofToVDof(dofs[d], component); }
-            mark_dofs(dofs, ess_vdofs);
+            GetVertexDofs(v, dofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
          }
+         MarkDofs(dofs, ess_vdofs);
       }
-      for (int i = 0; i < bdr_edges.Size(); i++)
+      for (auto e : bdr_edges)
       {
          if (component < 0)
          {
-            GetEdgeVDofs(bdr_edges[i], vdofs);
-            mark_dofs(vdofs, ess_vdofs);
+            GetEdgeVDofs(e, dofs);
          }
          else
          {
-            GetEdgeDofs(bdr_edges[i], dofs);
-            for (int d = 0; d < dofs.Size(); d++)
-            { dofs[d] = DofToVDof(dofs[d], component); }
-            mark_dofs(dofs, ess_vdofs);
+            GetEdgeDofs(e, dofs);
+            for (auto &d : dofs) { d = DofToVDof(d, component); }
          }
+         MarkDofs(dofs, ess_vdofs);
       }
    }
 }
@@ -598,6 +587,30 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    else
    {
       R->BooleanMult(ess_vdofs, ess_tdofs);
+#ifdef MFEM_DEBUG
+      // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs
+      Array<int> ess_tdofs2(ess_tdofs.Size());
+      GetConformingProlongation()->BooleanMultTranspose(ess_vdofs, ess_tdofs2);
+
+      int counter = 0;
+      std::string error_msg = "failed dof: ";
+      for (int i = 0; i < ess_tdofs2.Size(); ++i)
+      {
+         if (bool(ess_tdofs[i]) != bool(ess_tdofs2[i]))
+         {
+            error_msg += std::to_string(i) += "(R ";
+            error_msg += std::to_string(bool(ess_tdofs[i])) += " P^T ";
+            error_msg += std::to_string(bool(ess_tdofs2[i])) += ") ";
+            counter++;
+         }
+      }
+
+      MFEM_ASSERT(R->Height() == GetConformingProlongation()->Width(), "!");
+      MFEM_ASSERT(R->Width() == GetConformingProlongation()->Height(), "!");
+      MFEM_ASSERT(R->Width() == ess_vdofs.Size(), "!");
+      MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter
+                  << ' ' << error_msg);
+#endif
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
 }
@@ -946,6 +959,15 @@ int FiniteElementSpace::GetEntityDofs(int entity, int index, Array<int> &dofs,
             return GetDegenerateFaceDofs(index, dofs, master_geom, variant);
          }
    }
+}
+
+int FiniteElementSpace::GetEntityVDofs(int entity, int index, Array<int> &dofs,
+                                       Geometry::Type master_geom,
+                                       int variant) const
+{
+   int n = GetEntityDofs(entity, index, dofs, master_geom, variant);
+   DofsToVDofs(dofs);
+   return n;
 }
 
 void FiniteElementSpace::BuildConformingInterpolation() const

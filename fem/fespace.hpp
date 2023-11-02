@@ -383,6 +383,10 @@ protected:
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
                      Geometry::Type master_geom = Geometry::INVALID,
                      int variant = 0) const;
+   /// Helper to get vertex, edge or face VDOFs (entity=0,1,2 resp.).
+   int GetEntityVDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID,
+                      int variant = 0) const;
 
    // Get degenerate face DOFs: see explanation in method implementation.
    int GetDegenerateFaceDofs(int index, Array<int> &dofs,
@@ -827,6 +831,7 @@ public:
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
+   ///
    ///
    /// In variable order spaces, multiple variants of DOFs can be returned.
    /// See GetEdgeDofs() for more details.

@@ -586,6 +586,10 @@ public:
       return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
+   virtual double ComputeL1Error(Coefficient *exsol[],
+                                 const IntegrationRule *irs[] = NULL) const
+   { return ComputeW11Error(*exsol, NULL, 1, NULL, irs); }
+
    virtual double ComputeL1Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
    { return ComputeLpError(1.0, exsol, NULL, irs); }

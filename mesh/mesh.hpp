@@ -594,7 +594,7 @@ protected:
    void Make1D(int n, double sx = 1.0);
 
    /// Internal function used in Mesh::MakeRefined
-   void MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+   void MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
                      int ref_type);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
@@ -1700,7 +1700,7 @@ public:
                           };
 
    /** @brief This structure is used as a human readable output format that
-       decipheres the information contained in Mesh::FaceInfo when using the
+       deciphers the information contained in Mesh::FaceInfo when using the
        Mesh::GetFaceInformation() method.
 
        The element indices in this structure don't need further processing,
