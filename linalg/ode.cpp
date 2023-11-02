@@ -500,7 +500,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
 void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
-   if (RKsolver) RKsolver->Init(f_);
+   if (RKsolver) { RKsolver->Init(f_); }
    state.SetSize(stages,f->Width());
    dt_ = -1.0;
 }
@@ -571,14 +571,31 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
 void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
-   if (RKsolver) RKsolver->Init(f_);
+   if (RKsolver) { RKsolver->Init(f_); }
    state.SetSize(stages,f->Width());
    dt_ = -1.0;
 }
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
-   CheckTimestep(dt);
+   if (dt_ < 0.0)
+   {
+      dt_ = dt;
+   }
+   else if (fabs(dt-dt_) > 10*std::numeric_limits<double>::epsilon())
+   {
+      state.ResetSize();
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time stepchanged" << std::endl;
+         mfem::out << " - Purging time stepping history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    if ((state.GetSize() == 0)&&(stages>1))
    {
       f->Mult(x,state[0]);
@@ -605,28 +622,6 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       state.IncrementSize();
    }
 }
-void AdamsMoultonSolver::CheckTimestep(double dt)
-{
-   if (dt_ < 0.0)
-   {
-      dt_ = dt;
-      return;
-   }
-   else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
-   {
-      state.ResetSize();
-      dt_ = dt;
-
-      if (print())
-      {
-         mfem::out << "WARNING:" << std::endl;
-         mfem::out << " - Time stepchanged" << std::endl;
-         mfem::out << " - Purging time stepping history" << std::endl;
-         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
-      }
-   }
-}
-
 
 const double AM1Solver::a[] =
 {0.5, 0.5};
