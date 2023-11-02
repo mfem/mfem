@@ -154,12 +154,12 @@ TEST_CASE("First order ODE methods", "[ODE]")
                for (int ll = 1; ll < lvl; ll++)
                {
                   // Use alternating options for setting the StateVector
-                  if (ll%2  == 0) 
+                  if (ll%2  == 0)
                   {
-                     ode_solver->state.ResetSize();
+                     // ode_solver->state.ResetSize();
                      for (int s = nstate - 1; s >= 0; s--)
                      {
-                       ode_solver->AddStateVector(uh[s]);
+                        ode_solver->AddStateVector(uh[s]);
                      }
                   }
                   else
@@ -169,7 +169,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
                         ode_solver->SetStateVector(s,uh[s]);
                      }
                   }
-                  
+
                   for (int ti = 0; ti < steps; ti++)
                   {
                      ode_solver->Step(u, t, dt_order);
