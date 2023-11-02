@@ -32,7 +32,7 @@ PAR_DEVICE_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p \
   ex24p ex25p ex26p ex34p ex35p
 
 ifeq ($(MFEM_USE_LAPACK),YES)
-	SEQ_EXAMPLES += ex37
+	SEQ_EXAMPLES += ex38
 endif
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
