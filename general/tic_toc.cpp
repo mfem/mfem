@@ -398,10 +398,7 @@ inline double StopWatch::SystTime()
 } // namespace internal
 
 
-StopWatch::StopWatch()
-{
-   M = new internal::StopWatch;
-}
+StopWatch::StopWatch() : M(new internal::StopWatch) { }
 
 void StopWatch::Clear()
 {
@@ -411,6 +408,12 @@ void StopWatch::Clear()
 void StopWatch::Start()
 {
    M->Start();
+}
+
+void StopWatch::Restart()
+{
+   Clear();
+   Start();
 }
 
 void StopWatch::Stop()
@@ -438,10 +441,7 @@ double StopWatch::SystTime()
    return M->SystTime();
 }
 
-StopWatch::~StopWatch()
-{
-   delete M;
-}
+StopWatch::~StopWatch() = default;
 
 
 StopWatch tic_toc;

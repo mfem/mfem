@@ -20,17 +20,6 @@
 namespace mfem
 {
 
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-#ifdef MFEM_USE_HIP
-constexpr int HCURL_MAX_Q1D = 5;
-#else
-constexpr int HCURL_MAX_Q1D = 6;
-#endif
-
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
-
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
@@ -591,7 +580,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return std::max(space_dim, test_fe.GetVDim()); }
+   { return std::max(space_dim, test_fe.GetRangeDim()); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -599,7 +588,7 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return std::max(space_dim, trial_fe.GetVDim()); }
+   { return std::max(space_dim, trial_fe.GetRangeDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -689,7 +678,7 @@ protected:
 
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return std::max(space_dim, vector_fe.GetVDim()); }
+   { return std::max(space_dim, vector_fe.GetRangeDim()); }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1116,7 +1105,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
@@ -1299,8 +1288,8 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetVDim() == 3 &&
-              test_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetRangeDim() == 3 &&
+              test_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1430,7 +1419,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
@@ -1500,7 +1489,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (test_fe.GetVDim() == 3 &&
+      return (test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1540,7 +1529,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1911,7 +1900,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
@@ -1970,7 +1959,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
@@ -3451,7 +3440,7 @@ private:
    void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
    {
       int dim = x.Size();
-      MFEM_VERIFY(Y.Width() == dim, "Size missmatch");
+      MFEM_VERIFY(Y.Width() == dim, "Size mismatch");
       int dimc = dim == 3 ? dim : 1;
       int h = Y.Height();
       Z.SetSize(h,dimc);
