@@ -114,15 +114,16 @@ ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
 }
 
 
-void StateData::SetSize(int stages, int vsize)
+void StateData::SetSize(int stages, int vsize, MemoryType m_t)
 {
+   mem_type = m_t;
    smax = stages;
    k.resize(smax);
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
       idx[i] = smax - i - 1;
-      k[i].SetSize(vsize);
+      k[i].SetSize(vsize, mem_type);
    }
 
    ss = 0;
@@ -507,7 +508,7 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
    if (RKsolver) { RKsolver->Init(f_); }
-   state.SetSize(stages,f->Width());
+   state.SetSize(stages,f->Width(), mem_type);
    dt_ = -1.0;
 }
 
@@ -579,7 +580,7 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 {
    ODESolver::Init(f_);
    if (RKsolver) { RKsolver->Init(f_); }
-   state.SetSize(stages,f->Width());
+   state.SetSize(stages,f->Width(), mem_type);
    dt_ = -1.0;
 }
 
@@ -885,7 +886,7 @@ void GeneralizedAlphaSolver::Init(TimeDependentOperator &f_)
    ODESolver::Init(f_);
    k.SetSize(f->Width(), mem_type);
    y.SetSize(f->Width(), mem_type);
-   state.SetSize(1,f->Width());
+   state.SetSize(1,f->Width(), mem_type);
 }
 
 void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)

@@ -25,13 +25,14 @@ namespace mfem
 class StateData
 {
 protected:
+   MemoryType mem_type;
    int ss, smax;
    std::vector<Vector> k;
    Array<int> idx;
 
 public:
    StateData () { ss = smax = 0;};
-   void  SetSize(int stages, int vsize);
+   void  SetSize(int stages, int vsize, MemoryType mem_type);
    inline void ShiftStages()
    {
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
