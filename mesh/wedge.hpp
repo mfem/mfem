@@ -37,38 +37,42 @@ public:
          int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::WEDGE; }
+   Type GetType() const override { return Element::WEDGE; }
+
+   /// Get the indices defining the vertices
+   void GetVertices(Array<int> &v) const override;
+
+   /// Set the indices defining the vertices
+   void SetVertices(const Array<int> &v) override;
+
+   /// @note The returned array should NOT be deleted by the caller.
+   int * GetVertices () override { return indices; }
 
    /// Set the vertices according to the given input.
-   virtual void SetVertices(const int *ind);
+   void SetVertices(const int *ind) override;
 
-   /// Returns the indices of the element's  vertices.
-   virtual void GetVertices(Array<int> &v) const;
+   int GetNVertices() const override { return 6; }
 
-   virtual int *GetVertices() { return indices; }
+   int GetNEdges() const override { return 9; }
 
-   virtual int GetNVertices() const { return 6; }
-
-   virtual int GetNEdges() const { return 9; }
-
-   virtual const int *GetEdgeVertices(int ei) const
+   const int *GetEdgeVertices(int ei) const override
    { return geom_t::Edges[ei]; }
 
    /// @deprecated Use GetNFaces(void) and GetNFaceVertices(int) instead.
-   MFEM_DEPRECATED virtual int GetNFaces(int &nFaceVertices) const;
+   MFEM_DEPRECATED int GetNFaces(int &nFaceVertices) const override;
 
-   virtual int GetNFaces() const { return 5; }
+   int GetNFaces() const override { return 5; }
 
-   virtual int GetNFaceVertices(int fi) const
+   int GetNFaceVertices(int fi) const override
    { return (fi < 2) ? 3 : 4; }
 
-   virtual const int *GetFaceVertices(int fi) const
+   const int *GetFaceVertices(int fi) const override
    { return geom_t::FaceVert[fi]; }
 
-   virtual Element *Duplicate(Mesh *m) const
+   Element *Duplicate(Mesh *m) const override
    { return new Wedge(indices, attribute); }
 
-   virtual ~Wedge() { }
+   virtual ~Wedge() = default;
 };
 
 extern MFEM_EXPORT class LinearWedgeFiniteElement WedgeFE;
