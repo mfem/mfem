@@ -229,10 +229,11 @@ public:
                                     const Table &deref_table);
 
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
-       ghost edges from 'bdr_vertices' and 'bdr_edges'. */
+       ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden internal
+       boundary faces. */
    void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                            Array<int> &bdr_vertices,
-                           Array<int> &bdr_edges) override;
+                           Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
    /// Save memory by releasing all non-essential and cached data.
    void Trim() override;
@@ -258,8 +259,6 @@ protected: // interface for ParMesh
    /** Populate face neighbor members of ParMesh from the ghost layer, without
        communication. */
    void GetFaceNeighbors(class ParMesh &pmesh);
-
-
 protected: // implementation
 
    MPI_Comm MyComm;
