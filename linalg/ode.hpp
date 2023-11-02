@@ -40,7 +40,7 @@ public:
 
    int  GetMaxSize() { return smax; };
    int  GetSize() { return ss; };
-   void IncrementSize() { ss = std::min(++ss,smax); };
+   void IncrementSize() { ss++; ss = std::min(ss,smax); };
    void ResetSize() { ss = 0; };
 
    const Vector &Get(int i);
