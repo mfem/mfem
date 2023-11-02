@@ -126,7 +126,7 @@ public:
 };
 
 /// A class to deal with state data from multiple time steps
-class StateData 
+class StateData
 {
 protected:
    int ss, smax;
@@ -151,8 +151,8 @@ public:
    void Set(int i, Vector &state);
    void Set(Vector &state);
 
-      /// Reference access to the ith vector.
-   inline Vector & operator[](int i){return k[idx[i]];};
+   /// Reference access to the ith vector.
+   inline Vector & operator[](int i) {return k[idx[i]];};
 
    /// Const reference access to the ith vector.
    inline const Vector &operator[](int i) const {return k[idx[i]];};
