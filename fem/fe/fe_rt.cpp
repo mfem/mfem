@@ -12,6 +12,7 @@
 // Raviart-Thomas Finite Element classes
 
 #include "fe_rt.hpp"
+#include "face_map_utils.hpp"
 #include "../coefficient.hpp"
 
 namespace mfem
@@ -295,6 +296,27 @@ void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
             dofs(idx) = val*h;
          }
    }
+}
+
+void RT_QuadrilateralElement::GetFaceMap(const int face_id,
+                                         Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = p + 1;
+   const int n_face_dofs = p;
+
+   std::vector<int> offsets;
+   std::vector<int> strides = {(face_id == 0 || face_id == 2) ? 1 : pp1};
+   switch (face_id)
+   {
+      case 0: offsets = {p*pp1}; break; // y = 0
+      case 1: offsets = {pp1 - 1}; break; // x = 1
+      case 2: offsets = {p*pp1 + p*(pp1 - 1)}; break; // y = 1
+      case 3: offsets = {0}; break; // x = 0
+   }
+
+   std::vector<int> n_dofs(dim - 1, p);
+   internal::FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 
@@ -684,6 +706,35 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                dofs(idx) = val*h1*h2;
             }
    }
+}
+
+void RT_HexahedronElement::GetFaceMap(const int face_id,
+                                      Array<int> &face_map) const
+{
+   const int p = order;
+   const int pp1 = p + 1;
+   int n_face_dofs = p*p;
+   std::vector<int> strides, offsets;
+   const int n_dof_per_dim = p*p*pp1;
+   const auto f = internal::GetFaceNormal3D(face_id);
+   const int face_normal = f.first, level = f.second;
+   if (face_normal == 0) // x-normal
+   {
+      offsets = {level ? pp1 - 1 : 0};
+      strides = {pp1, p*pp1};
+   }
+   else if (face_normal == 1) // y-normal
+   {
+      offsets = {n_dof_per_dim + (level ? p*(pp1 - 1) : 0)};
+      strides = {1, p*pp1};
+   }
+   else if (face_normal == 2) // z-normal
+   {
+      offsets = {2*n_dof_per_dim + (level ? p*p*(pp1 - 1) : 0)};
+      strides = {1, p};
+   }
+   std::vector<int> n_dofs = {p, p};
+   internal::FillFaceMap(n_face_dofs, offsets, strides, n_dofs, face_map);
 }
 
 
@@ -1435,7 +1486,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
    else
    {
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       double * nk_ptr = const_cast<double*>(nk);
 
@@ -1472,7 +1523,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
                                         ElementTransformation &Trans,
                                         DenseMatrix &curl) const
 {
-   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
    double * nk_ptr = const_cast<double*>(nk);
@@ -1798,7 +1849,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
    else
    {
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       double * nk_ptr = const_cast<double*>(nk);
 
@@ -1837,7 +1888,7 @@ void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &curl) const
 {
-   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
    double * nk_ptr = const_cast<double*>(nk);

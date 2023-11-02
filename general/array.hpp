@@ -465,6 +465,9 @@ public:
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
+
+   inline void operator=(const T &a)
+   { array1d = a; }
 };
 
 
@@ -877,9 +880,8 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
    size = master.size;
-   data.ClearOwnerFlags();
+   data.MakeAlias(master.GetMemory(), 0, size);
 }
 
 template <class T>

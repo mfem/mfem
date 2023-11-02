@@ -87,6 +87,8 @@ public:
    ///
    /// If @ref iterative_mode is @a true, @a u is used as an initial guess.
    void Mult(const Vector &b, Vector &u) const;
+   /// Same as Mult() since the mass matrix is symmetric.
+   void MultTranspose(const Vector &b, Vector &u) const { Mult(b, u); }
    /// Not implemented. Aborts.
    void SetOperator(const Operator &op);
    /// Set the relative tolerance.
@@ -101,8 +103,8 @@ public:
    ~DGMassInverse();
 
    /// @brief Solve the system M b = u. <b>Not part of the public interface.</b>
-   /// @note This member function must be public because it contains an
-   /// MFEM_FORALL kernel (nvcc limitation)
+   /// @note This member function must be public because it defines an
+   /// extended lambda used in an mfem::forall kernel (nvcc limitation)
    template<int DIM, int D1D = 0, int Q1D = 0>
    void DGMassCGIteration(const Vector &b_, Vector &u_) const;
 };

@@ -120,7 +120,7 @@ public:
    void Assemble();
 
    /// Return true if assembly on device is supported, false otherwise.
-   virtual bool SupportsDevice();
+   virtual bool SupportsDevice() const;
 
    void AssembleSharedFaces();
 

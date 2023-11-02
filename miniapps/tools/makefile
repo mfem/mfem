@@ -25,10 +25,11 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	check-tmop-metric tmop-metric-magnitude
-PAR_MINIAPPS =
+
+PAR_MINIAPPS = nodal-transfer plor-transfer
+
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -81,9 +82,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<,, Tools miniapp)
 
 # Testing: Specific execution options
-# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer
+# Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
-	check-tmop-metric tmop-metric-magnitude
+	plor-transfer check-tmop-metric tmop-metric-magnitude
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
@@ -100,4 +101,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -rf mesh_* gridfunc_*
 	@true
