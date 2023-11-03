@@ -5,7 +5,7 @@
 // Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
 //               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
 //               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
-//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh -nc
+//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh -nc -o 2 -rs 1
 //               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex13p -m ../data/escher.mesh
 //               mpirun -np 4 ex13p -m ../data/fichera.mesh
