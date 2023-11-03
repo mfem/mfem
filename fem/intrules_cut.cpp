@@ -161,6 +161,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
          IsoparametricTransformation faceTrafo;
          local_mesh.GetElementTransformation(0, &faceTrafo);
 
+         // The 3D face integrals are computed as 2D volumetric integrals.
          MomentFittingIntRules FaceRules(Order, *LvlSet, lsOrder);
          IntegrationRule FaceRule;
          FaceRules.GetVolumeIntegrationRule(Order, *LvlSet, lsOrder,
@@ -297,7 +298,6 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
 {
    int elem = Tr.ElementNo;
    Mesh* mesh = Tr.mesh;
-
 
    Element* me = mesh->GetElement(elem);
    IsoparametricTransformation Trafo;
@@ -1461,7 +1461,6 @@ void MomentFittingIntRules::GetSurfaceIntegrationRule(ElementTransformation& Tr,
       intp.z = ir.IntPoint(ip).z;
       intp.weight = ir.IntPoint(ip).weight;
    }
-
 }
 
 void MomentFittingIntRules::GetVolumeIntegrationRule(int order,
@@ -1571,10 +1570,12 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
 
    bool computeweights = false;
    for (int ip = 0; ip < sir->GetNPoints(); ip++)
+   {
       if (sir->IntPoint(ip).weight != 0.)
       {
          computeweights = true;
       }
+   }
 
    if (Tr.GetDimension() > 1 && computeweights)
    {
@@ -1585,7 +1586,6 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
       GridFunction LevelSet(&fes);
       LevelSet.ProjectCoefficient(*LvlSet);
 
-      Element* me = mesh->GetElement(elem);
       IsoparametricTransformation Trafo;
       mesh->GetElementTransformation(elem, &Trafo);
 

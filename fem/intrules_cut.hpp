@@ -76,7 +76,7 @@ public:
     @param [out] result IntegrationRule on the interface
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                           IntegrationRule& result)
@@ -99,8 +99,7 @@ public:
                                          int lsO,
                                          ElementTransformation& Tr,
                                          IntegrationRule& result,
-                                         const IntegrationRule* sir
-                                         = NULL)
+                                         const IntegrationRule* sir = nullptr)
       = 0;
 
    /**
@@ -113,19 +112,18 @@ public:
     @param [in] sir corresponding IntegrationRule on surface
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
                                          IntegrationRule& result,
-                                         const IntegrationRule* sir
-                                         = NULL)
+                                         const IntegrationRule* sir = nullptr)
       = 0;
 
    /**
-    @brief Compute transformation weights of interface
+    @brief Compute transformation quadrature weights for interface integration.
 
     Compute the transformation weights for the interface. These have to be used
-    if integrating on the implicit interface.
+    if integrating on the implicit interface in reference space.
 
     @param [in] Order Order of the IntegrationRule
     @param [in] LvlSet level-set function defining the implicit interface
@@ -142,17 +140,17 @@ public:
       = 0;
 
    /**
-    @brief Compute transformation weights of interface
+    @brief Compute transformation quadrature weights for interface integration.
 
     Compute the transformation weights for the interface. These have to be used
-    if integrating on the implicit interface.
+    if integrating on the implicit interface in reference space.
 
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [in] sir IntegrationRule defining the IntegrationPoints
     @return Vector containing the transformation weights
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
                                     const IntegrationRule* sir)
@@ -375,7 +373,7 @@ public:
     @param [out] result IntegrationRule on the interface
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                           IntegrationRule& result)
@@ -398,8 +396,7 @@ public:
                                          int lsO,
                                          ElementTransformation& Tr,
                                          IntegrationRule& result,
-                                         const IntegrationRule* sir
-                                         = NULL)
+                                         const IntegrationRule* sir = nullptr)
    override;
 
    /**
@@ -412,12 +409,11 @@ public:
     @param [in] sir corresponding IntegrationRule on surface
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
                                          IntegrationRule& result,
-                                         const IntegrationRule* sir
-                                         = NULL)
+                                         const IntegrationRule* sir = nullptr)
    override;
 
    /**
@@ -451,14 +447,14 @@ public:
     @return Vector containing the transformation weights
 
     @warning This function can only be called when the CutIntegrationRules are
-    set up.
+    set up. It will use the already specified orders and level set Coefficient.
    */
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
                                     const IntegrationRule* sir)
    override;
 
    /// @brief Destructor of MomentFittingIntRules
-   ~MomentFittingIntRules() { delete VolumeSVD; }
+   ~MomentFittingIntRules() override { delete VolumeSVD; }
 };
 
 #endif //MFEM_USE_LAPACK
