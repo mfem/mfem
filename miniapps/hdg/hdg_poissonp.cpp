@@ -329,6 +329,8 @@ int main(int argc, char *argv[])
         int maxIter = 1000;
         int PrintLevel = -1;
 
+        PetscParMatrix *SC_petsc = new PetscParMatrix(SC);
+
         if (petsc)
         {
 #ifdef MFEM_USE_PETSC
@@ -652,7 +654,7 @@ double uFun_ex(const Vector & x)
     case 3:
     {
         double zi(x(2));
-        return 0.0*xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
+        return 1.0*xi + sin(2.0*M_PI*xi)*sin(2.0*M_PI*yi)*sin(2.0*M_PI*zi);
         break;
     }
     }

@@ -362,29 +362,6 @@ void LinearForm::Assemble()
    /* HDG */
    if (bdrsklneufi.Size())
    {
-      //      FaceElementTransformations *ftr;
-      //      const FiniteElement *face_fe;
-      //      int nbdrfaces = fes->GetNBE();
-      //      Mesh *mesh = fes -> GetMesh();
-      //
-      //      for (int i = 0; i < nbdrfaces; i++)
-      //      {
-      //         int face;
-      //         face = mesh->GetBdrFace(i);
-      //         ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
-      //         fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
-      //         face_fe = fes->GetFaceElement(
-      //                      face);   // point face_fe to the FiniteElement over the edge
-      //         if (ftr != NULL)
-      //         {
-      //            for (int k = 0; k < bdrsklneufi.Size(); k++) // Loop over the related interals
-      //            {
-      //               bdrsklneufi[k] -> AssembleRHSElementVect (*face_fe, *ftr, elemvect);
-      //               AddElementVector (vdofs, elemvect);
-      //            }
-      //         }
-      //
-      //      }
       FaceElementTransformations *ftr;
       const FiniteElement *face_fe;
       int nbdrfaces = fes->GetNBE();
@@ -393,8 +370,9 @@ void LinearForm::Assemble()
       for (int i = 0; i < nbdrfaces; i++)
       {
          int face = mesh->GetBdrFace(i);
-         ftr = mesh->GetFaceElementTransformations(
-                  face); // the transformation of the face
+         ftr = mesh->GetBdrFaceTransformations(
+                  i); // the transformation of the face
+         //          fes->GetBdrElementVDofs(i, vdofs);   // the degrees of freedom related to the face
          fes->GetFaceVDofs(face, vdofs);   // the degrees of freedom related to the face
          face_fe = fes->GetFaceElement(
                       face);   // point face_fe to the FiniteElement over the edge

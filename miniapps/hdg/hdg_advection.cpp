@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
         new HDGDomainIntegratorAdvection(mu, advection));
     AVarf->AddHDGFaceIntegrator(
         new HDGFaceIntegratorAdvection(advection));
-
+    
     GridFunction ubar(Uhbar_space);
     GridFunction u(Uh_space);
 
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 
         // Delete the SC matrix to save memory
         SC = NULL;
-
+        
         // 10. Reconstruction
         // Reconstruct the solution u from the facet solution ubar
         AVarf->Reconstruct(F, &ubar, &u);
@@ -437,7 +437,7 @@ double f_rhs(const Vector &x)
         const double dudz = 0.125 * M_PI * (1.0+xx) * (1.0+yy)
                             * cos(0.125 * M_PI * (1.0+xx) * (1.0+yy) * (1.0+zz));
 
-        rhs = mu * uu + ax * dudx + ay * dudy + az * dudz;
+        rhs = mu* uu + ax * dudx + ay * dudy + az * dudz;
     }
 
     return rhs;

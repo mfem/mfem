@@ -268,6 +268,7 @@ int main(int argc, char *argv[])
         AVarf->Finalize();
 
         SparseMatrix* SC = AVarf->SpMatSC();
+        
         Vector* SC_RHS = AVarf->VectorSC();
         // AVarf->VectorSC() provides -C*A^{-1} RF, the RHS for the
         // Schur complement is  L - C*A^{-1} RF, but L is zero for this case.

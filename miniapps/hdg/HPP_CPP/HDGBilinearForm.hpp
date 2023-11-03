@@ -51,8 +51,7 @@ protected:
     Table *el_to_face;
 
     /// List that separates the interior edges from the shared edges
-    Array<int> ess_dofs,
-          Edge_to_SharedEdge, FaceToBdrElMap;
+    Array<int> ess_dofs, Edge_to_SharedEdge;
 
     /// HDG Integrators
     Array<BilinearFormIntegrator*> hdg_dbfi;
@@ -60,6 +59,13 @@ protected:
 
     /// Dense matrices to be used for computing the integrals
     DenseMatrix elemmat1, elemmat2, elemmat3, elemmat4;
+    
+    /// Vectors to store A and B, the corresponding offsets and the number
+    /// of elements on which A and B will be stored
+    Array<int> A_offsets, B_offsets;
+    double *A_data, *B_data;
+    int elements_A, elements_B;
+
 
     // may be used in the construction of derived classes
     HDGBilinearForm()
@@ -83,6 +89,8 @@ protected:
         skeletal_fes = NULL;
         parallel = false;
         el_to_face = NULL;
+        A_data = NULL; B_data = NULL;
+        elements_A = elements_B = 0;
     }
 
 public:
@@ -121,14 +129,14 @@ public:
                               int i, int ndof, Vector &SubVector) const;
 
     void GetFaceSubVector(const Array<GridFunction*> &face_gridfunctions,
-                          int i, int isbdr, int ndof, Vector &SubVector) const;
+                          int i, int ndof, Vector &SubVector) const;
 
     void SetInteriorSubVector(Array<GridFunction*> &sol_gridfunctions,
                               int i, int ndof, Vector &SubVector);
 
-    void GetFaceVDofs(int i, int isbdr, Array<int> &vdofs, Array<int> &dof_length) const;
+    void GetFaceVDofs(int i, Array<int> &vdofs, Array<int> &dof_length) const;
 
-    void GetFaceVDofs(int i, int isbdr, Array<int> &vdofs) const;
+    void GetFaceVDofs(int i, Array<int> &vdofs) const;
 
 //    void GetBdrFaceVDofs(int i, Array<int> &vdofs, Array<int> &dof_length) const;
 //
@@ -164,7 +172,8 @@ public:
     void AddHDGFaceIntegrator(BilinearFormIntegrator *bfi);
 
     /// Allocates the vectors for the part of A and B that will be stored
-    void Allocate(const Array<int> &bdr_attr_is_ess);
+    void Allocate(const Array<int> &bdr_attr_is_ess,
+        const double memA = 0.0, const double memB = 0.0);
 
     /// Assembles the Schur complement
     void AssembleSC(Array<GridFunction*> rhs_F,
@@ -200,7 +209,6 @@ public:
     void compute_face_integrals(const int elem,
                                 const int edge,
                                 const int isshared,
-                                const int isbdr,
                                 const bool is_reconstruction,
                                 DenseMatrix *A_local,
                                 DenseMatrix *B_local,
@@ -229,6 +237,7 @@ public:
                              const Array<int> &bdr_attr_is_ess,
                              Array<GridFunction*> bdr_sol_sol_GF,
                              bool assemble = true,
+                             const double memA = 0.0, const double memB = 0.0,
                              int skip_zeros = 1);
 
 
