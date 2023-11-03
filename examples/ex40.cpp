@@ -157,6 +157,8 @@ int main(int argc, char *argv[])
    double mv = 0.2;
    bool glvis_visualization = true;
 
+   ostringstream solfile, solfile2, meshfile;
+
    int problem = Problem::Cantilever;
 
    OptionsParser args(argc, argv);
@@ -213,6 +215,9 @@ int main(int argc, char *argv[])
          ess_bdr(2, 3) = 1;
          center(0) = 2.9; center(1) = 0.5;
          force(0) = 0.0; force(1) = -1.0;
+         solfile << "Cantilever-";
+         solfile2 << "Cantilever-";
+         meshfile << "Cantilever";
          break;
       case Problem::LBracket:
          mesh_file = "../data/lbracket_square.mesh";
@@ -223,6 +228,9 @@ int main(int argc, char *argv[])
          ess_bdr(2, 4) = 1;
          center(0) = 0.95; center(1) = 0.35;
          force(0) = 0.0; force(1) = -1.0;
+         solfile << "LBracket-";
+         solfile2 << "LBracket-";
+         meshfile << "LBracket";
          break;
       case Problem::MBB:
          mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
@@ -234,6 +242,9 @@ int main(int argc, char *argv[])
          ess_bdr(1, 1) = 1;
          center(0) = 0.05; center(1) = 0.95;
          force(0) = 0.0; force(1) = -1.0;
+         solfile << "MBB-";
+         solfile2 << "MBB-";
+         meshfile << "MBB";
          break;
       default:
          mfem_error("Undefined problem.");
@@ -249,7 +260,7 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
       h *= 0.5;
    }
-   epsilon = 3 * h;
+   epsilon = 4 * h;
 
    if (problem == Problem::MBB)
    {
@@ -263,16 +274,16 @@ int main(int argc, char *argv[])
          double * coords1 = mesh.GetVertex(vertices[0]);
          double * coords2 = mesh.GetVertex(vertices[1]);
 
-         Vector center(2);
-         center(0) = 0.5*(coords1[0] + coords2[0]);
-         center(1) = 0.5*(coords1[1] + coords2[1]);
+         Vector fc(2);
+         fc(0) = 0.5*(coords1[0] + coords2[0]);
+         fc(1) = 0.5*(coords1[1] + coords2[1]);
 
-         if (abs(center(0) - 0.0) < 1e-10)
+         if (abs(fc(0) - 0.0) < 1e-10)
          {
             // the left edge
             be->SetAttribute(1);
          }
-         else if ((center(0) > (3 - std::pow(2, -ref_levels + 1))) & (center(1) < 1e-10))
+         else if ((fc(0) > (3 - std::pow(2, -ref_levels + 1))) & (fc(1) < 1e-10))
          {
             // all other boundaries
             be->SetAttribute(2);
@@ -283,6 +294,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+   meshfile << ".mesh";
+   solfile << "OC-0.gf";
+   solfile2 << "OC-f.gf";
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -366,16 +380,6 @@ int main(int argc, char *argv[])
    {
       mfem::out << "\nStep = " << k << std::endl;
 
-      BilinearForm filterForm(&filter_fes);
-      filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
-      filterForm.AddDomainIntegrator(new MassIntegrator());
-
-      LinearForm filterRHS(&filter_fes);
-      filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
-
-      EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
-      filterSolver.Solve(&frho);
-
 
       BilinearForm elasticityForm(&state_fes);
       elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
@@ -385,6 +389,15 @@ int main(int argc, char *argv[])
 
       EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
       elasticitySolver.Solve(&u);
+      double compliance = elasticityRHS(u);
+
+
+      BilinearForm filterForm(&filter_fes);
+      filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
+      filterForm.AddDomainIntegrator(new MassIntegrator());
+
+      LinearForm filterRHS(&filter_fes);
+      filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
 
 
       BilinearForm dualFilterForm(&filter_fes);
@@ -428,7 +441,9 @@ int main(int argc, char *argv[])
             l2 = lmid;
          }
       }
-      double compliance = elasticityRHS(u);
+
+      EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
+      filterSolver.Solve(&frho);
 
       mfem::out << "volume fraction = " <<  filterRHS.Sum() / domain_volume <<
                 std::endl;
@@ -451,11 +466,13 @@ int main(int argc, char *argv[])
          sout_r << "solution\n" << mesh << rho
                 << flush;
 
-         ostringstream sol_name;
-         sol_name << "sol-" << k << ".gf";
-         ofstream sol_ofs(sol_name.str().c_str());
+         ofstream sol_ofs(solfile.str().c_str());
          sol_ofs.precision(8);
-         sol_ofs << designDensity_gf;
+         sol_ofs << rho;
+
+         ofstream sol_ofs2(solfile2.str().c_str());
+         sol_ofs.precision(8);
+         sol_ofs << frho;
       }
 
       if (norm_increment < itol)
