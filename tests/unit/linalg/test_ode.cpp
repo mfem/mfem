@@ -105,7 +105,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
       double order(ODESolver* ode_solver, bool init_hist_ = false)
       {
-         double dt_order,t,order;
+         double dt_order,t,order = -1;
          Vector u(2);
          Vector error(levels);
          int steps = ti_steps;
