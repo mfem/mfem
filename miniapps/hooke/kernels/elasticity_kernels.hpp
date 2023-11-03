@@ -321,7 +321,8 @@ void AssembleGradientDiagonal3D(const int ne,
                const auto dsigma_ddudx = material.gradient(dudx);
 
                const double JxW = detJ(qx, qy, qz, e) * qweights(qx, qy, qz);
-               const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G, invJqp);
+               const auto dphidx = KernelHelpers::GradAllShapeFunctions(qx, qy, qz, B, G,
+                                                                        invJqp);
 
                for (int dx = 0; dx < d1d; dx++)
                {

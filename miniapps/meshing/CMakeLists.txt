@@ -13,9 +13,11 @@ set(MESH_FILES
   amr-quad-q2.mesh
   blade.mesh
   cube.mesh
+  cube-tet.mesh
   icf.mesh
   jagged.mesh
   square01.mesh
+  square01-tri.mesh
   stretched2D.mesh
 )
 
@@ -57,6 +59,11 @@ add_mfem_miniapp(mesh-optimizer
   ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem mfem-common)
 add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
+
+add_mfem_miniapp(mesh-quality
+  MAIN mesh-quality.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
@@ -103,6 +110,12 @@ if (MFEM_USE_MPI)
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(fit-node-position
+    MAIN fit-node-position.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(fit-node-position copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp

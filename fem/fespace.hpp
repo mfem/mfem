@@ -214,7 +214,7 @@ class FaceQuadratureInterpolator;
     @par
     Clearly the notion of a @b vdof is relevant in each of the three contexts
     mentioned above so extra care must be taken whenever @b vdim != 1 to ensure
-    that the @b edof, @b ldof, or @b tdof is being interpretted correctly.
+    that the @b edof, @b ldof, or @b tdof is being interpreted correctly.
  */
 class FiniteElementSpace
 {
@@ -277,12 +277,14 @@ protected:
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
        with a "cut" space on a non-conforming mesh. */
-   mutable SparseMatrix *cP; // owned
+   mutable std::unique_ptr<SparseMatrix> cP;
    /// Conforming restriction matrix such that cR.cP=I.
-   mutable SparseMatrix *cR; // owned
+   mutable std::unique_ptr<SparseMatrix> cR;
    /// A version of the conforming restriction matrix for variable-order spaces.
-   mutable SparseMatrix *cR_hp; // owned
+   mutable std::unique_ptr<SparseMatrix> cR_hp;
    mutable bool cP_is_set;
+   /// Operator computing the action of the transpose of the restriction.
+   mutable std::unique_ptr<Operator> R_transpose;
 
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
@@ -376,17 +378,6 @@ protected:
 
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
-
-   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
-   static inline int EncodeDof(int entity_base, int idx)
-   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
-
-   /// Helpers to remove encoded sign from a DOF
-   static inline int DecodeDof(int dof)
-   { return (dof >= 0) ? dof : (-1 - dof); }
-
-   static inline int DecodeDof(int dof, double& sign)
-   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -603,10 +594,17 @@ public:
    { return GetConformingProlongation(); }
 
    /// Return an operator that performs the transpose of GetRestrictionOperator
-   /** The returned operator is owned by the FiniteElementSpace. In serial this
-       is the same as GetProlongationMatrix() */
-   virtual const Operator *GetRestrictionTransposeOperator() const
-   { return GetConformingProlongation(); }
+   /** The returned operator is owned by the FiniteElementSpace.
+
+       For a serial conforming space, this returns NULL, indicating the identity
+       operator.
+
+       For a parallel conforming space, this will return a matrix-free
+       (Device)ConformingProlongationOperator.
+
+       For a non-conforming mesh this will return a TransposeOperator wrapping
+       the restriction matrix. */
+   const Operator *GetRestrictionTransposeOperator() const;
 
    /// An abstract operator that performs the same action as GetRestrictionMatrix
    /** In some cases this is an optimized matrix-free implementation. The
@@ -822,6 +820,11 @@ public:
    virtual DofTransformation *GetBdrElementDofs(int bel,
                                                 Array<int> &dofs) const;
 
+   /** @brief Returns indices of degrees of freedom for NURBS patch index
+    @a patch. Cartesian ordering is used, for the tensor-product degrees of
+    freedom. */
+   void GetPatchDofs(int patch, Array<int> &dofs) const;
+
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
    ///
@@ -904,7 +907,7 @@ public:
    /// changed in the forward mappings by passing a value for @a ndofs which
    /// differs from that returned by GetNDofs().
    ///
-   /// @note Thse methods, with the exception of VDofToDof(), are designed to
+   /// @note These methods, with the exception of VDofToDof(), are designed to
    /// produce the correctly encoded values when dof entries are negative,
    /// see @ref ldof for more on negative dof indices.
    ///
@@ -985,6 +988,18 @@ public:
    /// well on sets of @ref ldof "Local Dofs".
    static void AdjustVDofs(Array<int> &vdofs);
 
+   /// Helper to encode a sign flip into a DOF index (for Hcurl/Hdiv shapes).
+   static inline int EncodeDof(int entity_base, int idx)
+   { return (idx >= 0) ? (entity_base + idx) : (-1-(entity_base + (-1-idx))); }
+
+   /// Helper to return the DOF associated with a sign encoded DOF
+   static inline int DecodeDof(int dof)
+   { return (dof >= 0) ? dof : (-1 - dof); }
+
+   /// Helper to determine the DOF and sign of a sign encoded DOF
+   static inline int DecodeDof(int dof, double& sign)
+   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
+
    /// @anchor getvdof @name Local Vector DoF Access Members
    /// These member functions produce arrays of local vector degree of freedom
    /// indices, see @ref ldof and @ref vdof. These indices can be used to
@@ -994,7 +1009,9 @@ public:
 
    /// @brief Returns indices of degrees of freedom for the @a i'th element.
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
-   /// not necessarily equal to 1. See also GetElementDofs().
+   /// not necessarily equal to 1. The returned indices are always ordered
+   /// byNODES, irrespective of whether the space is byNODES or byVDIM.
+   /// See also GetElementDofs().
    ///
    /// @note In many cases the returned DofTransformation object will be NULL.
    /// In other cases see the documentation of the DofTransformation class for
@@ -1020,6 +1037,9 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    DofTransformation *GetBdrElementVDofs(int i, Array<int> &vdofs) const;
+
+   /// Returns indices of degrees of freedom in @a vdofs for NURBS patch @a i.
+   void GetPatchVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
@@ -1104,7 +1124,9 @@ public:
    int GetLocalDofForDof(int i) const { return dof_ldof_array[i]; }
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
-        associated with i'th element in the mesh object. */
+        associated with i'th element in the mesh object.
+        Note: The method has been updated to abort instead of returning NULL for
+        an empty partition. */
    virtual const FiniteElement *GetFE(int i) const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection

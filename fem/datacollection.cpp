@@ -922,7 +922,7 @@ void ParaViewDataCollection::Save()
    {
       const std::string &field_name = qfield.first;
       std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel());
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately

@@ -582,7 +582,9 @@ TMOPHRSolver::TMOPHRSolver(ParMesh &pmesh_, ParNonlinearForm &pnlf_,
 void TMOPHRSolver::Mult()
 {
    Vector b(0);
+#ifdef MFEM_USE_MPI
    int myid = 0;
+#endif
    if (serial)
    {
       tmopns->SetOperator(*nlf);
@@ -597,10 +599,6 @@ void TMOPHRSolver::Mult()
    if (!hradaptivity)
    {
       tmopns->Mult(b, x->GetTrueVector());
-      if (tmopns->GetConverged() == false)
-      {
-         if (myid == 0) { mfem::out << "Nonlinear solver: rtol not achieved.\n"; }
-      }
       x->SetFromTrueVector();
       return;
    }

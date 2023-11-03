@@ -25,6 +25,8 @@
 //               mpirun -np 4 nurbs_ex1p -m ../../data/square-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m ../../../miniapps/nurbs/meshes/square-nurbs.mesh -r 4 -pm "1" -ps "2"
+//
 
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -151,12 +153,18 @@ int main(int argc, char *argv[])
    bool ibp = 1;
    bool strongBC = 1;
    double kappa = -1;
+   Array<int> master(0);
+   Array<int> slave(0);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
+   args.AddOption(&master, "-pm", "--master",
+                  "Master boundaries for periodic BCs");
+   args.AddOption(&slave, "-ps", "--slave",
+                  "Slave boundaries for periodic BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -331,6 +339,7 @@ int main(int argc, char *argv[])
       {
          ess_bdr = 0;
       }
+
       // Remove periodic BCs
       if (NURBSext)
       {
@@ -342,6 +351,7 @@ int main(int argc, char *argv[])
             ess_bdr[slave[i]-1] = 0;
          }
       }
+
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 

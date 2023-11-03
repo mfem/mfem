@@ -21,9 +21,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                            const int NE,
                            const int ncomp,
                            const int sizeidx,
+                           const double input_min_size,
                            const DenseMatrix &w_,
                            const Array<double> &b_,
                            const Vector &x_,
+                           const Vector &nc_reduce,
                            DenseTensor &j_,
                            const int d1d,
                            const int q1d)
@@ -42,6 +44,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
    const double infinity = std::numeric_limits<double>::infinity();
    MFEM_VERIFY(sizeidx == 0,"");
    MFEM_VERIFY(MFEM_CUDA_BLOCKS==256,"");
+
+   const double *nc_red = nc_reduce.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -94,7 +98,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
          MFEM_SYNC_THREAD;
       }
       min = min_size[0];
-
+      if (input_min_size > 0.) { min = input_min_size; }
       kernels::internal::EvalX(D1D,Q1D,B,DDD,DDQ);
       kernels::internal::EvalY(D1D,Q1D,B,DDQ,DQQ);
       kernels::internal::EvalZ(D1D,Q1D,B,DQQ,QQQ);
@@ -107,7 +111,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, DatcSize,
                double T;
                kernels::internal::PullEval(qx,qy,qz,QQQ,T);
                const double shape_par_vals = T;
-               const double size = fmax(shape_par_vals, min);
+               const double size = fmax(shape_par_vals, min) / nc_red[e];
                const double alpha = std::pow(size, 1.0/DIM);
                for (int i = 0; i < DIM; i++)
                {
@@ -159,6 +163,15 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    const Array<double> &B = maps.B;
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
+   const double input_min_size = lim_min_size;
+
+   Vector nc_size_red(NE, Device::GetDeviceMemoryType());
+   nc_size_red.HostWrite();
+   NCMesh *ncmesh = tspec_fesv->GetMesh()->ncmesh;
+   for (int e = 0; e < NE; e++)
+   {
+      nc_size_red(e) = (ncmesh) ? ncmesh->GetElementSizeReduction(e) : 1.0;
+   }
 
    Vector tspec_e;
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -170,7 +183,8 @@ void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,
    tspec.UseDevice(true);
    R->Mult(tspec, tspec_e);
    const int id = (D1D << 4 ) | Q1D;
-   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,W,B,tspec_e,Jtr);
+   MFEM_LAUNCH_TMOP_KERNEL(DatcSize,id,NE,ncomp,sizeidx,input_min_size,W,B,
+                           tspec_e, nc_size_red, Jtr);
 }
 
 } // namespace mfem

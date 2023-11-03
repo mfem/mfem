@@ -27,7 +27,6 @@
 #include <iostream>
 #include <algorithm>
 
-
 namespace mfem
 {
 
@@ -341,7 +340,7 @@ int GridFunction::VectorDim() const
       return fes->GetVDim();
    }
    return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetVDim());
+                                  fe->GetRangeDim());
 }
 
 int GridFunction::CurlDim() const
@@ -397,8 +396,6 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
 {
    Array<int> vdofs;
 
-   int k;
-
    DofTransformation * doftrans = fes->GetElementVDofs(i, vdofs);
    const FiniteElement *FElem = fes->GetFE(i);
    const IntegrationRule *ElemVert =
@@ -419,7 +416,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
       Vector shape(dof);
       if (FElem->GetMapType() == FiniteElement::VALUE)
       {
-         for (k = 0; k < n; k++)
+         for (int k = 0; k < n; k++)
          {
             FElem->CalcShape(ElemVert->IntPoint(k), shape);
             nval[k] = shape * (&loc_data[dof * vdim]);
@@ -428,7 +425,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
       else
       {
          ElementTransformation *Tr = fes->GetElementTransformation(i);
-         for (k = 0; k < n; k++)
+         for (int k = 0; k < n; k++)
          {
             Tr->SetIntPoint(&ElemVert->IntPoint(k));
             FElem->CalcPhysShape(*Tr, shape);
@@ -440,7 +437,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    {
       ElementTransformation *Tr = fes->GetElementTransformation(i);
       DenseMatrix vshape(dof, FElem->GetDim());
-      for (k = 0; k < n; k++)
+      for (int k = 0; k < n; k++)
       {
          Tr->SetIntPoint(&ElemVert->IntPoint(k));
          FElem->CalcVShape(*Tr, vshape);
@@ -723,56 +720,6 @@ void GridFunction::GetVectorValues(int i, const IntegrationRule &ir,
    GetVectorValues(*Tr, ir, vals);
 }
 
-void be_to_bfe(Geometry::Type geom, int o, const IntegrationPoint &ip,
-               IntegrationPoint &fip)
-{
-   if (geom == Geometry::TRIANGLE)
-   {
-      if (o == 2)
-      {
-         fip.x = 1.0 - ip.x - ip.y;
-         fip.y = ip.x;
-      }
-      else if (o == 4)
-      {
-         fip.x = ip.y;
-         fip.y = 1.0 - ip.x - ip.y;
-      }
-      else
-      {
-         fip.x = ip.x;
-         fip.y = ip.y;
-      }
-      fip.z = ip.z;
-   }
-   else
-   {
-      if (o == 2)
-      {
-         fip.x = ip.y;
-         fip.y = 1.0 - ip.x;
-      }
-      else if (o == 4)
-      {
-         fip.x = 1.0 - ip.x;
-         fip.y = 1.0 - ip.y;
-      }
-      else if (o == 6)
-      {
-         fip.x = 1.0 - ip.y;
-         fip.y = ip.x;
-      }
-      else
-      {
-         fip.x = ip.x;
-         fip.y = ip.y;
-      }
-      fip.z = ip.z;
-   }
-   fip.weight = ip.weight;
-   fip.index  = ip.index;
-}
-
 double GridFunction::GetValue(ElementTransformation &T,
                               const IntegrationPoint &ip,
                               int comp, Vector *tr) const
@@ -838,17 +785,12 @@ double GridFunction::GetValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-            // Boundary elements and Boundary Faces may have different
+            // Boundary elements and boundary faces may have different
             // orientations so adjust the integration point if necessary.
-            int o = 0;
-            if (fes->GetMesh()->Dimension() == 3)
-            {
-               int f;
-               fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-            }
-
-            IntegrationPoint fip;
-            be_to_bfe(FET->GetGeometryType(), o, ip, fip);
+            int f, o;
+            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+            IntegrationPoint fip =
+               Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
             // Compute and set the point in element 1 from fip
             FET->SetAllIntPoints(&fip);
@@ -977,17 +919,12 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
             FaceElementTransformations * FET =
                fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-            // Boundary elements and Boundary Faces may have different
+            // Boundary elements and boundary faces may have different
             // orientations so adjust the integration point if necessary.
-            int o = 0;
-            if (fes->GetMesh()->Dimension() == 3)
-            {
-               int f;
-               fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-            }
-
-            IntegrationPoint fip;
-            be_to_bfe(FET->GetGeometryType(), o, ip, fip);
+            int f, o;
+            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+            IntegrationPoint fip =
+               Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o, ip);
 
             // Compute and set the point in element 1 from fip
             FET->SetAllIntPoints(&fip);
@@ -1044,7 +981,7 @@ void GridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, fe->GetVDim());
+      int vdim = std::max(spaceDim, fe->GetRangeDim());
       DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
       val.SetSize(vdim);
@@ -1096,7 +1033,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    else
    {
       int spaceDim = fes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, FElem->GetVDim());
+      int vdim = std::max(spaceDim, FElem->GetRangeDim());
       DenseMatrix vshape(dof, vdim);
 
       vals.SetSize(vdim, nip);
@@ -1507,17 +1444,13 @@ double GridFunction::GetDivergence(ElementTransformation &T) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
-
-         IntegrationPoint fip;
-         be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+         IntegrationPoint fip =
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1604,17 +1537,13 @@ void GridFunction::GetCurl(ElementTransformation &T, Vector &curl) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
-
-         IntegrationPoint fip;
-         be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+         IntegrationPoint fip =
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1673,17 +1602,13 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
-
-         IntegrationPoint fip;
-         be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+         IntegrationPoint fip =
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -1759,17 +1684,13 @@ void GridFunction::GetVectorGradient(
          FaceElementTransformations * FET =
             fes->GetMesh()->GetBdrFaceTransformations(T.ElementNo);
 
-         // Boundary elements and Boundary Faces may have different
+         // Boundary elements and boundary faces may have different
          // orientations so adjust the integration point if necessary.
-         int o = 0;
-         if (fes->GetMesh()->Dimension() == 3)
-         {
-            int f;
-            fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
-         }
-
-         IntegrationPoint fip;
-         be_to_bfe(FET->GetGeometryType(), o, T.GetIntPoint(), fip);
+         int f, o;
+         fes->GetMesh()->GetBdrElementFace(T.ElementNo, &f, &o);
+         IntegrationPoint fip =
+            Mesh::TransformBdrElementToFace(FET->GetGeometryType(), o,
+                                            T.GetIntPoint());
 
          // Compute and set the point in element 1 from fip
          FET->SetAllIntPoints(&fip);
@@ -2401,7 +2322,11 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
                                      loc_mass);
             vals.SetSize(fe->GetDof());
             fe->ProjectDelta(j, vals);
-            fes->GetElementVDofs(i, vdofs);
+            const DofTransformation* const doftrans = fes->GetElementVDofs(i, vdofs);
+            if (doftrans)
+            {
+               doftrans->TransformPrimal(vals);
+            }
             SetSubVector(vdofs, vals);
             loc_mass_vals.SetSize(vals.Size());
             loc_mass.Mult(vals, loc_mass_vals);
@@ -2755,7 +2680,11 @@ void GridFunction::ProjectBdrCoefficientNormal(
          CalcOrtho(T->Jacobian(), nor);
          lvec(j) = (vc * nor);
       }
-      fes->GetBdrElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetBdrElementDofs(i, dofs);
+      if (doftrans)
+      {
+         doftrans->TransformPrimal(lvec);
+      }
       SetSubVector(dofs, lvec);
    }
 #endif
@@ -4031,11 +3960,19 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
       {
          if (with_subdomains && ufes->GetAttribute(i) != s) { continue; }
 
-         ufes->GetElementVDofs(i, udofs);
-         ffes->GetElementVDofs(i, fdofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(i, udofs);
+         const DofTransformation* const ftrans = ffes->GetElementVDofs(i, fdofs);
 
          u.GetSubVector(udofs, ul);
          flux.GetSubVector(fdofs, fla);
+         if (utrans)
+         {
+            utrans->InvTransformPrimal(ul);
+         }
+         if (ftrans)
+         {
+            ftrans->InvTransformPrimal(fla);
+         }
 
          Transf = ufes->GetElementTransformation(i);
          blfi.ComputeElementFlux(*ufes->GetFE(i), *Transf, ul,
@@ -4330,8 +4267,12 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                                                     flux_order));
          int num_integration_pts = ir->GetNPoints();
 
-         ufes->GetElementVDofs(ielem, udofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
+         if (utrans)
+         {
+            utrans->InvTransformPrimal(ul);
+         }
          Transf = ufes->GetElementTransformation(ielem);
          FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,
