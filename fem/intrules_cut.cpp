@@ -36,7 +36,7 @@ void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
    {
       if (Tr.GetDimension() == 2)
       {
-         nBasis = 2 * (Order + 1) + (int)(Order * (Order + 1) / 2);
+         nBasis = 2 * (Order + 1) + static_cast<int>(Order * (Order + 1) / 2);
       }
       else if (Tr.GetDimension() == 3)
       {
@@ -50,7 +50,7 @@ void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
          else if (Order>= 7) { nBasis = 276; Order = 7; }
       }
 
-      // compute the quadrture points
+      // compute the quadrature points
       int qorder = 0;
       IntegrationRules irs(0, Quadrature1D::GaussLegendre);
       ir = irs.Get(Tr.GetGeometryType(), qorder);
@@ -321,7 +321,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
    Array<int> verts;
    mesh->GetElementVertices(elem, verts);
 
-   // find the edges that are intersected by he surface and inside the area
+   // find the edges that are intersected by the surface and inside the area
    for (int edge = 0; edge < me->GetNEdges(); edge++)
    {
       enum class Layout {inside, intersected, outside};
@@ -421,6 +421,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
 
    // do integration over the edges
    for (int edge = 0; edge < me->GetNEdges(); edge++)
+   {
       if (edge_int[edge] && !interior)
       {
          Vector point0(Trafo.GetSpaceDim());
@@ -474,6 +475,7 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
             }
          }
       }
+   }
 
    // do integration over the area for integral over interface
    if (element_int && !interior)
@@ -524,10 +526,12 @@ void MomentFittingIntRules::ComputeSurfaceWeights2D(ElementTransformation& Tr)
       SVD.LeftSingularvectors().MultTranspose(RHS, temp);
       temp2 = 0.;
       for (int i = 0; i < nBasis; i++)
+      {
          if (SVD.Singularvalue(i) > 1e-12)
          {
             temp2(i) = temp(i) / SVD.Singularvalue(i);
          }
+      }
       SVD.RightSingularvectors().MultTranspose(temp2, ElemWeights);
    }
 
@@ -954,10 +958,12 @@ void MomentFittingIntRules::ComputeSurfaceWeights3D(ElementTransformation& Tr)
       SVD.LeftSingularvectors().MultTranspose(RHS, temp);
       temp2 = 0.;
       for (int i = 0; i < nBasis; i++)
+      {
          if (SVD.Singularvalue(i) > 1e-12)
          {
             temp2(i) = temp(i) / SVD.Singularvalue(i);
          }
+      }
       SVD.RightSingularvectors().MultTranspose(temp2, ElemWeights);
    }
 
@@ -1616,6 +1622,5 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
 }
 
 #endif //MFEM_USE_LAPACK
-
 
 }

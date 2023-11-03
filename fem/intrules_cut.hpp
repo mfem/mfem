@@ -38,7 +38,7 @@ protected:
 
    /// @brief Default constructor
    CutIntegrationRules()
-      : Order(-1), LvlSet(NULL), lsOrder(0)   {}
+      : Order(-1), LvlSet(NULL), lsOrder(0) { }
 
    /// @brief Constructor to set ab the CutIntegrationRules
    CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
@@ -179,17 +179,17 @@ class MomentFittingIntRules : public CutIntegrationRules
 protected:
    /// @brief Space Dimension of the element
    int dim;
-   /// @brief Number of divergence free bsis functions
+   /// @brief Number of divergence-free basis functions
    int nBasis;
    /// @brief Number of basis functions for volume integration
    int nBasisVolume;
-   /// @brief IntgerationRule representing the reused IntegrationPoints
+   /// @brief IntegrationRule representing the reused IntegrationPoints
    IntegrationRule ir;
    /// @brief SVD of the matrix for volumetric IntegrationRules
    DenseMatrixSVD* VolumeSVD;
    /// @brief Array of face integration points
    Array<IntegrationPoint> FaceIP;
-   /// @brief Column-wise Matrix f the face quadrature weights
+   /// @brief Column-wise Matrix for the face quadrature weights
    DenseMatrix FaceWeights;
    /// @brief Indicates the already computed face IntegrationRules
    Vector FaceWeightsComp;
