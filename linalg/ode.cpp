@@ -162,11 +162,11 @@ void StateData::Add(Vector &state)
    IncrementSize();
 }
 
-void StateData::Print(std::ostream &out)
+void StateData::Print(std::ostream &os)
 {
-   out << ss <<"/" <<smax<<std::endl;
-   idx.Print(out);
-   for (int i = 0; i < ss; i++) { k[idx[i]].Print(out); }
+   os << ss <<"/" <<smax<<std::endl;
+   idx.Print(os);
+   for (int i = 0; i < ss; i++) { k[idx[i]].Print(os); }
 }
 
 
