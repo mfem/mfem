@@ -423,6 +423,10 @@ public:
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
 
+   ~AdamsBashforthSolver() 
+   {
+     if (RKsolver) delete RKsolver;
+   };
 };
 
 /** A 1-stage, 1st order AB method.  */
@@ -501,7 +505,10 @@ public:
    AdamsMoultonSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
-
+   ~AdamsMoultonSolver() 
+   {
+     if (RKsolver) delete RKsolver;
+   };
 };
 
 /** A 1-stage, 2nd order AM method. */
