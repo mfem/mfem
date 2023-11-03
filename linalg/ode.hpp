@@ -423,9 +423,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
 
-   ~AdamsBashforthSolver() 
+   ~AdamsBashforthSolver()
    {
-     if (RKsolver) delete RKsolver;
+      if (RKsolver) { delete RKsolver; }
    };
 };
 
@@ -505,9 +505,9 @@ public:
    AdamsMoultonSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
-   ~AdamsMoultonSolver() 
+   ~AdamsMoultonSolver()
    {
-     if (RKsolver) delete RKsolver;
+      if (RKsolver) { delete RKsolver; }
    };
 };
 
