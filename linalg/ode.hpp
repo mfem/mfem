@@ -54,7 +54,7 @@ public:
    /// Const reference access to the ith vector.
    inline const Vector &operator[](int i) const { return k[idx[i]]; };
 
-   void Print(std::ostream &out);
+   void Print(std::ostream &out = mfem::out);
 };
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
@@ -720,7 +720,6 @@ class NewmarkSolver : public SecondOrderODESolver
 {
 private:
    double beta, gamma;
-   bool first;
    bool no_mult;
 
 public:
