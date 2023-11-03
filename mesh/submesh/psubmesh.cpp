@@ -235,11 +235,13 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
-      int num_codim_1 = 0;
-      if (Dim == 1) { num_codim_1 = NumOfVertices; }
-      else if (Dim == 2) { num_codim_1 = NumOfEdges; }
-      else if (Dim == 3) { num_codim_1 = NumOfFaces; }
-      else { MFEM_ABORT("Invalid dimension."); }
+      const int num_codim_1 = [this]()
+      {
+         if (Dim == 1) { return NumOfVertices; }
+         else if (Dim == 2) { return NumOfEdges; }
+         else if (Dim == 3) { return NumOfFaces; }
+         else { MFEM_ABORT("Invalid dimension."); return -1; }
+      }();
 
       if (Dim == 3)
       {
