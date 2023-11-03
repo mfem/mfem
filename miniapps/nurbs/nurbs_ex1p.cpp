@@ -283,6 +283,7 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      if (master.Size()>0) { NURBSext->ConnectBoundaries(master, slave); }
       NURBSext->ConnectBoundaries();
    }
    else
@@ -343,12 +344,12 @@ int main(int argc, char *argv[])
       // Remove periodic BCs
       if (NURBSext)
       {
-         Array<int> master = NURBSext->GetMaster();
-         Array<int> slave = NURBSext->GetSlave();
+         Array<int> master_idx = NURBSext->GetMaster();
+         Array<int> slave_idx = NURBSext->GetSlave();
          for (int i = 0; i < master.Size(); i++)
          {
-            ess_bdr[master[i]-1] = 0;
-            ess_bdr[slave[i]-1] = 0;
+            ess_bdr[master_idx[i]-1] = 0;
+            ess_bdr[slave_idx[i]-1] = 0;
          }
       }
 
