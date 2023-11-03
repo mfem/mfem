@@ -655,7 +655,7 @@ void LinearElasticitySolver::Solve()
    {
       u->ProjectBdrCoefficient(*essbdr_cf,ess_bdr);
    }
-   a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B);
+   a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B, true);
 
    CGSolver * cg = nullptr;
    Solver * M = nullptr;
@@ -941,6 +941,8 @@ public:
       u = new GridFunction(displacement_space);
       frho = new GridFunction(filter_space);
 #endif
+      frho->ProjectCoefficient(*rho);
+      *u = 0.0;
 
       design_density.SetFunction([exponent, rho_min](const double rho)
       {
@@ -995,6 +997,8 @@ public:
       u = new GridFunction(displacement_space);
       frho = new GridFunction(filter_space);
 #endif
+      frho->ProjectCoefficient(*rho);
+      *u = 0.0;
 
       design_density.SetFunction([exponent, rho_min](const double rho)
       {
@@ -1175,8 +1179,10 @@ public:
          ess_bdr_filter.SetSize(filter->FESpace()->GetMesh()->bdr_attributes.Max());
          ess_bdr_filter = 0;
       }
+      *gradH1 = 0.0;
       EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
       filterSolver.Solve(gradH1);
+
 
       // Step 2. Project gradient to Control space
       invmass->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
@@ -1337,6 +1343,8 @@ public:
    LineSearchAlgorithm(ObjectiveFunction &F, double max_step_size=1e06):F(F),
       max_step_size(max_step_size) {}
    virtual double Step(GridFunction &x, const GridFunction &d) = 0;
+   virtual ~LineSearchAlgorithm() = default;
+   
    double GetStepSize() { return step_size; }
    void SetStepSize(double s) { step_size = s; }
 
@@ -1415,28 +1423,16 @@ public:
       x0 = new GridFunction(fes);
       d0 = new GridFunction(fes);
 #endif
+      *x0 = x;
+
       DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
-      Coefficient * directionalDer_cf;
-      // if (F.dcf_dgf())
-      // {
-      // directionalDer_cf = new ProductCoefficient(d_cf, *F.dcf_dgf());
-      // }
-      // else
-      // {
-      directionalDer_cf = &d_cf;
-      // }
-      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(*directionalDer_cf));
-      directionalDer->Assemble();
+      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(d_cf));
 
       double val = F.GetValue();
       GridFunction *grad = F.GetGradient();
-      double d2 = (*directionalDer)(*grad);
-      // out << "Current Value = " << val << std::endl;
+      double d2 = 0;
 
-      *x0 = x;
-      // int k;
-      double new_val = infinity();
-      // for (k=0; k<maxit; k++)
+      double new_val = val + c1*d2 + 1;
       step_size *= 2;
       while (new_val > val + c1*d2)
       {
@@ -1456,11 +1452,6 @@ public:
       delete directionalDer;
       delete x0;
       delete d0;
-      // if (F.dcf_dgf()) { delete directionalDer_cf; }
-      // if (k == maxit)
-      // {
-      //    MFEM_WARNING("Maximum number of iterations reached. Results may not be reliable.");
-      // }
       return new_val;
    }
 protected:
