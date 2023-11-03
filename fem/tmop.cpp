@@ -479,6 +479,32 @@ double TMOP_Metric_014::EvalW(const DenseMatrix &Jpt) const
    return Mat.FNorm2();
 }
 
+void TMOP_Metric_014::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   P = ie.Get_dI1();
+}
+
+void TMOP_Metric_014::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
+}
+
 double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_22 = (0.5*|J|^2 - det(J)) / (det(J) - tau0)
