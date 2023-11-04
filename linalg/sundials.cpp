@@ -1335,12 +1335,13 @@ CVODESSolver::~CVODESSolver()
    SUNMatDestroy(AB);
    SUNLinSolFree(LSB);
 }
-   
-   
+
+
 // ---------------------------------------------------------------------------
 // IDA interface
 // ---------------------------------------------------------------------------
-int IDASolver::RES(realtype t, const N_Vector y, const N_Vector yp, N_Vector r, void *user_data)
+int IDASolver::RES(realtype t, const N_Vector y, const N_Vector yp, N_Vector r,
+                   void *user_data)
 {
    // At this point the up-to-date data for N_Vector y, yp, and r is on the device.
    const SundialsNVector mfem_y(y);
@@ -1357,7 +1358,8 @@ int IDASolver::RES(realtype t, const N_Vector y, const N_Vector yp, N_Vector r, 
    return (0);
 }
 
-int IDASolver::root(realtype t, N_Vector y, N_Vector yp, realtype *gout, void *user_data)
+int IDASolver::root(realtype t, N_Vector y, N_Vector yp, realtype *gout,
+                    void *user_data)
 {
    IDASolver *self = static_cast<IDASolver*>(user_data);
 
@@ -1372,14 +1374,15 @@ int IDASolver::root(realtype t, N_Vector y, N_Vector yp, realtype *gout, void *u
 
 void IDASolver::SetRootFinder(int components, RootFunction func)
 {
-	root_func = func;
+   root_func = func;
 
-	flag = IDARootInit(sundials_mem, components, root);
-	MFEM_VERIFY(flag == IDA_SUCCESS, "error in SetRootFinder()");
+   flag = IDARootInit(sundials_mem, components, root);
+   MFEM_VERIFY(flag == IDA_SUCCESS, "error in SetRootFinder()");
 }
 
-int IDASolver::LinSysSetup(realtype t, realtype cj, N_Vector y, N_Vector yp, N_Vector r,
-		SUNMatrix A, void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
+int IDASolver::LinSysSetup(realtype t, realtype cj, N_Vector y, N_Vector yp,
+                           N_Vector r,
+                           SUNMatrix A, void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
 {
    // Get data from N_Vectors
    const SundialsNVector mfem_y(y);
@@ -1388,13 +1391,14 @@ int IDASolver::LinSysSetup(realtype t, realtype cj, N_Vector y, N_Vector yp, N_V
    IDASolver *self = static_cast<IDASolver*>(GET_CONTENT(A));
    int jok = 1;
    int jcur = 0;
-   
+
    // Compute the linear system
    self->f->SetTime(t);
    return (self->f->SUNImplicitSetup(mfem_y, mfem_yp, jok, &jcur, cj));
 }
 
-int IDASolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x, N_Vector b, realtype tol)
+int IDASolver::LinSysSolve(SUNLinearSolver LS, SUNMatrix, N_Vector x,
+                           N_Vector b, realtype tol)
 {
    SundialsNVector mfem_x(x);
    const SundialsNVector mfem_b(b);
@@ -1442,42 +1446,42 @@ void IDASolver::Init(TimeDependentOperator &f_)
       int resize = 0;
       if (!Parallel())
       {
-	 resize = (Y->Size() != local_size);
+         resize = (Y->Size() != local_size);
       }
       else
       {
 #ifdef MFEM_USE_MPI
-	 int l_resize = (Y->Size() != local_size) ||
-			(saved_global_size != global_size);
-	 MPI_Allreduce(&l_resize, &resize, 1, MPI_INT, MPI_LOR, Y->GetComm());
+         int l_resize = (Y->Size() != local_size) ||
+                        (saved_global_size != global_size);
+         MPI_Allreduce(&l_resize, &resize, 1, MPI_INT, MPI_LOR, Y->GetComm());
 #endif
       }
 
       // Free existing solver memory and re-create with new vector size
       if (resize)
       {
-	 IDAFree(&sundials_mem);
-	 sundials_mem = NULL;
+         IDAFree(&sundials_mem);
+         sundials_mem = NULL;
       }
    }
 
    if (!sundials_mem)
    {
       // Temporarily set N_Vector wrapper data to create IDA. The correct
-      // initial condition will be set using IDAReInit() when Step() is 
+      // initial condition will be set using IDAReInit() when Step() is
       // called.
 
       if (!Parallel())
       {
-	 Y->SetSize(local_size);
-	 YP->SetSize(local_size);
+         Y->SetSize(local_size);
+         YP->SetSize(local_size);
       }
 #ifdef MFEM_USE_MPI
       else
       {
-	 Y->SetSize(local_size, global_size);
-	 YP->SetSize(local_size, global_size);
-	 saved_global_size = global_size;
+         Y->SetSize(local_size, global_size);
+         YP->SetSize(local_size, global_size);
+         saved_global_size = global_size;
       }
 #endif
 
@@ -1546,7 +1550,7 @@ void IDASolver::UseMFEMLinearSolver()
    LSA = SUNLinSolNewEmpty();
    MFEM_VERIFY(LSA, "error in SUNLinSolNewEmpty()");
 
-   LSA->content	      = this;
+   LSA->content         = this;
    LSA->ops->gettype  = LSGetType;
    LSA->ops->solve    = IDASolver::LinSysSolve;
    LSA->ops->numiters = LSNumIters;
@@ -1556,7 +1560,7 @@ void IDASolver::UseMFEMLinearSolver()
    A = SUNMatNewEmpty();
    MFEM_VERIFY(A, "error in SUNMatNewEMpty()");
 
-   A->content	   = this;
+   A->content     = this;
    A->ops->getid   = MatGetID;
    A->ops->destroy = MatDestroy;
 
@@ -1597,12 +1601,14 @@ void IDASolver::SetSStolerances(double reltol, double abstol)
 
 void IDASolver::SetSVtolerances(double reltol, Vector abstol)
 {
-   MFEM_VERIFY(abstol.Size() == f->Height(), "abs tolerance is not the same size.");
+   MFEM_VERIFY(abstol.Size() == f->Height(),
+               "abs tolerance is not the same size.");
 
    int local_size = abstol.Size();
    long global_size = 0;
    MPI_Allreduce(&local_size, &global_size, 1, MPI_LONG, MPI_SUM, Y->GetComm());
-   SundialsNVector mfem_abstol(Y->GetComm(), abstol.GetData(), local_size, global_size);
+   SundialsNVector mfem_abstol(Y->GetComm(), abstol.GetData(), local_size,
+                               global_size);
 
    flag = IDASVtolerances(sundials_mem, reltol, mfem_abstol);
    MFEM_VERIFY(flag == IDA_SUCCESS, "error in IDASVtolerances()");
@@ -1643,22 +1649,22 @@ void IDASolver::PrintInfo() const
 
    // Get integrator stats
    flag = IDAGetIntegratorStats(sundials_mem,
-                                  &nsteps,
-                                  &nfevals,
-                                  &nlinsetups,
-                                  &netfails,
-                                  &qlast,
-                                  &qcur,
-                                  &hinused,
-                                  &hlast,
-                                  &hcur,
-                                  &tcur);
+                                &nsteps,
+                                &nfevals,
+                                &nlinsetups,
+                                &netfails,
+                                &qlast,
+                                &qcur,
+                                &hinused,
+                                &hlast,
+                                &hcur,
+                                &tcur);
    MFEM_VERIFY(flag == IDA_SUCCESS, "error in IDAGetIntegratorStats()");
 
    // Get nonlinear solver stats
    flag = IDAGetNonlinSolvStats(sundials_mem,
-                                  &nniters,
-                                  &nncfails);
+                                &nniters,
+                                &nncfails);
    MFEM_VERIFY(flag == IDA_SUCCESS, "error in IDAGetNonlinSolvStats()");
 
    mfem::out <<

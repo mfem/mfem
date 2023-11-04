@@ -111,8 +111,8 @@ public:
 
    virtual ~ODESolver() { }
 };
-   
-   
+
+
 /// Abstract class for solving systems of DAEs: r = f(t, x, xp)
 class DAESolver
 {
@@ -134,16 +134,16 @@ public:
 
    /** @brief Perform a time step from time @a t [in] to time @a t [out] based
        on the requested step size @a dt [in]. */
-   /** @param[in,out] x	Approximate solution.
+   /** @param[in,out] x Approximate solution.
        @param[in,out] xp Approximate derivative.
-       @param[in,out] t	Time associated with the approximate solution @a x.
-       @param[in,out] dt	Time step size.
+       @param[in,out] t Time associated with the approximate solution @a x.
+       @param[in,out] dt   Time step size.
 
        The following rules describe the common behavior of the method:
        - The input @a x [in] is the approximate solution for the input time
          @a t [in].
        - The input @a xp [in] is the approximate derivative for the input time
-	 @a t [in].
+    @a t [in].
        - The input @a dt [in] is the desired time step size, defining the desired
          target time: t [target] = @a t [in] + @a dt [in].
        - The output @a x [out] is the approximate solution for the output time

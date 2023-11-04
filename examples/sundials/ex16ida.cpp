@@ -22,26 +22,26 @@ protected:
 
    CGSolver M_solver;
    DSmoother M_prec;
-   
+
    CGSolver A_solver;
    DSmoother A_prec;
 
    //KLUSolver A_solver;
-   
+
    double alpha, kappa;
 
-   mutable Vector z;	// auxiliary vector
+   mutable Vector z; // auxiliary vector
 
 public:
    ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
-		      const Vector &u, const Vector& up);
+                      const Vector &u, const Vector& up);
 
    virtual void ImplicitMult(const Vector& u, const Vector& up, Vector& r) const;
 
    /** Setup the system A x = b. This method is used by the implicit
       SUNDIALS solvers. */
    virtual int SUNImplicitSetup(const Vector& u, const Vector& up,
-			        int jok, int* jcur, double alpha);
+                                int jok, int* jcur, double alpha);
 
    /** Solve the system A x = b. This method is used by the implicit
       SUNDIALS solvers. */
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
-   int order = 2; 
+   int order = 2;
    double t_final = 0.5;
    double dt = 1.0e-2;
    double alpha = 1.0e-2;
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
    const double reltol = 1e-4, abstol = 1e-4;
    int precision = 8;
    cout.precision(precision);
-   
+
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -91,17 +91,17 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa, "-k", "--kappa",
                   "Kappa coefficient offset.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
-		  "--no-visualization",
-		  "Enable or disable GLVis visualization.");
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
-		  "Visualize every n-th timestep.");
+                  "Visualize every n-th timestep.");
    args.Parse();
    if (!args.Good())
    {
       args.PrintUsage(cout);
       return 1;
    }
-   args.PrintOptions(cout);   
+   args.PrintOptions(cout);
 
    // Define the mesh
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
@@ -144,19 +144,19 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-	 cout << "Unable to connect to GLVis server at "
-	      << vishost << ':' << visport << endl;
-	 visualization = false;
-	 cout << "GLVis visualization disabled.\n";
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+         visualization = false;
+         cout << "GLVis visualization disabled.\n";
       }
       else
       {
-	 sout.precision(precision);
-	 sout << "solution\n" << *mesh << u_gf;
-	 sout << "pause\n";
-	 sout << flush;
-	 cout << "GLVis visualization paused."
-	      << " Press space (in the GLVis window) to resume it.\n";
+         sout.precision(precision);
+         sout << "solution\n" << *mesh << u_gf;
+         sout << "pause\n";
+         sout << flush;
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
       }
    }
 
@@ -185,14 +185,14 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti & vis_steps) == 0)
       {
-	 cout << "step " << ti << ", t = " << t << endl;
-	 ida->PrintInfo();
+         cout << "step " << ti << ", t = " << t << endl;
+         ida->PrintInfo();
 
-	 u_gf.SetFromTrueDofs(u);
-	 if (visualization)
-	 {
-	    sout << "solution\n" << *mesh << u_gf << flush;
-	 }
+         u_gf.SetFromTrueDofs(u);
+         if (visualization)
+         {
+            sout << "solution\n" << *mesh << u_gf << flush;
+         }
       }
       oper.SetParameters(u);
    }
@@ -213,8 +213,9 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al, double kap, 
-				       const Vector& u, const Vector& up)
+ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
+                                       double kap,
+                                       const Vector& u, const Vector& up)
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      A(NULL), z(height)
 {
@@ -246,7 +247,8 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al, double 
    SetParameters(u);
 }
 
-void ConductionOperator::ImplicitMult(const Vector& u, const Vector& up, Vector& r) const
+void ConductionOperator::ImplicitMult(const Vector& u, const Vector& up,
+                                      Vector& r) const
 {
    // Compute r = f(t, y, yp) = K(u) + M(up) for r
    //SetParameters(u);
@@ -276,15 +278,15 @@ void ConductionOperator::SetParameters(const Vector& u)
 void ConductionOperator::CalcIC(const Vector& u, Vector& up)
 {
    // Compute:
-   //	 up = M^{-1}*-K(u)
+   //  up = M^{-1}*-K(u)
    // for up given u
    Kmat.Mult(u, z);
    z.Neg();
    M_solver.Mult(z, up);
 }
 
-int ConductionOperator::SUNImplicitSetup(const Vector& u, const Vector& up, 
-				         int jok, int* jcur, double alpha)
+int ConductionOperator::SUNImplicitSetup(const Vector& u, const Vector& up,
+                                         int jok, int* jcur, double alpha)
 {
    // Setup the linear system Jacobian A = K + alpha M
    if (A) { delete A; }
