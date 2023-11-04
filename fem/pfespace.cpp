@@ -102,7 +102,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    Pconf = NULL;
    nonconf_P = false;
    Rconf = NULL;
-   R_transpose = NULL;
    R = NULL;
 
    num_face_nbr_dofs = -1;
@@ -1189,35 +1188,29 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
 
       if (NRanks == 1)
       {
-         R_transpose = new IdentityOperator(GetTrueVSize());
+         R_transpose.reset(new IdentityOperator(GetTrueVSize()));
       }
       else
       {
          if (!Device::Allows(Backend::DEVICE_MASK))
          {
-            R_transpose = new ConformingProlongationOperator(*this, true);
+            R_transpose.reset(new ConformingProlongationOperator(*this, true));
          }
          else
          {
-            R_transpose =
-               new DeviceConformingProlongationOperator(*this, true);
+            R_transpose.reset(
+               new DeviceConformingProlongationOperator(*this, true));
          }
       }
-      Rconf = new TransposeOperator(R_transpose);
+      Rconf = new TransposeOperator(*R_transpose);
       return Rconf;
    }
    else
    {
       Dof_TrueDof_Matrix();
-      R_transpose = new TransposeOperator(R);
+      if (!R_transpose) { R_transpose.reset(new TransposeOperator(R)); }
       return R;
    }
-}
-
-const Operator *ParFiniteElementSpace::GetRestrictionTransposeOperator() const
-{
-   GetRestrictionOperator();
-   return R_transpose;
 }
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
@@ -2065,7 +2058,7 @@ void NeighborRowMessage::Encode(int rank)
    for (unsigned i = 0; i < rows.size(); i++)
    {
       const RowInfo &ri = rows[i];
-      const MeshId &id = pncmesh->GetNCList(ri.entity).LookUp(ri.index);
+      const MeshId &id = *pncmesh->GetNCList(ri.entity).GetMeshIdAndType(ri.index).id;
       ent_ids[ri.entity].Append(id);
       row_idx[ri.entity].Append(i);
       group_ids[ri.entity].Append(ri.group);
@@ -3228,7 +3221,6 @@ void ParFiniteElementSpace::Destroy()
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
    delete Rconf; Rconf = NULL;
-   delete R_transpose; R_transpose = NULL;
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
