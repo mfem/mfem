@@ -199,6 +199,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       GenerateFaces();
 
+      // Make sure the be_to_face array is initialized.
+      // In 2D, it will be set in the above call to Mesh::GetElementToEdgeTable.
+      // In 3D, it will be set in GetElementToFaceTable.
+      // In 1D, we need to set it manually.
+      if (Dim == 1)
+      {
+         be_to_face.SetSize(NumOfBdrElements);
+         for (int i = 0; i < NumOfBdrElements; ++i)
+         {
+            be_to_face[i] = boundary[i]->GetVertices()[0];
+         }
+      }
+
       ListOfIntegerSets  groups;
       {
          // the first group is the local one
