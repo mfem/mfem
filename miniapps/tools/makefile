@@ -26,7 +26,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
-	check-tmop-metric tmop-metric-magnitude
+	tmop-check-metric tmop-metric-magnitude
 
 PAR_MINIAPPS = nodal-transfer plor-transfer
 
