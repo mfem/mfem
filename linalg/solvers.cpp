@@ -1692,7 +1692,7 @@ void MINRESSolver::Mult(const Vector &b, Vector &x) const
          beta = sqrt(Dot(v0, q));
       }
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
-      rho1 = hypot(delta, beta);
+      rho1 = std::hypot(delta, beta);
 
       if (it == 1)
       {

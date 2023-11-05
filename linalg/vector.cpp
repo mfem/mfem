@@ -961,7 +961,7 @@ static __global__ void cuKernelMin(const int N, fptype *gdsr, const fptype *x)
       const int rdd = bbd+dualTid;
       if (rdd >= N) { continue; }
       if (dualTid >= blockDim.x) { continue; }
-      s_min[tid] = std::min(s_min[tid], s_min[dualTid]);
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
    }
    if (tid==0) { gdsr[bid] = s_min[0]; }
 }
