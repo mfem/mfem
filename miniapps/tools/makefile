@@ -84,7 +84,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Testing: Specific execution options
 # Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
-	plor-transfer check-tmop-metric tmop-metric-magnitude
+	plor-transfer tmop-check-metric tmop-metric-magnitude
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 
