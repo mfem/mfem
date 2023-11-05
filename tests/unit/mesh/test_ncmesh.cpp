@@ -395,7 +395,7 @@ std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
    }();
 
    return {serror, perror};
-};
+}
 
 
 TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
