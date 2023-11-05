@@ -485,14 +485,25 @@ void SparseMatrix::SortColumnIndices()
 
       cusparseCreateCsru2csrInfo( &sortInfoA );
 
+#ifdef MFEM_USE_FLOAT
+      cusparseScsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
+                                       d_ja_sorted, sortInfoA,
+                                       &pBufferSizeInBytes);
+#else
       cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
                                        d_ja_sorted, sortInfoA,
                                        &pBufferSizeInBytes);
+#endif
 
       CuMemAlloc( &pBuffer, pBufferSizeInBytes );
 
+#ifdef MFEM_USE_FLOAT
+      cusparseScsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
+                         d_ja_sorted, sortInfoA, pBuffer);
+#else
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
+#endif
 
       // The above call is (at least in some cases) asynchronous, so we need to
       // wait for it to finish before we can free device temporaries.
@@ -796,15 +807,27 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_32I),
             MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+#ifdef MFEM_USE_FLOAT
+            MFEM_CUDA_or_HIP(_R_32F));
+#else
             MFEM_CUDA_or_HIP(_R_64F));
+#endif
 
          // Create handles for input/output vectors
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecX_descr,
                                            x.Size(),
                                            const_cast<fptype *>(d_x),
+#ifdef MFEM_USE_FLOAT
+                                           MFEM_CUDA_or_HIP(_R_32F));
+#else
                                            MFEM_CUDA_or_HIP(_R_64F));
+#endif
          MFEM_cu_or_hip(sparseCreateDnVec)(&vecY_descr, y.Size(), d_y,
+#ifdef MFEM_USE_FLOAT
+                                           MFEM_CUDA_or_HIP(_R_32F));
+#else
                                            MFEM_CUDA_or_HIP(_R_64F));
+#endif
 #else
          cusparseCreateMatDescr(&matA_descr);
          cusparseSetMatIndexBase(matA_descr, CUSPARSE_INDEX_BASE_ZERO);
@@ -823,7 +846,11 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
          vecX_descr,
          &beta,
          vecY_descr,
+#ifdef MFEM_USE_FLOAT
+         MFEM_CUDA_or_HIP(_R_32F),
+#else
          MFEM_CUDA_or_HIP(_R_64F),
+#endif
          MFEM_GPUSPARSE_ALG,
          &newBufferSize);
 
@@ -850,11 +877,19 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
          vecX_descr,
          &beta,
          vecY_descr,
+#ifdef MFEM_USE_FLOAT
+         MFEM_CUDA_or_HIP(_R_32F),
+#else
          MFEM_CUDA_or_HIP(_R_64F),
+#endif
          MFEM_GPUSPARSE_ALG,
          dBuffer);
 #else
+#ifdef MFEM_USE_FLOAT
+      cusparseScsrmv(handle,
+#else
       cusparseDcsrmv(handle,
+#endif
                      CUSPARSE_OPERATION_NON_TRANSPOSE,
                      Height(),
                      Width(),

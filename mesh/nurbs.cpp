@@ -1314,13 +1314,13 @@ void NURBSPatch::Get3DRotationMatrix(fptype n[], fptype angle, fptype r,
    fptype l2 = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
    fptype l = sqrt(l2);
 
-   if (fabs(angle) == M_PI_2)
+   if (fabs(angle) == (fptype)(M_PI_2))
    {
       s = r*copysign(1., angle);
       c = 0.;
       c1 = -1.;
    }
-   else if (fabs(angle) == M_PI)
+   else if (fabs(angle) == (fptype)(M_PI))
    {
       s = 0.;
       c = -r;
