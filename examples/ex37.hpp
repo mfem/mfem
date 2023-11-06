@@ -142,26 +142,21 @@ public:
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
-   double r;
+   double r2;
    Vector &center;
    Vector &force;
 public:
    VolumeForceCoefficient(double r_,Vector &  center_, Vector & force_) :
-      VectorCoefficient(center_.Size()), r(r_), center(center_), force(force_) { }
+      VectorCoefficient(center_.Size()), r2(r_*r_), center(center_), force(force_) { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
       Vector xx; xx.SetSize(T.GetDimension());
       T.Transform(ip,xx);
-      for (int i=0; i<xx.Size(); i++)
-      {
-         xx[i]=xx[i]-center[i];
-      }
-
-      double cr=xx.Norml2();
+      double cr = xx.DistanceSquaredTo(center);
       V.SetSize(T.GetDimension());
-      if (cr <= r)
+      if (cr <= r2)
       {
          V = force;
       }
@@ -173,9 +168,13 @@ public:
 
    void Set(double r_,Vector & center_, Vector & force_)
    {
-      r=r_;
+      r2=r_*r_;
       center = center_;
       force = force_;
+   }
+   void UpdateSize()
+   {
+      VectorCoefficient::vdim = center.Size();
    }
 };
 
