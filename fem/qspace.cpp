@@ -164,13 +164,20 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
 
 int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
 {
+   auto get_face_index = [this](const int idx)
+   {
+      const auto it = face_indices_inv.find(idx);
+      if (it == face_indices_inv.end()) { return -1; }
+      else { return it->second; }
+   };
+
    switch (T.ElementType)
    {
       case ElementTransformation::FACE:
-         return face_indices_inv.at(T.ElementNo);
+         return get_face_index(T.ElementNo);
       case ElementTransformation::BDR_ELEMENT:
       case ElementTransformation::BDR_FACE:
-         return face_indices_inv.at(mesh.GetBdrElementEdgeIndex(T.ElementNo));
+         return get_face_index(mesh.GetBdrElementEdgeIndex(T.ElementNo));
       default:
          MFEM_ABORT("Invalid element type.");
          return -1;
