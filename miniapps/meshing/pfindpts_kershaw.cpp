@@ -399,6 +399,7 @@ int main (int argc, char *argv[])
    // For the first 10% points, set the x coordinates such that they are on
    // element boundary
    int nxlayers = std::pow(pmesh.GetGlobalNE(), 1.0/dim);
+   nxlayers = nx;
    int npt_on_faces = int(0.1*pts_cnt);
    for (int i = 0; i < npt_on_faces; i++)
    {
@@ -505,7 +506,7 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,ne,np,dim,etype,meshorder,solorder,funcorder,fieldtype,smooth,npts," <<
+           "jobid,ne,np,dim,etype,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt," <<
            "mindet,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist,"<<
            "totaltime,setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_mapelemrst,"
            <<
@@ -517,6 +518,7 @@ int main (int argc, char *argv[])
            mesh_poly_deg << "," << order << "," <<
            func_order << "," << fieldtype << "," <<
            smooth << "," <<
+           pts_cnt << "," <<
            pts_cnt*num_procs << "," <<
            tauval << "," <<
            found_loc << "," <<
