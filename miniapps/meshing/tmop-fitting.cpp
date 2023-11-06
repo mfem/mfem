@@ -40,6 +40,8 @@
 // make tmop-fitting -j && mpirun -np 6 tmop-fitting -m ../../data/inline-hex.mesh -o 2 -rs 2 -ni 100 -rtol 1e-10 -mod-bndr-attr -sft 1e-08 -tid 1 -mid 303 -ls 4 -ctot 0 -cus-mat -vl 1 -li 1000 -ae 1 -slstype 1 -sfc 1 -sfa 2 -jid 400 -sfcmax 1e10 -sfcjac 1e-5
 // make tmop-fitting -j && mpirun -np 6 tmop-fitting -m cube.mesh -o 2 -rs 2 -ni 100 -rtol 1e-10 -mod-bndr-attr -sft 1e-08 -tid 1 -mid 303 -ls 4 -ctot 2 -cus-mat -vl 1 -li 1000 -ae 1 -slstype 1 -sfc 1 -sfa 2 -jid 400 -sfcmax 1e10 -sfcjac 1e-5
 
+// fitting with mesh and ls file for bg
+// make tmop-fitting -j4 && mpirun -np 6 tmop-fitting -m cube.mesh -o 1 -rs 5 -ni 100 -rtol 1e-10 -mod-bndr-attr -sft 1e-08 -tid 1 -mid 303 -ls 4 -ctot 2 -vl 1 -li 1000 -ae 1 -slstype 13 -sfc 1 -sfa 2 -jid 450 -sfcmax 1e10 -sfcjac 1e-5 -bgm sdfmesh_21.mesh -bgls sdfsold_21.gf -sbgmesh
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
 #include <iostream>
@@ -48,6 +50,103 @@
 
 using namespace mfem;
 using namespace std;
+static Vector scoeff;
+
+void GetSplineControlPoints(double p1, double p2, double p3, double p4,
+                            double p5,
+                            Vector &x, Vector &y)
+{
+   MFEM_VERIFY(p1 >= 0 && p1 <= 1,"ratio p1 must be between 0 and 1.");
+   MFEM_VERIFY(p2 >= 0 && p2 <= 1,"ratio p2 must be between 0 and 1.");
+   MFEM_VERIFY(p3 >= 0 && p3 <= 1,"ratio p3 must be between 0 and 1.");
+   MFEM_VERIFY(p4 >= 0 && p4 <= 1,"ratio p4 must be between 0 and 1.");
+   MFEM_VERIFY(p5 >= 0 && p5 <= 1,"ratio p5 must be between 0 and 1.");
+   x.SetSize(5);
+   y.SetSize(5);
+
+   double x1 = 0.1;
+   double x2 = 0.25;
+   double x4 = 0.75;
+
+   double yy0 = 0.0;
+   double yy1 = 1.0;
+
+   // points on the left
+   double xs = x1;
+
+   // points on the right
+   double xe0 = x2;
+   double xe1 = x2 + (1.0/4.0)*(x4-x2);
+   double xe2 = x2 + (2.0/4.0)*(x4-x2);
+   double xe3 = x2 + (3.0/4.0)*(x4-x2);
+   double xe4 = x4;
+
+   // y-coordinates (shared)
+   double ys0 = yy0;
+   double ys1 = ys0 + (1.0/4.0)*(yy1-yy0);
+   double ys2 = ys0 + (2.0/4.0)*(yy1-yy0);
+   double ys3 = ys0 + (3.0/4.0)*(yy1-yy0);
+   double ys4 = yy1;
+
+   //spline points
+   x(0) = xs + (p1)*(xe0-xs);
+   y(0) = ys0;
+   x(1) = xs + (p2)*(xe1-xs);
+   y(1) = ys1;
+   x(2) = xs + (p3)*(xe2-xs);
+   y(2) = ys2;
+   x(3) = xs + (p4)*(xe3-xs);
+   y(3) = ys3;
+   x(4) = xs + (p5)*(xe4-xs);
+   y(4) = ys4;
+}
+
+// x = sum_{i = 0 to 4} c(i)*(y^i)
+void spline(const Vector &x, const Vector &y, Vector &c)
+{
+   MFEM_VERIFY(x.Size() == 5,"4 points must be input.");
+   MFEM_VERIFY(y.Size() == 5,"4 points must be input.");
+   c.SetSize(x.Size());
+   DenseMatrix A(5);
+   Vector b = x;
+   for (int i = 0; i < 5; i++)
+   {
+      for (int j = 0; j < 5; j++)
+      {
+         A(i, j) = std::pow(y(i), j);
+      }
+   }
+   A.Invert();
+   A.Mult(b, c);
+}
+
+double eval_spline(double yval)
+{
+    double splineval = 0.0;
+   for (int i = 0; i < scoeff.Size(); i++) { splineval += scoeff(i)*std::pow(yval, i); }
+   return splineval;
+}
+
+double spline_level_set(const Vector &x)
+{
+   double splineval = 0.0;
+   // point on spline curve at that y
+   for (int i = 0; i < scoeff.Size(); i++) { splineval += scoeff(i)*std::pow(x(1), i); }
+   // query point
+   double xval = x(0);
+   if (xval < splineval)
+   {
+      return 1.0;
+   }
+   else if (xval > splineval)
+   {
+      return -1.0;
+   }
+   else
+   {
+      return 0.0;
+   }
+}
 
 void GetBoundaryElements(ParMesh *pmesh, ParGridFunction &mat,
                          Array<int> &intel, int attr_to_match)
@@ -289,6 +388,69 @@ void GetMaterialInterfaceElements(ParMesh *pmesh, ParGridFunction &mat,
    }
 }
 
+void SetMaterialGridFunction(ParMesh *pmesh,
+                             ParGridFunction &surf_fit_gf0,
+                             ParGridFunction &mat,
+                             ParGridFunction &pgl_el_num,
+                             bool material,
+                             bool custom_material,
+                             int surf_ls_type,
+                             int custom_split_mesh)
+{
+    const int dim = pmesh->Dimension();
+    for (int i = 0; i < pmesh->GetNE(); i++)
+    {
+       if (material)
+       {
+          mat(i) = pmesh->GetAttribute(i)-1;
+       }
+       else
+       {
+          if (custom_material)
+          {
+             Vector center(pmesh->Dimension());
+             pmesh->GetElementCenter(i, center);
+             mat(i) = 1;
+             if (surf_ls_type == 10)
+             {
+                mat(i) = center(1) > 0.5 ? 0 : 1;
+             }
+             else
+             {
+                if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
+                    center(1) < 0.75)
+                {
+                   if (dim == 2 || (dim == 3 && center(2) > 0.25 && center(2) < 0.75))
+                   {
+                      mat(i) = 0;
+                   }
+                }
+             }
+          }
+          else
+          {
+             mat(i) = material_id(i, surf_fit_gf0);
+          }
+          pmesh->SetAttribute(i, mat(i) + 1);
+       }
+    }
+    mat.ExchangeFaceNbrData();
+
+
+    if (custom_split_mesh > 0)
+    {
+       MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
+                                              12*custom_split_mesh);
+    }
+    else if (custom_split_mesh < 0)
+    {
+       MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
+                                              custom_split_mesh == -1 ? 4 : 5);
+    }
+
+    mat.ExchangeFaceNbrData();
+}
+
 int main (int argc, char *argv[])
 {
    // 0. Initialize MPI and HYPRE.
@@ -342,6 +504,10 @@ int main (int argc, char *argv[])
    double surf_fit_min_det_threshold = 0.0;
    bool normalization    = false;
    double worst_skew = 0.0;
+   bool amr_remarking = false;
+   int ref_int_neighbors   = 0;
+   const char *bg_mesh_file = "NULL";
+   const char *bg_ls_file = "NULL";
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -460,6 +626,15 @@ int main (int argc, char *argv[])
                   "Make all terms in the optimization functional unitless.");
    args.AddOption(&worst_skew, "-skewmax", "--skew-max",
                   "worst skewness in degrees.. between 90 and 180");
+   args.AddOption(&amr_remarking, "-remark", "--re-mark", "-no-remark",
+                  "--no-re-mark",
+                  "Remark after adaptive mesh refinement.");
+   args.AddOption(&ref_int_neighbors, "-refint", "--refint",
+                  "Layers of neighbors to refine");
+   args.AddOption(&bg_mesh_file, "-bgm", "--bgm",
+                     "Background Mesh file to use.");
+      args.AddOption(&bg_ls_file, "-bgls", "--bgls",
+                     "Background level set gridfunction file to use.");
    args.Parse();
    if (!args.Good())
    {
@@ -553,6 +728,38 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(sinusoidal);
    }
+   else if (surf_ls_type == 11 || surf_ls_type == 12)
+   {
+      double p1 = 0.3*(float) std::rand()/RAND_MAX;
+      double p2 = 0.3*(float) std::rand()/RAND_MAX;
+      double p3 = 0.3*(float) std::rand()/RAND_MAX;
+      double p4 = 0.3*(float) std::rand()/RAND_MAX;
+      double p5 = 0.3*(float) std::rand()/RAND_MAX;
+      if (surf_ls_type == 11) {
+          p5 = 0.8;p4 = 0.65;
+      }
+      else if (surf_ls_type == 12) {
+      p5 = 0.0;p4 = 0.8;
+      }
+      p3 = 0.3;
+      p2 = 0.5;
+      p1 = 0.4;
+
+      Vector xspline(5), yspline(5);
+      GetSplineControlPoints(p1, p2, p3, p4, p5, xspline, yspline);
+      spline(xspline, yspline, scoeff);
+      if (myid == 0)
+      {
+          scoeff.Print();
+          xspline.Print();
+          yspline.Print();
+      }
+      ls_coeff = new FunctionCoefficient(spline_level_set);
+   }
+   else if (surf_ls_type == 13)
+   {
+       ls_coeff = NULL;
+   }
    else
    {
       MFEM_ABORT("Surface fitting level set type not implemented yet.")
@@ -618,6 +825,10 @@ int main (int argc, char *argv[])
    FiniteElementCollection *surf_fit_bg_fec = NULL;
    ParFiniteElementSpace *surf_fit_bg_fes = NULL;
    ParGridFunction *surf_fit_bg_gf0 = NULL;
+   GridFunction *surf_fit_bg_gf0_ser = NULL;
+   bool bg_user_specified_mesh = false;
+   bool bg_user_specified_ls = false;
+   int *bg_partitioning = NULL;
 
    if (surf_bg_mesh)
    {
@@ -628,52 +839,111 @@ int main (int argc, char *argv[])
       MFEM_VERIFY(surface_fit_const > 0,
                   "Fitting is not active. Why background mesh?");
       Mesh *mesh_surf_fit_bg = NULL;
-      if (dim == 2)
+      if (strcmp(bg_mesh_file, "NULL") != 0) //user specified background mesh
       {
-         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
-                                                           true));
+          if (myid == 0) { std::cout << "Reading user specified background mesh\n"; }
+           mesh_surf_fit_bg = new Mesh(bg_mesh_file, 1, 1, false);
+           bg_user_specified_mesh = true;
+           bg_partitioning = mesh_surf_fit_bg->GeneratePartitioning(Mpi::WorldSize());
+           if (myid == 0) { std::cout << "Reading user specified background mesh-DONE\n"; }
       }
-      else if (dim == 3)
+      else
       {
-         mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
-                                                           true));
+          if (dim == 2)
+          {
+             mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                                               true));
+          }
+          else if (dim == 3)
+          {
+             mesh_surf_fit_bg = new Mesh(Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
+                                                               true));
+          }
+          mesh_surf_fit_bg->EnsureNCMesh(true);
       }
-      mesh_surf_fit_bg->EnsureNCMesh(true);
-      pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg);
-      delete mesh_surf_fit_bg;
+      if (myid == 0) { std::cout << "Setup PAR background mesh\n"; }
+      pmesh_surf_fit_bg = new ParMesh(MPI_COMM_WORLD, *mesh_surf_fit_bg, bg_partitioning);
+      if (myid == 0) { std::cout << "Setup PAR background mesh-DONE\n"; }
 
-      pmesh_surf_fit_bg->SetCurvature(1);
+      if (strcmp(bg_ls_file, "NULL") != 0) //user specified ls mesh
+      {
+          MFEM_VERIFY(bg_user_specified_mesh,"User specified mesh also required\n");
+          if (myid == 0) { std::cout << "Reading user-specified background ls file\n"; }
+          ifstream bg_ls_stream(bg_ls_file);
+          surf_fit_bg_gf0_ser = new GridFunction(mesh_surf_fit_bg, bg_ls_stream);
+          bg_user_specified_ls = true;
+          if (myid == 0) { std::cout << "Reading user-specified background ls file-DONE\n"; }
+      }
+
+      pmesh_surf_fit_bg->SetCurvature(1, 0, -1, 0);
       Vector p_min(dim), p_max(dim);
       pmesh->GetBoundingBox(p_min, p_max);
       GridFunction &x_bg = *pmesh_surf_fit_bg->GetNodes();
       const int num_nodes = x_bg.Size() / dim;
-      for (int i = 0; i < num_nodes; i++)
+      if (!bg_user_specified_mesh)
       {
-         for (int d = 0; d < dim; d++)
-         {
-            double length_d = p_max(d) - p_min(d),
-                   extra_d = 0.2 * length_d;
-            x_bg(i + d*num_nodes) = p_min(d) - extra_d +
-                                    x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
-         }
+          for (int i = 0; i < num_nodes; i++)
+          {
+             for (int d = 0; d < dim; d++)
+             {
+                double length_d = p_max(d) - p_min(d),
+                       extra_d = 0.2 * length_d;
+                if (surf_ls_type == 11) { extra_d = 0.1*length_d; }
+                x_bg(i + d*num_nodes) = p_min(d) - extra_d +
+                                        x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
+             }
+          }
       }
-      surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
-      surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
-      surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
 
-      surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
-      OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
-                                            *surf_fit_bg_gf0);
-      pmesh_surf_fit_bg->Rebalance();
-      surf_fit_bg_fes->Update();
-      surf_fit_bg_gf0->Update();
+      if (bg_user_specified_ls)
+      {
+          if (myid == 0) { std::cout << "Setup PAR user-specified background ls\n"; }
+          surf_fit_bg_gf0 = new ParGridFunction(pmesh_surf_fit_bg, surf_fit_bg_gf0_ser, bg_partitioning);
+          surf_fit_bg_fes = surf_fit_bg_gf0->ParFESpace();
+          surf_fit_bg_fec = const_cast<FiniteElementCollection *>
+                            (surf_fit_bg_fes->FEColl());
+           if (myid == 0) { std::cout << "Setup PAR user-specified background ls - DONE\n"; }
+      }
+      else
+      {
+          surf_fit_bg_fec = new H1_FECollection(mesh_poly_deg+1, dim);
+          surf_fit_bg_fes = new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec);
+          surf_fit_bg_gf0 = new ParGridFunction(surf_fit_bg_fes);
+      }
+
+      if (mesh_surf_fit_bg) { delete mesh_surf_fit_bg; }
+
+      if (!bg_user_specified_ls)
+      {
+          surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
+          OptimizeMeshWithAMRAroundZeroLevelSet(*pmesh_surf_fit_bg, *ls_coeff, amr_iters,
+                                                *surf_fit_bg_gf0);
+      }
+
+      if (!bg_user_specified_mesh)
+      {
+          pmesh_surf_fit_bg->Rebalance();
+          surf_fit_bg_fes->Update();
+          surf_fit_bg_gf0->Update();
+      }
 
       if (comp_dist)
       {
-         ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
-                                           *surf_fit_bg_gf0);
+          MFEM_VERIFY(!bg_user_specified_ls,"not currently supported->comp_dist+user specified bg mesh");
+         if (bg_user_specified_ls)
+         {
+             ParGridFunction gftemp(*surf_fit_bg_gf0);
+             GridFunctionCoefficient gfc(&gftemp);
+             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, gfc,
+                                               *surf_fit_bg_gf0);
+         }
+         else
+         {
+             ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, *ls_coeff,
+                                             *surf_fit_bg_gf0);
+         }
       }
-      else
+      else if (!bg_user_specified_ls)
       {
          surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff);
       }
@@ -703,6 +973,31 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       std::cout << "Background Mesh setup done\n";
+   }
+
+
+   if (bg_user_specified_mesh)
+   {
+       Vector p_min(dim), p_max(dim);
+       pmesh_surf_fit_bg->GetBoundingBox(p_min, p_max);
+       const int num_nodes = x.Size() / dim;
+       for (int i = 0; i < num_nodes; i++)
+       {
+          for (int d = 0; d < dim; d++)
+          {
+             double length_d = p_max(d) - p_min(d),
+                    extra_d = 0.0 * length_d;
+             if (mesh_node_ordering == 0) {
+                 x(i + d*num_nodes) = p_min(d) - extra_d +
+                                      x(i + d*num_nodes) * (length_d + 2*extra_d);
+             }
+             else {
+                 x(i*dim + d) = p_min(d) - extra_d +
+                                x(i*dim + d) * (length_d + 2*extra_d);
+             }
+          }
+       }
+       x0 = x;
    }
 
 
@@ -736,7 +1031,10 @@ int main (int argc, char *argv[])
    ParGridFunction *psub_x0 = NULL;
    if (surface_fit_const > 0.0)
    {
-      surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+       if (!bg_user_specified_ls)
+       {
+          surf_fit_gf0.ProjectCoefficient(*ls_coeff);
+       }
       if (comp_dist && !surf_bg_mesh)
       {
          ComputeScalarDistanceFromLevelSet(*pmesh, *ls_coeff, surf_fit_gf0);
@@ -748,58 +1046,10 @@ int main (int argc, char *argv[])
                                              pmesh->GetNodalFESpace()->GetOrdering());
       }
 
-      // Set material gridfunction
-      for (int i = 0; i < pmesh->GetNE(); i++)
-      {
-         if (material)
-         {
-            mat(i) = pmesh->GetAttribute(i)-1;
-         }
-         else
-         {
-            if (custom_material)
-            {
-               Vector center(pmesh->Dimension());
-               pmesh->GetElementCenter(i, center);
-               mat(i) = 1;
-               if (surf_ls_type == 10)
-               {
-                  mat(i) = center(1) > 0.5 ? 0 : 1;
-               }
-               else
-               {
-                  if (center(0) > 0.25 && center(0) < 0.75 && center(1) > 0.25 &&
-                      center(1) < 0.75)
-                  {
-                     if (dim == 2 || (dim == 3 && center(2) > 0.25 && center(2) < 0.75))
-                     {
-                        mat(i) = 0;
-                     }
-                  }
-               }
-            }
-            else
-            {
-               mat(i) = material_id(i, surf_fit_gf0);
-            }
-            pmesh->SetAttribute(i, mat(i) + 1);
-         }
-      }
-      mat.ExchangeFaceNbrData();
-
-      if (custom_split_mesh > 0)
-      {
-         MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
-                                                12*custom_split_mesh);
-      }
-      else if (custom_split_mesh < 0)
-      {
-         MakeMaterialConsistentForElementGroups(mat, pgl_el_num,
-                                                custom_split_mesh == -1 ? 4 : 5);
-      }
-
-      mat.ExchangeFaceNbrData();
-
+      SetMaterialGridFunction(pmesh, surf_fit_gf0, mat, pgl_el_num,
+                              material, custom_material, surf_ls_type,
+                              custom_split_mesh);
+      // Set material gridfunction - moved to function above
       for (int i = 0; i < pmesh->GetNE(); i++)
       {
          pmesh->SetAttribute(i, mat(i) + 1);
@@ -859,25 +1109,26 @@ int main (int argc, char *argv[])
                   surf_fit_fes.GetElementDofs(e, dofs);
                   surf_fit_mat_gf_temp.GetSubVector(dofs, datavec);
                   //optional for run for paper
-                  //                    if (surf_ls_type == 3)
-                  //                    {
-                  //                        Vector center(pmesh->Dimension());
-                  //                        pmesh->GetElementCenter(e, center);
-                  //                        if (center(0) >= 0.375 && center(0) <= 0.625) {
-                  //                            datavec = 0.0;
-                  //                        }
-                  //                        if (center(1) >= 0.375 && center(1) <= 0.625) {
-                  //                            datavec = 0.0;
-                  //                        }
-                  //                    }
+                  //    if (surf_ls_type == 3)
+                  //    {
+                  //        Vector center(pmesh->Dimension());
+                  //        pmesh->GetElementCenter(e, center);
+                  //        if (center(0) >= 0.375 && center(0) <= 0.625) {
+                  //        datavec = 0.0;
+                  //        }
+                  //        if (center(1) >= 0.375 && center(1) <= 0.625) {
+                  //        datavec = 0.0;
+                  //        }
+                  //    }
                   if (datavec.Max() == 1.0) { refinements.Append(e); }
                }
             }
             refinements.Sort();
             refinements.Unique();
             //            if (i >= int_amr_iters-2)
+            for (int iter = 0; iter < ref_int_neighbors; iter++)
             {
-               //               ExtendRefinementListToNeighbors(*pmesh, refinements);
+                              ExtendRefinementListToNeighbors(*pmesh, refinements);
             }
             pmesh->GeneralRefinement(refinements, -1);
             HRUpdater.Update();
@@ -886,6 +1137,43 @@ int main (int argc, char *argv[])
          {
             pmesh->Rebalance();
             HRUpdater.Update();
+         }
+
+         if (amr_remarking)
+         {
+             SetMaterialGridFunction(pmesh, surf_fit_gf0, mat, pgl_el_num,
+                                     material, custom_material, surf_ls_type,
+                                     custom_split_mesh);
+             // Set material gridfunction - moved to function above
+             for (int i = 0; i < pmesh->GetNE(); i++)
+             {
+                pmesh->SetAttribute(i, mat(i) + 1);
+             }
+             pmesh->SetAttributes();
+
+             // Adapt attributes for marking such that if all but 1 face of an element
+             // are marked, the element attribute is switched.
+             MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+             if (adapt_marking && custom_split_mesh == 0)
+             {
+                ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+                MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+                ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
+                MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+                ModifyTetAttributeForMarking(pmesh, mat, 0);
+                MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+                ModifyTetAttributeForMarking(pmesh, mat, 1);
+                MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+             }
+
+             MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
+
+             if (marking_type == 0)
+             {
+                //need to check material consistency for AMR meshes
+                int matcheck = CheckMaterialConsistency(pmesh, mat);
+                MFEM_VERIFY(matcheck, "Not all children at the interface have same material.");
+             }
          }
       }
       neglob_preamr = neglob;
@@ -1432,6 +1720,10 @@ int main (int argc, char *argv[])
                                                     pmesh_surf_fit_mat_gf);
          tmap1.Transfer(surf_fit_mat_gf, pmesh_surf_fit_mat_gf);
       }
+      else
+      {
+          pmesh_surf_fit_mat_gf = surf_fit_mat_gf;
+      }
 
       DataCollection *dc = NULL;
       dc = new VisItDataCollection("Perturbed_"+std::to_string(jobid), pmesh);
@@ -1445,6 +1737,7 @@ int main (int argc, char *argv[])
       dc->Save();
       delete dc;
    }
+
 
    if (normalization)
    {
@@ -1602,6 +1895,11 @@ int main (int argc, char *argv[])
                                                     pmesh_surf_fit_mat_gf);
          tmap1.Transfer(surf_fit_mat_gf, pmesh_surf_fit_mat_gf);
          tmap1.Transfer(jacobian_ratio, pmesh_jacobian_ratio);
+      }
+      else
+      {
+          pmesh_surf_fit_mat_gf = surf_fit_mat_gf;
+          pmesh_jacobian_ratio = jacobian_ratio;
       }
 
       DataCollection *dc = NULL;
@@ -1952,6 +2250,14 @@ int main (int argc, char *argv[])
                 int_amr_iters << "," << neglob_preamr << "," <<
                 tot_init_integ_error << "," << tot_final_integ_error <<
                 std::endl;
+   }
+
+   if (surface_fit_const > 0.0 && visualization)
+   {
+      socketstream vis1, vis2, vis3, vis4;
+
+      common::VisualizeField(vis2, "localhost", 19916, mat,
+                             "Materials", 600, 900, 300, 300);
    }
 
    GridFunction dx(x);

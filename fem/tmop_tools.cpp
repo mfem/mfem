@@ -754,7 +754,7 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
+      if (ti && ti->IsSurfaceFittingEnabled())
       {
          weight = ti->GetSurfaceFittingWeight();
          weights.Append(weight);
@@ -765,8 +765,11 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            weight = ati[j]->GetSurfaceFittingWeight();
-            weights.Append(weight);
+            if (ati[j]->IsSurfaceFittingEnabled())
+            {
+               weight = ati[j]->GetSurfaceFittingWeight();
+               weights.Append(weight);
+            }
          }
       }
    }
@@ -846,6 +849,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    double min_det;
    // Get array with surface fitting weights.
    Array<double> fitweights;
+   GetSurfaceFittingWeight(fitweights);
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
@@ -854,6 +858,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
       x_loc.SetSize(pfesc->GetVSize());
       pfesc->GetProlongationMatrix()->Mult(x, x_loc);
+      min_det = ComputeMinDet(x_loc, *pfesc);
       for (int i = 0; i < integs.Size(); i++)
       {
          ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
@@ -867,14 +872,10 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             }
             if (ti->IsSurfaceFittingEnabled())
             {
-               GetSurfaceFittingWeight(fitweights);
-               min_det = ComputeMinDet(x_loc, *pfesc);
+               //               GetSurfaceFittingWeight(fitweights);
+               //               min_det = ComputeMinDet(x_loc, *pfesc);
                if (min_det > 1.0*min_detJ_threshold && fitweights.Max() < weights_max_limit)
                {
-                  if (print_options.iterations)
-                  {
-                     //                     mfem::out << " k10-update pointwise surface fitting weight\n";
-                  }
                   if (update_surf_fit_coeff)
                   {
                      UpdatePointWiseSurfaceFittingWeight(x_loc);
@@ -958,11 +959,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
 
       if (print_options.iterations)
       {
-         //         mfem::out << min_det << " " << fitweights.Max() << " k10mindetandmaxweight\n";
-      }
-
-      if (print_options.iterations)
-      {
          mfem::out << "Avg/Max surface fitting error: " <<
                    surf_fit_err_avg << " " <<
                    surf_fit_err_max << "\n";
@@ -982,6 +978,7 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // Increase the surface fitting coefficient if the surface fitting error
       // does not decrease sufficiently.
       SaveSurfaceFittingWeight();
+
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
       {
          if (fitweights.Max() < weights_max_limit && min_det > min_detJ_threshold)

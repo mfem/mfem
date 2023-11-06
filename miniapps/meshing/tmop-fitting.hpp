@@ -1332,6 +1332,49 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
 }
 
 void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
+                                       GridFunctionCoefficient &ls_coeff,
+                                       ParGridFunction &distance_s,
+                                       const int nDiffuse = 2,
+                                       const int pLapOrder = 4,
+                                       const int pLapNewton = 50)
+{
+   mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
+                               pmesh.Dimension());
+   mfem::ParFiniteElementSpace h1fespace(&pmesh, &h1fec);
+   mfem::ParGridFunction x(&h1fespace);
+
+   x.ProjectCoefficient(ls_coeff);
+   x.ExchangeFaceNbrData();
+
+   //Now determine distance
+   const double dx = AvgElementSize(pmesh);
+   DistanceSolver *dist_solver = NULL;
+
+   const int p = pLapOrder;
+   const int newton_iter = pLapNewton;
+   auto ds = new PLapDistanceSolver(p, newton_iter);
+   //   auto ds = new NormalizationDistanceSolver();
+   dist_solver = ds;
+
+   ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
+
+   // Smooth-out Gibbs oscillations from the input level set. The smoothing
+   // parameter here is specified to be mesh dependent with length scale dx.
+   ParGridFunction filt_gf(&pfes_s);
+   PDEFilter filter(pmesh, 1.0 * dx);
+   filter.Filter(ls_coeff, filt_gf);
+   GridFunctionCoefficient ls_filt_coeff(&filt_gf);
+
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, distance_s);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+
+   DiffuseField(distance_s, nDiffuse);
+   distance_s.SetTrueVector();
+   distance_s.SetFromTrueVector();
+}
+
+void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        Coefficient &ls_coeff,
                                        ParGridFunction &distance_s,
                                        const int nDiffuse = 2,
