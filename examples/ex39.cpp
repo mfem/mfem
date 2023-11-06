@@ -426,9 +426,10 @@ int main(int argc, char *argv[])
    // 11. Iterate
    obj.Eval();
    GridFunction d(&control_fes);
-   for (int k = 1; k <= max_it; k++)
+   int k;
+   for (k = 1; k <= max_it; k++)
    {
-      mfem::out << "\nStep = " << k << std::endl;
+      // mfem::out << "\nStep = " << k << std::endl;
 
       d = *obj.Gradient();
       d.Neg();
@@ -436,12 +437,10 @@ int main(int argc, char *argv[])
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
       psi_old = psi;
 
-      mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
-                std::endl;
-      mfem::out << "compliance = " <<  compliance << std::endl;
-      mfem::out << "current step size = " <<  lineSearch->GetStepSize() << std::endl;
-
-      mfem::out << "norm of the increment = " << norm_increment << endl;
+      // mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
+      //           std::endl;
+      mfem::out <<  ", " << compliance << ", ";
+      mfem::out << norm_increment << endl;
 
       if (glvis_visualization)
       {
@@ -466,6 +465,7 @@ int main(int argc, char *argv[])
          break;
       }
    }
+   out << "Total number of iteration = " << k << std::endl;
    delete lineSearch;
 
    return 0;
