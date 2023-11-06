@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug MFEM ex99",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-wsl-dbg/examples/ex99_test_PML",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-wsl-dbg/examples",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build mfem ex99",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}

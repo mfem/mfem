@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "name": "WSL",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/**",
+                "/usr/include/c++/11/**",
+                "/usr/local/include/**",
+                "/home/shubin/01_coding/01_cpp/mfem/build-wsl-dbg/**",
+                "/home/shubin/01_coding/01_cpp/mfem/**",
+                "/home/shubin/opt/hypre/src/hypre/include/**",
+                "/home/shubin/opt/metis-5.1.0/include/**",
+                "/home/shubin/opt/mumps/include/**",
+                "/usr/lib/x86_64-linux-gnu/openmpi/include/**",
+                "/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/**",
+                "/usr/lib/x86_64-linux-gnu/fortran/gfortran-mod-15/openmpi/**",
+                "/usr/lib/x86_64-linux-gnu/openmpi/lib/**",
+                "/home/shubin/opt/parmetis/include/**",
+                "/opt/intel/oneapi/mkl/latest/include/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}

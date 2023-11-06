@@ -3708,26 +3708,25 @@ namespace comsol
    static void GetLineComsol(std::ifstream &input, std::string &str)
    {
       std::getline(input, str);
-      // std::cout << str.length() << " str is: " << str << std::endl;
       MFEM_VERIFY(input, "Unexpected read failure parsing mesh file!");
-      const std::size_t pos = str.find_first_of('#');
-      if (pos == 0 || str.length() == 0)
-      {
-         str.clear();
-         return;
+
+      // Remove carriage return at the end if present (common in files from Windows)
+      if (!str.empty() && str.back() == '\r') {
+         str.pop_back();
       }
-      else if (pos != std::string_view::npos)
+
+      const auto pos = str.find_first_of('#');
+      if (pos != std::string::npos)
       {
-         str.resize(pos);
+         str.erase(pos);
       }
-      // std::cout << " str.find_first_not_of is: " << str.find_first_not_of("\n") << std::endl;
-      const std::size_t start = str.find_first_not_of(" \n");
+      const auto start = str.find_first_not_of(" \t");
       if (start == std::string::npos)
       {
-         str.clear();
+         str.clear(); // This effectively makes the string empty
          return;
       }
-      const std::size_t stop = str.find_last_not_of(" \n");
+      const auto stop = str.find_last_not_of(" \t");
       str = str.substr(start, stop - start + 1);
    }
 

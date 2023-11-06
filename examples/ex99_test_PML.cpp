@@ -202,10 +202,10 @@ int dim;
 
 int main(int argc, char* argv[])
 {
-    std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
-    mkl_set_dynamic(0);
-    mkl_set_num_threads(30);
-    std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+    // std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
+    // mkl_set_dynamic(0);
+    // mkl_set_num_threads(30);
+    // std::cout << mkl_get_max_threads() << std::endl; // in VS2022, check properties->intel library for OneAPI->Use oneMKL (Parallel)
 
     int result = 0;
     #if defined(_WIN32) || defined(_WIN64)

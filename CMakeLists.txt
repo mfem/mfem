@@ -17,7 +17,7 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
-# Require C++11 and disable compiler-specific extensions
+# Require C++17 and disable compiler-specific extensions
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -30,7 +30,7 @@ if (USER_CONFIG_LOADED)
   set(USER_CONFIG_LOADED "LOADED")
 endif()
 message(STATUS "Loading USER_CONFIG = ${USER_CONFIG} (${USER_CONFIG_LOADED})")
-include("${CMAKE_CURRENT_SOURCE_DIR}/config/defaults.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/config/defaults-wsl.cmake")
 
 # Allow overwriting of the compiler by setting CXX/MPICXX on the command line or
 # in user.cmake.

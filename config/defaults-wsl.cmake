@@ -59,7 +59,7 @@ option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
 option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
 option(MFEM_USE_ALGOIM "Enable Algoim support" OFF)
-option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" ON)
+option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
 option(MFEM_USE_MKL_PARDISO "Enable MKL Pardiso" ON)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
@@ -227,11 +227,11 @@ set(HIOP_DIR "${MFEM_DIR}/../hiop/install" CACHE STRING
 set(HIOP_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
     "Packages that HiOp depends on.")
 
-set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
+set(MKL_CPARDISO_DIR "/opt/intel/oneapi/mkl/latest/lib/intel64" CACHE STRING "MKL installation path.")
 set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")
-set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
+set(MKL_LIBRARY_DIR "/opt/intel/oneapi/mkl/latest/lib/intel64" CACHE STRING "Custom library subdirectory")
 
-set(MKL_PARDISO_DIR "C:/Program Files (x86)/Intel/oneAPI/mkl/latest" CACHE STRING "MKL installation path.")
+set(MKL_PARDISO_DIR "/opt/intel/oneapi/mkl/latest/lib/intel64" CACHE STRING "MKL installation path.")
 
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
