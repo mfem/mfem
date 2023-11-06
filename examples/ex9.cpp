@@ -450,7 +450,8 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_), K(K_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
