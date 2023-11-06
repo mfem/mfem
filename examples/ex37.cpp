@@ -67,9 +67,9 @@ using namespace mfem;
  * @param target_volume θ vol(Ω)
  * @param tol Newton iteration tolerance
  * @param max_its Newton maximum iteration number
- * @return double Final volume, ∫_Ω sigmoid(ψ)
+ * @return fptype Final volume, ∫_Ω sigmoid(ψ)
  */
-double proj(GridFunction &psi, double target_volume, double tol=1e-12,
+fptype proj(GridFunction &psi, fptype target_volume, fptype tol=1e-12,
             int max_its=10)
 {
    MappedGridFunctionCoefficient sigmoid_psi(&psi, sigmoid);
@@ -84,12 +84,12 @@ double proj(GridFunction &psi, double target_volume, double tol=1e-12,
    for (int k=0; k<max_its; k++) // Newton iteration
    {
       int_sigmoid_psi.Assemble(); // Recompute f(c) with updated ψ
-      const double f = int_sigmoid_psi.Sum() - target_volume;
+      const fptype f = int_sigmoid_psi.Sum() - target_volume;
 
       int_der_sigmoid_psi.Assemble(); // Recompute df(c) with updated ψ
-      const double df = int_der_sigmoid_psi.Sum();
+      const fptype df = int_der_sigmoid_psi.Sum();
 
-      const double dc = -f/df;
+      const fptype dc = -f/df;
       psi += dc;
       if (abs(dc) < tol) { done = true; break; }
    }
@@ -179,15 +179,15 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int ref_levels = 5;
    int order = 2;
-   double alpha = 1.0;
-   double epsilon = 0.01;
-   double vol_fraction = 0.5;
+   fptype alpha = 1.0;
+   fptype epsilon = 0.01;
+   fptype vol_fraction = 0.5;
    int max_it = 1e3;
-   double itol = 1e-1;
-   double ntol = 1e-4;
-   double rho_min = 1e-6;
-   double lambda = 1.0;
-   double mu = 1.0;
+   fptype itol = 1e-1;
+   fptype ntol = 1e-4;
+   fptype rho_min = 1e-6;
+   fptype lambda = 1.0;
+   fptype mu = 1.0;
    bool glvis_visualization = true;
    bool paraview_output = false;
 
@@ -239,8 +239,8 @@ int main(int argc, char *argv[])
       Array<int> vertices;
       be->GetVertices(vertices);
 
-      double * coords1 = mesh.GetVertex(vertices[0]);
-      double * coords2 = mesh.GetVertex(vertices[1]);
+      fptype * coords1 = mesh.GetVertex(vertices[0]);
+      fptype * coords2 = mesh.GetVertex(vertices[1]);
 
       Vector center(2);
       center(0) = 0.5*(coords1[0] + coords2[0]);
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
    ElasticitySolver->SetupFEM();
    Vector center(2); center(0) = 2.9; center(1) = 0.5;
    Vector force(2); force(0) = 0.0; force(1) = -1.0;
-   double r = 0.05;
+   fptype r = 0.05;
    VolumeForceCoefficient vforce_cf(r,center,force);
    ElasticitySolver->SetRHSCoefficient(&vforce_cf);
    ElasticitySolver->SetEssentialBoundary(ess_bdr);
@@ -353,8 +353,8 @@ int main(int argc, char *argv[])
    LinearForm vol_form(&control_fes);
    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
    vol_form.Assemble();
-   double domain_volume = vol_form(onegf);
-   const double target_volume = domain_volume * vol_fraction;
+   fptype domain_volume = vol_form(onegf);
+   const fptype target_volume = domain_volume * vol_fraction;
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
    // 11. Iterate:
    for (int k = 1; k <= max_it; k++)
    {
-      if (k > 1) { alpha *= ((double) k) / ((double) k-1); }
+      if (k > 1) { alpha *= ((fptype) k) / ((fptype) k-1); }
 
       mfem::out << "\nStep = " << k << std::endl;
 
@@ -422,14 +422,14 @@ int main(int argc, char *argv[])
 
       // Step 5 - Update design variable ψ ← proj(ψ - αG)
       psi.Add(-alpha, grad);
-      const double material_volume = proj(psi, target_volume);
+      const fptype material_volume = proj(psi, target_volume);
 
       // Compute ||ρ - ρ_old|| in control fes.
-      double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
-      double norm_reduced_gradient = norm_increment/alpha;
+      fptype norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
+      fptype norm_reduced_gradient = norm_increment/alpha;
       psi_old = psi;
 
-      double compliance = (*(ElasticitySolver->GetLinearForm()))(u);
+      fptype compliance = (*(ElasticitySolver->GetLinearForm()))(u);
       mfem::out << "norm of the reduced gradient = " << norm_reduced_gradient <<
                 std::endl;
       mfem::out << "norm of the increment = " << norm_increment << endl;
@@ -449,7 +449,7 @@ int main(int argc, char *argv[])
       {
          rho_gf.ProjectCoefficient(rho);
          paraview_dc.SetCycle(k);
-         paraview_dc.SetTime((double)k);
+         paraview_dc.SetTime((fptype)k);
          paraview_dc.Save();
       }
 

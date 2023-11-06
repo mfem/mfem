@@ -52,13 +52,13 @@ private:
    int dim;
 
    // Length of the PML Region in each direction
-   Array2D<double> length;
+   Array2D<fptype> length;
 
    // Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
+   Array2D<fptype> comp_dom_bdr;
 
    // Domain Boundary
-   Array2D<double> dom_bdr;
+   Array2D<fptype> dom_bdr;
 
    // Integer Array identifying elements in the PML
    // 0: in the PML, 1: not in the PML
@@ -69,13 +69,13 @@ private:
 
 public:
    // Constructor
-   PML(Mesh *mesh_,Array2D<double> length_);
+   PML(Mesh *mesh_,Array2D<fptype> length_);
 
    // Return Computational Domain Boundary
-   Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
+   Array2D<fptype> GetCompDomainBdr() {return comp_dom_bdr;}
 
    // Return Domain Boundary
-   Array2D<double> GetDomainBdr() {return dom_bdr;}
+   Array2D<fptype> GetDomainBdr() {return dom_bdr;}
 
    // Return Markers list for elements
    Array<int> * GetMarkedPMLElements() {return &elems;}
@@ -84,7 +84,7 @@ public:
    void SetAttributes(ParMesh *pmesh);
 
    // PML complex stretching function
-   void StretchFunction(const Vector &x, vector<complex<double>> &dxs);
+   void StretchFunction(const Vector &x, vector<complex<fptype>> &dxs);
 };
 
 // Class for returning the PML coefficients of the bilinear form
@@ -105,7 +105,7 @@ public:
    virtual void Eval(Vector &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      double x[3];
+      fptype x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       K.SetSize(vdim);
@@ -113,7 +113,7 @@ public:
    }
 };
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &Eval);
+void maxwell_solution(const Vector &x, vector<complex<fptype>> &Eval);
 
 void E_bdr_data_Re(const Vector &x, Vector &E);
 void E_bdr_data_Im(const Vector &x, Vector &E);
@@ -133,12 +133,12 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D);
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D);
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D);
 
-Array2D<double> comp_domain_bdr;
-Array2D<double> domain_bdr;
+Array2D<fptype> comp_domain_bdr;
+Array2D<fptype> domain_bdr;
 
-double mu = 1.0;
-double epsilon = 1.0;
-double omega;
+fptype mu = 1.0;
+fptype epsilon = 1.0;
+fptype omega;
 int dim;
 bool exact_known = false;
 
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    int ref_levels = 1;
    int par_ref_levels = 2;
    int iprob = 4;
-   double freq = 5.0;
+   fptype freq = 5.0;
    bool herm_conv = true;
    bool slu_solver  = false;
    bool mumps_solver = false;
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
    omega = 2.0 * M_PI * freq;
 
    // Setup PML length
-   Array2D<double> length(dim, 2); length = 0.0;
+   Array2D<fptype> length(dim, 2); length = 0.0;
 
    // 5. Setup the Cartesian PML region.
    switch (prob)
@@ -574,14 +574,14 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
+      fptype L2Error_Re = x.real().ComputeL2Error(E_ex_Re, irs,
                                                   pml->GetMarkedPMLElements());
-      double L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
+      fptype L2Error_Im = x.imag().ComputeL2Error(E_ex_Im, irs,
                                                   pml->GetMarkedPMLElements());
 
       ParComplexGridFunction x_gf0(fespace);
       x_gf0 = 0.0;
-      double norm_E_Re, norm_E_Im;
+      fptype norm_E_Re, norm_E_Im;
       norm_E_Re = x_gf0.real().ComputeL2Error(E_ex_Re, irs,
                                               pml->GetMarkedPMLElements());
       norm_E_Im = x_gf0.imag().ComputeL2Error(E_ex_Im, irs,
@@ -669,7 +669,7 @@ int main(int argc, char *argv[])
          int i = 0;
          while (sol_sock)
          {
-            double t = (double)(i % num_frames) / num_frames;
+            fptype t = (fptype)(i % num_frames) / num_frames;
             ostringstream oss;
             oss << "Harmonic Solution (t = " << t << " T)";
 
@@ -693,20 +693,20 @@ int main(int argc, char *argv[])
 void source(const Vector &x, Vector &f)
 {
    Vector center(dim);
-   double r = 0.0;
+   fptype r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
       center(i) = 0.5 * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
       r += pow(x[i] - center[i], 2.);
    }
-   double n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
-   double coeff = pow(n, 2) / M_PI;
-   double alpha = -pow(n, 2) * r;
+   fptype n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
+   fptype coeff = pow(n, 2) / M_PI;
+   fptype alpha = -pow(n, 2) * r;
    f = 0.0;
    f[0] = coeff * exp(alpha);
 }
 
-void maxwell_solution(const Vector &x, vector<complex<double>> &E)
+void maxwell_solution(const Vector &x, vector<complex<fptype>> &E)
 {
    // Initialize
    for (int i = 0; i < dim; ++i)
@@ -714,8 +714,8 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
       E[i] = 0.0;
    }
 
-   complex<double> zi = complex<double>(0., 1.);
-   double k = omega * sqrt(epsilon * mu);
+   complex<fptype> zi = complex<fptype>(0., 1.);
+   fptype k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
       case disc:
@@ -730,13 +730,13 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 
          if (dim == 2)
          {
-            double x0 = x(0) + shift(0);
-            double x1 = x(1) + shift(1);
-            double r = sqrt(x0 * x0 + x1 * x1);
-            double beta = k * r;
+            fptype x0 = x(0) + shift(0);
+            fptype x1 = x(1) + shift(1);
+            fptype r = sqrt(x0 * x0 + x1 * x1);
+            fptype beta = k * r;
 
             // Bessel functions
-            complex<double> Ho, Ho_r, Ho_rr;
+            complex<fptype> Ho, Ho_r, Ho_rr;
             Ho = jn(0, beta) + zi * yn(0, beta);
             Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
             Ho_rr = -k * k * (1.0 / beta *
@@ -744,12 +744,12 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
                               (jn(2, beta) + zi * yn(2, beta)));
 
             // First derivatives
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_xy = -(r_x / r) * r_y;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            fptype r_x = x0 / r;
+            fptype r_y = x1 / r;
+            fptype r_xy = -(r_x / r) * r_y;
+            fptype r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
-            complex<double> val, val_xx, val_xy;
+            complex<fptype> val, val_xx, val_xy;
             val = 0.25 * zi * Ho;
             val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
             val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
@@ -758,30 +758,30 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          }
          else if (dim == 3)
          {
-            double x0 = x(0) + shift(0);
-            double x1 = x(1) + shift(1);
-            double x2 = x(2) + shift(2);
-            double r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+            fptype x0 = x(0) + shift(0);
+            fptype x1 = x(1) + shift(1);
+            fptype x2 = x(2) + shift(2);
+            fptype r = sqrt(x0 * x0 + x1 * x1 + x2 * x2);
 
-            double r_x = x0 / r;
-            double r_y = x1 / r;
-            double r_z = x2 / r;
-            double r_xx = (1.0 / r) * (1.0 - r_x * r_x);
-            double r_yx = -(r_y / r) * r_x;
-            double r_zx = -(r_z / r) * r_x;
+            fptype r_x = x0 / r;
+            fptype r_y = x1 / r;
+            fptype r_z = x2 / r;
+            fptype r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            fptype r_yx = -(r_y / r) * r_x;
+            fptype r_zx = -(r_z / r) * r_x;
 
-            complex<double> val, val_r, val_rr;
+            complex<fptype> val, val_r, val_rr;
             val = exp(zi * k * r) / r;
             val_r = val / r * (zi * k * r - 1.0);
             val_rr = val / (r * r) * (-k * k * r * r
                                       - 2.0 * zi * k * r + 2.0);
 
-            complex<double> val_xx, val_yx, val_zx;
+            complex<fptype> val_xx, val_yx, val_zx;
             val_xx = val_rr * r_x * r_x + val_r * r_xx;
             val_yx = val_rr * r_x * r_y + val_r * r_yx;
             val_zx = val_rr * r_x * r_z + val_r * r_zx;
 
-            complex<double> alpha = zi * k / 4.0 / M_PI / k / k;
+            complex<fptype> alpha = zi * k / 4.0 / M_PI / k / k;
             E[0] = alpha * (k * k * val + val_xx);
             E[1] = alpha * val_yx;
             E[2] = alpha * val_zx;
@@ -793,7 +793,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
          // T_10 mode
          if (dim == 3)
          {
-            double k10 = sqrt(k * k - M_PI * M_PI);
+            fptype k10 = sqrt(k * k - M_PI * M_PI);
             E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
          }
          else if (dim == 2)
@@ -809,7 +809,7 @@ void maxwell_solution(const Vector &x, vector<complex<double>> &E)
 
 void E_exact_Re(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<fptype>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -819,7 +819,7 @@ void E_exact_Re(const Vector &x, Vector &E)
 
 void E_exact_Im(const Vector &x, Vector &E)
 {
-   vector<complex<double>> Eval(E.Size());
+   vector<complex<fptype>> Eval(E.Size());
    maxwell_solution(x, Eval);
    for (int i = 0; i < dim; ++i)
    {
@@ -844,7 +844,7 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<fptype>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -871,7 +871,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
    if (!in_pml)
    {
-      vector<complex<double>> Eval(E.Size());
+      vector<complex<fptype>> Eval(E.Size());
       maxwell_solution(x, Eval);
       for (int i = 0; i < dim; ++i)
       {
@@ -882,8 +882,8 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
 
 void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -899,8 +899,8 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 
 void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -916,8 +916,8 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 
 void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -933,8 +933,8 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det(1.0, 0.0);
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -958,8 +958,8 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -982,8 +982,8 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 
 void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
 {
-   vector<complex<double>> dxs(dim);
-   complex<double> det = 1.0;
+   vector<complex<fptype>> dxs(dim);
+   complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i)
@@ -1004,7 +1004,7 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
    }
 }
 
-PML::PML(Mesh *mesh_, Array2D<double> length_)
+PML::PML(Mesh *mesh_, Array2D<fptype> length_)
    : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
@@ -1056,7 +1056,7 @@ void PML::SetAttributes(ParMesh *pmesh)
       for (int iv = 0; iv < nrvert; ++iv)
       {
          int vert_idx = vertices[iv];
-         double *coords = pmesh->GetVertex(vert_idx);
+         fptype *coords = pmesh->GetVertex(vert_idx);
          for (int comp = 0; comp < dim; ++comp)
          {
             if (coords[comp] > comp_dom_bdr(comp, 1) ||
@@ -1077,14 +1077,14 @@ void PML::SetAttributes(ParMesh *pmesh)
 }
 
 void PML::StretchFunction(const Vector &x,
-                          vector<complex<double>> &dxs)
+                          vector<complex<fptype>> &dxs)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<fptype> zi = complex<fptype>(0., 1.);
 
-   double n = 2.0;
-   double c = 5.0;
-   double coeff;
-   double k = omega * sqrt(epsilon * mu);
+   fptype n = 2.0;
+   fptype c = 5.0;
+   fptype coeff;
+   fptype k = omega * sqrt(epsilon * mu);
 
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)

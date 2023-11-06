@@ -47,7 +47,7 @@ protected:
 
    SparseMatrix Mmat, Kmat, Kmat0;
    SparseMatrix *T; // T = M + dt K
-   double current_dt;
+   fptype current_dt;
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -59,7 +59,7 @@ protected:
    mutable Vector z; // auxiliary vector
 
 public:
-   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
+   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr, fptype speed);
 
    using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
@@ -69,7 +69,7 @@ public:
        d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t),
        for the unknown d2udt2. */
    using SecondOrderTimeDependentOperator::ImplicitSolve;
-   virtual void ImplicitSolve(const double fac0, const double fac1,
+   virtual void ImplicitSolve(const fptype fac0, const fptype fac1,
                               const Vector &u, const Vector &dudt, Vector &d2udt2);
 
    ///
@@ -80,12 +80,11 @@ public:
 
 
 WaveOperator::WaveOperator(FiniteElementSpace &f,
-                           Array<int> &ess_bdr, double speed)
-   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
-     K(NULL),
-     T(NULL), current_dt(0.0), z(height)
+                           Array<int> &ess_bdr, fptype speed)
+   : SecondOrderTimeDependentOperator(f.GetTrueVSize(), (fptype) 0.0),
+     fespace(f), M(NULL), K(NULL), T(NULL), current_dt(0.0), z(height)
 {
-   const double rel_tol = 1e-8;
+   const fptype rel_tol = 1e-8;
 
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -133,7 +132,7 @@ void WaveOperator::Mult(const Vector &u, const Vector &du_dt,
    M_solver.Mult(z, d2udt2);
 }
 
-void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
+void WaveOperator::ImplicitSolve(const fptype fac0, const fptype fac1,
                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation:
@@ -168,12 +167,12 @@ WaveOperator::~WaveOperator()
    delete c2;
 }
 
-double InitialSolution(const Vector &x)
+fptype InitialSolution(const Vector &x)
 {
    return exp(-x.Norml2()*x.Norml2()*30);
 }
 
-double InitialRate(const Vector &x)
+fptype InitialRate(const Vector &x)
 {
    return 0.0;
 }
@@ -187,9 +186,9 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 2;
    int ode_solver_type = 10;
-   double t_final = 0.5;
-   double dt = 1.0e-2;
-   double speed = 1.0;
+   fptype t_final = 0.5;
+   fptype dt = 1.0e-2;
+   fptype speed = 1.0;
    bool visualization = true;
    bool visit = true;
    bool dirichlet = true;
@@ -367,7 +366,7 @@ int main(int argc, char *argv[])
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    ode_solver->Init(oper);
-   double t = 0.0;
+   fptype t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
