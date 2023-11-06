@@ -394,9 +394,10 @@ int main(int argc, char *argv[])
    LinearForm gradH1Form(&control_fes);
    gradH1Form.AddDomainIntegrator(new DomainLFIntegrator(gradH1_cf));
 
-   for (int k = 1; k <= max_it; k++)
+   int k;
+   for (k = 1; k <= max_it; k++)
    {
-      mfem::out << "\nStep = " << k << std::endl;
+      // mfem::out << "\nStep = " << k << std::endl;
 
 
       BilinearForm elasticityForm(&state_fes);
@@ -463,9 +464,9 @@ int main(int argc, char *argv[])
       EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
       filterSolver.Solve(&frho);
 
-      mfem::out << "volume fraction = " <<  filterRHS.Sum() / domain_volume <<
-                std::endl;
-      mfem::out << "compliance = " <<  compliance << std::endl;
+      // mfem::out << "volume fraction = " <<  filterRHS.Sum() / domain_volume <<
+      //  std::endl;
+      mfem::out <<  compliance << ", ";
 
       // Compute ||ρ - ρ_old|| in control fes.
       // double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
@@ -473,7 +474,7 @@ int main(int argc, char *argv[])
       rho_old -= rho;
       double norm_increment = rho_old.ComputeL1Error(zero);
 
-      mfem::out << "norm of the increment = " << norm_increment << endl;
+      mfem::out << norm_increment << endl;
 
       if (glvis_visualization)
       {
@@ -489,8 +490,8 @@ int main(int argc, char *argv[])
          sol_ofs << rho;
 
          ofstream sol_ofs2(solfile2.str().c_str());
-         sol_ofs.precision(8);
-         sol_ofs << frho;
+         sol_ofs2.precision(8);
+         sol_ofs2 << frho;
       }
 
       if (norm_increment < itol)
@@ -498,6 +499,7 @@ int main(int argc, char *argv[])
          break;
       }
    }
+   out << "Total number of iteration = " << k << std::endl;
 
    return 0;
 }
