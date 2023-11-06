@@ -482,18 +482,18 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
    }
 
    os << PIECEWISE << " " << inum << " " << dnum << " " << n << " " << np << " "
-      << (int) reverse;
+      << (int) reverse << "\n";
 
    for (auto n : npartition)
    {
-      os << " " << n;
+      os << n << " ";
    }
 
    // Write integer parameters for all pieces.
    Array<int> ipar;
    for (auto p : pieces)
    {
-      os << " " << p->SpacingType() << " " << p->NumIntParameters()
+      os << "\n" << p->SpacingType() << " " << p->NumIntParameters()
          << " " << p->NumDoubleParameters();
 
       p->GetIntParameters(ipar);
@@ -504,9 +504,10 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
       }
    }
 
+   os << "\n";
    for (auto p : partition)
    {
-      os << " " << p;
+      os << p << " ";
    }
 
    // Write double parameters for all pieces.
@@ -515,9 +516,13 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
    {
       p->GetDoubleParameters(dpar);
 
-      for (auto dp : dpar)
+      if (dpar.Size() > 0)
       {
-         os << " " << dp;
+         os << "\n";
+         for (auto dp : dpar)
+         {
+            os << dp << " ";
+         }
       }
    }
 

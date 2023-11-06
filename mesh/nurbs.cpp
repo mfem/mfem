@@ -31,15 +31,16 @@ KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
 
-   // A negative number of control points in the mesh file denotes that a
-   // spacing formula is specified. The negative number is used in the mesh file
-   // but nowhere in the code, so the absolute value is taken here.
-   bool spacingFormula = (NumOfControlPoints < 0);
    NumOfControlPoints = abs(NumOfControlPoints);
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
 
-   if (spacingFormula)
+   // If the next word in input is "spacing", then a spacing formula is read.
+   const int pos = input.tellg();
+   string nextWord;
+   input >> nextWord;
+
+   if (nextWord == "spacing")
    {
       int spacingType, numIntParam, numDoubleParam;
       input >> spacingType >> numIntParam >> numDoubleParam;
@@ -61,6 +62,10 @@ KnotVector::KnotVector(istream &input)
       }
 
       spacing.reset(GetSpacingFunction((SPACING_TYPE) spacingType, ipar, dpar));
+   }
+   else
+   {
+      input.seekg(pos);
    }
 }
 
@@ -281,13 +286,13 @@ void KnotVector::Flip()
 
 void KnotVector::Print(std::ostream &os) const
 {
-   const int outNCP = spacing ? -NumOfControlPoints : NumOfControlPoints;
-   os << Order << ' ' << outNCP << ' ';
+   os << Order << ' ' << NumOfControlPoints << ' ';
 
    knot.Print(os, knot.Size());
 
    if (spacing)
    {
+      os << "spacing\n";
       spacing->Print(os);
    }
 }
