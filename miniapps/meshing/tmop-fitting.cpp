@@ -902,7 +902,8 @@ int main (int argc, char *argv[])
           surf_fit_bg_fes = surf_fit_bg_gf0->ParFESpace();
           surf_fit_bg_fec = const_cast<FiniteElementCollection *>
                             (surf_fit_bg_fes->FEColl());
-           if (myid == 0) { std::cout << "Setup PAR user-specified background ls - DONE\n"; }
+         if (myid == 0) { std::cout << "Setup PAR user-specified background ls - DONE\n"; }
+         delete surf_fit_bg_gf0_ser;
       }
       else
       {
@@ -2349,8 +2350,11 @@ int main (int argc, char *argv[])
    delete surf_fit_bg_grad;
    delete surf_fit_bg_grad_fes;
    delete surf_fit_bg_gf0;
-   delete surf_fit_bg_fes;
-   delete surf_fit_bg_fec;
+   if (!bg_user_specified_ls)
+   {
+       delete surf_fit_bg_fes;
+       delete surf_fit_bg_fec;
+   }
    delete target_c;
    delete metric;
    delete pfespace;
