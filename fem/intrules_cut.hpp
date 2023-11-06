@@ -29,18 +29,19 @@ namespace mfem
 class CutIntegrationRules
 {
 protected:
-   /// @brief Order of the IntegrationRule
+   /// Order of the IntegrationRule.
    int Order;
-   /// @brief Level-set defining the implicit interface
+   /// The zero level set of this Coefficient defines the implicit interface.
    Coefficient* LvlSet;
-   /// @brief  Polynomial degree for approximation of level-set function
+   /// Polynomial degree for projecting the level-set Coefficient
+   /// to a GridFunction. Used to compute gradients and normals.
    int lsOrder;
 
    /// @brief Default constructor
    CutIntegrationRules()
       : Order(-1), LvlSet(NULL), lsOrder(0) { }
 
-   /// @brief Constructor to set ab the CutIntegrationRules
+   /// @brief Constructor to set up the CutIntegrationRules
    CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
       : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
 
@@ -50,13 +51,15 @@ protected:
 
 public:
    /**
-    @brief Get Surface IntegrationRule
+    @brief Construct a surface IntegrationRule.
 
-    Construct IntegrationRule to integrate on the implicit interface.
+    Construct IntegrationRule to integrate on the implicit interface given by
+    the zero level set of @a LvlSet, for the element given by @a Tr.
 
     @param [in] Order Order of the IntegrationRule
     @param [in] LvlSet level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] lsO Polynomial degree for projecting the level-set Coefficient
+                    to a GridFunction. Used to compute gradients and normals.
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
    */
@@ -64,8 +67,7 @@ public:
                                           Coefficient& LvlSet,
                                           int lsO,
                                           ElementTransformation& Tr,
-                                          IntegrationRule& result)
-      = 0;
+                                          IntegrationRule& result) = 0;
 
    /**
     @brief Get Surface IntegrationRule
@@ -79,17 +81,19 @@ public:
     set up. It will use the already specified orders and level set Coefficient.
    */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
-                                          IntegrationRule& result)
-      = 0;
+                                          IntegrationRule& result) = 0;
 
    /**
-    @brief Get Volume IntegrationRule
+    @brief Construct a volume IntegrationRule.
 
-    Construct IntegrationRule to integrate within the subdomain.
+    Construct IntegrationRule to integrate in the subdomain given by the
+    positive values of the level set  function @a LvlSet, for the element
+    given by @a Tr.
 
     @param [in] Order Order of the IntegrationRule
     @param [in] LvlSet level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] lsO polynomial degree for projecting the level-set Coefficient
+                    to a GridFunction, which is used to compute gradients.
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [out] result IntegrationRule on the interface
     @param [in] sir corresponding IntegrationRule on surface
@@ -127,7 +131,8 @@ public:
 
     @param [in] Order Order of the IntegrationRule
     @param [in] LvlSet level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
+    @param [in] lsO polynomial degree for projecting the level-set Coefficient
+                    to a GridFunction, which is used to compute gradients.
     @param [in] Tr ElemenTransformation for element the IntegrationRule is on
     @param [in] sir IntegrationRule defining the IntegrationPoints
     @return Vector containing the transformation weights
@@ -136,8 +141,7 @@ public:
                                     Coefficient& LvlSet,
                                     int lsO,
                                     ElementTransformation& Tr,
-                                    const IntegrationRule* sir)
-      = 0;
+                                    const IntegrationRule* sir) = 0;
 
    /**
     @brief Compute transformation quadrature weights for interface integration.
@@ -153,8 +157,7 @@ public:
     set up. It will use the already specified orders and level set Coefficient.
    */
    virtual Vector GetSurfaceWeights(ElementTransformation& Tr,
-                                    const IntegrationRule* sir)
-      = 0;
+                                    const IntegrationRule* sir) = 0;
 
    /// @brief Destructor of CutIntegrationRules
    virtual ~CutIntegrationRules() {}
@@ -325,11 +328,11 @@ protected:
 
    /// @brief Monomial basis on the element [-1,1]^2
    void Basis2D(const IntegrationPoint& ip, Vector& shape);
-   /// @brief Antiderivatives of the ,onomial basis on the element [-1,1]^2
+   /// @brief Antiderivatives of the monomial basis on the element [-1,1]^2
    void BasisAD2D(const IntegrationPoint& ip, DenseMatrix& shape);
    /// @brief Monomial basis on the element [-1,1]^3
    void Basis3D(const IntegrationPoint& ip, Vector& shape);
-   /// @brief Antiderivatives of the ,onomial basis on the element [-1,1^3
+   /// @brief Antiderivatives of the monomial basis on the element [-1,1]^3
    void BasisAD3D(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
