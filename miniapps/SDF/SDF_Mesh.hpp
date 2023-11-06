@@ -16,430 +16,430 @@
 
 namespace mfem
 {
-    namespace sdf
-    {
-        class Cell;
+namespace sdf
+{
+class Cell;
 
-        class Triangle;
-
-// -----------------------------------------------------------------------------
-        /**
-         * The sdf vertex is a wrapper around an MTK vertex.
-         * It contains a pointer to the MTK vertex and
-         * has the ability to flag nodes
-         */
-        class Vertex
-        {
-            //! index
-            const int      mIndex;
-
-            //! flag telling if vertex is inside
-            bool                mIsInside = false;
-
-            //! flag telling if an SDF has been calculated for this vertex
-            bool                mHasSDF = false;
-
-            bool                mIsCandidate = false;
-
-            bool                mFlag = true;
-
-            // current node coords
-            mfem::Vector   mNodeCoords;
-            mfem::Vector   mOriginalNodeCoords;
-
-            double                mSDF;
-            Triangle *          mClosestTriangle = nullptr;
-
-            unsigned int                mCellCounter = 0;
-
-            std::vector< Cell * > mCells;
-
-            std::vector< Vertex * > mNeighbors;
-        public:
-
-            /**
-             * constructor
-             */
-            Vertex( const int aIndex,
-                    double * aNodeCoordss );
-// -----------------------------------------------------------------------------
-
-            /**
-             * destructor
-             */
-            ~Vertex()
-            {
-                mCells.clear();
-                mNeighbors.clear();
-            };
+class Triangle;
 
 // -----------------------------------------------------------------------------
+/**
+ * The sdf vertex is a wrapper around an MTK vertex.
+ * It contains a pointer to the MTK vertex and
+ * has the ability to flag nodes
+ */
+class Vertex
+{
+   //! index
+   const int      mIndex;
 
-            const mfem::Vector & get_coords() const
-            {
-                return mNodeCoords;
-            }
+   //! flag telling if vertex is inside
+   bool                mIsInside = false;
 
-// -----------------------------------------------------------------------------
+   //! flag telling if an SDF has been calculated for this vertex
+   bool                mHasSDF = false;
 
-            void set_inside_flag()
-            {
-                mIsInside = true;
-            }
+   bool                mIsCandidate = false;
 
-            void unset_inside_flag()
-            {
-                mIsInside = false;
-            }
+   bool                mFlag = true;
 
-            bool is_inside() const
-            {
-                return mIsInside;
-            }
+   // current node coords
+   mfem::Vector   mNodeCoords;
+   mfem::Vector   mOriginalNodeCoords;
 
-            void set_candidate_flag()
-            {
-                mIsCandidate = true;
-            }
+   double                mSDF;
+   Triangle *          mClosestTriangle = nullptr;
 
-            void unset_candidate_flag()
-            {
-                mIsCandidate = false;
-            }
+   unsigned int                mCellCounter = 0;
 
-            bool is_candidate() const
-            {
-                return mIsCandidate;
-            }
+   std::vector< Cell * > mCells;
 
-            void set_sdf_flag()
-            {
-                mHasSDF = true;
-            }
+   std::vector< Vertex * > mNeighbors;
+public:
 
-            void unset_sdf_flag()
-            {
-                mHasSDF = false;
-            }
+   /**
+    * constructor
+    */
+   Vertex( const int aIndex,
+           double * aNodeCoordss );
+   // -----------------------------------------------------------------------------
 
-            bool has_sdf() const
-            {
-                return mHasSDF;
-            }
+   /**
+    * destructor
+    */
+   ~Vertex()
+   {
+      mCells.clear();
+      mNeighbors.clear();
+   };
 
-            int get_index() const
-            {
-                return mIndex;
-            }
+   // -----------------------------------------------------------------------------
 
-            void flag()
-            {
-                mFlag = true;
-            }
+   const mfem::Vector & get_coords() const
+   {
+      return mNodeCoords;
+   }
 
-            void unflag()
-            {
-                mFlag = false;
-            }
+   // -----------------------------------------------------------------------------
 
-            bool is_flagged() const
-            {
-                return mFlag;
-            }
+   void set_inside_flag()
+   {
+      mIsInside = true;
+   }
 
-            void reset()
-            {
-                mHasSDF = false;
-                mIsCandidate = false;
-                mFlag = true;
-                mSDF =  std::numeric_limits<double>::max();
-                mClosestTriangle = nullptr;
-                mIsInside = false;
-            }
+   void unset_inside_flag()
+   {
+      mIsInside = false;
+   }
 
-            void update_udf( Triangle *  aTriangle );
+   bool is_inside() const
+   {
+      return mIsInside;
+   }
 
-            void increment_cell_counter()
-            {
-                ++mCellCounter;
-            }
+   void set_candidate_flag()
+   {
+      mIsCandidate = true;
+   }
 
-            void init_cell_container()
-            {
-                mCells.resize( mCellCounter, nullptr );
-                mCellCounter = 0;
-            }
+   void unset_candidate_flag()
+   {
+      mIsCandidate = false;
+   }
 
-            void insert_cell( Cell * aCell );
+   bool is_candidate() const
+   {
+      return mIsCandidate;
+   }
 
-            unsigned int get_number_of_cells() const
-            {
-                return mCellCounter;
-            }
+   void set_sdf_flag()
+   {
+      mHasSDF = true;
+   }
 
-            Cell * get_cell( const unsigned int aIndex )
-            {
-                return mCells[ aIndex ];
-            }
+   void unset_sdf_flag()
+   {
+      mHasSDF = false;
+   }
 
-            void init_neighbor_container( const unsigned int aNumberOfNeighbors )
-            {
-                mNeighbors.resize( aNumberOfNeighbors, nullptr );
-            }
+   bool has_sdf() const
+   {
+      return mHasSDF;
+   }
 
-            void insert_neighbor( Vertex * aNeighbor, const unsigned int aNeighborIndex )
-            {
-                mNeighbors[ aNeighborIndex ] = aNeighbor;
-            }
+   int get_index() const
+   {
+      return mIndex;
+   }
 
-            unsigned int get_number_of_neighbors() const
-            {
-                return mNeighbors.size();
-            }
+   void flag()
+   {
+      mFlag = true;
+   }
 
-            Vertex * get_neighbor( const unsigned int aNeighborIndex )
-            {
-                return mNeighbors[ aNeighborIndex ];
-            }
+   void unflag()
+   {
+      mFlag = false;
+   }
 
-            Triangle * get_closest_triangle()
-            {
-                return mClosestTriangle;
-            }
+   bool is_flagged() const
+   {
+      return mFlag;
+   }
 
-            unsigned int sweep();
+   void reset()
+   {
+      mHasSDF = false;
+      mIsCandidate = false;
+      mFlag = true;
+      mSDF =  std::numeric_limits<double>::max();
+      mClosestTriangle = nullptr;
+      mIsInside = false;
+   }
 
-            double get_sdf() const
-            {
-                if( mIsInside )
-                {
-                    return -mSDF;
-                }
-                else
-                {
-                    return mSDF;
-                }
-            }
+   void update_udf( Triangle *  aTriangle );
 
-            void rotate_coords( const mfem::DenseMatrix & aRotationMatrix );
+   void increment_cell_counter()
+   {
+      ++mCellCounter;
+   }
 
-            void reset_coords();
+   void init_cell_container()
+   {
+      mCells.resize( mCellCounter, nullptr );
+      mCellCounter = 0;
+   }
 
-        };
-        
-        //--------------------------------------------------------------------------
-        /**
-         * a wrapper for the MTK cell
-         */
-        class Cell
-        {
-            const int mIndex;
-            const int mID;
+   void insert_cell( Cell * aCell );
 
-            // cell with MTK vertices
-            std::vector< Vertex * > mVertices;
+   unsigned int get_number_of_cells() const
+   {
+      return mCellCounter;
+   }
 
-            // flag telling if element is in volume
-            bool mElementIsInVolume = false;
+   Cell * get_cell( const unsigned int aIndex )
+   {
+      return mCells[ aIndex ];
+   }
 
-            // flag telling if element is in surface
-            bool mElementIsOnSurface= false;
+   void init_neighbor_container( const unsigned int aNumberOfNeighbors )
+   {
+      mNeighbors.resize( aNumberOfNeighbors, nullptr );
+   }
 
-            // general purpose flag
-            bool mFlag = false;
+   void insert_neighbor( Vertex * aNeighbor, const unsigned int aNeighborIndex )
+   {
+      mNeighbors[ aNeighborIndex ] = aNeighbor;
+   }
 
-        public:
+   unsigned int get_number_of_neighbors() const
+   {
+      return mNeighbors.size();
+   }
 
-            Cell(   const int aIndex,
-                    const mfem::Array<int> & aIndices,
-                    std::vector< Vertex * >  & aAllVertices );
+   Vertex * get_neighbor( const unsigned int aNeighborIndex )
+   {
+      return mNeighbors[ aNeighborIndex ];
+   }
 
-            unsigned int get_number_of_vertices() const
-            {
-                return mVertices.size();
-            }
+   Triangle * get_closest_triangle()
+   {
+      return mClosestTriangle;
+   }
 
-            Vertex * get_vertex( const unsigned int & aIndex )
-            {
-                return mVertices[ aIndex ];
-            }
+   unsigned int sweep();
 
-            std::vector< Vertex * > & get_vertices()
-            {
-                return mVertices;
-            }
+   double get_sdf() const
+   {
+      if ( mIsInside )
+      {
+         return -mSDF;
+      }
+      else
+      {
+         return mSDF;
+      }
+   }
 
-            void set_volume_flag()
-            {
-                mElementIsInVolume = true;
-            }
+   void rotate_coords( const mfem::DenseMatrix & aRotationMatrix );
 
-            void unset_volume_flag()
-            {
-                mElementIsInVolume = false;
-            }
+   void reset_coords();
 
-            bool is_in_volume() const
-            {
-                return mElementIsInVolume;
-            }
+};
 
-            void set_surface_flag()
-            {
-                mElementIsOnSurface = true;
-            }
+//--------------------------------------------------------------------------
+/**
+ * a wrapper for the MTK cell
+ */
+class Cell
+{
+   const int mIndex;
+   const int mID;
 
-            void unset_surface_flag()
-            {
-                mElementIsOnSurface = false;
-            }
+   // cell with MTK vertices
+   std::vector< Vertex * > mVertices;
 
-            bool is_on_surface() const
-            {
-                return mElementIsOnSurface;
-            }
+   // flag telling if element is in volume
+   bool mElementIsInVolume = false;
 
-            void flag()
-            {
-                mFlag = true;
-            }
+   // flag telling if element is in surface
+   bool mElementIsOnSurface= false;
 
-            void unflag()
-            {
-                mFlag = false;
-            }
+   // general purpose flag
+   bool mFlag = false;
 
-            bool is_flagged() const
-            {
-                return mFlag;
-            }
+public:
 
-            int get_index()
-            {
-                return mIndex;
-            }
+   Cell(   const int aIndex,
+           const mfem::Array<int> & aIndices,
+           std::vector< Vertex * >  & aAllVertices );
 
-            int get_id()
-            {
-                mfem_error("not implemented");
-                return mID;
-            }
+   unsigned int get_number_of_vertices() const
+   {
+      return mVertices.size();
+   }
 
-            double get_buffer_diagonal();
-        };
+   Vertex * get_vertex( const unsigned int & aIndex )
+   {
+      return mVertices[ aIndex ];
+   }
+
+   std::vector< Vertex * > & get_vertices()
+   {
+      return mVertices;
+   }
+
+   void set_volume_flag()
+   {
+      mElementIsInVolume = true;
+   }
+
+   void unset_volume_flag()
+   {
+      mElementIsInVolume = false;
+   }
+
+   bool is_in_volume() const
+   {
+      return mElementIsInVolume;
+   }
+
+   void set_surface_flag()
+   {
+      mElementIsOnSurface = true;
+   }
+
+   void unset_surface_flag()
+   {
+      mElementIsOnSurface = false;
+   }
+
+   bool is_on_surface() const
+   {
+      return mElementIsOnSurface;
+   }
+
+   void flag()
+   {
+      mFlag = true;
+   }
+
+   void unflag()
+   {
+      mFlag = false;
+   }
+
+   bool is_flagged() const
+   {
+      return mFlag;
+   }
+
+   int get_index()
+   {
+      return mIndex;
+   }
+
+   int get_id()
+   {
+      mfem_error("not implemented");
+      return mID;
+   }
+
+   double get_buffer_diagonal();
+};
 
 //------------------------------------------------------------------------------
 
-        /**
-         * Wrapper around an MTK mesh
-         */
-        class Mesh
-        {
-            //! pointer to underlying mesh
-            mfem::ParMesh * mMesh;
+/**
+ * Wrapper around an MTK mesh
+ */
+class Mesh
+{
+   //! pointer to underlying mesh
+   mfem::ParMesh * mMesh;
 
-            //! vector with SDF Vertices
-            std::vector< Vertex * > mVertices;
+   //! vector with SDF Vertices
+   std::vector< Vertex * > mVertices;
 
-            //! vector with SDF Cells
-            std::vector< Cell * > mCells;
+   //! vector with SDF Cells
+   std::vector< Cell * > mCells;
 
-            bool mVerbose;
+   bool mVerbose;
 
-            mfem::Vector mMinCoord;
-            mfem::Vector mMaxCoord;
+   mfem::Vector mMinCoord;
+   mfem::Vector mMaxCoord;
 
-            mfem::Vector mNodeIDs;
+   mfem::Vector mNodeIDs;
 
-            // interpolation order
-            int mOrder;
+   // interpolation order
+   int mOrder;
 
-        public:
+public:
 
-            /**
-             * constructor
-             */
-            Mesh( std::shared_ptr< mfem::ParMesh > aMesh, bool aVerbose = false );
+   /**
+    * constructor
+    */
+   Mesh( std::shared_ptr< mfem::ParMesh > aMesh, bool aVerbose = false );
 
-            Mesh( mfem::ParMesh * aMesh , bool aVerbose = false );
+   Mesh( mfem::ParMesh * aMesh, bool aVerbose = false );
 
-            /**
-             * destructor
-             */
-            ~Mesh();
+   /**
+    * destructor
+    */
+   ~Mesh();
 
-            /**
-             * expose mesh pointer
-             */
-            mfem::ParMesh * get_mfem_par_mesh()
-            {
-                return mMesh;
-            }
+   /**
+    * expose mesh pointer
+    */
+   mfem::ParMesh * get_mfem_par_mesh()
+   {
+      return mMesh;
+   }
 
-            unsigned int get_num_nodes() const
-            {
-                return mMesh->GetNV();
-            }
+   unsigned int get_num_nodes() const
+   {
+      return mMesh->GetNV();
+   }
 
-            unsigned int get_num_elems() const
-            {
-                return mMesh->GetNE();
-            }
+   unsigned int get_num_elems() const
+   {
+      return mMesh->GetNE();
+   }
 
-            const mfem::Vector & get_node_coordinate( const unsigned int aIndex ) const
-            {
-                return mVertices[ aIndex ]->get_coords();
-            }
+   const mfem::Vector & get_node_coordinate( const unsigned int aIndex ) const
+   {
+      return mVertices[ aIndex ]->get_coords();
+   }
 
-            Vertex * get_vertex( const unsigned int & aIndex )
-            {
-                return mVertices[ aIndex ];
-            }
+   Vertex * get_vertex( const unsigned int & aIndex )
+   {
+      return mVertices[ aIndex ];
+   }
 
-            Cell * get_cell( const unsigned int & aIndex )
-            {
-                return mCells[ aIndex ];
-            }
+   Cell * get_cell( const unsigned int & aIndex )
+   {
+      return mCells[ aIndex ];
+   }
 
-            double get_min_coord( const unsigned int aIndex ) const
-            {
-                return mMinCoord( aIndex );
-            }
+   double get_min_coord( const unsigned int aIndex ) const
+   {
+      return mMinCoord( aIndex );
+   }
 
-            double get_max_coord( const unsigned int aIndex ) const
-            {
-                return mMaxCoord( aIndex );
-            }
+   double get_max_coord( const unsigned int aIndex ) const
+   {
+      return mMaxCoord( aIndex );
+   }
 
-            bool is_verbose() const
-            {
-                return mVerbose;
-            }
+   bool is_verbose() const
+   {
+      return mVerbose;
+   }
 
-            const mfem::Vector & get_node_ids() const
-            {
-                mfem_error("not implemented");
-                return mNodeIDs;
-            }
+   const mfem::Vector & get_node_ids() const
+   {
+      mfem_error("not implemented");
+      return mNodeIDs;
+   }
 
-            /**
-             * return the interpolation order of the mesh.
-             * Needer for HDF5 output.
-             * ( taken from first element on mesh, assuming that all elements
-             *   are of the same order )
-             */
-            int get_order() const
-            {
-                return mOrder;
-            }
+   /**
+    * return the interpolation order of the mesh.
+    * Needer for HDF5 output.
+    * ( taken from first element on mesh, assuming that all elements
+    *   are of the same order )
+    */
+   int get_order() const
+   {
+      return mOrder;
+   }
 
-        private:
+private:
 
-            void link_vertex_cells();
+   void link_vertex_cells();
 
-            void link_vertex_neighbors();
-        };
-    } /* namespace sdf */
+   void link_vertex_neighbors();
+};
+} /* namespace sdf */
 } /* namespace mfem */
 
 #endif

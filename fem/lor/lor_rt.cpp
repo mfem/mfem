@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,7 +47,7 @@ void BatchedLOR_RT::Assemble2D()
 
    auto X = X_vert.Read();
 
-   MFEM_FORALL_2D(iel_ho, nel_ho, ORDER, ORDER, 1,
+   mfem::forall_2D(nel_ho, ORDER, ORDER, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       MFEM_FOREACH_THREAD(iy,y,o)
       {
@@ -264,7 +264,8 @@ void BatchedLOR_RT::Assemble3D()
    auto X = X_vert.Read();
 
    // Last thread dimension is lowered to avoid "too many resources" error
-   MFEM_FORALL_3D(iel_ho, nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+   mfem::forall_3D(nel_ho, ORDER, ORDER, (ORDER>6)?4:ORDER,
+                   [=] MFEM_HOST_DEVICE (int iel_ho)
    {
       MFEM_FOREACH_THREAD(iz,z,o)
       {
