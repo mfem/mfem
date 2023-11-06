@@ -103,6 +103,10 @@ macro(add_mfem_examples EXE_SRCS)
       ${MFEM_EXEC_PREREQUISITES_TARGET_NAME} ${EXE_PREREQUISITE})
 
     target_link_libraries(${EXE_NAME} mfem)
+    # Link against gfortran and gomp only if on a Unix-like system
+    if(UNIX)
+      target_link_libraries(${EXE_NAME} gfortran gomp)
+    endif()
   endforeach(SRC_FILE)
 endmacro()
 

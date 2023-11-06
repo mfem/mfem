@@ -42,8 +42,8 @@ list(APPEND ALL_EXE_SRCS
   ex33.cpp
   ex34.cpp
   ex36.cpp
-  ex97_2d_pml.cpp
-  ex98_test_seismic.cpp
+  # ex97_2d_pml.cpp
+  # ex98_test_seismic.cpp
   ex99_test_PML.cpp
   ex99_test_ABC.cpp
   )
