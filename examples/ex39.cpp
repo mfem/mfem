@@ -142,7 +142,8 @@ enum Problem
 {
    Cantilever,
    MBB,
-   LBracket
+   LBracket,
+   Cantilever3
 };
 
 int main(int argc, char *argv[])
@@ -255,6 +256,21 @@ int main(int argc, char *argv[])
          solfile << "MBB-";
          solfile2 << "MBB-";
          meshfile << "MBB";
+         break;
+
+      case Problem::Cantilever3:
+         mesh = mesh.MakeCartesian3D(4, 1, 2, mfem::Element::Type::HEXAHEDRON, 2.0, 0.25, 0.5);
+         ess_bdr.SetSize(4, 7);
+         ess_bdr_filter.SetSize(7);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(3, 4) = 1;
+         center.SetSize(3); force.SetSize(3);
+         center(0) = 1.9; center(1) = 0.125; center(2) = 0.25;
+         force(0) = 0.0; force(1) = 0.0; force(1) = -1.0;
+         vforce_cf.UpdateSize();
+         solfile << "Cantilever-";
+         solfile2 << "Cantilever-";
+         meshfile << "Cantilever";
          break;
       default:
          mfem_error("Undefined problem.");
