@@ -53,9 +53,8 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                                                (bool) ipar[2], dpar[0]);
       case SPACING_TYPE::PIECEWISE:
          MFEM_VERIFY(ipar.Size() >= 3, "Invalid spacing function parameters");
-         const int np = ipar[1];
-         ipar.GetSubArray(3, np, relN);
-         ipar.GetSubArray(3 + np, ipar.Size() - 3 - np, iparsub);
+         ipar.GetSubArray(3, ipar[1], relN);
+         ipar.GetSubArray(3 + ipar[1], ipar.Size() - 3 - ipar[1], iparsub);
          return new PiecewiseSpacingFunction(ipar[0], ipar[1], (bool) ipar[2],
                                              relN, iparsub, dpar);
       default:
