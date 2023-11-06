@@ -1343,7 +1343,7 @@ public:
       max_step_size(max_step_size) {}
    virtual double Step(GridFunction &x, const GridFunction &d) = 0;
    virtual ~LineSearchAlgorithm() = default;
-   
+
    double GetStepSize() { return step_size; }
    void SetStepSize(double s) { step_size = s; }
 
@@ -1433,6 +1433,7 @@ public:
 
       double new_val = val + c1*d2 + 1;
       step_size *= 2;
+      int i=-1;
       while (new_val > val + c1*d2)
       {
          step_size *= 0.5;
@@ -1442,9 +1443,12 @@ public:
          new_val = F.Eval();
          directionalDer->Assemble();
          d2 = (*directionalDer)(*grad);
-         out << "step_size = " << step_size << ": (" << new_val << ", " << val + c1 * d2
-             << ")" << std::endl;
+         // out << "step_size = " << step_size << ": (" << new_val << ", " << val + c1 * d2
+            //  << ")" << std::endl;
+         i++;
       }
+      out << i << ", " << step_size;
+      out.flush();
 
       step_size *= growthRate;
       step_size = std::min(step_size, max_step_size);
@@ -1487,8 +1491,6 @@ public:
       {
          double diff_grad = diff_primal(grad) - diff_primal(old_grad);
          double diff_latent = diff_primal(latent) - diff_primal(old_latent);
-         out << "( " << diff_grad << " / " << diff_latent << " = " << diff_grad /
-             (diff_latent + eps) << ")" << std::endl;
          L = std::abs(diff_grad / (diff_latent + eps));
          step_size = std::min(weight / L, max_step_size);
          old_grad = grad;
