@@ -320,9 +320,38 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
+
+   /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const char *filename, int &curved, int &read_gf);
+
+   /// @brief The final step in constructing the mesh from a Genesis file. This
+   /// is only called if the mesh order == 2 (determined internally from the
+   /// cubit element type).
+   void FinalizeCubitSecondOrderMesh(const int cubit_element_type,
+                                     const int num_element_blocks,
+                                     const int num_nodes_per_element,
+                                     const int *start_of_block,
+                                     const double *coordx,
+                                     const double *coordy,
+                                     const double *coordz,
+                                     const int **element_blocks);
+
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit element type. This is used internally to create the mesh elements
+   /// from a Genesis file.
+   Element *CreateCubitElement(const int cubit_element_type,
+                               const int *vertex_ids,
+                               const int block_id);
+
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit face type. This is used internally to create the boundary elements
+   /// from a Genesis file.
+   Element *CreateCubitBoundaryElement(const int cubit_face_type,
+                                       const int *vertex_ids,
+                                       const int sideset_id) const;
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
@@ -1328,7 +1357,12 @@ public:
        element @a elem, including @a elem. */
    Array<int> FindFaceNeighbors(const int elem) const;
 
-   /// Return the index and the orientation of the face of bdr element i. (3D)
+   /** Return the index and the orientation of the vertex of bdr element i. (1D)
+       Return the index and the orientation of the edge of bdr element i. (2D)
+       Return the index and the orientation of the face of bdr element i. (3D)
+
+       In 2D, the returned edge orientation is 0 or 1, not +/-1 as returned by
+       GetElementEdges/GetBdrElementEdges. */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** Return the vertex index of boundary element i. (1D)
@@ -1406,6 +1440,14 @@ public:
    /// @note The returned object is a pointer to a global object and
    /// should not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
+
+   /** @brief For the vertex (1D), edge (2D), or face (3D) of a boundary element
+       with the orientation @a o, return the transformation of the boundary
+       element integration point @ ip to the face element. In 2D, the
+       the orientation is 0 or 1 as returned by GetBdrElementFace, not +/-1.
+       Supports both internal and external boundaries. */
+   static IntegrationPoint TransformBdrElementToFace(Geometry::Type geom, int o,
+                                                     const IntegrationPoint &ip);
 
    /// @anchor mfem_Mesh_elem_trans
    /// @name Access the coordinate transformation for individual elements
