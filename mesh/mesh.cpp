@@ -7284,7 +7284,7 @@ STable3D *Mesh::GetFacesTable()
             break;
          }
          default:
-            MFEM_ABORT("Unexpected type of Element.");
+            MFEM_ABORT("Unexpected type of Element: " << GetElementType(i));
       }
    }
    return faces_tbl;
