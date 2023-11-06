@@ -44,14 +44,14 @@
 using namespace std;
 using namespace mfem;
 
-double p_exact(const Vector &x);
+fptype p_exact(const Vector &x);
 void gradp_exact(const Vector &, Vector &);
-double div_gradp_exact(const Vector &x);
+fptype div_gradp_exact(const Vector &x);
 void v_exact(const Vector &x, Vector &v);
 void curlv_exact(const Vector &x, Vector &cv);
 
 int dim;
-double freq = 1.0, kappa;
+fptype freq = 1.0, kappa;
 
 int main(int argc, char *argv[])
 {
@@ -304,9 +304,9 @@ int main(int argc, char *argv[])
    // 12. Compute and print the L_2 norm of the error.
    if (prob == 0)
    {
-      double errSol = x.ComputeL2Error(gradp_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
-      double errProj = exact_proj.ComputeL2Error(gradp_coef);
+      fptype errSol = x.ComputeL2Error(gradp_coef);
+      fptype errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
+      fptype errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
@@ -317,9 +317,9 @@ int main(int argc, char *argv[])
    }
    else if (prob == 1)
    {
-      double errSol = x.ComputeL2Error(curlv_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
-      double errProj = exact_proj.ComputeL2Error(curlv_coef);
+      fptype errSol = x.ComputeL2Error(curlv_coef);
+      fptype errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
+      fptype errProj = exact_proj.ComputeL2Error(curlv_coef);
 
       cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
            "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
@@ -337,9 +337,9 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
-      double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      double errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
-      double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
+      fptype errSol = x.ComputeL2Error(divgradp_coef, irs);
+      fptype errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
+      fptype errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
            "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double p_exact(const Vector &x)
+fptype p_exact(const Vector &x)
 {
    if (dim == 3)
    {
@@ -406,7 +406,7 @@ void gradp_exact(const Vector &x, Vector &f)
    }
 }
 
-double div_gradp_exact(const Vector &x)
+fptype div_gradp_exact(const Vector &x)
 {
    if (dim == 3)
    {

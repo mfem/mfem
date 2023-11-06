@@ -63,7 +63,7 @@
 using namespace std;
 using namespace mfem;
 
-static double a_ = 0.2;
+static fptype a_ = 0.2;
 
 // Normal to hole with boundary attribute 4
 void n4Vec(const Vector &x, Vector &n) { n = x; n[0] -= 0.5; n /= -n.Norml2(); }
@@ -73,25 +73,25 @@ Mesh * GenerateSerialMesh(int ref);
 // Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
 // attributes marked in bdr_marker. Also computes the L2 norm of
 // alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
-double IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
-                   double alpha, double beta, double gamma,
-                   double &error);
+fptype IntegrateBC(const GridFunction &sol, const Array<int> &bdr_marker,
+                   fptype alpha, fptype beta, fptype gamma,
+                   fptype &error);
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int ser_ref_levels = 2;
    int order = 1;
-   double sigma = -1.0;
-   double kappa = -1.0;
+   fptype sigma = -1.0;
+   fptype kappa = -1.0;
    bool h1 = true;
    bool visualization = true;
 
-   double mat_val = 1.0;
-   double dbc_val = 0.0;
-   double nbc_val = 1.0;
-   double rbc_a_val = 1.0; // du/dn + a * u = b
-   double rbc_b_val = 1.0;
+   fptype mat_val = 1.0;
+   fptype dbc_val = 0.0;
+   fptype nbc_val = 1.0;
+   fptype rbc_a_val = 1.0; // du/dn + a * u = b
+   fptype rbc_b_val = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&h1, "-h1", "--continuous", "-dg", "--discontinuous",
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
    {
       // Integrate the solution on the Dirichlet boundary and compare to the
       // expected value.
-      double error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
+      fptype error, avg = IntegrateBC(u, dbc_bdr, 0.0, 1.0, dbc_val, error);
 
       bool hom_dbc = (dbc_val == 0.0);
       error /=  hom_dbc ? 1.0 : fabs(dbc_val);
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
    {
       // Integrate n.Grad(u) on the inhomogeneous Neumann boundary and compare
       // to the expected value.
-      double error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
+      fptype error, avg = IntegrateBC(u, nbc_bdr, 1.0, 0.0, nbc_val, error);
 
       bool hom_nbc = (nbc_val == 0.0);
       error /=  hom_nbc ? 1.0 : fabs(nbc_val);
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
       nbc0_bdr = 0;
       nbc0_bdr[3] = 1;
 
-      double error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
+      fptype error, avg = IntegrateBC(u, nbc0_bdr, 1.0, 0.0, 0.0, error);
 
       bool hom_nbc = true;
       mfem::out << "Average of n.Grad(u) on Gamma_nbc0:\t"
@@ -341,8 +341,8 @@ int main(int argc, char *argv[])
    {
       // Integrate n.Grad(u) + a * u on the Robin boundary and compare to the
       // expected value.
-      double error;
-      double avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, error);
+      fptype error;
+      fptype avg = IntegrateBC(u, rbc_bdr, 1.0, rbc_a_val, rbc_b_val, error);
 
       bool hom_rbc = (rbc_b_val == 0.0);
       error /=  hom_rbc ? 1.0 : fabs(rbc_b_val);
@@ -383,22 +383,22 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void quad_trans(double u, double v, double &x, double &y, bool log = false)
+void quad_trans(fptype u, fptype v, fptype &x, fptype &y, bool log = false)
 {
-   double a = a_; // Radius of disc
+   fptype a = a_; // Radius of disc
 
-   double d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
+   fptype d = 4.0 * a * (M_SQRT2 - 2.0 * a) * (1.0 - 2.0 * v);
 
-   double v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
+   fptype v0 = (1.0 + M_SQRT2) * (M_SQRT2 * a - 2.0 * v) *
                ((4.0 - 3 * M_SQRT2) * a +
                 (8.0 * (M_SQRT2 - 1.0) * a - 2.0) * v) / d;
 
-   double r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
+   fptype r = 2.0 * ((M_SQRT2 - 1.0) * a * a * (1.0 - 4.0 *v) +
                      2.0 * (1.0 + M_SQRT2 *
                             (1.0 + 2.0 * (2.0 * a - M_SQRT2 - 1.0) * a)) * v * v
                     ) / d;
 
-   double t = asin(v / r) * u / v;
+   fptype t = asin(v / r) * u / v;
    if (log)
    {
       mfem::out << "u, v, r, v0, t "
@@ -411,7 +411,7 @@ void quad_trans(double u, double v, double &x, double &y, bool log = false)
 
 void trans(const Vector &u, Vector &x)
 {
-   double tol = 1e-4;
+   fptype tol = 1e-4;
 
    if (u[1] > 0.5 - tol || u[1] < -0.5 + tol)
    {
@@ -542,8 +542,8 @@ Mesh * GenerateSerialMesh(int ref)
       vi[0] = o +  3; vi[1] = o +  4; mesh->AddBdrSegment(vi, 3 + i);
    }
 
-   double d[2];
-   double a = a_ / M_SQRT2;
+   fptype d[2];
+   fptype a = a_ / M_SQRT2;
 
    d[0] = -1.0; d[1] = -0.5; mesh->AddVertex(d);
    d[0] = -1.0; d[1] =  0.0; mesh->AddVertex(d);
@@ -636,12 +636,12 @@ Mesh * GenerateSerialMesh(int ref)
    return mesh;
 }
 
-double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
-                   double alpha, double beta, double gamma,
-                   double &error)
+fptype IntegrateBC(const GridFunction &x, const Array<int> &bdr,
+                   fptype alpha, fptype beta, fptype gamma,
+                   fptype &error)
 {
-   double nrm = 0.0;
-   double avg = 0.0;
+   fptype nrm = 0.0;
+   fptype avg = 0.0;
    error = 0.0;
 
    const bool a_is_zero = alpha == 0.0;
@@ -683,8 +683,8 @@ double IntegrateBC(const GridFunction &x, const Array<int> &bdr,
          IntegrationPoint eip;
          FTr->Loc1.Transform(ip, eip);
          FTr->Face->SetIntPoint(&ip);
-         double face_weight = FTr->Face->Weight();
-         double val = 0.0;
+         fptype face_weight = FTr->Face->Weight();
+         fptype val = 0.0;
          if (!a_is_zero)
          {
             FTr->Elem1->SetIntPoint(&eip);

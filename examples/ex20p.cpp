@@ -74,11 +74,11 @@ using namespace mfem;
 
 // Constants used in the Hamiltonian
 static int prob_ = 0;
-static double m_ = 1.0;
-static double k_ = 1.0;
+static fptype m_ = 1.0;
+static fptype k_ = 1.0;
 
 // Hamiltonian functional, see below for implementation
-double hamiltonian(double q, double p, double t);
+fptype hamiltonian(fptype q, fptype p, fptype t);
 
 class GradT : public Operator
 {
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    int order  = 1;
    int nsteps = 100;
-   double dt  = 0.1;
+   fptype dt  = 0.1;
    bool visualization = true;
    bool gnuplot = false;
 
@@ -154,11 +154,11 @@ int main(int argc, char *argv[])
    siaSolver.Init(P,F);
 
    // 4. Set the initial conditions
-   double t = 0.0;
+   fptype t = 0.0;
    Vector q(1), p(1);
    Vector e(nsteps+1);
-   q(0) = sin(2.0*M_PI*(double)myid/num_procs);
-   p(0) = cos(2.0*M_PI*(double)myid/num_procs);
+   q(0) = sin(2.0*M_PI*(fptype)myid/num_procs);
+   p(0) = cos(2.0*M_PI*(fptype)myid/num_procs);
 
    // 5. Prepare GnuPlot output file if needed
    ostringstream oss;
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
    Vector x1(3); x1 = 0.0;
 
    // 7. Perform time-stepping
-   double e_mean = 0.0;
+   fptype e_mean = 0.0;
 
    for (int i = 0; i < nsteps; i++)
    {
@@ -238,20 +238,21 @@ int main(int argc, char *argv[])
 
    // 8. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
-   double e_var = 0.0;
+   fptype e_var = 0.0;
    for (int i = 0; i <= nsteps; i++)
    {
       e_var += pow(e[i] - e_mean, 2);
    }
    e_var /= (nsteps + 1);
-   double e_sd = sqrt(e_var);
+   fptype e_sd = sqrt(e_var);
 
-   double e_loc_stats[2];
-   double *e_stats = (myid == 0) ? new double[2 * num_procs] : (double*)NULL;
+   fptype e_loc_stats[2];
+   fptype *e_stats = (myid == 0) ? new fptype[2 * num_procs] : (fptype*)NULL;
 
    e_loc_stats[0] = e_mean;
    e_loc_stats[1] = e_sd;
-   MPI_Gather(e_loc_stats, 2, MPI_DOUBLE, e_stats, 2, MPI_DOUBLE, 0, comm);
+   MPI_Gather(e_loc_stats, 2, MPITypeMap<fptype>::mpi_type, e_stats, 2,
+              MPITypeMap<fptype>::mpi_type, 0, comm);
 
    if (myid == 0)
    {
@@ -324,9 +325,9 @@ int main(int argc, char *argv[])
    }
 }
 
-double hamiltonian(double q, double p, double t)
+fptype hamiltonian(fptype q, fptype p, fptype t)
 {
-   double h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
+   fptype h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
    switch (prob_)
    {
       case 1:
