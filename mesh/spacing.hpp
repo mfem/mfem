@@ -586,7 +586,13 @@ private:
 };
 
 /** @brief Piecewise spacing function, with spacing functions defining spacing
-    within arbitarily many fixed subdomains of the unit interval.
+    within arbitarily many fixed subintervals of the unit interval.
+
+    The number of elements in each piece (or subinterval) is determined by the
+    constructor input @a relN, which is the relative number of intervals. For
+    equal numbers, relN would be all 1's. The total number of elements for this
+    spacing function must be an integer multiple of the sum of entries in relN
+    (stored in n0).
 
     The scaling of parameters is done for the spacing function on each
     subinterval separately. This function is nested if and only if the functions
@@ -599,6 +605,7 @@ public:
    @param[in] n_   Size or number of intervals, which defines elements.
    @param[in] np_  Number of pieces (subintervals of unit interval).
    @param[in] r_   Whether to reverse the spacings.
+   @param[in] relN Relative number of elements per piece.
    @param[in] ipar Integer parameters for all np_ spacing functions. For each
                    piece, these parameters are type, number of integer
                    parameters, number of double parameters, integer parameters.
@@ -606,10 +613,11 @@ public:
                    np_ - 1 entries define the partition of the unit interval,
                    and the remaining are for the pieces.
    */
-   PiecewiseSpacingFunction(int n_, int np_, bool r_,
+   PiecewiseSpacingFunction(int n_, int np_, bool r_, Array<int> const& relN,
                             Array<int> const& ipar, Vector const& dpar)
-      : SpacingFunction(n_, r_), np(np_), partition(np - 1)
+      : SpacingFunction(n_, r_), np(np_), partition(np_ - 1)
    {
+      npartition = relN;
       SetupPieces(ipar, dpar);
       CalculateSpacing();
    }
@@ -640,10 +648,11 @@ public:
 
    virtual void GetIntParameters(Array<int> & p) const override
    {
-      p.SetSize(3);
+      p.SetSize(3 + np);
       p[0] = n;
       p[1] = np;
       p[2] = (int) reverse;
+      for (int i=0; i<np; ++i) { p[3 + i] = npartition[i]; }
    }
 
    virtual void GetDoubleParameters(Vector & p) const override

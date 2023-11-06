@@ -18,7 +18,7 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                                     Array<int> const& ipar,
                                     Vector const& dpar)
 {
-   Array<int> iparsub;
+   Array<int> iparsub, relN;
 
    switch (spacingType)
    {
@@ -53,9 +53,11 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
                                                (bool) ipar[2], dpar[0]);
       case SPACING_TYPE::PIECEWISE:
          MFEM_VERIFY(ipar.Size() >= 3, "Invalid spacing function parameters");
-         ipar.GetSubArray(3, ipar.Size() - 3, iparsub);
+         const int np = ipar[1];
+         ipar.GetSubArray(3, np, relN);
+         ipar.GetSubArray(3 + np, ipar.Size() - 3 - np, iparsub);
          return new PiecewiseSpacingFunction(ipar[0], ipar[1], (bool) ipar[2],
-                                             iparsub, dpar);
+                                             relN, iparsub, dpar);
       default:
          MFEM_ABORT("Unknown spacing type \"" << spacingType << "\"");
          break;
@@ -450,7 +452,7 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
 
       osi += 3 + numIntParam;
       osd += numDoubleParam;
-      n_total += pieces[p]->Size();
+      n_total += npartition[p];
 
       MFEM_VERIFY(pieces[p]->Size() >= 1, "");
    }
@@ -469,8 +471,8 @@ void PiecewiseSpacingFunction::ScaleParameters(double a)
 
 void PiecewiseSpacingFunction::Print(std::ostream &os) const
 {
-   // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-   int inum = 3;
+   // SPACING_TYPE numIntParam numDoubleParam npartition {int params} {double params}
+   int inum = 3 + np;
    int dnum = np-1;
    for (auto p : pieces)
    {
@@ -481,6 +483,11 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
 
    os << PIECEWISE << " " << inum << " " << dnum << " " << n << " " << np << " "
       << (int) reverse;
+
+   for (auto n : npartition)
+   {
+      os << " " << n;
+   }
 
    // Write integer parameters for all pieces.
    Array<int> ipar;
@@ -541,18 +548,13 @@ void PiecewiseSpacingFunction::CalculateSpacing()
 
    if (n == 1)
    {
-      for (auto p : pieces)
-      {
-         p->SetSize(1);
-      }
-   }
-
-   if (n < n0 && !coarsen)
-   {
-      // Just use uniform spacing
-      s = 1.0 / ((double) n);
+      s[0] = 1.0;
+      for (auto p : pieces) { p->SetSize(1); }
       return;
    }
+
+   MFEM_VERIFY(coarsen || n >= n0,
+               "Invalid case in PiecewiseSpacingFunction::CalculateSpacing");
 
    int n_total = 0;
    for (int p=0; p<np; ++p)
@@ -561,11 +563,11 @@ void PiecewiseSpacingFunction::CalculateSpacing()
 
       if (coarsen)
       {
-         pieces[p]->SetSize(pieces[p]->Size() / cf);
+         pieces[p]->SetSize(npartition[p] / cf);
       }
       else
       {
-         pieces[p]->SetSize(ref * pieces[p]->Size());
+         pieces[p]->SetSize(ref * npartition[p]);
       }
 
       const double p0 = (p == 0) ? 0.0 : partition[p-1];
@@ -633,7 +635,8 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
    }
 
    Vector dparvec(dpar.GetData(), dpar.Size());
-   return new PiecewiseSpacingFunction(n, np, reverse, ipar, dparvec);
+   return new PiecewiseSpacingFunction(n, np, reverse, npartition,
+                                       ipar, dparvec);
 }
 
 bool PiecewiseSpacingFunction::Nested() const

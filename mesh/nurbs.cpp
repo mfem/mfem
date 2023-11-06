@@ -648,6 +648,8 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
 
    diff.SetSize(s);
 
+   if (s == 0) { return; }
+
    s = 0;
    int i = 0;
    for (int j = 0; j < kv.Size(); j++)
