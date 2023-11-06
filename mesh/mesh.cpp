@@ -10990,8 +10990,7 @@ void Mesh::PrintVTU(std::string fname,
                     VTKFormat format,
                     bool high_order_output,
                     int compression_level,
-                    bool bdr_elements,
-                    double scale_factor)
+                    bool bdr_elements)
 {
    int ref = (high_order_output && Nodes)
              ? Nodes->FESpace()->GetMaxElementOrder() : 1;
@@ -11005,8 +11004,7 @@ void Mesh::PrintVTU(std::string fname,
    }
    os << " byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   PrintVTU(os, ref, format, high_order_output, compression_level, bdr_elements,
-            scale_factor);
+   PrintVTU(os, ref, format, high_order_output, compression_level, bdr_elements);
    os << "</Piece>\n"; // need to close the piece open in the PrintVTU method
    os << "</UnstructuredGrid>\n";
    os << "</VTKFile>" << std::endl;
@@ -11017,16 +11015,14 @@ void Mesh::PrintVTU(std::string fname,
 void Mesh::PrintBdrVTU(std::string fname,
                        VTKFormat format,
                        bool high_order_output,
-                       int compression_level,
-                       double scale_factor)
+                       int compression_level)
 {
-   PrintVTU(fname, format, high_order_output, compression_level, true,
-            scale_factor);
+   PrintVTU(fname, format, high_order_output, compression_level, true);
 }
 
 void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
                     bool high_order_output, int compression_level,
-                    bool bdr_elements, double scale_factor)
+                    bool bdr_elements)
 {
    RefinedGeometry *RefG;
    DenseMatrix pmat;
@@ -11071,11 +11067,6 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
       else
       {
          GetElementTransformation(i)->Transform(RefG->RefPts, pmat);
-      }
-
-      if (scale_factor != 1.0)
-      {
-         pmat *= scale_factor;
       }
 
       for (int j = 0; j < pmat.Width(); j++)

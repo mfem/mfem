@@ -771,8 +771,7 @@ ParaViewDataCollection::ParaViewDataCollection(const std::string&
      pv_data_format(VTKFormat::BINARY),
      high_order_output(false),
      restart_mode(false),
-     bdr_output(false),
-     length_scale(1.0)
+     bdr_output(false)
 {
    cycle = 0; // always include a valid cycle index in file names
 
@@ -1070,7 +1069,7 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
    mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel(),
-                  bdr_output,length_scale);
+                  bdr_output);
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
@@ -1305,11 +1304,6 @@ void ParaViewDataCollection::SetCompression(bool compression_)
 void ParaViewDataCollection::SetBoundaryOutput(bool bdr_output_)
 {
    bdr_output = bdr_output_;
-}
-
-void ParaViewDataCollection::SetLengthScale(double length_scale_)
-{
-   length_scale = length_scale_;
 }
 
 void ParaViewDataCollection::UseRestartMode(bool restart_mode_)

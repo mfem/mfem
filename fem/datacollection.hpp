@@ -579,7 +579,6 @@ private:
    bool high_order_output;
    bool restart_mode;
    bool bdr_output;
-   double length_scale;
 
 protected:
    void WritePVTUHeader(std::ostream &out);
@@ -656,10 +655,6 @@ public:
    /// Configures collection to save only fields evaluated on boundaries of
    /// the mesh.
    void SetBoundaryOutput(bool bdr_output_);
-
-   /// Sets length scale used to scale mesh point coordinates on output.
-   /// The default if unset is 1.0 (unscaled).
-   void SetLengthScale(double length_scale_);
 
    /// Enable or disable restart mode. If restart is enabled, new writes will
    /// preserve timestep metadata for any solutions prior to the currently
