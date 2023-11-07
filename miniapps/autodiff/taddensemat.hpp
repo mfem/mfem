@@ -96,7 +96,7 @@ public:
       const int hw = height * width;
       if (hw > 0)
       {
-         double *mdata = m.Data();
+         fptype *mdata = m.Data();
          MFEM_ASSERT(mdata, "invalid source matrix");
          data = new dtype[hw];
          capacity = hw;
@@ -278,7 +278,7 @@ public:
       dtype *d_col = data;
       for (int col = 0; col < width; col++)
       {
-         double y_col = 0.0;
+         fptype y_col = 0.0;
          for (int row = 0; row < height; row++)
          {
             y_col += x[row] * d_col[row];
@@ -300,7 +300,7 @@ public:
    void Randomize(int seed)
    {
       // static unsigned int seed = time(0);
-      const double max = (double) (RAND_MAX) + 1.;
+      const fptype max = (fptype) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -319,7 +319,7 @@ public:
    void RandomizeDiag(int seed)
    {
       // static unsigned int seed = time(0);
-      const double max = (double) (RAND_MAX) + 1.;
+      const fptype max = (fptype) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
@@ -467,7 +467,7 @@ void CalcAdjugate(const TAutoDiffDenseMatrix<dtype> &a,
       else
       {
          // 3 x 2
-         double e, g, f;
+         fptype e, g, f;
          e = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
          g = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
          f = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];

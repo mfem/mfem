@@ -109,12 +109,12 @@ public:
 
    // Setup custom MFEM solvers using GMRES since the Jacobian matrix is not
    // symmetric
-   virtual int SUNImplicitSetupB(const double t, const Vector &y,
+   virtual int SUNImplicitSetupB(const fptype t, const Vector &y,
                                  const Vector &yB, const Vector &fyB, int jokB,
-                                 int *jcurB, double gammaB);
+                                 int *jcurB, fptype gammaB);
 
    // Setup custom MFEM solve
-   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, double tol);
+   virtual int SUNImplicitSolveB(Vector &x, const Vector &b, fptype tol);
 
    ~RobertsTDAOperator()
    {
@@ -132,11 +132,11 @@ protected:
 int main(int argc, char *argv[])
 {
    // Parse command-line options.
-   double t_final = 4e7;
-   double dt = 0.01;
+   fptype t_final = 4e7;
+   fptype dt = 0.01;
 
    // Relative tolerance for CVODES.
-   const double reltol = 1e-4;
+   const fptype reltol = 1e-4;
 
    int precision = 8;
    cout.precision(precision);
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
    RobertsTDAOperator adv(3, p);
 
    // Set the initial time
-   double t = 0.0;
+   fptype t = 0.0;
    adv.SetTime(t);
 
    // Create the CVODES solver and set the various tolerances. Set absolute
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
    {
       for (int i = 0; i < y.Size(); i++)
       {
-         double ww = reltol * abs(y[i]) + abstol_v[i];
+         fptype ww = reltol * abs(y[i]) + abstol_v[i];
          if (ww <= 0.) { return -1; }
          w[i] = 1./ww;
       }
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
    bool done = false;
    for (int ti = 0; !done; )
    {
-      double dt_real = max(dt, t_final - t);
+      fptype dt_real = max(dt, t_final - t);
       cvodes->Step(u, t, dt_real);
       ti++;
 
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
    // solution vector
    Vector w(3);
    w=0.;
-   double TBout1 = 40.;
+   fptype TBout1 = 40.;
    Vector dG_dp(3);
    dG_dp=0.;
    if (cvodes)
@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
       cvodes->SetMaxNStepsB(5000);
 
       // Results at time TBout1
-      double dt_real = max(dt, t - TBout1);
+      fptype dt_real = max(dt, t - TBout1);
       cvodes->StepB(w, t, dt_real);
       cout << "t: " << t << endl;
       cout << "w:" << endl;
@@ -312,11 +312,11 @@ void RobertsTDAOperator::QuadratureIntegration(const Vector &y,
 void RobertsTDAOperator::AdjointRateMult(const Vector &y, Vector & yB,
                                          Vector &yBdot) const
 {
-   double l21 = (yB[1]-yB[0]);
-   double l32 = (yB[2]-yB[1]);
-   double p1 = p_[0];
-   double p2 = p_[1];
-   double p3 = p_[2];
+   fptype l21 = (yB[1]-yB[0]);
+   fptype l32 = (yB[2]-yB[1]);
+   fptype p1 = p_[0];
+   fptype p2 = p_[1];
+   fptype p3 = p_[2];
    yBdot[0] = -p1 * l21;
    yBdot[1] = p2 * y[2] * l21 - 2. * p3 * y[1] * l32;
    yBdot[2] = p2 * y[1] * l21 - 1.0;
@@ -327,9 +327,9 @@ void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
                                                    const Vector &yB,
                                                    Vector &qBdot) const
 {
-   double l21 = (yB[1]-yB[0]);
-   double l32 = (yB[2]-yB[1]);
-   double y23 = y[1] * y[2];
+   fptype l21 = (yB[1]-yB[0]);
+   fptype l32 = (yB[2]-yB[1]);
+   fptype y23 = y[1] * y[2];
 
    qBdot[0] = y[0] * l21;
    qBdot[1] = -y23 * l21;
@@ -337,10 +337,10 @@ void RobertsTDAOperator::QuadratureSensitivityMult(const Vector &y,
 }
 
 // cvsRoberts_ASAi_dns implicit solve setup for adjoint
-int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
+int RobertsTDAOperator::SUNImplicitSetupB(const fptype t, const Vector &y,
                                           const Vector &yB,
                                           const Vector &fyB, int jokB,
-                                          int *jcurB, double gammaB)
+                                          int *jcurB, fptype gammaB)
 {
    // M = I- gamma J
    // J = dfB/dyB
@@ -369,7 +369,7 @@ int RobertsTDAOperator::SUNImplicitSetupB(const double t, const Vector &y,
 
 // cvsRoberts_ASAi_dns implicit solve for adjoint
 int RobertsTDAOperator::SUNImplicitSolveB(Vector &x, const Vector &b,
-                                          double tol)
+                                          fptype tol)
 {
    // The argument "tol" is ignored in this implementation for simplicity.
    adjointSolver.SetRelTol(1e-14);

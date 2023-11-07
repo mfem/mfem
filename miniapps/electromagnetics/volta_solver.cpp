@@ -26,8 +26,8 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
                          Array<int> & dbcs, Vector & dbcv,
                          Array<int> & nbcs, Vector & nbcv,
                          Coefficient & epsCoef,
-                         double (*phi_bc )(const Vector&),
-                         double (*rho_src)(const Vector&),
+                         fptype (*phi_bc )(const Vector&),
+                         fptype (*rho_src)(const Vector&),
                          void   (*p_src  )(const Vector&, Vector&),
                          Vector & point_charges)
    : myid_(0),
@@ -149,7 +149,7 @@ VoltaSolver::VoltaSolver(ParMesh & pmesh, int order,
          {
             cent[d] = point_charge_params_[(dim + 1) * i + d];
          }
-         double s = point_charge_params_[(dim + 1) * i + dim];
+         fptype s = point_charge_params_[(dim + 1) * i + dim];
 
          point_charges_[i] = new DeltaCoefficient();
          point_charges_[i]->SetScale(s);
@@ -485,10 +485,10 @@ VoltaSolver::Solve()
 
    {
       // Compute total charge as volume integral of rho
-      double charge_rho = (*l2_vol_int_)(*rho_);
+      fptype charge_rho = (*l2_vol_int_)(*rho_);
 
       // Compute total charge as surface integral of D
-      double charge_D = (*rt_surf_int_)(*d_);
+      fptype charge_D = (*rt_surf_int_)(*d_);
 
       if (myid_ == 0)
       {

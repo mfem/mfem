@@ -42,7 +42,7 @@ struct dual
 
    /** @brief assignment of a double to a value of a dual. Promotes a double to
     * a dual with a zero gradient value. */
-   auto operator=(double a) -> dual<value_type, gradient_type>&
+   auto operator=(fptype a) -> dual<value_type, gradient_type>&
    {
       value = a;
       gradient = {};
@@ -118,14 +118,14 @@ dual<value_type, gradient_type>
 /** @brief subtraction of a non-dual number from a dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 constexpr auto operator-(dual<value_type, gradient_type> a,
-                         double b) -> dual<value_type, gradient_type>
+                         fptype b) -> dual<value_type, gradient_type>
 {
    return {a.value - b, a.gradient};
 }
 
 /** @brief subtraction of a dual number from a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-constexpr auto operator-(double a,
+constexpr auto operator-(fptype a,
                          dual<value_type, gradient_type> b) -> dual<value_type, gradient_type>
 {
    return {a - b.value, -b.gradient};
@@ -144,14 +144,14 @@ constexpr auto operator-(dual<value_type_a, gradient_type_a> a,
 /** @brief multiplication of a dual number and a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 constexpr auto operator*(const dual<value_type, gradient_type>& a,
-                         double b) -> dual<decltype(a.value * b), decltype(a.gradient * b)>
+                         fptype b) -> dual<decltype(a.value * b), decltype(a.gradient * b)>
 {
    return {a.value * b, a.gradient * b};
 }
 
 /** @brief multiplication of a dual number and a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-constexpr auto operator*(double a,
+constexpr auto operator*(fptype a,
                          const dual<value_type, gradient_type>& b) ->
 dual<decltype(a * b.value), decltype(a * b.gradient)>
 {
@@ -171,14 +171,14 @@ constexpr auto operator*(dual<value_type_a, gradient_type_a> a,
 /** @brief division of a dual number by a non-dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 constexpr auto operator/(const dual<value_type, gradient_type>& a,
-                         double b) -> dual<decltype(a.value / b), decltype(a.gradient / b)>
+                         fptype b) -> dual<decltype(a.value / b), decltype(a.gradient / b)>
 {
    return {a.value / b, a.gradient / b};
 }
 
 /** @brief division of a non-dual number by a dual number */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-constexpr auto operator/(double a,
+constexpr auto operator/(fptype a,
                          const dual<value_type, gradient_type>& b) -> dual<decltype(a / b.value),
                                decltype(-(a / (b.value * b.value)) * b.gradient)>
 {
@@ -206,14 +206,14 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
   template <typename value_type, typename gradient_type>        \
   MFEM_HOST_DEVICE constexpr bool operator x(                   \
      const dual<value_type, gradient_type>& a,                  \
-     double b)                                                  \
+     fptype b)                                                  \
   {                                                             \
     return a.value x b;                                         \
   }                                                             \
                                                                 \
   template <typename value_type, typename gradient_type>        \
   MFEM_HOST_DEVICE constexpr bool operator x(                   \
-     double a,                                                  \
+     fptype a,                                                  \
      const dual<value_type, gradient_type>& b)                  \
   {                                                             \
     return a x b.value;                                         \
@@ -261,7 +261,7 @@ dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
 /** @brief compound assignment (+) for dual numbers with `double` righthand side */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
-                                            double b)
+                                            fptype b)
 {
    a.value += b;
    return a;
@@ -270,7 +270,7 @@ dual<value_type, gradient_type>& operator+=(dual<value_type, gradient_type>& a,
 /** @brief compound assignment (-) for dual numbers with `double` righthand side */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type>& operator-=(dual<value_type, gradient_type>& a,
-                                            double b)
+                                            fptype b)
 {
    a.value -= b;
    return a;
@@ -382,7 +382,7 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
 
 /** @brief implementation of `a` (non-dual) raised to the `b` (dual) power */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> pow(double a, dual<value_type, gradient_type> b)
+dual<value_type, gradient_type> pow(fptype a, dual<value_type, gradient_type> b)
 {
    using std::pow;
    using std::log;
@@ -400,7 +400,7 @@ value_type pow(value_type a, value_type b)
 
 /** @brief implementation of `a` (dual) raised to the `b` (non-dual) power */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, double b)
+dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, fptype b)
 {
    using std::pow;
    value_type value = pow(a.value, b);
@@ -416,7 +416,7 @@ std::ostream& operator<<(std::ostream& os, dual<value_type, gradient_type> A)
 }
 
 /** @brief promote a value to a dual number of the appropriate type */
-MFEM_HOST_DEVICE constexpr dual<double, double> make_dual(double x) { return {x, 1.0}; }
+MFEM_HOST_DEVICE constexpr dual<fptype, fptype> make_dual(fptype x) { return {x, 1.0}; }
 
 /** @brief return the "value" part from a given type. For non-dual types, this is just the identity function */
 template <typename T> MFEM_HOST_DEVICE T get_value(const T& arg) { return arg; }

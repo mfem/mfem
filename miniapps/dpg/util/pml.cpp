@@ -53,9 +53,9 @@ void CartesianPML::SetBoundaries()
       for (int d=0; d<dim; d++)
       {
          MPI_Allreduce(MPI_IN_PLACE, &dom_bdr(d,0), 1,
-		       MPITypeMap<fptype>::mpi_type, MPI_MIN,pmesh->GetComm());
+                       MPITypeMap<fptype>::mpi_type, MPI_MIN,pmesh->GetComm());
          MPI_Allreduce(MPI_IN_PLACE, &dom_bdr(d,1), 1,
-		       MPITypeMap<fptype>::mpi_type, MPI_MAX, pmesh->GetComm());
+                       MPITypeMap<fptype>::mpi_type, MPI_MAX, pmesh->GetComm());
       }
    }
 #endif

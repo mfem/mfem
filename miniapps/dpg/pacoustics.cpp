@@ -712,9 +712,9 @@ int main(int argc, char *argv[])
       fptype maxresidual = residuals.Max();
       fptype globalresidual = residual * residual;
       MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<fptype>::mpi_type,
-		    MPI_MAX,MPI_COMM_WORLD);
+                    MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
-		    MPITypeMap<fptype>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+                    MPITypeMap<fptype>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
