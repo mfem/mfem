@@ -3,14 +3,14 @@
 // Compile with: make  pconvection-diffusion
 //
 // sample runs
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -betap '4 2' -theta 0.0
+// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -betap '2 3' -theta 0.0
 // mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 1 -eps 1e-3 -betap '1 0' -theta 0.7 -sc
 // mpirun -np 4 pconvection-diffusion  -o 3 -ref 20 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+// mpirun -np 4 pconvection-diffusion  -o 2 -ref 20 -prob 3 -eps 1e-2 -betap '1 2' -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel
@@ -80,7 +80,7 @@ static const char *enum_str[] =
 };
 
 prob_type prob;
-Vector beta;
+Vector betap;
 double epsilon;
 
 double exact_u(const Vector & X);
@@ -129,8 +129,8 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");
-   args.AddOption(&beta, "-beta", "--beta",
-                  "Vector Coefficient beta");
+   args.AddOption(&betap, "-betap", "--betap",
+                  "Vector Coefficient betap");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -168,24 +168,24 @@ int main(int argc, char *argv[])
       case sinusoidal:
       case EJ:
       {
-         if (beta.Size() == 0)
+         if (betap.Size() == 0)
          {
-            beta.SetSize(dim);
-            beta = 0.0;
-            beta[0] = 1.;
+            betap.SetSize(dim);
+            betap = 0.0;
+            betap[0] = 1.;
          }
          break;
       }
       case bdr_layer:
       {
-         beta.SetSize(dim);
-         beta[0] = 1.;
-         beta[1] = 2.;
+         betap.SetSize(dim);
+         betap[0] = 1.;
+         betap[1] = 2.;
          exact_known = false;
       }
       break;
       default:
-         // do nothing; beta is defined as a FunctionCoefficient
+         // do nothing; betap is defined as a FunctionCoefficient
          break;
    }
 
@@ -832,7 +832,7 @@ void beta_function(const Vector & X, Vector & beta_val)
    }
    else
    {
-      beta_val = beta;
+      beta_val = betap;
    }
 }
 

@@ -3,9 +3,9 @@
 // Compile with: make convection-diffusion
 //
 // sample runs
-// convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -beta '2 3'
-// convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -beta '1 0 2'
-// convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -beta '4 2' -sc
+// convection-diffusion -m ../../data/star.mesh -o 2 -ref 2 -theta 0.0 -eps 1e-1 -betap '2 3'
+// convection-diffusion -m ../../data/beam-hex.mesh -o 2 -ref 2 -theta 0.0 -eps 1e0 -betap '1 0 2'
+// convection-diffusion -m ../../data/inline-tri.mesh -o 3 -ref 2 -theta 0.0 -eps 1e-2 -betap '4 2' -sc
 
 // AMR runs
 // convection-diffusion  -o 3 -ref 5 -prob 1 -eps 1e-1 -theta 0.75
@@ -68,7 +68,7 @@ enum prob_type
 };
 
 prob_type prob;
-Vector beta;
+Vector betap;
 double epsilon;
 
 double exact_u(const Vector & X);
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: manufactured, 1: Erickson-Johnson ");
-   args.AddOption(&beta, "-beta", "--beta",
-                  "Vector Coefficient beta");
+   args.AddOption(&betap, "-betap", "--betap",
+                  "Vector Coefficient betap");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -134,11 +134,11 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
-   if (beta.Size() == 0)
+   if (betap.Size() == 0)
    {
-      beta.SetSize(dim);
-      beta = 0.0;
-      beta[0] = 1.;
+      betap.SetSize(dim);
+      betap = 0.0;
+      betap[0] = 1.;
    }
 
    args.PrintOptions(cout);
@@ -186,10 +186,10 @@ int main(int argc, char *argv[])
    ConstantCoefficient eps2(1/(epsilon*epsilon));
 
    ConstantCoefficient negeps(-epsilon);
-   VectorConstantCoefficient betacoeff(beta);
-   Vector negbeta = beta; negbeta.Neg();
-   DenseMatrix bbt(beta.Size());
-   MultVVt(beta, bbt);
+   VectorConstantCoefficient betacoeff(betap);
+   Vector negbeta = betap; negbeta.Neg();
+   DenseMatrix bbt(betap.Size());
+   MultVVt(betap, bbt);
    MatrixConstantCoefficient bbtcoeff(bbt);
    VectorConstantCoefficient negbetacoeff(negbeta);
 
@@ -586,7 +586,7 @@ void exact_hatf(const Vector & X, Vector & hatf)
    hatf.SetSize(X.Size());
    for (int i = 0; i<hatf.Size(); i++)
    {
-      hatf[i] = beta[i] * u - sigma[i];
+      hatf[i] = betap[i] * u - sigma[i];
    }
 }
 
@@ -600,7 +600,7 @@ double f_exact(const Vector & X)
    double s = 0;
    for (int i = 0; i<du.Size(); i++)
    {
-      s += beta[i] * du[i];
+      s += betap[i] * du[i];
    }
    return -epsilon * d2u + s;
 }
