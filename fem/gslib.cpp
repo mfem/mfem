@@ -300,7 +300,6 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       }
    }
 
-
    // Map element number for simplices, and ref_pos from [-1,1] to [0,1] for
    // both simplices and quads.
    MapRefPosAndElemIndices();
@@ -342,9 +341,8 @@ static ulong hash_index_3(const gslib::hash_data_3 *p, const dfloat x[3])
           hash_index_aux(p->bnd[0].min, p->fac[0], n, x[0]);
 }
 
-void FindPointsGSLIB::
-FindPointsOnDevice(const Vector &point_pos,
-                   int point_pos_ordering)
+void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
+                                         int point_pos_ordering)
 {
    MemoryType mt = point_pos.GetMemory().GetMemoryType();
    SetupDevice(mt);
@@ -556,12 +554,6 @@ FindPointsOnDevice(const Vector &point_pos,
       Array<int> gsl_elem_l2(n);
       internal::device_copy(gsl_code_l2.GetData(), gsl_code_l.Read(), n);
       internal::device_copy(gsl_elem_l2.GetData(), gsl_elem_l.Read(), n);
-      //      if (gsl_comm->id == 1)
-      //      {
-      //          std::cout << " k10print-findproc1pointsonproc2\n";
-      //          gsl_ref_l.Print();
-      //          gsl_dist_l.Print();
-      //      }
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
@@ -627,7 +619,6 @@ FindPointsOnDevice(const Vector &point_pos,
       //      std::cout << id << " " << points_cnt << " " << npt_found_on_other_proc <<
       //                " k10received points4\n";
    }
-
    MPI_Barrier(gsl_comm->c);
 }
 
