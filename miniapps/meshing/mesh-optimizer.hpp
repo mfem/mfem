@@ -18,21 +18,21 @@
 using namespace mfem;
 using namespace std;
 
-double size_indicator(const Vector &x)
+fptype size_indicator(const Vector &x)
 {
    // semi-circle
-   const double xc = x(0) - 0.0, yc = x(1) - 0.5,
+   const fptype xc = x(0) - 0.0, yc = x(1) - 0.5,
                 zc = (x.Size() == 3) ? x(2) - 0.5 : 0.0;
-   const double r = sqrt(xc*xc + yc*yc + zc*zc);
-   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   const fptype r = sqrt(xc*xc + yc*yc + zc*zc);
+   fptype r1 = 0.45; fptype r2 = 0.55; fptype sf=30.0;
+   fptype val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
-   val = std::max(0.,val);
-   val = std::min(1.,val);
+   val = std::max((fptype) 0.,val);
+   val = std::min((fptype) 1.,val);
    return val;
 }
 
-void calc_mass_volume(const GridFunction &g, double &mass, double &vol)
+void calc_mass_volume(const GridFunction &g, fptype &mass, fptype &vol)
 {
    Mesh &mesh = *g.FESpace()->GetMesh();
    const int NE = mesh.GetNE();
@@ -58,8 +58,10 @@ void calc_mass_volume(const GridFunction &g, double &mass, double &vol)
    if (gp)
    {
       MPI_Comm comm = gp->ParFESpace()->GetComm();
-      MPI_Allreduce(MPI_IN_PLACE, &mass, 1, MPI_DOUBLE, MPI_SUM, comm);
-      MPI_Allreduce(MPI_IN_PLACE, &vol,  1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &mass, 1, MPITypeMap<fptype>::mpi_type,
+                    MPI_SUM, comm);
+      MPI_Allreduce(MPI_IN_PLACE, &vol,  1, MPITypeMap<fptype>::mpi_type,
+                    MPI_SUM, comm);
    }
 #endif
 }
@@ -72,7 +74,7 @@ void ConstructSizeGF(GridFunction &size)
 
    // Determine small/big target sizes based on the total number of
    // elements and the volume occupied by small elements.
-   double volume_ind, volume;
+   fptype volume_ind, volume;
    calc_mass_volume(size, volume_ind, volume);
    Mesh &mesh = *size.FESpace()->GetMesh();
    int NE = mesh.GetNE();
@@ -83,35 +85,35 @@ void ConstructSizeGF(GridFunction &size)
    NCMesh *ncmesh = mesh.ncmesh;
    // For parallel NC meshes, all tasks have all root elements.
    NE = (ncmesh) ? ncmesh->GetNumRootElements() : NE;
-   const double size_ratio = (mesh.Dimension() == 2) ? 9 : 27;
-   const double small_el_size = volume_ind / NE +
+   const fptype size_ratio = (mesh.Dimension() == 2) ? 9 : 27;
+   const fptype small_el_size = volume_ind / NE +
                                 (volume - volume_ind) / (size_ratio * NE);
-   const double big_el_size   = size_ratio * small_el_size;
+   const fptype big_el_size   = size_ratio * small_el_size;
    for (int i = 0; i < size.Size(); i++)
    {
       size(i) = size(i) * small_el_size + (1.0 - size(i)) * big_el_size;
    }
 }
 
-double material_indicator_2d(const Vector &x)
+fptype material_indicator_2d(const Vector &x)
 {
-   double xc = x(0)-0.5, yc = x(1)-0.5;
-   double th = 22.5*M_PI/180.;
-   double xn =  cos(th)*xc + sin(th)*yc;
-   double yn = -sin(th)*xc + cos(th)*yc;
-   double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-   double stretch = 1/cos(th2);
+   fptype xc = x(0)-0.5, yc = x(1)-0.5;
+   fptype th = 22.5*M_PI/180.;
+   fptype xn =  cos(th)*xc + sin(th)*yc;
+   fptype yn = -sin(th)*xc + cos(th)*yc;
+   fptype th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+   fptype stretch = 1/cos(th2);
    xc = xn/stretch; yc = yn/stretch;
-   double tfac = 20;
-   double s1 = 3;
-   double s2 = 3;
-   double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
+   fptype tfac = 20;
+   fptype s1 = 3;
+   fptype s2 = 3;
+   fptype wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1);
    if (wgt > 1) { wgt = 1; }
    if (wgt < 0) { wgt = 0; }
    return wgt;
 }
 
-double discrete_ori_2d(const Vector &x)
+fptype discrete_ori_2d(const Vector &x)
 {
    return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
 }
@@ -120,7 +122,7 @@ void discrete_aspr_3d(const Vector &x, Vector &v)
 {
    int dim = x.Size();
    v.SetSize(dim);
-   double l1, l2, l3;
+   fptype l1, l2, l3;
    l1 = 1.;
    l2 = 1. + 5*x(1);
    l3 = 1. + 10*x(2);
@@ -145,12 +147,12 @@ public:
       T.Transform(ip, pos);
       if (metric != 14 && metric != 36 && metric != 85)
       {
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
-         const double eps = 0.5;
+         const fptype xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const fptype r = sqrt(xc*xc + yc*yc);
+         fptype r1 = 0.15; fptype r2 = 0.35; fptype sf=30.0;
+         const fptype eps = 0.5;
 
-         const double tan1 = std::tanh(sf*(r-r1)),
+         const fptype tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
 
          K(0, 0) = eps + 1.0 * (tan1 - tan2);
@@ -160,9 +162,9 @@ public:
       }
       else if (metric == 14 || metric == 36) // Size + Alignment
       {
-         const double xc = pos(0), yc = pos(1);
-         double theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-         double alpha_bar = 0.1;
+         const fptype xc = pos(0), yc = pos(1);
+         fptype theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         fptype alpha_bar = 0.1;
 
          K(0, 0) =  cos(theta);
          K(1, 0) =  sin(theta);
@@ -174,29 +176,29 @@ public:
       else if (metric == 85) // Shape + Alignment
       {
          Vector x = pos;
-         double xc = x(0)-0.5, yc = x(1)-0.5;
-         double th = 22.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
+         fptype xc = x(0)-0.5, yc = x(1)-0.5;
+         fptype th = 22.5*M_PI/180.;
+         fptype xn =  cos(th)*xc + sin(th)*yc;
+         fptype yn = -sin(th)*xc + cos(th)*yc;
          xc = xn; yc=yn;
 
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
+         fptype tfac = 20;
+         fptype s1 = 3;
+         fptype s2 = 2;
+         fptype wgt = std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) + 1)
                       - std::tanh((tfac*(yc) + s2*std::sin(s1*M_PI*xc)) - 1);
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
 
          xc = pos(0), yc = pos(1);
-         double theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+         fptype theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
 
          K(0, 0) =  cos(theta);
          K(1, 0) =  sin(theta);
          K(0, 1) = -sin(theta);
          K(1, 1) =  cos(theta);
 
-         double asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+         fptype asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
 
          K(0, 0) *=  1/pow(asp_ratio_tar,0.5);
          K(1, 0) *=  1/pow(asp_ratio_tar,0.5);
@@ -213,13 +215,13 @@ public:
       K = 0.;
       if (metric != 14 && metric != 85)
       {
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         const fptype xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         const fptype r = sqrt(xc*xc + yc*yc);
+         fptype r1 = 0.15; fptype r2 = 0.35; fptype sf=30.0;
 
-         const double tan1 = std::tanh(sf*(r-r1)),
+         const fptype tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
-         double tan1d = 0., tan2d = 0.;
+         fptype tan1d = 0., tan2d = 0.;
          if (r > 0.001)
          {
             tan1d = (1.-tan1*tan1)*(sf)/r,
@@ -256,28 +258,28 @@ public:
       T.Transform(ip, pos);
       if (hr_target_type == 0) // size only circle
       {
-         double small = 0.001, big = 0.01;
+         fptype small = 0.001, big = 0.01;
          if (dim == 3) { small = 0.005, big = 0.1; }
-         const double xc = pos(0) - 0.5, yc = pos(1) - 0.5;
-         double r;
+         const fptype xc = pos(0) - 0.5, yc = pos(1) - 0.5;
+         fptype r;
          if (dim == 2)
          {
             r = sqrt(xc*xc + yc*yc);
          }
          else
          {
-            const double zc = pos(2) - 0.5;
+            const fptype zc = pos(2) - 0.5;
             r = sqrt(xc*xc + yc*yc + zc*zc);
          }
-         double r1 = 0.15; double r2 = 0.35; double sf=30.0;
+         fptype r1 = 0.15; fptype r2 = 0.35; fptype sf=30.0;
 
-         const double tan1 = std::tanh(sf*(r-r1)),
+         const fptype tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
 
-         double ind = (tan1 - tan2);
+         fptype ind = (tan1 - tan2);
          if (ind > 1.0) {ind = 1.;}
          if (ind < 0.0) {ind = 0.;}
-         double val = ind * small + (1.0 - ind) * big;
+         fptype val = ind * small + (1.0 - ind) * big;
          K = 0.0;
          K(0, 0) = 1.0;
          K(0, 1) = 0.0;
@@ -289,40 +291,40 @@ public:
       }
       else if (hr_target_type == 1) // circle with size and AR
       {
-         const double small = 0.001, big = 0.01;
-         const double xc = pos(0)-0.5, yc = pos(1)-0.5;
-         const double rv = xc*xc + yc*yc;
-         double r = 0;
+         const fptype small = 0.001, big = 0.01;
+         const fptype xc = pos(0)-0.5, yc = pos(1)-0.5;
+         const fptype rv = xc*xc + yc*yc;
+         fptype r = 0;
          if (rv>0.) {r = sqrt(rv);}
 
-         double r1 = 0.2; double r2 = 0.3; double sf=30.0;
-         const double szfac = 1;
-         const double asfac = 4;
-         const double eps2 = szfac/asfac;
-         const double eps1 = szfac;
+         fptype r1 = 0.2; fptype r2 = 0.3; fptype sf=30.0;
+         const fptype szfac = 1;
+         const fptype asfac = 4;
+         const fptype eps2 = szfac/asfac;
+         const fptype eps1 = szfac;
 
-         double tan1 = std::tanh(sf*(r-r1)+1),
+         fptype tan1 = std::tanh(sf*(r-r1)+1),
                 tan2 = std::tanh(sf*(r-r2)-1);
-         double wgt = 0.5*(tan1-tan2);
+         fptype wgt = 0.5*(tan1-tan2);
 
          tan1 = std::tanh(sf*(r-r1)),
          tan2 = std::tanh(sf*(r-r2));
 
-         double ind = (tan1 - tan2);
+         fptype ind = (tan1 - tan2);
          if (ind > 1.0) {ind = 1.;}
          if (ind < 0.0) {ind = 0.;}
-         double szval = ind * small + (1.0 - ind) * big;
+         fptype szval = ind * small + (1.0 - ind) * big;
 
-         double th = std::atan2(yc,xc)*180./M_PI;
+         fptype th = std::atan2(yc,xc)*180./M_PI;
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
 
-         double maxval = eps2 + eps1*(1-wgt)*(1-wgt);
-         double minval = eps1;
-         double avgval = 0.5*(maxval+minval);
-         double ampval = 0.5*(maxval-minval);
-         double val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
-         double val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
+         fptype maxval = eps2 + eps1*(1-wgt)*(1-wgt);
+         fptype minval = eps1;
+         fptype avgval = 0.5*(maxval+minval);
+         fptype ampval = 0.5*(maxval-minval);
+         fptype val1 = avgval + ampval*sin(2.*th*M_PI/180.+90*M_PI/180.);
+         fptype val2 = avgval + ampval*sin(2.*th*M_PI/180.-90*M_PI/180.);
 
          K(0,1) = 0.0;
          K(1,0) = 0.0;
@@ -334,26 +336,26 @@ public:
       }
       else if (hr_target_type == 2) // sharp rotated sine wave
       {
-         double xc = pos(0)-0.5, yc = pos(1)-0.5;
-         double th = 15.5*M_PI/180.;
-         double xn =  cos(th)*xc + sin(th)*yc;
-         double yn = -sin(th)*xc + cos(th)*yc;
-         double th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
-         double stretch = 1/cos(th2);
+         fptype xc = pos(0)-0.5, yc = pos(1)-0.5;
+         fptype th = 15.5*M_PI/180.;
+         fptype xn =  cos(th)*xc + sin(th)*yc;
+         fptype yn = -sin(th)*xc + cos(th)*yc;
+         fptype th2 = (th > 45.*M_PI/180) ? M_PI/2 - th : th;
+         fptype stretch = 1/cos(th2);
          xc = xn/stretch;
          yc = yn;
-         double tfac = 20;
-         double s1 = 3;
-         double s2 = 2;
-         double yl1 = -0.025;
-         double yl2 =  0.025;
-         double wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
+         fptype tfac = 20;
+         fptype s1 = 3;
+         fptype s2 = 2;
+         fptype yl1 = -0.025;
+         fptype yl2 =  0.025;
+         fptype wgt = std::tanh((tfac*(yc-yl1) + s2*std::sin(s1*M_PI*xc)) + 1) -
                       std::tanh((tfac*(yc-yl2) + s2*std::sin(s1*M_PI*xc)) - 1);
          if (wgt > 1) { wgt = 1; }
          if (wgt < 0) { wgt = 0; }
 
-         const double eps2 = 25;
-         const double eps1 = 1;
+         const fptype eps2 = 25;
+         const fptype eps1 = 1;
          K(1,1) = eps1/eps2 + eps1*(1-wgt)*(1-wgt);
          K(0,0) = eps1;
          K(0,1) = 0.0;
@@ -374,51 +376,51 @@ IntegrationRules IntRulesLo(0, Quadrature1D::GaussLobatto);
 IntegrationRules IntRulesCU(0, Quadrature1D::ClosedUniform);
 
 // Defined with respect to the icf mesh.
-double weight_fun(const Vector &x)
+fptype weight_fun(const Vector &x)
 {
-   const double r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
-   const double den = 0.002;
-   double l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
+   const fptype r = sqrt(x(0)*x(0) + x(1)*x(1) + 1e-12);
+   const fptype den = 0.002;
+   fptype l2 = 0.2 + 0.5*std::tanh((r-0.16)/den) - 0.5*std::tanh((r-0.17)/den)
                + 0.5*std::tanh((r-0.23)/den) - 0.5*std::tanh((r-0.24)/den);
    return l2;
 }
 
 // Used for the adaptive limiting examples.
-double adapt_lim_fun(const Vector &x)
+fptype adapt_lim_fun(const Vector &x)
 {
-   const double xc = x(0) - 0.1, yc = x(1) - 0.2;
-   const double r = sqrt(xc*xc + yc*yc);
-   double r1 = 0.45; double r2 = 0.55; double sf=30.0;
-   double val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
+   const fptype xc = x(0) - 0.1, yc = x(1) - 0.2;
+   const fptype r = sqrt(xc*xc + yc*yc);
+   fptype r1 = 0.45; fptype r2 = 0.55; fptype sf=30.0;
+   fptype val = 0.5*(1+std::tanh(sf*(r-r1))) - 0.5*(1+std::tanh(sf*(r-r2)));
 
-   val = std::max(0.,val);
-   val = std::min(1.,val);
+   val = std::max((fptype) 0.,val);
+   val = std::min((fptype) 1.,val);
    return val;
 }
 
 // Used for exact surface alignment
-double surface_level_set(const Vector &x)
+fptype surface_level_set(const Vector &x)
 {
    const int type = 1;
 
    const int dim = x.Size();
    if (type == 0)
    {
-      const double sine = 0.25 * std::sin(4 * M_PI * x(0));
+      const fptype sine = 0.25 * std::sin(4 * M_PI * x(0));
       return (x(1) >= sine + 0.5) ? 1.0 : -1.0;
    }
    else
    {
       if (dim == 2)
       {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc);
+         const fptype xc = x(0) - 0.5, yc = x(1) - 0.5;
+         const fptype r = sqrt(xc*xc + yc*yc);
          return r-0.3;
       }
       else
       {
-         const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-         const double r = sqrt(xc*xc + yc*yc + zc*zc);
+         const fptype xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+         const fptype r = sqrt(xc*xc + yc*yc + zc*zc);
          return r-0.3;
       }
    }
@@ -432,7 +434,7 @@ int material_id(int el_id, const GridFunction &g)
    const IntegrationRule &ir =
       IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
 
-   double integral = 0.0;
+   fptype integral = 0.0;
    g.GetValues(el_id, ir, g_vals);
    ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
    int approach = 1;
@@ -448,7 +450,7 @@ int material_id(int el_id, const GridFunction &g)
    }
    else if (approach == 1)   // minimum value based
    {
-      double minval = g_vals.Min();
+      fptype minval = g_vals.Min();
       return minval > 0.0 ? 1.0 : 0.0;
    }
    return 0.0;
