@@ -44,7 +44,7 @@ using namespace std;
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
-   double s = 0.1;
+   fptype s = 0.1;
 
    if (p.Size() == 3)
    {
@@ -65,32 +65,32 @@ void transformation(const Vector &p, Vector &v)
 
 // This function is used with the 'r' menu option, sub-option 'l' to refine a
 // mesh locally in a region, defined by return values <= region_eps.
-double region_eps = 1e-8;
-double region(const Vector &p)
+fptype region_eps = 1e-8;
+fptype region(const Vector &p)
 {
-   const double x = p(0), y = p(1);
+   const fptype x = p(0), y = p(1);
    // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
-   return std::max(std::max(x - 0.25, -y), y - 1.0);
+   return std::max(std::max(x - (fptype) 0.25, -y), y - (fptype) 1.0);
 }
 
 // The projection of this function can be plotted with the 'l' menu option
-double f(const Vector &p)
+fptype f(const Vector &p)
 {
-   double x = p(0);
-   double y = p.Size() > 1 ? p(1) : 0.0;
-   double z = p.Size() > 2 ? p(2) : 0.0;
+   fptype x = p(0);
+   fptype y = p.Size() > 1 ? p(1) : 0.0;
+   fptype z = p.Size() > 2 ? p(2) : 0.0;
 
    if (1)
    {
       // torus in the xy-plane
-      const double r_big = 2.0;
-      const double r_small = 1.0;
+      const fptype r_big = 2.0;
+      const fptype r_small = 1.0;
       return hypot(r_big - hypot(x, y), z) - r_small;
    }
    if (0)
    {
       // sphere at the origin:
-      const double r = 1.0;
+      const fptype r = 1.0;
       return hypot(hypot(x, y), z) - r;
    }
 }
@@ -175,7 +175,7 @@ Mesh *skin_mesh(Mesh *mesh)
    {
       if (v2v[i] >= 0)
       {
-         double *c = mesh->GetVertex(i);
+         fptype *c = mesh->GetVertex(i);
          bmesh->AddVertex(c);
          nbvt++;
       }
@@ -461,7 +461,7 @@ int main (int argc, char *argv[])
                bool nc_simplices = true;
                mesh->EnsureNCMesh(nc_simplices);
                cout << "enter probability --> " << flush;
-               double probability;
+               fptype probability;
                cin >> probability;
                if (probability < 0.0 || probability > 1.0) { break; }
                mesh->RandomRefinement(probability);
@@ -482,7 +482,7 @@ int main (int argc, char *argv[])
 
       if (mk == 's')
       {
-         double factor;
+         fptype factor;
          cout << "scaling factor ---> " << flush;
          cin >> factor;
 
@@ -491,7 +491,7 @@ int main (int argc, char *argv[])
          {
             for (int i = 0; i < mesh->GetNV(); i++)
             {
-               double *v = mesh->GetVertex(i);
+               fptype *v = mesh->GetVertex(i);
                v[0] *= factor;
                v[1] *= factor;
                if (dim == 3)
@@ -526,7 +526,7 @@ int main (int argc, char *argv[])
                  "both ny and nz multiples of 2."
                  "Kershaw transform works for 2D meshes also.\n" << flush;
 
-            double epsy, epsz = 0.0;
+            fptype epsy, epsz = 0.0;
             cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
             cin >> epsy;
             if (mesh->Dimension() == 3)
@@ -546,7 +546,7 @@ int main (int argc, char *argv[])
 
       if (mk == 'j')
       {
-         double jitter;
+         fptype jitter;
          cout << "jitter factor ---> " << flush;
          cin >> jitter;
 
@@ -617,8 +617,8 @@ int main (int argc, char *argv[])
       {
          int sd, nz = 0;
          DenseMatrix J(dim);
-         double min_det_J, max_det_J, min_det_J_z, max_det_J_z;
-         double min_kappa, max_kappa, max_ratio_det_J_z;
+         fptype min_det_J, max_det_J, min_det_J_z, max_det_J_z;
+         fptype min_kappa, max_kappa, max_ratio_det_J_z;
          min_det_J = min_kappa = infinity();
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
@@ -642,8 +642,8 @@ int main (int argc, char *argv[])
                T->SetIntPoint(&ir.IntPoint(j));
                Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
-               double det_J = J.Det();
-               double kappa =
+               fptype det_J = J.Det();
+               fptype kappa =
                   J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1);
 
                min_det_J_z = std::min(min_det_J_z, det_J);
@@ -753,11 +753,11 @@ int main (int argc, char *argv[])
                  << flush;
             cin >> period;
 
-            double best_cost = infinity();
+            fptype best_cost = infinity();
             for (int i = 0; i < outer; i++)
             {
                int seed = i+1;
-               double cost = mesh->GetGeckoElementOrdering(
+               fptype cost = mesh->GetGeckoElementOrdering(
                                 tentative, inner, window, period, seed, true);
 
                if (cost < best_cost)
@@ -842,7 +842,7 @@ int main (int argc, char *argv[])
          {
             Array<int> coloring;
             srand(time(0));
-            double a = double(rand()) / (double(RAND_MAX) + 1.);
+            fptype a = fptype(rand()) / (fptype(RAND_MAX) + 1.);
             int el0 = (int)floor(a * mesh->GetNE());
             cout << "Generating coloring starting with element " << el0+1
                  << " / " << mesh->GetNE() << endl;
@@ -861,7 +861,7 @@ int main (int argc, char *argv[])
          if (mk == 'h')
          {
             DenseMatrix J(dim);
-            double h_min, h_max;
+            fptype h_min, h_max;
             h_min = infinity();
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
@@ -874,11 +874,11 @@ int main (int argc, char *argv[])
                attr(i) = J.Det();
                if (attr(i) < 0.0)
                {
-                  attr(i) = -pow(-attr(i), 1.0/double(dim));
+                  attr(i) = -pow(-attr(i), 1.0/fptype(dim));
                }
                else
                {
-                  attr(i) = pow(attr(i), 1.0/double(dim));
+                  attr(i) = pow(attr(i), 1.0/fptype(dim));
                }
                h_min = min(h_min, attr(i));
                h_max = max(h_max, attr(i));
@@ -926,7 +926,7 @@ int main (int argc, char *argv[])
                   Geometries.JacToPerfJac(geom, T->Jacobian(), J);
 
                   // Jacobian determinant
-                  double sJ = J.Det();
+                  fptype sJ = J.Det();
 
                   for (int k = 0; k < J.Width(); k++)
                   {
@@ -1040,7 +1040,7 @@ int main (int argc, char *argv[])
                     << setw(12) << "total" << '\n';
                cout << " elements  "
                     << setw(12) << min_el
-                    << setw(12) << double(mesh->GetNE())/np
+                    << setw(12) << fptype(mesh->GetNE())/np
                     << setw(12) << max_el
                     << setw(12) << mesh->GetNE() << endl;
             }

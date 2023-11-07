@@ -589,7 +589,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
             // compute dx = resid/deriv
             fptype dx = (x_i*p_l - p_lm1) / (np*p_l);
 #ifdef MFEM_USE_FLOAT
-            if (std::abs(dx) < 1e-8)
+            if (std::abs(dx) < 1e-7)
 #else
             if (std::abs(dx) < 1e-16)
 #endif
