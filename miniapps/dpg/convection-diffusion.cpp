@@ -80,15 +80,15 @@ enum prob_type
 
 prob_type prob;
 Vector beta;
-double epsilon;
+fptype epsilon;
 
-double exact_u(const Vector & X);
+fptype exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector & du);
-double exact_laplacian_u(const Vector & X);
+fptype exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-double exact_hatu(const Vector & X);
+fptype exact_hatu(const Vector & X);
 void exact_hatf(const Vector & X, Vector & hatf);
-double f_exact(const Vector & X);
+fptype f_exact(const Vector & X);
 void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf);
 
 int main(int argc, char *argv[])
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    int ref = 1;
    bool visualization = true;
    int iprob = 0;
-   double theta = 0.0;
+   fptype theta = 0.0;
    bool static_cond = false;
    epsilon = 1e0;
 
@@ -282,8 +282,8 @@ int main(int argc, char *argv[])
    socketstream u_out;
    socketstream sigma_out;
 
-   double res0 = 0.;
-   double err0 = 0.;
+   fptype res0 = 0.;
+   fptype err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
    std::cout << "\n  Ref |"
              << "    Dofs    |"
@@ -379,15 +379,15 @@ int main(int argc, char *argv[])
       u_gf.MakeRef(u_fes,x.GetBlock(0),0);
       sigma_gf.MakeRef(sigma_fes,x.GetBlock(1),0);
 
-      double u_err = u_gf.ComputeL2Error(uex);
-      double sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-      double L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+      fptype u_err = u_gf.ComputeL2Error(uex);
+      fptype sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      fptype L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
 
       Vector & residuals = a->ComputeResidual(x);
-      double residual = residuals.Norml2();
+      fptype residual = residuals.Norml2();
 
-      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
-      double rate_res = (it) ? dim*log(res0/residual)/log((double)dof0/dofs) : 0.0;
+      fptype rate_err = (it) ? dim*log(err0/L2Error)/log((fptype)dof0/dofs) : 0.0;
+      fptype rate_res = (it) ? dim*log(res0/residual)/log((fptype)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       res0 = residual;
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
       }
 
       elements_to_refine.SetSize(0);
-      double max_resid = residuals.Max();
+      fptype max_resid = residuals.Max();
       for (int iel = 0; iel<mesh.GetNE(); iel++)
       {
          if (residuals[iel] > theta * max_resid)
@@ -464,31 +464,31 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double exact_u(const Vector & X)
+fptype exact_u(const Vector & X)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   fptype x = X[0];
+   fptype y = X[1];
+   fptype z = 0.;
    if (X.Size() == 3) { z = X[2]; }
    switch (prob)
    {
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         fptype alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         fptype r1 = (1. + alpha) / (2.*epsilon);
+         fptype r2 = (1. - alpha) / (2.*epsilon);
+         fptype denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g2 = exp(r1*(x-1.));
-         double g = g1-g2;
+         fptype g1 = exp(r2*(x-1.));
+         fptype g2 = exp(r1*(x-1.));
+         fptype g = g1-g2;
 
          return g * cos(M_PI * y)/denom;
       }
       break;
       default:
       {
-         double alpha = M_PI * (x + y + z);
+         fptype alpha = M_PI * (x + y + z);
          return sin(alpha);
       }
       break;
@@ -497,9 +497,9 @@ double exact_u(const Vector & X)
 
 void exact_gradu(const Vector & X, Vector & du)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   fptype x = X[0];
+   fptype y = X[1];
+   fptype z = 0.;
    if (X.Size() == 3) { z = X[2]; }
    du.SetSize(X.Size());
    du = 0.;
@@ -507,17 +507,17 @@ void exact_gradu(const Vector & X, Vector & du)
    {
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         fptype alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         fptype r1 = (1. + alpha) / (2.*epsilon);
+         fptype r2 = (1. - alpha) / (2.*epsilon);
+         fptype denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g1_x = r2*g1;
-         double g2 = exp(r1*(x-1.));
-         double g2_x = r1*g2;
-         double g = g1-g2;
-         double g_x = g1_x - g2_x;
+         fptype g1 = exp(r2*(x-1.));
+         fptype g1_x = r2*g1;
+         fptype g2 = exp(r1*(x-1.));
+         fptype g2_x = r1*g2;
+         fptype g = g1-g2;
+         fptype g_x = g1_x - g2_x;
 
          du[0] = g_x * cos(M_PI * y)/denom;
          du[1] = -M_PI * g * sin(M_PI*y)/denom;
@@ -525,7 +525,7 @@ void exact_gradu(const Vector & X, Vector & du)
       break;
       default:
       {
-         double alpha = M_PI * (x + y + z);
+         fptype alpha = M_PI * (x + y + z);
          du.SetSize(X.Size());
          for (int i = 0; i<du.Size(); i++)
          {
@@ -536,41 +536,41 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-double exact_laplacian_u(const Vector & X)
+fptype exact_laplacian_u(const Vector & X)
 {
-   double x = X[0];
-   double y = X[1];
-   double z = 0.;
+   fptype x = X[0];
+   fptype y = X[1];
+   fptype z = 0.;
    if (X.Size() == 3) { z = X[2]; }
 
    switch (prob)
    {
       case EJ:
       {
-         double alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
-         double r1 = (1. + alpha) / (2.*epsilon);
-         double r2 = (1. - alpha) / (2.*epsilon);
-         double denom = exp(-r2) - exp(-r1);
+         fptype alpha = sqrt(1. + 4. * epsilon * epsilon * M_PI * M_PI);
+         fptype r1 = (1. + alpha) / (2.*epsilon);
+         fptype r2 = (1. - alpha) / (2.*epsilon);
+         fptype denom = exp(-r2) - exp(-r1);
 
-         double g1 = exp(r2*(x-1.));
-         double g1_x = r2*g1;
-         double g1_xx = r2*g1_x;
-         double g2 = exp(r1*(x-1.));
-         double g2_x = r1*g2;
-         double g2_xx = r1*g2_x;
-         double g = g1-g2;
-         double g_xx = g1_xx - g2_xx;
+         fptype g1 = exp(r2*(x-1.));
+         fptype g1_x = r2*g1;
+         fptype g1_xx = r2*g1_x;
+         fptype g2 = exp(r1*(x-1.));
+         fptype g2_x = r1*g2;
+         fptype g2_xx = r1*g2_x;
+         fptype g = g1-g2;
+         fptype g_xx = g1_xx - g2_xx;
 
-         double u = g * cos(M_PI * y)/denom;
-         double u_xx = g_xx * cos(M_PI * y)/denom;
-         double u_yy = -M_PI * M_PI * u;
+         fptype u = g * cos(M_PI * y)/denom;
+         fptype u_xx = g_xx * cos(M_PI * y)/denom;
+         fptype u_yy = -M_PI * M_PI * u;
          return u_xx + u_yy;
       }
       break;
       default:
       {
-         double alpha = M_PI * (x + y + z);
-         double u = sin(alpha);
+         fptype alpha = M_PI * (x + y + z);
+         fptype u = sin(alpha);
          return -M_PI*M_PI * u * X.Size();
       }
       break;
@@ -584,7 +584,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    sigma *= epsilon;
 }
 
-double exact_hatu(const Vector & X)
+fptype exact_hatu(const Vector & X)
 {
    return -exact_u(X);
 }
@@ -593,7 +593,7 @@ void exact_hatf(const Vector & X, Vector & hatf)
 {
    Vector sigma;
    exact_sigma(X,sigma);
-   double u = exact_u(X);
+   fptype u = exact_u(X);
    hatf.SetSize(X.Size());
    for (int i = 0; i<hatf.Size(); i++)
    {
@@ -601,14 +601,14 @@ void exact_hatf(const Vector & X, Vector & hatf)
    }
 }
 
-double f_exact(const Vector & X)
+fptype f_exact(const Vector & X)
 {
    // f = - εΔu + ∇⋅(βu)
    Vector du;
    exact_gradu(X,du);
-   double d2u = exact_laplacian_u(X);
+   fptype d2u = exact_laplacian_u(X);
 
-   double s = 0;
+   fptype s = 0;
    for (int i = 0; i<du.Size(); i++)
    {
       s += beta[i] * du[i];
@@ -623,9 +623,9 @@ void setup_test_norm_coeffs(GridFunction & c1_gf, GridFunction & c2_gf)
    Mesh * mesh = fes->GetMesh();
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      double volume = mesh->GetElementVolume(i);
-      double c1 = min(epsilon/volume, 1.);
-      double c2 = min(1./epsilon, 1./volume);
+      fptype volume = mesh->GetElementVolume(i);
+      fptype c1 = min(epsilon/volume, (fptype) 1.);
+      fptype c2 = min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);

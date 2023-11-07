@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-CartesianPML::CartesianPML(Mesh *mesh_, const Array2D<double> &length_)
+CartesianPML::CartesianPML(Mesh *mesh_, const Array2D<fptype> &length_)
    : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
@@ -52,8 +52,10 @@ void CartesianPML::SetBoundaries()
    {
       for (int d=0; d<dim; d++)
       {
-         MPI_Allreduce(MPI_IN_PLACE,&dom_bdr(d,0),1,MPI_DOUBLE,MPI_MIN,pmesh->GetComm());
-         MPI_Allreduce(MPI_IN_PLACE,&dom_bdr(d,1),1,MPI_DOUBLE,MPI_MAX,pmesh->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE, &dom_bdr(d,0), 1,
+		       MPITypeMap<fptype>::mpi_type, MPI_MIN,pmesh->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE, &dom_bdr(d,1), 1,
+		       MPITypeMap<fptype>::mpi_type, MPI_MAX, pmesh->GetComm());
       }
    }
 #endif
@@ -85,7 +87,7 @@ void CartesianPML::SetAttributes(Mesh *mesh_, Array<int> * attrNonPML,
       for (int iv = 0; iv < nrvert; ++iv)
       {
          int vert_idx = vertices[iv];
-         double *coords = mesh_->GetVertex(vert_idx);
+         fptype *coords = mesh_->GetVertex(vert_idx);
          for (int comp = 0; comp < dim; ++comp)
          {
             if (coords[comp] > comp_dom_bdr(comp, 1) ||
@@ -126,14 +128,14 @@ void CartesianPML::SetAttributes(Mesh *mesh_, Array<int> * attrNonPML,
 }
 
 void CartesianPML::StretchFunction(const Vector &x,
-                                   std::vector<std::complex<double>> &dxs)
+                                   std::vector<std::complex<fptype>> &dxs)
 {
-   std::complex<double> zi = std::complex<double>(0., 1.);
+   std::complex<fptype> zi = std::complex<fptype>(0., 1.);
 
-   double n = 2.0;
-   double c = 5.0;
-   double coeff;
-   double k = omega * sqrt(epsilon * mu);
+   fptype n = 2.0;
+   fptype c = 5.0;
+   fptype coeff;
+   fptype k = omega * sqrt(epsilon * mu);
    // Stretch in each direction independently
    for (int i = 0; i < dim; ++i)
    {
@@ -153,31 +155,31 @@ void CartesianPML::StretchFunction(const Vector &x,
 
 // acoustics UW PML coefficients functions
 // |J|
-double detJ_r_function(const Vector & x, CartesianPML * pml)
+fptype detJ_r_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det(1.0,0.0);
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det(1.0,0.0);
    pml->StretchFunction(x, dxs);
    for (int i=0; i<dim; ++i) { det *= dxs[i]; }
    return det.real();
 }
 
-double detJ_i_function(const Vector & x, CartesianPML * pml)
+fptype detJ_i_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det(1.0,0.0);
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det(1.0,0.0);
    pml->StretchFunction(x, dxs);
    for (int i=0; i<dim; ++i) { det *= dxs[i]; }
    return det.imag();
 }
 
-double abs_detJ_2_function(const Vector & x, CartesianPML * pml)
+fptype abs_detJ_2_function(const Vector & x, CartesianPML * pml)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det(1.0,0.0);
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det(1.0,0.0);
    pml->StretchFunction(x, dxs);
    for (int i=0; i<dim; ++i) { det *= dxs[i]; }
    return det.imag()*det.imag() + det.real()*det.real();
@@ -188,8 +190,8 @@ void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml,
                              DenseMatrix & M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det(1.0,0.0);
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det(1.0,0.0);
    pml->StretchFunction(x, dxs);
    for (int i = 0; i<dim; ++i) { det *= dxs[i]; }
 
@@ -204,8 +206,8 @@ void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml,
                              DenseMatrix & M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det = 1.0;
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
    for (int i = 0; i<dim; ++i) { det *= dxs[i]; }
 
@@ -220,15 +222,15 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml,
                                  DenseMatrix & M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det = 1.0;
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
    for (int i = 0; i<dim; ++i) { det *= dxs[i]; }
 
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      std::complex<double> a = pow(dxs[i], 2)/det;
+      std::complex<fptype> a = pow(dxs[i], 2)/det;
       M(i,i) = a.imag() * a.imag() + a.real() * a.real();
    }
 }
@@ -239,8 +241,8 @@ void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml,
                               DenseMatrix &M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det(1.0, 0.0);
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det(1.0, 0.0);
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i) { det *= dxs[i]; }
@@ -256,8 +258,8 @@ void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml,
                               DenseMatrix &M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det = 1.0;
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i) { det *= dxs[i]; }
@@ -273,8 +275,8 @@ void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
                                   DenseMatrix &M)
 {
    int dim = pml->dim;
-   std::vector<std::complex<double>> dxs(dim);
-   std::complex<double> det = 1.0;
+   std::vector<std::complex<fptype>> dxs(dim);
+   std::complex<fptype> det = 1.0;
    pml->StretchFunction(x, dxs);
 
    for (int i = 0; i < dim; ++i) { det *= dxs[i]; }
@@ -282,7 +284,7 @@ void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
    M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      std::complex<double> a = det / pow(dxs[i], 2);
+      std::complex<fptype> a = det / pow(dxs[i], 2);
       M(i, i) = a.real()*a.real() + a.imag()*a.imag();
    }
 }

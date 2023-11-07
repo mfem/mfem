@@ -22,13 +22,13 @@ private:
 
    /** 2D array of size (dim,2) representing the length of the PML
        region in each direction */
-   Array2D<double> length;
+   Array2D<fptype> length;
 
    /// 2D array of size (dim,2) representing the Computational Domain Boundary
-   Array2D<double> comp_dom_bdr;
+   Array2D<fptype> comp_dom_bdr;
 
    /// 2D array of size (dim,2) representing the Domain Boundary
-   Array2D<double> dom_bdr;
+   Array2D<fptype> dom_bdr;
 
    /** Integer Array identifying elements in the pml
        0: in the pml, 1: not in the pml */
@@ -41,18 +41,18 @@ public:
    /** Constructor of the PML region using the mesh @a mesh_ and
        the 2D array of size (dim,2) @a length_ which represents the
        length of the PML in each direction. */
-   CartesianPML(Mesh *mesh_, const Array2D<double> &length_);
+   CartesianPML(Mesh *mesh_, const Array2D<fptype> &length_);
 
    int dim;
-   double omega;
+   fptype omega;
    // Default values for Maxwell
-   double epsilon = 1.0;
-   double mu = 1.0;
+   fptype epsilon = 1.0;
+   fptype mu = 1.0;
    /// Return Computational Domain Boundary
-   const Array2D<double> & GetCompDomainBdr() {return comp_dom_bdr;}
+   const Array2D<fptype> & GetCompDomainBdr() {return comp_dom_bdr;}
 
    /// Return Domain Boundary
-   const Array2D<double> & GetDomainBdr() {return dom_bdr;}
+   const Array2D<fptype> & GetDomainBdr() {return dom_bdr;}
 
    /// Return Marker list for elements
    const Array<int> & GetMarkedPMLElements() {return elems;}
@@ -61,14 +61,14 @@ public:
    void SetAttributes(Mesh *mesh_, Array<int> * attrNonPML = nullptr,
                       Array<int> * attrPML = nullptr);
 
-   void SetOmega(double omega_) {omega = omega_;}
-   void SetEpsilonAndMu(double epsilon_, double mu_)
+   void SetOmega(fptype omega_) {omega = omega_;}
+   void SetEpsilonAndMu(fptype epsilon_, fptype mu_)
    {
       epsilon = epsilon_;
       mu = mu_;
    }
    /// PML complex stretching function
-   void StretchFunction(const Vector &x, std::vector<std::complex<double>> &dxs);
+   void StretchFunction(const Vector &x, std::vector<std::complex<fptype>> &dxs);
 };
 
 
@@ -76,14 +76,14 @@ class PmlCoefficient : public Coefficient
 {
 private:
    CartesianPML * pml = nullptr;
-   double (*Function)(const Vector &, CartesianPML * );
+   fptype (*Function)(const Vector &, CartesianPML * );
 public:
-   PmlCoefficient(double (*F)(const Vector &, CartesianPML *), CartesianPML * pml_)
+   PmlCoefficient(fptype (*F)(const Vector &, CartesianPML *), CartesianPML * pml_)
       : pml(pml_), Function(F)
    {}
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual fptype Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
-      double x[3];
+      fptype x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       return ((*Function)(transip, pml));
@@ -104,7 +104,7 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip)
    {
-      double x[3];
+      fptype x[3];
       Vector transip(x, 3);
       T.Transform(ip, transip);
       K.SetSize(height, width);
@@ -114,9 +114,9 @@ public:
 
 /// PML stretching functions: See https://doi.org/10.1006/jcph.1994.1159
 // Helmholtz
-double detJ_r_function(const Vector & x, CartesianPML * pml);
-double detJ_i_function(const Vector & x, CartesianPML * pml);
-double abs_detJ_2_function(const Vector & x, CartesianPML * pml);
+fptype detJ_r_function(const Vector & x, CartesianPML * pml);
+fptype detJ_i_function(const Vector & x, CartesianPML * pml);
+fptype abs_detJ_2_function(const Vector & x, CartesianPML * pml);
 
 void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml,
                              DenseMatrix & M);
