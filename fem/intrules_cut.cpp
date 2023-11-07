@@ -1509,35 +1509,23 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
    }
 }
 
-Vector MomentFittingIntRules::GetSurfaceWeights(int order,
-                                                Coefficient& lvlset,
-                                                int lsO,
-                                                ElementTransformation& Tr,
-                                                const IntegrationRule* sir)
+void MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
+                                              const IntegrationRule &sir,
+                                              Vector &weights)
 {
-   if (order != Order || dim != Tr.GetDimension() || nBasis == -1)
+   if (nBasis == -1 || dim != Tr.GetDimension())
    {
       Clear();
-      InitSurface(order, lvlset, lsO, Tr);
-   }
-   else
-   {
-      Init(order, lvlset, lsO);
+      InitSurface(Order, *LvlSet, lsOrder, Tr);
    }
 
-   return GetSurfaceWeights(Tr, sir);
-}
-
-Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
-                                                const IntegrationRule* sir)
-{
-   Vector SurfaceWeights(sir->GetNPoints());
-   SurfaceWeights = 0.;
+   weights.SetSize(sir.GetNPoints());
+   weights = 0.0;
 
    bool computeweights = false;
-   for (int ip = 0; ip < sir->GetNPoints(); ip++)
+   for (int ip = 0; ip < sir.GetNPoints(); ip++)
    {
-      if (sir->IntPoint(ip).weight != 0.)
+      if (sir.IntPoint(ip).weight != 0.)
       {
          computeweights = true;
       }
@@ -1563,14 +1551,14 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
       Array<int> dofs;
       fes.GetElementDofs(elem, dofs);
 
-      for (int ip = 0; ip < sir->GetNPoints(); ip++)
+      for (int ip = 0; ip < sir.GetNPoints(); ip++)
       {
-         Trafo.SetIntPoint(&(sir->IntPoint(ip)));
+         Trafo.SetIntPoint(&(sir.IntPoint(ip)));
          LevelSet.GetGradient(Trafo, normal2);
          double normphys = normal2.Norml2();
 
          normal = 0.;
-         fe->CalcDShape(sir->IntPoint(ip), dshape);
+         fe->CalcDShape(sir.IntPoint(ip), dshape);
          for (int dof = 0; dof < fe->GetDof(); dof++)
          {
             dshape.GetRow(dof, gradi);
@@ -1580,11 +1568,9 @@ Vector MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
          double normref = normal.Norml2();
          normal *= (-1. / normal.Norml2());
 
-         SurfaceWeights(ip) = normphys / normref;
+         weights(ip) = normphys / normref;
       }
    }
-
-   return SurfaceWeights;
 }
 
 #endif //MFEM_USE_LAPACK
