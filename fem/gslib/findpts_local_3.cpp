@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../gslib.hpp"
-#include "gslib_pa.hpp"
+#include "findpts_3.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -561,9 +561,9 @@ newton_vol_face :
       y[1] = jac[d2] * res[0] + jac[3 + d2] * res[1] + jac[6 + d2] * res[2];
       /* JtJ = J_u^T J_u */
       JtJ[0] = jac[d1] * jac[d1] + jac[3 + d1] * jac[3 + d1] +
-              jac[6 + d1] * jac[6 +d1];
+               jac[6 + d1] * jac[6 +d1];
       JtJ[1] = jac[d1] * jac[d2] + jac[3 + d1] * jac[3 + d2] +
-              jac[6 + d1] * jac[6 + d2];
+               jac[6 + d1] * jac[6 + d2];
       JtJ[2] = jac[d2] * jac[d2] + jac[3 + d2] * jac[3 + d2] +
                jac[6 + d2] * jac[6 + d2];
       lin_solve_sym_2(drc, JtJ, y);
@@ -921,7 +921,7 @@ newton_edge_fin:
 void seed_j(const dfloat *elx[3],
             const dfloat x[3],
             dfloat *z, //GLL point locations [-1, 1]
-            dfloat dist2[0],
+            dfloat *dist2,
             dfloat *r[3],
             const int j,
             const dlong p_Nr)
@@ -997,8 +997,7 @@ dfloat tensor_ig3_j(dfloat *g_partials,
 static void FindPointsLocal3D_Kernel(const int npt,
                                      const dfloat tol,
                                      const dfloat *x,
-                                     const dfloat *y,
-                                     const dfloat *z,
+                                     const dlong point_pos_ordering,
                                      const dfloat *xElemCoord,
                                      const dfloat *yElemCoord,
                                      const dfloat *zElemCoord,
@@ -1026,23 +1025,29 @@ static void FindPointsLocal3D_Kernel(const int npt,
 #define p_innerSize 32
    const int dim = 3;
    const dlong p_NE = p_Nr*p_Nr*p_Nr;
-   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_1D(npt, p_innerSize, [=] MFEM_HOST_DEVICE (int i)
+                   //   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
    {
       const int size1 = MAX_CONST(4, p_Nr + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr + 5;
       int size2 = MAX_CONST(p_Nr *p_Nr * 6, p_Nr * 3 * 3);
-      dfloat r_workspace[size1];
-      findptsElementPoint_t el_pts[2];
-#define CONSTRAINT_SIZE size2
+      MFEM_SHARED dfloat r_workspace[size1];
+      MFEM_SHARED findptsElementPoint_t el_pts[2];
+
+      MFEM_SHARED dfloat constraint_workspace[size2];
       infok[0] = size1;
-      infok[1] = CONSTRAINT_SIZE;
-      dfloat constraint_workspace[CONSTRAINT_SIZE];
+      infok[1] = size2;
       dlong constraint_init;
+      MFEM_SHARED dlong constraint_init_t[p_innerSize];
 
       dfloat *r_workspace_ptr = r_workspace;
       findptsElementPoint_t *fpt = el_pts,
                              *tmp = el_pts + 1;
+      MFEM_SYNC_THREAD;
 
-      dfloat x_i[3] = {x[i], y[i], z[i]};
+      dlong id_x = point_pos_ordering == 0 ? i : i*dim;
+      dlong id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
+      dlong id_z = point_pos_ordering == 0 ? i+2*npt : i*dim+2;
+      dfloat x_i[3] = {x[id_x], x[id_y], x[id_z]};
       dfloat *wtend[3] = {&wtend_x[0], &wtend_y[0], &wtend_z[0]};
 
       dlong *code_i = code_base + i;
@@ -1097,8 +1102,9 @@ static void FindPointsLocal3D_Kernel(const int npt,
 
                //// findpts_el ////
                {
-                  for (dlong j = 0; j < p_innerSize; ++j) //inner
-                     //mfem::forall(p_innerSize, [=] MFEM_HOST_DEVICE (dlong j)
+                  MFEM_SYNC_THREAD;
+                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                  //                  for (dlong j = 0; j < p_innerSize; ++j) //inner
                   {
                      if (j == 0)
                      {
@@ -1107,9 +1113,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         fpt->tr = 1;
                      }
                      if (j < 3) { fpt->x[j] = x_i[j]; }
-                     constraint_init = 0;
-                  } //);
-
+                     //                     constraint_init = 0;
+                     constraint_init_t[j] = 0;
+                  }
+                  MFEM_SYNC_THREAD;
                   //// seed ////
                   {
                      dfloat *dist2_temp = r_workspace_ptr;
@@ -1118,12 +1125,16 @@ static void FindPointsLocal3D_Kernel(const int npt,
                      {
                         r_temp[d] = dist2_temp + (1 + d) * p_Nr;
                      }
-                     for (dlong j = 0; j < p_innerSize; ++j)  //inner
+
+                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                     //                     for (dlong j = 0; j < p_innerSize; ++j)  //inner
                      {
                         seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, p_Nr);
                         //seed_j(elx, x_i, dist2_temp, r_temp, j);
                      }
-                     for (dlong j = 0; j < p_innerSize; ++j) //inner
+                     MFEM_SYNC_THREAD;
+                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                     //                     for (dlong j = 0; j < p_innerSize; ++j) //inner
                      {
                         if (j == 0)
                         {
@@ -1141,9 +1152,11 @@ static void FindPointsLocal3D_Kernel(const int npt,
                            }
                         }
                      }
+                     MFEM_SYNC_THREAD;
                   } //seed done
 
-                  for (dlong j = 0; j < p_innerSize; ++j)  //inner
+                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                  //                  for (dlong j = 0; j < p_innerSize; ++j)  //inner
                   {
                      if (j == 0)
                      {
@@ -1158,6 +1171,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         tmp->r[j] = fpt->r[j];
                      }
                   }
+                  MFEM_SYNC_THREAD;
 
                   for (dlong step = 0; step < 50; step++)
                   {
@@ -1175,7 +1189,8 @@ static void FindPointsLocal3D_Kernel(const int npt,
                            dfloat *resid_temp = jac + 9;
                            dfloat *jac_temp = resid_temp + 3 * p_Nr;
 
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < p_Nr)
                               {
@@ -1184,8 +1199,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  lagrange_eval_first_derivative(wtt, tmp->r[2], j, gll1D, lagcoeff, p_Nr);
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < p_Nr * 3)
                               {
@@ -1203,8 +1220,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                                                        p_Nr);
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong l = 0; l < p_innerSize; ++l) //inner
+                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           //                           for (dlong l = 0; l < p_innerSize; ++l) //inner
                            {
                               if (l < 3)
                               {
@@ -1223,8 +1242,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong l = 0; l < p_innerSize; ++l)
+                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           //                           for (dlong l = 0; l < p_innerSize; ++l)
                            {
                               if (l == 0)
                               {
@@ -1234,6 +1255,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
                            break;
                         } //case 0
                         case 1:   // findpt_face / findpt_area
@@ -1250,7 +1272,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                            dfloat *jac_temp = resid_temp + 3 * p_Nr;
                            dfloat *hes = jac_temp + 3 * 3 * p_Nr;
                            dfloat *hes_temp = hes + 3;
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_SYNC_THREAD;
+
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < p_Nr)
                               {
@@ -1258,24 +1283,28 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  lagrange_eval_second_derivative(wt2, tmp->r[d2], j, gll1D, lagcoeff, p_Nr);
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
                            dfloat *J1 = wt1, *D1 = wt1 + p_Nr;
                            dfloat *J2 = wt2, *D2 = wt2 + p_Nr;
                            dfloat *DD1 = D1 + p_Nr, *DD2 = D2 + p_Nr;
                            findptsElementGFace_t face;
 
-                           for (dlong j = 0; j < p_innerSize; j++)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; j++)
                            {
-                              dlong constraint_init_dummy = constraint_init;
-                              face = get_face(elx, wtend, fi, constraint_workspace, constraint_init_dummy, j,
+                              //                              dlong constraint_init_dummy = constraint_init;
+                              face = get_face(elx, wtend, fi, constraint_workspace, constraint_init_t[j], j,
                                               p_Nr);
-                              if (j==p_innerSize-1)
-                              {
-                                 constraint_init = constraint_init_dummy;
-                              }
+                              //                              if (j==p_innerSize-1)
+                              //                              {
+                              //                                 constraint_init = constraint_init_dummy;
+                              //                              }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < p_Nr * 3)
                               {
@@ -1304,8 +1333,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong l = 0; l < p_innerSize; ++l)
+                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           //                           for (dlong l = 0; l < p_innerSize; ++l)
                            {
                               if (l < 3)
                               {
@@ -1334,8 +1365,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  hes[l] *= resid[l];
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong l = 0; l < p_innerSize; ++l)
+                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           //                           for (dlong l = 0; l < p_innerSize; ++l)
                            {
                               if (l == 0)
                               {
@@ -1355,6 +1388,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
                            break;
                         }
                         case 2:   // findpt_edge
@@ -1373,28 +1407,35 @@ static void FindPointsLocal3D_Kernel(const int npt,
                            dfloat *hes_T = jac + 3 * 3;
                            dfloat *hes = hes_T + hes_count * 3;
                            findptsElementGEdge_t edge;
-                           for (dlong j = 0; j < p_innerSize; ++j)
+
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
-                              dlong constraint_init_dummy = constraint_init;
-                              edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_dummy, j,
+                              //                              dlong constraint_init_dummy = constraint_init;
+                              edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_t[j], j,
                                               p_Nr);
-                              if (j==p_innerSize-1)
-                              {
-                                 constraint_init = constraint_init_dummy;
-                              }
+                              //                              if (j==p_innerSize-1)
+                              //                              {
+                              //                                 constraint_init = constraint_init_dummy;
+                              //                              }
                            }
+                           MFEM_SYNC_THREAD;
 
                            const dfloat *const *e_x[3 + 3] =
                            {edge.x, edge.x, edge.dxdn1, edge.dxdn2, edge.d2xdn1, edge.d2xdn2};
-                           for (dlong j = 0; j < p_innerSize; ++j)
+
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < p_Nr)
                               {
                                  lagrange_eval_second_derivative(wt, tmp->r[de], j, gll1D, lagcoeff, p_Nr);
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               const dlong d = j % 3;
                               const dlong row = j / 3;
@@ -1435,8 +1476,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
 
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j < hes_count)
                               {
@@ -1448,7 +1491,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
                               }
                            }
 
-                           for (dlong l = 0; l < p_innerSize; ++l)
+                           MFEM_SYNC_THREAD;
+
+                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           //                           for (dlong l = 0; l < p_innerSize; ++l)
                            {
                               if (l == 0)
                               {
@@ -1523,11 +1569,13 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
                            break;
                         }
                         case 3:   // findpts_pt
                         {
-                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           //                           for (dlong j = 0; j < p_innerSize; ++j)
                            {
                               if (j == 0)
                               {
@@ -1697,6 +1745,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                  }
                               }
                            }
+                           MFEM_SYNC_THREAD;
                            break;
                         } //case 3
                      } //switch
@@ -1704,18 +1753,22 @@ static void FindPointsLocal3D_Kernel(const int npt,
                      {
                         break;
                      }
-                     for (dlong j = 0; j < p_innerSize; ++j)
-                        if (j == 0)
-                        {
-                           *tmp = *fpt;
-                        }
+                     MFEM_SYNC_THREAD;
+                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                     //                     for (dlong j = 0; j < p_innerSize; ++j)
+                     if (j == 0)
+                     {
+                        *tmp = *fpt;
+                     }
+                     MFEM_SYNC_THREAD;
                   } //for dlong step < 50
                } //findpts_el
 
                bool converged_internal = (fpt->flags & FLAG_MASK) == CONVERGED_FLAG;
                if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i)
                {
-                  for (dlong j = 0; j < p_innerSize; ++j)
+                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                  //                  for (dlong j = 0; j < p_innerSize; ++j)
                   {
                      if (j == 0)
                      {
@@ -1728,6 +1781,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
                         r_i[j] = fpt->r[j];
                      }
                   }
+                  MFEM_SYNC_THREAD;
                   if (converged_internal)
                   {
                      break;
@@ -1739,15 +1793,18 @@ static void FindPointsLocal3D_Kernel(const int npt,
    });
 }
 
-void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos)
+void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos,
+                                      int point_pos_ordering,
+                                      Array<int> &gsl_code_dev_l,
+                                      Array<int> &gsl_elem_dev_l,
+                                      Vector &gsl_ref_l,
+                                      Vector &gsl_dist_l,
+                                      int npt)
 {
-   std::cout << " k10do-findptslocalkernel\n";
    if (dim == 3)
    {
-      FindPointsLocal3D_Kernel(points_cnt, DEV.tol,
-                               point_pos.Read(),
-                               point_pos.Read()+points_cnt,
-                               point_pos.Read()+2*points_cnt,
+      FindPointsLocal3D_Kernel(npt, DEV.tol,
+                               point_pos.Read(), point_pos_ordering,
                                DEV.o_x.ReadWrite(),
                                DEV.o_y.ReadWrite(),
                                DEV.o_z.ReadWrite(),
@@ -1762,20 +1819,20 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos)
                                DEV.o_hashMin.Read(),
                                DEV.o_hashFac.Read(),
                                DEV.o_offset.ReadWrite(),
-                               gsl_code_dev.ReadWrite(),
-                               gsl_elem_dev.ReadWrite(),
-                               gsl_ref.ReadWrite(),
-                               gsl_dist.ReadWrite(),
+                               gsl_code_dev_l.ReadWrite(),
+                               gsl_elem_dev_l.ReadWrite(),
+                               gsl_ref_l.ReadWrite(),
+                               gsl_dist_l.ReadWrite(),
                                DEV.gll1d.ReadWrite(),
                                DEV.lagcoeff.ReadWrite(),
                                DEV.info.ReadWrite(),
-                               DEV.dof1D);
+                               DEV.dof1d);
    }
    else
    {
       MFEM_ABORT("Device implementation only for 3D yet.");
    }
-   std::cout << " k10donefindptslocal\n";
+   //   std::cout << " k10donefindptslocal\n";
 }
 
 

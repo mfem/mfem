@@ -748,6 +748,12 @@ inline void forall_switch(bool use_dev, int N, lambda &&body)
 }
 
 template<typename lambda>
+inline void forall_1D(int N, int X, lambda &&body)
+{
+   ForallWrap<1>(true, N, body, X, 1, 1);
+}
+
+template<typename lambda>
 inline void forall_2D(int N, int X, int Y, lambda &&body)
 {
    ForallWrap<2>(true, N, body, X, Y, 1);

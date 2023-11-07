@@ -22,11 +22,8 @@ namespace gslib
 {
 struct comm;
 struct findpts_data_2;
-//struct findpts_data_3;
 struct crystal;
 struct hash_data_3;
-//struct findpts_local_hash_data_3;
-//struct obbox_3;
 }
 
 namespace mfem
@@ -94,7 +91,8 @@ protected:
    struct
    {
       int local_hash_size;
-      int dof1D;
+      int dof1d;
+      int dof1dsol;
       double tol;
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash;
@@ -103,6 +101,8 @@ protected:
       mutable Vector o_wtend_x, o_wtend_y, o_wtend_z;
       mutable Vector gll1d;
       mutable Vector lagcoeff;
+      mutable Vector gll1dsol;
+      mutable Vector lagcoeffsol;
 
       mutable Array<unsigned int> o_code, o_proc, o_el;
       mutable DenseTensor o_r;
@@ -142,7 +142,29 @@ protected:
    virtual void MapRefPosAndElemIndices();
 
    virtual void SetupDevice(MemoryType mt); // probably should be internal
-   void FindPointsLocal(const Vector &point_pos);
+
+   void FindPointsOnDevice(const Vector &point_pos,
+                           int point_pos_ordering = Ordering::byNODES);
+
+   void InterpolateOnDevice(const Vector &field_in, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int gf_ordering,
+                            MemoryType mt);
+
+   void FindPointsLocal(const Vector &point_pos,
+                        int point_pos_ordering,
+                        Array<int> &gsl_code_dev_l,
+                        Array<int> &gsl_elem_dev_l,
+                        Vector &gsl_ref_l,
+                        Vector &gsl_dist_l,
+                        int npt);
+
+   void InterpolateLocal(const Vector &field_in,
+                         Array<int> &gsl_elem_dev_l,
+                         Vector &gsl_ref_l,
+                         Vector &field_out,
+                         int npt, int ncomp,
+                         int nel, int dof1dsol);
 
 public:
    FindPointsGSLIB();
@@ -191,8 +213,6 @@ public:
                         in physical space. */
    void FindPoints(const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES);
-   void FindPointsOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
    /// Setup FindPoints and search positions
    void FindPoints(Mesh &m, const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES,
