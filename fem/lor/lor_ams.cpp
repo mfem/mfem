@@ -257,10 +257,10 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // vertices of the LOR mesh. The vertex coordinates are already computed in
    // E-vector format and passed in in X_vert.
    //
-   // In this function, we need to convert X_vert (which has the shape (dim,
+   // In this function, we need to convert X_vert (which has the shape (sdim,
    // ndof_per_el, nel_ho)) to T-DOF format.
    //
-   // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
+   // We place the results in the vector xyz_tvec, which has shape (ntdofs, sdim)
    // and then make the hypre vectors x, y, and z point to subvectors.
    //
    // When the space dimension is 2, z is NULL.
