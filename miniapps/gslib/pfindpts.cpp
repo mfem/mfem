@@ -93,6 +93,7 @@ int main (int argc, char *argv[])
    int gf_ordering       = 0;
    const char *devopt    = "cpu";
    double jitter         = 0.0;
+   int exact_sol_order   = 1;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -129,6 +130,8 @@ int main (int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&jitter, "-ji", "--jitter",
                   "Random perturbation scaling factor.");
+   args.AddOption(&exact_sol_order, "-eo", "--exact-sol-order",
+                  "Order for analytic solution.");
 
 
    args.Parse();
@@ -147,7 +150,7 @@ int main (int argc, char *argv[])
    Device device(devopt);
    if (myid == 0) { device.Print();}
 
-   func_order = std::min(order, 2);
+   func_order = std::min(exact_sol_order, 2);
 
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -214,7 +217,7 @@ int main (int argc, char *argv[])
    }
 
    ParGridFunction rdm(&pfespace);
-   rdm.Randomize();
+   rdm.Randomize(myid+1);
    rdm -= 0.25; // Shift to random values in [-0.5,0.5].
    rdm *= jitter;
    rdm.HostReadWrite();
@@ -234,10 +237,21 @@ int main (int argc, char *argv[])
       // Set the boundary values to zero.
       for (int j = 0; j < vdofs.Size(); j++) { rdm(vdofs[j]) = 0.0; }
    }
+   rdm.SetTrueVector();
+   rdm.SetFromTrueVector();
    x -= rdm;
    // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
    x.SetFromTrueVector();
+
+
+   pmesh.DeleteGeometricFactors();
+   double vol = 0;
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      vol += pmesh.GetElementVolume(e);
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
    MFEM_VERIFY(ncomp > 0, "Invalid number of components.");
    int vec_dim = ncomp;
@@ -303,10 +317,12 @@ int main (int argc, char *argv[])
       }
    }
 
+   std::cout << fabs(vol-1.0) << " k10vol\n";
+   //   MFEM_VERIFY(fabs(vol-1.0)<1e-12,"Volume mismatch\n");
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 31;
+   const int pts_cnt_1D = 13;
    int pts_cnt = pow(pts_cnt_1D, dim);
    Vector vxyz(pts_cnt * dim);
    vxyz.UseDevice(true);
@@ -350,52 +366,10 @@ int main (int argc, char *argv[])
             vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
             vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
          }
-         //          if (i == 0) {
-         //              vxyz(i) = 0.5;
-         //              vxyz(i + pts_cnt) = 0.5;
-         //              vxyz(i + 2*pts_cnt) = 0.5;
-         //          }
-         //          else if (i == 1) {
-         //              vxyz(i) = 0.333;
-         //              vxyz(i + pts_cnt) = 0.33;
-         //              vxyz(i + 2*pts_cnt) = 0.33;
-         //          }
-         //          else if (i == 2) {
-         //              vxyz(i) = 1.0;
-         //              vxyz(i + pts_cnt) = 0.3;
-         //              vxyz(i + 2*pts_cnt) = 0.33;
-         //          }
       }
    }
+   //   vxyz = 1.0/3.0;
    vxyz.ReadWrite();
-
-   //   Vector vxyz2(vxyz.Size());
-   //   vxyz2.UseDevice(true);
-   //   vxyz2 = -1.0;
-
-   //   const auto u_data = vxyz2.Write(); // Express the intent to read u
-   //   auto v_data = vxyz.HostRead(); // Express the intent to read and write v
-   //   std::cout << " k101\n";
-
-   //   // Abstract the loop: for(int i=0; i<u.Size(); i++)
-   //   mfem::forall(vxyz.Size(), [=] MFEM_HOST_DEVICE (int i)
-   //   {
-   //         u_data[i] = v_data[i]; // This block of code is executed on the chosen device
-   //   });
-
-   //   auto u_data2 = vxyz2.HostRead();
-   //   for (int i = 0; i < vxyz2.Size(); i++){
-   //      std::cout << i << " " << u_data2[i] << " k10i\n";
-   //   }
-   //   MFEM_ABORT(" ");
-
-   //   {
-   //       const auto u_data2 = vxyz2.HostWrite();
-   //       mfem::forall(vxyz2.Size(), [=] MFEM_HOST_DEVICE (int i)
-   //       {
-   //             u_data2[i] = -1.0; // This block of code is executed on the chosen device
-   //       });
-   //   }
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -407,56 +381,109 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh, 0.01);
+   finder.Setup(pmesh);//, 0.01, 1e-15);
    finder.FindPoints(vxyz, point_ordering);
+   //   std::cout << " k10donefindpoints\n";
 
-   FindPointsGSLIB finder2(MPI_COMM_WORLD);
-   finder2.Setup(pmesh);
-   vxyz.HostReadWrite();
-   vxyz.UseDevice(false);
-   finder2.FindPoints(vxyz, point_ordering);
-   Array<unsigned int> code_out2    = finder2.GetCode();
-   Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
-   Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
-   Vector dist2    = finder2.GetDist();
+   //      FindPointsGSLIB finder2(MPI_COMM_WORLD);
+   //      finder2.Setup(pmesh);
+   //      vxyz.HostReadWrite();
+   //      vxyz.UseDevice(false);
+   //      finder2.FindPoints(vxyz, point_ordering);
+   //      Array<unsigned int> code_out2    = finder2.GetCode();
+   //      Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
+   //      Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
+   //      Vector dist2    = finder2.GetDist();
+   //      Array<unsigned int> proc_out2    = finder2.GetProc();
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
    Vector ref_rst1    = finder.GetGSLIBReferencePosition();
    Vector dist1    = finder.GetDist();
-   Vector info1    = finder.GetInfo();
+   //   Vector info1    = finder.GetInfo();
+   Array<unsigned int> proc_out1    = finder.GetProc();
+   vxyz.HostReadWrite();
+   //   vxyz.Print();
+   //   ref_rst1.Print();
+   //   ref_rst2.Print();
+
+   //      MFEM_ABORT(" ");
+
 
    int notfound = 0;
    for (int i = 0; i < code_out1.Size(); i++)
    {
       int c1 = code_out1[i];
-      int c2 = code_out2[i];
+      //      int c2 = code_out2[i];
       int e1 = el_out1[i];
-      int e2 = el_out2[i];
+      //      int e2 = el_out2[i];
       Vector ref1(ref_rst1.GetData()+i*dim, dim);
-      Vector ref2(ref_rst2.GetData()+i*dim, dim);
+      //      Vector ref2(ref_rst2.GetData()+i*dim, dim);
       Vector dref = ref1;
-      dref -= ref2;
+      //      dref -= ref2;
 
       //       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
-      if (std::fabs(dist1(i)) > 1e-10)
+      if (std::fabs(dist1(i)) > 1e-10 && myid == 0)
       {
          notfound++;
-         std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
-                   vxyz(i+2*pts_cnt) << " k10\n";
-         std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
-                   c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
-         std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(
-                      0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
-         std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " << ref1(
-                      0) << " " << ref1(1) << " " << ref1(2) << " k10\n";
+         if (point_ordering == 0)
+         {
+            std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
+                      vxyz(i+2*pts_cnt) << " k10\n";
+         }
+         else
+         {
+            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " << vxyz(i*dim+1) <<  " " <<
+                      vxyz(i*dim+2) << " k10\n";
+         }
+         //         std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
+         //                   c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
+         //         std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(
+         //                      0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
+         std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " <<
+                   ref1(0) << " " << ref1(1) << " " << ref1(2) << " " <<
+                   proc_out1[i] << " k10\n";
       }
    }
 
-   std::cout << notfound << " k10donefindpoints\n";
+   MPI_Barrier(MPI_COMM_WORLD);
+
+   //   std::cout << notfound << " k10donefindpoints\n";
    //   std::cout << info1(0) << " " << info1(1) << " k10c\n";
-   MFEM_ABORT("aboritng in miniapp\n");
+   //   std::cout << " k10about to interpolate\n";
    finder.Interpolate(field_vals, interp_vals);
+   Vector info1    = finder.GetInfo();
+   //   std::cout << " k10doneinterpolate\n";
+   if (interp_vals.UseDevice())
+   {
+      interp_vals.HostReadWrite();
+   }
+   vxyz.HostReadWrite();
+
+
+
+   //         FindPointsGSLIB finder2(MPI_COMM_WORLD);
+   //         finder2.Setup(pmesh);
+   //         vxyz.HostReadWrite();
+   //         vxyz.UseDevice(false);
+   //         finder2.FindPoints(vxyz, point_ordering);
+   //         Array<unsigned int> code_out2    = finder2.GetCode();
+   //         Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
+   //         Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
+   //         Vector dist2    = finder2.GetDist();
+   //         Array<unsigned int> proc_out2    = finder2.GetProc();
+   //         Vector interp_vals2;
+   //         field_vals.HostReadWrite();
+   //         finder2.Interpolate(field_vals, interp_vals2);
+
+   if (myid == 0)
+   {
+      //       vxyz.Print();
+      //       ref_rst1.Print();
+      //       interp_vals.Print();
+   }
+   //   info1.Print(mfem::out, 10);
+
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
