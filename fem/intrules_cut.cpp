@@ -164,8 +164,7 @@ void MomentFittingIntRules::ComputeFaceWeights(ElementTransformation& Tr)
          // The 3D face integrals are computed as 2D volumetric integrals.
          MomentFittingIntRules FaceRules(Order, *LvlSet, lsOrder);
          IntegrationRule FaceRule;
-         FaceRules.GetVolumeIntegrationRule(Order, *LvlSet, lsOrder,
-                                            faceTrafo, FaceRule);
+         FaceRules.GetVolumeIntegrationRule(faceTrafo, FaceRule);
          if (FaceIP.Size() != FaceRule.Size())
          {
             FaceIP.SetSize(FaceRule.Size());
@@ -1450,21 +1449,14 @@ void MomentFittingIntRules::GetSurfaceIntegrationRule(ElementTransformation& Tr,
    }
 }
 
-void MomentFittingIntRules::GetVolumeIntegrationRule(int order,
-                                                     Coefficient& lvlset,
-                                                     int lsO,
-                                                     ElementTransformation& Tr,
+void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
                                                      IntegrationRule& result,
                                                      const IntegrationRule* sir)
 {
-   if (order != Order || dim != Tr.GetDimension() || nBasisVolume == -1)
+   if (nBasis == -1 || nBasisVolume == -1 || dim != Tr.GetDimension())
    {
       Clear();
-      InitVolume(order, lvlset, lsO, Tr);
-   }
-   else
-   {
-      Init(order, lvlset, lsO);
+      InitVolume(Order, *LvlSet, lsOrder, Tr);
    }
 
    if (Tr.GetDimension() == 3)
@@ -1472,19 +1464,6 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(int order,
       FaceIP.DeleteAll();
       FaceWeights = 0.;
       FaceWeightsComp = 0.;
-   }
-
-   GetVolumeIntegrationRule(Tr, result, sir);
-}
-
-void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
-                                                     IntegrationRule& result,
-                                                     const IntegrationRule* sir)
-{
-   if (nBasis == -1)
-   {
-      Clear();
-      InitVolume(Order, *LvlSet, lsOrder, Tr);
    }
 
    IntegrationRule SIR;
