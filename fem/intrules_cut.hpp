@@ -33,48 +33,39 @@ protected:
    int Order;
    /// The zero level set of this Coefficient defines the implicit interface.
    Coefficient* LvlSet;
-   /// Polynomial degree for projecting the level-set Coefficient
-   /// to a GridFunction. Used to compute gradients and normals.
+   /// Space order for the LS projection.
    int lsOrder;
 
-   /// @brief Constructor to set up the CutIntegrationRules
-   CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
+   /** @brief Constructor to set up the constructed cut IntegrationRules.
+
+       @param [in] Order  Order of the constructed IntegrationRule.
+       @param [in] LvlSet Coefficient whose zero level set specifies the cut.
+       @param [in] lsO    Polynomial degree for projecting the level-set
+                          Coefficient to a GridFunction, which is used to
+                          compute gradients and normals. */
+   CutIntegrationRules(int order, Coefficient& lvlset, int lsO = 2)
       : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
 
-   /// @brief Initialize the CutIntegrationRules
-   virtual void Init(int order, Coefficient& levelset, int lsO)
-   { Order = order; LvlSet = &levelset; lsOrder = lsO; }
-
 public:
+
+   /// Change the order of the constructed IntegrationRule.
+   virtual void SetOrder(int order) { Order = order; }
+
+   /// Change the Coefficient whose zero level set specifies the cut.
+   virtual void SetLevelSetCoefficient(Coefficient &ls) { LvlSet = &ls; }
+
+   /// Change the polynomial degree for projecting the level set Coefficient
+   /// to a GridFunction, which is used to compute local gradients and normals.
+   virtual void SetLevelSetProjectionOrder(int order) { lsOrder = order; }
+
    /**
     @brief Construct a surface IntegrationRule.
 
-    Construct IntegrationRule to integrate on the implicit interface given by
-    the zero level set of @a LvlSet, for the element given by @a Tr.
+    Construct an IntegrationRule to integrate on the implicit surface given by
+    the already specified level set function, for the element given by @a Tr.
 
-    @param [in] Order Order of the IntegrationRule
-    @param [in] LvlSet level-set function defining the implicit interface
-    @param [in] lsO Polynomial degree for projecting the level-set Coefficient
-                    to a GridFunction. Used to compute gradients and normals.
-    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
-    @param [out] result IntegrationRule on the interface
-   */
-   virtual void GetSurfaceIntegrationRule(int Order,
-                                          Coefficient& LvlSet,
-                                          int lsO,
-                                          ElementTransformation& Tr,
-                                          IntegrationRule& result) = 0;
-
-   /**
-    @brief Get Surface IntegrationRule
-
-    Construct IntegrationRule to integrate on the implicit interface.
-
-    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
-    @param [out] result IntegrationRule on the interface
-
-    @warning This function can only be called when the CutIntegrationRules are
-    set up. It will use the already specified orders and level set Coefficient.
+    @param [in] Tr ElementTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the cut surface
    */
    virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                           IntegrationRule& result) = 0;
@@ -222,7 +213,7 @@ protected:
                    ElementTransformation& Tr);
 
    /// @brief Initialize the MomentFittingIntRules
-   void Init(int order, Coefficient& levelset, int lsO) override
+   void Init(int order, Coefficient& levelset, int lsO)
    { Order = order; LvlSet = &levelset; lsOrder = lsO; FaceWeightsComp = 0.;}
 
    /// @brief Clear stored data of the MomentFittingIntRules
@@ -332,45 +323,36 @@ protected:
    void BasisAD3D(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
-   /// @brief Constructor to set ab the CutIntegrationRules
+
+   /** @brief Constructor to set up the constructed cut IntegrationRules.
+
+       @param [in] Order  Order of the constructed IntegrationRule.
+       @param [in] LvlSet Coefficient whose zero level set specifies the cut.
+       @param [in] lsO    Polynomial degree for projecting the level-set
+                          Coefficient to a GridFunction, which is used to
+                          compute gradients and normals. */
    MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
-      : CutIntegrationRules(order, lvlset, lsO), dim(-1), nBasis(-1),
-        nBasisVolume(-1),
-        VolumeSVD(NULL)
+      : CutIntegrationRules(order, lvlset, lsO),
+        dim(-1), nBasis(-1), nBasisVolume(-1), VolumeSVD(NULL)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
-   /**
-    @brief Get Surface IntegrationRule
+   /// Change the order of the constructed IntegrationRule.
+   void SetOrder(int order) override;
 
-    Construct IntegrationRule to integrate on the implicit interface.
-
-    @param [in] order Order of the IntegrationRule
-    @param [in] lvlset level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation for element the IntegrationRule is on
-    @param [out] result IntegrationRule on the interface
-   */
-   virtual void GetSurfaceIntegrationRule(int order,
-                                          Coefficient& lvlset,
-                                          int lsO,
-                                          ElementTransformation& Tr,
-                                          IntegrationRule& result)
-   override;
+   using CutIntegrationRules::SetLevelSetCoefficient;
+   using CutIntegrationRules::SetLevelSetProjectionOrder;
 
    /**
-    @brief Get Surface IntegrationRule
+    @brief Construct a surface IntegrationRule.
 
-    Construct IntegrationRule to integrate on the implicit interface.
+    Construct an IntegrationRule to integrate on the implicit surface given by
+    the already specified level set function, for the element given by @a Tr.
 
-    @param [in] Tr ElemenTRansformation for element the IntegrationRule is on
-    @param [out] result IntegrationRule on the interface
-
-    @warning This function can only be called when the CutIntegrationRules are
-    set up. It will use the already specified orders and level set Coefficient.
+    @param [in] Tr ElementTransformation for element the IntegrationRule is on
+    @param [out] result IntegrationRule on the cut surface
    */
-   virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
-                                          IntegrationRule& result)
-   override;
+   void GetSurfaceIntegrationRule(ElementTransformation& Tr,
+                                  IntegrationRule& result) override;
 
    /**
     @brief Get Volume IntegrationRule
