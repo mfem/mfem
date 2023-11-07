@@ -76,29 +76,29 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-complex<double> acoustics_solution(const Vector & X);
-void acoustics_solution_grad(const Vector & X,vector<complex<double>> &dp);
-complex<double> acoustics_solution_laplacian(const Vector & X);
+complex<fptype> acoustics_solution(const Vector & X);
+void acoustics_solution_grad(const Vector & X,vector<complex<fptype>> &dp);
+complex<fptype> acoustics_solution_laplacian(const Vector & X);
 
-double p_exact_r(const Vector &x);
-double p_exact_i(const Vector &x);
+fptype p_exact_r(const Vector &x);
+fptype p_exact_i(const Vector &x);
 void u_exact_r(const Vector &x, Vector & u);
 void u_exact_i(const Vector &x, Vector & u);
-double rhs_func_r(const Vector &x);
-double rhs_func_i(const Vector &x);
+fptype rhs_func_r(const Vector &x);
+fptype rhs_func_i(const Vector &x);
 void gradp_exact_r(const Vector &x, Vector &gradu);
 void gradp_exact_i(const Vector &x, Vector &gradu);
-double divu_exact_r(const Vector &x);
-double divu_exact_i(const Vector &x);
-double d2_exact_r(const Vector &x);
-double d2_exact_i(const Vector &x);
-double hatp_exact_r(const Vector & X);
-double hatp_exact_i(const Vector & X);
+fptype divu_exact_r(const Vector &x);
+fptype divu_exact_i(const Vector &x);
+fptype d2_exact_r(const Vector &x);
+fptype d2_exact_i(const Vector &x);
+fptype hatp_exact_r(const Vector & X);
+fptype hatp_exact_i(const Vector & X);
 void hatu_exact_r(const Vector & X, Vector & hatu);
 void hatu_exact_i(const Vector & X, Vector & hatu);
 
 int dim;
-double omega;
+fptype omega;
 
 enum prob_type
 {
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
-   double rnum=1.0;
+   fptype rnum=1.0;
    int ref = 0;
    bool static_cond = false;
    int iprob = 0;
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
    socketstream p_out_r;
    socketstream p_out_i;
 
-   double err0 = 0.;
+   fptype err0 = 0.;
    int dof0 = 0; // init to suppress gcc warning
 
    std::cout << "\n  Ref |"
@@ -399,15 +399,15 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GetTrueVSize();
       }
 
-      double p_err_r = p_r.ComputeL2Error(p_ex_r);
-      double p_err_i = p_i.ComputeL2Error(p_ex_i);
-      double u_err_r = u_r.ComputeL2Error(u_ex_r);
-      double u_err_i = u_i.ComputeL2Error(u_ex_i);
+      fptype p_err_r = p_r.ComputeL2Error(p_ex_r);
+      fptype p_err_i = p_i.ComputeL2Error(p_ex_i);
+      fptype u_err_r = u_r.ComputeL2Error(u_ex_r);
+      fptype u_err_i = u_i.ComputeL2Error(u_ex_i);
 
-      double L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
+      fptype L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
                             +u_err_r*u_err_r + u_err_i*u_err_i);
 
-      double rate_err = (it) ? dim*log(err0/L2Error)/log((double)dof0/dofs) : 0.0;
+      fptype rate_err = (it) ? dim*log(err0/L2Error)/log((fptype)dof0/dofs) : 0.0;
 
       err0 = L2Error;
       dof0 = dofs;
@@ -465,22 +465,22 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-double p_exact_r(const Vector &x)
+fptype p_exact_r(const Vector &x)
 {
    return acoustics_solution(x).real();
 }
 
-double p_exact_i(const Vector &x)
+fptype p_exact_i(const Vector &x)
 {
    return acoustics_solution(x).imag();
 }
 
-double hatp_exact_r(const Vector & X)
+fptype hatp_exact_r(const Vector & X)
 {
    return p_exact_r(X);
 }
 
-double hatp_exact_i(const Vector & X)
+fptype hatp_exact_i(const Vector & X)
 {
    return p_exact_i(X);
 }
@@ -488,7 +488,7 @@ double hatp_exact_i(const Vector & X)
 void gradp_exact_r(const Vector &x, Vector &grad_r)
 {
    grad_r.SetSize(x.Size());
-   vector<complex<double>> grad;
+   vector<complex<fptype>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -499,7 +499,7 @@ void gradp_exact_r(const Vector &x, Vector &grad_r)
 void gradp_exact_i(const Vector &x, Vector &grad_i)
 {
    grad_i.SetSize(x.Size());
-   vector<complex<double>> grad;
+   vector<complex<fptype>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -507,13 +507,13 @@ void gradp_exact_i(const Vector &x, Vector &grad_i)
    }
 }
 
-double d2_exact_r(const Vector &x)
+fptype d2_exact_r(const Vector &x)
 {
 
    return acoustics_solution_laplacian(x).real();
 }
 
-double d2_exact_i(const Vector &x)
+fptype d2_exact_i(const Vector &x)
 {
    return acoustics_solution_laplacian(x).imag();
 }
@@ -545,91 +545,91 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 //  ∇⋅u = i Δ p / ω
 //      = i (Δ p_r + i * Δ p_i)  / ω
 //      = - Δ p_i / ω + i Δ p_r / ω
-double divu_exact_r(const Vector &x)
+fptype divu_exact_r(const Vector &x)
 {
    return -d2_exact_i(x)/omega;
 }
 
-double divu_exact_i(const Vector &x)
+fptype divu_exact_i(const Vector &x)
 {
    return d2_exact_r(x)/omega;
 }
 
 // f = ∇⋅u + i ω p
 // f_r = ∇⋅u_r - ω p_i
-double rhs_func_r(const Vector &x)
+fptype rhs_func_r(const Vector &x)
 {
-   double p = p_exact_i(x);
-   double divu = divu_exact_r(x);
+   fptype p = p_exact_i(x);
+   fptype divu = divu_exact_r(x);
    return divu - omega * p;
 }
 
 // f_i = ∇⋅u_i + ω p_r
-double rhs_func_i(const Vector &x)
+fptype rhs_func_i(const Vector &x)
 {
-   double p = p_exact_r(x);
-   double divu = divu_exact_i(x);
+   fptype p = p_exact_r(x);
+   fptype divu = divu_exact_i(x);
    return divu + omega * p;
 }
 
-complex<double> acoustics_solution(const Vector & X)
+complex<fptype> acoustics_solution(const Vector & X)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<fptype> zi = complex<fptype>(0., 1.);
    switch (prob)
    {
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
+         fptype beta = omega/std::sqrt((fptype)X.Size());
+         complex<fptype> alpha = beta * zi * X.Sum();
          return exp(alpha);
       }
       break;
       default:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         fptype rk = omega;
+         fptype degrees = 45;
+         fptype alpha = (180+degrees) * M_PI/180.;
+         fptype sina = sin(alpha);
+         fptype cosa = cos(alpha);
          // shift the origin
-         double xprim=X(0) + 0.1;
-         double yprim=X(1) + 0.1;
+         fptype xprim=X(0) + 0.1;
+         fptype yprim=X(1) + 0.1;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
+         fptype  x = xprim*sina - yprim*cosa;
+         fptype  y = xprim*cosa + yprim*sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         fptype rl = 2.*M_PI/rk;
          // beam waist radius
-         double w0 = 0.05;
+         fptype w0 = 0.05;
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
-         double w = w0*sqrt(aux);
-         double phi0 = atan(fact*y);
-         double r = y + 1./y/(fact*fact);
+         fptype fact = rl/M_PI/(w0*w0);
+         fptype aux = 1. + (fact*y)*(fact*y);
+         fptype w = w0*sqrt(aux);
+         fptype phi0 = atan(fact*y);
+         fptype r = y + 1./y/(fact*fact);
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
 
-         double pf = pow(2.0/M_PI/(w*w),0.25);
+         fptype pf = pow(2.0/M_PI/(w*w),0.25);
          return pf*exp(ze);
       }
       break;
    }
 }
 
-void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
+void acoustics_solution_grad(const Vector & X, vector<complex<fptype>> & dp)
 {
    dp.resize(X.Size());
-   complex<double> zi = complex<double>(0., 1.);
+   complex<fptype> zi = complex<fptype>(0., 1.);
    switch (prob)
    {
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
-         complex<double> p = exp(alpha);
+         fptype beta = omega/std::sqrt((fptype)X.Size());
+         complex<fptype> alpha = beta * zi * X.Sum();
+         complex<fptype> p = exp(alpha);
          for (int i = 0; i<X.Size(); i++)
          {
             dp[i] = zi * beta * p;
@@ -638,52 +638,52 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
       break;
       default:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         fptype rk = omega;
+         fptype degrees = 45;
+         fptype alpha = (180+degrees) * M_PI/180.;
+         fptype sina = sin(alpha);
+         fptype cosa = cos(alpha);
          // shift the origin
-         double xprim=X(0) + 0.1;
-         double yprim=X(1) + 0.1;
+         fptype xprim=X(0) + 0.1;
+         fptype yprim=X(1) + 0.1;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
-         double  dxdxprim = sina, dxdyprim = -cosa;
-         double  dydxprim = cosa, dydyprim =  sina;
+         fptype  x = xprim*sina - yprim*cosa;
+         fptype  y = xprim*cosa + yprim*sina;
+         fptype  dxdxprim = sina, dxdyprim = -cosa;
+         fptype  dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         fptype rl = 2.*M_PI/rk;
 
          // beam waist radius
-         double w0 = 0.05;
+         fptype w0 = 0.05;
 
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
+         fptype fact = rl/M_PI/(w0*w0);
+         fptype aux = 1. + (fact*y)*(fact*y);
 
-         double w = w0*sqrt(aux);
-         double dwdy = w0*fact*fact*y/sqrt(aux);
+         fptype w = w0*sqrt(aux);
+         fptype dwdy = w0*fact*fact*y/sqrt(aux);
 
-         double phi0 = atan(fact*y);
-         double dphi0dy = cos(phi0)*cos(phi0)*fact;
+         fptype phi0 = atan(fact*y);
+         fptype dphi0dy = cos(phi0)*cos(phi0)*fact;
 
-         double r = y + 1./y/(fact*fact);
-         double drdy = 1. - 1./(y*y)/(fact*fact);
+         fptype r = y + 1./y/(fact*fact);
+         fptype drdy = 1. - 1./(y*y)/(fact*fact);
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
 
-         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+         complex<fptype> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<fptype> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
                                  (r*r)*drdy + zi*dphi0dy/2.;
 
-         double pf = pow(2.0/M_PI/(w*w),0.25);
-         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         fptype pf = pow(2.0/M_PI/(w*w),0.25);
+         fptype dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
 
-         complex<double> zp = pf*exp(ze);
-         complex<double> zdpdx = zp*zdedx;
-         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<fptype> zp = pf*exp(ze);
+         complex<fptype> zdpdx = zp*zdedx;
+         complex<fptype> zdpdy = dpfdy*exp(ze)+zp*zdedy;
 
          dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
          dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
@@ -693,82 +693,82 @@ void acoustics_solution_grad(const Vector & X, vector<complex<double>> & dp)
    }
 }
 
-complex<double> acoustics_solution_laplacian(const Vector & X)
+complex<fptype> acoustics_solution_laplacian(const Vector & X)
 {
-   complex<double> zi = complex<double>(0., 1.);
+   complex<fptype> zi = complex<fptype>(0., 1.);
    switch (prob)
    {
       case plane_wave:
       {
-         double beta = omega/std::sqrt((double)X.Size());
-         complex<double> alpha = beta * zi * X.Sum();
-         complex<double> p = exp(alpha);
+         fptype beta = omega/std::sqrt((fptype)X.Size());
+         complex<fptype> alpha = beta * zi * X.Sum();
+         complex<fptype> p = exp(alpha);
          return dim * beta * beta * p;
       }
       break;
       default:
       {
-         double rk = omega;
-         double degrees = 45;
-         double alpha = (180+degrees) * M_PI/180.;
-         double sina = sin(alpha);
-         double cosa = cos(alpha);
+         fptype rk = omega;
+         fptype degrees = 45;
+         fptype alpha = (180+degrees) * M_PI/180.;
+         fptype sina = sin(alpha);
+         fptype cosa = cos(alpha);
          // shift the origin
-         double xprim=X(0) + 0.1;
-         double yprim=X(1) + 0.1;
+         fptype xprim=X(0) + 0.1;
+         fptype yprim=X(1) + 0.1;
 
-         double  x = xprim*sina - yprim*cosa;
-         double  y = xprim*cosa + yprim*sina;
-         double  dxdxprim = sina, dxdyprim = -cosa;
-         double  dydxprim = cosa, dydyprim =  sina;
+         fptype  x = xprim*sina - yprim*cosa;
+         fptype  y = xprim*cosa + yprim*sina;
+         fptype  dxdxprim = sina, dxdyprim = -cosa;
+         fptype  dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         double rl = 2.*M_PI/rk;
+         fptype rl = 2.*M_PI/rk;
 
          // beam waist radius
-         double w0 = 0.05;
+         fptype w0 = 0.05;
 
          // function w
-         double fact = rl/M_PI/(w0*w0);
-         double aux = 1. + (fact*y)*(fact*y);
+         fptype fact = rl/M_PI/(w0*w0);
+         fptype aux = 1. + (fact*y)*(fact*y);
 
-         double w = w0*sqrt(aux);
-         double dwdy = w0*fact*fact*y/sqrt(aux);
-         double d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
+         fptype w = w0*sqrt(aux);
+         fptype dwdy = w0*fact*fact*y/sqrt(aux);
+         fptype d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
 
-         double phi0 = atan(fact*y);
-         double dphi0dy = cos(phi0)*cos(phi0)*fact;
-         double d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
+         fptype phi0 = atan(fact*y);
+         fptype dphi0dy = cos(phi0)*cos(phi0)*fact;
+         fptype d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
 
-         double r = y + 1./y/(fact*fact);
-         double drdy = 1. - 1./(y*y)/(fact*fact);
-         double d2rdydy = 2./(y*y*y)/(fact*fact);
+         fptype r = y + 1./y/(fact*fact);
+         fptype drdy = 1. - 1./(y*y)/(fact*fact);
+         fptype d2rdydy = 2./(y*y*y)/(fact*fact);
 
          // pressure
-         complex<double> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
 
-         complex<double> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<double> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+         complex<fptype> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<fptype> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
                                  (r*r)*drdy + zi*dphi0dy/2.;
-         complex<double> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-         complex<double> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
-         complex<double> zd2edydx = zd2edxdy;
-         complex<double> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
+         complex<fptype> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
+         complex<fptype> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
+         complex<fptype> zd2edydx = zd2edxdy;
+         complex<fptype> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
                                     (w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
                                     + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
 
-         double pf = pow(2.0/M_PI/(w*w),0.25);
-         double dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
-         double d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
+         fptype pf = pow(2.0/M_PI/(w*w),0.25);
+         fptype dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         fptype d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
                                                         *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
 
-         complex<double> zp = pf*exp(ze);
-         complex<double> zdpdx = zp*zdedx;
-         complex<double> zdpdy = dpfdy*exp(ze)+zp*zdedy;
-         complex<double> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
-         complex<double> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
-         complex<double> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
-         complex<double> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
+         complex<fptype> zp = pf*exp(ze);
+         complex<fptype> zdpdx = zp*zdedx;
+         complex<fptype> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<fptype> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
+         complex<fptype> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
+         complex<fptype> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
+         complex<fptype> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
                                        ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
 
 
