@@ -5379,7 +5379,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       for (int e = 0; e < NumOfElements; e++)
       {
          const int attr = elements[e]->GetAttribute();
-         const int geom_type = elements[e]->GetGeometryType();;
+         const int geom_type = elements[e]->GetGeometryType();
          ints.Append(attr);
          ints.Append(geom_type);
          pfespace_linear.GetElementDofs(e, dofs);
