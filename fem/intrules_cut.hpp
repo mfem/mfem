@@ -37,10 +37,6 @@ protected:
    /// to a GridFunction. Used to compute gradients and normals.
    int lsOrder;
 
-   /// @brief Default constructor
-   CutIntegrationRules()
-      : Order(-1), LvlSet(NULL), lsOrder(0) { }
-
    /// @brief Constructor to set up the CutIntegrationRules
    CutIntegrationRules(int order, Coefficient& lvlset, int lsO)
       : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
@@ -336,12 +332,6 @@ protected:
    void BasisAD3D(const IntegrationPoint& ip, DenseMatrix& shape);
 
 public:
-   /// @brief Default constructor
-   MomentFittingIntRules()
-      : CutIntegrationRules(), dim(-1), nBasis(-1), nBasisVolume(-1),
-        VolumeSVD(NULL)
-   { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
-
    /// @brief Constructor to set ab the CutIntegrationRules
    MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
       : CutIntegrationRules(order, lvlset, lsO), dim(-1), nBasis(-1),
