@@ -32,13 +32,13 @@ MagneticDiffusionEOperator::MagneticDiffusionEOperator(
    Array<int> &ess_bdr_arg,
    Array<int> &thermal_ess_bdr_arg,
    Array<int> &poisson_ess_bdr_arg,
-   double mu_coef,
-   std::map<int, double> sigmaAttMap,
-   std::map<int, double> TcapacityAttMap,
-   std::map<int, double> InvTcapAttMap,
-   std::map<int, double> InvTcondAttMap)
+   fptype mu_coef,
+   std::map<int, fptype> sigmaAttMap,
+   std::map<int, fptype> TcapacityAttMap,
+   std::map<int, fptype> InvTcapAttMap,
+   std::map<int, fptype> InvTcondAttMap)
 
-   : TimeDependentOperator(stateVectorLen, 0.0),
+   : TimeDependentOperator(stateVectorLen, (fptype) 0.0),
      L2FESpace(L2FES), HCurlFESpace(HCurlFES), HDivFESpace(HDivFES),
      HGradFESpace(HGradFES),
      a0(NULL), a1(NULL), a2(NULL), m1(NULL), m2(NULL), m3(NULL),
@@ -398,7 +398,7 @@ The total E-field is given by E_tot = E_ind - Grad P, the big equation for E
 above is really for E_ind (the induced, or solenoidal, component) and this is
 corrected for.
 */
-void MagneticDiffusionEOperator::ImplicitSolve(const double dt,
+void MagneticDiffusionEOperator::ImplicitSolve(const fptype dt,
                                                const Vector &X, Vector &dX_dt)
 {
    if ( A2 == NULL || fabs(dt-dt_A2) > 1.0e-12*dt )
@@ -656,9 +656,9 @@ void MagneticDiffusionEOperator::buildA0(MeshDependentCoefficient &Sigma)
    // Don't finalize or parallel assemble this is done in FormLinearSystem.
 }
 
-void MagneticDiffusionEOperator::buildA1(double muInv,
+void MagneticDiffusionEOperator::buildA1(fptype muInv,
                                          MeshDependentCoefficient &Sigma,
-                                         double dt)
+                                         fptype dt)
 {
    if ( a1 != NULL ) { delete a1; }
 
@@ -680,7 +680,7 @@ void MagneticDiffusionEOperator::buildA1(double muInv,
 
 void MagneticDiffusionEOperator::buildA2(MeshDependentCoefficient &InvTcond_,
                                          MeshDependentCoefficient &InvTcap_,
-                                         double dt_)
+                                         fptype dt_)
 {
    if ( a2 != NULL ) { delete a2; }
 
@@ -731,7 +731,7 @@ void MagneticDiffusionEOperator::buildM3(MeshDependentCoefficient &Tcapacity_)
    M3 = m3->ParallelAssemble();
 }
 
-void MagneticDiffusionEOperator::buildS1(double muInv)
+void MagneticDiffusionEOperator::buildS1(fptype muInv)
 {
    if ( s1 != NULL ) { delete s1; }
 
@@ -751,7 +751,7 @@ void MagneticDiffusionEOperator::buildS2(MeshDependentCoefficient &InvTcap_)
    s2->Assemble();
 }
 
-void MagneticDiffusionEOperator::buildCurl(double muInv)
+void MagneticDiffusionEOperator::buildCurl(fptype muInv)
 {
    if ( curl != NULL ) { delete curl; }
    if ( weakCurl != NULL ) { delete weakCurl; }
@@ -795,12 +795,12 @@ void MagneticDiffusionEOperator::buildGrad()
    // no ParallelAssemble since this will be applied to GridFunctions
 }
 
-double MagneticDiffusionEOperator::ElectricLosses(ParGridFunction &E_gf) const
+fptype MagneticDiffusionEOperator::ElectricLosses(ParGridFunction &E_gf) const
 {
-   double el = m1->InnerProduct(E_gf,E_gf);
+   fptype el = m1->InnerProduct(E_gf,E_gf);
 
-   double global_el;
-   MPI_Allreduce(&el, &global_el, 1, MPI_DOUBLE, MPI_SUM,
+   fptype global_el;
+   MPI_Allreduce(&el, &global_el, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
                  m2->ParFESpace()->GetComm());
 
    return el;
@@ -820,7 +820,7 @@ void MagneticDiffusionEOperator::GetJouleHeating(ParGridFunction &E_gf,
    w_gf.ProjectCoefficient(w_coeff);
 }
 
-void MagneticDiffusionEOperator::SetTime(const double t_)
+void MagneticDiffusionEOperator::SetTime(const fptype t_)
 { t = t_; }
 
 MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
@@ -882,7 +882,7 @@ MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
    delete B3;
 }
 
-void MagneticDiffusionEOperator::Debug(const char *base, double)
+void MagneticDiffusionEOperator::Debug(const char *base, fptype)
 {
    {
       hypre_ParCSRMatrixPrint(*A1,"A1_");
@@ -901,22 +901,22 @@ void MagneticDiffusionEOperator::Debug(const char *base, double)
    }
 }
 
-double JouleHeatingCoefficient::Eval(ElementTransformation &T,
+fptype JouleHeatingCoefficient::Eval(ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    Vector E;
-   double thisSigma;
+   fptype thisSigma;
    E_gf.GetVectorValue(T, ip, E);
    thisSigma = sigma.Eval(T, ip);
    return thisSigma*(E*E);
 }
 
 MeshDependentCoefficient::MeshDependentCoefficient(
-   const std::map<int, double> &inputMap, double scale)
+   const std::map<int, fptype> &inputMap, fptype scale)
    : Coefficient()
 {
    // make a copy of the magic attribute-value map for later use
-   materialMap = new std::map<int, double>(inputMap);
+   materialMap = new std::map<int, fptype>(inputMap);
    scaleFactor = scale;
 }
 
@@ -925,17 +925,17 @@ MeshDependentCoefficient::MeshDependentCoefficient(
    : Coefficient()
 {
    // make a copy of the magic attribute-value map for later use
-   materialMap = new std::map<int, double>(*(cloneMe.materialMap));
+   materialMap = new std::map<int, fptype>(*(cloneMe.materialMap));
    scaleFactor = cloneMe.scaleFactor;
 }
 
-double MeshDependentCoefficient::Eval(ElementTransformation &T,
+fptype MeshDependentCoefficient::Eval(ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    // given the attribute, extract the coefficient value from the map
-   std::map<int, double>::iterator it;
+   std::map<int, fptype>::iterator it;
    int thisAtt = T.Attribute;
-   double value;
+   fptype value;
    it = materialMap->find(thisAtt);
    if (it != materialMap->end())
    {
@@ -956,7 +956,7 @@ ScaledGFCoefficient::ScaledGFCoefficient(GridFunction *gf,
                                          MeshDependentCoefficient &input_mdc)
    : GridFunctionCoefficient(gf), mdc(input_mdc) {}
 
-double ScaledGFCoefficient::Eval(ElementTransformation &T,
+fptype ScaledGFCoefficient::Eval(ElementTransformation &T,
                                  const IntegrationPoint &ip)
 {
    return mdc.Eval(T,ip) * GridFunctionCoefficient::Eval(T,ip);

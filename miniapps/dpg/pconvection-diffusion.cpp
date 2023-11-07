@@ -500,9 +500,9 @@ int main(int argc, char *argv[])
       fptype gresidual = residual * residual;
 
       MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<fptype>::mpi_type,
-		    MPI_MAX, MPI_COMM_WORLD);
+                    MPI_MAX, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &gresidual, 1, MPITypeMap<fptype>::mpi_type,
-		    MPI_SUM, MPI_COMM_WORLD);
+                    MPI_SUM, MPI_COMM_WORLD);
 
       gresidual = sqrt(gresidual);
 

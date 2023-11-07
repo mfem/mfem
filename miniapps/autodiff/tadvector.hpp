@@ -141,7 +141,7 @@ public:
       SetSize(s);
 
       int p = 0;
-      double tmpd;
+      fptype tmpd;
       for (i = 0; i < np; i++)
       {
          for (j = 0; j < dim[i]; j++)
@@ -156,7 +156,7 @@ public:
    void Load(std::istream &in, int Size)
    {
       SetSize(Size);
-      double tmpd;
+      fptype tmpd;
       for (int i = 0; i < size; i++)
       {
          in >> tmpd;
@@ -619,7 +619,7 @@ public:
    void Randomize(int seed = 0)
    {
       // static unsigned int seed = time(0);
-      const double max = (double) (RAND_MAX) + 1.;
+      const fptype max = (fptype) (RAND_MAX) + 1.;
 
       if (seed == 0)
       {
