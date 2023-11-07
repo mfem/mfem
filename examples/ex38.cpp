@@ -184,7 +184,9 @@ public:
          Weights.SetSize(2, mesh->GetNE());
       }
       SurfaceWeights.SetSize(ir.GetNPoints(), mesh->GetNE());
-      SurfaceWeights.SetCol(0, MFIRs.GetSurfaceWeights(Tr, &ir));
+      Vector w;
+      MFIRs.GetSurfaceWeights(Tr, ir, w);
+      SurfaceWeights.SetCol(0, w);
       SetSize(ir.GetNPoints());
 
       for (int ip = 0; ip < GetNPoints(); ip++)
@@ -210,7 +212,9 @@ public:
       {
          mesh->GetElementTransformation(elem, &Tr);
          MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         SurfaceWeights.SetCol(elem, MFIRs.GetSurfaceWeights(Tr, &ir));
+         Vector w;
+         MFIRs.GetSurfaceWeights(Tr, ir, w);
+         SurfaceWeights.SetCol(elem, w);
 
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
