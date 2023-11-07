@@ -1403,20 +1403,19 @@ void MomentFittingIntRules::Clear()
    FaceWeightsComp = 0.;
 }
 
-void MomentFittingIntRules::GetSurfaceIntegrationRule(int order,
-                                                      Coefficient& lvlset,
-                                                      int lsO,
-                                                      ElementTransformation& Tr,
+void MomentFittingIntRules::SetOrder(int order)
+{
+   if (order != Order) { Clear(); }
+   Order = order;
+}
+
+void MomentFittingIntRules::GetSurfaceIntegrationRule(ElementTransformation& Tr,
                                                       IntegrationRule& result)
 {
-   if (order != Order || dim != Tr.GetDimension() || nBasis == -1)
+   if (nBasis == -1 || dim != Tr.GetDimension())
    {
       Clear();
-      InitSurface(order, lvlset, lsO, Tr);
-   }
-   else
-   {
-      Init(order, lvlset, lsO);
+      InitSurface(Order, *LvlSet, lsOrder, Tr);
    }
 
    if (Tr.GetDimension() == 3)
@@ -1424,18 +1423,6 @@ void MomentFittingIntRules::GetSurfaceIntegrationRule(int order,
       FaceIP.DeleteAll();
       FaceWeights = 0.;
       FaceWeightsComp = 0.;
-   }
-
-   GetSurfaceIntegrationRule(Tr, result);
-}
-
-void MomentFittingIntRules::GetSurfaceIntegrationRule(ElementTransformation& Tr,
-                                                      IntegrationRule& result)
-{
-   if (nBasis == -1)
-   {
-      Clear();
-      InitSurface(Order, *LvlSet, lsOrder, Tr);
    }
 
    if (Tr.GetDimension() == 1)
