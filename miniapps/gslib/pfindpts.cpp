@@ -317,8 +317,6 @@ int main (int argc, char *argv[])
       }
    }
 
-   std::cout << fabs(vol-1.0) << " k10vol\n";
-   //   MFEM_VERIFY(fabs(vol-1.0)<1e-12,"Volume mismatch\n");
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
