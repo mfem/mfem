@@ -49,8 +49,8 @@ public:
    Data(double x_, double val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
