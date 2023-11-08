@@ -176,7 +176,11 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
+#ifdef MFEM_USE_FLOAT
+   newton.SetRelTol(1e-4);
+#else
    newton.SetRelTol(1e-6);
+#endif
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
 

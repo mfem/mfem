@@ -21,9 +21,9 @@ namespace mfem
 ///
 /// The input A is an array of size n*n, interpreted as a matrix with column
 /// major ordering.
-void ComputeInverse(const Array<double> &A, Array<double> &Ainv)
+void ComputeInverse(const Array<fptype> &A, Array<fptype> &Ainv)
 {
-   Array<double> A2 = A;
+   Array<fptype> A2 = A;
    const int n2 = A.Size();
    const int n = sqrt(n2);
    Array<int> ipiv(n);
@@ -33,23 +33,23 @@ void ComputeInverse(const Array<double> &A, Array<double> &Ainv)
    lu.GetInverseMatrix(n, Ainv.GetData());
 }
 
-void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<double> &B)
+void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<fptype> &B)
 {
    const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, n);
-   const double *gll_pts = poly1d.GetPoints(n, BasisType::GaussLobatto);
+   const fptype *gll_pts = poly1d.GetPoints(n, BasisType::GaussLobatto);
    Vector u(n);
    B.SetSize(n*n);
    B = 0.0;
 
    for (int i = 0; i < n; ++i)
    {
-      const double h = gll_pts[i+1] - gll_pts[i];
+      const fptype h = gll_pts[i+1] - gll_pts[i];
       // Loop over subcell quadrature points
       for (int iq = 0; iq < ir.Size(); ++iq)
       {
          const IntegrationPoint &ip = ir[iq];
-         const double x = gll_pts[i] + h*ip.x;
-         const double w = h*ip.weight;
+         const fptype x = gll_pts[i] + h*ip.x;
+         const fptype w = h*ip.weight;
          basis.Eval(x, u);
          for (int j = 0; j < n; ++j)
          {
@@ -59,7 +59,7 @@ void SubcellIntegrals(int n, const Poly_1D::Basis &basis, Array<double> &B)
    }
 }
 
-void Transpose(const Array<double> &B, Array<double> &Bt)
+void Transpose(const Array<fptype> &B, Array<fptype> &Bt)
 {
    const int n = sqrt(B.Size());
    Bt.SetSize(n*n);
@@ -89,7 +89,7 @@ ChangeOfBasis_L2::ChangeOfBasis_L2(FiniteElementSpace &fes)
    const int p = fes.GetMaxElementOrder();
    const int pp1 = p + 1;
 
-   Array<double> B_inv;
+   Array<fptype> B_inv;
    SubcellIntegrals(pp1, basis, B_inv);
 
    ComputeInverse(B_inv, B_1d);
@@ -144,7 +144,7 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
    Poly_1D::Basis &cbasis = poly1d.GetBasis(p, cb_type);
    Poly_1D::Basis &obasis = poly1d.GetBasis(p-1, ob_type);
 
-   const double *cpts2 = poly1d.GetPoints(p, BasisType::GaussLobatto);
+   const fptype *cpts2 = poly1d.GetPoints(p, BasisType::GaussLobatto);
 
    Bci_1d.SetSize(pp1*pp1);
    Vector b(pp1);
@@ -164,7 +164,7 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
    Transpose(Bc_1d, Bct_1d);
 }
 
-const double *ChangeOfBasis_RT::GetOpenMap(Mode mode) const
+const fptype *ChangeOfBasis_RT::GetOpenMap(Mode mode) const
 {
    switch (mode)
    {
@@ -175,7 +175,7 @@ const double *ChangeOfBasis_RT::GetOpenMap(Mode mode) const
    return nullptr;
 }
 
-const double *ChangeOfBasis_RT::GetClosedMap(Mode mode) const
+const fptype *ChangeOfBasis_RT::GetClosedMap(Mode mode) const
 {
    switch (mode)
    {
@@ -192,8 +192,8 @@ void ChangeOfBasis_RT::MultRT_2D(const Vector &x, Vector &y, Mode mode) const
    const int NE = ne;
    const int D1D = p + 1;
    const int ND = (p+1)*p;
-   const double *BC = GetClosedMap(mode);
-   const double *BO = GetOpenMap(mode);
+   const fptype *BC = GetClosedMap(mode);
+   const fptype *BO = GetOpenMap(mode);
    const auto X = Reshape(x.Read(), DIM*ND, ne);
    auto Y = Reshape(y.Write(), DIM*ND, ne);
 
@@ -203,8 +203,8 @@ void ChangeOfBasis_RT::MultRT_2D(const Vector &x, Vector &y, Mode mode) const
       {
          const int nx = (c == 0) ? D1D : D1D-1;
          const int ny = (c == 1) ? D1D : D1D-1;
-         const double *Bx = (c == 0) ? BC : BO;
-         const double *By = (c == 1) ? BC : BO;
+         const fptype *Bx = (c == 0) ? BC : BO;
+         const fptype *By = (c == 1) ? BC : BO;
 
          for (int i = 0; i < ND; ++i)
          {
@@ -212,11 +212,11 @@ void ChangeOfBasis_RT::MultRT_2D(const Vector &x, Vector &y, Mode mode) const
          }
          for (int iy = 0; iy < ny; ++ iy)
          {
-            double xx[DofQuadLimits::MAX_D1D];
+            fptype xx[DofQuadLimits::MAX_D1D];
             for (int ix = 0; ix < nx; ++ix) { xx[ix] = 0.0; }
             for (int jx = 0; jx < nx; ++jx)
             {
-               const double val = X(jx + iy*nx + c*nx*ny, e);
+               const fptype val = X(jx + iy*nx + c*nx*ny, e);
                for (int ix = 0; ix < nx; ++ix)
                {
                   xx[ix] += val*Bx[ix + jx*nx];
@@ -224,7 +224,7 @@ void ChangeOfBasis_RT::MultRT_2D(const Vector &x, Vector &y, Mode mode) const
             }
             for (int jy = 0; jy < ny; ++jy)
             {
-               const double b = By[jy + iy*ny];
+               const fptype b = By[jy + iy*ny];
                for (int ix = 0; ix < nx; ++ix)
                {
                   Y(ix + jy*nx + c*nx*ny, e) += xx[ix]*b;
@@ -241,8 +241,8 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
    const int NE = ne;
    const int D1D = p + 1;
    const int ND = (p+1)*p*p;
-   const double *BC = GetClosedMap(mode);
-   const double *BO = GetOpenMap(mode);
+   const fptype *BC = GetClosedMap(mode);
+   const fptype *BO = GetOpenMap(mode);
    const auto X = Reshape(x.Read(), DIM*ND, ne);
    auto Y = Reshape(y.Write(), DIM*ND, ne);
 
@@ -253,9 +253,9 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
          const int nx = (c == 0) ? D1D : D1D-1;
          const int ny = (c == 1) ? D1D : D1D-1;
          const int nz = (c == 2) ? D1D : D1D-1;
-         const double *Bx = (c == 0) ? BC : BO;
-         const double *By = (c == 1) ? BC : BO;
-         const double *Bz = (c == 2) ? BC : BO;
+         const fptype *Bx = (c == 0) ? BC : BO;
+         const fptype *By = (c == 1) ? BC : BO;
+         const fptype *Bz = (c == 2) ? BC : BO;
 
          for (int i = 0; i < ND; ++i)
          {
@@ -263,7 +263,7 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
          }
          for (int iz = 0; iz < nz; ++ iz)
          {
-            double xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
+            fptype xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
             for (int iy = 0; iy < ny; ++iy)
             {
                for (int ix = 0; ix < nx; ++ix)
@@ -273,11 +273,11 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
             }
             for (int iy = 0; iy < ny; ++iy)
             {
-               double xx[DofQuadLimits::MAX_D1D];
+               fptype xx[DofQuadLimits::MAX_D1D];
                for (int ix = 0; ix < nx; ++ix) { xx[ix] = 0.0; }
                for (int ix = 0; ix < nx; ++ix)
                {
-                  const double val = X(ix + iy*nx + iz*nx*ny + c*ND, e);
+                  const fptype val = X(ix + iy*nx + iz*nx*ny + c*ND, e);
                   for (int jx = 0; jx < nx; ++jx)
                   {
                      xx[jx] += val*Bx[jx + ix*nx];
@@ -285,7 +285,7 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
                }
                for (int jy = 0; jy < ny; ++jy)
                {
-                  const double b = By[jy + iy*ny];
+                  const fptype b = By[jy + iy*ny];
                   for (int jx = 0; jx < nx; ++jx)
                   {
                      xy[jy][jx] += xx[jx] * b;
@@ -294,7 +294,7 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
             }
             for (int jz = 0; jz < nz; ++jz)
             {
-               const double b = Bz[jz + iz*nz];
+               const fptype b = Bz[jz + iz*nz];
                for (int jy = 0; jy < ny; ++jy)
                {
                   for (int jx = 0; jx < nx; ++jx)
