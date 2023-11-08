@@ -1255,44 +1255,46 @@ protected:
    double proj(double tol=1e-12, int max_its=10)
    {
       double c = 0;
-      MappedGridFunctionCoefficient proj_rho(x_gf, [&c](const double x) {return sigmoid(x + c);});
-      MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
+      MappedGridFunctionCoefficient rho(x_gf, [&c](const double x) {return sigmoid(x + c);});
+      // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
+      GridFunction *zero_gf;
       FiniteElementSpace * fes = x_gf->FESpace();
       LinearForm *V, *dV;
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
       if (pfes)
       {
-         V = new ParLinearForm(pfes);
-         dV = new ParLinearForm(pfes);
+         zero_gf = new ParGridFunction(pfes);
       }
       else
       {
-         V = new LinearForm(fes);
-         dV = new LinearForm(fes);
+         zero_gf = new GridFunction(fes);
       }
 #else
-      V = new LinearForm(fes);
-      dV = new LinearForm(fes);
+      zero_gf = new GridFunction(fes);
 #endif
-      V->AddDomainIntegrator(new DomainLFIntegrator(proj_rho));
-      dV->AddDomainIntegrator(new DomainLFIntegrator(proj_drho));
+      *zero_gf = 0.0;
 
-      V->Assemble();
-      dV->Assemble();
-      double Vc = V->Sum();
-      double dVc = dV->Sum();
+      double Vc = zero_gf->ComputeL1Error(rho);
+      double dVc = Vc - std::pow(zero_gf->ComputeL2Error(rho), 2);
       if (fabs(Vc - target_volume) > tol)
       {
-         double dc = -(Vc - target_volume) / dVc;
-         c += dc;
+         double dc;
+         if (dVc > tol) // if derivative is sufficiently large,
+         {
+            dc = -(Vc - target_volume) / dVc;
+         }
+         else
+         {
+            dc = -(Vc > target_volume ? x_gf->Max() : x_gf->Min());
+         }
+         c = dc;
          int k;
          // Find an interval (c, c+dc) that contains c⋆.
          for (k=0; k < max_its; k++)
          {
             double Vc_old = Vc;
-            V->Assemble();
-            Vc = V->Sum();
+            Vc = zero_gf->ComputeL1Error(rho);
             if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
             {
                break;
@@ -1309,18 +1311,15 @@ protected:
          {
             dc /= 2.0;
             c = Vc > target_volume ? c - dc : c + dc;
-            V->Assemble();
-            Vc = V->Sum();
+            Vc = zero_gf->ComputeL1Error(rho);
          }
          *x_gf += c;
          c = 0;
-         V->Assemble();
       }
-      current_volume = Vc;
+      current_volume = zero_gf->ComputeL1Error(rho);
 
-      delete V;
-      delete dV;
-      return Vc;
+      delete zero_gf;
+      return current_volume;
    }
    double current_volume;
 
