@@ -410,7 +410,7 @@ public:
     */
    SurfaceLFIntegrator(Coefficient &q, Coefficient &levelset,
                        SIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), SIntRule(ir) {}
+      : LinearFormIntegrator(), SIntRule(ir), LevelSet(levelset), Q(q) { }
 
    /**
     @brief Assembly of the element vector
@@ -478,7 +478,7 @@ public:
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,
                          CIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CIntRule(ir) {}
+      : LinearFormIntegrator(), CIntRule(ir), LevelSet(levelset), Q(q) { }
 
    /**
     @brief Assembly of the element vector
