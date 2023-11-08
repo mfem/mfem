@@ -387,6 +387,7 @@ int main(int argc, char *argv[])
    double target_volume = domain_volume * vol_fraction;
 
    GridFunction gradH1(&filter_fes), gradL2(&control_fes);
+   gradH1 = 0.0; gradL2 = 0.0;
    GridFunctionCoefficient gradH1_cf(&gradH1);
    BilinearForm invMass(&control_fes);
    invMass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
