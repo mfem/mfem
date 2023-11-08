@@ -1060,7 +1060,7 @@ public:
       load = new LinearForm(fes);
 #endif
       // Step 1. Projection
-      proj();
+      proj(1e-12, 500);
       for (auto val : *x_gf)
       {
          if (!IsFinite(val))
@@ -1435,6 +1435,7 @@ public:
       int i=-1;
       while (new_val > val + c1*d2)
       {
+         i++;
          step_size *= 0.5;
 
          x = *x0;
@@ -1442,9 +1443,6 @@ public:
          new_val = F.Eval();
          directionalDer->Assemble();
          d2 = (*directionalDer)(*grad);
-         // out << "step_size = " << step_size << ": (" << new_val << ", " << val + c1 * d2
-            //  << ")" << std::endl;
-         i++;
       }
       out << i << ", " << step_size;
       out.flush();
