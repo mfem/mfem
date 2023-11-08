@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
    double mu = 1.0;
    double c1 = 1e-04;
    bool glvis_visualization = true;
+   bool save = true;
 
    ostringstream solfile, solfile2, meshfile;
 
@@ -259,7 +260,8 @@ int main(int argc, char *argv[])
          break;
 
       case Problem::Cantilever3:
-         mesh = mesh.MakeCartesian3D(4, 1, 2, mfem::Element::Type::HEXAHEDRON, 2.0, 0.25, 0.5);
+         mesh = mesh.MakeCartesian3D(4, 1, 2, mfem::Element::Type::HEXAHEDRON, 2.0, 0.25,
+                                     0.5);
          ess_bdr.SetSize(4, 7);
          ess_bdr_filter.SetSize(7);
          ess_bdr = 0; ess_bdr_filter = 0;
@@ -372,13 +374,13 @@ int main(int argc, char *argv[])
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, alpha, 2.0, c1, 10, 1e6);
+         lineSearch = new BackTracking(obj, alpha, 2.0, c1, 10, infinity());
          solfile << "EXP-";
          solfile2 << "EXP-";
          break;
       case LineSearchMethod::BregmanBBBackTracking:
-         lineSearch = new BackTrackingLipschitzBregmanMirror(obj, succ_diff_rho_form,
-                                                             *(obj.Gradient()), psi, c1);
+         lineSearch = new BackTrackingLipschitzBregmanMirror(
+            obj, succ_diff_rho_form, *(obj.Gradient()), psi, c1, 1.0, 1e-10, infinity());
          solfile << "BB-";
          solfile2 << "BB-";
          break;
@@ -440,7 +442,7 @@ int main(int argc, char *argv[])
       // mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
       //           std::endl;
       mfem::out <<  ", " << compliance << ", ";
-      mfem::out << norm_increment << endl;
+      mfem::out << norm_increment << std::endl;
 
       if (glvis_visualization)
       {
@@ -450,20 +452,21 @@ int main(int argc, char *argv[])
          rho_gf.ProjectCoefficient(rho);
          sout_r << "solution\n" << mesh << rho_gf
                 << flush;
-
-         ofstream sol_ofs(solfile.str().c_str());
-         sol_ofs.precision(8);
-         sol_ofs << psi;
-
-         ofstream sol_ofs2(solfile2.str().c_str());
-         sol_ofs2.precision(8);
-         sol_ofs2 << *obj.GetFilteredDensity();
       }
-
-      if (norm_increment / domain_volume < itol)
+      if (norm_increment < itol)
       {
          break;
       }
+   }
+   if (save)
+   {
+      ofstream sol_ofs(solfile.str().c_str());
+      sol_ofs.precision(8);
+      sol_ofs << psi;
+
+      ofstream sol_ofs2(solfile2.str().c_str());
+      sol_ofs2.precision(8);
+      sol_ofs2 << *obj.GetFilteredDensity();
    }
    out << "Total number of iteration = " << k << std::endl;
    delete lineSearch;
