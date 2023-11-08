@@ -4036,6 +4036,9 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    Clear();
 
+   // read lines beginning with '#' (comments)
+   skip_comment_lines(input, '#');
+
    string mesh_type;
    input >> ws;
    getline(input, mesh_type);
