@@ -225,7 +225,7 @@ public:
                          "flux" function in the basis of @a fluxelem. The size
                          of @a flux as a Vector has to be set by this method,
                          e.g. using Vector::SetSize().
-       @param[in] with_coef  If zero (the default value is 1) the implementation
+       @param[in] with_flux  If zero (the default value is 1) the implementation
                              of the method may choose not to scale the "flux"
                              function by any coefficients describing the
                              integrator.
@@ -239,7 +239,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true,
+                                   Vector &flux, bool with_flux = true,
                                    const IntegrationRule *ir = NULL) { }
 
    /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
@@ -2219,7 +2219,7 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true,
+                                   Vector &flux, bool with_flux = true,
                                    const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
@@ -2656,7 +2656,7 @@ public:
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef,
+                                   Vector &flux, bool with_flux,
                                    const IntegrationRule *ir = NULL);
 
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
@@ -3020,7 +3020,7 @@ public:
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
-                                   Vector &flux, bool with_coef = true,
+                                   Vector &flux, bool with_flux = true,
                                    const IntegrationRule *ir = NULL);
 
    /** Compute the element energy (integral of the strain energy density)
