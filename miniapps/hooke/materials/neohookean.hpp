@@ -55,7 +55,7 @@ struct NeoHookeanMaterial
       T J = det(I + dudx);
       T p = -2.0 * D1 * J * (J - 1);
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-      auto sigma = -(p / J) * I + 2 * (C1 / pow(J, 5.0 / 3.0)) * devB;
+      auto sigma = -(p / J) * I + 2 * (C1 / (T) pow(J, 5.0 / 3.0)) * devB;
       return sigma;
    }
 
@@ -71,8 +71,8 @@ struct NeoHookeanMaterial
     */
    MFEM_HOST_DEVICE static void
    stress_wrapper(NeoHookeanMaterial<dim, gradient_type> *self,
-                  tensor<double, dim, dim> &dudx,
-                  tensor<double, dim, dim> &sigma)
+                  tensor<mfem::fptype, dim, dim> &dudx,
+                  tensor<mfem::fptype, dim, dim> &sigma)
    {
       sigma = self->stress(dudx);
    }
@@ -87,25 +87,26 @@ struct NeoHookeanMaterial
     * @param[in] dudx
     * @return
     */
-   MFEM_HOST_DEVICE tensor<double, dim, dim, dim, dim>
-   gradient(tensor<double, dim, dim> dudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim, dim, dim>
+   gradient(tensor<mfem::fptype, dim, dim> dudx) const
    {
       static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
-      tensor<double, dim, dim> F = I + dudx;
-      tensor<double, dim, dim> invF = inv(F);
-      tensor<double, dim, dim> devB =
+      tensor<mfem::fptype, dim, dim> F = I + dudx;
+      tensor<mfem::fptype, dim, dim> invF = inv(F);
+      tensor<mfem::fptype, dim, dim> devB =
          dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-      double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
+      mfem::fptype J = det(F);
+      mfem::fptype coef = (C1 / pow(J, 5.0 / 3.0));
       return make_tensor<dim, dim, dim, dim>([&](int i, int j, int k,
                                                  int l)
       {
-         return 2.0 * (D1 * J * (i == j) - (5.0 / 3.0) * coef * devB[i][j]) *
+         return 2 * (D1 * J * (i == j) -
+                     mfem::fptype(5.0 / 3.0) * coef * devB[i][j]) *
                 invF[l][k] +
-                2.0 * coef *
+                2 * coef *
                 ((i == k) * F[j][l] + F[i][l] * (j == k) -
-                 (2.0 / 3.0) * ((i == j) * F[k][l]));
+                 mfem::fptype(2.0 / 3.0) * ((i == j) * F[k][l]));
       });
    }
 
@@ -116,9 +117,9 @@ struct NeoHookeanMaterial
     * @param[in] ddudx
     * @return
     */
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient(const tensor<double, dim, dim> &dudx,
-                      const tensor<double, dim, dim> &ddudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient(const tensor<mfem::fptype, dim, dim> &dudx,
+                      const tensor<mfem::fptype, dim, dim> &ddudx) const
    {
       if (gradient_type == GradientType::Symbolic)
       {
@@ -144,41 +145,41 @@ struct NeoHookeanMaterial
       }
       // Getting to this point is an error.
       // For now we just return a zero tensor to suppress a warning:
-      return tensor<double, dim, dim> {};
+      return tensor<mfem::fptype, dim, dim> {};
    }
 
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_dual(const tensor<double, dim, dim> &dudx,
-                           const tensor<double, dim, dim> &ddudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient_dual(const tensor<mfem::fptype, dim, dim> &dudx,
+                           const tensor<mfem::fptype, dim, dim> &ddudx) const
    {
       auto sigma = stress(make_tensor<dim, dim>([&](int i, int j)
       {
-         return mfem::internal::dual<double, double> {dudx[i][j], ddudx[i][j]};
+         return mfem::internal::dual<mfem::fptype, mfem::fptype> {dudx[i][j], ddudx[i][j]};
       }));
       return make_tensor<dim, dim>(
       [&](int i, int j) { return sigma[i][j].gradient; });
    }
 
 #ifdef MFEM_USE_ENZYME
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_enzyme_fwd(const tensor<double, dim, dim> &dudx,
-                                 const tensor<double, dim, dim> &ddudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient_enzyme_fwd(const tensor<mfem::fptype, dim, dim> &dudx,
+                                 const tensor<mfem::fptype, dim, dim> &ddudx) const
    {
-      tensor<double, dim, dim> sigma{};
-      tensor<double, dim, dim> dsigma{};
+      tensor<mfem::fptype, dim, dim> sigma{};
+      tensor<mfem::fptype, dim, dim> dsigma{};
 
       __enzyme_fwddiff<void>(stress_wrapper, enzyme_const, this, enzyme_dup,
                              &dudx, &ddudx, enzyme_dupnoneed, &sigma, &dsigma);
       return dsigma;
    }
 
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_enzyme_rev(const tensor<double, dim, dim> &dudx,
-                                 const tensor<double, dim, dim> &ddudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient_enzyme_rev(const tensor<mfem::fptype, dim, dim> &dudx,
+                                 const tensor<mfem::fptype, dim, dim> &ddudx) const
    {
-      tensor<double, dim, dim, dim, dim> gradient{};
-      tensor<double, dim, dim> sigma{};
-      tensor<double, dim, dim> dir{};
+      tensor<mfem::fptype, dim, dim, dim, dim> gradient{};
+      tensor<mfem::fptype, dim, dim> sigma{};
+      tensor<mfem::fptype, dim, dim> dir{};
 
       for (int i = 0; i < dim; i++)
       {
@@ -195,39 +196,40 @@ struct NeoHookeanMaterial
    }
 #endif
 
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_finite_diff(const tensor<double, dim, dim> &dudx,
-                                  const tensor<double, dim, dim> &ddudx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient_finite_diff(const tensor<mfem::fptype, dim, dim> &dudx,
+                                  const tensor<mfem::fptype, dim, dim> &ddudx) const
    {
-      return (stress(dudx + 1.0e-8 * ddudx) - stress(dudx - 1.0e-8 * ddudx)) /
-             2.0e-8;
+      return (stress(dudx + mfem::fptype(1.0e-8) * ddudx) -
+              stress(dudx - mfem::fptype(1.0e-8) * ddudx)) /
+             mfem::fptype(2.0e-8);
    }
 
    // d(stress)_{ij} := (d(stress)_ij / d(du_dx)_{kl}) * d(du_dx)_{kl}
    // Only works with 3D stress
-   MFEM_HOST_DEVICE tensor<double, dim, dim>
-   action_of_gradient_symbolic(const tensor<double, dim, dim> &du_dx,
-                               const tensor<double, dim, dim> &ddu_dx) const
+   MFEM_HOST_DEVICE tensor<mfem::fptype, dim, dim>
+   action_of_gradient_symbolic(const tensor<mfem::fptype, dim, dim> &du_dx,
+                               const tensor<mfem::fptype, dim, dim> &ddu_dx) const
    {
       static constexpr auto I = mfem::internal::IsotropicIdentity<dim>();
 
-      tensor<double, dim, dim> F = I + du_dx;
-      tensor<double, dim, dim> invFT = inv(transpose(F));
-      tensor<double, dim, dim> devB =
+      tensor<mfem::fptype, dim, dim> F = I + du_dx;
+      tensor<mfem::fptype, dim, dim> invFT = inv(transpose(F));
+      tensor<mfem::fptype, dim, dim> devB =
          dev(du_dx + transpose(du_dx) + dot(du_dx, transpose(du_dx)));
-      double J = det(F);
-      double coef = (C1 / pow(J, 5.0 / 3.0));
-      double a1 = ddot(invFT, ddu_dx);
-      double a2 = ddot(F, ddu_dx);
+      mfem::fptype J = det(F);
+      mfem::fptype coef = (C1 / pow(J, 5.0 / 3.0));
+      mfem::fptype a1 = ddot(invFT, ddu_dx);
+      mfem::fptype a2 = ddot(F, ddu_dx);
 
-      return (2.0 * D1 * J * a1 - (4.0 / 3.0) * coef * a2) * I -
-             ((10.0 / 3.0) * coef * a1) * devB +
-             (2 * coef) * (dot(ddu_dx, transpose(F)) + dot(F, transpose(ddu_dx)));
+      return ((2 * D1 * J * a1 - mfem::fptype(4.0 / 3.0) * coef * a2) * I -
+              (mfem::fptype(10.0 / 3.0) * coef * a1) * devB +
+              (2 * coef) * (dot(ddu_dx, transpose(F)) + dot(F, transpose(ddu_dx))));
    }
 
    // Parameters
-   double D1 = 100.0;
-   double C1 = 50.0;
+   mfem::fptype D1 = 100.0;
+   mfem::fptype C1 = 50.0;
 };
 
 #endif
