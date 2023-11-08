@@ -49,10 +49,6 @@ protected:
 public:
    ParGridFunction() { pfes = NULL; }
 
-   /// Copy constructor. The internal vector #face_nbr_data is not copied.
-   ParGridFunction(const ParGridFunction &orig)
-      : GridFunction(orig), pfes(orig.pfes) { }
-
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
    /// Construct a ParGridFunction using previously allocated array @a data.
@@ -92,15 +88,6 @@ public:
        In the process, a ParFiniteElementSpace and a FiniteElementCollection are
        constructed. The new ParGridFunction assumes ownership of both. */
    ParGridFunction(ParMesh *pmesh, std::istream &input);
-
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
-       that have the same size.
-
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   ParGridFunction &operator=(const ParGridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
@@ -459,8 +446,6 @@ public:
 
    /// Merge the local grid functions
    void SaveAsOne(std::ostream &out = mfem::out) const;
-
-   virtual ~ParGridFunction() { }
 };
 
 

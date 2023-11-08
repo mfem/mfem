@@ -38,8 +38,9 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    // Grid functions are stored on the device
    UseDevice(true);
 
-   fes = new FiniteElementSpace;
-   fec = fes->Load(m, input);
+   owned_fes.reset(new FiniteElementSpace);
+   fes = owned_fes.get();
+   fec.reset(fes->Load(m, input));
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -81,10 +82,11 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
    int vdim, ordering;
 
    fes = gf_array[0]->FESpace();
-   fec = FiniteElementCollection::New(fes->FEColl()->Name());
+   fec.reset(FiniteElementCollection::New(fes->FEColl()->Name()));
    vdim = fes->GetVDim();
    ordering = fes->GetOrdering();
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
+   owned_fes.reset(new FiniteElementSpace(m, fec.get(), vdim, ordering));
+   fes = owned_fes.get();
    SetSize(fes->GetVSize());
 
    if (m->NURBSext)
@@ -153,12 +155,9 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
 
 void GridFunction::Destroy()
 {
-   if (fec)
-   {
-      delete fes;
-      delete fec;
-      fec = NULL;
-   }
+   owned_fes.reset();
+   fec.reset();
+   fes = nullptr;
 }
 
 void GridFunction::Update()

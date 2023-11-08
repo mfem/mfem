@@ -20,6 +20,7 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <string>
 
@@ -30,14 +31,13 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which the grid function lives. Owned if #fec is not NULL.
+   /// FE space on which the grid function lives.
    FiniteElementSpace *fes;
 
    /** @brief Used when the grid function is read from a file. It can also be
-       set explicitly, see MakeOwner().
-
-       If not NULL, this pointer is owned by the GridFunction. */
-   FiniteElementCollection *fec;
+       set explicitly, see MakeOwner(). */
+   std::shared_ptr<FiniteElementCollection> fec;
+   std::shared_ptr<FiniteElementSpace> owned_fes;
 
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
@@ -74,11 +74,6 @@ public:
 
    GridFunction() { fes = NULL; fec = NULL; fes_sequence = 0; UseDevice(true); }
 
-   /// Copy constructor. The internal true-dof vector #t_vec is not copied.
-   GridFunction(const GridFunction &orig)
-      : Vector(orig), fes(orig.fes), fec(NULL), fes_sequence(orig.fes_sequence)
-   { UseDevice(true); }
-
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
    GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
    { fes = f; fec = NULL; fes_sequence = f->GetSequence(); UseDevice(true); }
@@ -107,21 +102,12 @@ public:
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
 
-   /// Copy assignment. Only the data of the base class Vector is copied.
-   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
-       have the same size.
-
-       @note Defining this method overwrites the implicitly defined copy
-       assignment operator. */
-   GridFunction &operator=(const GridFunction &rhs)
-   { return operator=((const Vector &)rhs); }
-
    /// Make the GridFunction the owner of #fec and #fes.
    /** If the new FiniteElementCollection, @a fec_, is NULL, ownership of #fec
        and #fes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec = fec_; }
+   void MakeOwner(FiniteElementCollection *fec_) { fec.reset(fec_); }
 
-   FiniteElementCollection *OwnFEC() { return fec; }
+   FiniteElementCollection *OwnFEC() { return fec.get(); }
 
    int VectorDim() const;
    int CurlDim() const;
@@ -754,9 +740,6 @@ public:
    /** @brief Write the GridFunction in STL format. Note that the mesh dimension
        must be 2 and that quad elements will be broken into two triangles.*/
    void SaveSTL(std::ostream &out, int TimesToRefine = 1);
-
-   /// Destroys grid function.
-   virtual ~GridFunction() { Destroy(); }
 };
 
 

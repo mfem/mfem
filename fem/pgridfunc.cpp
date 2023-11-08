@@ -39,9 +39,11 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
 {
    const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   fec.reset(FiniteElementCollection::New(glob_fes->FEColl()->Name()));
    // create a local ParFiniteElementSpace from the global one:
-   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning,
+                                          fec.get());
+   owned_fes.reset(pfes);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
@@ -81,10 +83,10 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
    : GridFunction(pmesh, input)
 {
    // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
-   pfes = new ParFiniteElementSpace(pmesh, fec, fes->GetVDim(),
+   pfes = new ParFiniteElementSpace(pmesh, fec.get(), fes->GetVDim(),
                                     fes->GetOrdering());
-   delete fes;
    fes = pfes;
+   owned_fes.reset(pfes);
 }
 
 void ParGridFunction::Update()
