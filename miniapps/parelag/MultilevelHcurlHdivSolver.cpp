@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
    const char *xml_file_c = NULL;
    bool hcurl = true;
    bool visualize = false;
-   double tolSVD = 1e-3;
+   fptype tolSVD = 1e-3;
    OptionsParser args(argc, argv);
    args.AddOption(&xml_file_c, "-f", "--xml-file",
                   "XML parameter list (an XML file with detailed parameters).");
@@ -168,14 +168,14 @@ int main(int argc, char *argv[])
    // A list of (piecewise) constant values for the coefficient 'alpha', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
-   vector<double> alpha_vals = prob_list.Get("alpha values",
-                                             vector<double> {1.0});
+   vector<fptype> alpha_vals = prob_list.Get("alpha values",
+                                             vector<fptype> {1.0});
 
    // A list of (piecewise) constant values for the coefficient 'beta', in
    // accordance with the mesh attributes. If only a single entry is given, it
    // is applied to the whole mesh/domain.
-   vector<double> beta_vals = prob_list.Get("beta values",
-                                            vector<double> {1.0});
+   vector<fptype> beta_vals = prob_list.Get("beta values",
+                                            vector<fptype> {1.0});
 
    // The list of solvers to invoke.
    auto list_of_solvers = prob_list.Get<list<string>>("List of linear solvers");
@@ -713,9 +713,9 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2();
+         fptype local_norm = tmp.Norml2();
          local_norm *= local_norm;
-         double global_norm;
+         fptype global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)
@@ -741,9 +741,9 @@ int main(int argc, char *argv[])
          tmp *= -1.0;
          tmp += B;
 
-         double local_norm = tmp.Norml2();
+         fptype local_norm = tmp.Norml2();
          local_norm *= local_norm;
-         double global_norm;
+         fptype global_norm;
          MPI_Reduce(&local_norm, &global_norm, 1, GetMPIType(local_norm),
                     MPI_SUM, 0, MPI_COMM_WORLD);
          if (!myid)

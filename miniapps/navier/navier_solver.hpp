@@ -20,8 +20,8 @@ namespace mfem
 {
 namespace navier
 {
-using VecFuncT = void(const Vector &x, double t, Vector &u);
-using ScalarFuncT = double(const Vector &x, double t);
+using VecFuncT = void(const Vector &x, fptype t, Vector &u);
+using ScalarFuncT = fptype(const Vector &x, fptype t);
 
 /// Container for a Dirichlet boundary condition of the velocity field.
 class VelDirichletBC_T
@@ -153,10 +153,10 @@ public:
     * automatically converted to the Reynolds number. If you want to set the
     * Reynolds number directly, you can provide the inverse.
     */
-   NavierSolver(ParMesh *mesh, int order, double kin_vis);
+   NavierSolver(ParMesh *mesh, int order, fptype kin_vis);
 
    /// Initialize forms, solvers and preconditioners.
-   void Setup(double dt);
+   void Setup(fptype dt);
 
    /// Compute solution at the next time step t+dt.
    /**
@@ -180,7 +180,7 @@ public:
     * linear multistep methods for time-dependent partial differential
     * equations
     */
-   void Step(double &time, double dt, int cur_step, bool provisional = false);
+   void Step(fptype &time, fptype dt, int cur_step, bool provisional = false);
 
    /// Return a pointer to the provisional velocity ParGridFunction.
    ParGridFunction *GetProvisionalVelocity() { return &un_next_gf; }
@@ -262,13 +262,13 @@ public:
    void MeanZero(ParGridFunction &v);
 
    /// Rotate entries in the time step and solution history arrays.
-   void UpdateTimestepHistory(double dt);
+   void UpdateTimestepHistory(fptype dt);
 
    /// Set the maximum order to use for the BDF method.
    void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; };
 
    /// Compute CFL
-   double ComputeCFL(ParGridFunction &u, double dt);
+   fptype ComputeCFL(ParGridFunction &u, fptype dt);
 
    /// Set the number of modes to cut off in the interpolation filter
    void SetCutoffModes(int c) { filter_cutoff_modes = c; }
@@ -281,7 +281,7 @@ public:
     * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
     * spectral element methods
     */
-   void SetFilterAlpha(double a) { filter_alpha = a; }
+   void SetFilterAlpha(fptype a) { filter_alpha = a; }
 
 protected:
    /// Print information about the Navier version.
@@ -326,7 +326,7 @@ protected:
    int order;
 
    /// Kinematic viscosity (dimensionless).
-   double kin_vis;
+   fptype kin_vis;
 
    IntegrationRules gll_rules;
 
@@ -365,7 +365,7 @@ protected:
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
    ConstantCoefficient onecoeff;
-   double volume = 0.0;
+   fptype volume = 0.0;
 
    ConstantCoefficient nlcoeff;
    ConstantCoefficient Sp_coeff;
@@ -418,16 +418,16 @@ protected:
 
    int max_bdf_order = 3;
    int cur_step = 0;
-   std::vector<double> dthist = {0.0, 0.0, 0.0};
+   std::vector<fptype> dthist = {0.0, 0.0, 0.0};
 
    // BDFk/EXTk coefficients.
-   double bd0 = 0.0;
-   double bd1 = 0.0;
-   double bd2 = 0.0;
-   double bd3 = 0.0;
-   double ab1 = 0.0;
-   double ab2 = 0.0;
-   double ab3 = 0.0;
+   fptype bd0 = 0.0;
+   fptype bd1 = 0.0;
+   fptype bd2 = 0.0;
+   fptype bd3 = 0.0;
+   fptype ab1 = 0.0;
+   fptype ab2 = 0.0;
+   fptype ab3 = 0.0;
 
    // Timers.
    StopWatch sw_setup, sw_step, sw_extrap, sw_curlcurl, sw_spsolve, sw_hsolve;
@@ -439,21 +439,21 @@ protected:
    int pl_amg = 0;
 
    // Relative tolerances.
-   double rtol_spsolve = 1e-6;
-   double rtol_hsolve = 1e-8;
+   fptype rtol_spsolve = 1e-6;
+   fptype rtol_hsolve = 1e-8;
 
    // Iteration counts.
    int iter_mvsolve = 0, iter_spsolve = 0, iter_hsolve = 0;
 
    // Residuals.
-   double res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
+   fptype res_mvsolve = 0.0, res_spsolve = 0.0, res_hsolve = 0.0;
 
    // LOR related.
    ParLORDiscretization *lor = nullptr;
 
    // Filter-based stabilization
    int filter_cutoff_modes = 1;
-   double filter_alpha = 0.0;
+   fptype filter_alpha = 0.0;
    FiniteElementCollection *vfec_filter = nullptr;
    ParFiniteElementSpace *vfes_filter = nullptr;
    ParGridFunction un_NM1_gf;
