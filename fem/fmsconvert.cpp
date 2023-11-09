@@ -31,13 +31,13 @@ FmsBasisTypeToMfemBasis(FmsBasisType b)
    switch (b)
    {
       case FMS_NODAL_GAUSS_OPEN:
-         retval = mfem::BasisType::GaussLegendre;;
+         retval = mfem::BasisType::GaussLegendre;
          break;
       case FMS_NODAL_GAUSS_CLOSED:
-         retval = mfem::BasisType::GaussLobatto;;
+         retval = mfem::BasisType::GaussLobatto;
          break;
       case FMS_POSITIVE:
-         retval = mfem::BasisType::Positive;;
+         retval = mfem::BasisType::Positive;
          break;
       case FMS_NODAL_UNIFORM_OPEN:
          retval = mfem::BasisType::OpenUniform;
