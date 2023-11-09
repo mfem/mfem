@@ -665,7 +665,7 @@ public:
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
-   /// Sets ::DiagonalPolicy used upon construction of the linear system.
+   /// Sets Operator::DiagonalPolicy used upon construction of the linear system.
    /** Policies include:
 
        - DIAG_ZERO (Set the diagonal values to zero)
