@@ -641,16 +641,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   foreach(Header mfem.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
-    file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/${Header}.tmp"
 "// Auto-generated file.
 #define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+    )
+
     # This version will be installed in the top include directory:
-    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
 "// Auto-generated file.
 #include \"mfem/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+    )
+
   endforeach()
 endif()
 
