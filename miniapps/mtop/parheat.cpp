@@ -47,6 +47,8 @@
 #include "pparamnonlinearform.hpp"
 #include "mtop_integrators.hpp"
 
+using namespace mfem;
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
@@ -60,8 +62,8 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
-   double newton_rel_tol = 1e-7;
-   double newton_abs_tol = 1e-12;
+   fptype newton_rel_tol = 1e-7;
+   fptype newton_abs_tol = 1e-12;
    int newton_iter = 10;
    int print_level = 1;
    bool visualization = false;
@@ -229,7 +231,7 @@ int main(int argc, char *argv[])
    gmres->Mult(resbv, solbv);
 
    // Compute the energy of the state system.
-   double energy = nf->GetEnergy(solbv);
+   fptype energy = nf->GetEnergy(solbv);
    if (myrank==0)
    {
       std::cout << "energy =" << energy << std::endl;
@@ -242,7 +244,7 @@ int main(int argc, char *argv[])
    ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator());
 
    // Compute the objective.
-   double obj=ob->GetEnergy(solbv);
+   fptype obj=ob->GetEnergy(solbv);
    if (myrank==0)
    {
       std::cout << "Objective =" << obj << std::endl;
@@ -299,13 +301,13 @@ int main(int argc, char *argv[])
       tmpbv.Update(nf->ParamGetBlockTrueOffsets());
       prtbv.GetBlock(0).Randomize();
       prtbv*=1.0;
-      double lsc=1.0;
+      fptype lsc=1.0;
 
-      double gQoI=ob->GetEnergy(solbv);
-      double lQoI;
+      fptype gQoI=ob->GetEnergy(solbv);
+      fptype lQoI;
 
-      double nd=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,prtbv);
-      double td=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,grdbv);
+      fptype nd=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,prtbv);
+      fptype td=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,grdbv);
       td=td/nd;
 
       for (int l = 0; l < 10; l++)
@@ -325,7 +327,7 @@ int main(int argc, char *argv[])
          gmres->Mult(resbv,solbv);
          // Compute the objective.
          lQoI=ob->GetEnergy(solbv);
-         double ld=(lQoI-gQoI)/lsc;
+         fptype ld=(lQoI-gQoI)/lsc;
          if (myrank==0)
          {
             std::cout << "dx=" << lsc <<" FD approximation=" << ld/nd

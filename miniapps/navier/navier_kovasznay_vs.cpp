@@ -53,12 +53,12 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 6;
-   double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 0.001;
-   double reference_pressure = 0.0;
-   double reynolds = 1.0 / kinvis;
-   double lam = 0.5 * reynolds
+   fptype kinvis = 1.0 / 40.0;
+   fptype t_final = 10 * 0.001;
+   fptype dt = 0.001;
+   fptype reference_pressure = 0.0;
+   fptype reynolds = 1.0 / kinvis;
+   fptype lam = 0.5 * reynolds
                 - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI * M_PI);
    bool pa = true;
    bool ni = false;
@@ -66,18 +66,18 @@ struct s_NavierContext
    bool checkres = false;
 } ctx;
 
-void vel_kovasznay(const Vector &x, double t, Vector &u)
+void vel_kovasznay(const Vector &x, fptype t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   fptype xi = x(0);
+   fptype yi = x(1);
 
    u(0) = 1.0 - exp(ctx.lam * xi) * cos(2.0 * M_PI * yi);
    u(1) = ctx.lam / (2.0 * M_PI) * exp(ctx.lam * xi) * sin(2.0 * M_PI * yi);
 }
 
-double pres_kovasznay(const Vector &x, double t)
+fptype pres_kovasznay(const Vector &x, fptype t)
 {
-   double xi = x(0);
+   fptype xi = x(0);
 
    return 0.5 * (1.0 - exp(2.0 * ctx.lam * xi)) + ctx.reference_pressure;
 }
@@ -175,15 +175,15 @@ int main(int argc, char *argv[])
    attr = 1;
    flowsolver.AddVelDirichletBC(vel_kovasznay, attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   fptype t = 0.0;
+   fptype dt = ctx.dt;
+   fptype t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   fptype err_u = 0.0;
+   fptype err_p = 0.0;
    ParGridFunction *u_next_gf = nullptr;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
@@ -191,8 +191,8 @@ int main(int argc, char *argv[])
    ParGridFunction p_ex_gf(flowsolver.GetCurrentPressure()->ParFESpace());
    GridFunctionCoefficient p_ex_gf_coeff(&p_ex_gf);
 
-   double cfl_max = 0.8;
-   double cfl_tol = 1e-4;
+   fptype cfl_max = 0.8;
+   fptype cfl_tol = 1e-4;
 
    for (int step = 0; !last_step; ++step)
    {
@@ -208,9 +208,9 @@ int main(int argc, char *argv[])
       u_next_gf = flowsolver.GetProvisionalVelocity();
 
       // Compute the CFL based on the provisional velocity
-      double cfl = flowsolver.ComputeCFL(*u_next_gf, dt);
+      fptype cfl = flowsolver.ComputeCFL(*u_next_gf, dt);
 
-      double error_est = cfl / (cfl_max + cfl_tol);
+      fptype error_est = cfl / (cfl_max + cfl_tol);
       if (error_est >= 1.0)
       {
          // Reject the time step
@@ -229,10 +229,10 @@ int main(int argc, char *argv[])
          t += dt;
 
          // Predict new step size
-         double fac_safety = 2.0;
-         double eta = pow(1.0 / (fac_safety * error_est), 1.0 / (1.0 + 3.0));
-         double fac_min = 0.1;
-         double fac_max = 1.4;
+         fptype fac_safety = 2.0;
+         fptype eta = pow(1.0 / (fac_safety * error_est), 1.0 / (1.0 + 3.0));
+         fptype fac_min = 0.1;
+         fptype fac_max = 1.4;
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
 
          // Queue new time step in the history array
@@ -288,8 +288,8 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol_u = 1e-6;
-      double tol_p = 1e-5;
+      fptype tol_u = 1e-6;
+      fptype tol_p = 1e-5;
       if (err_u > tol_u || err_p > tol_p)
       {
          if (Mpi::Root())

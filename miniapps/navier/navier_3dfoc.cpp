@@ -20,18 +20,18 @@ using namespace navier;
 struct s_NavierContext
 {
    int order = 4;
-   double kin_vis = 0.001;
-   double t_final = 8.0;
-   double dt = 1e-3;
+   fptype kin_vis = 0.001;
+   fptype t_final = 8.0;
+   fptype dt = 1e-3;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel(const Vector &x, fptype t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
-   double zi = x(2);
+   fptype xi = x(0);
+   fptype yi = x(1);
+   fptype zi = x(2);
 
-   double U = 2.25;
+   fptype U = 2.25;
 
    if (xi <= 1e-8)
    {
@@ -86,9 +86,9 @@ int main(int argc, char *argv[])
    attr[2] = 1;
    flowsolver.AddVelDirichletBC(vel, attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   fptype t = 0.0;
+   fptype dt = ctx.dt;
+   fptype t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);

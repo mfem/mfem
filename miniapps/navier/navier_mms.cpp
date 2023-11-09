@@ -32,36 +32,36 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 5;
-   double kinvis = 1.0;
-   double t_final = 10 * 0.25e-4;
-   double dt = 0.25e-4;
+   fptype kinvis = 1.0;
+   fptype t_final = 10 * 0.25e-4;
+   fptype dt = 0.25e-4;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel(const Vector &x, fptype t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   fptype xi = x(0);
+   fptype yi = x(1);
 
    u(0) = M_PI * sin(t) * pow(sin(M_PI * xi), 2.0) * sin(2.0 * M_PI * yi);
    u(1) = -(M_PI * sin(t) * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0));
 }
 
-double p(const Vector &x, double t)
+fptype p(const Vector &x, fptype t)
 {
-   double xi = x(0);
-   double yi = x(1);
+   fptype xi = x(0);
+   fptype yi = x(1);
 
    return cos(M_PI * xi) * sin(t) * sin(M_PI * yi);
 }
 
-void accel(const Vector &x, double t, Vector &u)
+void accel(const Vector &x, fptype t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   fptype xi = x(0);
+   fptype yi = x(1);
 
    u(0) = M_PI * sin(t) * sin(M_PI * xi) * sin(M_PI * yi)
           * (-1.0
@@ -179,15 +179,15 @@ int main(int argc, char *argv[])
    domain_attr = 1;
    naviersolver.AddAccelTerm(accel, domain_attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   fptype t = 0.0;
+   fptype dt = ctx.dt;
+   fptype t_final = ctx.t_final;
    bool last_step = false;
 
    naviersolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   fptype err_u = 0.0;
+   fptype err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
    u_gf = naviersolver.GetCurrentVelocity();
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-3;
+      fptype tol = 1e-3;
       if (err_u > tol || err_p > tol)
       {
          if (Mpi::Root())

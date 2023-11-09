@@ -37,18 +37,18 @@ using namespace navier;
 struct s_NavierContext
 {
    int order = 6;
-   double kinvis = 1.0 / 100000.0;
-   double t_final = 10 * 1e-3;
-   double dt = 1e-3;
+   fptype kinvis = 1.0 / 100000.0;
+   fptype t_final = 10 * 1e-3;
+   fptype dt = 1e-3;
 } ctx;
 
-void vel_shear_ic(const Vector &x, double t, Vector &u)
+void vel_shear_ic(const Vector &x, fptype t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   fptype xi = x(0);
+   fptype yi = x(1);
 
-   double rho = 30.0;
-   double delta = 0.05;
+   fptype rho = 30.0;
+   fptype delta = 0.05;
 
    if (yi <= 0.5)
    {
@@ -97,9 +97,9 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient u_excoeff(pmesh->Dimension(), vel_shear_ic);
    u_ic->ProjectCoefficient(u_excoeff);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   fptype t = 0.0;
+   fptype dt = ctx.dt;
+   fptype t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);
