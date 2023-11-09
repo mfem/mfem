@@ -65,7 +65,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
       for (int i = 0; i < NumOfBdrElements; i++)
       {
-         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrFace(i)]];
+         int pbeid = parent_face_to_be[parent_face_ids_[GetBdrElementFaceIndex(i)]];
          if (pbeid != -1)
          {
             int attr = parent.GetBdrElement(pbeid)->GetAttribute();
@@ -117,7 +117,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
          for (int i = 0; i < NumOfBdrElements; i++)
          {
-            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrFace(i)]];
+            int pbeid = parent_face_to_be[parent_edge_ids_[GetBdrElementFaceIndex(i)]];
             if (pbeid != -1)
             {
                int attr = parent.GetBdrElement(pbeid)->GetAttribute();
