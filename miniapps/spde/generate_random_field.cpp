@@ -63,22 +63,22 @@ int main(int argc, char *argv[])
    int num_parallel_refs = 3;
    int number_of_particles = 3;
    int topological_support = TopologicalSupport::kOctetTruss;
-   double nu = 2.0;
-   double tau = 0.08;
-   double l1 = 0.02;
-   double l2 = 0.02;
-   double l3 = 0.02;
-   double e1 = 0;
-   double e2 = 0;
-   double e3 = 0;
-   double pl1 = 1.0;
-   double pl2 = 1.0;
-   double pl3 = 1.0;
-   double uniform_min = 0.0;
-   double uniform_max = 1.0;
-   double offset = 0.0;
-   double scale = 0.01;
-   double level_set_threshold = 0.0;
+   fptype nu = 2.0;
+   fptype tau = 0.08;
+   fptype l1 = 0.02;
+   fptype l2 = 0.02;
+   fptype l3 = 0.02;
+   fptype e1 = 0;
+   fptype e2 = 0;
+   fptype e3 = 0;
+   fptype pl1 = 1.0;
+   fptype pl2 = 1.0;
+   fptype pl3 = 1.0;
+   fptype uniform_min = 0.0;
+   fptype uniform_max = 1.0;
+   fptype offset = 0.0;
+   fptype scale = 0.01;
+   fptype level_set_threshold = 0.0;
    bool paraview_export = true;
    bool glvis_export = true;
    bool uniform_rf = false;
@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
       else if (topological_support == TopologicalSupport::kParticles)
       {
          // Create the same random particles on all processors.
-         std::vector<double> random_positions(3 * number_of_particles);
-         std::vector<double> random_rotations(9 * number_of_particles);
+         std::vector<fptype> random_positions(3 * number_of_particles);
+         std::vector<fptype> random_rotations(9 * number_of_particles);
          if (Mpi::Root())
          {
             // Generate random positions and rotations. We generate them on the root
@@ -207,10 +207,10 @@ int main(int argc, char *argv[])
          }
 
          // Broadcast the random positions and rotations to all processes.
-         MPI_Bcast(random_positions.data(), 3 * number_of_particles, MPI_DOUBLE, 0,
-                   MPI_COMM_WORLD);
-         MPI_Bcast(random_rotations.data(), 9 * number_of_particles, MPI_DOUBLE, 0,
-                   MPI_COMM_WORLD);
+         MPI_Bcast(random_positions.data(), 3 * number_of_particles,
+                   MPITypeMap<fptype>::mpi_type, 0, MPI_COMM_WORLD);
+         MPI_Bcast(random_rotations.data(), 9 * number_of_particles,
+                   MPITypeMap<fptype>::mpi_type, 0, MPI_COMM_WORLD);
 
          mdm = new ParticleTopology(pl1, pl2, pl3, random_positions,
                                     random_rotations);

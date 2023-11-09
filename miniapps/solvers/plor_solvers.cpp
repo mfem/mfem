@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    else if (string(fe) == "l") { L2 = true; }
    else { MFEM_ABORT("Bad FE type. Must be 'h', 'n', 'r', or 'l'."); }
 
-   double kappa = (order+1)*(order+1); // Penalty used for DG discretizations
+   fptype kappa = (order+1)*(order+1); // Penalty used for DG discretizations
 
    Mesh serial_mesh(mesh_file, 1, 1);
    int dim = serial_mesh.Dimension();
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
 
    a.RecoverFEMSolution(X, b, x);
 
-   double er =
+   fptype er =
       (H1 || L2) ? x.ComputeL2Error(u_coeff) : x.ComputeL2Error(u_vec_coeff);
    if (Mpi::Root()) { cout << "L2 error: " << er << endl; }
 

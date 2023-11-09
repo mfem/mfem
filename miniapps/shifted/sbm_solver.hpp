@@ -23,17 +23,17 @@ namespace mfem
 class ShiftedFunctionCoefficient : public Coefficient
 {
 protected:
-   std::function<double(const Vector &)> Function;
-   double constant = 0.0;
+   std::function<fptype(const Vector &)> Function;
+   fptype constant = 0.0;
    bool constantcoefficient;
 
 public:
-   ShiftedFunctionCoefficient(std::function<double(const Vector &v)> F)
+   ShiftedFunctionCoefficient(std::function<fptype(const Vector &v)> F)
       : Function(std::move(F)), constantcoefficient(false) { }
-   ShiftedFunctionCoefficient(double constant_)
+   ShiftedFunctionCoefficient(fptype constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual fptype Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       if (constantcoefficient) { return constant; }
 
@@ -43,7 +43,7 @@ public:
    }
 
    /// Evaluate the coefficient at @a ip + @a D.
-   double Eval(ElementTransformation &T,
+   fptype Eval(ElementTransformation &T,
                const IntegrationPoint &ip,
                const Vector &D);
 };
@@ -88,7 +88,7 @@ public:
 class SBM2DirichletIntegrator : public BilinearFormIntegrator
 {
 protected:
-   double alpha;
+   fptype alpha;
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
    //cut, or outside the domain.
@@ -107,7 +107,7 @@ protected:
 
 public:
    SBM2DirichletIntegrator(const ParMesh *pmesh,
-                           const double a,
+                           const fptype a,
                            VectorCoefficient &vD_,
                            Array<int> &elem_marker_,
                            Array<int> &cut_marker_,
@@ -149,7 +149,7 @@ class SBM2DirichletLFIntegrator : public LinearFormIntegrator
 {
 protected:
    ShiftedFunctionCoefficient *uD;
-   double alpha;              // Nitsche parameter
+   fptype alpha;              // Nitsche parameter
    VectorCoefficient *vD;     // Distance function coefficient
    Array<int> *elem_marker;   // marker indicating whether element is inside,
    //cut, or outside the domain.
@@ -168,7 +168,7 @@ protected:
 public:
    SBM2DirichletLFIntegrator(const ParMesh *pmesh,
                              ShiftedFunctionCoefficient &u,
-                             const double alpha_,
+                             const fptype alpha_,
                              VectorCoefficient &vD_,
                              Array<int> &elem_marker_,
                              bool include_cut_cell_ = false,

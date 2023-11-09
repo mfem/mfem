@@ -48,7 +48,7 @@ KnotVector *UniformKnotVector(int order, int ncp)
    }
    for (int i = order+1; i < ncp; i++)
    {
-      (*kv)[i] = (i-order)/double(ncp-order);
+      (*kv)[i] = (i-order)/fptype(ncp-order);
    }
    for (int i = ncp ; i < ncp + order + 1; i++)
    {
@@ -62,8 +62,8 @@ int main(int argc, char *argv[])
    // Parse command-line options.
    OptionsParser args(argc, argv);
 
-   double l       = 1.0;
-   double a       = 0.1;
+   fptype l       = 1.0;
+   fptype a       = 0.1;
    int ncp        = 9;
    int order      = 2;
    bool ifbspline = true;
