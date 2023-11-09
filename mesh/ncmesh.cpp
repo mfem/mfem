@@ -5640,9 +5640,13 @@ bool NCMesh::ZeroRootStates() const
    return true;
 }
 
-void NCMesh::Print(std::ostream &os) const
+void NCMesh::Print(std::ostream &os, std::string const& comments) const
 {
-   os << "MFEM NC mesh v1.0\n\n"
+   os << "MFEM NC mesh v1.0\n\n";
+
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
+   os <<
       "# NCMesh supported geometry types:\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
