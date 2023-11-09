@@ -332,7 +332,7 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       if (parent_face_ori[i] == 0) { continue; }
 
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
-                            mesh->GetElementGeometry(i);;
+                            mesh->GetElementGeometry(i);
 
       StatelessDofTransformation * doftrans =
          fec->DofTransformationForGeometry(geom);

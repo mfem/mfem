@@ -395,8 +395,8 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Q.Eval(vec, Tr, ip);
       Tr.SetIntPoint (&ip);
+      Q.Eval(vec, Tr, ip);
       vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
       for (int k = 0; k < vdim; k++)
