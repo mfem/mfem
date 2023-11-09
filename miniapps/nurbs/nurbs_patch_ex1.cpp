@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
       x.GetTrueDofs(x_ew);
 
-      const double solNorm = x_ew.Norml2();
+      const fptype solNorm = x_ew.Norml2();
       x_ew -= x_pw;
 
       cout << "Element-wise solution norm " << solNorm << endl;
@@ -267,7 +267,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeAssemble = sw.RealTime();
+   const fptype timeAssemble = sw.RealTime();
 
    sw.Clear();
    sw.Start();
@@ -278,7 +278,7 @@ void AssembleAndSolve(LinearForm & b, BilinearFormIntegrator * bfi,
 
    sw.Stop();
 
-   const double timeFormLinearSystem = sw.RealTime();
+   const fptype timeFormLinearSystem = sw.RealTime();
 
    cout << "Timing for Assemble: " << timeAssemble << " seconds" << endl;
    cout << "Timing for FormLinearSystem: " << timeFormLinearSystem << " seconds"

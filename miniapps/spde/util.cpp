@@ -15,15 +15,15 @@
 namespace mfem
 {
 
-void FillWithRandomNumbers(std::vector<double> &x, double a, double b)
+void FillWithRandomNumbers(std::vector<fptype> &x, fptype a, fptype b)
 {
    std::random_device rd;
    std::mt19937 gen(rd());
    std::uniform_real_distribution<> dis(a, b);
-   std::for_each(x.begin(), x.end(), [&](double &v) { v = dis(gen); });
+   std::for_each(x.begin(), x.end(), [&](fptype &v) { v = dis(gen); });
 }
 
-void FillWithRandomRotations(std::vector<double> &x)
+void FillWithRandomRotations(std::vector<fptype> &x)
 {
    std::random_device rd;
    std::mt19937 gen(rd());
@@ -31,15 +31,15 @@ void FillWithRandomRotations(std::vector<double> &x)
    for (size_t i = 0; i < x.size(); i += 9)
    {
       // Get a random rotation matrix via uniform Euler angles.
-      double e1 = 2 * M_PI * dis(gen);
-      double e2 = 2 * M_PI * dis(gen);
-      double e3 = 2 * M_PI * dis(gen);
-      const double c1 = cos(e1);
-      const double s1 = sin(e1);
-      const double c2 = cos(e2);
-      const double s2 = sin(e2);
-      const double c3 = cos(e3);
-      const double s3 = sin(e3);
+      fptype e1 = 2 * M_PI * dis(gen);
+      fptype e2 = 2 * M_PI * dis(gen);
+      fptype e3 = 2 * M_PI * dis(gen);
+      const fptype c1 = cos(e1);
+      const fptype s1 = sin(e1);
+      const fptype c2 = cos(e2);
+      const fptype s2 = sin(e2);
+      const fptype c3 = cos(e3);
+      const fptype s3 = sin(e3);
 
       // Fill the rotation matrix R with the Euler angles. See for instance
       // the definition in Wikipedia.

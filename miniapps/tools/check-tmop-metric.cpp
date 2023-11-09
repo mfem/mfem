@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Setup metric.
-   double tauval = -0.1;
+   fptype tauval = -0.1;
    TMOP_QualityMetric *metric = NULL;
    switch (metric_id)
    {
@@ -113,9 +113,9 @@ int main(int argc, char *argv[])
       T(0, 0) += T_vec.Max();
       if (T.Det() <= 0.0) { continue; }
 
-      const double i_form = metric->EvalW(T),
+      const fptype i_form = metric->EvalW(T),
                    m_form = metric->EvalWMatrixForm(T);
-      const double diff = std::abs(i_form - m_form) / std::abs(m_form);
+      const fptype diff = std::abs(i_form - m_form) / std::abs(m_form);
       if (diff > 1e-8)
       {
          bad_cnt++;
@@ -162,14 +162,14 @@ int main(int argc, char *argv[])
 
    // Test 1st derivative (assuming EvalW is correct). Should be 2nd order.
    Vector dF_0;
-   const double F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
+   const fptype F_0 = integ->GetElementEnergy(fe, Tr, x_loc);
    integ->AssembleElementVector(fe, Tr, x_loc, dF_0);
    if (verbose) { cout << "***\ndF = \n"; dF_0.Print(); cout << "***\n"; }
-   double dx = 0.1;
-   double rate_dF_sum = 0.0, err_old;
+   fptype dx = 0.1;
+   fptype rate_dF_sum = 0.0, err_old;
    for (int k = 0; k < convergence_iter; k++)
    {
-      double err_k = 0.0;
+      fptype err_k = 0.0;
       for (int i = 0; i < x_loc.Size(); i++)
       {
          x_loc(i) += dx;
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
       }
       if (k > 0)
       {
-         double r = log2(err_old / err_k);
+         fptype r = log2(err_old / err_k);
          rate_dF_sum += r;
          if (verbose)
          {
@@ -198,17 +198,17 @@ int main(int argc, char *argv[])
              << rate_dF_sum / (convergence_iter - 1) << endl;
 
    // Test 2nd derivative (assuming EvalP is correct).
-   double min_avg_rate = 7.0;
+   fptype min_avg_rate = 7.0;
    DenseMatrix ddF_0;
    integ->AssembleElementGrad(fe, Tr, x_loc, ddF_0);
    if (verbose) { cout << "***\nddF = \n"; ddF_0.Print(); cout << "***\n"; }
    for (int i = 0; i < x_loc.Size(); i++)
    {
-      double rate_sum = 0.0;
+      fptype rate_sum = 0.0;
       dx = 0.1;
       for (int k = 0; k < convergence_iter; k++)
       {
-         double err_k = 0.0;
+         fptype err_k = 0.0;
 
          for (int j = 0; j < x_loc.Size(); j++)
          {
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
          }
          if (k > 0)
          {
-            double r = log2(err_old / err_k);
+            fptype r = log2(err_old / err_k);
             // Error is zero (2nd derivative is exact) -> put rate 2 (optimal).
             if (err_k < 1e-14) { r = 2.0; }
             rate_sum += r;
