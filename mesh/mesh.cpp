@@ -4036,9 +4036,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    Clear();
 
-   // read lines beginning with '%' (comments)
-   skip_comment_lines(input, '%');
-
    string mesh_type;
    input >> ws;
    getline(input, mesh_type);
@@ -10675,14 +10672,15 @@ void Mesh::PrintXG(std::ostream &os) const
    os << flush;
 }
 
-void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
+void Mesh::Printer(std::ostream &os, std::string section_delimiter,
+                   std::string const& comments) const
 {
    int i, j;
 
    if (NURBSext)
    {
       // general format
-      NURBSext->Print(os);
+      NURBSext->Print(os, comments);
       os << '\n';
       Nodes->Save(os);
 
@@ -10696,7 +10694,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    if (Nonconforming())
    {
       // nonconforming mesh format
-      ncmesh->Print(os);
+      ncmesh->Print(os, comments);
 
       if (Nodes)
       {
@@ -10714,6 +10712,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
           ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
 
    // optional
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
    os <<
       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
       "# POINT       = 0\n"
@@ -10767,7 +10767,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    }
 }
 
-void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
+void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
+                     std::string const& comments) const
 {
    int i;
    Array<int> vert;
@@ -10775,6 +10776,8 @@ void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
    os << "MFEM NURBS mesh v1.0\n";
 
    // optional
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
    os <<
       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
       "# SEGMENT     = 1\n"
