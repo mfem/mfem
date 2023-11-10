@@ -212,7 +212,7 @@ public:
    virtual fptype GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
 
-  fptype GetValue(ElementTransformation &T)
+   fptype GetValue(ElementTransformation &T)
    { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
