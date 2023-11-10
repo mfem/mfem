@@ -165,9 +165,10 @@ class StrainEnergyDensityCoefficient : public Coefficient
 protected:
    Coefficient * lambda=nullptr;
    Coefficient * mu=nullptr;
-   GridFunction *u = nullptr; // displacement
+   GridFunction *u1 = nullptr; // displacement
+   GridFunction *u2 = nullptr; // displacement
    GridFunction *rho_filter = nullptr; // filter density
-   DenseMatrix grad; // auxiliary matrix, used in Eval
+   DenseMatrix grad1, grad2; // auxiliary matrix, used in Eval
    double exponent;
    double rho_min;
 
@@ -175,8 +176,22 @@ public:
    StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
                                   GridFunction * u_, GridFunction * rho_filter_, double rho_min_=1e-6,
                                   double exponent_ = 3.0)
-      : lambda(lambda_), mu(mu_),  u(u_), rho_filter(rho_filter_),
-        exponent(exponent_), rho_min(rho_min_)
+      : lambda(lambda_), mu(mu_),  u1(u_), u2(u_), rho_filter(rho_filter_),
+        exponent(exponent_), rho_min(rho_min_),
+        siz(u_->FESpace()->GetMesh()->SpaceDimension()*u_->VectorDim())
+   {
+      MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
+      MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
+      MFEM_ASSERT(u, "displacement field is not set");
+      MFEM_ASSERT(rho_filter, "density field is not set");
+   }
+   StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
+                                  GridFunction * u1_, GridFunction * u2_, GridFunction * rho_filter_,
+                                  double rho_min_=1e-6,
+                                  double exponent_ = 3.0)
+      : lambda(lambda_), mu(mu_),  u1(u1_), u2(u2_), rho_filter(rho_filter_),
+        exponent(exponent_), rho_min(rho_min_),
+        siz(u1_->FESpace()->GetMesh()->SpaceDimension()*u1_->VectorDim())
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
       MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
@@ -188,16 +203,34 @@ public:
    {
       double L = lambda->Eval(T, ip);
       double M = mu->Eval(T, ip);
-      u->GetVectorGradient(T, grad);
-      double div_u = grad.Trace();
-      double density = L*div_u*div_u;
-      grad.Symmetrize();
-      density += 2*M*grad.FNorm2();
+      double density;
+      if (u1 == u2)
+      {
+         u1->GetVectorGradient(T, grad1);
+         double div_u = grad1.Trace();
+         grad1.Symmetrize();
+         density = L*div_u*div_u + 2*M*grad1.FNorm2();
+      }
+      else
+      {
+         u1->GetVectorGradient(T, grad1);
+         u2->GetVectorGradient(T, grad2);
+         double div_u1 = grad1.Trace();
+         double div_u2 = grad2.Trace();
+         density = L*div_u1*div_u2;
+         grad1.Symmetrize();
+
+         Vector gradv1(grad1.GetData(), siz), gradv2(grad2.GetData(), siz);;
+
+         density += L*div_u1*div_u2 + 2*M*InnerProduct(gradv1, gradv2);
+      }
       double val = rho_filter->GetValue(T,ip);
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
    }
-   void SetDisplacement(GridFunction *u_) { u = u_; }
+   const int siz;
+   void SetDisplacement(GridFunction *u1_) { u1 = u1_; }
+   void SetDisplacement(GridFunction *u1_, GridFunction *u2_) { u1 = u1_; u2 = u2_; }
    void SetFilteredDensity(GridFunction *frho) { rho_filter = frho; }
 };
 
