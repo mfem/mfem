@@ -10,6 +10,72 @@
 namespace mfem
 {
 
+/** Mass integrator (u⋅n, v⋅n) restricted to the boundary of a domain */
+class VectorBoundaryDirectionalMassIntegrator: public BilinearFormIntegrator
+{
+private:
+   int vdim;
+   Vector shape, te_shape, vec;
+   const int Q_order;
+
+protected:
+   VectorCoefficient *VQ;
+
+public:
+   /// Construct an integrator with coefficient 1.0
+   VectorBoundaryDirectionalMassIntegrator(VectorCoefficient &VQ, const int Q_order=0)
+      : vdim(VQ.GetVDim()), VQ(&VQ), Q_order(Q_order) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat)
+   {
+      const int dof = el1.GetDof();
+      shape.SetSize(dof);
+      elmat.SetSize(dof*vdim);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = 2 * el1.GetOrder() + Trans.OrderW() + Q_order;
+
+         if (el1.Space() == FunctionSpace::rQk)
+         {
+            ir = &RefinedIntRules.Get(Trans.GetGeometryType(), order);
+         }
+         else
+         {
+            ir = &IntRules.Get(Trans.GetGeometryType(), order);
+         }
+      }
+
+      elmat = 0.0;
+      DenseMatrix partelmat(dof, dof);
+      for (int s = 0; s < ir->GetNPoints(); s++)
+      {
+         const IntegrationPoint &eip = Trans.GetElement1IntPoint();
+         el1.CalcShape(eip, shape);
+
+         Trans.SetAllIntPoints(&eip);
+         const double norm = eip.weight * Trans.Weight();
+
+         MultVVt(shape, partelmat);
+
+         VQ->Eval(vec, Trans, eip);
+         for (int i = 0; i < vdim; i++)
+         {
+            for (int j=0; j<vdim; j++)
+            {
+               elmat.AddMatrix(norm*vec(i)*vec(j), partelmat, dof*i, dof*j);
+            }
+         }
+      }
+   }
+
+};
+
 /**
  * @brief Inverse sigmoid function
  *
