@@ -33,6 +33,7 @@ protected:
     double Dxphi0_xhat;
 
     int dimU, dimM, dimC;
+    int dimUglb, dimMglb, dimCglb;
     Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
     Vector ml;
 

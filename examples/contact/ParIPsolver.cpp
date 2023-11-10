@@ -49,6 +49,9 @@ ParInteriorPointSolver::ParInteriorPointSolver(ParGeneralOptProblem * problem_)
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
+   MPI_Allreduce(&dimU, &dimUglb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&dimM, &dimMglb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&dimC, &dimCglb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    ckSoc.SetSize(dimC);
   
    block_offsetsumlz[0] = 0;
@@ -701,10 +704,10 @@ double ParInteriorPointSolver::E(const BlockVector &x, const Vector &l, const Ve
 
    double ll1, zl1;
 
-   zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD)/ double(dimC + dimM);; 
+   zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD)/ double(dimCglb + dimMglb); 
    ll1 = GlobalLpNorm(1, l.Norml1(), MPI_COMM_WORLD);
-   sc = max(sMax, zl1 / (double(dimM)) ) / sMax;
-   sd = max(sMax, (ll1 + zl1) / (double(dimC + dimM))) / sMax;
+   sc = max(sMax, zl1 / (double(dimMglb)) ) / sMax;
+   sd = max(sMax, (ll1 + zl1) / (double(dimCglb + dimMglb))) / sMax;
    if(iAmRoot && printEeval)
    {
       cout << "evaluating optimality error for mu = " << mu << endl;
