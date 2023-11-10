@@ -1160,13 +1160,13 @@ public:
 #endif
       // Step 1. Projection
       proj(1e-12, 500);
-      for (auto val : *x_gf)
-      {
-         if (!IsFinite(val))
-         {
-            mfem_warning("latent variable is not finite.");
-         }
-      }
+      // for (auto val : *x_gf)
+      // {
+      //    if (!IsFinite(val))
+      //    {
+      //       mfem_warning("latent variable is not finite.");
+      //    }
+      // }
 
       // Step 2. Filter equation
       filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
@@ -1180,13 +1180,13 @@ public:
       }
       EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
       filterSolver.Solve(frho);
-      for (auto val : *frho)
-      {
-         if (!IsFinite(val))
-         {
-            mfem_warning("filter is not finite.");
-         }
-      }
+      // for (auto val : *frho)
+      // {
+      //    if (!IsFinite(val))
+      //    {
+      //       mfem_warning("filter is not finite.");
+      //    }
+      // }
 
       // Step 3. Linear Elasticity
       elasticity->AddDomainIntegrator(new ElasticityIntegrator(SIMPlambda, SIMPmu));
@@ -1194,18 +1194,18 @@ public:
       EllipticSolver elasticitySolver(elasticity, load, ess_bdr);
       elasticitySolver.Solve(u);
       current_val = (*load)(*u);
-      for (auto val : *u)
-      {
-         if (!IsFinite(val))
-         {
-            mfem_warning("displacement is not finite.");
-         }
-      }
+      // for (auto val : *u)
+      // {
+      //    if (!IsFinite(val))
+      //    {
+      //       mfem_warning("displacement is not finite.");
+      //    }
+      // }
 
-      if (!IsFinite(current_val))
-      {
-         mfem_warning("current value is not finite.");
-      }
+      // if (!IsFinite(current_val))
+      // {
+      //    mfem_warning("current value is not finite.");
+      // }
 
       delete elasticity;
       delete load;
