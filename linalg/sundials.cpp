@@ -1672,7 +1672,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
 
    M->content      = this;
-   M->ops->getid   = SUNMatGetID;
+   M->ops->getid   = MatGetID;
    M->ops->matvec  = ARKStepSolver::MassMult1;
    M->ops->destroy = MatDestroy;
 

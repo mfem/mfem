@@ -211,8 +211,9 @@ public:
    // Redefine to handle the case when i is a face-neighbor element
    virtual fptype GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
-   fptype GetValue(ElementTransformation &T)
-   { return GetValue(T.ElementNo, T.GetIntPoint()); }
+
+  fptype GetValue(ElementTransformation &T)
+   { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
    virtual fptype GetValue(ElementTransformation &T, const IntegrationPoint &ip,

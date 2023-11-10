@@ -422,15 +422,15 @@ class TransformedCoefficient : public Coefficient
 private:
    Coefficient * Q1;
    Coefficient * Q2;
-   fptype (*Transform1)(fptype);
-   fptype (*Transform2)(fptype,fptype);
+   std::function<fptype(fptype)> Transform1;
+   std::function<fptype(fptype, fptype)> Transform2;
 
 public:
-   TransformedCoefficient (Coefficient * q,fptype (*F)(fptype))
-      : Q1(q), Transform1(F) { Q2 = 0; Transform2 = 0; }
+   TransformedCoefficient (Coefficient * q, std::function<fptype(fptype)> F)
+      : Q1(q), Transform1(std::move(F)) { Q2 = 0; Transform2 = 0; }
    TransformedCoefficient (Coefficient * q1,Coefficient * q2,
-                           fptype (*F)(fptype,fptype))
-      : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
+                           std::function<fptype(fptype, fptype)> F)
+      : Q1(q1), Q2(q2), Transform2(std::move(F)) { Transform1 = 0; }
 
    /// Set the time for internally stored coefficients
    void SetTime(fptype t);

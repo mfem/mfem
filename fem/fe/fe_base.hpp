@@ -307,19 +307,20 @@ public:
    FiniteElement(int D, Geometry::Type G, int Do, int O,
                  int F = FunctionSpace::Pk);
 
-   /// Returns the reference space dimension for the finite element
+   /// Returns the reference space dimension for the finite element.
    int GetDim() const { return dim; }
 
-   /// Returns the vector dimension for vector-valued finite elements
-   int GetVDim() const { return vdim; }
+   /** @brief Returns the vector dimension for vector-valued finite elements,
+       which is also the dimension of the interpolation operatrion. */
+   int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements
+   /// Returns the dimension of the curl for vector-valued finite elements.
    int GetCurlDim() const { return cdim; }
 
-   /// Returns the Geometry::Type of the reference element
+   /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
 
-   /// Returns the number of degrees of freedom in the finite element
+   /// Returns the number of degrees of freedom in the finite element.
    int GetDof() const { return dof; }
 
    /** @brief Returns the order of the finite element. In the case of

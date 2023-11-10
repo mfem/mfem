@@ -1852,7 +1852,7 @@ void ND_R1D_SegmentElement::Project(const FiniteElement &fe,
    else
    {
       fptype vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       fptype * tk_ptr = const_cast<fptype*>(tk);
 
@@ -2293,7 +2293,7 @@ void ND_R2D_FiniteElement::Project(const FiniteElement &fe,
    else
    {
       fptype vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       fptype * tk_ptr = const_cast<fptype*>(tk);
 

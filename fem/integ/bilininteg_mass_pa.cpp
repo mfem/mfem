@@ -128,7 +128,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
    int map_type = el.GetMapType();
    dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
-   ne = fes.GetMesh()->GetNBE();
+   ne = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);

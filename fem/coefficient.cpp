@@ -220,12 +220,12 @@ fptype TransformedCoefficient::Eval(ElementTransformation &T,
 {
    if (Q2)
    {
-      return (*Transform2)(Q1->Eval(T, ip, GetTime()),
-                           Q2->Eval(T, ip, GetTime()));
+      return Transform2(Q1->Eval(T, ip, GetTime()),
+                        Q2->Eval(T, ip, GetTime()));
    }
    else
    {
-      return (*Transform1)(Q1->Eval(T, ip, GetTime()));
+      return Transform1(Q1->Eval(T, ip, GetTime()));
    }
 }
 
@@ -1596,6 +1596,10 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    QuadF.HostRead();
 
    const int el_idx = QuadF.GetSpace()->GetEntityIndex(T);
+   // Handle the case of "interior boundary elements" and FaceQuadratureSpace
+   // with FaceType::Boundary.
+   if (el_idx < 0) { V = 0.0; return; }
+
    const int ip_idx = QuadF.GetSpace()->GetPermutedIndex(el_idx, ip.index);
 
    if (index == 0 && vdim == QuadF.GetVDim())
@@ -1633,6 +1637,9 @@ fptype QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    QuadF.HostRead();
    Vector temp(1);
    const int el_idx = QuadF.GetSpace()->GetEntityIndex(T);
+   // Handle the case of "interior boundary elements" and FaceQuadratureSpace
+   // with FaceType::Boundary.
+   if (el_idx < 0) { return 0.0; }
    const int ip_idx = QuadF.GetSpace()->GetPermutedIndex(el_idx, ip.index);
    QuadF.GetValues(el_idx, ip_idx, temp);
    return temp[0];

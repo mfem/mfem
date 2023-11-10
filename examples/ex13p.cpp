@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex13p -m ../data/star.mesh
 //               mpirun -np 4 ex13p -m ../data/square-disc.mesh -o 2 -n 4
 //               mpirun -np 4 ex13p -m ../data/beam-tet.mesh
+//               mpirun -np 4 ex13p -m ../data/beam-tet.mesh -nc -o 2 -rs 1
 //               mpirun -np 4 ex13p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex13p -m ../data/escher.mesh
 //               mpirun -np 4 ex13p -m ../data/fichera.mesh
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 1;
    int nev = 5;
+   bool nc = false;
    bool visualization = 1;
    const char *device_config = "cpu";
 
@@ -69,6 +71,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&nev, "-n", "--num-eigs",
                   "Number of desired eigenmodes.");
+   args.AddOption(&nc, "-nc", "--non-conforming", "-c",
+                  "--conforming",
+                  "Mark the mesh as nonconforming before partitioning.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -98,6 +103,10 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+   if (nc)
+   {
+      mesh->EnsureNCMesh(true);
+   }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement (2 by default, or
