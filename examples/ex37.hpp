@@ -1422,7 +1422,7 @@ protected:
    }
    double current_volume;
 
-private:
+protected:
    Array2D<int> ess_bdr;
    Coefficient *rho;
    VectorCoefficient *force;
@@ -1432,6 +1432,241 @@ private:
    MappedGridFunctionCoefficient design_density;
    StrainEnergyDensityCoefficient strainEnergy;
    double target_volume;
+};
+
+class CompliantMechanism : public SIMPElasticCompliance
+{
+public:
+   CompliantMechanism(Coefficient *lambda, Coefficient *mu, double epsilon,
+                      Coefficient *rho, VectorCoefficient *force, const double target_volume,
+                      Array2D<int> &ess_bdr,
+                      Array<int> &input_bdr, Array<int> &output_bdr,
+                      const double input_spring, const double output_spring,
+                      Vector &input_direction, Vector &output_direction,
+                      FiniteElementSpace *displacement_space,
+                      FiniteElementSpace *filter_space, double exponent, double rho_min):
+      SIMPElasticCompliance(lambda, mu, epsilon, rho, force, target_volume, ess_bdr,
+                            displacement_space, filter_space, exponent, rho_min),
+      input_bdr(input_bdr), output_bdr(output_bdr), input_spring(input_spring),
+      output_spring(output_spring),
+      input_direction(input_direction),output_direction(output_direction)
+   {
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(displacement_space);
+      if (pfes)
+      {
+         adju = new ParGridFunction(pfes);
+      }
+      else
+      {
+         adju = new GridFunction(displacement_space);
+      }
+#else
+      adju = new GridFunction(displacement_space);
+#endif
+      *adju = 0.0;
+      strainEnergy.SetDisplacement(u, adju);
+   }
+   virtual double Eval()
+   {
+      BilinearForm *elasticity, *filter;
+      LinearForm *load, *adjload, *filterRHS;
+      FiniteElementSpace * fes;
+
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+
+      fes = frho->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         filter = new ParBilinearForm(pfes);
+         filterRHS = new ParLinearForm(pfes);
+      }
+      else
+      {
+         filter = new BilinearForm(fes);
+         filterRHS = new LinearForm(fes);
+      }
+
+      fes = u->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         elasticity = new ParBilinearForm(pfes);
+         load = new ParLinearForm(pfes);
+         adjload = new ParLinearForm(pfes);
+      }
+      else
+      {
+         elasticity = new BilinearForm(fes);
+         load = new LinearForm(fes);
+         adjload = new LinearForm(fes);
+      }
+#else
+      fes = frho->FESpace();
+      filter = new BilinearForm(fes);
+      filterRHS = new LinearForm(fes);
+
+      fes = u->FESpace();
+      elasticity = new BilinearForm(fes);
+      load = new LinearForm(fes);
+      adjload = new LinearForm(fes);
+#endif
+      // Step 1. Projection
+      proj(1e-12, 500);
+      // for (auto val : *x_gf)
+      // {
+      //    if (!IsFinite(val))
+      //    {
+      //       mfem_warning("latent variable is not finite.");
+      //    }
+      // }
+
+      // Step 2. Filter equation
+      filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
+      filter->AddDomainIntegrator(new MassIntegrator());
+      filterRHS->AddDomainIntegrator(new DomainLFIntegrator(*rho));
+      Array<int> ess_bdr_filter;
+      if (filter->FESpace()->GetMesh()->bdr_attributes.Size())
+      {
+         ess_bdr_filter.SetSize(filter->FESpace()->GetMesh()->bdr_attributes.Max());
+         ess_bdr_filter = 0;
+      }
+      EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
+      filterSolver.Solve(frho);
+      // for (auto val : *frho)
+      // {
+      //    if (!IsFinite(val))
+      //    {
+      //       mfem_warning("filter is not finite.");
+      //    }
+      // }
+
+      // Step 3. Linear Elasticity
+      ConstantCoefficient one_cf(1.0);
+      elasticity->AddDomainIntegrator(new ElasticityIntegrator(SIMPlambda, SIMPmu));
+      elasticity->AddBoundaryIntegrator(
+         new VectorBoundaryDirectionalMassIntegrator(input_direction), input_bdr);
+      elasticity->AddBoundaryIntegrator(
+         new VectorBoundaryDirectionalMassIntegrator(output_direction), output_bdr);
+      load->AddDomainIntegrator(new VectorBoundaryFluxLFIntegrator(one_cf),
+                                input_bdr);
+      EllipticSolver elasticitySolver(elasticity, load, ess_bdr);
+      elasticitySolver.Solve(u);
+      current_val = -(*load)(*u);
+
+      adjload->AddDomainIntegrator(new VectorBoundaryFluxLFIntegrator(one_cf),
+                                   output_bdr);
+      EllipticSolver elasticitySolver(elasticity, adjload, ess_bdr);
+      elasticitySolver.Solve(adju);
+
+      delete elasticity;
+      delete load;
+      delete filter;
+      delete filterRHS;
+
+      return current_val;
+   }
+
+   virtual GridFunction *Gradient()
+   {
+      BilinearForm *filter, *invmass;
+      LinearForm *filterRHS, *gradH1form;
+      FiniteElementSpace * fes;
+      GridFunction *gradH1;
+      if (!x_gf)
+      {
+         mfem_error("Gradient should be called after SetGridFunction(psi).");
+      }
+
+#ifdef MFEM_USE_MPI
+      ParFiniteElementSpace *pfes;
+
+      fes = frho->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         filter = new ParBilinearForm(pfes);
+         filterRHS = new ParLinearForm(pfes);
+         gradH1 = new ParGridFunction(pfes);
+      }
+      else
+      {
+         filter = new BilinearForm(fes);
+         filterRHS = new LinearForm(fes);
+         gradH1 = new GridFunction(fes);
+      }
+
+      fes = x_gf->FESpace();
+      pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         invmass = new ParBilinearForm(pfes);
+         gradH1form = new ParLinearForm(pfes);
+      }
+      else
+      {
+         invmass = new BilinearForm(fes);
+         gradH1form = new LinearForm(fes);
+      }
+#else
+      fes = frho->FESpace();
+      filter = new BilinearForm(fes);
+      filterRHS = new LinearForm(fes);
+      gradH1 = new GridFunction(fes);
+      fes = x_gf->FESpace();
+      invmass = new BilinearForm(fes);
+      gradH1form = new LinearForm(fes);
+
+#endif
+
+      // Step 1. Dual Filter Equation with Strain Density Energy
+      filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
+      filter->AddDomainIntegrator(new MassIntegrator());
+      filterRHS->AddDomainIntegrator(new DomainLFIntegrator(strainEnergy));
+      Array<int> ess_bdr_filter(0);
+      if (filter->FESpace()->GetMesh()->bdr_attributes.Size())
+      {
+         ess_bdr_filter.SetSize(filter->FESpace()->GetMesh()->bdr_attributes.Max());
+         ess_bdr_filter = 0;
+      }
+      *gradH1 = 0.0;
+      EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
+      filterSolver.Solve(gradH1);
+
+
+      // Step 2. Project gradient to Control space
+      invmass->AddDomainIntegrator(new InverseIntegrator(new MassIntegrator()));
+      invmass->Assemble();
+      GridFunctionCoefficient gradH1cf(gradH1);
+      gradH1form->AddDomainIntegrator(new DomainLFIntegrator(gradH1cf));
+      gradH1form->Assemble();
+      invmass->Mult(*gradH1form, *gradF_gf);
+
+      delete filter;
+      delete invmass;
+      delete filterRHS;
+      delete gradH1form;
+      delete gradH1;
+      return gradF_gf;
+   }
+
+protected:
+   GridFunction *adju;
+   Array<int> &input_bdr, &output_bdr;
+   ConstantCoefficient input_spring, output_spring;
+   VectorConstantCoefficient input_direction, output_direction;
+   
+   static DenseMatrix aVVt(const double a, const Vector &V)
+   {
+      DenseMatrix W(V.Size());
+      MultVVt(V, W);
+      W *= a;
+   }
 };
 
 class LineSearchAlgorithm
