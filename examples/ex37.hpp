@@ -23,7 +23,8 @@ protected:
 
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorBoundaryDirectionalMassIntegrator(VectorCoefficient &VQ, const int Q_order=0)
+   VectorBoundaryDirectionalMassIntegrator(VectorCoefficient &VQ,
+                                           const int Q_order=0)
       : vdim(VQ.GetVDim()), VQ(&VQ), Q_order(Q_order) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -177,26 +178,20 @@ public:
                                   GridFunction * u_, GridFunction * rho_filter_, double rho_min_=1e-6,
                                   double exponent_ = 3.0)
       : lambda(lambda_), mu(mu_),  u1(u_), u2(u_), rho_filter(rho_filter_),
-        exponent(exponent_), rho_min(rho_min_),
-        siz(u_->FESpace()->GetMesh()->SpaceDimension()*u_->VectorDim())
+        exponent(exponent_), rho_min(rho_min_)
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
       MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
-      MFEM_ASSERT(u, "displacement field is not set");
-      MFEM_ASSERT(rho_filter, "density field is not set");
    }
    StrainEnergyDensityCoefficient(Coefficient *lambda_, Coefficient *mu_,
                                   GridFunction * u1_, GridFunction * u2_, GridFunction * rho_filter_,
                                   double rho_min_=1e-6,
                                   double exponent_ = 3.0)
       : lambda(lambda_), mu(mu_),  u1(u1_), u2(u2_), rho_filter(rho_filter_),
-        exponent(exponent_), rho_min(rho_min_),
-        siz(u1_->FESpace()->GetMesh()->SpaceDimension()*u1_->VectorDim())
+        exponent(exponent_), rho_min(rho_min_)
    {
       MFEM_ASSERT(rho_min_ >= 0.0, "rho_min must be >= 0");
       MFEM_ASSERT(rho_min_ < 1.0,  "rho_min must be > 1");
-      MFEM_ASSERT(u, "displacement field is not set");
-      MFEM_ASSERT(rho_filter, "density field is not set");
    }
 
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
@@ -219,8 +214,8 @@ public:
          double div_u2 = grad2.Trace();
          density = L*div_u1*div_u2;
          grad1.Symmetrize();
-
-         Vector gradv1(grad1.GetData(), siz), gradv2(grad2.GetData(), siz);;
+         Vector gradv1(grad1.GetData(), grad1.Width()*grad1.Height()),
+                gradv2(grad2.GetData(), grad1.Width()*grad1.Height());;
 
          density += L*div_u1*div_u2 + 2*M*InnerProduct(gradv1, gradv2);
       }
@@ -228,7 +223,6 @@ public:
 
       return -exponent * pow(val, exponent-1.0) * (1-rho_min) * density;
    }
-   const int siz;
    void SetDisplacement(GridFunction *u1_) { u1 = u1_; }
    void SetDisplacement(GridFunction *u1_, GridFunction *u2_) { u1 = u1_; u2 = u2_; }
    void SetFilteredDensity(GridFunction *frho) { rho_filter = frho; }
