@@ -1428,19 +1428,24 @@ protected:
    double target_volume;
 };
 
-class CompliantMechanism : public SIMPElasticCompliance
+
+class CompliantMechanism : public ObjectiveFunction
 {
 public:
    CompliantMechanism(Coefficient *lambda, Coefficient *mu, double epsilon,
-                      Coefficient *rho, VectorCoefficient *force, const double target_volume,
+                      Coefficient *rho, const double target_volume,
                       Array2D<int> &ess_bdr,
                       Array<int> &input_bdr, Array<int> &output_bdr,
                       const double input_spring, const double output_spring,
                       Vector &input_direction, Vector &output_direction,
                       FiniteElementSpace *displacement_space,
                       FiniteElementSpace *filter_space, double exponent, double rho_min):
-      SIMPElasticCompliance(lambda, mu, epsilon, rho, force, target_volume, ess_bdr,
-                            displacement_space, filter_space, exponent, rho_min),
+      SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
+      eps2(epsilon*epsilon), ess_bdr(ess_bdr),
+      target_volume(target_volume),
+      u(nullptr), frho(nullptr), adju(nullptr),
+      rho(rho), strainEnergy(lambda, mu, u, adju, frho, rho_min, exponent),
+      drho_dpsi(x_gf, sigmoid),
       input_bdr(input_bdr), output_bdr(output_bdr), input_spring(input_spring),
       output_spring(output_spring),
       input_direction(input_direction),output_direction(output_direction)
@@ -1451,17 +1456,47 @@ public:
       pfes = dynamic_cast<ParFiniteElementSpace*>(displacement_space);
       if (pfes)
       {
+         u = new ParGridFunction(pfes);
          adju = new ParGridFunction(pfes);
       }
       else
       {
+         u = new GridFunction(displacement_space);
          adju = new GridFunction(displacement_space);
       }
+
+      pfes = dynamic_cast<ParFiniteElementSpace*>(filter_space);
+      if (pfes)
+      {
+         frho = new ParGridFunction(pfes);
+      }
+      else
+      {
+         frho = new GridFunction(filter_space);
+      }
 #else
+      u = new GridFunction(displacement_space);
       adju = new GridFunction(displacement_space);
+      frho = new GridFunction(filter_space);
 #endif
+      frho->ProjectCoefficient(*rho);
+      *u = 0.0;
       *adju = 0.0;
+
+      design_density.SetFunction([exponent, rho_min](const double rho)
+      {
+         return simp(rho, rho_min, exponent);
+      });
+      design_density.SetGridFunction(frho);
+      SIMPlambda.SetBCoef(design_density);
+      SIMPmu.SetBCoef(design_density);
       strainEnergy.SetDisplacement(u, adju);
+      strainEnergy.SetFilteredDensity(frho);
+      drho_dpsi.SetFunction([](const double x)
+      {
+         double density = sigmoid(x);
+         return density * (1.0 - density);
+      });
    }
    virtual double Eval()
    {
@@ -1555,11 +1590,12 @@ public:
 
       adjload->AddDomainIntegrator(new VectorBoundaryFluxLFIntegrator(one_cf),
                                    output_bdr);
-      EllipticSolver elasticitySolver(elasticity, adjload, ess_bdr);
-      elasticitySolver.Solve(adju);
+      EllipticSolver adjointElasticitySolver(elasticity, adjload, ess_bdr);
+      adjointElasticitySolver.Solve(adju);
 
       delete elasticity;
       delete load;
+      delete adjload;
       delete filter;
       delete filterRHS;
 
@@ -1649,17 +1685,151 @@ public:
       return gradF_gf;
    }
 
+   double GetVolume() {return current_volume;}
+
+   GridFunction *GetDisplacement() { return u; }
+   GridFunction *GetFilteredDensity() { return frho; }
+   MappedGridFunctionCoefficient &GetDesignDensity() { return design_density; }
+
+   ~CompliantMechanism()
+   {
+      delete u;
+      delete adju;
+      delete frho;
+   }
+
+   void SetGridFunction(GridFunction* x)
+   {
+      ObjectiveFunction::SetGridFunction(x);
+      drho_dpsi.SetGridFunction(x_gf);
+      FiniteElementSpace *fes = x->FESpace();
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         gradF_gf = new ParGridFunction(pfes);
+      }
+      else
+      {
+         gradF_gf = new GridFunction(fes);
+      }
+#else
+      gradF_gf = new GridFunction(fes);
+#endif
+   }
+   Coefficient * dcf_dgf()
+   {
+      return &drho_dpsi;
+   }
+   MappedGridFunctionCoefficient drho_dpsi;
+
 protected:
-   GridFunction *adju;
+
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   double proj(double tol=1e-12, int max_its=10)
+   {
+      double c = 0;
+      MappedGridFunctionCoefficient rho(x_gf, [&c](const double x) {return sigmoid(x + c);});
+      // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
+      GridFunction *zero_gf;
+      FiniteElementSpace * fes = x_gf->FESpace();
+      LinearForm *V, *dV;
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         zero_gf = new ParGridFunction(pfes);
+      }
+      else
+      {
+         zero_gf = new GridFunction(fes);
+      }
+#else
+      zero_gf = new GridFunction(fes);
+#endif
+      *zero_gf = 0.0;
+
+      double Vc = zero_gf->ComputeL1Error(rho);
+      double dVc = Vc - std::pow(zero_gf->ComputeL2Error(rho), 2);
+      if (fabs(Vc - target_volume) > tol)
+      {
+         double dc;
+         if (dVc > tol) // if derivative is sufficiently large,
+         {
+            dc = -(Vc - target_volume) / dVc;
+         }
+         else
+         {
+            dc = -(Vc > target_volume ? x_gf->Max() : x_gf->Min());
+         }
+         c = dc;
+         int k;
+         // Find an interval (c, c+dc) that contains c⋆.
+         for (k=0; k < max_its; k++)
+         {
+            double Vc_old = Vc;
+            Vc = zero_gf->ComputeL1Error(rho);
+            if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
+            {
+               break;
+            }
+            c += dc;
+         }
+         if (k == max_its) // if failed to find the search interval
+         {
+            return infinity();
+         }
+         // Bisection
+         dc = fabs(dc);
+         while (fabs(dc) > 1e-08)
+         {
+            dc /= 2.0;
+            c = Vc > target_volume ? c - dc : c + dc;
+            Vc = zero_gf->ComputeL1Error(rho);
+         }
+         *x_gf += c;
+         c = 0;
+      }
+      current_volume = zero_gf->ComputeL1Error(rho);
+
+      delete zero_gf;
+      return current_volume;
+   }
+   double current_volume;
+protected:
+   Array2D<int> ess_bdr;
+   Coefficient *rho;
+   ProductCoefficient SIMPlambda, SIMPmu;
+   ConstantCoefficient eps2;
+   GridFunction *frho, *u, *adju;
+   MappedGridFunctionCoefficient design_density;
+   StrainEnergyDensityCoefficient strainEnergy;
+   double target_volume;
+
    Array<int> &input_bdr, &output_bdr;
    ConstantCoefficient input_spring, output_spring;
    VectorConstantCoefficient input_direction, output_direction;
-   
+
    static DenseMatrix aVVt(const double a, const Vector &V)
    {
       DenseMatrix W(V.Size());
       MultVVt(V, W);
       W *= a;
+      return W;
    }
 };
 
