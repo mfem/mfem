@@ -140,17 +140,14 @@ enum LineSearchMethod
 
 enum Problem
 {
-   Cantilever,
-   MBB,
-   LBracket,
-   Cantilever3
+   Inverter
 };
 
 int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 7;
+   int ref_levels = 3;
    int order = 1;
    double alpha = 1.0;
    double epsilon = 1e-2;
@@ -169,13 +166,13 @@ int main(int argc, char *argv[])
    ostringstream solfile, solfile2, meshfile;
 
    int lineSearchMethod = LineSearchMethod::BregmanBBBackTracking;
-   int problem = Problem::Cantilever;
+   int problem = Problem::Inverter;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
+                  "Problem number: 0) Inverter.");
    args.AddOption(&lineSearchMethod, "-lm", "--line-method",
                   "Line Search Method: 0) BackTracking, 1) BregmanBB, 2) BregmanBB + BackTracking.");
    args.AddOption(&order, "-o", "--order",
@@ -211,68 +208,78 @@ int main(int argc, char *argv[])
 
    Mesh mesh;
    Array2D<int> ess_bdr;
+   Array<int> input_bdr, output_bdr;
    Array<int> ess_bdr_filter;
-   Vector center(2), force(2);
-   double r = 0.05;
-   VolumeForceCoefficient vforce_cf(r,center,force);
+   double input_spring, output_spring;
+   Vector input_direction, output_direction;
    string mesh_file;
    switch (problem)
    {
-      case Problem::Cantilever:
-         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
+      case Problem::Inverter:
+      //                      o o o o o o o o o o o o roller (4)
+      //                      -----------------------
+      // input (0.1cm) (2) -> |                     | <- output (0.1cm) (3)
+      //                      |                     |
+      //    fixed (0.1cm) (1) |                     |
+      //                      -----------------------
+         mesh = mesh.MakeCartesian2D(20, 10, mfem::Element::Type::QUADRILATERAL, true,
+                                     2.0,
                                      1.0);
-         ess_bdr.SetSize(3, 4);
-         ess_bdr_filter.SetSize(4);
+         input_spring = 0.1;
+         output_spring = 0.1;
+         input_direction.SetSize(2);
+         output_direction.SetSize(2);
+         input_direction[0] = 1.0;
+         output_direction[0] = -1.0;
+         ess_bdr.SetSize(3, 5); ess_bdr_filter.SetSize(5);
+         input_bdr.SetSize(5); output_bdr.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(2, 3) = 1;
-         center(0) = 2.9; center(1) = 0.5;
-         force(0) = 0.0; force(1) = -1.0;
-         solfile << "Cantilever-";
-         solfile2 << "Cantilever-";
-         meshfile << "Cantilever";
-         break;
-      case Problem::LBracket:
-         mesh_file = "../data/lbracket_square.mesh";
-         mesh = mesh.LoadFromFile(mesh_file);
-         ess_bdr.SetSize(3, 6);
-         ess_bdr_filter.SetSize(6);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(2, 4) = 1;
-         center(0) = 0.95; center(1) = 0.35;
-         force(0) = 0.0; force(1) = -1.0;
-         solfile << "LBracket-";
-         solfile2 << "LBracket-";
-         meshfile << "LBracket";
-         break;
-      case Problem::MBB:
-         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
-                                     1.0);
-         ess_bdr.SetSize(3, 3);
-         ess_bdr_filter.SetSize(4);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 0) = 1;
-         ess_bdr(1, 1) = 1;
-         center(0) = 0.05; center(1) = 0.95;
-         force(0) = 0.0; force(1) = -1.0;
-         solfile << "MBB-";
-         solfile2 << "MBB-";
-         meshfile << "MBB";
-         break;
+         input_bdr = 0; output_bdr = 0;
+         ess_bdr(1, 3) = 1; // roller - y directional fixed
+         ess_bdr(2, 0) = 1; // fixed
+         input_bdr[1] = 1; output_bdr[2] = 1;
+         for (int i = 0; i<mesh.GetNBE(); i++)
+         {
+            Element * be = mesh.GetBdrElement(i);
+            Array<int> vertices;
+            be->GetVertices(vertices);
 
-      case Problem::Cantilever3:
-         mesh = mesh.MakeCartesian3D(4, 1, 2, mfem::Element::Type::HEXAHEDRON, 2.0, 0.25,
-                                     0.5);
-         ess_bdr.SetSize(4, 7);
-         ess_bdr_filter.SetSize(7);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(3, 4) = 1;
-         center.SetSize(3); force.SetSize(3);
-         center(0) = 1.9; center(1) = 0.125; center(2) = 0.25;
-         force(0) = 0.0; force(1) = 0.0; force(1) = -1.0;
-         vforce_cf.UpdateSize();
-         solfile << "Cantilever-";
-         solfile2 << "Cantilever-";
-         meshfile << "Cantilever";
+            double * coords1 = mesh.GetVertex(vertices[0]);
+            double * coords2 = mesh.GetVertex(vertices[1]);
+
+            Vector fc(2);
+            fc(0) = 0.5*(coords1[0] + coords2[0]);
+            fc(1) = 0.5*(coords1[1] + coords2[1]);
+
+            if (fabs(fc(0) - 0.0) < 1e-10 & fc(1) - 0.1 < 0)
+            {
+               // left bottom -> Fixed
+               be->SetAttribute(1);
+            }
+            else if (fabs(fc(0) - 0.0) < 1e-10 & fc(1) - 0.9 > 0)
+            {
+               // left top -> input
+               be->SetAttribute(2);
+            }
+            else if (fabs(fc(0) - 2.0) < 1e-10 & fc(1) - 0.9 > 0)
+            {
+               // right top -> output
+               be->SetAttribute(3);
+            }
+            else if (fabs(fc(1) - 1.0) < 1e-10)
+            {
+               // top -> roller
+               be->SetAttribute(4);
+            }
+            else
+            {
+               // free boundary
+               be->SetAttribute(5);
+            }
+         }
+         solfile << "Inverter-";
+         solfile2 << "Inverter-";
+         meshfile << "Inverter";
          break;
       default:
          mfem_error("Undefined problem.");
@@ -282,46 +289,12 @@ int main(int argc, char *argv[])
    double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
 
    // 3. Refine the mesh.
-   if (problem == Problem::LBracket) {ref_levels--;}
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
       h *= 0.5;
    }
    epsilon = 4 * h;
-
-   if (problem == Problem::MBB)
-   {
-
-      for (int i = 0; i<mesh.GetNBE(); i++)
-      {
-         Element * be = mesh.GetBdrElement(i);
-         Array<int> vertices;
-         be->GetVertices(vertices);
-
-         double * coords1 = mesh.GetVertex(vertices[0]);
-         double * coords2 = mesh.GetVertex(vertices[1]);
-
-         Vector fc(2);
-         fc(0) = 0.5*(coords1[0] + coords2[0]);
-         fc(1) = 0.5*(coords1[1] + coords2[1]);
-
-         if (abs(fc(0) - 0.0) < 1e-10)
-         {
-            // the left edge
-            be->SetAttribute(1);
-         }
-         else if ((fc(0) > (3 - std::pow(2, -ref_levels + 1))) & (fc(1) < 1e-10))
-         {
-            // all other boundaries
-            be->SetAttribute(2);
-         }
-         else
-         {
-            be->SetAttribute(3);
-         }
-      }
-   }
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -364,11 +337,14 @@ int main(int argc, char *argv[])
    double domain_volume = vol_form.Sum();
    const double target_volume = domain_volume * vol_fraction;
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
-   SIMPElasticCompliance obj(&lambda_cf, &mu_cf, epsilon,
-                             &rho, &vforce_cf, target_volume,
-                             ess_bdr,
-                             &state_fes,
-                             &filter_fes, exponent, rho_min);
+   CompliantMechanism obj(&lambda_cf, &mu_cf, epsilon,
+                          &rho, target_volume,
+                          ess_bdr,
+                          input_bdr, output_bdr,
+                          input_spring, output_spring,
+                          input_direction, output_direction,
+                          &state_fes,
+                          &filter_fes, exponent, rho_min);
    obj.SetGridFunction(&psi);
    LineSearchAlgorithm *lineSearch;
    switch (lineSearchMethod)
