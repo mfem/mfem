@@ -278,4 +278,4 @@ void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X)
       cout << "Done.\nIterations: " << cg.GetNumIterations()
            << "\nElapsed: " << tic_toc.RealTime() << endl;
    }
-};
+}

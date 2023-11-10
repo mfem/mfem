@@ -160,7 +160,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrElementFaceIndex(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }
@@ -343,7 +343,7 @@ void ShiftedFaceMarker::ListShiftedFaceDofs2(const Array<int> &elem_marker,
          {
             if (elem_marker[tr->Elem1No] >= SBElementType::CUT)
             {
-               pfes_sltn->GetFaceDofs(pmesh.GetBdrFace(i), dofs);
+               pfes_sltn->GetFaceDofs(pmesh.GetBdrElementFaceIndex(i), dofs);
                sface_dof_list.Append(dofs);
             }
          }

@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <cstdint>
 #include <tuple>
 
 namespace mfem

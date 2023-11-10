@@ -1790,6 +1790,11 @@ IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
    AllocIntRule(PrismIntRules, Order);
    PrismIntRules[Order] = new IntegrationRule(nt * ns);
    PrismIntRules[Order]->SetOrder(std::min(irt.GetOrder(), irs.GetOrder()));
+   while (Order < std::min(irt.GetOrder(), irs.GetOrder()))
+   {
+      AllocIntRule(PrismIntRules, ++Order);
+      PrismIntRules[Order] = PrismIntRules[Order-1];
+   }
 
    for (int ks=0; ks<ns; ks++)
    {

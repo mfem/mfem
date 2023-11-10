@@ -1012,7 +1012,7 @@ struct QuarterPeach: public Surface
       for (int i = 0; i < GetNBE(); i++)
       {
          Element *el = GetBdrElement(i);
-         const int fn = GetBdrElementEdgeIndex(i);
+         const int fn = GetBdrElementFaceIndex(i);
          MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
          Array<int> vertices;
          GetFaceVertices(fn, vertices);

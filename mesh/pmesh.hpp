@@ -77,8 +77,11 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
-   Table *face_nbr_el_to_face;
-   Table  face_nbr_el_ori; // orientations for each face (from nbr processor)
+   /// Table that maps from face neighbor element number, to the face numbers of
+   /// that element.
+   std::unique_ptr<Table> face_nbr_el_to_face;
+   /// orientations for each face (from nbr processor)
+   std::unique_ptr<Table> face_nbr_el_ori;
 
    IsoparametricTransformation FaceNbrTransformation;
 
@@ -113,7 +116,32 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
-   STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
+   // Given a completed FacesTable and SharedFacesTable, construct a table that
+   // maps from face neighbor element number, to the set of faces of that
+   // element. Store the resulting data in the member variable
+   // face_nbr_el_to_face. If the mesh is nonconforming, this also builds the
+   // the face_nbr_el_ori variable from the faces_info.
+   void BuildFaceNbrElementToFaceTable();
+
+   /**
+    * @brief Helper function for adding triangle face neighbor element to face
+    * table entries. Have to use a template here rather than lambda capture
+    * because the FaceVert entries in Geometry have inner size of 3 for tets and
+    * 4 for everything else.
+    *
+    * @tparam N Inner dimension on the fvert variable, 3 for tet, 4 otherwise
+    * @param[in] v Set of vertices for this element
+    * @param[in] faces Table of faces interior to this rank
+    * @param[in] shared_faces Table of faces shared by this rank and another
+    * @param[in] elem The face neighbor element
+    * @param[in] start Starting index into fverts
+    * @param[in] end End index into fverts
+    * @param[in] fverts Array of face vertices for this particular geometry.
+    */
+   template <int N>
+   void AddTriFaces(const Array<int> &v, const std::unique_ptr<STable3D> &faces,
+                    const std::unique_ptr<STable3D> &shared_faces,
+                    int elem, int start, int end, const int fverts[][N]);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -287,7 +315,7 @@ protected:
 
 public:
    /// Default constructor. Create an empty @a ParMesh.
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), face_nbr_el_to_face(NULL),
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       glob_elem_offset(-1), glob_offset_sequence(-1),
       have_face_nbr_data(false), pncmesh(NULL) { }
 
@@ -465,7 +493,8 @@ public:
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetElementFaces */
-   void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;
+   void GetFaceNbrElementFaces(int i, Array<int> &faces,
+                               Array<int> &orientation) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */

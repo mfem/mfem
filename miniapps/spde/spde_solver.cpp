@@ -237,7 +237,7 @@ void Boundary::AddInhomogeneousDirichletBoundaryCondition(int boundary,
 void Boundary::SetRobinCoefficient(fptype coefficient)
 {
    robin_coefficient = coefficient;
-};
+}
 
 fptype IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
                    fptype alpha, fptype beta, fptype gamma, fptype &glb_err)
@@ -550,7 +550,7 @@ void SPDESolver::SetupRandomFieldGenerator(int seed)
       new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
    b_wn = new ParLinearForm(fespace_ptr_);
    b_wn->AddDomainIntegrator(integ);
-};
+}
 
 void SPDESolver::GenerateRandomField(ParGridFunction &x)
 {
@@ -566,7 +566,7 @@ void SPDESolver::GenerateRandomField(ParGridFunction &x)
 
    // Call back to solve to generate the random field
    Solve(*b_wn, x);
-};
+}
 
 fptype SPDESolver::ConstructNormalizationCoefficient(fptype nu, fptype l1,
                                                      fptype l2, fptype l3,

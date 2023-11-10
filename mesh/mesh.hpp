@@ -220,9 +220,9 @@ protected:
    Table *el_to_edge;
    Table *el_to_face;
    Table *el_to_el;
-   Array<int> be_to_edge;  // for 2D
-   Table *bel_to_edge;     // for 3D
-   Array<int> be_to_face;
+   Array<int> be_to_face; // faces = vertices (1D), edges (2D), faces (3D)
+
+   Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
    // deleted by the caller. Of these three tables, only face_edge and
@@ -322,9 +322,38 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
+
+   /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const char *filename, int &curved, int &read_gf);
+
+   /// @brief The final step in constructing the mesh from a Genesis file. This
+   /// is only called if the mesh order == 2 (determined internally from the
+   /// cubit element type).
+   void FinalizeCubitSecondOrderMesh(const int cubit_element_type,
+                                     const int num_element_blocks,
+                                     const int num_nodes_per_element,
+                                     const int *start_of_block,
+                                     const double *coordx,
+                                     const double *coordy,
+                                     const double *coordz,
+                                     const int **element_blocks);
+
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit element type. This is used internally to create the mesh elements
+   /// from a Genesis file.
+   Element *CreateCubitElement(const int cubit_element_type,
+                               const int *vertex_ids,
+                               const int block_id);
+
+   /// @brief Returns a pointer to a new mfem::Element based on the provided
+   /// cubit face type. This is used internally to create the boundary elements
+   /// from a Genesis file.
+   Element *CreateCubitBoundaryElement(const int cubit_face_type,
+                                       const int *vertex_ids,
+                                       const int sideset_id) const;
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
@@ -504,7 +533,7 @@ protected:
        nodes in the elements. For example, if T is the element to edge table
        T(i, 0) gives the index of edge in element i that connects vertex 0
        to vertex 1, etc. Returns the number of the edges. */
-   int GetElementToEdgeTable(Table &, Array<int> &);
+   int GetElementToEdgeTable(Table &);
 
    /// Used in GenerateFaces()
    void AddPointFaceElement(int lf, int gf, int el);
@@ -1330,13 +1359,13 @@ public:
        element @a elem, including @a elem. */
    Array<int> FindFaceNeighbors(const int elem) const;
 
-   /// Return the index and the orientation of the face of bdr element i. (3D)
-   void GetBdrElementFace(int i, int *f, int *o) const;
+   /** Return the index and the orientation of the vertex of bdr element i. (1D)
+       Return the index and the orientation of the edge of bdr element i. (2D)
+       Return the index and the orientation of the face of bdr element i. (3D)
 
-   /** Return the vertex index of boundary element i. (1D)
-       Return the edge index of boundary element i. (2D)
-       Return the face index of boundary element i. (3D) */
-   int GetBdrElementEdgeIndex(int i) const;
+       In 2D, the returned edge orientation is 0 or 1, not +/-1 as returned by
+       GetElementEdges/GetBdrElementEdges. */
+   void GetBdrElementFace(int i, int *f, int *o) const;
 
    /** @brief For the given boundary element, bdr_el, return its adjacent
        element and its info, i.e. 64*local_bdr_index+bdr_orientation.
@@ -1358,8 +1387,19 @@ public:
        @sa GetBdrElementAdjacentElement() */
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
-   /// Return the local face index for the given boundary face.
-   int GetBdrFace(int BdrElemNo) const;
+   /// @brief Return the local face (codimension-1) index for the given boundary
+   /// element index.
+   int GetBdrElementFaceIndex(int be_idx) const { return be_to_face[be_idx]; }
+
+   /// Deprecated in favor of GetBdrElementFaceIndex().
+   MFEM_DEPRECATED int GetBdrFace(int i) const { return GetBdrElementFaceIndex(i); }
+
+   /** Return the vertex index of boundary element i. (1D)
+       Return the edge index of boundary element i. (2D)
+       Return the face index of boundary element i. (3D)
+
+       Deprecated in favor of GetBdrElementFaceIndex(). */
+   MFEM_DEPRECATED int GetBdrElementEdgeIndex(int i) const { return GetBdrElementFaceIndex(i); }
 
    /// @}
 
@@ -1408,6 +1448,14 @@ public:
    /// @note The returned object is a pointer to a global object and
    /// should not be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
+
+   /** @brief For the vertex (1D), edge (2D), or face (3D) of a boundary element
+       with the orientation @a o, return the transformation of the boundary
+       element integration point @ ip to the face element. In 2D, the
+       the orientation is 0 or 1 as returned by GetBdrElementFace, not +/-1.
+       Supports both internal and external boundaries. */
+   static IntegrationPoint TransformBdrElementToFace(Geometry::Type geom, int o,
+                                                     const IntegrationPoint &ip);
 
    /// @anchor mfem_Mesh_elem_trans
    /// @name Access the coordinate transformation for individual elements
