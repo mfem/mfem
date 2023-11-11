@@ -1597,22 +1597,22 @@ fptype CalcSingularvalue<3>(const fptype *data, const int i)
 
       if (i == 2)
       {
-         aa = std::min(std::min(b11, b22), b33);
+         aa = fmin(fmin(b11, b22), b33);
       }
       else if (i == 1)
       {
          if (b11 <= b22)
          {
-            aa = (b22 <= b33) ? b22 : std::max(b11, b33);
+            aa = (b22 <= b33) ? b22 : fmax(b11, b33);
          }
          else
          {
-            aa = (b11 <= b33) ? b11 : std::max(b33, b22);
+            aa = (b11 <= b33) ? b11 : fmax(b33, b22);
          }
       }
       else
       {
-         aa = std::max(std::max(b11, b22), b33);
+         aa = fmax(fmax(b11, b22), b33);
       }
    }
 

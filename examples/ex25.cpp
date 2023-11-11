@@ -663,7 +663,7 @@ void maxwell_solution(const Vector &x, vector<complex<fptype>> &E)
             complex<fptype> Ho, Ho_r, Ho_rr;
             Ho = jn(0, beta) + zi * yn(0, beta);
             Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            Ho_rr = -k * k * (1.0 / beta *
+            Ho_rr = -k * k * (fptype(1) / beta *
                               (jn(1, beta) + zi * yn(1, beta)) -
                               (jn(2, beta) + zi * yn(2, beta)));
 
@@ -674,9 +674,9 @@ void maxwell_solution(const Vector &x, vector<complex<fptype>> &E)
             fptype r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
             complex<fptype> val, val_xx, val_xy;
-            val = 0.25 * zi * Ho;
-            val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            val = fptype(0.25) * zi * Ho;
+            val_xx = fptype(0.25) * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            val_xy = fptype(0.25) * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
@@ -696,16 +696,16 @@ void maxwell_solution(const Vector &x, vector<complex<fptype>> &E)
 
             complex<fptype> val, val_r, val_rr;
             val = exp(zi * k * r) / r;
-            val_r = val / r * (zi * k * r - 1.0);
+            val_r = val / r * (zi * k * r - fptype(1));
             val_rr = val / (r * r) * (-k * k * r * r
-                                      - 2.0 * zi * k * r + 2.0);
+                                      - fptype(2) * zi * k * r + fptype(2));
 
             complex<fptype> val_xx, val_yx, val_zx;
             val_xx = val_rr * r_x * r_x + val_r * r_xx;
             val_yx = val_rr * r_x * r_y + val_r * r_yx;
             val_zx = val_rr * r_x * r_z + val_r * r_zx;
 
-            complex<fptype> alpha = zi * k / 4.0 / M_PI / k / k;
+            complex<fptype> alpha = zi * k / fptype(4) / (fptype) M_PI / k / k;
             E[0] = alpha * (k * k * val + val_xx);
             E[1] = alpha * val_yx;
             E[2] = alpha * val_zx;
@@ -718,11 +718,11 @@ void maxwell_solution(const Vector &x, vector<complex<fptype>> &E)
          if (dim == 3)
          {
             fptype k10 = sqrt(k * k - M_PI * M_PI);
-            E[1] = -zi * k / M_PI * sin(M_PI*x(2))*exp(zi * k10 * x(0));
+            E[1] = -zi * k / (fptype) M_PI * sin((fptype) M_PI*x(2))*exp(zi * k10 * x(0));
          }
          else if (dim == 2)
          {
-            E[1] = -zi * k / M_PI * exp(zi * k * x(0));
+            E[1] = -zi * k / (fptype) M_PI * exp(zi * k * x(0));
          }
          break;
       }
@@ -869,7 +869,7 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector &D)
    // in the 2D case the coefficient is scalar 1/det(J)
    if (dim == 2)
    {
-      D = (1.0 / det).real();
+      D = (fptype(1) / det).real();
    }
    else
    {
@@ -893,7 +893,7 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector &D)
 
    if (dim == 2)
    {
-      D = (1.0 / det).imag();
+      D = (fptype(1) / det).imag();
    }
    else
    {
@@ -917,7 +917,7 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector &D)
 
    if (dim == 2)
    {
-      D = abs(1.0 / det);
+      D = abs(fptype(1) / det);
    }
    else
    {
@@ -1016,14 +1016,14 @@ void PML::StretchFunction(const Vector &x,
       if (x(i) >= comp_domain_bdr(i, 1))
       {
          coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - 1.0));
+         dxs[i] = fptype(1) + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 1), n - fptype(1)));
       }
       if (x(i) <= comp_domain_bdr(i, 0))
       {
          coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff *
-                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - 1.0));
+         dxs[i] = fptype(1) + zi * coeff *
+                  abs(pow(x(i) - comp_domain_bdr(i, 0), n - fptype(1)));
       }
    }
 }
