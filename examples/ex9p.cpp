@@ -816,15 +816,15 @@ fptype u0_function(const Vector &x)
                   rx *= s;
                   ry *= s;
                }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
+               return ( std::erfc(w*(X(0)-cx-rx))*std::erfc(-w*(X(0)-cx+rx)) *
+                        std::erfc(w*(X(1)-cy-ry))*std::erfc(-w*(X(1)-cy+ry)) )/16;
             }
          }
       }
       case 2:
       {
          fptype x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
+         rho = std::hypot(x_, y_);
          phi = atan2(y_, x_);
          return pow(sin(M_PI*rho),2)*sin(3*phi);
       }

@@ -212,7 +212,7 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
 
       fptype nom = DGMassDot<NB>(e, NE, ND, d, r);
       if (nom < 0.0) { return; /* Not positive definite */ }
-      fptype r0 = std::max(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
+      fptype r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
       if (nom <= r0) { return; /* Converged */ }
 
       DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
