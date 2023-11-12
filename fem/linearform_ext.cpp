@@ -148,7 +148,7 @@ void LinearFormExtension::Update()
       std::unordered_map<int,int> f_to_be;
       for (int i = 0; i < mesh.GetNBE(); ++i)
       {
-         const int f = mesh.GetBdrElementEdgeIndex(i);
+         const int f = mesh.GetBdrElementFaceIndex(i);
          f_to_be[f] = i;
       }
       MFEM_VERIFY(size_t(nf_bdr) == f_to_be.size(), "Incompatible sizes");
