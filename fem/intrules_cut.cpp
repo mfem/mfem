@@ -996,7 +996,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
    IsoparametricTransformation Trafo;
    mesh->GetElementTransformation(elem, &Trafo);
 
-   Vector RHS(nBasis);
+   Vector RHS(nBasisVolume);
    RHS = 0.;
    Vector ElemWeights(ir.GetNPoints());
    ElemWeights = 0.;
@@ -1084,7 +1084,7 @@ void MomentFittingIntRules::ComputeVolumeWeights3D(ElementTransformation& Tr,
          Trafo.TransformBack(point, ipoint);
          BasisAD3D(ipoint, shape);
 
-         for (int dof = 0; dof < nBasis; dof++)
+         for (int dof = 0; dof < nBasisVolume; dof++)
          {
             Vector adiv(Trafo.GetSpaceDim());
             shape.GetRow(dof, adiv);
