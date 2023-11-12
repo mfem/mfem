@@ -96,9 +96,6 @@ set(SRCS
   lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
-  lor/lor_h1.cpp
-  lor/lor_nd.cpp
-  lor/lor_rt.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp

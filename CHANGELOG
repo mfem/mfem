@@ -87,6 +87,8 @@ Linear and nonlinear solvers
 
 - Added HIP support to the PETSc and SUNDIALS interfaces.
 
+- Efficient GPU-accelerated LOR assembly now supports surface meshes.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new H(div) solver miniapp demonstrating the use of a matrix-free
