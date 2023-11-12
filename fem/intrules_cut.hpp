@@ -38,8 +38,8 @@ protected:
 
    /** @brief Constructor to set up the generated cut IntegrationRules.
 
-       @param [in] Order  Order of the constructed IntegrationRule.
-       @param [in] LvlSet Coefficient whose zero level set specifies the cut.
+       @param [in] order  Order of the constructed IntegrationRule.
+       @param [in] lvlset Coefficient whose zero level set specifies the cut.
        @param [in] lsO    Polynomial degree for projecting the level-set
                           Coefficient to a GridFunction, which is used to
                           compute gradients and normals. */
@@ -280,8 +280,8 @@ public:
 
    /** @brief Constructor to set up the generated cut IntegrationRules.
 
-       @param [in] Order  Order of the constructed IntegrationRule.
-       @param [in] LvlSet Coefficient whose zero level set specifies the cut.
+       @param [in] order  Order of the constructed IntegrationRule.
+       @param [in] lvlset Coefficient whose zero level set specifies the cut.
        @param [in] lsO    Polynomial degree for projecting the level-set
                           Coefficient to a GridFunction, which is used to
                           compute gradients and normals. */
