@@ -469,17 +469,16 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                               vdofs);
-   const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
-
-   int dof = fe->GetDof();
+   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
    if (doftrans)
    {
       doftrans->InvTransformPrimal(loc_data);
    }
+
+   const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+   const int dof = fe->GetDof();
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);

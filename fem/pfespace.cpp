@@ -1946,9 +1946,8 @@ struct PMatrixRow
    void AddRow(const PMatrixRow &other, double coef)
    {
       elems.reserve(elems.size() + other.elems.size());
-      for (unsigned i = 0; i < other.elems.size(); i++)
+      for (const PMatrixElement &oei : other.elems)
       {
-         const PMatrixElement &oei = other.elems[i];
          elems.push_back(
             PMatrixElement(oei.column, oei.stride, coef * oei.value));
       }
@@ -2132,25 +2131,33 @@ void NeighborRowMessage::Decode(int rank)
    rows.clear();
    rows.reserve(nrows);
 
-   // read rows
+   // read rows ent = {0,1,2} means vertex, edge and face entity
    for (int ent = 0, gi = 0; ent < 3; ent++)
    {
+      // extract the vertex list, edge list or face list.
       const Array<MeshId> &ids = ent_ids[ent];
       for (int i = 0; i < ids.Size(); i++)
       {
          const MeshId &id = ids[i];
+         // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
 
-         // handle orientation and sign change
-         const int *ind = NULL;
+         // Handle orientation and sign change. This flips the sign on dofs
+         // where necessary, and for edges and faces also reorders if flipped,
+         // i.e. an edge with 1 -> 2 -> 3 -> 4 might become -4 -> -3 -> -2 -> -1
+         // This cannot treat all face dofs, as they can have rotations and
+         // reflections.
+         const int *ind = nullptr;
+         Geometry::Type geom = Geometry::Type::INVALID;
          if (ent == 1)
          {
+            // edge NC orientation is element defined.
             int eo = pncmesh->GetEdgeNCOrientation(id);
             ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
          }
          else if (ent == 2)
          {
-            Geometry::Type geom = pncmesh->GetFaceGeometry(id.index);
+            geom = pncmesh->GetFaceGeometry(id.index);
             int fo = pncmesh->GetFaceOrientation(id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
          }
@@ -2165,13 +2172,14 @@ void NeighborRowMessage::Decode(int rank)
          // If edof arrived with a negative index, flip it, and the scaling.
          double s = (edof < 0) ? -1.0 : 1.0;
          edof = (edof < 0) ? -1 - edof : edof;
-
          if (ind && (edof = ind[edof]) < 0)
          {
             edof = -1 - edof;
             s *= -1.0;
          }
 
+         // Create a row for this entity, recording the index of the mesh
+         // element
          rows.push_back(RowInfo(ent, id.index, edof, group_ids[gi++]));
          rows.back().row.read(stream, s);
 
@@ -2181,6 +2189,69 @@ void NeighborRowMessage::Decode(int rank)
                    << rows.back().index << ", edof " << rows.back().edof
                    << std::endl;
 #endif
+
+         if (ent == 2 && fec->GetContType() == FiniteElementCollection::TANGENTIAL
+             && !Geometry::IsTensorProduct(geom))
+         {
+            // ND face dofs need to be processed together, as the transformation
+            // is given by a 2x2 matrix, so we manually apply an extra increment
+            // to the loop counter and add in a new row. Once these rows are
+            // placed, they represent the Identity transformation. To map across
+            // the processor boundary, we also need to apply a Primal
+            // Transformation (see doftrans.hpp) to a notional "global dof"
+            // orientation. For simplicity we perform the action of these 2x2
+            // matrices manually using the AddRow capability, followed by a
+            // Collapse.
+
+            // To perform the operations, we add and subtract initial versions
+            // of the rows, that represent [1 0; 0 1] in row major notation. The
+            // first row represents the 1 at (0,0) in [1 0; 0 1] The second row
+            // represents the 1 at (1,1) in [1 0; 0 1]
+
+            // We can safely bind this reference as rows was reserved above so
+            // there is no hidden copying that could result in a dangling
+            // reference.
+            auto &first_row = rows.back().row;
+            // This is the first "fundamental unit" used in the transformation.
+            const auto initial_first_row = first_row;
+            // Extract the next dof too, and apply any dof order transformation
+            // expected.
+            const MeshId &next_id = ids[++i];
+            const int fo = pncmesh->GetFaceOrientation(next_id.index);
+            ind = fec->DofOrderForOrientation(geom, fo);
+            edof = bin_io::read<int>(stream);
+
+            // If edof arrived with a negative index, flip it, and the scaling.
+            s = (edof < 0) ? -1.0 : 1.0;
+            edof = (edof < 0) ? -1 - edof : edof;
+            if (ind && (edof = ind[edof]) < 0)
+            {
+               edof = -1 - edof;
+               s *= -1.0;
+            }
+            rows.push_back(RowInfo(ent, next_id.index, edof, group_ids[gi++]));
+            rows.back().row.read(stream, s);
+            auto &second_row = rows.back().row;
+
+            // This is the second "fundamental unit" used in the transformation.
+            const auto initial_second_row = second_row;
+
+            const auto T = [&fo]()
+            {
+               auto T = ND_StatelessDofTransformation::GetFaceTransform(fo);
+               T(0,0) -= 1;
+               T(1,1) -= 1;
+               return T;
+            }();
+
+            first_row.AddRow(initial_first_row, T(0,0));
+            first_row.AddRow(initial_second_row, T(0,1));
+            second_row.AddRow(initial_first_row, T(1,0));
+            second_row.AddRow(initial_second_row, T(1,1));
+
+            first_row.Collapse();
+            second_row.Collapse();
+         }
       }
    }
 }
@@ -2308,12 +2379,6 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
-   // TODO: general face DOF transformations in NeighborRowMessage::Decode()
-   MFEM_VERIFY(!(fec->GetOrder() >= 2
-                 && pmesh->HasGeometry(Geometry::TETRAHEDRON)
-                 && fec->GetContType() == FiniteElementCollection::TANGENTIAL),
-               "Nedelec NC tets of order >= 2 are not supported yet.");
-
    const bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
 #ifdef MFEM_PMATRIX_STATS

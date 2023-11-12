@@ -347,8 +347,7 @@ int main (int argc, char *argv[])
       {
          if ((double) rand() / RAND_MAX < 0.5)
          {
-            int element_order = sc_fes.GetElementOrder(e);
-            sc_fes.SetElementOrder(e, element_order + 1);
+            sc_fes.SetElementOrder(e, order + 1);
          }
       }
       sc_fes.Update(false);

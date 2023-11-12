@@ -11,6 +11,15 @@
 Version 4.6.1 (development)
 ===========================
 
+Discretization improvements
+---------------------------
+- Introduced support for higher order non conformal Nedelec elements on
+  simplices in ParMesh.
+
+Miscellaneous
+-------------
+- The ReadCubit Genesis mesh importer has been rewritten to improve readability.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================

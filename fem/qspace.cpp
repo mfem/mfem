@@ -177,7 +177,7 @@ int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
          return get_face_index(T.ElementNo);
       case ElementTransformation::BDR_ELEMENT:
       case ElementTransformation::BDR_FACE:
-         return get_face_index(mesh.GetBdrElementEdgeIndex(T.ElementNo));
+         return get_face_index(mesh.GetBdrElementFaceIndex(T.ElementNo));
       default:
          MFEM_ABORT("Invalid element type.");
          return -1;
