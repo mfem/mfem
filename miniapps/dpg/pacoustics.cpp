@@ -262,6 +262,9 @@ int main(int argc, char *argv[])
    dim = mesh.Dimension();
    MFEM_VERIFY(dim > 1, "Dimension = 1 is not supported in this example");
 
+   // mesh.EnsureNCMesh(true);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
    CartesianPML * pml = nullptr;
    if (with_pml)
    {
@@ -270,8 +273,7 @@ int main(int argc, char *argv[])
       pml->SetOmega(omega);
    }
 
-   mesh.EnsureNCMesh(true);
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
    mesh.Clear();
 
    Array<int> attr;
@@ -550,8 +552,13 @@ int main(int argc, char *argv[])
    int dof0 = 0;
 
    ParGridFunction p_r, p_i, u_r, u_i;
+   ParGridFunction p_sub_r, p_sub_i, p_exact_gf_r, p_exact_gf_i, p_th;
 
    ParaViewDataCollection * paraview_dc = nullptr;
+   ParaViewDataCollection * paraview_pml = nullptr;
+   ParaViewDataCollection * paraview_th = nullptr;
+   Array<int> dattr; dattr.Append(1);
+   ParSubMesh psubmesh = ParSubMesh::CreateFromDomain(pmesh,dattr);
 
    if (paraview)
    {
@@ -566,6 +573,20 @@ int main(int argc, char *argv[])
       paraview_dc->RegisterField("p_i",&p_i);
       paraview_dc->RegisterField("u_r",&u_r);
       paraview_dc->RegisterField("u_i",&u_i);
+      if (pml)
+      {
+         // paraview_pml = new ParaViewDataCollection(enum_str[prob], &psubmesh);
+         // paraview_pml->SetPrefixPath("ParaView/Acoustics/PML");
+         // paraview_pml->SetLevelsOfDetail(order);
+         // paraview_pml->SetCycle(0);
+         // paraview_pml->SetDataFormat(VTKFormat::BINARY);
+         // paraview_pml->SetHighOrderOutput(true);
+         // paraview_pml->SetTime(0.0); // set the time
+         // paraview_pml->RegisterField("p_sub_r",&p_sub_r);
+         // paraview_pml->RegisterField("p_sub_i",&p_sub_i);
+         // paraview_pml->RegisterField("p_exact_r",&p_exact_gf_r);
+         // paraview_pml->RegisterField("p_exact_i",&p_exact_gf_i);
+      }
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
@@ -719,6 +740,53 @@ int main(int argc, char *argv[])
 
       p_r.MakeRef(p_fes, x, 0);
       p_i.MakeRef(p_fes, x, offsets.Last());
+      if (it == pr)
+      {
+         ParSubMesh psubmesh = ParSubMesh::CreateFromDomain(pmesh,dattr);
+         ParFiniteElementSpace p_subfes(&psubmesh,p_fec);
+         p_sub_r.SetSpace(&p_subfes);
+         p_sub_i.SetSpace(&p_subfes);
+         psubmesh.Transfer(p_r,p_sub_r);
+         psubmesh.Transfer(p_i,p_sub_i);
+
+         // paraview_pml->SetMesh(&psubmesh);
+         // paraview_pml->SetCycle(it);
+         // paraview_pml->SetTime((double)it);
+         // paraview_pml->Save();
+
+         FunctionCoefficient p_ex_r2(p_exact_r);
+         FunctionCoefficient p_ex_i2(p_exact_i);
+         p_exact_gf_r.SetSpace(&p_subfes);
+         p_exact_gf_r.ProjectCoefficient(p_ex_r2);
+         p_exact_gf_i.SetSpace(&p_subfes);
+         p_exact_gf_i.ProjectCoefficient(p_ex_i2);
+
+
+         p_exact_gf_r-=p_sub_r;
+         p_exact_gf_i-=p_sub_i;
+         p_th.SetSpace(&p_subfes);
+         paraview_th = new ParaViewDataCollection(enum_str[prob], &psubmesh);
+         paraview_th->SetPrefixPath("ParaView/Acoustics/PML/TimeHarmonic");
+         paraview_th->SetLevelsOfDetail(order);
+         paraview_th->SetCycle(0);
+         paraview_th->SetDataFormat(VTKFormat::BINARY);
+         paraview_th->SetHighOrderOutput(true);
+         paraview_th->SetTime(0.0); // set the time
+         paraview_th->RegisterField("p_th",&p_th);
+         int num_frames = 64;
+         for (int j = 0; j<num_frames; j++)
+         {
+            p_th = 0.0;
+            double t = (double)(j % num_frames) / num_frames;
+            add(cos(2.0*M_PI*t), p_exact_gf_r, sin(2.0*M_PI*t), p_exact_gf_i, p_th);
+            // p_th = p_exact_gf_i;
+            paraview_th->SetMesh(&psubmesh);
+            paraview_th->SetCycle(j);
+            paraview_th->SetTime(t);
+            paraview_th->Save();
+         }
+      }
+
 
       u_r.MakeRef(u_fes,x, offsets[1]);
       u_i.MakeRef(u_fes,x, offsets.Last()+offsets[1]);
