@@ -19,6 +19,18 @@ using namespace std;
 namespace mfem
 {
 
+void CutIntegrationRules::SetOrder(int order)
+{
+   MFEM_VERIFY(order > 0, "Invalid input");
+   Order = order;
+}
+
+void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
+{
+   MFEM_VERIFY(order > 0, "Invalid input");
+   lsOrder = order;
+}
+
 #ifdef MFEM_USE_LAPACK
 
 void MomentFittingIntRules::InitSurface(int order, Coefficient& levelset,
