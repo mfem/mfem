@@ -57,7 +57,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.3)
+set(${PROJECT_NAME}_VERSION 4.6.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -138,7 +138,7 @@ if (MFEM_USE_CUDA)
       set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS})
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    set(CUSPARSE_FOUND TRUE)
    set(CUSPARSE_LIBRARIES "cusparse")
    set(CUBLAS_FOUND TRUE)
@@ -316,6 +316,9 @@ if (MFEM_USE_SUNDIALS)
   endif()
   if (MFEM_USE_CUDA)
     list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
+  endif()
+  if (MFEM_USE_HIP)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Hip)
   endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
@@ -638,16 +641,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   foreach(Header mfem.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
-    file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/${Header}.tmp"
 "// Auto-generated file.
 #define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+    )
+
     # This version will be installed in the top include directory:
-    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
 "// Auto-generated file.
 #include \"mfem/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+    )
+
   endforeach()
 endif()
 

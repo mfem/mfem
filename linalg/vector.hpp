@@ -19,9 +19,7 @@
 #include "../general/globals.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_serial.h>
-#endif
+
 #include <cmath>
 #include <iostream>
 #include <limits>
