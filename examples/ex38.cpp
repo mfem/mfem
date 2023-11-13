@@ -36,7 +36,7 @@
 //              was introduced by Mueller, Kummer and Oberlack [1].
 //
 //              There is an example for the integration of a quadratic function
-//              over the sphere in 2 dimensions and an example computong the
+//              over the sphere in 2 dimensions and an example computing the
 //              arclength and area of an ellipse in 2 dimensions.
 //
 //              This example showcases how to set up integrators using the

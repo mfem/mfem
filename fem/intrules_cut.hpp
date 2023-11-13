@@ -44,19 +44,20 @@ protected:
                           Coefficient to a GridFunction, which is used to
                           compute gradients and normals. */
    CutIntegrationRules(int order, Coefficient& lvlset, int lsO = 2)
-      : Order(order), LvlSet(&lvlset), lsOrder(lsO)   {}
+      : Order(order), LvlSet(&lvlset), lsOrder(lsO)
+   { MFEM_VERIFY(order > 0 && lsO > 0, "Invalid input") }
 
 public:
 
    /// Change the order of the constructed IntegrationRule.
-   virtual void SetOrder(int order) { Order = order; }
+   virtual void SetOrder(int order);
 
    /// Change the Coefficient whose zero level set specifies the cut.
    virtual void SetLevelSetCoefficient(Coefficient &ls) { LvlSet = &ls; }
 
    /// Change the polynomial degree for projecting the level set Coefficient
    /// to a GridFunction, which is used to compute local gradients and normals.
-   virtual void SetLevelSetProjectionOrder(int order) { lsOrder = order; }
+   virtual void SetLevelSetProjectionOrder(int order);
 
    /**
     @brief Construct a cut-surface IntegrationRule.
@@ -121,7 +122,7 @@ class MomentFittingIntRules : public CutIntegrationRules
 protected:
    /// @brief Space Dimension of the element
    int dim;
-   /// @brief Number of divergence-free basis functions
+   /// @brief Number of divergence-free basis functions for surface integration
    int nBasis;
    /// @brief Number of basis functions for volume integration
    int nBasisVolume;
@@ -211,7 +212,7 @@ protected:
     Compute the quadrature weights for the 2D surface quadrature rule by means
     of moment-fitting. To construct the quadrature rule, special integrals are
     reduced to integrals over the edges of the subcell where the level-set is
-    positiv.
+    positive.
 
     @param [in] Tr ElementTransformation of the current element
     */
@@ -221,9 +222,9 @@ protected:
     @brief Compute the 2D quadrature weights
 
     Compute the 2D quadrature weights for the volumetric subdomain quadrature
-    rule by mmeans of moment-fitting. To construct the quadrature rule, special
+    rule by means of moment-fitting. To construct the quadrature rule, special
     integrals are reduced to integrals over the boundary of the subcell where
-    the level-set is positiv.
+    the level-set is positive.
 
     @param [in] Tr ElementTransformation of the current element
     @param [in] sir corresponding IntegrationRule on surface
@@ -237,7 +238,7 @@ protected:
     Compute the quadrature weights for the 3D surface quadrature rule by means
     of moment-fitting. To construct the quadrature rule, special integrals are
     reduced to integrals over the edges of the subcell where the level-set is
-    positiv.
+    positive.
 
     @param [in] Tr ElementTransformation of the current element
     */
@@ -248,9 +249,9 @@ protected:
     @brief Compute the 3D quadrature weights
 
     Compute the 3D quadrature weights for the volumetric subdomain quadrature
-    rule by mmeans of moment-fitting. To construct the quadrature rule, special
+    rule by means of moment-fitting. To construct the quadrature rule, special
     integrals are reduced to integrals over the boundary of the subcell where
-    the level-set is positiv.
+    the level-set is positive.
 
     @param [in] Tr ElementTransformation of the current element
     @param [in] sir corresponding IntegrationRule on surface
@@ -287,7 +288,7 @@ public:
                           compute gradients and normals. */
    MomentFittingIntRules(int order, Coefficient& lvlset, int lsO)
       : CutIntegrationRules(order, lvlset, lsO),
-        dim(-1), nBasis(-1), nBasisVolume(-1), VolumeSVD(NULL)
+        dim(-1), nBasis(-1), nBasisVolume(-1), VolumeSVD(nullptr)
    { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
 
    /// Change the order of the constructed IntegrationRule.
