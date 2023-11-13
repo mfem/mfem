@@ -42,10 +42,19 @@ public:
                     int *provided = nullptr)
    {
       MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
-      int mpi_provided;
-      int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
-      MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
-      if (provided) { *provided = mpi_provided; }
+      if (required == MPI_THREAD_SINGLE)
+      {
+         int mpi_err = MPI_Init(argc, argv);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = MPI_THREAD_SINGLE; }
+      }
+      else
+      {
+         int mpi_provided;
+         int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = mpi_provided; }
+      }
       // The Mpi singleton object below needs to be created after MPI_Init() for
       // some MPI implementations.
       Singleton();
