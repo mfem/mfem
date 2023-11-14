@@ -472,10 +472,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    double scale_save = 0.0;
    double norm_out = 0.0;
+   double avg_fit_err, max_fit_err = 0.0;
+      
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
    {
+      avg_fit_err = 0.0;
+      max_fit_err = 0.0;
       // Update the mesh and get the L-vector in x_out_loc.
       add(x, -scale, c, x_out);
       if (serial)
@@ -490,12 +494,12 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out <= 0.0*min_detJ_threshold)
+      if (untangling == false && min_detT_out <= 1.0*min_detJ_threshold)
       {
          // No untangling, and detJ got negative -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " Neg det(J) found.\n";
+            mfem::out << "Scale = " << scale << " " << min_detT_out << " Neg det(J) found.\n";
          }
          scale *= detJ_factor; continue;
       }
@@ -531,7 +535,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in total energy.
       ProcessNewState(x_out);
 
-      double avg_fit_err, max_fit_err = 0.0;
       if (surf_fit_max_threshold > 0.0)
       {
          GetSurfaceFittingError(avg_fit_err, max_fit_err);
@@ -659,6 +662,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                 energy_in << " " << energy_out << " " <<
                 norm_in << " " << norm_out << " " <<
                 min_detT_in << " " << min_detT_out << std::endl;
+      mfem::out << "Line search info avg/max fitting error in and out: " << " " <<
+                avg_surf_fit_err << " " << max_surf_fit_err << " " <<
+                avg_fit_err << " " << max_fit_err << " " << std::endl;
    }
 
    return scale;
@@ -950,12 +956,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // adaptive surface fitting is enabled. The idea is to increase the
    // coefficient if the surface fitting error does not sufficiently
    // decrease between subsequent TMOPNewtonSolver iterations.
+
    if (update_surf_fit_coeff)
    {
       // Get surface fitting errors.
       GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
-      //      // Get array with surface fitting weights.
-      //      GetSurfaceFittingWeight(fitweights);
 
       if (print_options.iterations)
       {
