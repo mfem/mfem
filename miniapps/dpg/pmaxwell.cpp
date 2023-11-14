@@ -1403,7 +1403,7 @@ void maxwell_solution_curlcurl(const Vector & X,
    curlcurlE.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
-      curlcurlE[i] = 0.0;;
+      curlcurlE[i] = 0.0;
    }
    switch (prob)
    {

@@ -36,7 +36,7 @@
 //              was introduced by Mueller, Kummer and Oberlack [1].
 //
 //              There is an example for the integration of a quadratic function
-//              over the sphere in 2 dimensions and an example computong the
+//              over the sphere in 2 dimensions and an example computing the
 //              arclength and area of an ellipse in 2 dimensions.
 //
 //              This example showcases how to set up integrators using the
@@ -184,7 +184,9 @@ public:
          Weights.SetSize(2, mesh->GetNE());
       }
       SurfaceWeights.SetSize(ir.GetNPoints(), mesh->GetNE());
-      SurfaceWeights.SetCol(0, MFIRs.GetSurfaceWeights(Tr, &ir));
+      Vector w;
+      MFIRs.GetSurfaceWeights(Tr, ir, w);
+      SurfaceWeights.SetCol(0, w);
       SetSize(ir.GetNPoints());
 
       for (int ip = 0; ip < GetNPoints(); ip++)
@@ -210,7 +212,9 @@ public:
       {
          mesh->GetElementTransformation(elem, &Tr);
          MFIRs.GetSurfaceIntegrationRule(Tr, ir);
-         SurfaceWeights.SetCol(elem, MFIRs.GetSurfaceWeights(Tr, &ir));
+         Vector w;
+         MFIRs.GetSurfaceWeights(Tr, ir, w);
+         SurfaceWeights.SetCol(elem, w);
 
          for (int ip = 0; ip < GetNPoints(); ip++)
          {
@@ -406,7 +410,7 @@ public:
     */
    SurfaceLFIntegrator(Coefficient &q, Coefficient &levelset,
                        SIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), SIntRule(ir) {}
+      : LinearFormIntegrator(), SIntRule(ir), LevelSet(levelset), Q(q) { }
 
    /**
     @brief Assembly of the element vector
@@ -474,7 +478,7 @@ public:
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,
                          CIntegrationRule* ir)
-      : LinearFormIntegrator(), Q(q), LevelSet(levelset), CIntRule(ir) {}
+      : LinearFormIntegrator(), CIntRule(ir), LevelSet(levelset), Q(q) { }
 
    /**
     @brief Assembly of the element vector
@@ -520,6 +524,7 @@ int main(int argc, char *argv[])
    int ref_levels = 3;
    int order = 2;
    const char *inttype = "surface2d";
+   bool visualization = true;
    itype = IntegrationType::Surface2D;
 
    OptionsParser args(argc, argv);
@@ -527,6 +532,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refine", "Number of meh refinements");
    args.AddOption(&inttype, "-i", "--integrationtype",
                   "IntegrationType to demonstrate");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    if (strcmp(inttype, "volumetric1d") == 0
@@ -597,7 +605,7 @@ int main(int argc, char *argv[])
    H1_FECollection fe_coll(1, mesh->Dimension());
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, &fe_coll);
 
-   // 4.
+   // 4. Construction Coefficients for the level set and the integrand.
    FunctionCoefficient levelset(lvlset);
    FunctionCoefficient u(integrand);
 
@@ -676,18 +684,21 @@ int main(int argc, char *argv[])
    cout << "============================================" << endl;
 
    // 8. Plot the level-set function on a high order finite element space.
-   H1_FECollection fe_coll2(5, mesh->Dimension());
-   FiniteElementSpace fespace2(mesh, &fe_coll2);
-   FunctionCoefficient levelset_coeff(levelset);
-   GridFunction lgf(&fespace2);
-   lgf.ProjectCoefficient(levelset_coeff);
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
-   sol_sock << "solution\n" << *mesh << lgf << flush;
-   sol_sock << "keys pppppppppppppppppppppppppppcmmlRj\n";
-   sol_sock << "levellines " << 0. << " " << 0. << " " << 1 << "\n" << flush;
+   if (visualization)
+   {
+      H1_FECollection fe_coll2(5, mesh->Dimension());
+      FiniteElementSpace fespace2(mesh, &fe_coll2);
+      FunctionCoefficient levelset_coeff(levelset);
+      GridFunction lgf(&fespace2);
+      lgf.ProjectCoefficient(levelset_coeff);
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << lgf << flush;
+      sol_sock << "keys pppppppppppppppppppppppppppcmmlRj\n";
+      sol_sock << "levellines " << 0. << " " << 0. << " " << 1 << "\n" << flush;
+   }
 
    delete sir;
    delete cir;
