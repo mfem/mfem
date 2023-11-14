@@ -260,6 +260,21 @@ Vector &Vector::Add(const double a, const Vector &Va)
    return *this;
 }
 
+Vector &Vector::Add(const double a, const Vector &Va, const int offset)
+{
+   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+
+   if (a != 0.0)
+   {
+      const int N = size;
+      const bool use_dev = UseDevice() || Va.UseDevice();
+      auto y = ReadWrite(use_dev);
+      auto x = Va.Read(use_dev);
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i + offset] += a * x[i]; });
+   }
+   return *this;
+}
+
 Vector &Vector::Set(const double a, const Vector &Va)
 {
    MFEM_ASSERT(size == Va.size, "incompatible Vectors!");

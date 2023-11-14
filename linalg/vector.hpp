@@ -310,6 +310,7 @@ public:
 
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
+   Vector &Add(const double a, const Vector &Va, const int offset);
 
    /// (*this) = a * x
    Vector &Set(const double a, const Vector &x);
