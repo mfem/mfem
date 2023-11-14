@@ -20,71 +20,200 @@ void disp(Vector &x)
    out << std::endl;
 }
 
-/** Mass integrator (u⋅n, v⋅n) restricted to the boundary of a domain */
+/** Mass integrator (u⋅d, v⋅d) restricted to the boundary of a domain */
 class VectorBoundaryDirectionalMassIntegrator: public BilinearFormIntegrator
 {
 private:
+   VectorCoefficient &direction;
    int vdim;
-   Vector shape, te_shape, vec;
-   const int Q_order;
-
-protected:
-   VectorCoefficient *VQ;
+   int oa, ob;
+   const double k;
 
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorBoundaryDirectionalMassIntegrator(VectorCoefficient &VQ,
-                                           const int Q_order=0)
-      : vdim(VQ.GetVDim()), VQ(&VQ), Q_order(Q_order) { }
+   VectorBoundaryDirectionalMassIntegrator(const double k,
+                                           VectorCoefficient &direction,
+                                           const int oa=1, const int ob=1)
+      : k(k), vdim(direction.GetVDim()), direction(direction),
+        oa(oa), ob(ob) { }
 
-   using BilinearFormIntegrator::AssembleFaceMatrix;
-   virtual void AssembleFaceMatrix(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Trans,
+   using BilinearFormIntegrator::AssembleElementMatrix;
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                   ElementTransformation &Tr,
                                    DenseMatrix &elmat)
    {
-      const int dof = el1.GetDof();
-      shape.SetSize(dof);
+      int dof = el.GetDof();
+      Vector shape(dof), vec(vdim);
+
+      out << Tr.Attribute - 1 << " " << dof << " LHSElement" << std::endl;
       elmat.SetSize(dof*vdim);
+      elmat = 0.0;
 
       const IntegrationRule *ir = IntRule;
       if (ir == NULL)
       {
-         int order = 2 * el1.GetOrder() + Trans.OrderW() + Q_order;
-
-         if (el1.Space() == FunctionSpace::rQk)
-         {
-            ir = &RefinedIntRules.Get(Trans.GetGeometryType(), order);
-         }
-         else
-         {
-            ir = &IntRules.Get(Trans.GetGeometryType(), order);
-         }
+         int intorder = oa * el.GetOrder() + ob;    // <------ user control
+         ir = &IntRules.Get(Tr.GetGeometryType(), intorder); // of integration order
       }
 
-      elmat = 0.0;
-      DenseMatrix partelmat(dof, dof);
-      for (int s = 0; s < ir->GetNPoints(); s++)
+      DenseMatrix elmat_scalar(dof);
+      for (int i = 0; i < ir->GetNPoints(); i++)
       {
-         const IntegrationPoint &eip = Trans.GetElement1IntPoint();
-         el1.CalcShape(eip, shape);
+         const IntegrationPoint &ip = ir->IntPoint(i);
 
-         Trans.SetAllIntPoints(&eip);
-         const double norm = eip.weight * Trans.Weight();
+         // Set the integration point in the face and the neighboring element
+         Tr.SetIntPoint(&ip);
 
-         MultVVt(shape, partelmat);
+         // Access the neighboring element's integration point
+         direction.Eval(vec, Tr, ip);
+         double val = k*Tr.Weight() * ip.weight;
 
-         VQ->Eval(vec, Trans, eip);
-         for (int i = 0; i < vdim; i++)
+         el.CalcShape(ip, shape);
+         MultVVt(shape, elmat_scalar);
+         for (int row = 0; row < vdim; row++)
          {
-            for (int j=0; j<vdim; j++)
+            for (int col = 0; col < vdim; col++)
             {
-               elmat.AddMatrix(norm*vec(i)*vec(j), partelmat, dof*i, dof*j);
+               elmat.AddMatrix(val*vec(row)*vec(col), elmat_scalar, dof*row, dof*col);
             }
          }
       }
    }
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el,
+                                   const FiniteElement &dummy,
+                                   FaceElementTransformations &Tr,
+                                   DenseMatrix &elmat)
+   {
+      int dof = el.GetDof();
+      Vector shape(dof), vec(vdim);
 
+      out << Tr.Attribute - 1 << " " << dof << " LHSFace" << std::endl;
+
+      elmat.SetSize(dof*vdim);
+      elmat = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int intorder = oa * el.GetOrder() + ob;    // <------ user control
+         ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+      }
+
+      DenseMatrix elmat_scalar(dof);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         // Set the integration point in the face and the neighboring element
+         Tr.SetAllIntPoints(&ip);
+
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         direction.Eval(vec, *Tr.Face, ip);
+         double val = k*Tr.Face->Weight() * ip.weight;
+
+         el.CalcShape(eip, shape);
+         
+         for (int row = 0; row < vdim; row++)
+         {
+            for (int col = 0; col < vdim; col++)
+            {
+               elmat.AddMatrix(val*vec(row)*vec(col), elmat_scalar, dof*row, dof*col);
+            }
+         }
+      }
+   }
+};
+/** Mass integrator (u⋅n, v⋅n) restricted to the boundary of a domain */
+class VectorBoundaryDirectionalLFIntegrator : public LinearFormIntegrator
+{
+   VectorCoefficient &direction, &force;
+   int oa, ob, vdim;
+public:
+   /** @brief Constructs a boundary integrator with a given Coefficient @a QG.
+       Integration order will be @a a * basis_order + @a b. */
+   VectorBoundaryDirectionalLFIntegrator(VectorCoefficient &direction,
+                                         VectorCoefficient &force,
+                                         int a = 1, int b = 1)
+      : direction(direction), force(force), oa(a), ob(b), vdim(direction.GetVDim()) { }
+
+   /** Given a particular boundary Finite Element and a transformation (Tr)
+       computes the element boundary vector, elvect. */
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   virtual void AssembleRHSElementVect(
+      const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   {
+      int dof = el.GetDof();
+
+      out << Tr.Attribute - 1 << " " << dof << " RHSElement" << std::endl;
+
+      Vector shape(dof), vec(vdim), vecF(vdim);
+      elvect.SetSize(dof*vdim);
+      elvect = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int intorder = oa * el.GetOrder() + ob;    // <------ user control
+         ir = &IntRules.Get(Tr.GetGeometryType(), intorder); // of integration order
+      }
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         direction.Eval(vec, Tr, ip);
+         force.Eval(vecF, Tr, ip);
+         double val = Tr.Weight() * ip.weight * (vec * vecF);
+
+         el.CalcShape(ip, shape);
+         for (int row = 0; row < vdim; row++)
+         {
+            elvect.Add(val*vec(row), shape, dof*row);
+         }
+      }
+   }
+   virtual void AssembleRHSElementVect(
+      const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+   {
+      int dof = el.GetDof();
+
+      out << Tr.Attribute - 1 << " " << dof << " RHSFace" << std::endl;
+
+      Vector shape(dof), vec(vdim), vecF(vdim);
+      elvect.SetSize(dof*vdim);
+      elvect = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int intorder = oa * el.GetOrder() + ob;    // <------ user control
+         ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+      }
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         // Set the integration point in the face and the neighboring element
+         Tr.SetAllIntPoints(&ip);
+
+         // Access the neighboring element's integration point
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+         direction.Eval(vec, Tr, ip);
+         force.Eval(vecF, Tr, ip);
+         double val = Tr.Face->Weight() * ip.weight * (vec * vecF);
+
+         el.CalcShape(eip, shape);
+         for (int row = 0; row < vdim; row++)
+         {
+            elvect.Add(val*vec(row), shape, dof*row);
+         }
+      }
+   }
 };
 
 /**
