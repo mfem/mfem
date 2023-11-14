@@ -14,12 +14,14 @@
 #   - HYPRE_LIBRARIES
 #   - HYPRE_INCLUDE_DIRS
 #   - HYPRE_VERSION
+#   - HYPRE_USING_CUDA (internal)
+#   - HYPRE_USING_HIP (internal)
 
 if (HYPRE_FOUND)
-  if (MFEM_USE_CUDA)
+  if (HYPRE_USING_CUDA)
     find_package(CUDAToolkit REQUIRED)
   endif()
-  if (MFEM_USE_HIP)
+  if (HYPRE_USING_HIP)
     find_package(rocsparse REQUIRED)
     find_package(rocrand REQUIRED)
   endif()
@@ -28,7 +30,34 @@ endif()
 
 include(MfemCmakeUtilities)
 mfem_find_package(HYPRE HYPRE HYPRE_DIR "include" "HYPRE.h" "lib" "HYPRE"
-  "Paths to headers required by HYPRE." "Libraries required by HYPRE.")
+  "Paths to headers required by HYPRE." "Libraries required by HYPRE."
+  CHECK_BUILD HYPRE_USING_CUDA FALSE
+  "
+#undef HYPRE_USING_CUDA
+#include <HYPRE_config.h>
+
+#ifndef HYPRE_USING_CUDA
+#error HYPRE is built without CUDA.
+#endif
+
+int main()
+{
+   return 0;
+}
+"
+  CHECK_BUILD HYPRE_USING_HIP FALSE
+  "
+#undef HYPRE_USING_HIP
+#include <HYPRE_config.h>
+
+#ifndef HYPRE_USING_HIP
+#error HYPRE is built without HIP.
+#endif
+
+int main()
+{
+   return 0;
+}")
 
 if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   try_run(HYPRE_VERSION_RUN_RESULT HYPRE_VERSION_COMPILE_RESULT
@@ -45,7 +74,7 @@ if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   endif()
 endif()
 
-if (HYPRE_FOUND AND MFEM_USE_CUDA)
+if (HYPRE_FOUND AND HYPRE_USING_CUDA)
   find_package(CUDAToolkit REQUIRED)
   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
   get_target_property(CURAND_LIBRARIES CUDA::curand LOCATION)
@@ -55,7 +84,7 @@ if (HYPRE_FOUND AND MFEM_USE_CUDA)
   message(STATUS "Updated HYPRE_LIBRARIES: ${HYPRE_LIBRARIES}")
 endif()
 
-if (HYPRE_FOUND AND MFEM_USE_HIP)
+if (HYPRE_FOUND AND HYPRE_USING_HIP)
   find_package(rocsparse REQUIRED)
   find_package(rocrand REQUIRED)
   list(APPEND HYPRE_LIBRARIES ${rocsparse_LIBRARIES} ${rocrand_LIBRARIES})
