@@ -1721,20 +1721,26 @@ public:
       // Step 3. Linear Elasticity
       ConstantCoefficient one_cf(1.0);
       elasticity->AddDomainIntegrator(new ElasticityIntegrator(SIMPlambda, SIMPmu));
-      elasticity->AddBoundaryIntegrator(
-         new VectorBoundaryDirectionalMassIntegrator(input_direction), input_bdr);
-      elasticity->AddBoundaryIntegrator(
-         new VectorBoundaryDirectionalMassIntegrator(output_direction), output_bdr);
-      load->AddDomainIntegrator(new VectorBoundaryFluxLFIntegrator(one_cf),
-                                input_bdr);
+      elasticity->AddBdrFaceIntegrator(
+         new VectorBoundaryDirectionalMassIntegrator(input_spring, input_direction),
+         input_bdr);
+      elasticity->AddBdrFaceIntegrator(
+         new VectorBoundaryDirectionalMassIntegrator(input_spring, output_direction),
+         output_bdr);
+      load->AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(
+                                    input_direction, input_direction),
+                                 input_bdr);
       EllipticSolver elasticitySolver(elasticity, load, ess_bdr);
       elasticitySolver.Solve(u);
-      current_val = -(*load)(*u);
 
-      adjload->AddDomainIntegrator(new VectorBoundaryFluxLFIntegrator(one_cf),
-                                   output_bdr);
+      adjload->AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(
+                                       output_direction, output_direction),
+                                    output_bdr);
       EllipticSolver adjointElasticitySolver(elasticity, adjload, ess_bdr);
       adjointElasticitySolver.Solve(adju);
+      adju->Neg();
+
+      current_val = -(*adjload)(*u);
 
       delete elasticity;
       delete load;
@@ -1964,7 +1970,7 @@ protected:
    double target_volume;
 
    Array<int> &input_bdr, &output_bdr;
-   ConstantCoefficient input_spring, output_spring;
+   double input_spring, output_spring;
    VectorConstantCoefficient input_direction, output_direction;
 
    static DenseMatrix aVVt(const double a, const Vector &V)
