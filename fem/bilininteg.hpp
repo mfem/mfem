@@ -152,13 +152,23 @@ public:
                                     const FiniteElementSpace &fes,
                                     SparseMatrix*& smat);
 
+   /** @brief  Integration on faces, interior or boundary, when one uses
+               information from the neighbor volumetric elements. Depending on
+               the context, the arguments are used in different ways.
+
+       - Used with BilinearForm::AddInteriorFaceIntegrator(), where @a el1 and
+         @a el2 are the FiniteElements for both sides of the internal face.
+       - Used with BilinearForm::AddBdrFaceIntegrator(), where @a el1 is for the
+         volumetric neighbor of the boundary face, while @a el2 is dummy and
+         should not be used.
+       - Used with MixedBilinearForm::AddBdrFaceIntegrator(), where @a el1 and
+         @a el2 are for the (mixed) volumetric neighbor of the boundary face. */
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   /** Abstract method used for assembling TraceFaceIntegrators in a
-       MixedBilinearForm. */
+   /// Used for assembling TraceFaceIntegrators in a MixedBilinearForm.
    virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
                                    const FiniteElement &test_fe1,
                                    const FiniteElement &test_fe2,
@@ -2334,6 +2344,12 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+};
+
+/// (q.n u, v) on the boundary faces, where u and v are in different FE spaaces.
+class BoundaryMixedMassIntegrator : public BilinearFormIntegrator
+{
+
 };
 
 /// alpha (q . grad u, v)

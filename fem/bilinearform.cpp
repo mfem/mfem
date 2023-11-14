@@ -1229,6 +1229,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    boundary_integs = mbf->boundary_integs;
    boundary_integs_marker = mbf->boundary_integs_marker;
 
+   boundary_face_integs        = mbf->boundary_face_integs;
+   boundary_face_integs_marker = mbf->boundary_face_integs_marker;
+
    trace_face_integs = mbf->trace_face_integs;
 
    boundary_trace_face_integs = mbf->boundary_trace_face_integs;
@@ -1377,6 +1380,20 @@ void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
    boundary_integs_marker.Append(&bdr_marker);
 }
 
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi)
+{
+   boundary_face_integs.Append (bfi);
+   // Active on all boundary faces.
+   boundary_face_integs_marker.Append(nullptr);
+}
+
+void MixedBilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator * bfi,
+                                             Array<int> &bdr_marker)
+{
+   boundary_face_integs.Append (bfi);
+   boundary_face_integs_marker.Append(&bdr_marker);
+}
+
 void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 {
    trace_face_integs.Append (bfi);
@@ -1506,6 +1523,69 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             TransformDual(ran_dof_trans, dom_dof_trans, elmat);
          }
          mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
+      }
+   }
+
+   if (boundary_face_integs.Size())
+   {
+      FaceElementTransformations *ftr;
+      const FiniteElement *trial_fe, *test_fe;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < boundary_face_integs.Size(); k++)
+      {
+         if (boundary_face_integs_marker[k] == nullptr)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (int i = 0; i < test_fes -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         ftr = mesh->GetBdrFaceTransformations(i);
+         if (ftr)
+         {
+            dom_dof_trans =
+                  trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+            ran_dof_trans =
+                  test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+
+            trial_fe = trial_fes->GetFE(ftr->Elem1No);
+            test_fe  = test_fes->GetFE(ftr->Elem1No);
+
+            elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+            elmat = 0.0;
+            for (int k = 0; k < boundary_face_integs.Size(); k++)
+            {
+               if (boundary_face_integs_marker[k] &&
+                   (*boundary_face_integs_marker[k])[bdr_attr-1] == 0)
+               { continue; }
+
+               boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe, *test_fe,
+                                                           *ftr, elemmat);
+               elmat += elemmat;
+            }
+            if (ran_dof_trans || dom_dof_trans)
+            {
+               TransformDual(ran_dof_trans, dom_dof_trans, elmat);
+            }
+            mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
+         }
       }
    }
 
@@ -1927,6 +2007,8 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < domain_integs.Size(); i++) { delete domain_integs[i]; }
       for (i = 0; i < boundary_integs.Size(); i++)
       { delete boundary_integs[i]; }
+      for (i = 0; i < boundary_face_integs.Size(); i++)
+      { delete boundary_face_integs[i]; }
       for (i = 0; i < trace_face_integs.Size(); i++)
       { delete trace_face_integs[i]; }
       for (i = 0; i < boundary_trace_face_integs.Size(); i++)
