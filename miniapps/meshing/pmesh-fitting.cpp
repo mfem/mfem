@@ -359,7 +359,6 @@ int main (int argc, char *argv[])
    }
    pmesh->ExchangeFaceNbrData();
 
-
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
    H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
@@ -431,7 +430,6 @@ int main (int argc, char *argv[])
                                               *surf_fit_bg_gf0);
          }
          else { surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff); }
-
 
          surf_fit_bg_grad_fes =
             new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec, dim);
@@ -630,6 +628,7 @@ int main (int argc, char *argv[])
          }
       }
    }
+   pmesh->SetAttributes();
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
