@@ -9,6 +9,16 @@
 
 namespace mfem
 {
+void disp(Array<int> &x)
+{
+   for (auto v:x) { out << v << ", ";}
+   out << std::endl;
+}
+void disp(Vector &x)
+{
+   for (auto v:x) { out << v << ", ";}
+   out << std::endl;
+}
 
 /** Mass integrator (u⋅n, v⋅n) restricted to the boundary of a domain */
 class VectorBoundaryDirectionalMassIntegrator: public BilinearFormIntegrator
