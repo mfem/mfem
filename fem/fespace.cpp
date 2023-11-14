@@ -2324,7 +2324,7 @@ void FiniteElementSpace::BuildNURBSFaceToDofTable() const
    face_to_be = -1;
    for (int b = 0; b < GetNBE(); b++)
    {
-      int f = mesh->GetBdrElementEdgeIndex(b);
+      int f = mesh->GetBdrElementFaceIndex(b);
       face_to_be[f] = b;
    }
 
