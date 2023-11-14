@@ -57,7 +57,8 @@ int main()
 int main()
 {
    return 0;
-}")
+}
+")
 
 if (HYPRE_FOUND AND (NOT HYPRE_VERSION))
   try_run(HYPRE_VERSION_RUN_RESULT HYPRE_VERSION_COMPILE_RESULT
