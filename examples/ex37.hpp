@@ -1,6 +1,4 @@
 //                  MFEM Example 37 - Serial/Parallel Shared Code
-//
-//
 
 #include "mfem.hpp"
 #include <fstream>
@@ -216,10 +214,7 @@ public:
    }
 };
 
-/**
- * @brief Inverse sigmoid function
- *
- */
+/// @brief Inverse sigmoid function
 double inv_sigmoid(const double x)
 {
    const double tol = 1e-12;
@@ -227,10 +222,7 @@ double inv_sigmoid(const double x)
    return std::log(tmp/(1.0-tmp));
 }
 
-/**
- * @brief Sigmoid function
- *
- */
+/// @brief Sigmoid function
 double sigmoid(const double x)
 {
    return (std::tanh(x*0.5) + 1.0) * 0.5;
@@ -260,10 +252,7 @@ double der_simp(const double x, const double rho_min=1e-06,
 
 
 
-/**
- * @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R
- *
- */
+/// @brief Returns f(u(x)) - f(v(x)) where u, v are scalar GridFunctions and f:R → R
 class DiffMappedGridFunctionCoefficient : public GridFunctionCoefficient
 {
 protected:
@@ -296,10 +285,7 @@ public:
 };
 
 
-/**
- * @brief Strain energy density coefficient
- *
- */
+/// @brief Strain energy density coefficient
 class StrainEnergyDensityCoefficient : public Coefficient
 {
 protected:
@@ -371,10 +357,7 @@ public:
    void SetFilteredDensity(GridFunction *frho) { rho_filter = frho; }
 };
 
-/**
- * @brief Volumetric force for linear elasticity
- *
- */
+/// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
 {
 private:
@@ -579,9 +562,8 @@ public:
 
 };
 
-// -----------------------------------------------------------------------
-// --------------------      Poisson solver     --------------------------
-// -----------------------------------------------------------------------
+
+// Poisson solver
 
 DiffusionSolver::DiffusionSolver(Mesh * mesh_, int order_,
                                  Coefficient * diffcf_, Coefficient * rhscf_)
@@ -771,10 +753,7 @@ DiffusionSolver::~DiffusionSolver()
 }
 
 
-
-// -----------------------------------------------------------------------
-// ------------------      Elasticity solver     -------------------------
-// -----------------------------------------------------------------------
+// Elasticity solver
 
 LinearElasticitySolver::LinearElasticitySolver(Mesh * mesh_, int order_,
                                                Coefficient * lambda_cf_, Coefficient * mu_cf_)

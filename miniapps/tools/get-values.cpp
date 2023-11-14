@@ -48,7 +48,7 @@
 // with a 0-based integer index followed by the point coordinates and then the
 // field data.  A legend, appearing before the bulk data, shows the order of
 // the fields along with the number of values per field (for vector data).
-//
+
 #include "mfem.hpp"
 
 #include <fstream>

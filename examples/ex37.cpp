@@ -1,5 +1,4 @@
-//                              MFEM Example 37
-//
+//                                MFEM Example 37
 //
 // Compile with: make ex37
 //
@@ -9,7 +8,6 @@
 //     ex37 -lambda 0.1 -mu 0.1
 //     ex37 -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
 //     ex37 -r 6 -o 1 -alpha 25.0 -epsilon 0.02 -mi 50 -ntol 1e-5
-//
 //
 // Description: This example code demonstrates the use of MFEM to solve a
 //              density-filtered [3] topology optimization problem. The
@@ -39,10 +37,9 @@
 //              to set up and solve PDE-constrained optimization problems
 //              using the so-called reduced space approach.
 //
-//
 // [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
-//    (2011). Efficient topology optimization in MATLAB using 88 lines of
-//    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
+//     (2011). Efficient topology optimization in MATLAB using 88 lines of
+//     code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
 // [2] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
 //     preserving finite element method for pointwise bound constraints.
 //     arXiv:2307.12444 [math.NA]
@@ -128,12 +125,10 @@ using namespace mfem;
  *                     ∫_Ω sigmoid(ψ - αG + c) dx = θ vol(Ω).
  *
  *  end
- *
  */
 
 int main(int argc, char *argv[])
 {
-
    // 1. Parse command-line options.
    int ref_levels = 7;
    int order = 1;
@@ -188,9 +183,8 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(mfem::out);
 
-   Mesh mesh = Mesh::MakeCartesian2D(3,1,mfem::Element::Type::QUADRILATERAL,true,
-                                     3.0,1.0);
-
+   Mesh mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL,
+                                     true, 3.0, 1.0);
    int dim = mesh.Dimension();
 
    // 3. Refine the mesh.

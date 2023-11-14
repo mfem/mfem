@@ -215,6 +215,7 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
@@ -302,6 +303,10 @@ miniapps/tools/plor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
 miniapps/tools/tmop-metric-magnitude
+miniapps/tools/nodal-transfer
+miniapps/tools/ParaView
+miniapps/tools/gridfunc_*
+miniapps/tools/mesh_*
 
 miniapps/toys/automata
 miniapps/toys/life
