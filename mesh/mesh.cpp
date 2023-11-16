@@ -4388,7 +4388,8 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
    int orig_ne = orig_mesh.GetNE();
    MFEM_VERIFY(ref_factors.Size() == orig_ne,
                "Number of refinement factors must equal number of elements")
-   MFEM_VERIFY(orig_ne == 0 || ref_factors.Min() >= 1, "Refinement factor must be >= 1");
+   MFEM_VERIFY(orig_ne == 0 || 
+               ref_factors.Min() >= 1, "Refinement factor must be >= 1");
    const int q_type = BasisType::GetQuadrature1D(ref_type);
    MFEM_VERIFY(Quadrature1D::CheckClosed(q_type) != Quadrature1D::Invalid,
                "Invalid refinement type. Must use closed basis type.");
