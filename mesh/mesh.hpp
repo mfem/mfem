@@ -340,20 +340,6 @@ protected:
                                      const double *coordy,
                                      const double *coordz,
                                      const std::vector<std::vector<int>> &element_blocks);
-
-   /// @brief Returns a pointer to a new mfem::Element based on the provided
-   /// cubit element type. This is used internally to create the mesh elements
-   /// from a Genesis file.
-   Element *CreateCubitElement(const int cubit_element_type,
-                               const int *vertex_ids,
-                               const int block_id);
-
-   /// @brief Returns a pointer to a new mfem::Element based on the provided
-   /// cubit face type. This is used internally to create the boundary elements
-   /// from a Genesis file.
-   Element *CreateCubitBoundaryElement(const int cubit_face_type,
-                                       const int *vertex_ids,
-                                       const int sideset_id) const;
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
