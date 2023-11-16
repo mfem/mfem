@@ -329,17 +329,6 @@ protected:
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const char *filename, int &curved, int &read_gf);
 
-   /// @brief The final step in constructing the mesh from a Genesis file. This
-   /// is only called if the mesh order == 2 (determined internally from the
-   /// cubit element type).
-   void FinalizeCubitSecondOrderMesh(const int cubit_element_type,
-                                     const int num_element_blocks,
-                                     const int num_nodes_per_element,
-                                     const int *start_of_block,
-                                     const double *coordx,
-                                     const double *coordy,
-                                     const double *coordz,
-                                     const std::vector<std::vector<int>> &element_blocks);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().

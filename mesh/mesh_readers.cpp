@@ -3400,6 +3400,83 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
    }
 }
 
+/// @brief The final step in constructing the mesh from a Genesis file. This is
+/// only called if the mesh order == 2 (determined internally from the cubit
+/// element type).
+void FinalizeCubitSecondOrderMesh(Mesh &mesh,
+                                  const int cubit_element_type,
+                                  const int num_element_blocks,
+                                  const int num_nodes_per_element,
+                                  const int *start_of_block,
+                                  const double *coordx,
+                                  const double *coordy,
+                                  const double *coordz,
+                                  const vector<vector<int>> &element_blocks)
+{
+   int *mfem_to_genesis_map = nullptr;
+
+   switch (cubit_element_type)
+   {
+      case ELEMENT_TRI6:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
+         break;
+      case ELEMENT_QUAD9:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
+         break;
+      case ELEMENT_TET10:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
+         break;
+      case ELEMENT_HEX27:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+         break;
+      default:
+         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+   }
+
+   mesh.FinalizeTopology();
+
+   // Define quadratic FE space.
+   const int Dim = mesh.Dimension();
+   FiniteElementCollection *fec = new H1_FECollection(2,3);
+   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
+                                                    Ordering::byVDIM);
+   GridFunction *Nodes = new GridFunction(fes);
+   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+   mesh.SetNodalGridFunction(Nodes, true);
+
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      Array<int> dofs;
+      fes->GetElementDofs(ielement, dofs);
+
+      Array<int> vdofs = dofs;   // Deep copy.
+      fes->DofsToVDofs(vdofs);
+
+      // Find block that element is part of.
+      const int iblock = GetCubitBlockIndexForElement(ielement,
+                                                      num_element_blocks,
+                                                      start_of_block);
+
+      // Find element offset in block.
+      const int element_offset = ielement - start_of_block[iblock];
+      const int node_offset    = element_offset * num_nodes_per_element;
+
+      for (int jnode = 0; jnode < dofs.Size(); jnode++)
+      {
+         const int node_index = element_blocks[iblock][node_offset +
+                                                       mfem_to_genesis_map[jnode] - 1] - 1;
+
+         (*Nodes)(vdofs[jnode])     = coordx[node_index];
+         (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
+
+         if (Dim == 3)
+         {
+            (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
+         }
+      }
+   }
+}
+
 }  // namespace cubit.
 
 
@@ -3744,7 +3821,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       curved = 1;
 
-      FinalizeCubitSecondOrderMesh(cubit_element_type,
+      FinalizeCubitSecondOrderMesh(*this,
+                                   cubit_element_type,
                                    num_element_blocks,
                                    num_nodes_per_element,
                                    start_of_block.data(),
@@ -3756,96 +3834,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
-}
-
-
-void Mesh::FinalizeCubitSecondOrderMesh(const int cubit_element_type,
-                                        const int num_element_blocks,
-                                        const int num_nodes_per_element,
-                                        const int *start_of_block,
-                                        const double *coordx,
-                                        const double *coordy,
-                                        const double *coordz,
-                                        const vector<vector<int>> &element_blocks)
-{
-   using namespace cubit;
-
-   int *mfem_to_genesis_map = nullptr;
-
-   switch (cubit_element_type)
-   {
-      case ELEMENT_TRI6:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
-         break;
-      }
-      case ELEMENT_QUAD9:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
-         break;
-      }
-      case ELEMENT_TET10:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
-         break;
-      }
-      case ELEMENT_HEX27:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
-         break;
-      }
-      case ELEMENT_TRI3:
-      case ELEMENT_QUAD4:
-      case ELEMENT_TET4:
-      case ELEMENT_HEX8:
-      default:
-      {
-         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-         break;
-      }
-   }
-
-   FinalizeTopology();
-
-   // Define quadratic FE space.
-   FiniteElementCollection *fec = new H1_FECollection(2,3);
-   FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
-                                                    Ordering::byVDIM);
-   Nodes = new GridFunction(fes);
-   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
-   own_nodes = 1;
-
-   for (int ielement = 0; ielement < NumOfElements; ielement++)
-   {
-      Array<int> dofs;
-      fes->GetElementDofs(ielement, dofs);
-
-      Array<int> vdofs = dofs;   // Deep copy.
-      fes->DofsToVDofs(vdofs);
-
-      // Find block that element is part of.
-      const int iblock = GetCubitBlockIndexForElement(ielement,
-                                                      num_element_blocks,
-                                                      start_of_block);
-
-      // Find element offset in block.
-      const int element_offset = ielement - start_of_block[iblock];
-      const int node_offset    = element_offset * num_nodes_per_element;
-
-      for (int jnode = 0; jnode < dofs.Size(); jnode++)
-      {
-         const int node_index = element_blocks[iblock][node_offset +
-                                                       mfem_to_genesis_map[jnode] - 1] - 1;
-
-         (*Nodes)(vdofs[jnode])     = coordx[node_index];
-         (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
-
-         if (Dim == 3)
-         {
-            (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
-         }
-      }
-   }
 }
 
 #endif // #ifdef MFEM_USE_NETCDF
