@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
    // Fixed -> II--------------------|
    // 
    // Otherwise, free.
-   Array2D<int> ess_bdr(mesh.SpaceDimension(), BdrType::NumBdr); // [X-fixed; Y-fixed; All-fixed]
+   Array2D<int> ess_bdr(mesh.SpaceDimension() + 1, BdrType::NumBdr); // [X-fixed; Y-fixed; All-fixed]
    ess_bdr = 0;
    ess_bdr(0, BdrType::YRoller) = 1; // y-roller - x direction fixed
    ess_bdr(1, BdrType::XRoller) = 1; // x-roller - y direction fixed
@@ -309,6 +309,7 @@ int main(int argc, char *argv[])
             mfem_error("Something went wrong");
       }
    }
+   mesh.SetAttributes();
 
    out << "(# Input, # Output) = (" << nrInputBdrFace << ", " << nrOutputBdrFace << ")" << std::endl;
 
