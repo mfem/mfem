@@ -1060,7 +1060,7 @@ using gko::solver::cb_gmres::storage_precision;
  * The Ginkgo storage precision options are accessed
  * through Ginkgo::storage_precision::*.  The default choice
  * is Ginkgo::storage_precision::reduce1, i.e., store in float
- * instead of double.
+ * instead of double or half instead of float.
  *
  * @ingroup Ginkgo
  */
@@ -1074,11 +1074,11 @@ public:
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
     * @param[in] prec  The storage precision used in the CB-GMRES. Options
-    *  are: keep (keep double precision), reduce1 (double -> float),
-    *  reduce2 (double -> half), integer (double -> int64),
-    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
-    *  See Ginkgo documentation for more about the CB-GMRES and
-    *  these options.
+    *  are: keep (keep `fptype` precision), reduce1 (double -> float
+    *  or float -> half), reduce2 (double -> half or float -> half),
+    *  integer (`fptype` -> int64), ireduce1 (double -> int32 or
+    *  float -> int16), ireduce2 (double -> int16 or float -> int16).
+    *  See Ginkgo documentation for more about CB-GMRES.
     */
    CBGMRESSolver(GinkgoExecutor &exec, int dim = 0,
                  storage_precision prec = storage_precision::reduce1);
@@ -1091,11 +1091,11 @@ public:
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
     * @param[in] prec  The storage precision used in the CB-GMRES. Options
-    *  are: keep (keep double precision), reduce1 (double -> float),
-    *  reduce2 (double -> half), integer (double -> int64),
-    *  ireduce1 (double -> int32), ireduce2 (double -> int16).
-    *  See Ginkgo documentation for more about the CB-GMRES and
-    *  these options.
+    *  are: keep (keep `fptype` precision), reduce1 (double -> float
+    *  or float -> half), reduce2 (double -> half or float -> half),
+    *  integer (`fptype` -> int64), ireduce1 (double -> int32 or
+    *  float -> int16), ireduce2 (double -> int16 or float -> int16).
+    *  See Ginkgo documentation for more about CB-GMRES.
     */
    CBGMRESSolver(GinkgoExecutor &exec,
                  const GinkgoPreconditioner &preconditioner,
