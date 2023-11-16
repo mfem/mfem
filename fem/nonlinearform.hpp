@@ -37,6 +37,7 @@ protected:
 
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
+   Array<Array<int>*>              dnfi_marker; // not owned
 
    /// Set of interior face Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> fnfi; // owned
@@ -108,7 +109,12 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
@@ -227,13 +233,14 @@ protected:
 
    /// Set of Domain Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> dnfi;
+   Array<Array<int>*>                   dnfi_marker;
 
    /// Set of interior face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> fnfi;
 
    /// Set of Boundary Face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> bfnfi;
-   Array<Array<int>*>           bfnfi_marker;
+   Array<Array<int>*>                   bfnfi_marker;
 
    /** Auxiliary block-vectors for wrapping input and output vectors or holding
        GridFunction-like block-vector data (e.g. in parallel). */
@@ -298,7 +305,12 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
@@ -311,7 +323,8 @@ public:
    /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
-                             Array<int> &bdr_marker);
+                             Array<int> &bdr_marker)
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);

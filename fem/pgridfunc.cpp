@@ -693,7 +693,23 @@ void ParGridFunction::ProjectBdrCoefficient(
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
-   pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   if (vcoeff) { pfes->GetEssentialVDofs(attr, ess_vdofs_marker); }
+   else
+   {
+      ess_vdofs_marker.SetSize(Size());
+      ess_vdofs_marker = 0;
+      for (int i = 0; i < fes->GetVDim(); i++)
+      {
+         if (!coeff[i]) { continue; }
+         Array<int> component_dof_marker;
+         pfes->GetEssentialVDofs(attr, component_dof_marker,i);
+         for (int j = 0; j<Size(); j++)
+         {
+            ess_vdofs_marker[j] = bool(ess_vdofs_marker[j]) ||
+                                  bool(component_dof_marker[j]);
+         }
+      }
+   }
    for (int i = 0; i < values_counter.Size(); i++)
    {
       MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
