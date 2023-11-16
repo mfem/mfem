@@ -3352,10 +3352,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Setup buffer used to write variable names to.
    int variable_id;
 
-   const int buffer_size = NC_MAX_NAME + 1; // NB: Add 1 for '\0'.
-
-   char variable_name_buffer[buffer_size];
-
    // Open the file.
    int netcdf_status, netcdf_descriptor;
 
@@ -3450,7 +3446,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    start_of_block[0] = 0;
 
-   for (int iblock = 1; iblock < num_element_blocks + 1; iblock++)
+   for (size_t iblock = 1; iblock < num_element_blocks + 1; iblock++)
    {
       start_of_block[iblock] = start_of_block[iblock - 1] +
                                num_elements_for_block[iblock - 1];
@@ -3462,7 +3458,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int **boundary_nodes = new int*[num_boundaries];
 
    // Iterate over boundaries.
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       const int num_elements_on_boundary = num_boundary_elements[iboundary];
       const int num_nodes_on_boundary = num_elements_on_boundary * num_face_nodes;
@@ -3548,11 +3544,11 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // We need another node ID mapping since MFEM needs contiguous vertex ids.
    std::vector<int> unique_vertex_ids;
 
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
       const int *nodes_in_block = block_elements[iblock];
 
-      for (int jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
          const int element_block_offset = jelement * num_nodes_per_element;
 
@@ -3576,7 +3572,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // ie. [1, 4, 5, 8, 9] --> [1, 2, 3, 4, 5].
    std::map<int,int> cubit_to_mfem_vertex_map;
 
-   for (int ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
+   for (size_t ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
    {
       const int key     = unique_vertex_ids[ivertex];
       const int value   = ivertex + 1;
@@ -3609,18 +3605,18 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   int renumbered_vertex_ids[max(num_element_linear_nodes, num_face_linear_nodes)];
+   std::vector<int> renumbered_vertex_ids(max(num_element_linear_nodes,
+                                              num_face_linear_nodes));
 
    int element_counter = 0;
 
    // Iterate over blocks.
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
       const int * nodes_ids_for_block = block_elements[iblock];
 
       // Iterate over elements in block.
-      for (int jelement = 0; jelement < num_elements_for_block[iblock];
-           jelement++)
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
          // Iterate over linear nodes in block.
          for (int knode = 0; knode < num_element_linear_nodes; knode++)
@@ -3634,7 +3630,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
          // Create element.
          elements[element_counter++] = CreateCubitElement(cubit_element_type,
-                                                          renumbered_vertex_ids,
+                                                          renumbered_vertex_ids.data(),
                                                           block_ids[iblock]);
       }
    }
@@ -3643,7 +3639,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Load up the boundary elements.
    //
    NumOfBdrElements = 0;
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       NumOfBdrElements += num_boundary_elements[iboundary];
    }
@@ -3653,12 +3649,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int boundary_counter = 0;
 
    // Iterate over boundaries.
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       const int *nodes_on_boundary = boundary_nodes[iboundary];
 
       // Iterate over elements on boundary.
-      for (int jelement = 0; jelement < num_boundary_elements[iboundary]; jelement++)
+      for (size_t jelement = 0; jelement < num_boundary_elements[iboundary];
+           jelement++)
       {
          // Iterate over element's face linear nodes.
          for (int knode = 0; knode < num_face_linear_nodes; knode++)
@@ -3671,7 +3668,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
          // Create boundary element.
          boundary[boundary_counter++] = CreateCubitBoundaryElement(cubit_face_type,
-                                                                   renumbered_vertex_ids,
+                                                                   renumbered_vertex_ids.data(),
                                                                    boundary_ids[iboundary]);
       }
    }
@@ -3691,7 +3688,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
 
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       delete [] boundary_elements[iboundary];
       delete [] boundary_sides[iboundary];
@@ -3706,7 +3703,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    delete [] coordy;
    delete [] coordz;
 
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
       delete [] block_elements[iblock];
    }
