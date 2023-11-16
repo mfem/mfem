@@ -1907,7 +1907,7 @@ void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
 }
 
 void Mesh::AddHexAs24TetsWithPoints(int *vi,
-                                    std::map<std::array<int, 4>, int> &hex_face_to_center,
+                                    std::map<std::array<int, 4>, int> &hex_face_verts,
                                     int attr)
 {
    auto get4arraysorted = [&](Array<int> v)
@@ -1943,11 +1943,11 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi,
       int face_center_index;
 
       auto t = get4arraysorted(flist);
-      auto it = hex_face_to_center.find(t);
-      if (it == hex_face_to_center.end())
+      auto it = hex_face_verts.find(t);
+      if (it == hex_face_verts.end())
       {
          face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
-         hex_face_to_center.insert({t, face_center_index});
+         hex_face_verts.insert({t, face_center_index});
       }
       else
       {
@@ -3603,7 +3603,7 @@ void Mesh::Make2D4TrisFromQuad(int nx, int ny, double sx, double sy)
    CheckElementOrientation(true);
 
    el_to_edge = new Table;
-   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    GenerateFaces();
    CheckBdrElementOrientation();
 
@@ -3678,7 +3678,7 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
    CheckElementOrientation(true);
 
    el_to_edge = new Table;
-   NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    GenerateFaces();
    CheckBdrElementOrientation();
 
@@ -3717,7 +3717,7 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
       }
    }
 
-   std::map<std::array<int, 4>, int> hex_face_to_center;
+   std::map<std::array<int, 4>, int> hex_face_verts;
    auto VertexIndex = [nx, ny](int xc, int yc, int zc)
    {
       return xc + (yc + zc*(ny+1))*(nx+1);
@@ -3739,12 +3739,12 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
             ind[5] = VertexIndex(x+1, y  , z+1);
             ind[6] = VertexIndex(x+1, y+1, z+1);
             ind[7] = VertexIndex(  x, y+1, z+1);
-            AddHexAs24TetsWithPoints(ind, hex_face_to_center, 1);
+            AddHexAs24TetsWithPoints(ind, hex_face_verts, 1);
          }
       }
    }
 
-   hex_face_to_center.clear();
+   hex_face_verts.clear();
    CheckElementOrientation(true);
 
    // Done adding Tets
@@ -3757,7 +3757,8 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    // Map from tet face defined by three vertices to the local face number
    std::map<std::array<int, 3>, int> face_count_map;
 
-   auto get3array = [&](Array<int> v) {
+   auto get3array = [&](Array<int> v)
+   {
        v.Sort();
        return std::array<int, 3>{v[0], v[1], v[2]};
    };
@@ -3765,9 +3766,11 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    Array<int> el_faces;
    Array<int> ori;
    Array<int> vertidxs;
-   for (int i = 0; i < el_to_face->Size(); i++) {
+   for (int i = 0; i < el_to_face->Size(); i++)
+   {
        el_to_face->GetRow(i, el_faces);
-       for (int j = 0; j < el_faces.Size(); j++) {
+       for (int j = 0; j < el_faces.Size(); j++)
+       {
            GetFaceVertices(el_faces[j], vertidxs);
            auto t = get3array(vertidxs);
            auto it = tet_face_count.find(t);
