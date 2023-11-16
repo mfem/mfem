@@ -325,10 +325,8 @@ protected:
 
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
-
    /// @brief Load a mesh from a Genesis file.
-   void ReadCubit(const char *filename, int &curved, int &read_gf);
-
+   void ReadCubit(const std::string &filename, int &curved, int &read_gf);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
