@@ -16,12 +16,14 @@
 
 #ifdef MFEM_USE_STRUMPACK
 #ifdef MFEM_USE_MPI
+
 #include "operator.hpp"
 #include "hypre.hpp"
-
 #include <mpi.h>
 
+// STRUMPACK headers
 #include "StrumpackSparseSolverMPIDist.hpp"
+#include "StrumpackSparseSolverMixedPrecisionMPIDist.hpp"
 
 namespace mfem
 {
@@ -34,63 +36,80 @@ public:
        be of size (local) nrows by (global) glob_ncols. The new parallel matrix
        contains copies of all input arrays (so they can be deleted). */
    STRUMPACKRowLocMatrix(MPI_Comm comm,
-                         int num_loc_rows, int first_loc_row,
-                         int glob_nrows, int glob_ncols,
-                         int *I, int *J, double *data);
+                         int num_loc_rows, HYPRE_BigInt first_loc_row,
+                         HYPRE_BigInt glob_nrows, HYPRE_BigInt glob_ncols,
+                         int *I, HYPRE_BigInt *J, double *data,
+                         bool sym_sparse = false);
 
    /** Creates a copy of the parallel matrix hypParMat in STRUMPACK's RowLoc
        format. All data is copied so the original matrix may be deleted. */
-   STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat);
+   STRUMPACKRowLocMatrix(const Operator &op, bool sym_sparse = false);
 
    ~STRUMPACKRowLocMatrix();
 
    void Mult(const Vector &x, Vector &y) const
    {
-      mfem_error("STRUMPACKRowLocMatrix::Mult(...)\n"
-                 "  matrix vector products are not supported.");
+      MFEM_ABORT("STRUMPACKRowLocMatrix::Mult: Matrix vector products are not "
+                 "supported!");
    }
 
-   MPI_Comm GetComm() const { return comm_; }
+   MPI_Comm GetComm() const { return A_->comm(); }
 
-   strumpack::CSRMatrixMPI<double,int>* getA() const { return A_; }
+   strumpack::CSRMatrixMPI<double, HYPRE_BigInt> *GetA() const { return A_; }
 
 private:
-   MPI_Comm   comm_;
-   strumpack::CSRMatrixMPI<double,int>* A_;
-
-}; // mfem::STRUMPACKRowLocMatrix
+   strumpack::CSRMatrixMPI<double, HYPRE_BigInt> *A_;
+};
 
 /** The MFEM STRUMPACK Direct Solver class.
 
     The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
-    double precision types. See http://portal.nersc.gov/project/sparse/strumpack
+    double precision types. See
+    http://portal.nersc.gov/project/sparse/strumpack/.
 */
-class STRUMPACKSolver : public mfem::Solver
+template <typename STRUMPACKSolverType>
+class STRUMPACKSolverBase : public Solver
 {
+protected:
+   // Constructor with MPI_Comm parameter and command line arguments.
+   STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[]);
+
+   // Constructor with STRUMPACK matrix object and command line arguments.
+   STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
+
 public:
-   // Constructor with MPI_Comm parameter.
-   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
-
-   // Constructor with STRUMPACK Matrix Object.
-   STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
-
    // Default destructor.
-   ~STRUMPACKSolver( void );
+   virtual ~STRUMPACKSolverBase();
 
    // Factor and solve the linear system y = Op^{-1} x.
-   void Mult( const Vector & x, Vector & y ) const;
+   void Mult(const Vector &x, Vector &y) const;
+   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    // Set the operator.
-   void SetOperator( const Operator & op );
+   void SetOperator(const Operator &op);
 
    // Set various solver options. Refer to STRUMPACK documentation for
    // details.
-   void SetFromCommandLine( );
-   void SetPrintFactorStatistics( bool print_stat );
-   void SetPrintSolveStatistics( bool print_stat );
-   void SetRelTol( double rtol );
-   void SetAbsTol( double atol );
+   void SetFromCommandLine();
+   void SetPrintFactorStatistics(bool print_stat);
+   void SetPrintSolveStatistics(bool print_stat);
+
+   // Set tolerances and iterations for iterative solvers. Compression
+   // tolerance is handled below.
+   void SetRelTol(double rtol);
+   void SetAbsTol(double atol);
+   void SetMaxIter(int max_it);
+
+   // Set the flag controlling reuse of the symbolic factorization for multiple
+   // operators. This method has to be called before repeated calls to
+   // SetOperator.
+   void SetReorderingReuse(bool reuse);
+
+   // Enable or not GPU off-loading available if STRUMPACK was compiled with CUDA. Note
+   // that input/output from MFEM to STRUMPACK is all still through host memory.
+   void EnableGPU();
+   void DisableGPU();
 
    /**
     * STRUMPACK is an (approximate) direct solver. It can be used as a direct
@@ -100,70 +119,153 @@ public:
     * used without preconditioner.
     *
     * Supported values are:
-    *    AUTO:           Use iterative refinement if no HSS compression is used,
-    *                    otherwise use GMRes.
-    *    DIRECT:         No outer iterative solver, just a single application of
-    *                    the multifrontal solver.
-    *    REFINE:         Iterative refinement.
-    *    PREC_GMRES:     Preconditioned GMRes.
-    *                    The preconditioner is the (approx) multifrontal solver.
-    *    GMRES:          UN-preconditioned GMRes. (for testing mainly)
-    *    PREC_BICGSTAB:  Preconditioned BiCGStab.
-    *                    The preconditioner is the (approx) multifrontal solver.
+    *    AUTO:           Use iterative refinement if no HSS compression is
+    *                    used, otherwise use GMRes
+    *    DIRECT:         No outer iterative solver, just a single application
+    *                    of the multifrontal solver
+    *    REFINE:         Iterative refinement
+    *    PREC_GMRES:     Preconditioned GMRes
+    *                    The preconditioner is the (approx) multifrontal solver
+    *    GMRES:          UN-preconditioned GMRes (for testing mainly)
+    *    PREC_BICGSTAB:  Preconditioned BiCGStab
+    *                    The preconditioner is the (approx) multifrontal solver
     *    BICGSTAB:       UN-preconditioned BiCGStab. (for testing mainly)
     */
-   void SetKrylovSolver( strumpack::KrylovSolver method );
+   void SetKrylovSolver(strumpack::KrylovSolver method);
 
    /**
     * Supported reorderings are:
-    *    METIS, PARMETIS, SCOTCH, PTSCOTCH, RCM
+    *    NATURAL:    Do not reorder the system
+    *    METIS:      Use Metis nested-dissection reordering (default)
+    *    PARMETIS:   Use ParMetis nested-dissection reordering
+    *    SCOTCH:     Use Scotch nested-dissection reordering
+    *    PTSCOTCH:   Use PT-Scotch nested-dissection reordering
+    *    RCM:        Use RCM reordering
+    *    GEOMETRIC:  A simple geometric nested dissection code that
+    *                only works for regular meshes
+    *    AMD:        Approximate minimum degree
+    *    MMD:        Multiple minimum degree
+    *    AND:        Nested dissection
+    *    MLF:        Minimum local fill
+    *    SPECTRAL:   Spectral nested dissection
     */
-   void SetReorderingStrategy( strumpack::ReorderingStrategy method );
+   void SetReorderingStrategy(strumpack::ReorderingStrategy method);
 
    /**
-    * Disable static pivoting for stability. The static pivoting in strumpack
+    * Configure static pivoting for stability. The static pivoting in STRUMPACK
     * permutes the sparse input matrix in order to get large (nonzero) elements
     * on the diagonal. If the input matrix is already diagonally dominant, this
     * reordering can be disabled.
+    *
+    * Supported matching algorithms are:
+    *    NONE:                          Don't do anything
+    *    MAX_CARDINALITY:               Maximum cardinality
+    *    MAX_SMALLEST_DIAGONAL:         Maximum smallest diagonal value
+    *    MAX_SMALLEST_DIAGONAL_2:       Same as MAX_SMALLEST_DIAGONAL
+    *                                   but different algorithm
+    *    MAX_DIAGONAL_SUM:              Maximum sum of diagonal values
+    *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximum product of diagonal values
+    *                                   and row and column scaling (default)
+    *    COMBBLAS:                      Use AWPM from CombBLAS (only with
+    *                                   version >= 3)
     */
-   void DisableMatching();
+   void SetMatching(strumpack::MatchingJob job);
 
    /**
-    * Enable static pivoting for stability using the MC64 algorithm with
-    * job=5. Using a matching algorithm, this will permute the sparse input
-    * matrix in order to get nonzero elements (as large as possible) on the
-    * diagonal. And will also scale the rows and columns of the matrix.
+    * Enable support for rank-structured data formats, which can be used
+    * for compression within the sparse solver.
+    *
+    * Supported compression types are:
+    *    NONE:           No compression, purely direct solver (default)
+    *    HSS:            HSS compression of frontal matrices
+    *    BLR:            Block low-rank compression of fronts
+    *    HODLR:          Hierarchically Off-diagonal Low-Rank
+    *                    compression of frontal matrices
+    *    BLR_HODLR:      Block low-rank compression of medium
+    *                    fronts and Hierarchically Off-diagonal
+    *                    Low-Rank compression of large fronts
+    *    ZFP_BLR_HODLR:  ZFP compression for small fronts,
+    *                    Block low-rank compression of medium
+    *                    fronts and Hierarchically Off-diagonal
+    *                    Low-Rank compression of large fronts
+    *    LOSSLESS:       Lossless compression
+    *    LOSSY:          Lossy compression
+    *
+    * For versions of STRUMPACK < 5, we support only NONE, HSS, and BLR.
+    * BLR_HODLR and ZPR_BLR_HODLR are supported in STRUMPACK >= 6.
     */
-   void EnableMatching();
-
-#if STRUMPACK_VERSION_MAJOR >= 3
-   /**
-    * Use the AWPM (approximate weight perfect matching) algorithm from the
-    * Combinatorial BLAS library for static pivoting, i.e. getting large
-    * nonzeros on the diagonal. This requires that strumpack was compiled with
-    * support for Combinatorial BLAS.
-    */
-   void EnableParallelMatching();
+   void SetCompression(strumpack::CompressionType type);
+   void SetCompressionRelTol(double rtol);
+   void SetCompressionAbsTol(double atol);
+#if STRUMPACK_VERSION_MAJOR >= 5
+   void SetCompressionLossyPrecision(int precision);
+   void SetCompressionButterflyLevels(int levels);
 #endif
 
 private:
-   void Init( int argc, char* argv[] );
+   // Helper method for calling the STRUMPACK factoriation routine.
+   void FactorInternal() const;
 
 protected:
-
-   MPI_Comm      comm_;
-   int           numProcs_;
-   int           myid_;
+   const STRUMPACKRowLocMatrix *APtr_;
+   STRUMPACKSolverType         *solver_;
 
    bool factor_verbose_;
    bool solve_verbose_;
+   bool reorder_reuse_;
 
-   const STRUMPACKRowLocMatrix * APtr_;
-   strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;
+   mutable Vector rhs_, sol_;
+   mutable int    nrhs_;
+};
 
-}; // mfem::STRUMPACKSolver class
+class STRUMPACKSolver :
+   public STRUMPACKSolverBase<strumpack::
+   SparseSolverMPIDist<double, HYPRE_BigInt>>
+{
+public:
+   // Constructor with MPI_Comm parameter.
+   STRUMPACKSolver(MPI_Comm comm);
 
-} // mfem namespace
+   // Constructor with STRUMPACK matrix object.
+   STRUMPACKSolver(STRUMPACKRowLocMatrix &A);
+
+   // Constructor with MPI_Comm parameter and command line arguments.
+   STRUMPACKSolver(MPI_Comm comm, int argc, char *argv[]);
+   MFEM_DEPRECATED STRUMPACKSolver(int argc, char *argv[], MPI_Comm comm)
+      : STRUMPACKSolver(comm, argc, argv) {}
+
+   // Constructor with STRUMPACK matrix object and command line arguments.
+   STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
+
+   // Destructor.
+   ~STRUMPACKSolver() {}
+};
+
+#if STRUMPACK_VERSION_MAJOR >= 7
+class STRUMPACKMixedPrecisionSolver :
+   public STRUMPACKSolverBase<strumpack::
+   SparseSolverMixedPrecisionMPIDist<float, double, HYPRE_BigInt>>
+{
+public:
+   // Constructor with MPI_Comm parameter.
+   STRUMPACKMixedPrecisionSolver(MPI_Comm comm);
+
+   // Constructor with STRUMPACK matrix object.
+   STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A);
+
+   // Constructor with MPI_Comm parameter and command line arguments.
+   STRUMPACKMixedPrecisionSolver(MPI_Comm comm, int argc, char *argv[]);
+
+   // Constructor with STRUMPACK matrix object and command line arguments.
+   STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A,
+                                 int argc, char *argv[]);
+
+   // Destructor.
+   ~STRUMPACKMixedPrecisionSolver() {}
+};
+#endif
+
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_STRUMPACK
