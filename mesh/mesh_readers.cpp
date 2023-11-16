@@ -3480,7 +3480,7 @@ void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 }  // namespace cubit.
 
 
-void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
+void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
    using namespace cubit;
 
@@ -3493,7 +3493,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Open the file.
    int netcdf_status, netcdf_descriptor;
 
-   netcdf_status = nc_open(filename, NC_NOWRITE, &netcdf_descriptor);
+   netcdf_status = nc_open(filename.c_str(), NC_NOWRITE, &netcdf_descriptor);
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 
    // Read important dimensions from file.
