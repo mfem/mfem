@@ -1644,19 +1644,19 @@ void Mesh::AddVertexParents(int i, int p1, int p2)
    }
 }
 
-int Mesh::AddVertexAtMidPoint(const Array<int> &plist, int dim)
+int Mesh::AddVertexAtMeanCenter(const int *vi, int nverts, int dim)
 {
    Vector vii(dim);
    vii = 0.0;
-   for (int i = 0; i < plist.Size(); i++)
+   for (int i = 0; i < nverts; i++)
    {
-      double *vp = vertices[plist[i]]();
+      double *vp = vertices[vi[i]]();
       for (int j = 0; j < dim; j++)
       {
          vii(j) += vp[j];
       }
    }
-   vii /= plist.Size();
+   vii /= nverts;
    AddVertex(vii);
    return NumOfVertices;
 }
@@ -1831,8 +1831,8 @@ void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
    {
       {0, 1}, {1, 2}, {2, 3}, {3, 0}
    };
-   Array<int> plist(vi, 4);
-   int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
+
+   int elem_center_index = AddVertexAtMeanCenter(vi, 4, 2) - 1;
 
    int ti[3];
    ti[2] = elem_center_index;
@@ -1923,8 +1923,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi,
       { 0, 1, 5, 4 }, { 2, 3, 7, 6 }, { 0,3, 7, 4}
    };
 
-   Array<int> plist(vi, 8);
-   int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
+   int elem_center_index = AddVertexAtMeanCenter(vi, 8, 3) - 1;
 
    Array<int> flist(4);
 
@@ -1946,7 +1945,8 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi,
       auto it = hex_face_verts.find(t);
       if (it == hex_face_verts.end())
       {
-         face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
+         face_center_index = AddVertexAtMeanCenter(flist.GetData(),
+                                                   flist.Size(), 3) - 1;
          hex_face_verts.insert({t, face_center_index});
       }
       else
