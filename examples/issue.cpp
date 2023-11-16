@@ -319,19 +319,30 @@ int main(int argc, char *argv[])
    VectorConstantCoefficient output_d_cf(output_direction), input_d_cf(input_direction);
    for(int i=0; i<10; i++)
    {
-      LinearForm b(&fes);
       // Expected output for each iteration:
+      // BdrType::Input (p+1)*dim LHSFace
+      // BdrType::Output (p+1)*dim LHSFace
       // BdrType::Input (p+1)*dim RHSFace
       // BdrType::Output (p+1)*dim RHSFace
       // 
       // When p = 1 and dim = 2,
+      // 4 4 LHSFace
+      // 5 4 LHSFace
       // 4 4 RHSFace
       // 5 4 RHSFace
       // 
       out << i << std::endl;
-      b.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(output_d_cf, output_d_cf), output_bdr);
+
+      LinearForm b(&fes);
       b.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(input_d_cf, input_d_cf), input_bdr);
+      b.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(output_d_cf, output_d_cf), output_bdr);
       b.Assemble();
+      
+      BilinearForm a(&fes);
+      a.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(input_spring, input_d_cf), input_bdr);
+      a.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(output_spring, output_d_cf), output_bdr);
+      a.Assemble();
+      
       out << std::endl;
    }
 }
