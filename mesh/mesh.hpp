@@ -849,7 +849,6 @@ public:
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
    int AddVertexAtMidPoint(const Array<int> &list, int dim = 3);
-   int AddVertexAtMidPoint(const int *vi, int nverts, int dim = 3);
 
    int AddSegment(int v1, int v2, int attr = 1);
    int AddSegment(const int *vi, int attr = 1);

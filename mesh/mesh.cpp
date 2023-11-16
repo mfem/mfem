@@ -1661,23 +1661,6 @@ int Mesh::AddVertexAtMidPoint(const Array<int> &plist, int dim)
    return NumOfVertices;
 }
 
-int Mesh::AddVertexAtMidPoint(const int *vi, int nverts, int dim)
-{
-   Vector vii(dim);
-   vii = 0.0;
-   for (int i = 0; i < nverts; i++)
-   {
-      double *vp = vertices[vi[i]]();
-      for (int j = 0; j < dim; j++)
-      {
-         vii(j) += vp[j];
-      }
-   }
-   vii /= nverts;
-   AddVertex(vii);
-   return NumOfVertices;
-}
-
 int Mesh::AddSegment(int v1, int v2, int attr)
 {
    CheckEnlarge(elements, NumOfElements);
