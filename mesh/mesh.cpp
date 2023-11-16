@@ -4208,7 +4208,7 @@ Mesh Mesh::MakeCartesian3DWith24TetsPerHex(int nx, int ny, int nz,
 {
    Mesh mesh;
    mesh.Make3D24TetsFromHex(nx, ny, nz, sx, sy, sz);
-   mesh.Finalize(false, false); // refine = true
+   mesh.Finalize(false, false);
    return mesh;
 }
 
