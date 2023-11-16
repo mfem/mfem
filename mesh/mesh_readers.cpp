@@ -3038,8 +3038,8 @@ static void ReadCubitDimensions(const int netcdf_descriptor,
 static void ReadCubitBoundaries(const int netcdf_descriptor,
                                 const int num_boundaries,
                                 vector<size_t> &num_boundary_elements,
-                                vector<vector<int>> boundary_elements,
-                                vector<vector<int>> boundary_sides)
+                                vector<vector<int>> &boundary_elements,
+                                vector<vector<int>> &boundary_sides)
 {
    int netcdf_status, variable_id;
 
