@@ -1041,8 +1041,8 @@ public:
          ess_tdof_list.Append(ess_tdof_list_comp);
       }
 #endif
-      b->Assemble();
       a->Assemble();
+      b->Assemble();
 
       a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B, true);
 
