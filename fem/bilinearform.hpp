@@ -75,11 +75,14 @@ protected:
 
    /// The ::AssemblyLevel of the form (LEGACY, FULL, ELEMENT, PARTIAL)
    AssemblyLevel assembly;
+
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;
+
    /** @brief Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
+
    /** Indicates if the sparse matrix is sorted after assembly when using
        Full Assembly (FA). */
    bool sort_sparse_matrix = false;
@@ -95,6 +98,7 @@ protected:
 
    /// Set of Domain Integrators to be applied.
    Array<BilinearFormIntegrator*> domain_integs;
+
    /// Element attribute marker (should be of length mesh->attributes.Max() or
    /// 0 if mesh->attributes is empty)
    /// Includes all by default.
@@ -334,11 +338,13 @@ public:
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is LEGACY.
+    * 
        THe matrix that gets finalized is different if you are using static condensation
        or hybridization.*/
    virtual void Finalize(int skip_zeros = 1);
 
    /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+    * 
        This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
@@ -347,6 +353,7 @@ public:
    }
 
    /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+    * 
        This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
@@ -355,6 +362,7 @@ public:
    }
 
    /** @brief Returns true if the sparse matrix is not null, false otherwise.
+    * 
        @sa SpMat(). */
    bool HasSpMat()
    {
@@ -368,6 +376,7 @@ public:
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
        \f$ M_e \f$
+
        This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
@@ -377,6 +386,7 @@ public:
 
    /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
        \f$ M_e \f$
+
        This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
@@ -386,6 +396,7 @@ public:
 
    /**  @brief Returns true if the sparse matrix of eliminated b.c.s is not null,
         false otherwise.
+
         @sa SpMatElim(). */
    bool HasSpMatElim()
    {
@@ -394,6 +405,7 @@ public:
 
    /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+
    /// Adds new Domain Integrator restricted to certain elements specified by
    /// the @a elem_attr_marker.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi,
@@ -404,6 +416,7 @@ public:
 
    /** @brief Adds new Boundary Integrator, restricted to specific boundary
        attributes.
+
        Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
        as a pointer to the given Array<int> object. */
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
@@ -417,6 +430,7 @@ public:
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
        attributes.
+
        Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
        as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
@@ -434,6 +448,7 @@ public:
 
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a tdof Vector.
+
        When the AssemblyLevel is not LEGACY, and the mesh has hanging nodes,
        this method returns |P^T| d_l, where d_l is the diagonal of the form
        before applying conforming assembly, P^T is the transpose of the
@@ -445,18 +460,23 @@ public:
    /// Get the finite element space prolongation operator.
    virtual const Operator *GetProlongation() const
    { return fes->GetConformingProlongation(); }
+
    /// Get the finite element space restriction operator
    virtual const Operator *GetRestriction() const
    { return fes->GetConformingRestriction(); }
+
    /// Get the output finite element space prolongation matrix
    virtual const Operator *GetOutputProlongation() const
    { return GetProlongation(); }
+
    /** @brief Returns the output fe space restriction matrix, transposed
+     
        Logically, this is the transpose of GetOutputRestriction, but in
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
    virtual const Operator *GetOutputRestrictionTranspose() const
    { return fes->GetRestrictionTransposeOperator(); }
+
    /// Get the output finite element space restriction matrix
    virtual const Operator *GetOutputRestriction() const
    { return GetRestriction(); }
@@ -662,6 +682,7 @@ public:
 
    /// Return the FE space associated with the BilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
+
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
@@ -677,7 +698,7 @@ public:
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; }
 
-   /// Destroys bilinear form.
+   /// Deletes internal matrices, bilinear integrators, and the BilinearFormExtension
    virtual ~BilinearForm();
 };
 
@@ -820,6 +841,7 @@ public:
                                Array<int> &bdr_marker);
 
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
        This type of integrator assembles terms over all faces of the mesh using
        the face FE from the trial space and the two adjacent volume FEs from the
        test space. */
@@ -837,7 +859,9 @@ public:
 
    /// Access all integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &boundary_integs; }
+
    /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBBFI_Marker() { return &boundary_integs_marker; }
@@ -850,6 +874,7 @@ public:
    { return &boundary_trace_face_integs; }
 
    /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
+
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBTFBFI_Marker()
@@ -931,18 +956,28 @@ public:
        element @a i, i.e. added to the system matrix. The vdofs of the element
        are returned in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros
        skips the zero elements of the matrix, unless they are breaking the
-       symmetry of the system matrix.
-   */
+       symmetry of the system matrix.*/
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &trial_vdofs, Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
+   /// Eliminate essential boundary DOFs from the columns of the system.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary.  All entries in the columns will be
+       set to 0.0 through elimination.*/
    void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
 
+   /// Eliminate the list of DOFs from the columns of the system.
+   /** @a marked_vdofs is the of colunm numbers that will be eliminated.  All
+       entries in the columns will be set to 0.0 through elimination.*/
    void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
+   /// Eliminate essential boundary DOFs from the rows of the system.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary.  All entries in the rows will be
+       set to 0.0 through elimination.*/
    virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
 
    /** @brief Return in @a A that is column-constrained.
@@ -954,7 +989,7 @@ public:
                                             OperatorHandle &A);
 
    /** @brief Form the column-constrained linear system matrix A.
-       See FormRectangularSystemMatrix() for details.
+
        Version of the method FormRectangularSystemMatrix() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
@@ -985,6 +1020,7 @@ public:
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.).
+
        Version of the method FormRectangularLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
@@ -1003,6 +1039,7 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   /// Must be called after making changes to trial_fes or test_fes.
    void Update();
 
    /// Return the trial FE space associated with the BilinearForm.
@@ -1017,6 +1054,7 @@ public:
    /// Read-only access to the associated test FiniteElementSpace.
    const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
+   /// Deletes internal matrices, bilinear integrators, and the BilinearFormExtension
    virtual ~MixedBilinearForm();
 };
 
