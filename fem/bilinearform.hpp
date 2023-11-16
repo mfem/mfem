@@ -338,13 +338,13 @@ public:
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is LEGACY.
-    * 
+    *
        THe matrix that gets finalized is different if you are using static condensation
        or hybridization.*/
    virtual void Finalize(int skip_zeros = 1);
 
    /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
-    * 
+    *
        This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
@@ -353,7 +353,7 @@ public:
    }
 
    /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
-    * 
+    *
        This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
@@ -362,7 +362,7 @@ public:
    }
 
    /** @brief Returns true if the sparse matrix is not null, false otherwise.
-    * 
+    *
        @sa SpMat(). */
    bool HasSpMat()
    {
@@ -470,7 +470,7 @@ public:
    { return GetProlongation(); }
 
    /** @brief Returns the output fe space restriction matrix, transposed
-     
+
        Logically, this is the transpose of GetOutputRestriction, but in
        practice it is convenient to have it in transposed form for
        construction of RAP operators in matrix-free methods. */
