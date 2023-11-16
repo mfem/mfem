@@ -27,6 +27,7 @@
 #include "../general/adios2stream.hpp"
 #endif
 #include <iostream>
+#include <array>
 
 namespace mfem
 {
@@ -727,28 +728,28 @@ public:
       double sx = 1.0, double sy = 1.0, double sz = 1.0,
       bool sfc_ordering = true);
 
-   /** Creates a Tet mesh by splitting each hex in inline-hex mesh into
-       24 (type = 2) tets. Each face of the hex is split into 4 triangle
-       (face edges are connected to a face-centered point), and the triangles
-       are connected to a hex-centered point.
+   /** Creates a Tet mesh by splitting each hexahedron in the inline-hex mesh
+       into 24 tetrahedrons. Each face of the hexahedron is split into 4
+       triangles (face edges are connected to a face-centered point), and the
+       triangles are connected to a hex-centered point.
    */
    static Mesh MakeCartesian3DWith24TetsPerHex(int nx, int ny, int nz,
                                                double sx = 1.0, double sy = 1.0,
                                                double sz = 1.0);
 
-   /** Creates a triangle mesh by splitting each quad in inline-quad mesh
-       into 4 triangles. Each corner is connected to the element center to
-       form 4 triangles.
+   /** Creates a triangle mesh by splitting each quadrilateral in the
+       inline-quad mesh into 4 triangles. Each corner is connected to the
+       element center to form 4 triangles.
    */
-   static Mesh MakeCartesian2DWith4TrisPerQuad(int nx, int ny,
-                                               double sx, double sy);
+   static Mesh MakeCartesian2DWith4TrisPerQuad(int nx, int ny, double sx = 1.0,
+                                               double sy = 1.0);
 
-   /** Creates a quad mesh by splitting each quad in inline-quad mesh
-       into 5 Quads. Each Quad is Projected inwards and connected to the
-       original quad.
+   /** Creates a quadrilateral mesh by splitting each quadrilateral in
+       inline-quad mesh into 5 quadrilaterals. Each quadrilateral is projected
+       inwards and connected to the original quadrilateral.
    */
-   static Mesh MakeCartesian2DWith5QuadsPerQuad(int nx, int ny,
-                                                double sx, double sy);
+   static Mesh MakeCartesian2DWith5QuadsPerQuad(int nx, int ny, double sx = 1.0,
+                                                double sy = 1.0);
 
 
    /// Create a refined (by any factor) version of @a orig_mesh.
@@ -818,7 +819,8 @@ public:
    int AddVertex(const Vector &coords);
    /// Mark vertex @a i as nonconforming, with parent vertices @a p1 and @a p2.
    void AddVertexParents(int i, int p1, int p2);
-   int AddVertexAtMidPoint(Array<int> list, int dim = 3);
+   int AddVertexAtMidPoint(const Array<int> &list, int dim = 3);
+   int AddVertexAtMidPoint(const int *vi, int nverts, int dim = 3);
 
    int AddSegment(int v1, int v2, int attr = 1);
    int AddSegment(const int *vi, int attr = 1);
@@ -846,7 +848,7 @@ public:
    void AddHexAsWedges(const int *vi, int attr = 1);
    void AddHexAsPyramids(const int *vi, int attr = 1);
    void AddHexAs24TetsWithPoints(int *vi,
-                                 std::map<std::tuple<int, int, int, int>, int>
+                                 std::map<std::array<int, 4>, int>
                                  &hex_face_to_center,
                                  int attr = 1);
    void AddQuadAs4TrisWithPoints(int *vi, int attr = 1);

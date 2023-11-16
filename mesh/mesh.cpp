@@ -31,6 +31,7 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <array>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -1663,7 +1664,7 @@ void Mesh::AddVertexParents(int i, int p1, int p2)
    }
 }
 
-int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
+int Mesh::AddVertexAtMidPoint(const Array<int> &plist, int dim)
 {
    Vector vii(dim);
    vii = 0.0;
@@ -1675,8 +1676,25 @@ int Mesh::AddVertexAtMidPoint(Array<int> plist, int dim)
          vii(j) += vp[j];
       }
    }
-   vii *= 1.0/plist.Size();
-   AddVertex(vii.GetData());
+   vii /= plist.Size();
+   AddVertex(vii);
+   return NumOfVertices;
+}
+
+int Mesh::AddVertexAtMidPoint(const int *vi, int nverts, int dim)
+{
+   Vector vii(dim);
+   vii = 0.0;
+   for (int i = 0; i < nverts; i++)
+   {
+      double *vp = vertices[vi[i]]();
+      for (int j = 0; j < dim; j++)
+      {
+         vii(j) += vp[j];
+      }
+   }
+   vii /= nverts;
+   AddVertex(vii);
    return NumOfVertices;
 }
 
@@ -1848,19 +1866,19 @@ void Mesh::AddQuadAs4TrisWithPoints(int *vi, int attr)
    int num_faces = 4;
    static const int quad_to_tri[4][2] =
    {
-      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+      {0, 1}, {1, 2}, {2, 3}, {3, 0}
    };
    Array<int> plist(vi, 4);
    int elem_center_index = AddVertexAtMidPoint(plist, 2) - 1;
 
    int ti[3];
+   ti[2] = elem_center_index;
    for (int i = 0; i < num_faces; i++)
    {
       for (int j = 0; j < 2; j++)
       {
          ti[j] = vi[quad_to_tri[i][j]];
       }
-      ti[2] = elem_center_index;
       AddTri(ti, attr);
    }
 }
@@ -1870,14 +1888,13 @@ void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
    int num_faces = 4;
    static const int quad_faces[4][2] =
    {
-      { 0, 1}, { 1, 2}, { 2, 3}, { 3, 0}
+      {0, 1}, {1, 2}, {2, 3}, {3, 0}
    };
 
    Vector px(4), py(4);
-   Array<int> plist(vi, 4);
    for (int i = 0; i < 4; i++)
    {
-      double *vp = vertices[plist[i]]();
+      double *vp = vertices[vi[i]]();
       px(i) = vp[0];
       py(i) = vp[1];
    }
@@ -1927,24 +1944,28 @@ void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
 }
 
 void Mesh::AddHexAs24TetsWithPoints(int *vi,
-                                    std::map<std::tuple<int, int, int, int>, int> &hex_face_to_center,
+                                    std::map<std::array<int, 4>, int> &hex_face_to_center,
                                     int attr)
 {
-   auto get4tuple = [&](Array<int> v)
+   auto get4arraysorted = [&](Array<int> v)
    {
-      return std::tuple<int, int, int, int>(v[0], v[1], v[2], v[3]);
+      v.Sort();
+      return std::array<int, 4> {v[0], v[1], v[2], v[3]};
    };
+
    int num_faces = 6;
    static const int hex_to_tet[6][4] =
    {
       { 0, 1, 2, 3 }, { 1, 2, 6, 5 }, { 5, 4, 7, 6},
       { 0, 1, 5, 4 }, { 2, 3, 7, 6 }, { 0,3, 7, 4}
    };
-   int ti[4];
+
    Array<int> plist(vi, 8);
    int elem_center_index = AddVertexAtMidPoint(plist, 3) - 1;
-   Array<int> flist(&ti[0], 4);
 
+   Array<int> flist(4);
+
+   // local vertex indices for each of the 4 edges of the face
    static const int tet_face[4][2] =
    {
       {0, 1}, {1, 2}, {3, 2}, {3, 0}
@@ -1954,32 +1975,30 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi,
    {
       for (int j = 0; j < 4; j++)
       {
-         ti[j] = vi[hex_to_tet[i][j]];
+         flist[j] = vi[hex_to_tet[i][j]];
       }
       int face_center_index;
-      Array<int> flistcopy(flist);
-      flistcopy.Sort();
-      auto t = get4tuple(flistcopy);
+
+      auto t = get4arraysorted(flist);
       auto it = hex_face_to_center.find(t);
       if (it == hex_face_to_center.end())
       {
          face_center_index = AddVertexAtMidPoint(flist, 3) - 1;
-         hex_face_to_center.insert((std::pair<std::tuple<int, int, int, int>,int>
-                                    (t, face_center_index)));
+         hex_face_to_center.insert({t, face_center_index});
       }
       else
       {
          face_center_index = it->second;
       }
       int fti[4];
+      fti[2] = face_center_index;
+      fti[3] = elem_center_index;
       for (int j = 0; j < 4; j++)
       {
          for (int k = 0; k < 2; k++)
          {
-            fti[k] = ti[tet_face[j][k]];
+            fti[k] = flist[tet_face[j][k]];
          }
-         fti[2] = face_center_index;
-         fti[3] = elem_center_index;
          AddTet(fti, attr);
       }
    }
@@ -3325,10 +3344,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          coord[2] = (((double) z + 0.5) / nz) * sz;
          for (y = 0; y < ny; y++)
          {
-            coord[1] = (((double) y + 0.5 ) / ny) * sy;
+            coord[1] = (((double) y + 0.5) / ny) * sy;
             for (x = 0; x < nx; x++)
             {
-               coord[0] = (((double) x + 0.5 ) / nx) * sx;
+               coord[0] = (((double) x + 0.5) / nx) * sx;
                AddVertex(coord);
             }
          }
@@ -3562,25 +3581,23 @@ void Mesh::Make2D4TrisFromQuad(int nx, int ny, double sx, double sy)
    Dim = 2;
    spaceDim = 2;
 
-   int i, j, k;
    NumOfVertices = (nx+1) * (ny+1);
    NumOfElements = nx * ny * 4;
-   NumOfBdrElements =  (2 * nx + 2 * ny );
+   NumOfBdrElements =  (2 * nx + 2 * ny);
    vertices.SetSize(NumOfVertices);
    elements.SetSize(NumOfElements);
    boundary.SetSize(NumOfBdrElements);
    NumOfElements = 0;
-   int x, y;
 
    double cx, cy;
    int ind[4];
 
    // Sets vertices and the corresponding coordinates
-   k = 0;
-   for (j = 0; j < ny+1; j++)
+   int k = 0;
+   for (int j = 0; j < ny+1; j++)
    {
       cy = ((double) j / ny) * sy;
-      for (i = 0; i < nx+1; i++)
+      for (int i = 0; i < nx+1; i++)
       {
          cx = ((double) i / nx) * sx;
          vertices[k](0) = cx;
@@ -3589,9 +3606,9 @@ void Mesh::Make2D4TrisFromQuad(int nx, int ny, double sx, double sy)
       }
    }
 
-   for (y = 0; y < ny; y++)
+   for (int y = 0; y < ny; y++)
    {
-      for (x = 0; x < nx; x++)
+      for (int x = 0; x < nx; x++)
       {
          ind[0] = x + y*(nx+1);
          ind[1] = x + 1 +y*(nx+1);
@@ -3602,13 +3619,13 @@ void Mesh::Make2D4TrisFromQuad(int nx, int ny, double sx, double sy)
    }
 
    int m = (nx+1)*ny;
-   for (i = 0; i < nx; i++)
+   for (int i = 0; i < nx; i++)
    {
       boundary[i] = new Segment(i, i+1, 1);
       boundary[nx+i] = new Segment(m+i+1, m+i, 3);
    }
    m = nx+1;
-   for (j = 0; j < ny; j++)
+   for (int j = 0; j < ny; j++)
    {
       boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
       boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
@@ -3639,25 +3656,23 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
    Dim = 2;
    spaceDim = 2;
 
-   int i, j, k;
    NumOfElements = nx * ny * 5;
    NumOfVertices = (nx+1) * (ny+1); //it will be enlarged later on
-   NumOfBdrElements =  (2 * nx + 2 * ny );
+   NumOfBdrElements =  (2 * nx + 2 * ny);
    vertices.SetSize(NumOfVertices);
    elements.SetSize(NumOfElements);
    boundary.SetSize(NumOfBdrElements);
    NumOfElements = 0;
-   int x, y;
 
    double cx, cy;
    int ind[4];
 
    // Sets vertices and the corresponding coordinates
-   k = 0;
-   for (j = 0; j < ny+1; j++)
+   int k = 0;
+   for (int j = 0; j < ny+1; j++)
    {
       cy = ((double) j / ny) * sy;
-      for (i = 0; i < nx+1; i++)
+      for (int i = 0; i < nx+1; i++)
       {
          cx = ((double) i / nx) * sx;
          vertices[k](0) = cx;
@@ -3666,9 +3681,9 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
       }
    }
 
-   for (y = 0; y < ny; y++)
+   for (int y = 0; y < ny; y++)
    {
-      for (x = 0; x < nx; x++)
+      for (int x = 0; x < nx; x++)
       {
          ind[0] = x + y*(nx+1);
          ind[1] = x + 1 +y*(nx+1);
@@ -3679,13 +3694,13 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
    }
 
    int m = (nx+1)*ny;
-   for (i = 0; i < nx; i++)
+   for (int i = 0; i < nx; i++)
    {
       boundary[i] = new Segment(i, i+1, 1);
       boundary[nx+i] = new Segment(m+i+1, m+i, 3);
    }
    m = nx+1;
-   for (j = 0; j < ny; j++)
+   for (int j = 0; j < ny; j++)
    {
       boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
       boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
@@ -3711,27 +3726,22 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
 void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
                                double sx, double sy, double sz)
 {
-   int NVert, NElem, NBdrElem;
-   NVert = (nx+1) * (ny+1) * (nz+1);
-   NElem = nx * ny * nz;
-   NBdrElem = 2*(nx*ny+nx*nz+ny*nz);
-   int x, y, z;
-   NElem *= 24;
-   NBdrElem *= 4;
+   const int NVert = (nx+1) * (ny+1) * (nz+1);
+   const int NElem = nx * ny * nz * 24;
+   const int NBdrElem = 2*(nx*ny+nx*nz+ny*nz)*4;
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
    double coord[3];
-   int ind[9];
 
    // Sets vertices and the corresponding coordinates
-   for (z = 0; z <= nz; z++)
+   for (int z = 0; z <= nz; z++)
    {
       coord[2] = ((double) z / nz) * sz;
-      for (y = 0; y <= ny; y++)
+      for (int y = 0; y <= ny; y++)
       {
          coord[1] = ((double) y / ny) * sy;
-         for (x = 0; x <= nx; x++)
+         for (int x = 0; x <= nx; x++)
          {
             coord[0] = ((double) x / nx) * sx;
             AddVertex(coord);
@@ -3739,23 +3749,28 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
       }
    }
 
-   std::map<std::tuple<int, int, int, int>, int> hex_face_to_center;
-#define VTX(XC, YC, ZC) ((XC)+((YC)+(ZC)*(ny+1))*(nx+1))
-   for (z = 0; z < nz; z++)
+   std::map<std::array<int, 4>, int> hex_face_to_center;
+   auto VertexIndex = [nx, ny](int xc, int yc, int zc)
    {
-      for (y = 0; y < ny; y++)
+      return xc + (yc + zc*(ny+1))*(nx+1);
+   };
+
+   int ind[9];
+   for (int z = 0; z < nz; z++)
+   {
+      for (int y = 0; y < ny; y++)
       {
-         for (x = 0; x < nx; x++)
+         for (int x = 0; x < nx; x++)
          {
             // *INDENT-OFF*
-            ind[0] = VTX(x  , y  , z  );
-            ind[1] = VTX(x+1, y  , z  );
-            ind[2] = VTX(x+1, y+1, z  );
-            ind[3] = VTX(x  , y+1, z  );
-            ind[4] = VTX(x  , y  , z+1);
-            ind[5] = VTX(x+1, y  , z+1);
-            ind[6] = VTX(x+1, y+1, z+1);
-            ind[7] = VTX(  x, y+1, z+1);
+            ind[0] = VertexIndex(x  , y  , z  );
+            ind[1] = VertexIndex(x+1, y  , z  );
+            ind[2] = VertexIndex(x+1, y+1, z  );
+            ind[3] = VertexIndex(x  , y+1, z  );
+            ind[4] = VertexIndex(x  , y  , z+1);
+            ind[5] = VertexIndex(x+1, y  , z+1);
+            ind[6] = VertexIndex(x+1, y+1, z+1);
+            ind[7] = VertexIndex(  x, y+1, z+1);
             AddHexAs24TetsWithPoints(ind, hex_face_to_center, 1);
          }
       }
@@ -3769,11 +3784,14 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    GetElementToFaceTable(false);
    GenerateFaces();
 
-   std::map<std::tuple<int, int, int>, int> edgemap;
-   std::map<std::tuple<int, int, int>, int> face_count_map;
+   // Map to count number of tets sharing a face
+   std::map<std::array<int, 3>, int> tet_face_count;
+   // Map from tet face defined by three vertices to the local face number
+   std::map<std::array<int, 3>, int> face_count_map;
 
-   auto get3tuple = [&](Array<int> v) {
-       return std::tuple<int, int, int>(v[0], v[1], v[2]);
+   auto get3array = [&](Array<int> v) {
+       v.Sort();
+       return std::array<int, 3>{v[0], v[1], v[2]};
    };
 
    Array<int> el_faces;
@@ -3781,34 +3799,31 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    Array<int> vertidxs;
    for (int i = 0; i < el_to_face->Size(); i++) {
        el_to_face->GetRow(i, el_faces);
-       for (int j = 0; j < el_faces.Size(); j++)
-       {
+       for (int j = 0; j < el_faces.Size(); j++) {
            GetFaceVertices(el_faces[j], vertidxs);
-           vertidxs.Sort();
-           auto t = get3tuple(vertidxs);
-           auto it = edgemap.find(t);
-           if (it == edgemap.end()) { //edge does not already exist
-               edgemap.insert(std::pair<std::tuple<int, int, int>,int>
-                              (t, 1));
-               face_count_map.insert(std::pair<std::tuple<int, int, int>,int>
-                                     (t, el_faces[j]));
+           auto t = get3array(vertidxs);
+           auto it = tet_face_count.find(t);
+           if (it == tet_face_count.end())  //edge does not already exist
+           {
+               tet_face_count.insert({t, 1});
+               face_count_map.insert({t, el_faces[j]});
            }
-           else {
-               it->second++; //increase edge count value by 1.
+           else
+           {
+               it->second++; // increase edge count value by 1.
            }
        }
    }
 
-   for(auto it = edgemap.cbegin(); it != edgemap.cend(); ++it)
+   for (const auto &edge : tet_face_count)
    {
-       if (it->second == 1) { //if this only appears once, it is a boundary edge
-           int facenum = (face_count_map.find(it->first))->second;
+       if (edge.second == 1)  //if this only appears once, it is a boundary edge
+       {
+           int facenum = (face_count_map.find(edge.first))->second;
            GetFaceVertices(facenum, vertidxs);
            AddBdrTriangle(vertidxs, 1);
        }
    }
-
-#undef VTX
 
 #if 0
    ofstream test_stream("debug.mesh");
@@ -5810,7 +5825,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 
       Array<int> edge0, edge1;
       int flip = 1;
-      if (Dimension() == 2 )
+      if (Dimension() == 2)
       {
          edge0.SetSize(2);
          edge1.SetSize(2);
@@ -5819,7 +5834,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
          edge0[1] = 1; edge1[1] = 3;
          flip = 1;
       }
-      else if (Dimension() == 3 )
+      else if (Dimension() == 3)
       {
          edge0.SetSize(9);
          edge1.SetSize(9);
@@ -5937,7 +5952,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
       while (corrections > 0 && passes < GetNE() + 1);
 
       // Check the validity of corrections applied
-      if (corrections > 0 )
+      if (corrections > 0)
       {
          mfem::err<<"Edge_to_knot mapping potentially incorrect"<<endl;
          mfem::err<<"  passes      = "<<passes<<endl;
@@ -6143,7 +6158,7 @@ int Mesh::GetNFbyType(FaceType type) const
       for (int f = 0; f < GetNumFacesWithGhost(); ++f)
       {
          FaceInformation face = GetFaceInformation(f);
-         if ( face.IsOfFaceType(type) )
+         if (face.IsOfFaceType(type))
          {
             if (face.IsNonconformingCoarse())
             {
@@ -7342,11 +7357,11 @@ void Mesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
                   << " and " << el << ".");
       int *v = faces[gf]->GetVertices();
       faces_info[gf].Elem2No  = el;
-      if ( v[1] == v0 && v[0] == v1 )
+      if (v[1] == v0 && v[0] == v1)
       {
          faces_info[gf].Elem2Inf = 64 * lf + 1;
       }
-      else if ( v[0] == v0 && v[1] == v1 )
+      else if (v[0] == v0 && v[1] == v1)
       {
          // Temporarily allow even edge orientations: see the remark in
          // AddTriangleFaceElement().
@@ -13093,7 +13108,7 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const FaceRestriction *face_restr = fespace->GetFaceRestriction(
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
-                                          L2FaceValues::SingleValued );
+                                          L2FaceValues::SingleValued);
 
 
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
