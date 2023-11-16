@@ -781,7 +781,7 @@ std::unique_ptr<SparseMatrix>>
    int ndof_lor = fes_lor.GetNDofs();
 
    // If the local mesh is empty, skip all computations
-   if (nel_ho == 0) { return {nullptr, nullptr}; }
+   if (nel_ho == 0) { return {std::make_unique<SparseMatrix>(), std::make_unique<SparseMatrix>()}; }
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
