@@ -303,7 +303,7 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       std::unordered_map<int,int> f_to_be;
       for (int i = 0; i < mesh.GetNBE(); ++i)
       {
-         const int f = mesh.GetBdrElementEdgeIndex(i);
+         const int f = mesh.GetBdrElementFaceIndex(i);
          f_to_be[f] = i;
       }
       const int nf_bdr = trial_fes->GetNFbyType(FaceType::Boundary);
