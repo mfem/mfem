@@ -51,8 +51,19 @@ using namespace mfem;
 // Define the analytical solution and forcing terms / boundary conditions
 void u_ex(const Vector & x, Vector & u)
 {
-   u = 0.0;
+   if (x.Size() == 2)
+   {
+     u_2d(x, u);
+   }
+   else if (x.Size() == 3)
+   {
+     u_3d(x, u);
+   }
 
+}
+
+void u_2d(const Vector & x, Vector & u)
+{
    double xi(x(0));
    double yi(x(1));
 
@@ -66,11 +77,28 @@ void u_ex(const Vector & x, Vector & u)
 
    u(0) = c1*pow(xi,p1)*pow(yi,p2);
    u(1) = c2*pow(xi,p3)*pow(yi,p4);
-
-   // u(0) = pow(xi,3.0);
-   // u(1) = -3.0*pow(xi,2.0)*yi;
-
 }
+
+void u_3d(const Vector & x, Vector & u)
+{
+   double xi(x(0));
+   double yi(x(1));
+   double zi(x(2));
+
+   int p2 = 3;
+   int p3 = 3;
+   double c1 = 2.0;
+
+   int p1 = p3 + 1;
+   int p4 = p2 + 1;
+   double c2 = -p1*(c1/p4);
+
+   u(0) = c1*pow(xi,p1)*pow(yi,p2);
+   u(1) = c2*pow(xi,p3)*pow(yi,p4);
+   u(2) = 0.0;
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -390,8 +418,15 @@ int main(int argc, char *argv[])
    delete mVarf;
    delete bVarf;
    delete W_space;
-   if (NURBS) delete R_space->scalar_fes[0];
-   if (NURBS) delete R_space->scalar_fes[1];
+   if (NURBS)
+   {
+      R_space->scalar_fes[0];
+      R_space->scalar_fes[1];
+      if (dim ==3)
+      {
+         R_space->scalar_fes[2];
+      }
+   }
    delete R_space;
    delete l2_coll;
    delete hdiv_coll;
