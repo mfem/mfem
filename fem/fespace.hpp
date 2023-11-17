@@ -513,6 +513,9 @@ protected:
                                                const Array<int> *perm);
 
 public:
+
+   FiniteElementSpace *fes1, *fes2;
+
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
    FiniteElementSpace();
