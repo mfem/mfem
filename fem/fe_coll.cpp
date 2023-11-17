@@ -3533,4 +3533,88 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
    return NULL;
 }
 
+
+
+NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
+   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
+{
+   const int order = (Order == VariableOrder) ? 1 : Order;
+
+   if (dim == 2)
+   {
+      SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
+      QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
+      ParallelepipedVFE = nullptr;
+   }
+   else if (dim == 3)
+   {
+      SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
+      QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
+      ParallelepipedVFE = nullptr;
+   }
+   else
+   {
+      MFEM_ABORT("invalid dim = " << dim);
+   }
+   SetOrder(Order);
+}
+
+NURBS_HDivFECollection::~NURBS_HDivFECollection()
+{
+   // delete PointFE;
+   delete SegmentVFE;
+   delete QuadrilateralVFE;
+   if (ParallelepipedVFE) { delete ParallelepipedVFE; }
+}
+
+const FiniteElement *
+NURBS_HDivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      //   case Geometry::POINT:       return PointFE;
+      case Geometry::SEGMENT:     return SegmentFE;
+      case Geometry::SQUARE:      return QuadrilateralVFE;
+      // case Geometry::CUBE:        return ParallelepipedFE;
+      default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
+         mfem_error ("NURBS_HDivFECollection: unknown geometry type.");
+   }
+   return QuadrilateralFE; // Make some compilers happy
+}
+
+void NURBS_HDivFECollection::SetOrder(int Order) const
+{
+   mOrder = Order;
+   if (Order != VariableOrder)
+   {
+      snprintf(name, 16, "NURBS_HDiv%i", Order);
+   }
+   else
+   {
+      snprintf(name, 16, "NURBS_HDiv");
+   }
+}
+
+int NURBS_HDivFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   mfem_error("NURBS_HDivFECollection::DofForGeometry");
+   return 0; // Make some compilers happy
+}
+
+const int *NURBS_HDivFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
+{
+   mfem_error("NURBS_HDivFECollection::DofOrderForOrientation");
+   return NULL;
+}
+
+FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
+{
+   MFEM_ABORT("NURBS finite elements can not be statically condensed!");
+   return NULL;
+}
+
+
 }
