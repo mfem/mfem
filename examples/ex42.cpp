@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    double lambda = 1.0;
    double mu = 1.0;
    double c1 = 1e-04;
-   double mv = 0.2;
+   double mv = 0.1;
    bool glvis_visualization = true;
 
    ostringstream solfile, solfile2, meshfile;
@@ -210,8 +210,9 @@ int main(int argc, char *argv[])
 
    Mesh mesh;
    Array2D<int> ess_bdr;
-   Array<int> input_bdr, output_bdr;
-   Array<int> ess_bdr_filter;
+   Array<int> input_bdr(BdrType::NumBdr), output_bdr(BdrType::NumBdr);
+   Array<int> ess_bdr_filter(BdrType::NumBdr);
+   ess_bdr_filter = 0; input_bdr = 0; output_bdr = 0;
    double input_spring, output_spring;
    Vector input_direction, output_direction;
    string mesh_file;
@@ -225,28 +226,33 @@ int main(int argc, char *argv[])
          //                      |                     |
          //    fixed (0.1cm) (1) |                     |
          //                      -----------------------
-         const int numel = 80;
-         const int numelx(2*numel), numely(numel);
-         mesh = mesh.MakeCartesian2D(numelx, numely, mfem::Element::Type::QUADRILATERAL,
-                                     true,
-                                     (double)numelx, (double)numely);
+         mesh = mesh.MakeCartesian2D(40, 20, mfem::Element::Type::QUADRILATERAL, true,
+                                     2.0, 1.0);
+         double len = 0.025;
          input_spring = 1;
-         output_spring = 0.0001;
+         output_spring = 1;
          input_direction.SetSize(2);
          output_direction.SetSize(2);
-         input_direction = 0.0; output_direction = 0.0;
          input_direction[0] = 1.0;
-         output_direction[0] = 1.0;
-         ess_bdr.SetSize(3, BdrType::NumBdr); ess_bdr_filter.SetSize(BdrType::NumBdr);
-         input_bdr.SetSize(BdrType::NumBdr); output_bdr.SetSize(BdrType::NumBdr);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         input_bdr = 0; output_bdr = 0;
-         ess_bdr(0, BdrType::YRoller) = 1; // y-roller - x direction fixed
-         ess_bdr(1, BdrType::XRoller) = 1; // x-roller - y direction fixed
-         ess_bdr(2, BdrType::Fixed) = 1; // all direction fixed
-         input_bdr[BdrType::Input] = 1; output_bdr[BdrType::Output] = 1;
+         output_direction[0] = -1.0;
+         ess_bdr.SetSize(3, BdrType::NumBdr); ess_bdr = 0;
+         ess_bdr(1, 3) = 1; // roller - y directional fixed
+         ess_bdr(2, 0) = 1; // fixed
+         input_bdr[1] = 1; output_bdr[2] = 1;
          for (int i = 0; i<mesh.GetNBE(); i++)
          {
+            int atr = mesh.GetBdrAttribute(i);
+            if (atr == 1)
+            {
+               mesh.SetBdrAttribute(i, BdrType::Free + 1);
+               continue;
+            }
+            else if (atr == 3)
+            {
+               mesh.SetBdrAttribute(i, BdrType::XRoller + 1);
+               continue;
+            }
+
             Element * be = mesh.GetBdrElement(i);
             Array<int> vertices;
             be->GetVertices(vertices);
@@ -255,43 +261,29 @@ int main(int argc, char *argv[])
             double * coords2 = mesh.GetVertex(vertices[1]);
 
             Vector fc(2);
-            fc(0) = 0.5*(coords1[0] + coords2[0]);
             fc(1) = 0.5*(coords1[1] + coords2[1]);
-            const double len = 1;
-            const double bdrtol = 1e-08;
-
-            switch (be->GetAttribute())
+            if (atr == 4)
             {
-               case 1: // bottom
-                  be->SetAttribute(BdrType::Free + 1);
-                  break;
-               case 2: // right
-                  if (fc(1) > numely - len)
-                  {
-                     be->SetAttribute(BdrType::Output + 1);
-                     break;
-                  }
-                  be->SetAttribute(BdrType::Free + 1);
-                  break;
-               case 3: // top
-                  be->SetAttribute(BdrType::XRoller + 1);
-                  break;
-               case 4: // left
-                  if (fc(1) > numely - len)
-                  {
-                     be->SetAttribute(BdrType::Input + 1);
-                     break;
-                  }
-                  else if (fc(1) < len)
-                  {
-                     be->SetAttribute(BdrType::Fixed + 1);
-                     break;
-                  }
-                  be->SetAttribute(BdrType::Free + 1);
-                  break;
-               default:
-                  mfem_error("Something went wrong");
+               if (fc(1) < len)
+               {
+                  mesh.SetBdrAttribute(i, BdrType::Fixed);
+                  continue;
+               }
+               else if (fc(1) > 1.0 - len)
+               {
+                  mesh.SetBdrAttribute(i, BdrType::Input);
+                  continue;
+               }
             }
+            else
+            {
+               if (fc(1) > 1.0 - len)
+               {
+                  mesh.SetBdrAttribute(i, BdrType::Output);
+                  continue;
+               }
+            }
+            mesh.SetBdrAttribute(i, BdrType::Free);
          }
          solfile << "Inverter-";
          solfile2 << "Inverter-";
@@ -299,8 +291,11 @@ int main(int argc, char *argv[])
          break;
       }
       default:
+      {
          mfem_error("Undefined problem.");
+      }
    }
+   mesh.SetAttributes();
 
    int dim = mesh.Dimension();
    double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
@@ -311,7 +306,8 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
       h *= 0.5;
    }
-   epsilon = 4 * h;
+   epsilon = 2.5 * h / 2.0 / std::sqrt(3);
+
    meshfile << ".mesh";
    solfile << "OC-0.gf";
    solfile2 << "OC-f.gf";
@@ -321,7 +317,7 @@ int main(int argc, char *argv[])
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
                                BasisType::GaussLobatto); // space for ψ
-   FiniteElementSpace state_fes(&mesh, &state_fec,dim,mfem::Ordering::byNODES);
+   FiniteElementSpace state_fes(&mesh, &state_fec,dim,Ordering::byNODES);
    FiniteElementSpace filter_fes(&mesh, &filter_fec);
    FiniteElementSpace control_fes(&mesh, &control_fec);
 
@@ -349,9 +345,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0), zero(0.0), eps2_cf(epsilon*epsilon),
                        lambda_cf(lambda),
                        mu_cf(mu);
-   StrainEnergyDensityCoefficient strainEnergyDensity_cf(&lambda_cf, &mu_cf, &u,
-                                                         &adju,
-                                                         &frho, rho_min, exponent);
+   StrainEnergyDensityCoefficient strainEnergyDensity_cf(
+      &lambda_cf, &mu_cf, &u, &adju,
+      &frho, rho_min, exponent);
 
    ProductCoefficient SIMP_lam(lambda, SIMP_cf), SIMP_mu(mu, SIMP_cf);
    GridFunction zero_gf(&control_fes);
@@ -376,7 +372,7 @@ int main(int argc, char *argv[])
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      sout_r << "solution\n" << mesh << u
+      sout_r << "solution\n" << mesh << designDensity_gf
              << "window_title 'Raw density ρ - OC'\n"
              << "keys Rjl***************\n"
              << flush;
@@ -395,55 +391,49 @@ int main(int argc, char *argv[])
    LinearForm gradH1Form(&control_fes);
    gradH1Form.AddDomainIntegrator(new DomainLFIntegrator(gradH1_cf));
 
+   VectorConstantCoefficient input_direction_cf(input_direction),
+                             output_direction_cf(output_direction);
+
    int k;
    for (k = 1; k <= max_it; k++)
    {
-      mfem::out << "\nStep = " << k << std::endl;
+      // mfem::out << "\nStep = " << k << std::endl;
 
-      VectorConstantCoefficient input_d_cf(input_direction),
-                                output_d_cf(output_direction);
+
       BilinearForm elasticityForm(&state_fes);
       elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
       elasticityForm.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(
-                                             input_spring, input_d_cf), input_bdr);
+                                             input_spring, input_direction_cf), input_bdr);
       elasticityForm.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(
-                                             output_spring, output_d_cf), output_bdr);
+                                             output_spring, output_direction_cf), output_bdr);
 
       LinearForm elasticityRHS(&state_fes);
       elasticityRHS.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(
-                                            input_d_cf, input_d_cf), input_bdr);
+                                            input_direction_cf, input_direction_cf), input_bdr);
+
+      EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
+      elasticitySolver.Solve(&u);
 
       BilinearForm adjElasticityForm(&state_fes);
       adjElasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam,
                                                                      SIMP_mu));
       adjElasticityForm.AddBdrFaceIntegrator(new
-                                             VectorBoundaryDirectionalMassIntegrator(input_spring, input_d_cf), input_bdr);
+                                             VectorBoundaryDirectionalMassIntegrator(
+                                                input_spring, input_direction_cf), input_bdr);
       adjElasticityForm.AddBdrFaceIntegrator(new
-                                             VectorBoundaryDirectionalMassIntegrator(output_spring, output_d_cf),
-                                             output_bdr);
+                                             VectorBoundaryDirectionalMassIntegrator(
+                                                output_spring, output_direction_cf), output_bdr);
+
       LinearForm adjElasticityRHS(&state_fes);
       adjElasticityRHS.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(
-                                               output_d_cf, output_d_cf), output_bdr);
+                                               output_direction_cf, output_direction_cf), output_bdr);
 
-      out << "Solving Elasticity" << std::endl;
-      EllipticSolver elasticitySolver(&elasticityForm, &elasticityRHS, ess_bdr);
-      elasticitySolver.Solve(&u);
-
-      out << "Solving Adjoint Elasticity" << std::endl;
       EllipticSolver adjElasticitySolver(&adjElasticityForm, &adjElasticityRHS,
                                          ess_bdr);
       adjElasticitySolver.Solve(&adju);
 
-      double output_displacement = -adjElasticityRHS(u);
 
-
-      BilinearForm filterForm(&filter_fes);
-      filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
-      filterForm.AddDomainIntegrator(new MassIntegrator());
-
-      LinearForm filterRHS(&filter_fes);
-      filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
-
+      double output_displacement = adjElasticityRHS(u);
 
       BilinearForm dualFilterForm(&filter_fes);
       dualFilterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
@@ -452,35 +442,33 @@ int main(int argc, char *argv[])
       LinearForm dualFilterRHS(&filter_fes);
       dualFilterRHS.AddDomainIntegrator(new DomainLFIntegrator(
                                            strainEnergyDensity_cf));
-      GridFunction strainEnergyDensity_gf(&control_fes);
-      strainEnergyDensity_gf.ProjectCoefficient(strainEnergyDensity_cf);
-      // disp(strainEnergyDensity_gf);
+
       EllipticSolver dualFilterSolver(&dualFilterForm, &dualFilterRHS,
                                       ess_bdr_filter);
-      out << "Solving Dual Filter" << std::endl;
       dualFilterSolver.Solve(&gradH1);
 
+      gradH1Form.Assemble();
       invMass.Mult(gradH1Form, gradL2);
 
-      Vector B(gradL2);
-      B *= dv;
+      gradL2.Neg();
+      gradL2 *= dv;
       Vector lower(rho), upper(rho);
-      lower -= mv; lower.Clip(0.001, infinity());
-      upper += mv; upper.Clip(-infinity(), 1);
+      lower -= mv; lower.Clip(0, 1);
+      upper += mv; upper.Clip(0, 1);
       double l1(0.0), l2(1e09);
       rho_old = rho;
-      while ((l2 - l1)/(l2 + l1) > 1e-4 & l2 > 1e-40)
+      while ((l2 - l1) / (l1 + l2) > 1e-4 & l2 > 1e-40)
       {
          double lmid = (l1 + l2) / 2.0;
          rho = rho_old;
-         Vector dc(B);
+
+         Vector dc(gradL2);
          dc *= 1.0 / lmid;
          dc.Clip(1e-10, infinity());
-         for (double &val : dc) { val = std::pow(val, 0.3); }
+         for (auto &val : dc) { val = std::pow(val, 0.3); }
          rho *= dc;
          rho.Clip(lower, upper);
-         filterRHS.Assemble();
-         if (filterRHS.Sum() > target_volume)
+         if (zero_gf.ComputeL1Error(rho_cf) > target_volume)
          {
             l1 = lmid;
          }
@@ -490,8 +478,15 @@ int main(int argc, char *argv[])
          }
       }
 
+
+      BilinearForm filterForm(&filter_fes);
+      filterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
+      filterForm.AddDomainIntegrator(new MassIntegrator());
+
+      LinearForm filterRHS(&filter_fes);
+      filterRHS.AddDomainIntegrator(new DomainLFIntegrator(rho_cf));
+
       EllipticSolver filterSolver(&filterForm, &filterRHS, ess_bdr_filter);
-      out << "Solving filter" << std::endl;
       filterSolver.Solve(&frho);
 
       // mfem::out << "volume fraction = " <<  filterRHS.Sum() / domain_volume <<
@@ -512,7 +507,7 @@ int main(int argc, char *argv[])
          designDensity_gf.ProjectCoefficient(SIMP_cf);
          sout_SIMP << "solution\n" << mesh << designDensity_gf
                    << flush;
-         sout_r << "solution\n" << mesh << u
+         sout_r << "solution\n" << mesh << rho
                 << flush;
 
          ofstream sol_ofs(solfile.str().c_str());
