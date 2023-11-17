@@ -11,6 +11,15 @@
 Version 4.6.1 (development)
 ===========================
 
+Discretization improvements
+---------------------------
+- Introduced support for higher order non conformal Nedelec elements on
+  simplices in ParMesh.
+
+Miscellaneous
+-------------
+- The ReadCubit Genesis mesh importer has been rewritten to improve readability.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
@@ -31,6 +40,7 @@ Meshing improvements
   * The edge to knot map for NURBS meshes can be determined automatically. It is
     no longer needed to specify this in the NURBS mesh.
   * Added curve interpolation method for NURBS.
+  * Added new small miniapp for printing of shape functions of a KnotVector
   * See miniapps/nurbs for example meshes and miniapps.
 
 Discretization improvements
@@ -76,6 +86,8 @@ Linear and nonlinear solvers
   memory) version already available through the CPardiso MFEM integration.
 
 - Added HIP support to the PETSc and SUNDIALS interfaces.
+
+- Efficient GPU-accelerated LOR assembly now supports surface meshes.
 
 New and updated examples and miniapps
 -------------------------------------
