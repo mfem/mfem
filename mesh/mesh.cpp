@@ -1910,7 +1910,7 @@ void Mesh::AddHexAs24TetsWithPoints(int *vi,
                                     std::map<std::array<int, 4>, int> &hex_face_verts,
                                     int attr)
 {
-   auto get4arraysorted = [&](Array<int> v)
+   auto get4arraysorted = [](Array<int> v)
    {
       v.Sort();
       return std::array<int, 4> {v[0], v[1], v[2], v[3]};
@@ -3557,17 +3557,16 @@ void Mesh::Make2D4TrisFromQuad(int nx, int ny, double sx, double sy)
    boundary.SetSize(NumOfBdrElements);
    NumOfElements = 0;
 
-   double cx, cy;
    int ind[4];
 
    // Sets vertices and the corresponding coordinates
    int k = 0;
-   for (int j = 0; j < ny+1; j++)
+   for (double j = 0; j < ny+1; j++)
    {
-      cy = ((double) j / ny) * sy;
-      for (int i = 0; i < nx+1; i++)
+      double cy = (j / ny) * sy;
+      for (double i = 0; i < nx+1; i++)
       {
-         cx = ((double) i / nx) * sx;
+         double cx = (i / nx) * sx;
          vertices[k](0) = cx;
          vertices[k](1) = cy;
          k++;
@@ -3632,17 +3631,16 @@ void Mesh::Make2D5QuadsFromQuad(int nx, int ny,
    boundary.SetSize(NumOfBdrElements);
    NumOfElements = 0;
 
-   double cx, cy;
    int ind[4];
 
    // Sets vertices and the corresponding coordinates
    int k = 0;
-   for (int j = 0; j < ny+1; j++)
+   for (double j = 0; j < ny+1; j++)
    {
-      cy = ((double) j / ny) * sy;
-      for (int i = 0; i < nx+1; i++)
+      double cy = (j / ny) * sy;
+      for (double i = 0; i < nx+1; i++)
       {
-         cx = ((double) i / nx) * sx;
+         double cx = (i / nx) * sx;
          vertices[k](0) = cx;
          vertices[k](1) = cy;
          k++;
@@ -3703,15 +3701,15 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    double coord[3];
 
    // Sets vertices and the corresponding coordinates
-   for (int z = 0; z <= nz; z++)
+   for (double z = 0; z <= nz; z++)
    {
-      coord[2] = ((double) z / nz) * sz;
-      for (int y = 0; y <= ny; y++)
+      coord[2] = ( z / nz) * sz;
+      for (double y = 0; y <= ny; y++)
       {
-         coord[1] = ((double) y / ny) * sy;
-         for (int x = 0; x <= nx; x++)
+         coord[1] = (y / ny) * sy;
+         for (double x = 0; x <= nx; x++)
          {
-            coord[0] = ((double) x / nx) * sx;
+            coord[0] = (x / nx) * sx;
             AddVertex(coord);
          }
       }
@@ -3757,7 +3755,7 @@ void Mesh::Make3D24TetsFromHex(int nx, int ny, int nz,
    // Map from tet face defined by three vertices to the local face number
    std::map<std::array<int, 3>, int> face_count_map;
 
-   auto get3array = [&](Array<int> v)
+   auto get3array = [](Array<int> v)
    {
        v.Sort();
        return std::array<int, 3>{v[0], v[1], v[2]};
