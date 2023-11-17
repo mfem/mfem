@@ -448,6 +448,11 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const double untangle_factor = 1.5;
+   if (print_options.iterations)
+   {
+      mfem::out << "Min det of input mesh in line search: = " <<
+                   min_detT_in  << std::endl;
+   }
    if (untangling)
    {
       // Needed for the line search below. The untangling metrics see this

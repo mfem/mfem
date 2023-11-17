@@ -379,6 +379,10 @@ int main (int argc, char *argv[])
                                              *surf_fit_bg_gf0,
                                              quad_order);
    neglob = pmesh_surf_fit_bg->GetGlobalNE();
+   pmesh_surf_fit_bg->Rebalance();
+   surf_fit_bg_gf0->ParFESpace()->Update();
+   surf_fit_bg_gf0->Update();
+
 
    if (visualization)
    {
@@ -413,6 +417,7 @@ int main (int argc, char *argv[])
       delete dc;
    }
 
+//    std::cout << myid << " " << pmesh_surf_fit_bg->GetNE() << " k10ne\n";
    ParGridFunction gftemp(*surf_fit_bg_gf0);
    GridFunctionCoefficient gfc(&gftemp);
    ComputeScalarDistanceFromLevelSet(*pmesh_surf_fit_bg, gfc,
@@ -451,6 +456,7 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       surf_fit_bg_gf0->SaveAsOne(mesh_ofs);
    }
+   if (myid == 0)
    {
       std::cout << neglob << " k10don\n";
    }

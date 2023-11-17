@@ -190,6 +190,34 @@ void MakeMaterialConsistentForElementGroups(ParGridFunction &mat,
    gslib.FreeData();
 }
 
+void ExtendRefinementListForElementGroups(Array<int> &refs,
+                                          ParMesh *pmesh,
+                                          ParGridFunction &pgl_el_num,
+                                          int nel_per_group)
+{
+    L2_FECollection mat_coll(0, pmesh->Dimension());
+    ParFiniteElementSpace mat_fes(pmesh, &mat_coll);
+    ParGridFunction mat(&mat_fes);
+
+    mat = 0;
+    for (int i = 0; i < refs.Size(); i++)
+    {
+        mat(refs[i]) = 1.0;
+    }
+
+    MakeMaterialConsistentForElementGroups(mat, pgl_el_num, nel_per_group);
+
+    for (int i = 0; i < mat.Size(); i++)
+    {
+        if (mat(i) == 1.0) {
+            refs.Append(i);
+        }
+    }
+
+    refs.Sort();
+    refs.Unique();
+}
+
 double GetMinDet(ParMesh *pmesh, ParFiniteElementSpace *pfespace,
                  IntegrationRules *irules, int quad_order)
 {
@@ -847,7 +875,19 @@ int main (int argc, char *argv[])
 
 
    int *partitioning = NULL;
-   partitioning = mesh->GeneratePartitioning(Mpi::WorldSize());
+   if (strcmp(mesh_file, "Mesh3Danalysisrs1rp1.mesh") != 0 && strcmp(mesh_file, "Mesh3D.g") != 0) {
+       partitioning = mesh->GeneratePartitioning(Mpi::WorldSize());
+   }
+   else {
+       int *nxyz = new int(dim);
+       nxyz[0] = num_procs;
+    //    MFEM_VERIFY(num_procs == 256,"invalid partitioning custom\n");
+       nxyz[1] = 1;
+       nxyz[2] = 1;
+       partitioning = mesh->CartesianPartitioning(nxyz);
+
+    if (myid == 0) { std::cout << " generate cartesian partitioning\n"; }
+   }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, partitioning);
    delete mesh;
@@ -974,6 +1014,7 @@ int main (int argc, char *argv[])
              }
           }
       }
+      pmesh_surf_fit_bg->DeleteGeometricFactors();
       {
         Vector bMin(dim), bMax(dim);
         pmesh_surf_fit_bg->GetBoundingBox(bMin, bMax);
@@ -1073,25 +1114,22 @@ int main (int argc, char *argv[])
        pmesh_surf_fit_bg->GetBoundingBox(p_min, p_max);
        Vector p_min_c(dim), p_max_c(dim);
        pmesh->GetBoundingBox(p_min_c, p_max_c);
-       double lmax1 = -100;
-       double lmax2 = -100;
-       double lmin1 = 100;
-       double lmin2 = 100;
        int match_count = 0;
        for (int d = 0; d < dim; d++)
        {
-            lmax1 = std::fmax(lmax1, p_max(d)-p_min(d));
-            lmax2 = std::fmax(lmax2, p_max_c(d)-p_min_c(d));
-            lmin1 = std::fmin(lmin1, p_max(d)-p_min(d));
-            lmin2 = std::fmin(lmin2, p_max_c(d)-p_min_c(d));
-            match_count += (lmax1 == lmax2 && lmin1 == lmin2);
+            double lmax1 = p_max(d)-p_min(d);
+            double lmax2 = p_max_c(d)-p_min_c(d);
+            match_count += (std::fabs(lmax1-lmax2) < 1e-10 && std::fabs(p_min(d)-p_min_c(d)) < 1e-10);
        }
        if (match_count == dim)
        {
-           if (myid == 0) { "no need to scale analysis mesh\n"; }
+           if (myid == 0) { std::cout << "no need to scale analysis mesh\n"; }
        }
        else
        {
+        if (myid == 0) { 
+            std::cout << match_count << " need to scale analysis mesh\n";
+            }
         const int num_nodes = x.Size() / dim;
         for (int i = 0; i < num_nodes; i++)
         {
@@ -1114,6 +1152,7 @@ int main (int argc, char *argv[])
    }
 
    {
+        pmesh->DeleteGeometricFactors();
         Vector bMin(dim), bMax(dim);
         pmesh->GetBoundingBox(bMin, bMax);
         if (myid == 0)
@@ -1402,6 +1441,15 @@ int main (int argc, char *argv[])
       }
       active_list.Sort();
       active_list.Unique();
+
+      if (custom_split_mesh != 0)
+      {
+          int ngr = custom_split_mesh > 0 ? 12*custom_split_mesh :
+                                            (custom_split_mesh == -1 ? 4 : 5);
+          ExtendRefinementListForElementGroups(active_list,
+                                               pmesh, pgl_el_num, ngr);
+      }
+
       int num_active_loc = active_list.Size();
       num_active_glob = num_active_loc;
       MPI_Allreduce(&num_active_loc, &num_active_glob, 1, MPI_INT, MPI_SUM,
@@ -1767,7 +1815,7 @@ int main (int argc, char *argv[])
       else { MFEM_ABORT("Bad interpolation option."); }
 
       if (!surf_bg_mesh || strcmp(mesh_file, "Mesh3Danalysisrs1rp1.mesh") == 0 || strcmp(mesh_file, "Mesh3D.g") == 0)
-      {
+      { 
          if (num_procs_submesh != num_procs)
          {
             MFEM_ABORT("Empty MPI rank not currently supported without background mesh.");
