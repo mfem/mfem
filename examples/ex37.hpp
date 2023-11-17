@@ -43,7 +43,6 @@ public:
       int dof = el.GetDof();
       Vector shape(dof), vec(vdim);
 
-      out << Tr.Attribute - 1 << " " << dof << " LHSElement" << std::endl;
       elmat.SetSize(dof*vdim);
       elmat = 0.0;
 
@@ -85,8 +84,6 @@ public:
    {
       int dof = el.GetDof();
       Vector shape(dof), vec(vdim);
-
-      out << Tr.Attribute - 1 << " " << dof << " LHSFace" << std::endl;
 
       elmat.SetSize(dof*vdim);
       elmat = 0.0;
@@ -145,8 +142,6 @@ public:
    {
       int dof = el.GetDof();
 
-      out << Tr.Attribute - 1 << " " << dof << " RHSElement" << std::endl;
-
       Vector shape(dof), vec(vdim), vecF(vdim);
       elvect.SetSize(dof*vdim);
       elvect = 0.0;
@@ -177,8 +172,6 @@ public:
       const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
    {
       int dof = el.GetDof();
-
-      out << Tr.Attribute - 1 << " " << dof << " RHSFace" << std::endl;
 
       Vector shape(dof), vec(vdim), vecF(vdim);
       elvect.SetSize(dof*vdim);
