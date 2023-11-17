@@ -451,7 +451,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (print_options.iterations)
    {
       mfem::out << "Min det of input mesh in line search: = " <<
-                   min_detT_in  << std::endl;
+                min_detT_in  << std::endl;
    }
    if (untangling)
    {
@@ -478,7 +478,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double scale_save = 0.0;
    double norm_out = 0.0;
    double avg_fit_err, max_fit_err = 0.0;
-      
+
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -504,7 +504,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          // No untangling, and detJ got negative -- no good.
          if (print_options.iterations)
          {
-            mfem::out << "Scale = " << scale << " " << min_detT_out << " Neg det(J) found.\n";
+            mfem::out << "Scale = " << scale << " " << min_detT_out <<
+                      " Neg det(J) found.\n";
          }
          scale *= detJ_factor; continue;
       }
@@ -700,34 +701,6 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
    }
 }
 
-void TMOPNewtonSolver::UpdatePointWiseSurfaceFittingWeight(Vector &x_loc) const
-{
-   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   TMOP_Integrator *ti  = NULL;
-   TMOPComboIntegrator *co = NULL;
-   for (int i = 0; i < integs.Size(); i++)
-   {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti && ti->IsSurfaceFittingWeightAutomatic())
-      {
-         ti->ComputePointWiseJacobianAtCurrentMesh(x_loc, 1);
-      }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co)
-      {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
-         {
-            if (ati[j]->IsSurfaceFittingWeightAutomatic())
-            {
-               ati[j]->ComputePointWiseJacobianAtCurrentMesh(x_loc, 1);
-            }
-         }
-      }
-   }
-}
-
 void TMOPNewtonSolver::SaveSurfaceFittingWeight() const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -880,18 +853,6 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
             if (compute_metric_quantile_flag)
             {
                ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-            }
-            if (ti->IsSurfaceFittingEnabled())
-            {
-               //               GetSurfaceFittingWeight(fitweights);
-               //               min_det = ComputeMinDet(x_loc, *pfesc);
-               if (min_det > 1.0*min_detJ_threshold && fitweights.Max() < weights_max_limit)
-               {
-                  if (update_surf_fit_coeff)
-                  {
-                     UpdatePointWiseSurfaceFittingWeight(x_loc);
-                  }
-               }
             }
             UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
          }

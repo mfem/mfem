@@ -187,8 +187,6 @@ protected:
    /// average and maximum error over all integrators.
    virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
 
-   void UpdatePointWiseSurfaceFittingWeight(Vector &x_loc) const;
-
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
 

@@ -506,7 +506,8 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,ne,np,dim,etype,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt," <<
+           "jobid,ne,np,dim,etype,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           <<
            "mindet,foundloc,foundaway,notfound,foundface,totface,maxerr,maxdist,"<<
            "totaltime,setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_mapelemrst,"
            <<

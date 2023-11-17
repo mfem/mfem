@@ -3246,8 +3246,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae,
                                            AdaptivityEvaluator *aegrad,
-                                           AdaptivityEvaluator *aehess,
-                                           bool h1space)
+                                           AdaptivityEvaluator *aehess)
 {
    const int dim = s0.FESpace()->GetMesh()->Dimension();
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
@@ -3303,173 +3302,72 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    // Define spaces for grad and hessian
    delete surf_fit_grad;
 
-   if (h1space)
+   ParFiniteElementSpace *fes = s0.ParFESpace();
+
+   const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
+                                (surf_fit_gf->FESpace()->FEColl());
+   if (!fec)  { return; }
+   H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(),
+                                                   dim,
+                                                   fec->GetBasisType());
+   ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace
+   (pmesh,
+    fec_grad,
+    dim);
+   ParGridFunction *surf_fit_grad_dummy = new ParGridFunction(fes_grad);
+   surf_fit_grad_dummy->MakeOwner(fec_grad);
+
+   for (int d = 0; d < dim; d++)
    {
+      ParGridFunction surf_fit_grad_comp(fes,
+                                         surf_fit_grad_dummy->GetData()+d*s0.Size());
+      s0.GetDerivative(1, d, surf_fit_grad_comp);
+   }
 
-      ParFiniteElementSpace *fes = s0.ParFESpace();
+   surf_fit_grad = surf_fit_grad_dummy;
+   surf_fit_eval_bg_grad = aegrad;
+   surf_fit_eval_bg_grad->SetParMetaInfo(*
+                                         (surf_fit_grad_dummy->ParFESpace()->GetParMesh()),
+                                         *(surf_fit_grad_dummy->ParFESpace()));
+   surf_fit_eval_bg_grad->SetInitialField
+   (*surf_fit_grad_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_grad_dummy);
 
-      const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                   (surf_fit_gf->FESpace()->FEColl());
-      if (!fec)  { return; }
-      H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(),
-                                                      dim,
-                                                      fec->GetBasisType());
-      ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace
-      (pmesh,
-       fec_grad,
-       dim);
-      ParGridFunction *surf_fit_grad_dummy = new ParGridFunction(fes_grad);
-      surf_fit_grad_dummy->MakeOwner(fec_grad);
+   MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
+               "also.");
+   delete surf_fit_hess;
+   H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
+                                                   dim,
+                                                   fec->GetBasisType());
+   ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace
+   (pmesh,
+    fec_hess,
+    dim*dim);
+   ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
+   surf_fit_hess_dummy->MakeOwner(fec_hess);
 
-      for (int d = 0; d < dim; d++)
+   int id = 0;
+   for (int d = 0; d < dim; d++)
+   {
+      for (int idir = 0; idir < dim; idir++)
       {
          ParGridFunction surf_fit_grad_comp(fes,
                                             surf_fit_grad_dummy->GetData()+d*s0.Size());
-         s0.GetDerivative(1, d, surf_fit_grad_comp);
+         ParGridFunction surf_fit_hess_comp(fes,
+                                            surf_fit_hess_dummy->GetData()+id*s0.Size());
+         surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
+         id++;
       }
-
-      surf_fit_grad = surf_fit_grad_dummy;
-      surf_fit_eval_bg_grad = aegrad;
-      surf_fit_eval_bg_grad->SetParMetaInfo(*
-                                            (surf_fit_grad_dummy->ParFESpace()->GetParMesh()),
-                                            *(surf_fit_grad_dummy->ParFESpace()));
-      surf_fit_eval_bg_grad->SetInitialField
-      (*surf_fit_grad_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_grad_dummy);
-
-      MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
-                  "also.");
-      delete surf_fit_hess;
-      H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
-                                                      dim,
-                                                      fec->GetBasisType());
-      ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace
-      (pmesh,
-       fec_hess,
-       dim*dim);
-      ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
-      surf_fit_hess_dummy->MakeOwner(fec_hess);
-
-      int id = 0;
-      for (int d = 0; d < dim; d++)
-      {
-         for (int idir = 0; idir < dim; idir++)
-         {
-            ParGridFunction surf_fit_grad_comp(fes,
-                                               surf_fit_grad_dummy->GetData()+d*s0.Size());
-            ParGridFunction surf_fit_hess_comp(fes,
-                                               surf_fit_hess_dummy->GetData()+id*s0.Size());
-            surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
-            id++;
-         }
-      }
-
-      surf_fit_hess = surf_fit_hess_dummy;
-      surf_fit_eval_bg_hess = aehess;
-      surf_fit_eval_bg_hess->SetParMetaInfo(
-         *surf_fit_hess_dummy->ParFESpace()->GetParMesh(),
-         *surf_fit_hess_dummy->ParFESpace());
-      surf_fit_eval_bg_hess->SetInitialField
-      (*surf_fit_hess_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_hess_dummy);
-      surf_fit_gf_bg = true;
    }
-   else
-   {
-      ParFiniteElementSpace *fes = s0.ParFESpace();
-      const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-                                   (surf_fit_gf->FESpace()->FEColl());
-      if (!fec)  { return; }
-      H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(),
-                                                      dim,
-                                                      fec->GetBasisType());
-      ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace
-      (pmesh,
-       fec_grad,
-       dim);
-      ParGridFunction *surf_fit_grad_dummy = new ParGridFunction(fes_grad);
-      surf_fit_grad_dummy->MakeOwner(fec_grad);
-      surf_fit_grad = surf_fit_grad_dummy;
 
-      delete surf_fit_gf_l2;
-      L2_FECollection *fec_l2 = new L2_FECollection(fec->GetOrder(), dim,
-                                                    fec->GetBasisType());
-      ParFiniteElementSpace *fes_l2 = new ParFiniteElementSpace(pmesh, fec_l2);
-      ParGridFunction *surf_fit_gf_l2_dummy = new ParGridFunction(fes_l2);
-      surf_fit_gf_l2_dummy->MakeOwner(fec_l2);
-      VectorGridFunctionCoefficient gfc(&s0);
-      surf_fit_gf_l2_dummy->ProjectCoefficient(gfc);
-      surf_fit_gf_l2 = surf_fit_gf_l2_dummy;
+   surf_fit_hess = surf_fit_hess_dummy;
+   surf_fit_eval_bg_hess = aehess;
+   surf_fit_eval_bg_hess->SetParMetaInfo(
+      *surf_fit_hess_dummy->ParFESpace()->GetParMesh(),
+      *surf_fit_hess_dummy->ParFESpace());
+   surf_fit_eval_bg_hess->SetInitialField
+   (*surf_fit_hess_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_hess_dummy);
+   surf_fit_gf_bg = true;
 
-      delete surf_fit_grad_l2;
-      L2_FECollection *fec_grad_l2 = new L2_FECollection(fec_l2->GetOrder(), dim,
-                                                         fec_l2->GetBasisType());
-      ParFiniteElementSpace *fes_grad_l2 = new ParFiniteElementSpace(pmesh,
-                                                                     fec_grad_l2, dim);
-      ParGridFunction *surf_fit_grad_dummy_l2 = new ParGridFunction(fes_grad_l2);
-      int ndofs_scalar_l2 = surf_fit_gf_l2->Size();
-      for (int d = 0; d < dim; d++)
-      {
-         ParGridFunction surf_fit_grad_comp(fes_l2,
-                                            surf_fit_grad_dummy_l2->GetData()+d*ndofs_scalar_l2);
-         surf_fit_gf_l2_dummy->GetDerivative(1, d, surf_fit_grad_comp);
-      }
-      surf_fit_grad_dummy_l2->MakeOwner(fec_grad_l2);
-      surf_fit_grad_l2 = surf_fit_grad_dummy_l2;
-
-      surf_fit_eval_bg_grad = aegrad;
-      surf_fit_eval_bg_grad->SetParMetaInfo(*
-                                            (surf_fit_grad_dummy_l2->ParFESpace()->GetParMesh()),
-                                            *(surf_fit_grad_dummy_l2->ParFESpace()));
-      surf_fit_eval_bg_grad->SetInitialField
-      (*(surf_fit_grad_dummy_l2->FESpace()->GetMesh()->GetNodes()),
-       *surf_fit_grad_dummy_l2);
-
-      MFEM_VERIFY(aehess,"Specify an adaptivity evaluator for the Hessian terms"
-                  "also.");
-      delete surf_fit_hess;
-      H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
-                                                      dim,
-                                                      fec->GetBasisType());
-      ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace
-      (pmesh,
-       fec_hess,
-       dim*dim);
-      ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
-      surf_fit_hess_dummy->MakeOwner(fec_hess);
-      surf_fit_hess = surf_fit_hess_dummy;
-
-
-      delete surf_fit_hess_l2;
-      L2_FECollection *fec_hess_l2 = new L2_FECollection(fec->GetOrder(), dim,
-                                                         fec->GetBasisType());
-      ParFiniteElementSpace *fes_hess_l2 = new ParFiniteElementSpace(pmesh,
-                                                                     fec_hess_l2, dim*dim);
-      ParGridFunction *surf_fit_hess_dummy_l2 = new ParGridFunction(fes_hess_l2);
-      surf_fit_hess_dummy_l2->MakeOwner(fec_hess_l2);
-      surf_fit_hess_l2 = surf_fit_hess_dummy_l2;
-
-      int id = 0;
-      for (int d = 0; d < dim; d++)
-      {
-         for (int idir = 0; idir < dim; idir++)
-         {
-            ParGridFunction surf_fit_grad_comp(fes,
-                                               surf_fit_grad_dummy_l2->GetData()+d*ndofs_scalar_l2);
-            ParGridFunction surf_fit_hess_comp(fes,
-                                               surf_fit_hess_dummy_l2->GetData()+id*ndofs_scalar_l2);
-            surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
-            id++;
-         }
-      }
-
-      surf_fit_eval_bg_hess = aehess;
-      surf_fit_eval_bg_hess->SetParMetaInfo(*
-                                            (surf_fit_hess_dummy_l2->ParFESpace()->GetParMesh()),
-                                            *(surf_fit_hess_dummy_l2->ParFESpace()));
-      surf_fit_eval_bg_hess->SetInitialField
-      (*(surf_fit_hess_dummy_l2->FESpace()->GetMesh()->GetNodes()),
-       *surf_fit_hess_dummy_l2);
-      surf_fit_gf_bg = true;
-   }
    *surf_fit_grad = 0.0;
    *surf_fit_hess = 0.0;
 }
@@ -3487,187 +3385,6 @@ void TMOP_Integrator::DisableSurfaceFitting()
    delete surf_fit_grad_l2;
    delete surf_fit_hess_l2;
 }
-
-//void TMOP_Integrator::EnableSurfaceFitting2(ParGridFunction &s0,
-//                                            Array<bool> &smarker,
-//                                            Coefficient &coeff,
-//                                            AdaptivityEvaluator &ae,
-//                                            AdaptivityEvaluator *age,
-//                                            AdaptivityEvaluator *ahe,
-//                                            const ParGridFunction *s0_grad,
-//                                            const ParGridFunction *s0_hess,
-//                                            const ParGridFunction *s0_bg,
-//                                            const ParGridFunction *s0_bg_grad,
-//                                            const ParGridFunction *s0_bg_hess)
-//{
-//   const int dim = s0.FESpace()->GetMesh()->Dimension();
-//   ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
-//   MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
-//               "Mesh and level-set polynomial order must be the same.");
-
-//   surf_fit_marker = &smarker;
-//   surf_fit_coeff = &coeff;
-//   surf_fit_eval = &ae;
-
-//   //Unify marker array across processor boundaries
-//   {
-//      ParGridFunction marker_gf(s0);
-//      marker_gf = 0.0;
-//      for (int i = 0; i < marker_gf.Size(); i++)
-//      {
-//         marker_gf(i) = smarker[i];
-//      }
-//      marker_gf.ExchangeFaceNbrData();
-//      marker_gf.GroupCommunicatorOp(2);
-//      for (int i = 0; i < marker_gf.Size(); i++)
-//      {
-//         smarker[i] = marker_gf(i) == 1.0;
-//      }
-//   }
-
-//   // Store DOF indices that are marked for fitting. Used to reduce work for
-//   // transferring information between source/background and current mesh.
-//   // This is also used for setting inital fitting weight
-//   surf_fit_marker_dof_index.SetSize(0);
-//   for (int i = 0; i < surf_fit_marker->Size(); i++)
-//   {
-//      if ((*surf_fit_marker)[i] == true)
-//      {
-//         surf_fit_marker_dof_index.Append(i);
-//      }
-//   }
-
-//   // Setup the initial mesh and level-set field with adaptivity evaluator
-//   delete surf_fit_gf;
-//   ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
-//   surf_fit_gf = surf_fit_gf_dummy;
-//   s0.CountZones(surf_fit_dof_count);
-//   SaveSurfaceFittingWeight();
-
-//   surf_fit_gf_bg = false;
-//   int dim_bg = dim;
-//   if (s0_bg)
-//   {
-//      dim_bg = s0_bg->FESpace()->GetMesh()->Dimension();
-//      MFEM_VERIFY(dim_bg == dim,
-//                  "Background Mesh and mesh being fitted must be same dimension.");
-//      surf_fit_gf_bg = true;
-//      MFEM_VERIFY(age,"Adaptivity evaluator for gradient must be specified "
-//                  "with a background mesh");
-//      MFEM_VERIFY(ahe,"Adaptivity evaluator for Hessian must be specified "
-//                  "with a background mesh");
-//      surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-//                                    *s0.ParFESpace());
-//      surf_fit_eval->SetInitialField
-//      (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-//   }
-//   else
-//   {
-//      surf_fit_eval->SetParMetaInfo(*s0.ParFESpace()->GetParMesh(),
-//                                    *s0.ParFESpace());
-//      surf_fit_eval->SetInitialField
-//      (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-//   }
-
-//   if (age)
-//   {
-//      const ParGridFunction *ls_source = surf_fit_gf_bg ?
-//                                         s0_bg : &s0;
-//      const ParGridFunction *grad_source = surf_fit_gf_bg ?
-//                                           s0_bg_grad : s0_grad;
-//      const ParGridFunction *hess_source = surf_fit_gf_bg ?
-//                                           s0_bg_hess : s0_hess;
-
-//      MFEM_VERIFY(ahe,"If the AdaptivityEvaluator is specified for gradient,"
-//                  "it must also be specified for the Hessian");
-
-//      delete surf_fit_grad;
-//      delete surf_fit_hess;
-//      if (grad_source)
-//      {
-//         MFEM_VERIFY(hess_source,"Hessian must also be specified");
-
-//         surf_fit_grad = new GridFunction(*grad_source);
-//         *surf_fit_grad = 0.0;
-//         surf_fit_eval_bg_grad = age;
-//         surf_fit_eval_bg_grad->SetParMetaInfo(*grad_source->ParFESpace()->GetParMesh(),
-//                                               *grad_source->ParFESpace());
-//         surf_fit_eval_bg_grad->SetInitialField
-//         (*grad_source->FESpace()->GetMesh()->GetNodes(), *grad_source);
-
-//         surf_fit_hess = new GridFunction(*hess_source);
-//         *surf_fit_hess = 0.0;
-//         surf_fit_eval_bg_hess = ahe;
-//         surf_fit_eval_bg_hess->SetParMetaInfo(*hess_source->ParFESpace()->GetParMesh(),
-//                                               *hess_source->ParFESpace());
-//         surf_fit_eval_bg_hess->SetInitialField
-//         (*hess_source->FESpace()->GetMesh()->GetNodes(), *hess_source);
-//      }
-//      else
-//      {
-//         ParFiniteElementSpace *fes = ls_source->ParFESpace();
-
-//         const H1_FECollection *fec = dynamic_cast<const H1_FECollection *>
-//                                      (ls_source->FESpace()->FEColl());
-//         MFEM_VERIFY(fec,"Level set function must be in H1");
-//         H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(),
-//                                                         dim,
-//                                                         fec->GetBasisType());
-//         ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace
-//         (ls_source->ParFESpace()->GetParMesh(),
-//          fec_grad,
-//          dim);
-//         ParGridFunction *surf_fit_grad_dummy = new ParGridFunction(fes_grad);
-//         surf_fit_grad_dummy->MakeOwner(fec_grad);
-//         surf_fit_grad = surf_fit_grad_dummy;
-//         for (int d = 0; d < dim; d++)
-//         {
-//            ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
-//            ls_source->GetDerivative(1, d, surf_fit_grad_comp);
-//         }
-
-//         surf_fit_eval_bg_grad = age;
-//         surf_fit_eval_bg_grad->SetParMetaInfo(*
-//                                               (surf_fit_grad_dummy->ParFESpace()->GetParMesh()),
-//                                               *(surf_fit_grad_dummy->ParFESpace()));
-//         surf_fit_eval_bg_grad->SetInitialField
-//         (*surf_fit_grad_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_grad_dummy);
-
-
-//         H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(),
-//                                                         dim,
-//                                                         fec->GetBasisType());
-//         ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace
-//         (ls_source->ParFESpace()->GetParMesh(),
-//          fec_hess,
-//          dim*dim);
-//         ParGridFunction *surf_fit_hess_dummy = new ParGridFunction(fes_hess);
-//         surf_fit_hess_dummy->MakeOwner(fec_hess);
-//         surf_fit_hess = surf_fit_hess_dummy;
-
-//         int id = 0;
-//         for (int d = 0; d < dim; d++)
-//         {
-//            for (int idir = 0; idir < dim; idir++)
-//            {
-//               ParGridFunction surf_fit_grad_comp(fes, surf_fit_grad->GetData()+d*s0.Size());
-//               ParGridFunction surf_fit_hess_comp(fes, surf_fit_hess->GetData()+id*s0.Size());
-//               surf_fit_grad_comp.GetDerivative(1, idir, surf_fit_hess_comp);
-//               id++;
-//            }
-//         }
-
-//         surf_fit_eval_bg_hess = ahe;
-//         surf_fit_eval_bg_hess->SetParMetaInfo(
-//            *surf_fit_hess_dummy->ParFESpace()->GetParMesh(),
-//            *surf_fit_hess_dummy->ParFESpace());
-//         surf_fit_eval_bg_hess->SetInitialField
-//         (*surf_fit_hess_dummy->FESpace()->GetMesh()->GetNodes(), *surf_fit_hess_dummy);
-//      }
-
-//      surf_fit_gf_bg = true;
-//   }
-//}
 
 void TMOP_Integrator::EnableSurfaceFittingFromSource(const ParGridFunction
                                                      &s0_bg,
@@ -3888,292 +3605,6 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
    }
 }
-
-void TMOP_Integrator::ComputePointWiseJacobianAtInitialMesh(Vector &x_loc,
-                                                            int op)
-{
-   ComputePointWiseJacobian(x_loc, pjaci, op);
-}
-
-void TMOP_Integrator::ComputePointWiseJacobianAtCurrentMesh(Vector &x_loc,
-                                                            int op)
-{
-   ComputePointWiseJacobian(x_loc, pjacc, op);
-}
-
-void TMOP_Integrator::ComputePointWiseJacobian(Vector &x_loc, Vector &jac,
-                                               int op)
-{
-   MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
-   MFEM_VERIFY(!lim_coeff &&
-               !adapt_lim_gf, "This currently does not support when limiting is active.");
-   ParGridFunction *surf_fit_gf_par = dynamic_cast<ParGridFunction *>(surf_fit_gf);
-   MFEM_VERIFY(surf_fit_gf_par,"fitting gridfunction must be ParGridFunction.");
-
-   Mesh *mesh = surf_fit_gf->FESpace()->GetMesh();
-   GridFunction *nodes = surf_fit_gf->FESpace()->GetMesh()->GetNodes();
-   ParGridFunction *nodes_par = dynamic_cast<ParGridFunction *>(nodes);
-   MFEM_VERIFY(nodes_par,"ParMesh Nodes must be ParGridFunction.");
-
-   ConstantCoefficient *fit_const = dynamic_cast<ConstantCoefficient *>
-                                    (surf_fit_coeff);
-   MFEM_VERIFY(fit_const,
-               "This approach currently only works for ConstantCoefficient"
-               "for the fitting term.");
-
-   ParGridFunction *jac_gf = new ParGridFunction(*surf_fit_gf_par);
-   if (op == 0)
-   {
-      *jac_gf = 0.0;
-   }
-   else
-   {
-      *jac_gf = std::numeric_limits<float>::max();
-   }
-
-   const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
-   DofTransformation *doftrans;
-
-   jac.SetSize(surf_fit_dof_count.Size());
-
-   Array<int> xdofs;
-   DenseMatrix dshape, pos;
-   Vector posV;
-   Array<int> dofs;
-   Jpr.SetSize(dim);
-
-   FiniteElementSpace *fes = nodes->FESpace();
-   FiniteElementSpace *fit_fes = surf_fit_gf->FESpace();
-   for (int i = 0; i < NE; i++)
-   {
-      const FiniteElement *fe = fes->GetFE(i);
-      const IntegrationRule &ir = fe->GetNodes();
-      const int dof = fe->GetDof(), nsp = ir.GetNPoints();
-      xdofs.SetSize(dof*dim);
-      dshape.SetSize(dof, dim);
-      pos.SetSize(dof, dim);
-      posV.SetDataAndSize(pos.GetData(), dof*dim);
-
-      fes->GetElementVDofs(i, xdofs);
-      x_loc.GetSubVector(xdofs, posV);
-      Vector detv(nsp);
-      for (int j = 0; j < nsp; j++)
-      {
-         fes->GetFE(i)->CalcDShape(ir.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jpr);
-         detv(j) = Jpr.Det();
-      }
-      fit_fes->GetElementVDofs(i, dofs);
-      if (op == 0)
-      {
-         jac_gf->AddElementVector(dofs, detv);
-      }
-      else
-      {
-         for (int j = 0; j < dofs.Size(); j++)
-         {
-            (*jac_gf)(dofs[j]) = std::min((*jac_gf)(dofs[j]), detv(j));
-         }
-      }
-   }
-
-   // Unify across processor boundaries
-   jac_gf->GroupCommunicatorOp(op);
-   MFEM_VERIFY(jac_gf->Size() == surf_fit_dof_count.Size(),
-               "Size inconsistency in jacobian gridfunction.");
-   if (op == 0)
-   {
-      for (int i = 0; i < surf_fit_dof_count.Size(); i++)
-      {
-         (*jac_gf)(i) *= 1.0/surf_fit_dof_count[i];
-      }
-   }
-
-   jac = *jac_gf;
-}
-
-void TMOP_Integrator::SetFittingWeightScaleWithPointWiseJacobian(Vector &x_loc)
-{
-   fit_weight_point_wise = true;
-   ComputePointWiseJacobian(x_loc, pjaci);
-   pjacc = pjaci;
-}
-
-double TMOP_Integrator::GetInitialFittingWeightUsingGradientNorm(Vector &x_loc)
-{
-   MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
-   MFEM_VERIFY(!lim_coeff &&
-               !adapt_lim_gf, "This currently does not support when limiting is active.");
-   ParGridFunction *surf_fit_gf_par = dynamic_cast<ParGridFunction *>(surf_fit_gf);
-   MFEM_VERIFY(surf_fit_gf_par,"fitting gridfunction must be ParGridFunction.");
-
-   Mesh *mesh = surf_fit_gf->FESpace()->GetMesh();
-   GridFunction *nodes = surf_fit_gf->FESpace()->GetMesh()->GetNodes();
-   ParGridFunction *nodes_par = dynamic_cast<ParGridFunction *>(nodes);
-   MFEM_VERIFY(nodes_par,"ParMesh Nodes must be ParGridFunction.");
-   ParGridFunction *metric_grad = new ParGridFunction(*nodes_par);
-   ParGridFunction *fitting_grad = new ParGridFunction(*nodes_par);
-   ParGridFunction *metric_energy = new ParGridFunction(*surf_fit_gf_par);
-   ParGridFunction *fitting_energy = new ParGridFunction(*surf_fit_gf_par);
-   *metric_grad    = 0.0;
-   *fitting_grad   = 0.0;
-   *metric_energy  = 0.0;
-   *fitting_energy = 0.0;
-
-   ConstantCoefficient *fit_const = dynamic_cast<ConstantCoefficient *>
-                                    (surf_fit_coeff);
-   MFEM_VERIFY(fit_const,
-               "This approach currently only works for ConstantCoefficient"
-               "for the fitting term.");
-
-   // ReMap Surface Fitting function
-   ReMapSurfaceFittingLevelSetAtNodes(x_loc,
-                                      nodes->FESpace()->GetOrdering());
-
-   const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
-   DenseMatrix Winv(dim), T(dim), A(dim), dshape, pos;
-   Array<int> pos_dofs, grad_dofs, energy_dofs;
-   DenseTensor W;
-   Vector posV;
-   Vector metric_grad_vals, fitting_grad_vals, metric_energy_vals,
-          fitting_energy_vals;
-   ConstantCoefficient zero(0.0);
-   ConstantCoefficient one(1.0);
-   Coefficient *metric_coeff_copy = metric_coeff;
-   bool metric_coeff_set = metric_coeff ? true : false;
-   if (!metric_coeff_set)
-   {
-      SetCoefficient(one);
-      metric_coeff_copy = &one;
-   }
-   DofTransformation *doftrans;
-
-   for (int i = 0; i < NE; i++)
-   {
-      // only do computation for elements that have fitting dofs
-      Array<int> sdofs, dofs;
-      surf_fit_gf->FESpace()->GetElementDofs(i, sdofs);
-      int count = 0;
-      for (int s = 0; s < sdofs.Size() && count == 0; s++)
-      {
-         count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
-      }
-      if (count == 0) { continue; }
-
-      ElementTransformation *T = nodes->FESpace()->GetElementTransformation(i);
-      const FiniteElement *fe_pos = nodes->FESpace()->GetFE(i);
-      const int dof = fe_pos->GetDof();
-      posV.SetSize(dof*dim);
-      doftrans = nodes->FESpace()->GetElementVDofs(i, pos_dofs);
-      x_loc.GetSubVector(pos_dofs, posV);
-      metric_grad->FESpace()->GetElementVDofs(i, grad_dofs);
-      metric_grad_vals.SetSize(dof*dim);
-      metric_grad_vals = 0.0;
-      double surf_fit_const = fit_const->constant;
-      fit_const->constant  = 0.0;
-      AssembleElementVectorExact(*fe_pos, *T, posV, metric_grad_vals);
-      metric_grad->AddElementVector(grad_dofs, metric_grad_vals);
-
-      metric_energy->FESpace()->GetElementVDofs(i, energy_dofs);
-      metric_energy_vals.SetSize(dof);
-      metric_energy_vals = 0.0;
-      AssembleElementEnergyVector(*fe_pos, *T, posV, metric_energy_vals);
-      //      metric_energy_vals.Print();
-      metric_energy->AddElementVector(energy_dofs, metric_energy_vals);
-
-      fit_const->constant  = 1.0;
-      SetCoefficient(zero);
-      fitting_grad_vals.SetSize(dof*dim);
-      fitting_grad_vals = 0.0;
-      AssembleElementVectorExact(*fe_pos, *T, posV, fitting_grad_vals);
-      fitting_grad->AddElementVector(grad_dofs, fitting_grad_vals);
-
-      fitting_energy_vals.SetSize(dof);
-      fitting_energy_vals = 0.0;
-      AssembleElementEnergyVector(*fe_pos, *T, posV, fitting_energy_vals);
-      fitting_energy->AddElementVector(energy_dofs, fitting_energy_vals);
-
-      SetCoefficient(*metric_coeff_copy);
-      fit_const->constant  = surf_fit_const;
-   }
-
-   if (!metric_coeff_set) { metric_coeff = NULL; }
-
-   // Unify across processor boundaries
-   metric_grad->GroupCommunicatorOp(0);
-   fitting_grad->GroupCommunicatorOp(0);
-   metric_energy->GroupCommunicatorOp(0);
-   fitting_energy->GroupCommunicatorOp(0);
-
-   // Use counting matrix from surf_fit_gf->surf_fit_dof_count
-   int node_ordering = nodes->FESpace()->GetOrdering();
-   int node_count = metric_grad->Size()/dim;
-   double max_norm_ratio = 0.0;
-   double max_energy_ratio = 0.0;
-   for (int i = 0; i < surf_fit_marker_dof_index.Size(); i++)
-   {
-      int dof_index = surf_fit_marker_dof_index[i];
-      int count = surf_fit_dof_count[dof_index];
-
-      Vector metric_grad_dof(dim);
-      Vector fitting_grad_dof(dim);
-      for (int d = 0; d < dim; d++)
-      {
-         int dof_index_dir = node_ordering == 0 ?
-                             dof_index+d*node_count :
-                             dof_index*dim+d;
-         (*metric_grad)(dof_index_dir) *= 1.0/count;
-         (*fitting_grad)(dof_index_dir) *= 1.0/count;
-         metric_grad_dof(d) = (*metric_grad)(dof_index_dir);
-         fitting_grad_dof(d) = (*fitting_grad)(dof_index_dir);
-      }
-      double metric_energy_val = (*metric_energy)(dof_index);
-      double fitting_energy_val = (*fitting_energy)(dof_index);
-      double energy_ratio = metric_energy_val/fitting_energy_val;
-
-
-      if (metric_energy_val == 0.0 || fitting_energy_val == 0.0)
-      {
-         energy_ratio = 1.0;
-      }
-
-      double dotp = metric_grad_dof*fitting_grad_dof;
-      double metric_grad_norm = metric_grad_dof.Norml2();
-      double fitting_grad_norm = fitting_grad_dof.Norml2();
-      double grad_ratio;
-      if (metric_grad_norm == 0.0 || dotp >= 0.0 ||
-          fitting_grad_norm > metric_grad_norm || fitting_grad_norm == 0.0)
-      {
-         grad_ratio = 1.0;
-      }
-      else
-      {
-         grad_ratio = metric_grad_norm/fitting_grad_norm;
-      }
-
-      max_norm_ratio = std::max(max_norm_ratio, grad_ratio);
-      max_energy_ratio = std::max(max_energy_ratio, energy_ratio);
-   }
-
-   delete metric_grad;
-   delete fitting_grad;
-   delete metric_energy;
-   delete fitting_energy;
-
-   MPI_Allreduce(MPI_IN_PLACE, &max_norm_ratio, 1, MPI_DOUBLE, MPI_MAX,
-                 nodes_par->ParFESpace()->GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &max_energy_ratio, 1, MPI_DOUBLE, MPI_MAX,
-                 nodes_par->ParFESpace()->GetComm());
-   if (nodes_par->ParFESpace()->GetMyRank() == 0)
-   {
-      mfem::out << max_norm_ratio << " " << max_energy_ratio <<  " K10maxnormratio\n";
-   }
-   MPI_Barrier(nodes_par->ParFESpace()->GetComm());
-   return std::max(max_norm_ratio, max_energy_ratio);
-}
-
 #endif
 
 void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
@@ -4373,11 +3804,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          {
             const IntegrationPoint &ip_s = ir_s.IntPoint(s);
             Tpr->SetIntPoint(&ip_s);
-            double weight_scale = fit_weight_point_wise ?
-                                  std::pow(pjacc(dofs[s])/pjaci(dofs[s]), 3.0) *
-                                  surf_fit_coeff->Eval(*Tpr, ip_s):
-                                  surf_fit_coeff->Eval(*Tpr, ip_s);
-            double surf_fit_energy = weight_scale * surf_fit_normal *
+            double surf_fit_energy = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
                                      sigma_e(s) * sigma_e(s) *
                                      1.0/surf_fit_dof_count[dofs[s]];
             energy += surf_fit_energy;
@@ -4387,159 +3814,6 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    delete Tpr;
    return energy;
-}
-
-void TMOP_Integrator::AssembleElementEnergyVector(const FiniteElement &el,
-                                                  ElementTransformation &T,
-                                                  const Vector &elfun,
-                                                  Vector &elvect)
-{
-   if (deactivate_list.Size() > 0 && deactivate_list[T.ElementNo] == 1)
-   {
-      elvect = 0.0;
-      return;
-   }
-   const int dof = el.GetDof(), dim = el.GetDim();
-   const int el_id = T.ElementNo;
-   double energy;
-   elvect.SetSize(dof);
-   elvect = 0.0;
-
-   // No adaptive limiting / surface fitting terms if the function is called
-   // as part of a FD derivative computation (because we include the exact
-   // derivatives of these terms in FD computations).
-   const bool adaptive_limiting = (adapt_lim_gf && fd_call_flag == false);
-   const bool surface_fit = (surf_fit_gf && fd_call_flag == false);
-
-   DSh.SetSize(dof, dim);
-   Jrt.SetSize(dim);
-   Jpr.SetSize(dim);
-   Jpt.SetSize(dim);
-   PMatI.UseExternalData(elfun.GetData(), dof, dim);
-
-   //   const IntegrationRule &ir = EnergyIntegrationRule(el);
-   const IntegrationRule &ir = el.GetNodes();
-
-   energy = 0.0;
-   DenseTensor Jtr(dim, dim, ir.GetNPoints());
-   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
-
-   // Limited case.
-   Vector shape, p, p0, d_vals;
-   shape.SetSize(dof);
-   DenseMatrix pos0;
-   if (lim_coeff)
-   {
-      shape.SetSize(dof);
-      p.SetSize(dim);
-      p0.SetSize(dim);
-      pos0.SetSize(dof, dim);
-      Vector pos0V(pos0.Data(), dof * dim);
-      Array<int> pos_dofs;
-      lim_nodes0->FESpace()->GetElementVDofs(el_id, pos_dofs);
-      lim_nodes0->GetSubVector(pos_dofs, pos0V);
-      if (lim_dist)
-      {
-         lim_dist->GetValues(el_id, ir, d_vals);
-      }
-      else
-      {
-         d_vals.SetSize(ir.GetNPoints()); d_vals = 1.0;
-      }
-   }
-
-   // Define ref->physical transformation, when a Coefficient is specified.
-   IsoparametricTransformation *Tpr = NULL;
-   if (metric_coeff || lim_coeff || adaptive_limiting || surface_fit)
-   {
-      Tpr = new IsoparametricTransformation;
-      Tpr->SetFE(&el);
-      Tpr->ElementNo = el_id;
-      Tpr->ElementType = ElementTransformation::ELEMENT;
-      Tpr->Attribute = T.Attribute;
-      Tpr->mesh = T.mesh;
-      Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
-   }
-   // TODO: computing the coefficients 'metric_coeff' and 'lim_coeff' in physical
-   //       coordinates means that, generally, the gradient and Hessian of the
-   //       TMOP_Integrator will depend on the derivatives of the coefficients.
-   //
-   //       In some cases the coefficients are independent of any movement of
-   //       the physical coordinates (i.e. changes in 'elfun'), e.g. when the
-   //       coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
-
-   Vector adapt_lim_gf_q, adapt_lim_gf0_q;
-   if (adaptive_limiting)
-   {
-      adapt_lim_gf->GetValues(el_id, ir, adapt_lim_gf_q);
-      adapt_lim_gf0->GetValues(el_id, ir, adapt_lim_gf0_q);
-   }
-
-   for (int i = 0; i < ir.GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      el.CalcShape(ip, shape);
-
-      const DenseMatrix &Jtr_i = Jtr(i);
-      metric->SetTargetJacobian(Jtr_i);
-      CalcInverse(Jtr_i, Jrt);
-      const double weight = ip.weight * Jtr_i.Det();
-
-      el.CalcDShape(ip, DSh);
-      MultAtB(PMatI, DSh, Jpr);
-      Mult(Jpr, Jrt, Jpt);
-
-      double val = metric_normal * metric->EvalW(Jpt);
-      if (metric_coeff) { val *= metric_coeff->Eval(*Tpr, ip); }
-
-      if (lim_coeff)
-      {
-         el.CalcShape(ip, shape);
-         PMatI.MultTranspose(shape, p);
-         pos0.MultTranspose(shape, p0);
-         val += lim_normal *
-                lim_func->Eval(p, p0, d_vals(i)) *
-                lim_coeff->Eval(*Tpr, ip);
-      }
-
-      // Contribution from the adaptive limiting term.
-      if (adaptive_limiting)
-      {
-         const double diff = adapt_lim_gf_q(i) - adapt_lim_gf0_q(i);
-         val += adapt_lim_coeff->Eval(*Tpr, ip) * lim_normal * diff * diff;
-      }
-
-      elvect.Add(val*Jtr_i.Det()*1.0/ir.GetNPoints(), shape);
-   }
-
-   // Contribution from the surface fitting term.
-   if (surface_fit)
-   {
-      const IntegrationRule &ir_s =
-         surf_fit_gf->FESpace()->GetFE(el_id)->GetNodes();
-      Array<int> dofs;
-      Vector sigma_e;
-      surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-      surf_fit_gf->GetSubVector(dofs, sigma_e);
-      for (int s = 0; s < dofs.Size(); s++)
-      {
-         if ((*surf_fit_marker)[dofs[s]] == true)
-         {
-            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
-            Tpr->SetIntPoint(&ip_s);
-            double weight_scale = fit_weight_point_wise ?
-                                  std::pow(pjacc(dofs[s])/pjaci(dofs[s]), 3.0) *
-                                  surf_fit_coeff->Eval(*Tpr, ip_s):
-                                  surf_fit_coeff->Eval(*Tpr, ip_s);
-            double surf_fit_energy = weight_scale * surf_fit_normal *
-                                     sigma_e(s) * sigma_e(s) *
-                                     1.0/surf_fit_dof_count[dofs[s]];
-            elvect(s) += surf_fit_energy;
-         }
-      }
-   }
-
-   delete Tpr;
 }
 
 double TMOP_Integrator::GetRefinementElementEnergy(const FiniteElement &el,
@@ -5116,11 +4390,8 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      double weight_scale = fit_weight_point_wise ?
-                            std::pow(pjacc(sdofs[s])/pjaci(sdofs[s]), 3.0) * surf_fit_coeff->Eval(Tpr, ip):
-                            surf_fit_coeff->Eval(Tpr, ip);
       const double w = 2.0 * surf_fit_normal *
-                       weight_scale * sigma_e(s) *
+                       surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s) *
                        1.0/surf_fit_dof_count[sdofs[s]];
       for (int d = 0; d < dim; d++)
       {
@@ -5193,15 +4464,11 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
 
-      double weight_scale = fit_weight_point_wise ?
-                            std::pow(pjacc(sdofs[s])/pjaci(sdofs[s]), 3.0) * surf_fit_coeff->Eval(Tpr, ip):
-                            surf_fit_coeff->Eval(Tpr, ip);
-
       Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
       surf_fit_hess_e.GetRow(s, gg_ptr);
 
       // Loops over the local matrix.
-      const double w = surf_fit_normal * weight_scale *
+      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
                        1.0/surf_fit_dof_count[sdofs[s]];
       for (int idim = 0; idim < dim; idim++)
       {
@@ -5525,28 +4792,12 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
             {
                const IntegrationPoint &ip_s = ir_s.IntPoint(s);
                Tpr->SetIntPoint(&ip_s);
-               double weight_scale = fit_weight_point_wise ?
-                                     std::pow(pjacc(dofs[s])/pjaci(dofs[s]), 3.0) *
-                                     surf_fit_coeff->Eval(*Tpr, ip_s):
-                                     surf_fit_coeff->Eval(*Tpr, ip_s);
-               surf_fit_gf_energy += weight_scale * 1.0 *
+               surf_fit_gf_energy += surf_fit_coeff->Eval(*Tpr, ip_s) *
                                      sigma_e(s) * sigma_e(s) *
                                      1.0/surf_fit_dof_count[dofs[s]];
             }
          }
       }
-      //         Array<int> dofs;
-      //         Vector sigma_e;
-      //         surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
-      //         surf_fit_gf->GetSubVector(dofs, sigma_e);
-      //         for (int s = 0; s < dofs.Size(); s++)
-      //         {
-      //            if ((*surf_fit_marker)[dofs[s]] == true)
-      //            {
-      //               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
-      //            }
-      //         }
-      //      }
    }
 
    if (targetC->ContainsVolumeInfo() == false)

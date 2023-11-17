@@ -1869,16 +1869,18 @@ void MakeGridFunctionWithNumberOfInterfaceFaces(
       tot_counter += (NumFaces(e) > 0);
    }
    MPI_Allreduce(MPI_IN_PLACE, &counter, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
-   MPI_Allreduce(MPI_IN_PLACE, &tot_counter, 1, MPI_INT, MPI_SUM, pmesh->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &tot_counter, 1, MPI_INT, MPI_SUM,
+                 pmesh->GetComm());
    if (tot_counter == 0)
    {
-	   std::cout << pmesh->GetMyRank() << " No interface faces\n";
+      std::cout << pmesh->GetMyRank() << " No interface faces\n";
 
    }
    MPI_Barrier(pmesh->GetComm());
    if (pmesh->GetMyRank() == 0)
    {
-      std::cout<<"number of element with more than 1 face for fitting: "<<counter<< " " << tot_counter << std::endl;
+      std::cout<<"number of element with more than 1 face for fitting: "<<counter<<
+               " " << tot_counter << std::endl;
    }
 }
 
@@ -1971,8 +1973,8 @@ void ModifyTetAttributeForMarking(
             }
             else
             {
-            //    isBoundaryEle[e] = 1; 
-            //    bdr_element = true;
+               //    isBoundaryEle[e] = 1;
+               //    bdr_element = true;
             }
          }
       }
@@ -2033,7 +2035,8 @@ void ModifyTetAttributeForMarking(
                mfem::Vector isBoundaryIndicator;
                mat.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals);
                NumNeighbours.GetElementDofValues(pmesh->GetNE() + (-1-elem2), dof_vals_numN);
-               isBoundaryEle.GetElementDofValues(pmesh->GetNE() + (-1-elem2), isBoundaryIndicator);
+               isBoundaryEle.GetElementDofValues(pmesh->GetNE() + (-1-elem2),
+                                                 isBoundaryIndicator);
 
                attr1 = mat(e);
                attr2 = static_cast<int>(dof_vals(0));
@@ -2046,12 +2049,12 @@ void ModifyTetAttributeForMarking(
                   element_attr[elem1] = 1-attr_to_switch;
                }
                else if ( attr1 == attr2 && attr1 == attr_to_switch &&
-                              isBoundaryEle[elem1] == 1 && isBoundary == 1 &&
-                              NumNeighbours[elem1] == 1 && NumN == 1)
-                {
-                    // std::cout<<"switching bdr element"<<std::endl;
-                    element_attr[elem1] = 1-attr_to_switch;
-                }
+                         isBoundaryEle[elem1] == 1 && isBoundary == 1 &&
+                         NumNeighbours[elem1] == 1 && NumN == 1)
+               {
+                  // std::cout<<"switching bdr element"<<std::endl;
+                  element_attr[elem1] = 1-attr_to_switch;
+               }
 
             }
             else

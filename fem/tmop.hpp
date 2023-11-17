@@ -1795,10 +1795,7 @@ protected:
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
    Array<double> surf_fit_weight_scale;
-   Vector pjaci;
-   Vector pjacc;
    double last_active_surf_fit_const;
-   bool fit_weight_point_wise = false;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2096,8 +2093,7 @@ public:
                              Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
                              AdaptivityEvaluator *aegrad = NULL,
-                             AdaptivityEvaluator *aehess = NULL,
-                             bool h1space = true);
+                             AdaptivityEvaluator *aehess = NULL);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
        of a function defined on another (finer) mesh
@@ -2131,34 +2127,10 @@ public:
                                        const ParGridFunction &s0_bg_hess,
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
-
-   //   void EnableSurfaceFitting2(ParGridFunction &s0,
-   //                              Array<bool> &smarker,
-   //                              Coefficient &coeff,
-   //                              AdaptivityEvaluator &ae,
-   //                              AdaptivityEvaluator *age = NULL,
-   //                              AdaptivityEvaluator *ahe = NULL,
-   //                              const ParGridFunction *s0_grad = NULL,
-   //                              const ParGridFunction *s0_hess = NULL,
-   //                              const ParGridFunction *s0_bg = NULL,
-   //                              const ParGridFunction *s0_bg_grad = NULL,
-   //                              const ParGridFunction *s0_bg_hess = NULL);
-
-   // op = 0 means avg, 1 means min
-   void ComputePointWiseJacobian(Vector &x_loc, Vector &jac, int op = 0);
-   void ComputePointWiseJacobianAtCurrentMesh(Vector &x_loc, int op = 0);
-   void ComputePointWiseJacobianAtInitialMesh(Vector &x_loc, int op = 0);
-
-   // Sets initial fitting weight based on the magnitude of the norm of the
-   // gradient of the metric term and the fitting term.
-   double GetInitialFittingWeightUsingGradientNorm(Vector &x_loc);
-   void SetFittingWeightScaleWithPointWiseJacobian(Vector &x_loc);
-
    void DisableSurfaceFitting();
 #endif
    void GetSurfaceFittingErrors(double &err_avg, double &err_max);
    bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
-   bool IsSurfaceFittingWeightAutomatic() { return fit_weight_point_wise; }
    void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
 
    void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
@@ -2176,11 +2148,6 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun);
-
-   virtual void AssembleElementEnergyVector(const FiniteElement &el,
-                                            ElementTransformation &T,
-                                            const Vector &elfun,
-                                            Vector &elvect);
 
    /** @brief Computes the mean of the energies of the given element's children.
 
