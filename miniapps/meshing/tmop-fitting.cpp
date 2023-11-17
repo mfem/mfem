@@ -599,6 +599,7 @@ int main (int argc, char *argv[])
    const char *bg_mesh_file = "NULL";
    const char *bg_ls_file = "NULL";
    bool output_final_mesh    = false;
+   bool conforming_amr       = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -722,10 +723,13 @@ int main (int argc, char *argv[])
                   "Background Mesh file to use.");
    args.AddOption(&bg_ls_file, "-bgls", "--bgls",
                   "Background level set gridfunction file to use.");
-
    args.AddOption(&output_final_mesh, "-out", "--output_final_mesh", "-no-out",
                   "--no-out",
                   "Enable or disable final mesh output.");
+   args.AddOption(&conforming_amr, "-camr", "--camr", "-no-c-amr",
+                  "--no-c-amr",
+                  "Enable or disable conforming amr.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -778,14 +782,19 @@ int main (int argc, char *argv[])
       }
    }
 
-   bool tetmesh = mesh->GetElementBaseGeometry(0) == Element::TETRAHEDRON;
+   const int dim = mesh->Dimension();
+
+   if (!conforming_amr)
+   {
+      MFEM_VERIFY(int_amr_iters == 0 || mesh->GetNumGeometries(dim) == 1,
+                  "AMR not supported for mixed meshes\n");
+      conforming_amr = mesh->GetElementBaseGeometry(0) == Element::TETRAHEDRON;
+   }
 
    if (myid == 0)
    {
       std::cout << "Mesh read/setup\n";
    }
-
-   const int dim = mesh->Dimension();
 
    // Define level-set coefficient
    FunctionCoefficient *ls_coeff = NULL;
@@ -861,8 +870,8 @@ int main (int argc, char *argv[])
    }
    if (int_amr_iters > 0)
    {
-      mesh->EnsureNCMesh(tetmesh ? false : true);
-      if (tetmesh)
+      mesh->EnsureNCMesh(conforming_amr ? false : true);
+      if (conforming_amr)
       {
          mesh->FinalizeTopology(); // According to the documentation this is necessary but
          // everything works okay if it is not there for this example.
@@ -871,7 +880,7 @@ int main (int argc, char *argv[])
    }
    if (myid == 0)
    {
-      std::cout << tetmesh << " tetmesh status\n";
+      std::cout << conforming_amr << " Conforming AMR status\n";
    }
 
 
@@ -1320,7 +1329,7 @@ int main (int argc, char *argv[])
             {
                ExtendRefinementListToNeighbors(*pmesh, refinements);
             }
-            pmesh->GeneralRefinement(refinements, tetmesh ? 0 : -1);
+            pmesh->GeneralRefinement(refinements, conforming_amr ? 0 : -1);
             HRUpdater.Update();
 
             if (!comp_dist && surf_bg_mesh)
@@ -1438,7 +1447,8 @@ int main (int argc, char *argv[])
    if (deactivation_layers > 0)
    {
       num_procs_submesh = 0;
-      MFEM_VERIFY(!int_amr_iters, "Submesh does not support nonconforming meshes.");
+      MFEM_VERIFY(!int_amr_iters || conforming_amr,
+                  "Submesh does not support nonconforming meshes.");
       Array<int> active_list;
       // Deactivate  elements away from interface/boundary to fit
       if (marking_type > 0)
@@ -2499,7 +2509,7 @@ int main (int argc, char *argv[])
       mesh_ofs.precision(8);
       if (output_final_mesh)
       {
-         if (int_amr_iters == 0 || tetmesh)
+         if (int_amr_iters == 0 || conforming_amr)
          {
             pmesh->PrintAsSerial(mesh_ofs);
          }
