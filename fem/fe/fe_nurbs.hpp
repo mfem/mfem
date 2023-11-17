@@ -260,7 +260,7 @@ protected:
 public:
    /// Construct the NURBS_HDiv22DFiniteElement of order @a p
    NURBS_HDiv3DFiniteElement(int p, int vdim)
-      : VectorFiniteElement(3, Geometry::SQUARE, (p + 1)*(p + 1)*(p + 1), p,
+      : VectorFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                             H_DIV,FunctionSpace::Qk),
         NURBSFiniteElement(3, (p + 1)*(p + 1)*(p + 1)),
         shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
@@ -269,7 +269,7 @@ public:
         shape1_x(p + 2), shape1_y(p + 2), shape1_z(p + 2),
         dshape1_x(p + 2), dshape1_y(p + 2),dshape1_z(p + 2),
         d2shape1_x(p + 2), d2shape1_y(p + 2), d2shape1_z(p + 2),
-        u(dof), du(dof,2)
+        u(dof), du(dof,3)
    {
       orders[0] = orders[1] = orders[2] = p;
       kv1.SetSize(dim);
@@ -280,7 +280,7 @@ public:
 
    /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HDiv3DFiniteElement(int px, int py, int pz, int vdim)
-      : VectorFiniteElement(3, Geometry::SQUARE, (px + 1)*(py + 1)*(pz + 1),
+      : VectorFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
         NURBSFiniteElement(3, (px + 1)*(py + 1)*(pz + 1)),
         shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
@@ -289,7 +289,7 @@ public:
         shape1_x(px + 2), shape1_y(py + 2), shape1_z(pz + 2),
         dshape1_x(px + 2), dshape1_y(py + 2),dshape1_z(pz + 2),
         d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
-        u(dof),  du(dof,2)
+        u(dof),  du(dof,3)
    {
       orders[0] = px; orders[1] = py; orders[1] = pz;
       kv1.SetSize(dim);

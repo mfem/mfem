@@ -689,7 +689,7 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
    
    if (kv1[0]) { delete kv1[0]; }
    if (kv1[1]) { delete kv1[1]; }
-   if (kv1[2]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
 
    kv1[0] = kv[0]->DegreeElevate(1);
    kv1[1] = kv[1]->DegreeElevate(1);
@@ -721,8 +721,8 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
 
    order = max(orders[0]+1, max( orders[1]+1, orders[2]+1));
    dof = (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 1) +
-         (orders[1] + 1)*(orders[1] + 2)*(orders[2] + 1) + 
-         (orders[1] + 1)*(orders[1] + 1)*(orders[2] + 2);
+         (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 1) +
+         (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 2);
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -738,7 +738,7 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 
    kv1[0]->CalcShape(shape1_x, ijk[0], ip.x);
    kv1[1]->CalcShape(shape1_y, ijk[1], ip.y);
-   kv1[2]->CalcShape(shape1_z, ijk[1], ip.z);
+   kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
 
    int o = 0;
    for (int  k = 0; k <= orders[2]; k++)
@@ -775,13 +775,26 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
       for (int j = 0; j <= orders[1]; j++)
       {
          const double sy_sz1 = shape_y(j)*sz1;
-         for (int i = 0; i <= orders[0]+1; i++, o++)
+         for (int i = 0; i <= orders[0]; i++, o++)
          {
             shape(o,2) = shape_x(i)*sy_sz1;
             shape(o,0) = shape(o,1) = 0.0;
          }
       }
    }
+/*
+ mfem::out <<"x  = ";  shape_x.Print();
+ mfem::out <<"x1 = ";  shape1_x.Print();
+ mfem::out <<"y  = ";  shape_y.Print();
+ mfem::out <<"y1 = ";  shape1_y.Print();
+
+ mfem::out <<"z  = ";  shape_z.Print();
+ mfem::out <<"z1 = ";  shape1_z.Print();
+
+mfem::out <<dof <<" "<<o<<endl;
+   shape.Print();
+*/
+
 }
 
 void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
@@ -846,7 +859,7 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
       for (int j = 0; j <= orders[1]; j++)
       {
          const double sy_dz1 = shape_y(j)*dz1;
-         for (int i = 0; i <= orders[0]+1; i++, o++)
+         for (int i = 0; i <= orders[0]; i++, o++)
          {
             divshape(o) = shape_x(i)*sy_dz1;
          }
@@ -858,7 +871,7 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 void NURBS_HDiv3DFiniteElement::CalcVDShape(const IntegrationPoint &ip,
                                             DenseTensor &dshape) const
 {
-   double sum, dsum[2];
+/*   double sum, dsum[2];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
@@ -901,22 +914,13 @@ void NURBS_HDiv3DFiniteElement::CalcVDShape(const IntegrationPoint &ip,
          dshape(o,1,1) = shape_x(i)*dsy;
       }
    }
-
-   /*sum = 1.0/sum;
-   dsum[0] *= sum*sum;
-   dsum[1] *= sum*sum;
-
-   for (int o = 0; o < dof; o++)
-   {
-      dshape(o,0) = dshape(o,0)*sum - u(o)*dsum[0];
-      dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
-   }*/
+*/
 }
 
 void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
                                              DenseTensor &Hessian) const
 {
-   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+  /* kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
 
    kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
@@ -964,13 +968,14 @@ void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
          Hessian(o,1,1) = dsx*dsy1;
          Hessian(o,2,1) = sx*d2sy1;
       }
-   }
+   }*/
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
 {
    if (kv1[0]) { delete kv1[0]; }
    if (kv1[1]) { delete kv1[1]; }
+   if (kv1[2]) { delete kv1[2]; }
 }
 
 
