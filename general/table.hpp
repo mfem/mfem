@@ -58,6 +58,10 @@ public:
    /// Copy constructor
    Table(const Table &);
 
+   /// Merge constructors
+   Table(const Table &, const Table &, int offset, bool merge = true);
+   Table(const Table &, const Table &, int offset2, const Table &, int offset3);
+
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);
 
