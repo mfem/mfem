@@ -3573,9 +3573,9 @@ NURBS_HDivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    switch (GeomType)
    {
       //   case Geometry::POINT:       return PointFE;
-      case Geometry::SEGMENT:     return SegmentFE;
+    //  case Geometry::SEGMENT:     return SegmentFE;
       case Geometry::SQUARE:      return QuadrilateralVFE;
-      // case Geometry::CUBE:        return ParallelepipedFE;
+      case Geometry::CUBE:        return ParallelepipedVFE;
       default:
          if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("NURBS_HDivFECollection: unknown geometry type.");
