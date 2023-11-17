@@ -2392,8 +2392,8 @@ void FiniteElementSpace::UpdateNURBS()
                               *scalar_ext[2]->GetElementDofTable(),ndofs2);
 
          bdr_elem_dof = new Table(*scalar_ext[0]->GetBdrElementDofTable(),
-                                  *scalar_ext[1]->GetElementDofTable(),ndofs1,
-                                  *scalar_ext[2]->GetElementDofTable(),ndofs2,
+                                  *scalar_ext[1]->GetBdrElementDofTable(),ndofs1,
+                                  *scalar_ext[2]->GetBdrElementDofTable(),ndofs2,
                                   false );
       }
       else
