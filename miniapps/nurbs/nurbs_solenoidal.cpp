@@ -51,6 +51,8 @@ using namespace mfem;
 // Define the analytical solution and forcing terms / boundary conditions
 void u_ex(const Vector & x, Vector & u)
 {
+   u = 0.0;
+
    double xi(x(0));
    double yi(x(1));
 
@@ -65,8 +67,9 @@ void u_ex(const Vector & x, Vector & u)
    u(0) = c1*pow(xi,p1)*pow(yi,p2);
    u(1) = c2*pow(xi,p3)*pow(yi,p4);
 
-  // u(0) = pow(xi,3.0);
-  // u(1) = -3.0*pow(xi,2.0)*yi;
+   // u(0) = pow(xi,3.0);
+   // u(1) = -3.0*pow(xi,2.0)*yi;
+
 }
 
 int main(int argc, char *argv[])
@@ -148,6 +151,7 @@ int main(int argc, char *argv[])
    }
    else
    {
+      NURBS = false;
       hdiv_coll = new RT_FECollection(order, dim);
       l2_coll   = new L2_FECollection(order, dim);
       mfem::out<<"Create Normal fec"<<std::endl;
@@ -176,6 +180,8 @@ int main(int argc, char *argv[])
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
+
+   std::cout <<"dim = "<<dim<<std::endl;
    VectorFunctionCoefficient ucoeff(dim, u_ex);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
@@ -288,17 +294,21 @@ int main(int argc, char *argv[])
    std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
    // 12. Create the grid functions u and p. Compute the L2 error norms.
-   GridFunction u, p, uu, vv;
+   GridFunction u, p, uu, vv, ww;
    u.MakeRef(R_space, x.GetBlock(0), 0);
    p.MakeRef(W_space, x.GetBlock(1), 0);
    if (NURBS)
    {
-      uu.MakeRef(R_space->fes1, x.GetBlock(0), 0);
-      vv.MakeRef(R_space->fes2, x.GetBlock(0),R_space->GetVSize()/2);
+      uu.MakeRef(R_space->scalar_fes[0], x.GetBlock(0), 0);
+      vv.MakeRef(R_space->scalar_fes[1], x.GetBlock(0),R_space->GetVSize()/dim);
+      if (dim ==3)
+      {
+        ww.MakeRef(R_space->scalar_fes[2], x.GetBlock(0), 2*R_space->GetVSize()/dim);
+      }
    }
 
    //int order_quad = max(2, 2*order+1);
-   int order_quad = 2*order+1+5;
+   int order_quad = 2*order+1+6;
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
@@ -334,8 +344,15 @@ int main(int argc, char *argv[])
    VisItDataCollection visit_dc("Example5", mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
-   if (NURBS) { visit_dc.RegisterField("uu", &uu); }
-   if (NURBS) { visit_dc.RegisterField("vv", &vv); }
+   if (NURBS)
+   {
+      visit_dc.RegisterField("uu", &uu);
+      visit_dc.RegisterField("vv", &vv);
+      if (dim ==3)
+      {
+         visit_dc.RegisterField("ww", &ww);
+      }
+   }
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
@@ -373,8 +390,8 @@ int main(int argc, char *argv[])
    delete mVarf;
    delete bVarf;
    delete W_space;
-   delete R_space->fes1;
-   delete R_space->fes2;
+   if (NURBS) delete R_space->scalar_fes[0];
+   if (NURBS) delete R_space->scalar_fes[1];
    delete R_space;
    delete l2_coll;
    delete hdiv_coll;
