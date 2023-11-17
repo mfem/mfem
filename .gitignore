@@ -139,6 +139,13 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
+examples/caliper/ex1
+examples/caliper/ex1p
+examples/caliper/refined.mesh
+examples/caliper/sol.gf
+examples/caliper/mesh.*
+examples/caliper/sol.*
+
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
