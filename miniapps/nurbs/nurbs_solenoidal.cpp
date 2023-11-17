@@ -80,6 +80,7 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = 1;
    bool NURBS = true;
+   bool div_free = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -88,6 +89,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&div_free, "-df", "--dif-free", "-p","--proj",
+                  "Div-free or standard projection.");
    args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
                   "NURBS.");
    args.AddOption(&device_config, "-d", "--device",
@@ -216,8 +219,8 @@ int main(int argc, char *argv[])
 
    BlockOperator darcyOp(block_offsets);
    darcyOp.SetBlock(0,0, &M);
-   darcyOp.SetBlock(0,1, Bt);
-   darcyOp.SetBlock(1,0, &B);
+   if (div_free) { darcyOp.SetBlock(0,1, Bt); }
+   if (div_free) { darcyOp.SetBlock(1,0, &B); }
 
    // 10. Construct the operators for preconditioner
    //
@@ -295,7 +298,7 @@ int main(int argc, char *argv[])
    }
 
    //int order_quad = max(2, 2*order+1);
-      int order_quad = 2*order+1+5;
+   int order_quad = 2*order+1+5;
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
    {
