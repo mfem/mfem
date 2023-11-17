@@ -60,7 +60,8 @@ public:
 
    /// Merge constructors
    Table(const Table &, const Table &, int offset, bool merge = true);
-   Table(const Table &, const Table &, int offset2, const Table &, int offset3);
+   Table(const Table &, const Table &, int offset2, const Table &, int offset3,
+         bool merge = true);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);
