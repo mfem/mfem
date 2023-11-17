@@ -514,7 +514,9 @@ protected:
 
 public:
 
-   FiniteElementSpace *fes1, *fes2;
+   Array<FiniteElementSpace *> scalar_fes;
+   Array<NURBSExtension*> scalar_ext;
+   Array<FiniteElementCollection*> scalar_fec;
 
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
