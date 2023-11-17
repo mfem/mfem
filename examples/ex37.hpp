@@ -22,10 +22,10 @@ void disp(Vector &x)
 class VectorBoundaryDirectionalMassIntegrator: public BilinearFormIntegrator
 {
 private:
-   VectorCoefficient &direction;
-   int vdim;
-   int oa, ob;
    const double k;
+   int vdim;
+   VectorCoefficient &direction;
+   int oa, ob;
 
 public:
    /// Construct an integrator with coefficient 1.0
@@ -83,6 +83,7 @@ public:
                                    DenseMatrix &elmat)
    {
       int dof = el.GetDof();
+      out << Tr.Attribute << " LHSFace" << std::endl;
       Vector shape(dof), vec(vdim);
 
       elmat.SetSize(dof*vdim);
@@ -1074,8 +1075,8 @@ public:
 protected:
    BilinearForm *a;
    LinearForm *b;
-   bool parallel;
    Array2D<int> ess_bdr;
+   bool parallel;
 private:
 };
 
@@ -1118,8 +1119,7 @@ public:
       eps2(epsilon*epsilon), ess_bdr(1, ess_bdr_list.Size()),
       target_volume(target_volume),
       u(nullptr), frho(nullptr),
-      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent),
-      drho_dpsi(x_gf, sigmoid)
+      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent)
    {
       for (int i=0; i<ess_bdr_list.Size(); i++) {ess_bdr(0, i) = ess_bdr_list[i]; };
 #ifdef MFEM_USE_MPI
@@ -1160,11 +1160,6 @@ public:
       SIMPmu.SetBCoef(design_density);
       strainEnergy.SetDisplacement(u);
       strainEnergy.SetFilteredDensity(frho);
-      drho_dpsi.SetFunction([](const double x)
-      {
-         double density = sigmoid(x);
-         return density * (1.0 - density);
-      });
    }
    SIMPElasticCompliance(Coefficient *lambda, Coefficient *mu, double epsilon,
                          Coefficient *rho, VectorCoefficient *force, const double target_volume,
@@ -1175,8 +1170,7 @@ public:
       eps2(epsilon*epsilon), ess_bdr(ess_bdr),
       target_volume(target_volume),
       u(nullptr), frho(nullptr),
-      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent),
-      drho_dpsi(x_gf, sigmoid)
+      rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent)
    {
 #ifdef MFEM_USE_MPI
       ParFiniteElementSpace *pfes;
@@ -1216,11 +1210,6 @@ public:
       SIMPmu.SetBCoef(design_density);
       strainEnergy.SetDisplacement(u);
       strainEnergy.SetFilteredDensity(frho);
-      drho_dpsi.SetFunction([](const double x)
-      {
-         double density = sigmoid(x);
-         return density * (1.0 - density);
-      });
    }
 
    virtual double Eval()
@@ -1421,7 +1410,6 @@ public:
    void SetGridFunction(GridFunction* x)
    {
       ObjectiveFunction::SetGridFunction(x);
-      drho_dpsi.SetGridFunction(x_gf);
       FiniteElementSpace *fes = x->FESpace();
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
@@ -1437,11 +1425,6 @@ public:
       gradF_gf = new GridFunction(fes);
 #endif
    }
-   Coefficient * dcf_dgf()
-   {
-      return &drho_dpsi;
-   }
-   MappedGridFunctionCoefficient drho_dpsi;
 
 protected:
 
@@ -1467,7 +1450,6 @@ protected:
       // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
       GridFunction *zero_gf;
       FiniteElementSpace * fes = x_gf->FESpace();
-      LinearForm *V, *dV;
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
       if (pfes)
@@ -1532,15 +1514,15 @@ protected:
    double current_volume;
 
 protected:
-   Array2D<int> ess_bdr;
-   Coefficient *rho;
-   VectorCoefficient *force;
    ProductCoefficient SIMPlambda, SIMPmu;
    ConstantCoefficient eps2;
-   GridFunction *frho, *u;
-   MappedGridFunctionCoefficient design_density;
-   StrainEnergyDensityCoefficient strainEnergy;
+   Array2D<int> ess_bdr;
    double target_volume;
+   GridFunction *u, *frho;
+   Coefficient *rho;
+   VectorCoefficient *force;
+   StrainEnergyDensityCoefficient strainEnergy;
+   MappedGridFunctionCoefficient design_density;
 };
 
 
@@ -1560,7 +1542,6 @@ public:
       target_volume(target_volume),
       u(nullptr), frho(nullptr), adju(nullptr),
       rho(rho), strainEnergy(lambda, mu, u, adju, frho, rho_min, exponent),
-      drho_dpsi(x_gf, sigmoid),
       input_bdr(input_bdr), output_bdr(output_bdr), input_spring(input_spring),
       output_spring(output_spring),
       input_direction(input_direction),output_direction(output_direction)
@@ -1607,11 +1588,6 @@ public:
       SIMPmu.SetBCoef(design_density);
       strainEnergy.SetDisplacement(u, adju);
       strainEnergy.SetFilteredDensity(frho);
-      drho_dpsi.SetFunction([](const double x)
-      {
-         double density = sigmoid(x);
-         return density * (1.0 - density);
-      });
    }
    virtual double Eval()
    {
@@ -1822,7 +1798,6 @@ public:
    void SetGridFunction(GridFunction* x)
    {
       ObjectiveFunction::SetGridFunction(x);
-      drho_dpsi.SetGridFunction(x_gf);
       FiniteElementSpace *fes = x->FESpace();
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
@@ -1838,11 +1813,6 @@ public:
       gradF_gf = new GridFunction(fes);
 #endif
    }
-   Coefficient * dcf_dgf()
-   {
-      return &drho_dpsi;
-   }
-   MappedGridFunctionCoefficient drho_dpsi;
 
 protected:
 
@@ -1868,7 +1838,7 @@ protected:
       // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
       GridFunction *zero_gf;
       FiniteElementSpace * fes = x_gf->FESpace();
-      LinearForm *V, *dV;
+      // LinearForm *V, *dV;
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
       if (pfes)
@@ -1932,17 +1902,16 @@ protected:
    }
    double current_volume;
 protected:
-   Array2D<int> ess_bdr;
-   Coefficient *rho;
    ProductCoefficient SIMPlambda, SIMPmu;
    ConstantCoefficient eps2;
-   GridFunction *frho, *u, *adju;
-   MappedGridFunctionCoefficient design_density;
-   StrainEnergyDensityCoefficient strainEnergy;
+   Array2D<int> ess_bdr;
    double target_volume;
-
+   GridFunction *u, *frho, *adju;
+   Coefficient *rho;
+   StrainEnergyDensityCoefficient strainEnergy;
    Array<int> &input_bdr, &output_bdr;
    double input_spring, output_spring;
+   MappedGridFunctionCoefficient design_density;
    VectorConstantCoefficient input_direction, output_direction;
 
    static DenseMatrix aVVt(const double a, const Vector &V)
@@ -2114,11 +2083,13 @@ public:
       }
    }
 protected:
-   double L, eps, weight;
-   int k;
    LinearForm &diff_primal;
-   GridFunction &grad, &latent;
-   GridFunction old_grad, old_latent;
+   GridFunction &grad;
+   GridFunction old_grad;
+   GridFunction &latent;
+   GridFunction old_latent;
+   double L; int k;
+   double weight,  eps;
 };
 
 
@@ -2589,12 +2560,12 @@ protected:
    LinearForm *w_rhs;
    std::function<double(const double)> simp_fun;
    MappedGridFunctionCoefficient simp_cf;
+   const double target_volume;
    ProductCoefficient lambda_SIMP_cf, mu_SIMP_cf;
    StrainEnergyDensityCoefficient negDerSimpElasticityEnergy;
    const double c1;
    const double c2;
    double alpha0;
-   const double target_volume;
 private:
    bool isParallel;
    bool grad_evaluated;
