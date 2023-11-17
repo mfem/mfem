@@ -54,8 +54,8 @@ void u_ex(const Vector & x, Vector & u)
    double xi(x(0));
    double yi(x(1));
 
-   int p2 = 1;
-   int p3 = 1;
+   int p2 = 3;
+   int p3 = 3;
    double c1 = 2.0;
 
    int p1 = p3 + 1;
@@ -65,8 +65,8 @@ void u_ex(const Vector & x, Vector & u)
    u(0) = c1*pow(xi,p1)*pow(yi,p2);
    u(1) = c2*pow(xi,p3)*pow(yi,p4);
 
-   //u(0) = xi;
-   //u(1) = 0.0;
+  // u(0) = pow(xi,3.0);
+  // u(1) = -3.0*pow(xi,2.0)*yi;
 }
 
 int main(int argc, char *argv[])
