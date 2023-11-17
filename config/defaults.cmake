@@ -157,7 +157,8 @@ set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
 # STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
 # Starting with v2.2.0 of STRUMPACK, ParMETIS and Scotch are optional.
 set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
-    "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Scotch/ptscotch/ptscotcherr/scotch/scotcherr"
+    "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by STRUMPACK.")
 # If the MPI package does not find all required Fortran libraries:
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING

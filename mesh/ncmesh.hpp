@@ -24,6 +24,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <unordered_map>
 
 namespace mfem
 {
@@ -223,30 +224,73 @@ public:
          , master(-1), matrix(0), edge_flags(0) {}
    };
 
+
    /// Lists all edges/faces in the nonconforming mesh.
    struct NCList
    {
-      Array<MeshId> conforming;
-      Array<Master> masters;
-      Array<Slave> slaves;
+      Array<MeshId> conforming; ///< All MeshIds corresponding to conformal faces
+      Array<Master> masters; ///< All MeshIds corresponding to master faces
+      Array<Slave> slaves; ///< All MeshIds corresponding to slave faces
 
       /// List of unique point matrices for each slave geometry.
       Array<DenseMatrix*> point_matrices[Geometry::NumGeom];
 
-      /// Return the point matrix oriented according to the master and slave edges
       void OrientedPointMatrix(const Slave &slave,
                                DenseMatrix &oriented_matrix) const;
 
+      /// Particular MeshId type, used for allowing static casting to the
+      /// appropriate child type after searching the NCList. UNRECOGNIZED
+      /// denotes that an instance is not known within the NCList, meaning that
+      /// it does not play a part in NC mechanics. This can be because the index
+      /// did not exist in the original Mesh, or because the entry is a boundary
+      /// face, whose NC status is always conforming.
+      enum class MeshIdType : char {CONFORMING, MASTER, SLAVE, UNRECOGNIZED};
+
+      /// Helper storing a reference to a MeshId type, and the face type it can
+      /// be cast to
+      struct MeshIdAndType
+      {
+         const MeshId * const id; ///< Pointer to a possible MeshId, nullptr if not found
+         /// MeshIdType corresponding to the MeshId. UNRECOGNIZED if unfound.
+         const MeshIdType type;
+      };
+      /// Return a mesh id and type for a given nc index.
+      MeshIdAndType GetMeshIdAndType(int index) const;
+
+      /// Return a face type for a given nc index.
+      MeshIdType GetMeshIdType(int index) const;
+
+      /// Given an index, check if this is a certain face type.
+      bool CheckMeshIdType(int index, MeshIdType type) const;
+
+      /// Erase the contents of the conforming, master and slave arrays.
       void Clear();
-      bool Empty() const { return !conforming.Size() && !masters.Size(); }
-      long TotalSize() const;
+      /// Whether the NCList is empty.
+      bool Empty() const
+      {
+         return conforming.Size() == 0
+                && masters.Size() == 0
+                && slaves.Size() == 0;
+      }
+      /// The total size of the component arrays in the NCList.
+      long TotalSize() const
+      {
+         return conforming.Size() + masters.Size() + slaves.Size();
+      }
+      /// The memory usage of the three public arrays. Does not account for the
+      /// inverse index.
       long MemoryUsage() const;
-
-      const MeshId& LookUp(int index, int *type = NULL) const;
-
       ~NCList() { Clear(); }
    private:
-      mutable Array<int> inv_index;
+      // Check for existence or construct the inv_index list map if necessary.
+      // const because only modifies the mutable member inv_index.
+      void BuildIndex() const;
+
+      /// A lazily constructed map from index to MeshId. Built whenever
+      /// GetMeshIdAndType, GetMeshIdType or CheckMeshIdType is called for the
+      /// first time. The MeshIdType is stored with, to enable casting to Slave
+      /// or Master elements appropriately.
+      mutable std::unordered_map<int, std::pair<MeshIdType, int>> inv_index;
    };
 
    /// Return the current list of conforming and nonconforming faces.
@@ -727,9 +771,14 @@ protected: // implementation
    void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
                          const PointMatrix& pm, int level, Face* eface[4],
                          MatrixMap &matrix_map);
-   bool TraverseTriFace(int vn0, int vn1, int vn2,
-                        const PointMatrix& pm, int level,
-                        MatrixMap &matrix_map);
+   struct TriFaceTraverseResults
+   {
+      bool unsplit; ///< Whether this face has no further splits.
+      bool ghost_neighbor; ///< Whether the face neighbor is a ghost.
+   };
+   TriFaceTraverseResults TraverseTriFace(int vn0, int vn1, int vn2,
+                                          const PointMatrix& pm, int level,
+                                          MatrixMap &matrix_map);
    void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
                         MatrixMap &matrix_map);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
