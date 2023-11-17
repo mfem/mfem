@@ -76,7 +76,8 @@ Table::Table(const Table &table1, const Table &table2, int offset, bool merge)
 
 Table::Table(const Table &table1,
              const Table &table2, int offset2,
-             const Table &table3, int offset3)
+             const Table &table3, int offset3,
+             bool merge)
 {
    MFEM_ASSERT(table1.size == table2.size,
                "Tables have different sizes can not merge.");
@@ -94,24 +95,37 @@ Table::Table(const Table &table1,
    for (int i = 0; i < size; i++)
    {
       I[i+1] = I[i];
+      int s1 = table1.RowSize(i);
+      int s2 = table2.RowSize(i);
+      int s3 = table3.RowSize(i);
 
-      table1.GetRow(i, row);
-      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      if (merge || (s1 < min(s2,s3)) )
       {
-         J[ I[i+1] ] = row[r];
+         table1.GetRow(i, row);
+         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+         {
+            J[ I[i+1] ] = row[r];
+         }
       }
 
-      table2.GetRow(i, row);
-      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      if (merge || (s2 < min(s1,s3)) )
       {
-         J[ I[i+1] ] = row[r] + offset2;
+         table2.GetRow(i, row);
+         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+         {
+            J[ I[i+1] ] = row[r] + offset2;
+         }
       }
 
-      table3.GetRow(i, row);
-      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+      if (merge || (s3 < min(s1,s2)) )
       {
-         J[ I[i+1] ] = row[r] + offset3;
+         table3.GetRow(i, row);
+         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
+         {
+            J[ I[i+1] ] = row[r] + offset3;
+         }
       }
+
    }
 }
 
