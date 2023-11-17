@@ -492,6 +492,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
+   MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
 

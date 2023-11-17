@@ -462,21 +462,52 @@ void TMOP_Metric_009::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight, A.GetData());
 }
 
-// mu_14 = |T-I|^2
+double TMOP_Metric_014::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_14 = |J - I|^2.
+   DenseMatrix Mat(Jpt);
+   Mat(0,0) -= 1.0;
+   Mat(1,1) -= 1.0;
+   return Mat.FNorm2();
+}
+
 double TMOP_Metric_014::EvalW(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
+   // mu_14 = |J - I|^2 = I1[J-I].
+   DenseMatrix Mat(Jpt);
+   Mat(0,0) -= 1.0;
+   Mat(1,1) -= 1.0;
 
-   DenseMatrix Id(2,2);
+   ie.SetJacobian(Mat.GetData());
+   return ie.Get_I1();
+}
 
-   Id(0,0) = 1; Id(0,1) = 0;
-   Id(1,0) = 0; Id(1,1) = 1;
+void TMOP_Metric_014::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // P = dI1[J-I] d/dJ[J-I] = dI1[J-I].
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   P = ie.Get_dI1();
+}
 
-   DenseMatrix Mat(2,2);
-   Mat = Jpt;
-   Mat.Add(-1,Id);
-   return Mat.FNorm2();
+void TMOP_Metric_014::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // dP = ddI1[J-I].
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
 }
 
 double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
