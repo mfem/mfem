@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
    int ref_levels = -1;
    Array<int> master(0);
    Array<int> slave(0);
+   Array<int> neu(0);
    bool static_cond = false;
    bool visualization = 1;
    int lod = 0;
@@ -169,6 +170,8 @@ int main(int argc, char *argv[])
                   "Master boundaries for periodic BCs");
    args.AddOption(&slave, "-ps", "--slave",
                   "Slave boundaries for periodic BCs");
+   args.AddOption(&neu, "-n", "--neu",
+                  "Boundaries with Neumann BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -323,27 +326,41 @@ int main(int argc, char *argv[])
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
+   Array<int> ess_bdr(0);
+   Array<int> neu_bdr(0);
    if (mesh->bdr_attributes.Size())
    {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      if (strongBC)
+      ess_bdr.SetSize(mesh->bdr_attributes.Max());
+      neu_bdr.SetSize(mesh->bdr_attributes.Max());
+   }
+   ess_bdr = 1;
+   neu_bdr = 0;
+
+   // Apply periodic BCs
+   for (int i = 0; i < master.Size(); i++)
+   {
+      ess_bdr[master[i]-1] = 0;
+      ess_bdr[slave[i]-1] = 0;
+   }
+
+   // Apply Neumann BCs
+   for (int i = 0; i < neu.Size(); i++)
+   {
+      if ( neu[i]-1 >= 0 &&
+           neu[i]-1 < mesh->bdr_attributes.Max())
       {
-         ess_bdr = 1;
+         ess_bdr[neu[i]-1] = 0;
+         neu_bdr[neu[i]-1] = 1;
       }
       else
       {
-         ess_bdr = 0;
+         cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
       }
-
-      // Remove periodic BCs
-      for (int i = 0; i < master.Size(); i++)
-      {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
-      }
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   cout <<"Boundary conditions:"<< endl;
+   cout <<" - Essential : "; ess_bdr.Print();
+   cout <<" - Neumann   : "; neu_bdr.Print();
+
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -353,9 +370,11 @@ int main(int argc, char *argv[])
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one));
    if (!strongBC)
       b->AddBdrFaceIntegrator(
-         new DGDirichletLFIntegrator(zero, one, -1.0, kappa));
+         new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
+
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -391,6 +410,11 @@ int main(int argc, char *argv[])
 
    SparseMatrix A;
    Vector B, X;
+   Array<int> ess_tdof_list;
+   if (strongBC)
+   {
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
