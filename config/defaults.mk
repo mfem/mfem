@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -160,6 +160,7 @@ MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MKL_PARDISO   = NO
 MFEM_USE_MOONOLITH     = NO
 MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
@@ -266,6 +267,9 @@ endif
 ifeq ($(MFEM_USE_CUDA),YES)
    SUNDIALS_LIB += -lsundials_nveccuda
 endif
+ifeq ($(MFEM_USE_HIP),YES)
+   SUNDIALS_LIB += -lsundials_nvechip
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
@@ -284,10 +288,10 @@ ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib\
       -lsuperlu_dist_5.1.0
 else
-   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_8.1.2
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64\
-      -lsuperlu_dist -lblas
+      -lsuperlu_dist $(LAPACK_LIB)
 endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
@@ -311,7 +315,7 @@ MPI_FORTRAN_LIB = -lmpifort
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
-MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
 MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
@@ -327,16 +331,30 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Ginkgo library configuration (currently not needed)
+# Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
 ifeq ($(MFEM_USE_GINKGO),YES)
    BASE_FLAGS = -std=c++14
 endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
-ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
-ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LINK_LIB_DIR = $(GINKGO_DIR)$(subst $(GINKGO_SEARCH_DIR),,$(GINKGO_LIB_DIR))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
 ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
 GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
 ifeq ($(GINKGO_BUILD_TYPE),Debug)
@@ -345,7 +363,8 @@ ifeq ($(GINKGO_BUILD_TYPE),Debug)
   endif
 else
 endif
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
+ $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
@@ -484,7 +503,6 @@ ifdef GOTCHA_DIR
    CALIPER_LIB += $(XLINKER)-rpath,$(GOTCHA_DIR)/lib64 $(XLINKER)-rpath,$(GOTCHA_DIR)/lib -L$(GOTCHA_DIR)/lib64 -L$(GOTCHA_DIR)/lib -lgotcha
 endif
 
-
 # BLITZ library configuration
 BLITZ_DIR = @MFEM_DIR@/../blitz
 BLITZ_OPT = -I$(BLITZ_DIR)/include
@@ -537,6 +555,14 @@ MKL_LIBRARY_SUBDIR ?= lib
 MKL_CPARDISO_OPT = -I$(MKL_CPARDISO_DIR)/include
 MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
+   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
+# MKL Pardiso library configuration
+MKL_PARDISO_DIR ?=
+MKL_LIBRARY_SUBDIR ?= lib
+MKL_PARDISO_OPT = -I$(MKL_PARDISO_DIR)/include
+MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+   -L$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
 # PARELAG library configuration

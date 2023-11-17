@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -128,6 +128,7 @@ void FaceQuadratureSpace::ConstructOffsets()
          continue;
       }
       face_indices[f_idx] = i;
+      face_indices_inv[i] = f_idx;
       offsets[f_idx] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
@@ -158,6 +159,28 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
    else
    {
       return iq;
+   }
+}
+
+int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
+{
+   auto get_face_index = [this](const int idx)
+   {
+      const auto it = face_indices_inv.find(idx);
+      if (it == face_indices_inv.end()) { return -1; }
+      else { return it->second; }
+   };
+
+   switch (T.ElementType)
+   {
+      case ElementTransformation::FACE:
+         return get_face_index(T.ElementNo);
+      case ElementTransformation::BDR_ELEMENT:
+      case ElementTransformation::BDR_FACE:
+         return get_face_index(mesh.GetBdrElementFaceIndex(T.ElementNo));
+      default:
+         MFEM_ABORT("Invalid element type.");
+         return -1;
    }
 }
 

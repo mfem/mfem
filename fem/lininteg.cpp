@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
 
 #include "fem.hpp"
 #include <cmath>
@@ -396,8 +395,8 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Q.Eval(vec, Tr, ip);
       Tr.SetIntPoint (&ip);
+      Q.Eval(vec, Tr, ip);
       vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
       for (int k = 0; k < vdim; k++)
@@ -456,7 +455,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int spaceDim = Tr.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetVDim());
+   int vdim = std::max(spaceDim, el.GetRangeDim());
 
    vshape.SetSize(dof,vdim);
    vec.SetSize(vdim);
@@ -657,7 +656,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
 {
    int dof = el.GetDof();
    int dim = el.GetDim();
-   int vdim = el.GetVDim();
+   int vdim = el.GetRangeDim();
    DenseMatrix vshape(dof, vdim);
    Vector f_loc(3);
    Vector f_hat(2);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
       {
          cout << endl;
          cout << "Element Type:          " << elemTypeStr(eType) << endl;
-         cout << "Basis Type:            " << basisTypeStr(bType) << endl;;
+         cout << "Basis Type:            " << basisTypeStr(bType) << endl;
          cout << "Basis function order:  " << bOrder << endl;
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }

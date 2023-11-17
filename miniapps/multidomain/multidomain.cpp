@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -322,17 +322,19 @@ int main(int argc, char *argv[])
 
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream cyl_sol_sock(vishost, visport);
+   socketstream cyl_sol_sock;
    if (visualization)
    {
+      cyl_sol_sock.open(vishost, visport);
       cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       cyl_sol_sock.precision(8);
       cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
                    "pause\n" << std::flush;
    }
-   socketstream block_sol_sock(vishost, visport);
+   socketstream block_sol_sock;
    if (visualization)
    {
+      block_sol_sock.open(vishost, visport);
       block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       block_sol_sock.precision(8);
       block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<

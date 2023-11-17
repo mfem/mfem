@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,6 +37,7 @@ protected:
 
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
+   Array<Array<int>*>              dnfi_marker; // not owned
 
    /// Set of interior face Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> fnfi; // owned
@@ -51,7 +52,6 @@ protected:
 
    /// A list of all essential true dofs
    Array<int> ess_tdof_list;
-   Array<int> ess_elem_marker;
 
    /// Counter for updates propagated from the FiniteElementSpace.
    long sequence;
@@ -109,7 +109,12 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(NonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(NonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
@@ -212,11 +217,6 @@ public:
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
 
-   virtual void SetEssentialElementMarker(Array<int> &ess_elem_marker_)
-   {
-      ess_elem_marker = ess_elem_marker_;
-   }
-
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
    virtual ~NonlinearForm();
@@ -233,13 +233,14 @@ protected:
 
    /// Set of Domain Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> dnfi;
+   Array<Array<int>*>                   dnfi_marker;
 
    /// Set of interior face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> fnfi;
 
    /// Set of Boundary Face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> bfnfi;
-   Array<Array<int>*>           bfnfi_marker;
+   Array<Array<int>*>                   bfnfi_marker;
 
    /** Auxiliary block-vectors for wrapping input and output vectors or holding
        GridFunction-like block-vector data (e.g. in parallel). */
@@ -304,7 +305,12 @@ public:
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi)
-   { dnfi.Append(nlfi); }
+   { dnfi.Append(nlfi); dnfi_marker.Append(NULL); }
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                            Array<int> &elem_marker)
+   { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
@@ -317,7 +323,8 @@ public:
    /** @brief Adds new Boundary Face Integrator, restricted to specific boundary
        attributes. */
    void AddBdrFaceIntegrator(BlockNonlinearFormIntegrator *nlfi,
-                             Array<int> &bdr_marker);
+                             Array<int> &bdr_marker)
+   { bfnfi.Append(nlfi); bfnfi_marker.Append(&bdr_marker); }
 
    virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
                                Array<Vector *> &rhs);

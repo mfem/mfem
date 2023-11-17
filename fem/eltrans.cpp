@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -492,6 +492,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
+   MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
 

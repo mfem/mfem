@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -6031,7 +6031,7 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    shape(1,2) = z;
 
    shape(2,0) = x * (2.0 - z) * ozi;
-   shape(2,1) = - y * z * ozi;;
+   shape(2,1) = - y * z * ozi;
    shape(2,2) = z;
 
    shape(3,0) = - x * z * ozi;

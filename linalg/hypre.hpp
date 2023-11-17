@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -43,7 +43,7 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-// MFEM_HYPRE_FORALL is a macro similar to MFEM_FORALL, but it executes on the
+// MFEM_HYPRE_FORALL is a macro similar to mfem::forall, but it executes on the
 // device that hypre was configured with (no matter what device was selected
 // in MFEM's runtime configuration).
 #if defined(HYPRE_USING_CUDA)
@@ -1755,6 +1755,10 @@ private:
    void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
                                      int cycle_type);
 
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
    /// The underlying hypre solver object
    HYPRE_Solver ams;
    /// Vertex coordinates
@@ -1772,10 +1776,6 @@ private:
    bool singular = false;
    /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
    int print_level = 1;
-
-   // Recreates another AMS solver with the same options when SetOperator is
-   // called multiple times.
-   void ResetAMSPrecond();
 
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.

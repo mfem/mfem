@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,9 +13,11 @@ set(MESH_FILES
   amr-quad-q2.mesh
   blade.mesh
   cube.mesh
+  cube-tet.mesh
   icf.mesh
   jagged.mesh
   square01.mesh
+  square01-tri.mesh
   stretched2D.mesh
 )
 
@@ -58,8 +60,17 @@ add_mfem_miniapp(mesh-optimizer
   LIBRARIES mfem mfem-common)
 add_dependencies(mesh-optimizer copy_miniapps_meshing_data)
 
+add_mfem_miniapp(mesh-quality
+  MAIN mesh-quality.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
+
 add_mfem_miniapp(minimal-surface
   MAIN minimal-surface.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(reflector
+  MAIN reflector.cpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(toroid
@@ -93,6 +104,18 @@ if (MFEM_USE_MPI)
     ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(pmesh-fitting
+    MAIN pmesh-fitting.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
+
+  add_mfem_miniapp(fit-node-position
+    MAIN fit-node-position.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem mfem-common)
+  add_dependencies(fit-node-position copy_miniapps_meshing_data)
 
   add_mfem_miniapp(pminimal-surface
     MAIN pminimal-surface.cpp
