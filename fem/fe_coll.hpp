@@ -739,9 +739,9 @@ class NURBS_HDivFECollection : public NURBSFECollection
 {
 private:
 
-   NURBS_HDiv1DFiniteElement *SegmentVFE;
+   //NURBS_HDiv1DFiniteElement *SegmentVFE;
    NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
-   NURBS_HDiv2DFiniteElement *ParallelepipedVFE;  // 2D --> 3D
+   NURBS_HDiv3DFiniteElement *ParallelepipedVFE;
 
 public:
 
@@ -751,9 +751,9 @@ public:
 
    virtual void Reset() const
    {
-      SegmentVFE->Reset();
+     // SegmentVFE->Reset();
       QuadrilateralVFE->Reset();
-      //   Parallelepiped_HDivFE->Reset();
+      ParallelepipedVFE->Reset();
    }
 
    virtual void SetOrder(int Order) const;
