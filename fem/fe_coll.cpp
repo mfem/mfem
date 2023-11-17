@@ -3542,15 +3542,15 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
 
    if (dim == 2)
    {
-      SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
+      //SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
       QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
-      ParallelepipedVFE = nullptr;
+      ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
    }
    else if (dim == 3)
    {
-      SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
+     // SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
       QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
-      ParallelepipedVFE = nullptr;
+      ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
    }
    else
    {
@@ -3562,7 +3562,7 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
 NURBS_HDivFECollection::~NURBS_HDivFECollection()
 {
    // delete PointFE;
-   delete SegmentVFE;
+  // delete SegmentVFE;
    delete QuadrilateralVFE;
    if (ParallelepipedVFE) { delete ParallelepipedVFE; }
 }
