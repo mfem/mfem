@@ -807,7 +807,7 @@ void NodalFiniteElement::Project(
    else
    {
       DenseMatrix vshape(fe.GetDof(), std::max(Trans.GetSpaceDim(),
-                                               fe.GetVDim()));
+                                               fe.GetRangeDim()));
 
       I.SetSize(vshape.Width()*dof, fe.GetDof());
       for (int k = 0; k < dof; k++)
