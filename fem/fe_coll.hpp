@@ -680,8 +680,8 @@ public:
 /// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
 class NURBSFECollection : public FiniteElementCollection
 {
-private:
-   PointFiniteElement   *PointFE;
+protected:
+   PointFiniteElement *PointFE;
    NURBS1DFiniteElement *SegmentFE;
    NURBS2DFiniteElement *QuadrilateralFE;
    NURBS3DFiniteElement *ParallelepipedFE;
@@ -701,7 +701,7 @@ public:
       order, or VariableOrder (default). */
    explicit NURBSFECollection(int Order = VariableOrder);
 
-   void Reset() const
+   virtual void Reset() const
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
@@ -715,7 +715,7 @@ public:
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   void SetOrder(int Order) const;
+   virtual void SetOrder(int Order) const;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -733,6 +733,53 @@ public:
 
    virtual ~NURBSFECollection();
 };
+
+/// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
+class NURBS_HDivFECollection : public NURBSFECollection
+{
+private:
+
+   NURBS_HDiv1DFiniteElement *SegmentVFE;
+   NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
+   NURBS_HDiv2DFiniteElement *ParallelepipedVFE;  // 2D --> 3D
+
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = 3);
+
+   virtual void Reset() const
+   {
+      SegmentVFE->Reset();
+      QuadrilateralVFE->Reset();
+      //   Parallelepiped_HDivFE->Reset();
+   }
+
+   virtual void SetOrder(int Order) const;
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   // void SetOrder(int Order) const;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HDivFECollection();
+};
+
+
 
 /// Piecewise-(bi/tri)linear continuous finite elements.
 class LinearFECollection : public FiniteElementCollection
