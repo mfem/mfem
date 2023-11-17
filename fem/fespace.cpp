@@ -2206,7 +2206,11 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
 
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec_);
-   if (nurbs_fec)
+
+   const NURBS_HDivFECollection *nurbs_hdiv_fec =
+      dynamic_cast<const NURBS_HDivFECollection *>(fec_);
+
+   if (nurbs_fec || nurbs_hdiv_fec)
    {
       MFEM_VERIFY(mesh_->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
@@ -2305,10 +2309,53 @@ void FiniteElementSpace::UpdateNURBS()
 
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   ndofs = NURBSext->GetNDof();
-   elem_dof = NURBSext->GetElementDofTable();
-   bdr_elem_dof = NURBSext->GetBdrElementDofTable();
+   if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
+   {
+      if (mesh->Dimension() == 2)
+      {
+      Array<int> newOrders1(2);
+      Array<int> newOrders2(2);
 
+      newOrders1 = NURBSext->GetOrders();
+      newOrders2 = NURBSext->GetOrders();
+      newOrders1[0] += 1;
+      newOrders2[1] += 1;
+
+      newOrders1.Print();
+      newOrders2.Print();
+
+      NURBSExtension *NURBSext1 = new NURBSExtension(NURBSext, newOrders1);
+      NURBSExtension *NURBSext2 = new NURBSExtension(NURBSext, newOrders2);
+
+      FiniteElementCollection *fec1  = new NURBSFECollection();
+      FiniteElementCollection *fec2  = new NURBSFECollection();
+      fes1 = new FiniteElementSpace(mesh, NURBSext1, fec1);
+      fes2 = new FiniteElementSpace(mesh, NURBSext2, fec2);
+
+      int ndofs1 = NURBSext1->GetNDof();
+
+      ndofs = NURBSext1->GetNDof()
+              + NURBSext2->GetNDof();
+
+      // Merge Tables
+      elem_dof = new Table(*NURBSext1->GetElementDofTable(),
+                           *NURBSext2->GetElementDofTable(),
+                           NURBSext1->GetNDof() );
+
+      bdr_elem_dof = new Table(*NURBSext1->GetBdrElementDofTable(),
+                               *NURBSext2->GetBdrElementDofTable(),
+                               NURBSext1->GetNDof(), false );
+      //bdr_elem_dof = NURBSext2->GetBdrElementDofTable();
+      // delete NURBSext1,NURBSext2;
+      }
+      
+   }
+   else
+   {
+      ndofs = NURBSext->GetNDof();
+      elem_dof = NURBSext->GetElementDofTable();
+      bdr_elem_dof = NURBSext->GetBdrElementDofTable();
+   }
    mesh_sequence = mesh->GetSequence();
    sequence++;
 }
