@@ -373,16 +373,20 @@ public:
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
 class TMOP_Metric_014 : public TMOP_QualityMetric
 {
+protected:
+   mutable InvariantsEvaluator2D<fptype> ie;
+
 public:
-   // W = |T-I|^2.
+   // W = |J - I|^2.
+   virtual fptype EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1[J-I].
    virtual fptype EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const fptype weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const fptype weight, DenseMatrix &A) const;
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).

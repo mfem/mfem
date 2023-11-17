@@ -317,8 +317,7 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
 
    if (parent_face_ori.Size() == 0) { return; }
 
-   VDofTransformation vdoftrans(fes.GetVDim(),
-                                fes.GetOrdering());
+   DofTransformation doftrans(fes.GetVDim(), fes.GetOrdering());
 
    int dim = mesh->Dimension();
    bool face = (dim == 3);
@@ -334,15 +333,11 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
                             mesh->GetElementGeometry(i);
 
-      StatelessDofTransformation * doftrans =
-         fec->DofTransformationForGeometry(geom);
-
-      if (doftrans == NULL) { continue; }
-
-      vdoftrans.SetDofTransformation(*doftrans);
+      if (!fec->DofTransformationForGeometry(geom)) { continue; }
+      doftrans.SetDofTransformation(*fec->DofTransformationForGeometry(geom));
 
       Fo[0] = parent_face_ori[i];
-      vdoftrans.SetFaceOrientations(Fo);
+      doftrans.SetFaceOrientations(Fo);
 
       if (face)
       {
@@ -356,12 +351,12 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       if (sub_to_parent_map)
       {
          src.GetSubVector(vdofs, face_vector);
-         vdoftrans.TransformPrimal(face_vector);
+         doftrans.TransformPrimal(face_vector);
       }
       else
       {
          dst.GetSubVector(vdofs, face_vector);
-         vdoftrans.InvTransformPrimal(face_vector);
+         doftrans.InvTransformPrimal(face_vector);
       }
 
       for (int j = 0; j < vdofs.Size(); j++)
