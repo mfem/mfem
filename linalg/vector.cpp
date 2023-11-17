@@ -262,11 +262,11 @@ Vector &Vector::Add(const double a, const Vector &Va)
 
 Vector &Vector::Add(const double a, const Vector &Va, const int offset)
 {
-   MFEM_ASSERT(size == Va.size, "incompatible Vectors!");
+   MFEM_ASSERT(size >= Va.size + offset, "incompatible Vectors!");
 
    if (a != 0.0)
    {
-      const int N = size;
+      const int N = Va.size;
       const bool use_dev = UseDevice() || Va.UseDevice();
       auto y = ReadWrite(use_dev);
       auto x = Va.Read(use_dev);
