@@ -853,6 +853,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          add(r, beta, d, d);
       }
       oper->Mult(d, z);       //  z = A d
+
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -926,6 +927,227 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
    pcg.Mult(b, x);
 }
 
+
+void PipelinedPCGSolver::UpdateVectors()
+{
+   MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+
+   r.SetSize(width, mt); r.UseDevice(true);
+   u.SetSize(width, mt); u.UseDevice(true);
+   w.SetSize(width, mt); w.UseDevice(true);
+   m.SetSize(width, mt); m.UseDevice(true);
+   n.SetSize(width, mt); n.UseDevice(true);
+
+   z.SetSize(width, mt); z.UseDevice(true);
+   q.SetSize(width, mt); q.UseDevice(true);
+   s.SetSize(width, mt); s.UseDevice(true);
+   p.SetSize(width, mt); p.UseDevice(true);
+}
+
+void PipelinedPCGSolver::Mult(const Vector &b, Vector &x) const
+{
+
+   double r0;
+   x.UseDevice(true);
+
+   oper->Mult(x, r);
+   subtract(b, r, r); // r = b - Ax
+
+   prec->Mult(r, u); // u = inv(M) r
+
+   oper->Mult(u, w); // w = A u
+
+   double gamma = 0; //intialize so we may copy the value in the loop
+   double gamma_0, gamma_old;
+   double delta;
+
+   double beta, alpha;
+   double alpha_old;
+
+   MPI_Request request;
+
+   Vector loc_gamma_delta(2);
+   Vector glo_gamma_delta(2);
+
+   bool converged = false;
+   final_iter = max_iter;
+
+   for (int i = 0; true;) //has to start at zero
+   {
+      //Fuse these two operations below
+      gamma_old = gamma;
+
+      //gamma = Dot(r, u);
+      //delta = Dot(w, u);
+      loc_gamma_delta(0) = r * u; //local inner product
+      loc_gamma_delta(1) = w * u; //local inner product
+
+      MPI_Iallreduce(loc_gamma_delta.HostRead(), glo_gamma_delta.HostWrite(), 2, MPI_DOUBLE, MPI_SUM, GetComm(), &request);
+
+      //Do products computation may be overlapped with the following below
+      prec->Mult(w, m);
+      oper->Mult(m, n);
+
+      MPI_Wait(&request, MPI_STATUS_IGNORE);
+
+      gamma = glo_gamma_delta(0);
+      delta = glo_gamma_delta(1);
+
+
+      if (i == 0)
+      {
+         gamma_0 = initial_norm = gamma;
+         if (gamma >= 0.0) { initial_norm = sqrt(gamma);}
+         if (print_options.iterations || print_options.first_and_last)
+         {
+            mfem::out << "   Iteration : " << setw(3) << 0 << "  (B r, r) = "
+                      << gamma << (print_options.first_and_last ? " ...\n" : "\n");
+         }
+         //Monitor(0, gamma, r, x);
+
+         if (gamma < 0.0)
+         {
+            if (print_options.warnings)
+            {
+               mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                         << gamma << '\n';
+            }
+            converged = false;
+            final_iter = 0;
+            initial_norm = gamma;
+            final_norm = gamma;
+            return;
+         }
+         r0 = std::max(gamma*rel_tol*rel_tol, abs_tol*abs_tol);
+         if (gamma <= r0)
+         {
+            converged = true;
+            final_iter = 0;
+            final_norm = sqrt(gamma);
+            return;
+         }
+
+         MFEM_ASSERT(IsFinite(delta), "delta = " << delta);
+         if (delta <= 0.0)
+         {
+           /*
+            if (Dot(w, w) > 0.0 && print_options.warnings)
+            {
+               mfem::out << "PCG: The operator is not positive definite. (Ad, d) = "
+                         << delta << '\n';
+            }
+           */
+            if (delta == 0.0)
+            {
+               converged = false;
+               final_iter = 0;
+               final_norm = sqrt(gamma);
+               return;
+            }
+         }
+      }// i == 0
+      else
+      {
+
+         //Check if preconditioner is positive definite
+         MFEM_ASSERT(IsFinite(gamma), "gamma = " << gamma);
+         if (gamma < 0.0)
+         {
+            if (print_options.warnings)
+            {
+               mfem::out << "PCG: The preconditioner is not positive definite. (Br, r) = "
+                         << gamma << '\n';
+            }
+            converged = false;
+            final_iter = i;
+            break;
+         }
+
+         //Report iterations
+         if (print_options.iterations)
+         {
+            mfem::out << "   Iteration : " << setw(3) << i << "  (B r, r) = "
+                      << gamma << std::endl;
+         }
+
+         //Monitor(i, gamma, r, x);
+
+         if (gamma <= r0)
+         {
+            converged = true;
+            final_iter = i;
+            break;
+         }
+
+      } // i > 0
+
+      if ( i > 0 )
+      {
+         alpha_old = alpha;
+         beta = gamma/gamma_old;
+         alpha = gamma/(delta - beta*gamma/alpha_old);
+      }
+      else
+      {
+         beta = 0;
+         alpha = gamma/delta;
+      }
+
+      //If maxed out on iterations break
+      if (++i > max_iter)
+      {
+         break;
+      }
+
+      //z_i = n_i + beta_i * z_{i-1}
+      add(n, beta, z, z);
+
+      //q_i = m_i + beta_i q_{i-1}
+      add(m, beta, q, q);
+
+      //s_i = w_i + beta_i s_{i-1}
+      add(w, beta, s, s);
+
+      //p_i = u_i + beta_i p_{i-1}
+      add(u, beta, p, p);
+
+      //x_{i+1} = x_i + alpha_i p_i
+      add(x, alpha, p, x);
+
+      //r_{i+1} = r_i - alpha_i s_i
+      add(r, (-alpha), s, r);
+
+      //u_{i+1} = u_i  - alpha_i q_i
+      add(u, (-alpha), q, u);
+
+      //w_{i+1} = w_i - alpha_i z_i
+      add(w, (-alpha), z, w);
+   }
+
+   if (print_options.first_and_last && !print_options.iterations)
+   {
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  (B r, r) = "
+                << gamma << '\n';
+   }
+   if (print_options.summary || (print_options.warnings && !converged))
+   {
+      mfem::out << "PCG: Number of iterations: " << final_iter << '\n';
+   }
+   if (print_options.summary || print_options.iterations ||
+       print_options.first_and_last)
+   {
+      const auto arf = pow (gamma/gamma_0, 0.5/final_iter);
+      mfem::out << "Average reduction factor = " << arf << '\n';
+   }
+   if (print_options.warnings && !converged)
+   {
+      mfem::out << "PCG: No convergence!" << '\n';
+   }
+
+   final_norm = sqrt(gamma);
+
+   ///Monitor(final_iter, final_norm, r, x, true);
+}
 
 inline void GeneratePlaneRotation(double &dx, double &dy,
                                   double &cs, double &sn)

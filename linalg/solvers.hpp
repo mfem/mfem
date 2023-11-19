@@ -521,6 +521,30 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          double RTOLERANCE = 1e-12, double ATOLERANCE = 1e-24);
 
 
+/// Preconditioned Conjugate gradient method
+/// Algorithm 4. Preconditioned pipelined CG
+/// https://www.sciencedirect.com/science/article/pii/S0167819113000719?via%3Dihub
+class PipelinedPCGSolver : public IterativeSolver
+{
+protected:
+   mutable Vector r, u, w, m, n;
+   mutable Vector z, q, s, p;
+
+   void UpdateVectors();
+
+public:
+   PipelinedPCGSolver() { }
+
+#ifdef MFEM_USE_MPI
+   PipelinedPCGSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+#endif
+
+   virtual void SetOperator(const Operator &op)
+   { IterativeSolver::SetOperator(op); UpdateVectors(); }
+
+   virtual void Mult(const Vector &b, Vector &x) const;
+};
+
 /// GMRES method
 class GMRESSolver : public IterativeSolver
 {
