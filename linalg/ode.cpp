@@ -65,7 +65,7 @@ ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
 
       default:
          mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
-         mfem_error("Unknown ODE solver type");
+         MFEM_ABORT("Unknown ODE solver type");
    }
    return ode_solver;
 }
@@ -108,7 +108,7 @@ ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
 
       default:
          mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
-         mfem_error("Unknown ODE solver type");
+         MFEM_ABORT("Unknown ODE solver type");
    }
    return ode_solver;
 }
