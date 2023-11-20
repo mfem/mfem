@@ -3534,35 +3534,19 @@ FiniteElementCollection *NURBSFECollection::GetTraceCollection() const
 }
 
 
-
 NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
    : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
 
-   if (dim == 2)
-   {
-      //SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
-      QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
-      ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
-   }
-   else if (dim == 3)
-   {
-      // SegmentVFE  = new NURBS_HDiv1DFiniteElement(order,dim);
-      QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
-      ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
-   }
-   else
-   {
-      MFEM_ABORT("invalid dim = " << dim);
-   }
+   QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
+   ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
+
    SetOrder(Order);
 }
 
 NURBS_HDivFECollection::~NURBS_HDivFECollection()
 {
-   // delete PointFE;
-   // delete SegmentVFE;
    delete QuadrilateralVFE;
    if (ParallelepipedVFE) { delete ParallelepipedVFE; }
 }
@@ -3572,8 +3556,6 @@ NURBS_HDivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
-      //   case Geometry::POINT:       return PointFE;
-      //  case Geometry::SEGMENT:     return SegmentFE;
       case Geometry::SQUARE:      return QuadrilateralVFE;
       case Geometry::CUBE:        return ParallelepipedVFE;
       default:
