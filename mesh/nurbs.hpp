@@ -492,6 +492,10 @@ public:
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
 
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(Div) conforming NURBS space.*/
+   NURBSExtension* GetDivExtension(int component);
+
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
 
