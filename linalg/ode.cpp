@@ -129,7 +129,7 @@ void ODEStateData::SetSize(int stages, int vsize, MemoryType m_t)
    ss = 0;
 }
 
-void ODEStateData::Get(int i, Vector &state)
+void ODEStateData::Get(int i, Vector &state) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
                 " LMSSolver::GetStateVector \n" <<
@@ -138,7 +138,7 @@ void ODEStateData::Get(int i, Vector &state)
    state = k[idx[i]];
 }
 
-const Vector &ODEStateData::Get(int i)
+const Vector &ODEStateData::Get(int i) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
                 " LMSSolver::GetStateVector \n" <<
@@ -162,7 +162,7 @@ void ODEStateData::Add(Vector &state)
    IncrementSize();
 }
 
-void ODEStateData::Print(std::ostream &os)
+void ODEStateData::Print(std::ostream &os) const
 {
    os << ss <<"/" <<smax<<std::endl;
    idx.Print(os);
@@ -498,10 +498,10 @@ const double RK8Solver::c[] =
    1.,
 };
 
-AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
+AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_):
+stages(s_)
 {
    a = a_;
-   stages = s_;
 }
 
 void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
@@ -570,10 +570,10 @@ const double AB4Solver::a[] =
 const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
-AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
+AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_):
+stages(s_)
 {
    a = a_;
-   stages = s_;
 }
 
 void AdamsMoultonSolver::Init(TimeDependentOperator &f_)

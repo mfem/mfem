@@ -22,7 +22,7 @@ namespace mfem
 {
 
 /// A class for storing states of previous timesteps
-class StateData
+class ODEStateData
 {
 protected:
    MemoryType mem_type;
@@ -31,20 +31,20 @@ protected:
    Array<int> idx;
 
 public:
-   StateData () { ss = smax = 0;};
+   ODEStateData () { ss = smax = 0;};
    void  SetSize(int stages, int vsize, MemoryType mem_type);
    inline void ShiftStages()
    {
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
    };
 
-   int  GetMaxSize() { return smax; };
-   int  GetSize() { return ss; };
+   int  GetMaxSize() const { return smax; };
+   int  GetSize() const  { return ss; };
    void IncrementSize() { ss++; ss = std::min(ss,smax); };
    void ResetSize() { ss = 0; };
 
-   const Vector &Get(int i);
-   void Get(int i, Vector &state);
+   const Vector &Get(int i) const ;
+   void Get(int i, Vector &state) const ;
    void Set(int i, Vector &state);
    void Add(Vector &state);
 
@@ -54,7 +54,7 @@ public:
    /// Const reference access to the ith vector.
    inline const Vector &operator[](int i) const { return k[idx[i]]; };
 
-   void Print(std::ostream &out = mfem::out);
+   void Print(std::ostream &out = mfem::out) const ;
 };
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
@@ -64,7 +64,7 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
-   StateData state;
+   ODEStateData state;
 
 public:
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
@@ -132,10 +132,10 @@ public:
    }
 
    /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
-   virtual int   GetStateSize() { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
-   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
+   virtual int   GetMaxStateSize() const { return state.GetMaxSize(); }
+   virtual int   GetStateSize() const { return state.GetSize(); }
+   virtual const Vector &GetStateVector(int i) const { return state.Get(i); }
+   virtual void  GetStateVector(int i, Vector &s) const { state.Get(i,s); }
    virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
    virtual void  AddStateVector(Vector &s) { state.Add(s); }
 
@@ -401,11 +401,11 @@ class AdamsBashforthSolver : public ODESolver
 {
 private:
    const double *a;
-   int stages;
+   const int stages;
    double dt_;
 
 protected:
-   ODESolver* RKsolver;
+   std::unique_ptr<ODESolver> RKsolver;
 
    inline bool print()
    {
@@ -422,11 +422,6 @@ public:
    AdamsBashforthSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
-
-   ~AdamsBashforthSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-   };
 };
 
 /** A 1-stage, 1st order AB method.  */
@@ -436,7 +431,7 @@ private:
    static MFEM_EXPORT const double a[1];
 
 public:
-   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = NULL; }
+   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = nullptr; }
 };
 
 /** A 2-stage, 2nd order AB method.  */
@@ -446,7 +441,7 @@ private:
    static MFEM_EXPORT const double a[2];
 
 public:
-   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver = new RK2Solver(); }
+   AB2Solver() : AdamsBashforthSolver(2, a) { RKsolver.reset(new RK2Solver()); }
 };
 
 /** A 3-stage, 3rd order AB method.  */
@@ -456,7 +451,7 @@ private:
    static MFEM_EXPORT const double a[3];
 
 public:
-   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver = new RK3SSPSolver(); }
+   AB3Solver() : AdamsBashforthSolver(3, a) { RKsolver.reset(new RK3SSPSolver()); }
 };
 
 /** A 4-stage, 4th order AB method.  */
@@ -466,7 +461,7 @@ private:
    static MFEM_EXPORT const double a[4];
 
 public:
-   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver = new RK4Solver(); }
+   AB4Solver() : AdamsBashforthSolver(4, a) { RKsolver.reset(new RK4Solver()); }
 };
 
 /** A 5-stage, 5th order AB method.  */
@@ -476,7 +471,7 @@ private:
    static MFEM_EXPORT const double a[5];
 
 public:
-   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver = new RK6Solver(); }
+   AB5Solver() : AdamsBashforthSolver(5, a) { RKsolver.reset(new RK6Solver()); }
 };
 
 /** An implicit Adams-Moulton method. */
@@ -484,11 +479,11 @@ class AdamsMoultonSolver : public ODESolver
 {
 private:
    const double *a;
-   int stages;
+   const int stages;
    double dt_;
 
 protected:
-   ODESolver* RKsolver;
+   std::unique_ptr<ODESolver> RKsolver;
 
    inline bool print()
    {
@@ -505,10 +500,6 @@ public:
    AdamsMoultonSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
-   ~AdamsMoultonSolver()
-   {
-      if (RKsolver) { delete RKsolver; }
-   };
 };
 
 /** A 1-stage, 2nd order AM method. */
@@ -518,7 +509,7 @@ private:
    static MFEM_EXPORT const double a[2];
 
 public:
-   AM1Solver() : AdamsMoultonSolver(1, a) { RKsolver = new SDIRK23Solver(); }
+   AM1Solver() : AdamsMoultonSolver(1, a) { RKsolver.reset(new SDIRK23Solver()); }
 };
 
 /** A 2-stage, 3rd order AM method. */
@@ -528,7 +519,7 @@ private:
    static MFEM_EXPORT const double a[3];
 
 public:
-   AM2Solver() : AdamsMoultonSolver(2, a) { RKsolver = new SDIRK23Solver(); }
+   AM2Solver() : AdamsMoultonSolver(2, a) { RKsolver.reset(new SDIRK23Solver()); }
 };
 
 /** A 3-stage, 4th order AM method. */
@@ -538,7 +529,7 @@ private:
    static MFEM_EXPORT const double a[4];
 
 public:
-   AM3Solver() : AdamsMoultonSolver(3, a) { RKsolver = new SDIRK23Solver(); }
+   AM3Solver() : AdamsMoultonSolver(3, a) { RKsolver.reset(new SDIRK23Solver()); }
 };
 
 /** A 4-stage, 5th order AM method. */
@@ -548,7 +539,7 @@ private:
    static MFEM_EXPORT const double a[5];
 
 public:
-   AM4Solver() : AdamsMoultonSolver(4, a) { RKsolver = new SDIRK34Solver(); }
+   AM4Solver() : AdamsMoultonSolver(4, a) { RKsolver.reset(new SDIRK34Solver()); }
 };
 
 /// The SIASolver class is based on the Symplectic Integration Algorithm
@@ -629,7 +620,7 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    SecondOrderTimeDependentOperator *f;  // f(.,.,t) : R^n x R^n --> R^n
    MemoryType mem_type;
-   StateData state;
+   ODEStateData state;
 
 public:
    SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
