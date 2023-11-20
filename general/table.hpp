@@ -68,11 +68,11 @@ public:
                 This mode is used when merging boundary-dof tables of individual
                 components into an boundary-dof table for the complete vector.*/
    Table(const Table &table1,
-         const Table &table1, int offset,
+         const Table &table2, int offset2,
          bool merge = true);
    Table(const Table &table1,
-         const Table &table1, int offset2,
-         const Table &table1, int offset3,
+         const Table &table2, int offset2,
+         const Table &table3, int offset3,
          bool merge = true);
 
    /// Assignment operator: deep copy
