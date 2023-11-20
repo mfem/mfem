@@ -739,7 +739,6 @@ class NURBS_HDivFECollection : public NURBSFECollection
 {
 private:
 
-   //NURBS_HDiv1DFiniteElement *SegmentVFE;
    NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
    NURBS_HDiv3DFiniteElement *ParallelepipedVFE;
 
@@ -751,16 +750,13 @@ public:
 
    virtual void Reset() const
    {
-      // SegmentVFE->Reset();
       QuadrilateralVFE->Reset();
       ParallelepipedVFE->Reset();
    }
 
-   virtual void SetOrder(int Order) const;
-
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   // void SetOrder(int Order) const;
+   virtual void SetOrder(int Order) const;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
