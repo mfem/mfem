@@ -443,37 +443,6 @@ void NURBS_HDiv2DFiniteElement::SetOrder() const
 void NURBS_HDiv2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
                                            DenseMatrix &shape) const
 {
-   /*
-         double x,y;
-         x = 0.0;
-         for (int i = 0; i <= 100; i++)
-         {
-            kv[0]->CalcShape(shape_x, ijk[0], x);
-            kv1[0]->CalcShape(shape1_x, ijk[0], x);
-            cout<<"x = "<<x<<" "
-                << shape_x[0]<<" "
-                << shape_x[1]<<" "
-                << shape1_x[0]<<" "
-                << shape1_x[1]<<" "
-                << shape1_x[2]<<std::endl;
-            x += 0.01;
-         }
-
-
-         y = 0.0;
-         for (int i = 0; i <= 100; i++)
-         {
-            kv[1]->CalcShape(shape_y, ijk[1], y);
-            kv1[1]->CalcShape(shape1_y, ijk[1], y);
-             cout<<"y = "<<y<<" "
-                << shape_y[0]<<" "
-                << shape_y[1]<<" "
-                << shape1_y[0]<<" "
-                << shape1_y[1]<<" "
-                << shape1_y[2]<<std::endl;
-            y += 0.01;
-         }
-   */
 
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
    kv[1]->CalcShape(shape_y, ijk[1], ip.y);
@@ -574,12 +543,9 @@ void NURBS_HDiv2DFiniteElement::CalcVDShape(const IntegrationPoint &ip,
       const double sy = shape_y(j), dsy = dshape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
-         //    sum += ( u(o) = shape_x(i)*sy*weights(o) );
-         // dsum[0] += ( dshape(o,0) = dshape_x(i)*sy *weights(o) );
-         //  dsum[1] += ( dshape(o,1) =  shape_x(i)*dsy*weights(o) );
          dshape(o,0,0) = dshape1_x(i)*sy;
-         dshape(o,0,1) = 0.0;
-         dshape(o,1,0) = shape1_x(i)*dsy;
+         dshape(o,0,1) = shape1_x(i)*dsy;
+         dshape(o,1,0) = 0.0;
          dshape(o,1,1) = 0.0;
       }
    }
@@ -588,26 +554,12 @@ void NURBS_HDiv2DFiniteElement::CalcVDShape(const IntegrationPoint &ip,
    {
       const double sy = shape1_y(j), dsy = dshape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
-      {
-         //    sum += ( u(o) = shape_x(i)*sy*weights(o) );
-         // dsum[0] += ( dshape(o,0) = dshape_x(i)*sy *weights(o) );
-         //  dsum[1] += ( dshape(o,1) =  shape_x(i)*dsy*weights(o) );
-         dshape(o,0,0) =  0.0;
-         dshape(o,0,1) = dshape_x(i)*sy;
-         dshape(o,1,0) =  0.0;
+         dshape(o,0,0) = 0.0;
+         dshape(o,0,1) = 0.0;
+         dshape(o,1,0) = dshape_x(i)*sy;
          dshape(o,1,1) = shape_x(i)*dsy;
       }
    }
-
-   /*sum = 1.0/sum;
-   dsum[0] *= sum*sum;
-   dsum[1] *= sum*sum;
-
-   for (int o = 0; o < dof; o++)
-   {
-      dshape(o,0) = dshape(o,0)*sum - u(o)*dsum[0];
-      dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
-   }*/
 }
 
 void NURBS_HDiv2DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
@@ -639,12 +591,12 @@ void NURBS_HDiv2DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
       {
          const double sx1 = shape1_x(i), dsx1 = dshape1_x(i), d2sx1 = d2shape1_x(i);
          Hessian(o,0,0) = d2sx1*sy;
-         Hessian(o,1,0) = dsx1*dsy;
-         Hessian(o,2,0) = sx1*d2sy;
+         Hessian(o,0,1) = dsx1*dsy;
+         Hessian(o,0,2) = sx1*d2sy;
 
-         Hessian(o,0,1) = 0.0;
+         Hessian(o,1,0) = 0.0;
          Hessian(o,1,1) = 0.0;
-         Hessian(o,2,1) = 0.0;
+         Hessian(o,1,2) = 0.0;
       }
    }
    for (int j = 0; j <= orders[1]+1; j++)
@@ -654,12 +606,12 @@ void NURBS_HDiv2DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
       {
          const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
          Hessian(o,0,0) = 0.0;
-         Hessian(o,1,0) = 0.0;
-         Hessian(o,2,0) = 0.0;
+         Hessian(o,0,1) = 0.0;
+         Hessian(o,0,2) = 0.0;
 
-         Hessian(o,0,1) = d2sx*sy1;
+         Hessian(o,1,0) = d2sx*sy1;
          Hessian(o,1,1) = dsx*dsy1;
-         Hessian(o,2,1) = sx*d2sy1;
+         Hessian(o,1,2) = sx*d2sy1;
       }
    }
 }
@@ -669,16 +621,6 @@ NURBS_HDiv2DFiniteElement::~NURBS_HDiv2DFiniteElement()
    if (kv1[0]) { delete kv1[0]; }
    if (kv1[1]) { delete kv1[1]; }
 }
-
-
-
-
-
-
-
-///
-///
-
 
 
 void NURBS_HDiv3DFiniteElement::SetOrder() const
@@ -782,19 +724,6 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
          }
       }
    }
-/*
- mfem::out <<"x  = ";  shape_x.Print();
- mfem::out <<"x1 = ";  shape1_x.Print();
- mfem::out <<"y  = ";  shape_y.Print();
- mfem::out <<"y1 = ";  shape1_y.Print();
-
- mfem::out <<"z  = ";  shape_z.Print();
- mfem::out <<"z1 = ";  shape1_z.Print();
-
-mfem::out <<dof <<" "<<o<<endl;
-   shape.Print();
-*/
-
 }
 
 void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
@@ -871,104 +800,150 @@ void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 void NURBS_HDiv3DFiniteElement::CalcVDShape(const IntegrationPoint &ip,
                                             DenseTensor &dshape) const
 {
-/*   double sum, dsum[2];
-
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
-   kv1[0]->CalcShape ( shape1_x, ijk[0]+1, ip.x);
-   kv1[1]->CalcShape ( shape1_y, ijk[1]+1, ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape ( shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape ( shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape ( shape1_z, ijk[2], ip.z);
 
    kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
-   kv1[0]->CalcDShape(dshape1_x, ijk[0]+1, ip.x);
-   kv1[1]->CalcDShape(dshape1_y, ijk[1]+1, ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
 
-   sum = dsum[0] = dsum[1] = 0.0;
-   int o = 0 ;
-   for (int j = 0; j <= orders[1]; j++)
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
+
+   int o = 0;
+   for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sy = shape_y(j), dsy = dshape_y(j);
-      for (int i = 0; i <= orders[0]+1; i++, o++)
+      const double sz = shape_z(k), dsz = dshape_z(k);
+      for (int j = 0; j <= orders[1]; j++)
       {
-         //    sum += ( u(o) = shape_x(i)*sy*weights(o) );
-         // dsum[0] += ( dshape(o,0) = dshape_x(i)*sy *weights(o) );
-         //  dsum[1] += ( dshape(o,1) =  shape_x(i)*dsy*weights(o) );
-         dshape(o,0,0) = dshape1_x(i)*sy;
-         dshape(o,0,1) = 0.0;
-         dshape(o,1,0) = shape1_x(i)*dsy;
-         dshape(o,1,1) = 0.0;
+         const double sy_sz = shape_y(j)*sz,
+                      dsy_sz = dshape_y(j)*sz,
+                      sy_ssz = shape_y(j)*dsz;
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            dshape(o,0,0) = dshape1_x(i)*sy_sz;
+            dshape(o,0,1) = shape1_x(i)*dsy_sz;
+            dshape(o,0,2) = shape1_x(i)*sy_dsz;
+
+            dshape(o,1,0) = 0.0;
+            dshape(o,1,1) = 0.0;
+            dshape(o,1,2) = 0.0;
+
+            dshape(o,2,0) = 0.0;
+            dshape(o,2,1) = 0.0;
+            dshape(o,2,2) = 0.0;
+         }
       }
    }
 
-   for (int j = 0; j <= orders[1]+1; j++)
+   for (int  k = 0; k <= orders[2]; k++)
    {
-      const double sy = shape1_y(j), dsy = dshape1_y(j);
-      for (int i = 0; i <= orders[0]; i++, o++)
+      const double sz = shape_z(k), dsz = dshape_z(k);
+      for (int j = 0; j <= orders[1]+1; j++)
       {
-         //    sum += ( u(o) = shape_x(i)*sy*weights(o) );
-         // dsum[0] += ( dshape(o,0) = dshape_x(i)*sy *weights(o) );
-         //  dsum[1] += ( dshape(o,1) =  shape_x(i)*dsy*weights(o) );
-         dshape(o,0,0) =  0.0;
-         dshape(o,0,1) = dshape_x(i)*sy;
-         dshape(o,1,0) =  0.0;
-         dshape(o,1,1) = shape_x(i)*dsy;
+         const double sy1_sz = shape1_y(j)*sz,
+                      dsy1_sz = dshape1_y(j)*sz,
+                      sy1_ssz = shape1_y(j)*dsz;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            dshape(o,0,0) = 0.0;
+            dshape(o,0,1) = 0.0;
+            dshape(o,0,2) = 0.0;
+
+            dshape(o,1,0) = dshape_x(i)*sy1_sz;
+            dshape(o,1,1) = shape_x(i)*dsy1_sz;
+            dshape(o,1,2) = shape_x(i)*sy1_dsz;
+
+            dshape(o,2,0) = 0.0;
+            dshape(o,2,1) = 0.0;
+            dshape(o,2,2) = 0.0;
+         }
       }
    }
-*/
+
+   for (int  k = 0; k <= orders[2]+1; k++)
+   {
+      const double sz1 = shape1_z(k), dsz1 = dshape1_z(k);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const double sy_sz = shape_y(j)*sz,
+                      dsy_sz = dshape_y(j)*sz,
+                      sy_ssz = shape_y(j)*dsz;
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            dshape(o,0,0) = 0.0;
+            dshape(o,0,1) = 0.0;
+            dshape(o,0,2) = 0.0;
+
+            dshape(o,1,0) = 0.0;
+            dshape(o,1,1) = 0.0;
+            dshape(o,1,2) = 0.0;
+
+            dshape(o,2,0) = dshape_x(i)*sy_sz1;
+            dshape(o,2,1) = shape_x(i)*dsy_sz1;
+            dshape(o,2,2) = shape_x(i)*sy_dsz1;
+         }
+      }
+   }
+
 }
 
 void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
                                              DenseTensor &Hessian) const
 {
-  /* kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
    kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcShape ( shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcShape ( shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcShape ( shape1_z, ijk[2], ip.z);
 
    kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
+
+   kv1[0]->CalcDShape(dshape1_x, ijk[0], ip.x);
+   kv1[1]->CalcDShape(dshape1_y, ijk[1], ip.y);
+   kv1[2]->CalcDShape(dshape1_z, ijk[2], ip.z);
 
    kv[0]->CalcD2Shape(d2shape_x, ijk[0], ip.x);
    kv[1]->CalcD2Shape(d2shape_y, ijk[1], ip.y);
+   kv[2]->CalcD2Shape(d2shape_z, ijk[2], ip.z);
 
-   kv1[0]->CalcShape ( shape1_x, ijk[0]+1, ip.x);
-   kv1[1]->CalcShape ( shape1_y, ijk[1]+1, ip.y);
-
-   kv1[0]->CalcDShape(dshape1_x, ijk[0]+1, ip.x);
-   kv1[1]->CalcDShape(dshape1_y, ijk[1]+1, ip.y);
-
-   kv1[0]->CalcD2Shape(d2shape1_x, ijk[0]+1, ip.x);
-   kv1[1]->CalcD2Shape(d2shape1_y, ijk[1]+1, ip.y);
+   kv1[0]->CalcD2Shape(d2shape1_x, ijk[0], ip.x);
+   kv1[1]->CalcD2Shape(d2shape1_y, ijk[1], ip.y);
+   kv1[2]->CalcD2Shape(d2shape1_z, ijk[2], ip.z);
 
    int o = 0;
-   for (int j = 0; j <= orders[1]; j++)
+   for (int k = 0; k <= orders[2]; k++)
    {
-      const double sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
-      for (int i = 0; i <= orders[0]+1; i++, o++)
+      const double sz = shape_z(k), dsz = dshape_z(k), d2sz = d2shape_z(k);
+      for (int j = 0; j <= orders[1]; j++)
       {
-         const double sx1 = shape1_x(i), dsx1 = dshape1_x(i), d2sx1 = d2shape1_x(i);
-         Hessian(o,0,0) = d2sx1*sy;
-         Hessian(o,1,0) = dsx1*dsy;
-         Hessian(o,2,0) = sx1*d2sy;
+         const double sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            const double sx1 = shape1_x(i), dsx1 = dshape1_x(i), d2sx1 = d2shape1_x(i);
 
-         Hessian(o,0,1) = 0.0;
-         Hessian(o,1,1) = 0.0;
-         Hessian(o,2,1) = 0.0;
+             hessian(o,0,0) = d2sx1*sy*sz*weights(o) );
+             hessian(o,0,1) = dsx1*dsy*sz*weights(o) );
+             hessian(o,0,2) = dsx1*sy*dsz*weights(o) );
+
+             hessian(o,0,3) = sx1*dsy*dsz*weights(o) );
+
+             hessian(o,0,4) = sx1*sy*d2sz*weights(o) );
+             hessian(o,0,5) = sx1*d2sy*sz*weights(o) );
+         }
       }
    }
-   for (int j = 0; j <= orders[1]+1; j++)
-   {
-      const double sy1 = shape1_y(j), dsy1 = dshape1_y(j), d2sy1 = d2shape1_y(j);
-      for (int i = 0; i <= orders[0]; i++, o++)
-      {
-         const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
-         Hessian(o,0,0) = 0.0;
-         Hessian(o,1,0) = 0.0;
-         Hessian(o,2,0) = 0.0;
 
-         Hessian(o,0,1) = d2sx*sy1;
-         Hessian(o,1,1) = dsx*dsy1;
-         Hessian(o,2,1) = sx*d2sy1;
-      }
-   }*/
 }
 
 NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
