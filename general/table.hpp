@@ -58,9 +58,21 @@ public:
    /// Copy constructor
    Table(const Table &);
 
-   /// Merge constructors
-   Table(const Table &, const Table &, int offset, bool merge = true);
-   Table(const Table &, const Table &, int offset2, const Table &, int offset3,
+   /** Merge constructors
+       This is used to combine 2 or 3 tables into 1.
+       The merge bool determines whether a full or reduced merge is performed
+        true  = new row is a concatenation of all input rows.
+                This mode is used when merging element-dof tables of individual
+                components into an element-dof table for the complete vector.
+        false = new row is only the smallest of the input rows.
+                This mode is used when merging boundary-dof tables of individual
+                components into an boundary-dof table for the complete vector.*/
+   Table(const Table &table1,
+         const Table &table1, int offset,
+         bool merge = true);
+   Table(const Table &table1,
+         const Table &table1, int offset2,
+         const Table &table1, int offset3,
          bool merge = true);
 
    /// Assignment operator: deep copy
