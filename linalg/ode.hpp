@@ -16,7 +16,7 @@
 #include "../config/config.hpp"
 #include "operator.hpp"
 #include <vector>
-
+#include <memory>
 
 namespace mfem
 {
