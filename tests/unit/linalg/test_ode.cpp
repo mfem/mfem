@@ -91,7 +91,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
       void init_hist(ODESolver* ode_solver,double dt_)
       {
-         int nstate = ode_solver->GetStateSize();
+         int nstate = ode_solver->GetState().Size();
 
          for (int s = 0; s< nstate; s++)
          {
@@ -99,7 +99,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
             Vector uh(2);
             uh[0] = -cos(t) - sin(t);
             uh[1] =  cos(t) - sin(t);
-            ode_solver->SetStateVector(s,uh);
+            ode_solver->GetState().Set(s,uh);
          }
       }
 
@@ -124,7 +124,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
                   <<std::setw(12)<<"Order"<<std::endl;
          mfem::out<<std::setw(12)<<error[0]<<std::endl;
 
-         std::vector<Vector> uh(ode_solver->GetMaxStateSize());
+         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
          for (int l = 1; l < levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -144,11 +144,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
                {
                   ode_solver->Step(u, t, dt_order);
                }
-               int nstate = ode_solver->GetStateSize();
+               int nstate = ode_solver->GetState().Size();
 
                for (int s = 0; s < nstate; s++)
                {
-                  ode_solver->GetStateVector(s,uh[s]);
+                  ode_solver->GetState().Get(s,uh[s]);
                }
 
                for (int ll = 1; ll < lvl; ll++)
@@ -159,14 +159,14 @@ TEST_CASE("First order ODE methods", "[ODE]")
                      // ode_solver->state.ResetSize();
                      for (int s = nstate - 1; s >= 0; s--)
                      {
-                        ode_solver->AddStateVector(uh[s]);
+                        ode_solver->GetState().Add(uh[s]);
                      }
                   }
                   else
                   {
                      for (int s = 0; s < nstate; s++)
                      {
-                        ode_solver->SetStateVector(s,uh[s]);
+                        ode_solver->GetState().Set(s,uh[s]);
                      }
                   }
 
@@ -174,11 +174,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
                   {
                      ode_solver->Step(u, t, dt_order);
                   }
-                  nstate = ode_solver->GetStateSize();
+                  nstate = ode_solver->GetState().Size();
 
                   for (int s = 0; s< nstate; s++)
                   {
-                     uh[s] = ode_solver->GetStateVector(s);
+                     uh[s] = ode_solver->GetState().Get(s);
                   }
                }
             }

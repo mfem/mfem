@@ -24,10 +24,10 @@ namespace mfem
 /// A class for storing states of previous timesteps
 class ODEStateData
 {
-protected:
+private:
    MemoryType mem_type;
    int ss, smax;
-   std::vector<Vector> k;
+   std::vector<Vector> data;
    Array<int> idx;
 
 public:
@@ -38,10 +38,10 @@ public:
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
    };
 
-   int  GetMaxSize() const { return smax; };
-   int  GetSize() const  { return ss; };
-   void IncrementSize() { ss++; ss = std::min(ss,smax); };
-   void ResetSize() { ss = 0; };
+   int  MaxSize() const { return smax; };
+   int  Size() const  { return ss; };
+   void Increment() { ss++; ss = std::min(ss,smax); };
+   void Reset() { ss = 0; };
 
    const Vector &Get(int i) const ;
    void Get(int i, Vector &state) const ;
@@ -49,10 +49,10 @@ public:
    void Add(Vector &state);
 
    /// Reference access to the ith vector.
-   inline Vector & operator[](int i) { return k[idx[i]]; };
+   inline Vector & operator[](int i) { return data[idx[i]]; };
 
    /// Const reference access to the ith vector.
-   inline const Vector &operator[](int i) const { return k[idx[i]]; };
+   inline const Vector &operator[](int i) const { return data[idx[i]]; };
 
    void Print(std::ostream &out = mfem::out) const ;
 };
@@ -131,17 +131,16 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
-   /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() const { return state.GetMaxSize(); }
-   virtual int   GetStateSize() const { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i) const { return state.Get(i); }
-   virtual void  GetStateVector(int i, Vector &s) const { state.Get(i,s); }
-   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
-   virtual void  AddStateVector(Vector &s) { state.Add(s); }
+   // Functions for getting the state vectors
+   ODEStateData&  GetState() { return state; }
+   const ODEStateData&  GetState() const { return state; }
 
+   // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
    static MFEM_EXPORT std::string ImplicitTypes;
    static MFEM_EXPORT std::string Types;
+
+   // Functions selecting the desired ODESolver
    static MFEM_EXPORT ODESolver *Select(const int ode_solver_type);
    static MFEM_EXPORT ODESolver *SelectExplicit(const int ode_solver_type);
    static MFEM_EXPORT ODESolver *SelectImplicit(const int ode_solver_type);
@@ -697,15 +696,14 @@ public:
       while (t < tf) { Step(x, dxdt, t, dt); }
    }
 
-   /// Function for getting and setting the state vectors
-   virtual int   GetMaxStateSize() { return state.GetMaxSize(); }
-   virtual int   GetStateSize() { return state.GetSize(); }
-   virtual const Vector &GetStateVector(int i) { return state.Get(i); }
-   virtual void  GetStateVector(int i, Vector &s) { state.Get(i,s); }
-   virtual void  SetStateVector(int i, Vector &s) { state.Set(i,s); }
-   virtual void  AddStateVector(Vector &s) { state.Add(s); }
+   /// Functions for getting the state vectors
+   ODEStateData&  GetState() { return state; }
+   const ODEStateData&  GetState() const { return state; }
 
+   /// Help info for SecondOrderODESolver options
    static MFEM_EXPORT std::string Types;
+
+   /// Function selecting the desired SecondOrderODESolver
    static MFEM_EXPORT SecondOrderODESolver *Select(const int ode_solver_type);
 
    virtual ~SecondOrderODESolver() { }

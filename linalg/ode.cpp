@@ -118,12 +118,12 @@ void ODEStateData::SetSize(int stages, int vsize, MemoryType m_t)
 {
    mem_type = m_t;
    smax = stages;
-   k.resize(smax);
+   data.resize(smax);
    idx.SetSize(smax);
    for (int i = 0; i < smax; i++)
    {
       idx[i] = smax - i - 1;
-      k[i].SetSize(vsize, mem_type);
+      data[i].SetSize(vsize, mem_type);
    }
 
    ss = 0;
@@ -135,7 +135,7 @@ void ODEStateData::Get(int i, Vector &state) const
                 " LMSSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
 
-   state = k[idx[i]];
+   state = data[idx[i]];
 }
 
 const Vector &ODEStateData::Get(int i) const
@@ -144,7 +144,7 @@ const Vector &ODEStateData::Get(int i) const
                 " LMSSolver::GetStateVector \n" <<
                 " - Tried to get non-existent state "<<i);
 
-   return k[idx[i]];
+   return data[idx[i]];
 }
 
 void ODEStateData::Set(int i, Vector &state)
@@ -152,21 +152,21 @@ void ODEStateData::Set(int i, Vector &state)
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
                 " LMSSolver::SetStateVector \n" <<
                 " - Tried to set non-existent state "<<i);
-   k[idx[i]] = state;
+   data[idx[i]] = state;
 }
 
 void ODEStateData::Add(Vector &state)
 {
    ShiftStages();
-   k[idx[0]] = state;
-   IncrementSize();
+   data[idx[0]] = state;
+   Increment();
 }
 
 void ODEStateData::Print(std::ostream &os) const
 {
    os << ss <<"/" <<smax<<std::endl;
    idx.Print(os);
-   for (int i = 0; i < ss; i++) { k[idx[i]].Print(os); }
+   for (int i = 0; i < ss; i++) { data[idx[i]].Print(os); }
 }
 
 
@@ -516,11 +516,11 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
    CheckTimestep(dt);
 
-   if (state.GetSize() >= stages -1)
+   if (state.Size() >= stages -1)
    {
       f->SetTime(t);
       f->Mult(x, state[0]);
-      state.IncrementSize();
+      state.Increment();
       for (int i = 0; i < stages; i++)
       {
          x.Add(a[i]*dt, state[i]);
@@ -531,7 +531,7 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    {
       f->Mult(x,state[0]);
       RKsolver->Step(x,t,dt);
-      state.IncrementSize();
+      state.Increment();
    }
 
    state.ShiftStages();
@@ -546,7 +546,7 @@ void AdamsBashforthSolver::CheckTimestep(double dt)
    }
    else if (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon())
    {
-      state.ResetSize();
+      state.Reset();
       dt_ = dt;
 
       if (print())
@@ -592,7 +592,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
    }
    else if (fabs(dt-dt_) > 10*std::numeric_limits<double>::epsilon())
    {
-      state.ResetSize();
+      state.Reset();
       dt_ = dt;
 
       if (print())
@@ -604,13 +604,13 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       }
    }
 
-   if ((state.GetSize() == 0)&&(stages>1))
+   if ((state.Size() == 0)&&(stages>1))
    {
       f->Mult(x,state[0]);
-      state.IncrementSize();
+      state.Increment();
    }
 
-   if (state.GetSize() >= stages )
+   if (state.Size() >= stages )
    {
       f->SetTime(t);
       for (int i = 0; i < stages; i++)
@@ -627,7 +627,7 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       state.ShiftStages();
       RKsolver->Step(x,t,dt);
       f->Mult(x,state[0]);
-      state.IncrementSize();
+      state.Increment();
    }
 }
 
@@ -929,10 +929,10 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
 // This routine state[0] represents xdot
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
-   if (state.GetSize() == 0)
+   if (state.Size() == 0)
    {
       f->Mult(x,state[0]);
-      state.IncrementSize();
+      state.Increment();
    }
 
    // Set y = x + alpha_f*(1.0 - (gamma/alpha_m))*dt*xdot
@@ -1174,7 +1174,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    double fac4 = gamma;
 
    // In the first pass compute d2xdt2 directly from operator.
-   if (state.GetSize() == 0)
+   if (state.Size() == 0)
    {
       if (no_mult)
       {
@@ -1250,7 +1250,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac5 = alpha_m;
 
    // In the first pass compute d2xdt2 directly from operator.
-   if (state.GetSize() == 0)
+   if (state.Size() == 0)
    {
       if (no_mult)
       {
@@ -1261,7 +1261,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
       {
          f->Mult(x, dxdt, state[0]);
       }
-      state.IncrementSize();
+      state.Increment();
    }
 
    // Predict alpha levels
