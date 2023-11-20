@@ -268,7 +268,7 @@ protected:
    Array<int> dof_elem_array, dof_ldof_array;
 
    NURBSExtension *NURBSext;
-   Array<FiniteElementSpace*> component; // FiniteElementSpace for vector components
+   Array<FiniteElementSpace*> component; // FES for each component of a vector
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
