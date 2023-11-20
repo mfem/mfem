@@ -1620,7 +1620,7 @@ NURBSExtension::NURBSExtension(std::istream &input)
                   new KnotVector(*patches[p]->GetKV(0));
             }
          }
-         if (Dimension() == 2)
+         else if (Dimension() == 2)
          {
             patchTopo->GetElementEdges(p, edges, oedge);
             if (knotVectors[KnotInd(edges[0])] == NULL)
@@ -3779,6 +3779,23 @@ void NURBSExtension::DegreeElevate(int rel_degree, int degree)
       }
    }
 }
+
+NURBSExtension* NURBSExtension::GetDivExtension(int component)
+{
+   // TODO IDO
+   // Smarter routine
+   if (patches.Size() > 1)
+   {
+         mfem_error("NURBSExtension");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   newOrders[component] += 1;
+   newOrders.Print();
+
+   return new NURBSExtension(this, newOrders);
+}
+
 
 void NURBSExtension::UniformRefinement()
 {
