@@ -268,6 +268,7 @@ protected:
    Array<int> dof_elem_array, dof_ldof_array;
 
    NURBSExtension *NURBSext;
+   Array<FiniteElementSpace*> component; // FiniteElementSpace for vector components
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
@@ -514,9 +515,6 @@ protected:
 
 public:
 
-   Array<FiniteElementSpace *> scalar_fes;
-   Array<NURBSExtension*> scalar_ext;
-   Array<FiniteElementCollection*> scalar_fec;
 
    /** @brief Default constructor: the object is invalid until initialized using
        the method Load(). */
@@ -562,6 +560,9 @@ public:
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
+
+   const FiniteElementSpace *GetComponent(int i) const { return component[i]; }
+   FiniteElementSpace *GetComponent(int i) { return component[i]; }
 
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }

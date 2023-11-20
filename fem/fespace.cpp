@@ -2313,87 +2313,48 @@ void FiniteElementSpace::UpdateNURBS()
    {
       if (mesh->Dimension() == 2)
       {
-         Array<int> newOrders1 = NURBSext->GetOrders();
-         Array<int> newOrders2 = NURBSext->GetOrders();
+         component.SetSize(2);
+         NURBSExtension* ext0 = NURBSext->DivElevate(0);
+         NURBSExtension* ext1 = NURBSext->DivElevate(1);
 
-         newOrders1[0] += 1;
-         newOrders2[1] += 1;
+         component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
+         component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
 
-         newOrders1.Print();
-         newOrders2.Print();
-
-         scalar_ext.SetSize(2);
-         scalar_fec.SetSize(2);
-         scalar_fes.SetSize(2);
-
-         scalar_ext[0] = new NURBSExtension(NURBSext, newOrders1);
-         scalar_ext[1] = new NURBSExtension(NURBSext, newOrders2);
-
-         scalar_fec[0]  = new NURBSFECollection();
-         scalar_fec[1]  = new NURBSFECollection();
-
-         scalar_fes[0] = new FiniteElementSpace(mesh, scalar_ext[0], scalar_fec[0]);
-         scalar_fes[1] = new FiniteElementSpace(mesh, scalar_ext[1], scalar_fec[1]);
-
-         int ndofs1 = scalar_ext[0]->GetNDof();
-
-         ndofs = scalar_ext[0]->GetNDof()
-                 + scalar_ext[1]->GetNDof();
+         int offset1 = ext0->GetNDof();
+         ndofs = ext0->GetNDof() + ext1->GetNDof();
 
          // Merge Tables
-         elem_dof = new Table(*scalar_ext[0]->GetElementDofTable(),
-                              *scalar_ext[1]->GetElementDofTable(),ndofs1 );
+         elem_dof = new Table(*ext0->GetElementDofTable(),
+                              *ext1->GetElementDofTable(),offset1 );
 
-         bdr_elem_dof = new Table(*scalar_ext[0]->GetBdrElementDofTable(),
-                                  *scalar_ext[1]->GetBdrElementDofTable(),ndofs1,
+         bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
+                                  *ext1->GetBdrElementDofTable(),offset1,
                                   false );
       }
       else if (mesh->Dimension() == 3)
       {
-         Array<int> newOrders0 = NURBSext->GetOrders();
-         Array<int> newOrders1 = NURBSext->GetOrders();
-         Array<int> newOrders2 = NURBSext->GetOrders();
+         component.SetSize(3);
 
-         newOrders0[0] += 1;
-         newOrders1[1] += 1;
-         newOrders2[2] += 1;
+         NURBSExtension* ext0 = NURBSext->DivElevate(0);
+         NURBSExtension* ext1 = NURBSext->DivElevate(1);
+         NURBSExtension* ext2 = NURBSext->DivElevate(2);
 
-         newOrders0.Print();
-         newOrders1.Print();
-         newOrders2.Print();
+         component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
+         component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
+         component[2] = new FiniteElementSpace(mesh, ext2, new NURBSFECollection());
 
-         scalar_ext.SetSize(3);
-         scalar_fec.SetSize(3);
-         scalar_fes.SetSize(3);
-
-         scalar_ext[0] = new NURBSExtension(NURBSext, newOrders0);
-         scalar_ext[1] = new NURBSExtension(NURBSext, newOrders1);
-         scalar_ext[2] = new NURBSExtension(NURBSext, newOrders2);
-
-         scalar_fec[0]  = new NURBSFECollection();
-         scalar_fec[1]  = new NURBSFECollection();
-         scalar_fec[2]  = new NURBSFECollection();
-
-         scalar_fes[0] = new FiniteElementSpace(mesh, scalar_ext[0], scalar_fec[0]);
-         scalar_fes[1] = new FiniteElementSpace(mesh, scalar_ext[1], scalar_fec[1]);
-         scalar_fes[2] = new FiniteElementSpace(mesh, scalar_ext[2], scalar_fec[2]);
-
-         int ndofs1 = scalar_ext[0]->GetNDof();
-         int ndofs2 = scalar_ext[0]->GetNDof() +
-                      scalar_ext[1]->GetNDof();
-
-         ndofs = scalar_ext[0]->GetNDof() +
-                 scalar_ext[1]->GetNDof() +
-                 scalar_ext[2]->GetNDof();
+         int offset1 = ext0->GetNDof();
+         int offset2 = offset1 + ext1->GetNDof();
+         ndofs = offset2 + ext2->GetNDof();
 
          // Merge Tables
-         elem_dof = new Table(*scalar_ext[0]->GetElementDofTable(),
-                              *scalar_ext[1]->GetElementDofTable(),ndofs1,
-                              *scalar_ext[2]->GetElementDofTable(),ndofs2);
+         elem_dof = new Table(*ext0->GetElementDofTable(),
+                              *ext1->GetElementDofTable(),offset1,
+                              *ext2->GetElementDofTable(),offset2);
 
-         bdr_elem_dof = new Table(*scalar_ext[0]->GetBdrElementDofTable(),
-                                  *scalar_ext[1]->GetBdrElementDofTable(),ndofs1,
-                                  *scalar_ext[2]->GetBdrElementDofTable(),ndofs2,
+         bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
+                                  *ext1->GetBdrElementDofTable(),offset1,
+                                  *ext2->GetBdrElementDofTable(),offset2,
                                   false );
       }
       else
@@ -3391,6 +3352,16 @@ void FiniteElementSpace::Destroy()
       if (own_ext) { delete NURBSext; }
       delete face_dof;
       face_to_be.DeleteAll();
+      if (component.Size() > 0 )
+      {
+         delete elem_dof;
+         delete bdr_elem_dof;
+      }
+      for (int i = 0; i < component.Size(); i++)
+      {
+         delete component[i]->FEColl();
+         delete component[i];
+      }
    }
    else
    {
@@ -3403,6 +3374,8 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
    }
    ceed::RemoveBasisAndRestriction(this);
+
+
 }
 
 void FiniteElementSpace::DestroyDoFTrans()
