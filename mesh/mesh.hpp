@@ -220,9 +220,9 @@ protected:
    Table *el_to_edge;
    Table *el_to_face;
    Table *el_to_el;
-   Array<int> be_to_edge;  // for 2D
-   Table *bel_to_edge;     // for 3D
-   Array<int> be_to_face;
+   Array<int> be_to_face; // faces = vertices (1D), edges (2D), faces (3D)
+
+   Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
    // deleted by the caller. Of these three tables, only face_edge and
@@ -533,7 +533,7 @@ protected:
        nodes in the elements. For example, if T is the element to edge table
        T(i, 0) gives the index of edge in element i that connects vertex 0
        to vertex 1, etc. Returns the number of the edges. */
-   int GetElementToEdgeTable(Table &, Array<int> &);
+   int GetElementToEdgeTable(Table &);
 
    /// Used in GenerateFaces()
    void AddPointFaceElement(int lf, int gf, int el);
@@ -1367,11 +1367,6 @@ public:
        GetElementEdges/GetBdrElementEdges. */
    void GetBdrElementFace(int i, int *f, int *o) const;
 
-   /** Return the vertex index of boundary element i. (1D)
-       Return the edge index of boundary element i. (2D)
-       Return the face index of boundary element i. (3D) */
-   int GetBdrElementEdgeIndex(int i) const;
-
    /** @brief For the given boundary element, bdr_el, return its adjacent
        element and its info, i.e. 64*local_bdr_index+bdr_orientation.
 
@@ -1392,8 +1387,19 @@ public:
        @sa GetBdrElementAdjacentElement() */
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
-   /// Return the local face index for the given boundary face.
-   int GetBdrFace(int BdrElemNo) const;
+   /// @brief Return the local face (codimension-1) index for the given boundary
+   /// element index.
+   int GetBdrElementFaceIndex(int be_idx) const { return be_to_face[be_idx]; }
+
+   /// Deprecated in favor of GetBdrElementFaceIndex().
+   MFEM_DEPRECATED int GetBdrFace(int i) const { return GetBdrElementFaceIndex(i); }
+
+   /** Return the vertex index of boundary element i. (1D)
+       Return the edge index of boundary element i. (2D)
+       Return the face index of boundary element i. (3D)
+
+       Deprecated in favor of GetBdrElementFaceIndex(). */
+   MFEM_DEPRECATED int GetBdrElementEdgeIndex(int i) const { return GetBdrElementFaceIndex(i); }
 
    /// @}
 
