@@ -493,7 +493,7 @@ int main (int argc, char *argv[])
            found_away << "," <<
            not_found << "," <<
            face_pts << "," <<
-//           npt_on_faces << "," <<
+           //           npt_on_faces << "," <<
            max_err << "," <<
            max_dist << "," <<
            finder.setup_split_time << "," <<

@@ -428,9 +428,9 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3],
    sets out->dist2, out->index, out->x, out->oldr in any event,
    leaving out->r, out->dr, out->flags to be set when returning 0 */
 static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
-                         const dfloat resid[3],
-                         const findptsElementPoint_t *p,
-                         const dfloat tol)
+                                                 const dfloat resid[3],
+                                                 const findptsElementPoint_t *p,
+                                                 const dfloat tol)
 {
    const dfloat dist2 = norm2(resid);
    const dfloat decr = p->dist2 - dist2;
@@ -483,10 +483,10 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
 /* minimize ||resid - jac * dr||_2, with |dr| <= tr, |r0+dr|<=1
    (exact solution of trust region problem) */
 static MFEM_HOST_DEVICE void newton_vol(findptsElementPoint_t *const out,
-                const dfloat jac[9],
-                const dfloat resid[3],
-                const findptsElementPoint_t *const p,
-                const dfloat tol)
+                                        const dfloat jac[9],
+                                        const dfloat resid[3],
+                                        const findptsElementPoint_t *const p,
+                                        const dfloat tol)
 {
    const dfloat tr = p->tr;
    dfloat bnd[6] = {-1, 1, -1, 1, -1, 1};
@@ -680,15 +680,15 @@ newton_vol_fin:
    out->flags = flags | (p->flags << 7);
 }
 static MFEM_HOST_DEVICE void newton_face(findptsElementPoint_t *const out,
-                 const dfloat jac[9],
-                 const dfloat rhes[3],
-                 const dfloat resid[3],
-                 const dlong d1,
-                 const dlong d2,
-                 const dlong dn,
-                 const dlong flags,
-                 const findptsElementPoint_t *const p,
-                 const dfloat tol)
+                                         const dfloat jac[9],
+                                         const dfloat rhes[3],
+                                         const dfloat resid[3],
+                                         const dlong d1,
+                                         const dlong d2,
+                                         const dlong dn,
+                                         const dlong flags,
+                                         const findptsElementPoint_t *const p,
+                                         const dfloat tol)
 {
    const dfloat tr = p->tr;
    dfloat bnd[4];
@@ -919,12 +919,12 @@ newton_edge_fin:
 }
 
 static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[3],
-            const dfloat x[3],
-            dfloat *z, //GLL point locations [-1, 1]
-            dfloat *dist2,
-            dfloat *r[3],
-            const int j,
-            const dlong p_Nr)
+                                    const dfloat x[3],
+                                    dfloat *z, //GLL point locations [-1, 1]
+                                    dfloat *dist2,
+                                    dfloat *r[3],
+                                    const int j,
+                                    const dlong p_Nr)
 {
    if (j >= p_Nr)
    {
@@ -960,15 +960,15 @@ static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[3],
 }
 
 static MFEM_HOST_DEVICE dfloat tensor_ig3_j(dfloat *g_partials,
-                    const dfloat *Jr,
-                    const dfloat *Dr,
-                    const dfloat *Js,
-                    const dfloat *Ds,
-                    const dfloat *Jt,
-                    const dfloat *Dt,
-                    const dfloat *u,
-                    const dlong j,
-                    const dlong p_Nr)
+                                            const dfloat *Jr,
+                                            const dfloat *Dr,
+                                            const dfloat *Js,
+                                            const dfloat *Ds,
+                                            const dfloat *Jt,
+                                            const dfloat *Dt,
+                                            const dfloat *u,
+                                            const dlong j,
+                                            const dlong p_Nr)
 {
    dfloat uJtJs = 0.0;
    dfloat uDtJs = 0.0;
@@ -1027,9 +1027,10 @@ static void FindPointsLocal3D_Kernel(const int npt,
    const dlong p_NE = p_Nr*p_Nr*p_Nr;
    const int p_Nr_Max = 8;
    mfem::forall_1D(npt, p_innerSize, [=] MFEM_HOST_DEVICE (int i)
-   //   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
+                   //   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
    {
-      constexpr int size1 = MAX_CONST(4, p_Nr_Max + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr_Max + 5;
+      constexpr int size1 = MAX_CONST(4,
+                                      p_Nr_Max + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr_Max + 5;
       constexpr int size2 = MAX_CONST(p_Nr_Max *p_Nr_Max * 6, p_Nr_Max * 3 * 3);
       MFEM_SHARED dfloat r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
