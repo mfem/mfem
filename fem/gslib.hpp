@@ -154,8 +154,6 @@ protected:
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
 
-   virtual void SetupDevice(MemoryType mt); // probably should be internal
-
    void FindPointsOnDevice(const Vector &point_pos,
                            int point_pos_ordering = Ordering::byNODES);
 
@@ -298,6 +296,8 @@ public:
    /// Return reference coordinates in [-1,1] (internal range in GSLIB) for each
    /// point found by FindPoints.
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
+
+   virtual void SetupDevice(MemoryType mt); // probably should be internal
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
