@@ -751,7 +751,7 @@ public:
 
    virtual void Reset() const
    {
-     // SegmentVFE->Reset();
+      // SegmentVFE->Reset();
       QuadrilateralVFE->Reset();
       ParallelepipedVFE->Reset();
    }
