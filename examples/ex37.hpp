@@ -83,7 +83,6 @@ public:
                                    DenseMatrix &elmat)
    {
       int dof = el.GetDof();
-      out << Tr.Attribute << " LHSFace" << std::endl;
       Vector shape(dof), vec(vdim);
 
       elmat.SetSize(dof*vdim);
@@ -111,7 +110,7 @@ public:
          double val = k*Tr.Face->Weight() * ip.weight;
 
          el.CalcShape(eip, shape);
-         
+         MultVVt(shape, elmat_scalar);
          for (int row = 0; row < vdim; row++)
          {
             for (int col = 0; col < vdim; col++)
@@ -1654,13 +1653,6 @@ public:
       }
       EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
       filterSolver.Solve(frho);
-      // for (auto val : *frho)
-      // {
-      //    if (!IsFinite(val))
-      //    {
-      //       mfem_warning("filter is not finite.");
-      //    }
-      // }
 
       // Step 3. Linear Elasticity
       ConstantCoefficient one_cf(1.0);
@@ -1682,7 +1674,6 @@ public:
                                     output_bdr);
       EllipticSolver adjointElasticitySolver(elasticity, adjload, ess_bdr);
       adjointElasticitySolver.Solve(adju);
-      adju->Neg();
 
       current_val = -(*adjload)(*u);
 
@@ -2027,7 +2018,13 @@ public:
          new_val = F.Eval();
          directionalDer->Assemble();
          d2 = (*directionalDer)(*grad);
+         out << "."; out.flush();
+         if (i > 10)
+         {
+            break;
+         }
       }
+      out << std::endl;
       out << i << ", " << step_size;
       out.flush();
 

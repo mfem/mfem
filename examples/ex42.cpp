@@ -158,13 +158,13 @@ int main(int argc, char *argv[])
    double epsilon = 1e-2;
    double vol_fraction = 0.3;
    int max_it = 1e3;
-   double itol = 1e-3;
+   double itol = 1e-7;
    double ntol = 1e-6;
    double rho_min = 1e-6;
    double exponent = 3.0;
    double lambda = 1.0;
    double mu = 1.0;
-   double c1 = 1e-04;
+   // double c1 = 1e-04;
    double mv = 0.1;
    bool glvis_visualization = true;
 
@@ -226,19 +226,19 @@ int main(int argc, char *argv[])
          //                      |                     |
          //    fixed (0.1cm) (1) |                     |
          //                      -----------------------
-         mesh = mesh.MakeCartesian2D(40, 20, mfem::Element::Type::QUADRILATERAL, true,
+         mesh = mesh.MakeCartesian2D(80, 40, mfem::Element::Type::QUADRILATERAL, true,
                                      2.0, 1.0);
          double len = 0.025;
-         input_spring = 1;
-         output_spring = 1;
-         input_direction.SetSize(2);
-         output_direction.SetSize(2);
+         input_spring = 1*40;
+         output_spring = 1*40;
+         input_direction.SetSize(2); input_direction = 0.0;
+         output_direction.SetSize(2); output_direction = 0.0;
          input_direction[0] = 1.0;
          output_direction[0] = -1.0;
          ess_bdr.SetSize(3, BdrType::NumBdr); ess_bdr = 0;
-         ess_bdr(1, 3) = 1; // roller - y directional fixed
-         ess_bdr(2, 0) = 1; // fixed
-         input_bdr[1] = 1; output_bdr[2] = 1;
+         ess_bdr(1, BdrType::XRoller) = 1; // roller - y directional fixed
+         ess_bdr(2, BdrType::Fixed) = 1; // fixed
+         input_bdr[BdrType::Input] = 1; output_bdr[BdrType::Output] = 1;
          for (int i = 0; i<mesh.GetNBE(); i++)
          {
             int atr = mesh.GetBdrAttribute(i);
@@ -256,34 +256,32 @@ int main(int argc, char *argv[])
             Element * be = mesh.GetBdrElement(i);
             Array<int> vertices;
             be->GetVertices(vertices);
-
             double * coords1 = mesh.GetVertex(vertices[0]);
             double * coords2 = mesh.GetVertex(vertices[1]);
 
-            Vector fc(2);
-            fc(1) = 0.5*(coords1[1] + coords2[1]);
+            double y = 0.5*(coords1[1] + coords2[1]);
             if (atr == 4)
             {
-               if (fc(1) < len)
+               if (y < len)
                {
-                  mesh.SetBdrAttribute(i, BdrType::Fixed);
+                  mesh.SetBdrAttribute(i, BdrType::Fixed + 1);
                   continue;
                }
-               else if (fc(1) > 1.0 - len)
+               else if (y > 1 - len)
                {
-                  mesh.SetBdrAttribute(i, BdrType::Input);
+                  mesh.SetBdrAttribute(i, BdrType::Input + 1);
                   continue;
                }
             }
-            else
+            else if (atr == 2)
             {
-               if (fc(1) > 1.0 - len)
+               if (y > 1 - len)
                {
-                  mesh.SetBdrAttribute(i, BdrType::Output);
+                  mesh.SetBdrAttribute(i, BdrType::Output + 1);
                   continue;
                }
             }
-            mesh.SetBdrAttribute(i, BdrType::Free);
+            mesh.SetBdrAttribute(i, BdrType::Free + 1);
          }
          solfile << "Inverter-";
          solfile2 << "Inverter-";
@@ -433,7 +431,7 @@ int main(int argc, char *argv[])
       adjElasticitySolver.Solve(&adju);
 
 
-      double output_displacement = adjElasticityRHS(u);
+      double output_displacement = -adjElasticityRHS(u);
 
       BilinearForm dualFilterForm(&filter_fes);
       dualFilterForm.AddDomainIntegrator(new DiffusionIntegrator(eps2_cf));
@@ -450,8 +448,7 @@ int main(int argc, char *argv[])
       gradH1Form.Assemble();
       invMass.Mult(gradH1Form, gradL2);
 
-      gradL2.Neg();
-      gradL2 *= dv;
+      // gradL2.Neg();
       Vector lower(rho), upper(rho);
       lower -= mv; lower.Clip(0, 1);
       upper += mv; upper.Clip(0, 1);
@@ -461,7 +458,6 @@ int main(int argc, char *argv[])
       {
          double lmid = (l1 + l2) / 2.0;
          rho = rho_old;
-
          Vector dc(gradL2);
          dc *= 1.0 / lmid;
          dc.Clip(1e-10, infinity());
@@ -497,7 +493,7 @@ int main(int argc, char *argv[])
       // double norm_increment = zerogf.ComputeL1Error(succ_diff_rho);
 
       rho_old -= rho;
-      double norm_increment = rho_old.ComputeL1Error(zero);
+      double norm_increment = rho_old.ComputeL1Error(zero) / domain_volume;
 
       mfem::out << norm_increment << endl;
 
