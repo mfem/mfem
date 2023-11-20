@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "gridfunc.hpp"
 #include <limits>
+#include "../general/tic_toc.hpp"
 
 #ifdef MFEM_USE_GSLIB
 
@@ -54,6 +55,15 @@ class FindPointsGSLIB
 {
 public:
    enum AvgType {NONE, ARITHMETIC, HARMONIC}; // Average type for L2 functions
+   double setup_split_time = 0.0,
+          setup_nodalmapping_time = 0.0,
+          setup_findpts_setup_time = 0.0;
+   double findpts_findpts_time = 0.0,
+          findpts_mapelemrst_time = 0.0,
+          findpts_setup_device_arrays_time = 0.0;
+   double interpolate_h1_time = 0.0,
+          interpolate_general_time = 0.0,
+          interpolate_l2_pass2_time = 0.0;
 
 protected:
    Mesh *mesh;
@@ -115,6 +125,9 @@ protected:
    } DEV;
 #undef dlong
 #undef dfloat
+
+   // Stopwatches
+   StopWatch setupSW;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);

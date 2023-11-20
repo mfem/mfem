@@ -1036,7 +1036,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
       MFEM_SHARED dfloat constraint_workspace[size2];
       infok[0] = size1;
       infok[1] = size2;
-      dlong constraint_init;
+      // dlong constraint_init;
       MFEM_SHARED dlong constraint_init_t[p_innerSize];
 
       dfloat *r_workspace_ptr = r_workspace;
@@ -1832,7 +1832,6 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos,
    {
       MFEM_ABORT("Device implementation only for 3D yet.");
    }
-   //   std::cout << " k10donefindptslocal\n";
 }
 
 

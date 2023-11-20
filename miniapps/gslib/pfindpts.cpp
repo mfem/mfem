@@ -46,9 +46,10 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
-// make pfindpts -j && mpirun -np 1 pfindpts -m hex1.mesh -d debug -rs 0 -mo 3 -ji 0.01
+// make pfindpts -j && mpirun -np 5 pfindpts -m ../../data/inline-hex.mesh -d debug -rs 2 -mo 3 -o 3 -ji 0.01 -nc 2 -po 1 -gfo 1 -eo 1
 #include "mfem.hpp"
 #include "general/forall.hpp"
+#include "../common/mfem-common.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -94,6 +95,9 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    double jitter         = 0.0;
    int exact_sol_order   = 1;
+   int smooth            = 0; //kershaw transformation parameter
+   int jobid             = 0;
+   int npt               = 100; //points per proc
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -132,8 +136,12 @@ int main (int argc, char *argv[])
                   "Random perturbation scaling factor.");
    args.AddOption(&exact_sol_order, "-eo", "--exact-sol-order",
                   "Order for analytic solution.");
-
-
+   args.AddOption(&smooth, "-smooth", "--smooth",
+                  "smooth parameter of kershaw");
+   args.AddOption(&jobid, "-jid", "--jid",
+                  "job id used for visit  save files");
+   args.AddOption(&npt, "-npt", "--npt",
+                  "# points per proc");
    args.Parse();
    if (!args.Good())
    {
@@ -141,6 +149,7 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+   bool cpu_mode = strcmp(devopt,"cpu")==0;
 
    if (hrefinement)
    {
@@ -199,6 +208,16 @@ int main (int argc, char *argv[])
       cout << "Mesh curvature of the curved mesh: " << fecm.Name() << endl;
    }
 
+   int nelemglob = pmesh.GetGlobalNE();
+
+   // Kershaw transformation
+   if (smooth > 0)
+   {
+      // 1 leads to a linear transformation, 2 cubic, and 3 5th order.
+      common::KershawTransformation kershawT(pmesh.Dimension(), 0.3, 0.3, smooth);
+      pmesh.Transform(kershawT);
+   }
+
    Vector h0(pfespace.GetNDofs());
    h0 = infinity();
    double vol_loc = 0.0;
@@ -243,7 +262,6 @@ int main (int argc, char *argv[])
    // Set the perturbation of all nodes from the true nodes.
    x.SetTrueVector();
    x.SetFromTrueVector();
-
 
    pmesh.DeleteGeometricFactors();
    double vol = 0;
@@ -320,54 +338,10 @@ int main (int argc, char *argv[])
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
-   const int pts_cnt_1D = 13;
-   int pts_cnt = pow(pts_cnt_1D, dim);
+   int pts_cnt = npt;
    Vector vxyz(pts_cnt * dim);
-   vxyz.UseDevice(true);
-   vxyz.HostReadWrite();
+   vxyz.UseDevice(!cpu_mode);
    vxyz.Randomize(myid+1);
-   if (dim == 2)
-   {
-      L2_QuadrilateralElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
-         {
-            vxyz(i)           = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         }
-         else
-         {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-         }
-      }
-   }
-   else
-   {
-      L2_HexahedronElement el(pts_cnt_1D - 1, BasisType::ClosedUniform);
-      const IntegrationRule &ir = el.GetNodes();
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         if (point_ordering == Ordering::byNODES)
-         {
-            vxyz(i)             = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(pts_cnt + i)   = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-            vxyz(2*pts_cnt + i) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
-         }
-         else
-         {
-            vxyz(i*dim + 0) = pos_min(0) + ip.x * (pos_max(0)-pos_min(0));
-            vxyz(i*dim + 1) = pos_min(1) + ip.y * (pos_max(1)-pos_min(1));
-            vxyz(i*dim + 2) = pos_min(2) + ip.z * (pos_max(2)-pos_min(2));
-         }
-      }
-   }
-   //   vxyz = 1.0/3.0;
-   vxyz.ReadWrite();
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -379,48 +353,23 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);//, 0.01, 1e-15);
+   finder.Setup(pmesh);
    finder.FindPoints(vxyz, point_ordering);
-   //   std::cout << " k10donefindpoints\n";
-
-   //      FindPointsGSLIB finder2(MPI_COMM_WORLD);
-   //      finder2.Setup(pmesh);
-   //      vxyz.HostReadWrite();
-   //      vxyz.UseDevice(false);
-   //      finder2.FindPoints(vxyz, point_ordering);
-   //      Array<unsigned int> code_out2    = finder2.GetCode();
-   //      Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
-   //      Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
-   //      Vector dist2    = finder2.GetDist();
-   //      Array<unsigned int> proc_out2    = finder2.GetProc();
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
    Vector ref_rst1    = finder.GetGSLIBReferencePosition();
    Vector dist1    = finder.GetDist();
-   //   Vector info1    = finder.GetInfo();
    Array<unsigned int> proc_out1    = finder.GetProc();
    vxyz.HostReadWrite();
-   //   vxyz.Print();
-   //   ref_rst1.Print();
-   //   ref_rst2.Print();
-
-   //      MFEM_ABORT(" ");
-
 
    int notfound = 0;
    for (int i = 0; i < code_out1.Size(); i++)
    {
       int c1 = code_out1[i];
-      //      int c2 = code_out2[i];
       int e1 = el_out1[i];
-      //      int e2 = el_out2[i];
       Vector ref1(ref_rst1.GetData()+i*dim, dim);
-      //      Vector ref2(ref_rst2.GetData()+i*dim, dim);
       Vector dref = ref1;
-      //      dref -= ref2;
-
-      //       if (c1-c2 != 0 || e1-e2 != 0 || dref.Norml2() >= 1e-12)
       if (std::fabs(dist1(i)) > 1e-10 && myid == 0)
       {
          notfound++;
@@ -434,10 +383,6 @@ int main (int argc, char *argv[])
             std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " << vxyz(i*dim+1) <<  " " <<
                       vxyz(i*dim+2) << " k10\n";
          }
-         //         std::cout << i << " " << c1 << " " << e1 << " " << ref1.Norml2() << " " <<
-         //                   c1-c2 << " " << e1-e2 << " " << dref.Norml2() << " k10diff\n";
-         //         std::cout << "FPT CPU: " << c2 << " " << e2 << " " << dist2(i) << " " << ref2(
-         //                      0) << " " << ref2(1) << " " << ref2(2) << " k10\n";
          std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " <<
                    ref1(0) << " " << ref1(1) << " " << ref1(2) << " " <<
                    proc_out1[i] << " k10\n";
@@ -446,91 +391,121 @@ int main (int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD);
 
-   //   std::cout << notfound << " k10donefindpoints\n";
-   //   std::cout << info1(0) << " " << info1(1) << " k10c\n";
-   //   std::cout << " k10about to interpolate\n";
    finder.Interpolate(field_vals, interp_vals);
    Vector info1    = finder.GetInfo();
-   //   std::cout << " k10doneinterpolate\n";
    if (interp_vals.UseDevice())
    {
       interp_vals.HostReadWrite();
    }
    vxyz.HostReadWrite();
 
-
-
-   //         FindPointsGSLIB finder2(MPI_COMM_WORLD);
-   //         finder2.Setup(pmesh);
-   //         vxyz.HostReadWrite();
-   //         vxyz.UseDevice(false);
-   //         finder2.FindPoints(vxyz, point_ordering);
-   //         Array<unsigned int> code_out2    = finder2.GetCode();
-   //         Array<unsigned int> el_out2    = finder2.GetGSLIBElem();
-   //         Vector ref_rst2    = finder2.GetGSLIBReferencePosition();
-   //         Vector dist2    = finder2.GetDist();
-   //         Array<unsigned int> proc_out2    = finder2.GetProc();
-   //         Vector interp_vals2;
-   //         field_vals.HostReadWrite();
-   //         finder2.Interpolate(field_vals, interp_vals2);
-
-   if (myid == 0)
-   {
-      //       vxyz.Print();
-      //       ref_rst1.Print();
-      //       interp_vals.Print();
-   }
-   //   info1.Print(mfem::out, 10);
-
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
+   Vector rst = finder.GetReferencePosition();
 
-   // Print the results for task 0 since either 1) all tasks have the
-   // same set of points or 2) only task 0 has any points.
-   if (myid == 0 )
+   int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+
+   Vector pos(dim);
+   for (int j = 0; j < vec_dim; j++)
    {
-      int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-      double error = 0.0, max_err = 0.0, max_dist = 0.0;
-      Vector pos(dim);
-      for (int j = 0; j < vec_dim; j++)
+      for (int i = 0; i < pts_cnt; i++)
       {
-         for (int i = 0; i < pts_cnt; i++)
+         if (j == 0)
          {
-            if (j == 0)
-            {
-               (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
-            }
-
-            if (code_out[i] < 2)
-            {
-               for (int d = 0; d < dim; d++)
-               {
-                  pos(d) = point_ordering == Ordering::byNODES ?
-                           vxyz(d*pts_cnt + i) :
-                           vxyz(i*dim + d);
-               }
-               Vector exact_val(vec_dim);
-               F_exact(pos, exact_val);
-               error = gf_ordering == Ordering::byNODES ?
-                       fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-                       fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-               max_err  = std::max(max_err, error);
-               max_dist = std::max(max_dist, dist_p_out(i));
-               if (code_out[i] == 1 && j == 0) { face_pts++; }
-            }
-            else { if (j == 0) { not_found++; } }
+            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
          }
-      }
 
+         if (code_out[i] < 2)
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = point_ordering == Ordering::byNODES ?
+                        vxyz(d*pts_cnt + i) :
+                        vxyz(i*dim + d);
+            }
+            Vector exact_val(vec_dim);
+            F_exact(pos, exact_val);
+            err = gf_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                  fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+            max_err  = std::max(max_err, err);
+            max_dist = std::max(max_dist, dist_p_out(i));
+            if (code_out[i] == 1 && j == 0) { face_pts++; }
+         }
+         else { if (j == 0) { not_found++; } }
+      }
+   }
+
+   MPI_Allreduce(MPI_IN_PLACE, &found_loc, 1, MPI_INT, MPI_SUM,
+                 pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &found_away, 1, MPI_INT, MPI_SUM,
+                 pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &face_pts, 1, MPI_INT, MPI_SUM, pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &not_found, 1, MPI_INT, MPI_SUM,
+                 pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_err, 1, MPI_DOUBLE, MPI_MAX,
+                 pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &max_dist, 1, MPI_DOUBLE, MPI_MAX,
+                 pfespace.GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &err, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
+   //         MPI_Allreduce(MPI_IN_PLACE, &npt_on_faces, 1, MPI_INT, MPI_SUM,
+   //                       pfespace.GetComm());
+
+
+   if (myid == 0)
+   {
       cout << setprecision(16)
-           << "Searched unique points: " << pts_cnt
-           << "\nFound on local mesh:  " << found_loc
+           << "Total number of elements: " << nelemglob
+           << "\nTotal number of procs: " << num_procs
+           << "\nSearched total points: " << pts_cnt*num_procs
+           << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
+           << "\nPoints not found:     " << not_found
+           << "\nPoints on faces:      " << face_pts
+           //                    << "\nPoints put on faces:  " << npt_on_faces
            << "\nMax interp error:     " << max_err
            << "\nMax dist (of found):  " << max_dist
-           << "\nPoints not found:     " << not_found
-           << "\nPoints on faces:      " << face_pts << endl;
+           //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
+           << endl;
+   }
+
+   if (myid == 0)
+   {
+      cout << "FindPointsGSLIB-Timing-info " <<
+           "jobid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           <<
+           "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
+           "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
+           <<
+           "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
+           jobid << "," <<
+           nelemglob << "," <<
+           num_procs << "," <<
+           dim << "," <<
+           mesh_poly_deg << "," << order << "," <<
+           func_order << "," << fieldtype << "," <<
+           smooth << "," <<
+           pts_cnt << "," <<
+           pts_cnt*num_procs << "," <<
+           found_loc << "," <<
+           found_away << "," <<
+           not_found << "," <<
+           face_pts << "," <<
+//           npt_on_faces << "," <<
+           max_err << "," <<
+           max_dist << "," <<
+           finder.setup_split_time << "," <<
+           finder.setup_nodalmapping_time << "," <<
+           finder.setup_findpts_setup_time << "," <<
+           finder.findpts_findpts_time << "," <<
+           finder.findpts_setup_device_arrays_time << "," <<
+           finder.findpts_mapelemrst_time << "," <<
+           finder.interpolate_h1_time << "," <<
+           finder.interpolate_general_time << "," <<
+           finder.interpolate_l2_pass2_time << "," <<
+           std::endl;
    }
 
    // Free the internal gslib data.
