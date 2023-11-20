@@ -2314,8 +2314,8 @@ void FiniteElementSpace::UpdateNURBS()
       if (mesh->Dimension() == 2)
       {
          component.SetSize(2);
-         NURBSExtension* ext0 = NURBSext->DivElevate(0);
-         NURBSExtension* ext1 = NURBSext->DivElevate(1);
+         NURBSExtension* ext0 = NURBSext->GetDivExtension(0);
+         NURBSExtension* ext1 = NURBSext->GetDivExtension(1);
 
          component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
          component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
@@ -2335,9 +2335,9 @@ void FiniteElementSpace::UpdateNURBS()
       {
          component.SetSize(3);
 
-         NURBSExtension* ext0 = NURBSext->DivElevate(0);
-         NURBSExtension* ext1 = NURBSext->DivElevate(1);
-         NURBSExtension* ext2 = NURBSext->DivElevate(2);
+         NURBSExtension* ext0 = NURBSext->GetDivExtension(0);
+         NURBSExtension* ext1 = NURBSext->GetDivExtension(1);
+         NURBSExtension* ext2 = NURBSext->GetDivExtension(2);
 
          component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
          component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
