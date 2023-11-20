@@ -48,35 +48,17 @@
 using namespace std;
 using namespace mfem;
 
-// Define the analytical solution and forcing terms / boundary conditions
-void u_ex(const Vector & x, Vector & u)
-{
-   if (x.Size() == 2)
-   {
-     u_2d(x, u);
-   }
-   else if (x.Size() == 3)
-   {
-     u_3d(x, u);
-   }
 
-}
 
 void u_2d(const Vector & x, Vector & u)
 {
    double xi(x(0));
    double yi(x(1));
 
-   int p2 = 3;
-   int p3 = 3;
-   double c1 = 2.0;
+   int p = 2;
 
-   int p1 = p3 + 1;
-   int p4 = p2 + 1;
-   double c2 = -p1*(c1/p4);
-
-   u(0) = c1*pow(xi,p1)*pow(yi,p2);
-   u(1) = c2*pow(xi,p3)*pow(yi,p4);
+   u(0) =  pow(xi,p + 1)*pow(yi,p    );
+   u(1) = -pow(xi,p    )*pow(yi,p + 1);
 }
 
 void u_3d(const Vector & x, Vector & u)
@@ -85,20 +67,29 @@ void u_3d(const Vector & x, Vector & u)
    double yi(x(1));
    double zi(x(2));
 
-   int p2 = 3;
-   int p3 = 3;
-   double c1 = 2.0;
+   int p = 2;
 
-   int p1 = p3 + 1;
-   int p4 = p2 + 1;
-   double c2 = -p1*(c1/p4);
+   double cx = 3.0/4.0;
+   double cy = 2.0/3.0;
+   double cz = -cx - cy;
 
-   u(0) = c1*pow(xi,p1)*pow(yi,p2);
-   u(1) = c2*pow(xi,p3)*pow(yi,p4);
-   u(2) = 0.0;
+   u(0) = cx*pow(xi,p + 1)*pow(yi,p    )*pow(zi,p    );
+   u(1) = cy*pow(xi,p    )*pow(yi,p + 1)*pow(zi,p    );
+   u(2) = cz*pow(xi,p    )*pow(yi,p    )*pow(zi,p + 1);
 }
 
-
+// Define the analytical solution and forcing terms / boundary conditions
+void u_ex(const Vector & x, Vector & u)
+{
+   if (x.Size() == 2)
+   {
+      u_2d(x, u);
+   }
+   else if (x.Size() == 3)
+   {
+      u_3d(x, u);
+   }
+}
 
 int main(int argc, char *argv[])
 {
@@ -327,11 +318,11 @@ int main(int argc, char *argv[])
    p.MakeRef(W_space, x.GetBlock(1), 0);
    if (NURBS)
    {
-      uu.MakeRef(R_space->scalar_fes[0], x.GetBlock(0), 0);
-      vv.MakeRef(R_space->scalar_fes[1], x.GetBlock(0),R_space->GetVSize()/dim);
+      uu.MakeRef(R_space->GetComponent(0), x.GetBlock(0), 0);
+      vv.MakeRef(R_space->GetComponent(1), x.GetBlock(0),R_space->GetVSize()/dim);
       if (dim ==3)
       {
-        ww.MakeRef(R_space->scalar_fes[2], x.GetBlock(0), 2*R_space->GetVSize()/dim);
+         ww.MakeRef(R_space->GetComponent(2), x.GetBlock(0), 2*R_space->GetVSize()/dim);
       }
    }
 
@@ -418,15 +409,6 @@ int main(int argc, char *argv[])
    delete mVarf;
    delete bVarf;
    delete W_space;
-   if (NURBS)
-   {
-      R_space->scalar_fes[0];
-      R_space->scalar_fes[1];
-      if (dim ==3)
-      {
-         R_space->scalar_fes[2];
-      }
-   }
    delete R_space;
    delete l2_coll;
    delete hdiv_coll;
