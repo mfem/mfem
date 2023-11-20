@@ -499,7 +499,7 @@ const double RK8Solver::c[] =
 };
 
 AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_):
-stages(s_)
+   stages(s_)
 {
    a = a_;
 }
@@ -571,7 +571,7 @@ const double AB5Solver::a[] =
 {1901.0/720.0,-2774.0/720.0, 2616.0/720.0,-1274.0/720.0, 251.0/720.0};
 
 AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_):
-stages(s_)
+   stages(s_)
 {
    a = a_;
 }
