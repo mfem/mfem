@@ -629,7 +629,7 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
    orders[0] = kv[0]->GetOrder();
    orders[1] = kv[1]->GetOrder();
    orders[2] = kv[2]->GetOrder();
-   
+
    if (kv1[0]) { delete kv1[0]; }
    if (kv1[1]) { delete kv1[1]; }
    if (kv1[2]) { delete kv1[2]; }
@@ -933,14 +933,14 @@ void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
          {
             const double sx1 = shape1_x(i), dsx1 = dshape1_x(i), d2sx1 = d2shape1_x(i);
 
-             hessian(o,0,0) = d2sx1*sy*sz;
-             hessian(o,0,1) = dsx1*dsy*sz;
-             hessian(o,0,2) = dsx1*sy*dsz;
+            hessian(o,0,0) = d2sx1*sy*sz;
+            hessian(o,0,1) = dsx1*dsy*sz;
+            hessian(o,0,2) = dsx1*sy*dsz;
 
-             hessian(o,0,3) = sx1*dsy*dsz;
+            hessian(o,0,3) = sx1*dsy*dsz;
 
-             hessian(o,0,4) = sx1*sy*d2sz;
-             hessian(o,0,5) = sx1*d2sy*sz;
+            hessian(o,0,4) = sx1*sy*d2sz;
+            hessian(o,0,5) = sx1*d2sy*sz;
          }
       }
    }
@@ -955,14 +955,14 @@ void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
          {
             const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
 
-             hessian(o,0,0) = d2sx*sy1*sz;
-             hessian(o,0,1) = dsx*dsy1*sz;
-             hessian(o,0,2) = dsx*sy1*dsz;
+            hessian(o,0,0) = d2sx*sy1*sz;
+            hessian(o,0,1) = dsx*dsy1*sz;
+            hessian(o,0,2) = dsx*sy1*dsz;
 
-             hessian(o,0,3) = sx*dsy1*dsz;
+            hessian(o,0,3) = sx*dsy1*dsz;
 
-             hessian(o,0,4) = sx*sy1*d2sz;
-             hessian(o,0,5) = sx*d2sy1*sz;
+            hessian(o,0,4) = sx*sy1*d2sz;
+            hessian(o,0,5) = sx*d2sy1*sz;
          }
       }
    }
@@ -977,14 +977,14 @@ void NURBS_HDiv3DFiniteElement::CalcVHessian(const IntegrationPoint &ip,
          {
             const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
 
-             hessian(o,0,0) = d2sx*sy*sz1;
-             hessian(o,0,1) = dsx*dsy*sz1;
-             hessian(o,0,2) = dsx*sy*dsz1;
+            hessian(o,0,0) = d2sx*sy*sz1;
+            hessian(o,0,1) = dsx*dsy*sz1;
+            hessian(o,0,2) = dsx*sy*dsz1;
 
-             hessian(o,0,3) = sx*dsy*dsz1;
+            hessian(o,0,3) = sx*dsy*dsz1;
 
-             hessian(o,0,4) = sx*sy*d2sz1;
-             hessian(o,0,5) = sx*d2sy*sz1;
+            hessian(o,0,4) = sx*sy*d2sz1;
+            hessian(o,0,5) = sx*d2sy*sz1;
          }
       }
    }
