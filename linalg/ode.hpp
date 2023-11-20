@@ -32,20 +32,38 @@ private:
 
 public:
    ODEStateData () { ss = smax = 0;};
+
+   /// Set the number of stages and the size of the vectors
    void  SetSize(int stages, int vsize, MemoryType mem_type);
+
+   /// Shift the stage counter for the next timestep
    inline void ShiftStages()
    {
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
    };
 
+   /// Get the maximum number of stored tages
    int  MaxSize() const { return smax; };
+
+   /// Get the current number of stored stages
    int  Size() const  { return ss; };
+
+   /// Increment the stage counter
    void Increment() { ss++; ss = std::min(ss,smax); };
+
+   /// Reset the stage counter
    void Reset() { ss = 0; };
 
-   const Vector &Get(int i) const ;
-   void Get(int i, Vector &state) const ;
+   /// Get the ith state vector
+   const Vector &Get(int i) const;
+
+   /// Get the ith state vector
+   void Get(int i, Vector &state) const;
+
+   /// Set the ith state vector
    void Set(int i, Vector &state);
+
+   /// Add state vector and increment state size
    void Add(Vector &state);
 
    /// Reference access to the ith vector.
@@ -54,6 +72,7 @@ public:
    /// Const reference access to the ith vector.
    inline const Vector &operator[](int i) const { return data[idx[i]]; };
 
+   /// Print state data
    void Print(std::ostream &out = mfem::out) const ;
 };
 
@@ -131,8 +150,10 @@ public:
       while (t < tf) { Step(x, t, dt); }
    }
 
-   // Functions for getting the state vectors
+   // Function for getting the state vectors
    ODEStateData&  GetState() { return state; }
+
+   // Function for getting the state vectors
    const ODEStateData&  GetState() const { return state; }
 
    // Help info for ODESolver options
@@ -140,9 +161,13 @@ public:
    static MFEM_EXPORT std::string ImplicitTypes;
    static MFEM_EXPORT std::string Types;
 
-   // Functions selecting the desired ODESolver
+   /// Function for selecting the desired ODESolver (Explicit and Implicit)
    static MFEM_EXPORT ODESolver *Select(const int ode_solver_type);
+
+   /// Function for selecting the desired Explicit ODESolver
    static MFEM_EXPORT ODESolver *SelectExplicit(const int ode_solver_type);
+
+   /// Function for selecting the desired Implicit ODESolver
    static MFEM_EXPORT ODESolver *SelectImplicit(const int ode_solver_type);
 
    virtual ~ODESolver() { }
