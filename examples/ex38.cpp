@@ -26,12 +26,8 @@
 //              holds. The algorithm for construction of the quadrature rules
 //              was introduced by Mueller, Kummer and Oberlack [1].
 //
-//              There is an example for the integration of a quadratic function
-//              over the sphere in 2 dimensions and an example computing the
-//              arclength and area of an ellipse in 2 dimensions.
-//
-//              This example showcases how to set up integrators using the
-//              integration rules on surfaces and subdomains.
+//              This example also showcases how to set up integrators using the
+//              integration rules on implicit surfaces and subdomains.
 //
 // [1] Mueller, B., Kummer, F. and Oberlack, M. (2013) Highly accurate surface
 //     and volume integration on implicit domains by means of moment-fitting.
