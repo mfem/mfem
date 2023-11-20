@@ -427,7 +427,7 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3],
    may reject the prior step, returning 1; otherwise returns 0
    sets out->dist2, out->index, out->x, out->oldr in any event,
    leaving out->r, out->dr, out->flags to be set when returning 0 */
-bool reject_prior_step_q(findptsElementPoint_t *out,
+static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
                          const dfloat resid[3],
                          const findptsElementPoint_t *p,
                          const dfloat tol)
@@ -482,7 +482,7 @@ bool reject_prior_step_q(findptsElementPoint_t *out,
 
 /* minimize ||resid - jac * dr||_2, with |dr| <= tr, |r0+dr|<=1
    (exact solution of trust region problem) */
-void newton_vol(findptsElementPoint_t *const out,
+static MFEM_HOST_DEVICE void newton_vol(findptsElementPoint_t *const out,
                 const dfloat jac[9],
                 const dfloat resid[3],
                 const findptsElementPoint_t *const p,
@@ -679,7 +679,7 @@ newton_vol_fin:
    }
    out->flags = flags | (p->flags << 7);
 }
-void newton_face(findptsElementPoint_t *const out,
+static MFEM_HOST_DEVICE void newton_face(findptsElementPoint_t *const out,
                  const dfloat jac[9],
                  const dfloat rhes[3],
                  const dfloat resid[3],
@@ -918,7 +918,7 @@ newton_edge_fin:
    out->flags = flags | new_flags | (p->flags << 7);
 }
 
-void seed_j(const dfloat *elx[3],
+static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[3],
             const dfloat x[3],
             dfloat *z, //GLL point locations [-1, 1]
             dfloat *dist2,
@@ -959,7 +959,7 @@ void seed_j(const dfloat *elx[3],
    }
 }
 
-dfloat tensor_ig3_j(dfloat *g_partials,
+static MFEM_HOST_DEVICE dfloat tensor_ig3_j(dfloat *g_partials,
                     const dfloat *Jr,
                     const dfloat *Dr,
                     const dfloat *Js,
@@ -1025,11 +1025,12 @@ static void FindPointsLocal3D_Kernel(const int npt,
 #define p_innerSize 32
    const int dim = 3;
    const dlong p_NE = p_Nr*p_Nr*p_Nr;
+   const int p_Nr_Max = 8;
    mfem::forall_1D(npt, p_innerSize, [=] MFEM_HOST_DEVICE (int i)
-                   //   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
+   //   mfem::forall(npt, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int size1 = MAX_CONST(4, p_Nr + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr + 5;
-      int size2 = MAX_CONST(p_Nr *p_Nr * 6, p_Nr * 3 * 3);
+      constexpr int size1 = MAX_CONST(4, p_Nr_Max + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr_Max + 5;
+      constexpr int size2 = MAX_CONST(p_Nr_Max *p_Nr_Max * 6, p_Nr_Max * 3 * 3);
       MFEM_SHARED dfloat r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 

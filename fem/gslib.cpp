@@ -1490,7 +1490,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in,
       gsl_ref_temp.HostReadWrite();
 
       spt = (evalSrcPt_t *)src.ptr;
-      opt = (evalOutPt_t *)outpt.ptr;
+    //   opt = (evalOutPt_t *)outpt.ptr;
       for (int i = 0; i < n; i++, ++spt)
       {
          gsl_elem_temp[i] = spt->el;
