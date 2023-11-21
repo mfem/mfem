@@ -3784,9 +3784,10 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
 {
    // TODO IDO
    // Smarter routine
-   if (patches.Size() > 1)
+   if (GetNP() > 1)
    {
-         mfem_error("NURBSExtension");
+       mfem_error("NURBSExtension::GetDivExtension currently"
+                   "only works for single patch NURBS meshes ");
    }
 
    Array<int> newOrders  = GetOrders();
