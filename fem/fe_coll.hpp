@@ -734,7 +734,7 @@ public:
    virtual ~NURBSFECollection();
 };
 
-/// Arbitrary order non-uniform rational B-splines (NURBS) finite elements.
+/// Arbitrary order H(div) NURBS finite elements.
 class NURBS_HDivFECollection : public NURBSFECollection
 {
 private:
@@ -774,6 +774,49 @@ public:
 
    virtual ~NURBS_HDivFECollection();
 };
+
+/// Arbitrary order H(curl) NURBS finite elements.
+class NURBS_HCurlFECollection : public NURBSFECollection
+{
+private:
+
+   NURBS_HCurl2DFiniteElement *QuadrilateralVFE;
+   NURBS_HCurl3DFiniteElement *ParallelepipedVFE;
+
+public:
+
+   /** @brief The parameter @a Order must be either a positive number, for fixed
+      order, or VariableOrder (default). */
+   explicit NURBS_HCurlFECollection(int Order = VariableOrder, const int vdim = 3);
+
+   virtual void Reset() const
+   {
+      QuadrilateralVFE->Reset();
+      ParallelepipedVFE->Reset();
+   }
+
+   /** @brief Set the order and the name, based on the given @a Order: either a
+       positive number for fixed order, or VariableOrder. */
+   virtual void SetOrder(int Order) const;
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return name; }
+
+   int GetContType() const override { return CONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   virtual ~NURBS_HCurlFECollection();
+};
+
+
 
 
 

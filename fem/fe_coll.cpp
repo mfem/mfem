@@ -3599,4 +3599,72 @@ FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
 }
 
 
+
+
+NURBS_HCurlFECollection::NURBS_HCurlFECollection(int Order, const int dim)
+   : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
+{
+   const int order = (Order == VariableOrder) ? 1 : Order;
+
+   QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement(order,dim);
+   ParallelepipedVFE = new NURBS_HCurl3DFiniteElement(order,dim);
+
+   SetOrder(Order);
+}
+
+NURBS_HCurlFECollection::~NURBS_HCurlFECollection()
+{
+   delete QuadrilateralVFE;
+   if (ParallelepipedVFE) { delete ParallelepipedVFE; }
+}
+
+const FiniteElement *
+NURBS_HCurlFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::SQUARE:      return QuadrilateralVFE;
+      case Geometry::CUBE:        return ParallelepipedVFE;
+      default:
+         if (error_mode == RETURN_NULL) { return nullptr; }
+         mfem_error ("NURBS_HCurlFECollection: unknown geometry type.");
+   }
+   return QuadrilateralFE; // Make some compilers happy
+}
+
+void NURBS_HCurlFECollection::SetOrder(int Order) const
+{
+   mOrder = Order;
+   if (Order != VariableOrder)
+   {
+      snprintf(name, 16, "NURBS_HCurl%i", Order);
+   }
+   else
+   {
+      snprintf(name, 16, "NURBS_HCurl");
+   }
+}
+
+int NURBS_HCurlFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   mfem_error("NURBS_HCurlFECollection::DofForGeometry");
+   return 0; // Make some compilers happy
+}
+
+const int *NURBS_HCurlFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType,
+   int Or) const
+{
+   mfem_error("NURBS_HCurlFECollection::DofOrderForOrientation");
+   return NULL;
+}
+
+FiniteElementCollection *NURBS_HCurlFECollection::GetTraceCollection() const
+{
+   MFEM_ABORT("NURBS finite elements can not be statically condensed!");
+   return NULL;
+}
+
+
+
 }
