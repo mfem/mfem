@@ -18,7 +18,7 @@ Discretization improvements
 
 - Added functionality for construction of cut-surface and cut-volume
   IntegrationRules through a moment-fitting approach. The cut is specified by
-  the zero level set of a Coefficient. See fem/intrules_cut.hpp and example 38.
+  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
 Miscellaneous
 -------------
