@@ -13,6 +13,10 @@ add_mfem_miniapp(nurbs_ex1
   MAIN nurbs_ex1.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_ex3
+  MAIN nurbs_ex3.cpp
+  LIBRARIES mfem)
+  
 add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
   LIBRARIES mfem)
