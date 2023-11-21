@@ -709,28 +709,6 @@ NURBS_HDiv3DFiniteElement::~NURBS_HDiv3DFiniteElement()
    if (kv1[2]) { delete kv1[2]; }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 void NURBS_HCurl2DFiniteElement::SetOrder() const
 {
    orders[0] = kv[0]->GetOrder();
@@ -769,7 +747,7 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
 }
 
 void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                           DenseMatrix &shape) const
+                                            DenseMatrix &shape) const
 {
 
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
@@ -801,7 +779,7 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                           DenseMatrix &shape) const
+                                            DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
@@ -902,7 +880,7 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
 }
 
 void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
-                                           DenseMatrix &shape) const
+                                            DenseMatrix &shape) const
 {
 
    kv[0]->CalcShape(shape_x, ijk[0], ip.x);
@@ -958,7 +936,7 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 }
 
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
-                                           DenseMatrix &shape) const
+                                            DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & J = Trans.Jacobian();
@@ -1002,7 +980,7 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
          }
       }
    }
-   
+
    for (int  k = 0; k <= orders[2]+1; k++)
    {
       const double sz1 = shape1_z(k), dsz1 = dshape1_z(k);
@@ -1043,42 +1021,5 @@ NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
    if (kv1[1]) { delete kv1[1]; }
    if (kv1[2]) { delete kv1[2]; }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 }
