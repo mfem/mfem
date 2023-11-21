@@ -2309,8 +2309,8 @@ void FiniteElementSpace::UpdateNURBS()
 
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   NURBS_HDivFECollection *div = dynamic_cast<const NURBS_HDivFECollection *>(fec)
-   NURBS_HCurlFECollection *curl = dynamic_cast<const NURBS_HCurlFECollection *>(fec)
+   bool div = (dynamic_cast<const NURBS_HDivFECollection *>(fec) != NULL );
+   bool curl = (dynamic_cast<const NURBS_HCurlFECollection *>(fec) != NULL );
 
    if (div || curl)
    {
@@ -2382,7 +2382,6 @@ void FiniteElementSpace::UpdateNURBS()
       {
          mfem_error("FESpace implementation for  vector dimensions other then 2D/3D");
       }
-      
    }
    else
    {

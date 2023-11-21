@@ -3808,7 +3808,7 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    }
 
    Array<int> newOrders  = GetOrders();
-   newOrders += 1;
+   for (int c = 0; c < newOrders.Size(); c++) newOrders[c]++;
    newOrders[component] -= 1;
    newOrders.Print();
 
