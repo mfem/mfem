@@ -169,9 +169,9 @@ protected:
 public:
    /// Construct the NURBS_HDiv22DFiniteElement of order @a p
    NURBS_HDiv2DFiniteElement(int p, int vdim)
-      : VectorFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
+      : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_DIV,FunctionSpace::Qk),
-        NURBSFiniteElement(2, (p + 1)*(p + 1)),
+        NURBSFiniteElement(2, 2*(p + 1)*(p + 2)),
         shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1),
         shape1_x(p + 2), shape1_y(p + 2), dshape1_x(p + 2),
@@ -186,9 +186,10 @@ public:
 
    /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HDiv2DFiniteElement(int px, int py, int vdim)
-      : VectorFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
+      : VectorFiniteElement(2, Geometry::SQUARE,
+                            (px + 2)*(py + 1)+(px + 1)*(py + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
-        NURBSFiniteElement(2, (px + 1)*(py + 1)),
+        NURBSFiniteElement(2, (px + 2)*(py + 1)+(px + 1)*(py + 2)),
         shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
         shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
@@ -199,7 +200,6 @@ public:
       kv1.SetSize(dim);
       kv1[0] = nullptr;
       kv1[1] = nullptr;
-      map_type = H_DIV;
    }
 
    virtual void SetOrder() const;
@@ -222,23 +222,6 @@ public:
     */
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
-
-   /** @brief Evaluate the gradients of all shape functions of a vector finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DensTensor @a dshape contains the derivatives of
-       one shape function. The size (#dof x #dim x #dim) of @a dshape must be set in
-       advance.  */
-   virtual void CalcVDShape(const IntegrationPoint &ip,
-                            DenseTensor &dshape) const;
-
-   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
-       part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim+1)/2 x #dim) of @a Hessian must be set in advance.*/
-   virtual void CalcVHessian(const IntegrationPoint &ip,
-                             DenseTensor &Hessian) const;
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -260,9 +243,9 @@ protected:
 public:
    /// Construct the NURBS_HDiv22DFiniteElement of order @a p
    NURBS_HDiv3DFiniteElement(int p, int vdim)
-      : VectorFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
-                            H_DIV,FunctionSpace::Qk),
-        NURBSFiniteElement(3, (p + 1)*(p + 1)*(p + 1)),
+      : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2),
+                            p, H_DIV,FunctionSpace::Qk),
+        NURBSFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2)),
         shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1),
@@ -280,9 +263,15 @@ public:
 
    /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HDiv3DFiniteElement(int px, int py, int pz, int vdim)
-      : VectorFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
+      : VectorFiniteElement(3, Geometry::CUBE,
+                           (px + 2)*(py + 1)*(pz + 1) +
+                           (px + 1)*(py + 2)*(pz + 1) +
+                           (px + 1)*(py + 1)*(pz + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
-        NURBSFiniteElement(3, (px + 1)*(py + 1)*(pz + 1)),
+        NURBSFiniteElement(3,
+                           (px + 2)*(py + 1)*(pz + 1) +
+                           (px + 1)*(py + 2)*(pz + 1) +
+                           (px + 1)*(py + 1)*(pz + 2)),
         shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1),
@@ -296,7 +285,6 @@ public:
       kv1[0] = nullptr;
       kv1[1] = nullptr;
       kv1[2] = nullptr;
-      map_type = H_DIV;
    }
 
    virtual void SetOrder() const;
@@ -320,25 +308,173 @@ public:
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
 
-   /** @brief Evaluate the gradients of all shape functions of a vector finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DensTensor @a dshape contains the derivatives of
-       one shape function. The size (#dof x #dim x #dim) of @a dshape must be set in
-       advance.  */
-   virtual void CalcVDShape(const IntegrationPoint &ip,
-                            DenseTensor &dshape) const;
-
-   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
-       part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim+1)/2 x #dim) of @a Hessian must be set in advance.*/
-   virtual void CalcVHessian(const IntegrationPoint &ip,
-                             DenseTensor &Hessian) const;
-
    ~NURBS_HDiv3DFiniteElement();
 };
+
+
+
+/// An arbitrary order H(curl)-conforming 2D NURBS element on a square
+class NURBS_HCurl2DFiniteElement : public VectorFiniteElement,
+   public NURBSFiniteElement
+{
+protected:
+   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable Vector shape1_x, shape1_y, dshape1_x, dshape1_y, d2shape1_x, d2shape1_y;
+   mutable DenseMatrix du;
+   mutable Array <const KnotVector*> kv1;
+
+public:
+   /// Construct the NURBS_HCurl22DFiniteElement of order @a p
+   NURBS_HCurl2DFiniteElement(int p, int vdim)
+      : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
+                            H_CURL,FunctionSpace::Qk),
+        NURBSFiniteElement(2, 2*(p + 1)*(p + 2)),
+        shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1),
+        shape1_x(p + 2), shape1_y(p + 2), dshape1_x(p + 2),
+        dshape1_y(p + 2), d2shape1_x(p + 2), d2shape1_y(p + 2),
+        u(dof), du(dof,2)
+   {
+      orders[0] = orders[1] = p;
+      kv1.SetSize(dim);
+      kv1[0] = nullptr;
+      kv1[1] = nullptr;
+   }
+
+   /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
+   NURBS_HCurl2DFiniteElement(int px, int py, int vdim)
+      : VectorFiniteElement(2, Geometry::SQUARE,
+                            (px + 2)*(py + 1)+(px + 1)*(py + 2),
+                            std::max(px, py), H_CURL, FunctionSpace::Qk),
+        NURBSFiniteElement(2, (px + 2)*(py + 1)+(px + 1)*(py + 2)),
+        shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
+        shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
+        dshape1_y(py + 2), d2shape1_x(px + 2), d2shape1_y(py + 2),
+        u(dof),  du(dof,2)
+   {
+      orders[0] = px; orders[1] = py;
+      kv1.SetSize(dim);
+      kv1[0] = nullptr;
+      kv1[1] = nullptr;
+   }
+
+   virtual void SetOrder() const;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   /** @brief Evaluate the values of all shape functions of a *vector* finite
+       element in physical space at the point described by @a Trans. */
+   /** Each row of the result DenseMatrix @a shape contains the components of
+       one vector shape function. The size (#dof x SDim) of @a shape must be set
+       in advance, where SDim >= #dim is the physical space dimension as
+       described by @a Trans. */
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   /** @brief Evaluate the curl of all shape functions of a *vector* finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a curl_shape contains the components
+       of the curl of one vector shape function. The size (#dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
+       CDim = 1 for #dim = 2. */
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+   ~NURBS_HCurl2DFiniteElement();
+};
+
+
+/// An arbitrary order H(curl)-conforming 3D NURBS element on a square
+class NURBS_HCurl3DFiniteElement : public VectorFiniteElement,
+   public NURBSFiniteElement
+{
+protected:
+   mutable Vector u;
+   mutable Vector shape_x, dshape_x, d2shape_x, shape1_x, dshape1_x, d2shape1_x;
+   mutable Vector shape_y, dshape_y, d2shape_y, shape1_y, dshape1_y, d2shape1_y;
+   mutable Vector shape_z, dshape_z, d2shape_z, shape1_z, dshape1_z, d2shape1_z;
+
+   mutable DenseMatrix du;
+   mutable Array <const KnotVector*> kv1;
+
+public:
+   /// Construct the NURBS_HCurl22DFiniteElement of order @a p
+   NURBS_HCurl3DFiniteElement(int p, int vdim)
+      : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 2)*(p + 2), p,
+                            H_CURL,FunctionSpace::Qk),
+        NURBSFiniteElement(3, 3*(p + 1)*(p + 2)*(p + 2)),
+        shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1),
+        shape1_x(p + 2), shape1_y(p + 2), shape1_z(p + 2),
+        dshape1_x(p + 2), dshape1_y(p + 2),dshape1_z(p + 2),
+        d2shape1_x(p + 2), d2shape1_y(p + 2), d2shape1_z(p + 2),
+        u(dof), du(dof,3)
+   {
+      orders[0] = orders[1] = orders[2] = p;
+      kv1.SetSize(dim);
+      kv1[0] = nullptr;
+      kv1[1] = nullptr;
+      kv1[2] = nullptr;
+   }
+
+   /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
+   NURBS_HCurl3DFiniteElement(int px, int py, int pz, int vdim)
+      : VectorFiniteElement(3, Geometry::CUBE,
+                           (px + 1)*(py + 2)*(pz + 2) +
+                           (px + 2)*(py + 1)*(pz + 2) +
+                           (px + 2)*(py + 2)*(pz + 1),
+                            std::max(px, py), H_CURL, FunctionSpace::Qk),
+        NURBSFiniteElement(3,
+                           (px + 1)*(py + 2)*(pz + 2) +
+                           (px + 2)*(py + 1)*(pz + 2) +
+                           (px + 2)*(py + 2)*(pz + 1)),
+        shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1),
+        shape1_x(px + 2), shape1_y(py + 2), shape1_z(pz + 2),
+        dshape1_x(px + 2), dshape1_y(py + 2),dshape1_z(pz + 2),
+        d2shape1_x(px + 2), d2shape1_y(py + 2), d2shape1_z(pz + 2),
+        u(dof),  du(dof,3)
+   {
+      orders[0] = px; orders[1] = py; orders[1] = pz;
+      kv1.SetSize(dim);
+      kv1[0] = nullptr;
+      kv1[1] = nullptr;
+      kv1[2] = nullptr;
+   }
+
+   virtual void SetOrder() const;
+
+   virtual void CalcVShape(const IntegrationPoint &ip,
+                           DenseMatrix &shape) const;
+
+   /** @brief Evaluate the values of all shape functions of a *vector* finite
+       element in physical space at the point described by @a Trans. */
+   /** Each row of the result DenseMatrix @a shape contains the components of
+       one vector shape function. The size (#dof x SDim) of @a shape must be set
+       in advance, where SDim >= #dim is the physical space dimension as
+       described by @a Trans. */
+   virtual void CalcVShape(ElementTransformation &Trans,
+                           DenseMatrix &shape) const;
+
+   /** @brief Evaluate the curl of all shape functions of a *vector* finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a curl_shape contains the components
+       of the curl of one vector shape function. The size (#dof x CDim) of
+       @a curl_shape must be set in advance, where CDim = 3 for #dim = 3 and
+       CDim = 1 for #dim = 2. */
+   virtual void CalcCurlShape(const IntegrationPoint &ip,
+                              DenseMatrix &curl_shape) const;
+
+
+   ~NURBS_HCurl3DFiniteElement();
+};
+
+
+
 
 
 } // namespace mfem
