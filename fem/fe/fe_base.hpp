@@ -467,63 +467,9 @@ public:
    virtual void CalcPhysCurlShape(ElementTransformation &Trans,
                                   DenseMatrix &curl_shape) const;
 
-
-
-
    //------------------------------------------------------------------------------
    //
    //------------------------------------------------------------------------------
-
-
-   /** @brief Evaluate the gradients of all shape functions of a vector finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DensTensor @a dshape contains the derivatives of
-       one shape function. The size (#dof x #dim x #dim) of @a dshape must be set in
-       advance.  */
-   virtual void CalcVDShape(const IntegrationPoint &ip,
-                            DenseTensor &dshape) const;
-
-   /** @brief Evaluate the gradients of all shape functions of a scalar finite
-       element in physical space at the point described by @a Trans. */
-   /** Each row of the result DenseMatrix @a dshape contains the derivatives of
-       one shape function. The size (#dof x SDim x SDim) of @a dshape must be set in
-       advance, where SDim >= #dim is the physical space dimension as described
-       by @a Trans. */
-   void CalcPhysVDShape(ElementTransformation &Trans, DenseTensor &dshape) const;
-
-   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
-       part of the Hessian of one shape function.
-       The order in 2D is {u_xx, u_xy, u_yy}.
-       The size (#dof x (#dim (#dim+1)/2 x #dim) of @a Hessian must be set in advance.*/
-   virtual void CalcVHessian(const IntegrationPoint &ip,
-                             DenseTensor &Hessian) const;
-
-   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof, #dim*(#dim+1)/2 x #dim) of @a Hessian must be set in advance. */
-   // SDim??
-   void CalcPhysVHessian(ElementTransformation &Trans,
-                         DenseTensor& Hessian) const; //trimatrix
-
-   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
-       element in reference space at the given point @a ip. */
-   /** The size (#dof x #dim) of @a Laplacian must be set in advance. */
-   void CalcPhysVLaplacian(ElementTransformation &Trans,
-                           DenseMatrix& Laplacian) const;
-
-   void CalcPhysLinVLaplacian(ElementTransformation &Trans,
-                              DenseMatrix& Laplacian) const;
-
-   //------------------------------------------------------------------------------
-   //
-   //------------------------------------------------------------------------------
-
-
-
-
-
    /** @brief Get the dofs associated with the given @a face.
        @a *dofs is set to an internal array of the local dofc on the
        face, while *ndofs is set to the number of dofs on that face.
