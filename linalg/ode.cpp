@@ -64,8 +64,7 @@ ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
       case 15: ode_solver = new AB5Solver; break;
 
       default:
-         mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
-         MFEM_ABORT("Unknown ODE solver type");
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
    }
    return ode_solver;
 }
@@ -107,8 +106,7 @@ ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
       case 54: ode_solver = new AM4Solver; break;
 
       default:
-         mfem::out<<" ODE solver type: " << ode_solver_type << '\n';
-         MFEM_ABORT("Unknown ODE solver type");
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
    }
    return ode_solver;
 }
@@ -1088,8 +1086,7 @@ SecondOrderODESolver* SecondOrderODESolver::Select(int ode_solver_type)
       case 14: ode_solver = new FoxGoodwinSolver(); break;
 
       default:
-         mfem::out<<" Second Order ODE solver type: " << ode_solver_type << '\n';
-         MFEM_ABORT("Unknown ODE solver type");
+         MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
    }
    return ode_solver;
 }
