@@ -284,11 +284,17 @@ public:
    /// Return the number of local vector true dofs.
    int GetTrueVSize() const override { return ltdof_size; }
 
-   /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   DofTransformation *GetElementDofs(int i, Array<int> &dofs) const override;
+   /// Returns indexes of degrees of freedom in array dofs for i'th element and
+   /// returns the DofTransformation data in a user-provided object.
+   using FiniteElementSpace::GetElementDofs;
+   void GetElementDofs(int i, Array<int> &dofs,
+                       DofTransformation &doftrans) const override;
 
-   /// Returns indexes of degrees of freedom for i'th boundary element.
-   DofTransformation *GetBdrElementDofs(int i, Array<int> &dofs) const override;
+   /// Returns indexes of degrees of freedom for i'th boundary element and
+   /// returns the DofTransformation data in a user-provided object.
+   using FiniteElementSpace::GetBdrElementDofs;
+   void GetBdrElementDofs(int i, Array<int> &dofs,
+                          DofTransformation &doftrans) const override;
 
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
@@ -382,6 +388,8 @@ public:
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
+   void GetFaceNbrElementVDofs(int i, Array<int> &vdofs,
+                               DofTransformation &doftrans) const;
    DofTransformation *GetFaceNbrElementVDofs(int i, Array<int> &vdofs) const;
    void GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const;
    const FiniteElement *GetFaceNbrFE(int i) const;
