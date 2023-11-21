@@ -14,6 +14,8 @@ if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc|ppc64" OR (APPLE AND "${CMAKE_OSX_ARC
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
 elseif (APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=apple-m1")
+elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
+   set(MFEM_PERF_CXX_ARCH_FLAGS "-march=rv64gc")
 else()
    set(MFEM_PERF_CXX_ARCH_FLAGS "-march=native")
 endif()

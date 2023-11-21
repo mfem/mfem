@@ -235,10 +235,13 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    // Add boundaries
    {
-      int num_of_faces_or_edges =
-         (Dim == 3) ? NumOfFaces :
-         ((Dim == 2) ? NumOfEdges : NumOfVertices);
-      Array<int> &be2face = (Dim == 2) ? be_to_edge : be_to_face;
+      const int num_codim_1 = [this]()
+      {
+         if (Dim == 1) { return NumOfVertices; }
+         else if (Dim == 2) { return NumOfEdges; }
+         else if (Dim == 3) { return NumOfFaces; }
+         else { MFEM_ABORT("Invalid dimension."); return -1; }
+      }();
 
       if (Dim == 3)
       {
@@ -249,7 +252,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       NumOfBdrElements = 0;
-      for (int i = 0; i < num_of_faces_or_edges; i++)
+      for (int i = 0; i < num_codim_1; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
@@ -258,14 +261,17 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       }
 
       boundary.SetSize(NumOfBdrElements);
-      be2face.SetSize(NumOfBdrElements);
+      be_to_face.SetSize(NumOfBdrElements);
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
       int max_bdr_attr = parent.bdr_attributes.Max();
-      for (int i = 0, j = 0; i < num_of_faces_or_edges; i++)
+
+      for (int i = 0, j = 0; i < num_codim_1; i++)
       {
          if (GetFaceInformation(i).IsBoundary())
          {
             boundary[j] = faces[i]->Duplicate(this);
+            be_to_face[j] = i;
+
             if (from == SubMesh::From::Domain && Dim >= 2)
             {
                int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
@@ -283,7 +289,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
             {
                boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
             }
-            be2face[j++] = i;
+            ++j;
          }
       }
    }
@@ -323,7 +329,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    if (Dim > 1)
    {
       if (!el_to_edge) { el_to_edge = new Table; }
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    }
 
    SetAttributes();
