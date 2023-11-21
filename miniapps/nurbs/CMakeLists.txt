@@ -29,7 +29,6 @@ add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
 
-
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
@@ -126,6 +125,16 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_periodic_3d
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube.ref)
+
+
+  add_test(NAME nurbs_solenoidal_nurbs_solenoidal_2d
+    COMMAND $<TARGET_FILE:nurbs_ex1>
+    -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -o 2 -r 0)
+
+  add_test(NAME nurbs_solenoidal_nurbs_solenoidal_3d
+    COMMAND $<TARGET_FILE:nurbs_ex1>
+    -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -o 2 -r 0)
+
 endif()
 
 if (MFEM_USE_MPI)

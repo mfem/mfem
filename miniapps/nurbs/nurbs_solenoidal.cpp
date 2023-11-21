@@ -19,11 +19,7 @@
 // Sample runs:  nurbs_solenoidal -m ../../data/square-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/cube-nurbs.mesh -o 2
 //               nurbs_solenoidal -m ../../data/pipe-nurbs-2d.mesh -o 2
-//               nurbs_solenoidal -m ../../data/square-disc-nurbs.mesh -o -1
-//               nurbs_solenoidal -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_solenoidal -m ../../data/pipe-nurbs.mesh -o -1
-//               nurbs_solenoidal -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//
 //
 // Description:  This code projects a velocity field, and forces this field
 //               to be solenoidal, viz. the divergence is zero. If the correct
@@ -49,13 +45,12 @@ using namespace std;
 using namespace mfem;
 
 
-
 void u_2d(const Vector & x, Vector & u)
 {
    double xi(x(0));
    double yi(x(1));
 
-   int p = 2;
+   int p = 4;
 
    u(0) =  pow(xi,p + 1)*pow(yi,p    );
    u(1) = -pow(xi,p    )*pow(yi,p + 1);
@@ -67,7 +62,7 @@ void u_3d(const Vector & x, Vector & u)
    double yi(x(1));
    double zi(x(2));
 
-   int p = 2;
+   int p = 4;
 
    double cx = 3.0/4.0;
    double cy = 2.0/3.0;
@@ -312,7 +307,7 @@ int main(int argc, char *argv[])
    }
    std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
-   // 12. Create the grid functions u and p. Compute the L2 error norms.
+   // 12. Create the grid functions u and p
    GridFunction u, p, uu, vv, ww;
    u.MakeRef(R_space, x.GetBlock(0), 0);
    p.MakeRef(W_space, x.GetBlock(1), 0);
@@ -325,22 +320,6 @@ int main(int argc, char *argv[])
          ww.MakeRef(R_space->GetComponent(2), x.GetBlock(0), 2*R_space->GetVSize()/dim);
       }
    }
-
-   //int order_quad = max(2, 2*order+1);
-   int order_quad = 2*order+1+6;
-   const IntegrationRule *irs[Geometry::NumGeom];
-   for (int i=0; i < Geometry::NumGeom; ++i)
-   {
-      irs[i] = &(IntRules.Get(i, order_quad));
-   }
-
-   double err_u  = u.ComputeL2Error(ucoeff, irs);
-   double err_p  = p.ComputeL2Error(zero, irs);
-   double err_div  = u.ComputeDivError(&zero, irs);
-
-   std::cout << "|| u_h - u_ex ||  = " << err_u  << "\n";
-   std::cout << "|| div u_h - div u_ex ||  = " << err_div  << "\n";
-   std::cout << "|| p_h - p_ex ||  = " << err_p  << "\n";
 
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
@@ -399,7 +378,23 @@ int main(int argc, char *argv[])
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
    }
 
-   // 17. Free the used memory.
+   // 17. Compute errors
+   int order_quad = 2*order+2;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i=0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+
+   double err_u  = u.ComputeL2Error(ucoeff, irs);
+   double err_p  = p.ComputeL2Error(zero, irs);
+   double err_div  = u.ComputeDivError(&zero, irs);
+
+   std::cout << "|| u_h - u_ex ||  = " << err_u  << "\n";
+   std::cout << "|| div u_h - div u_ex ||  = " << err_div  << "\n";
+   std::cout << "|| p_h - p_ex ||  = " << err_p  << "\n";
+
+   // 18. Free the used memory.
    delete fform;
    delete invM;
    delete invS;
@@ -413,6 +408,11 @@ int main(int argc, char *argv[])
    delete l2_coll;
    delete hdiv_coll;
    delete mesh;
+
+   if (err_div > 1e-14)
+   {
+      mfem_error("Divergence error larger then expected");
+   }
 
    return 0;
 }
