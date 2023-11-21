@@ -3786,8 +3786,8 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
    // Smarter routine
    if (GetNP() > 1)
    {
-       mfem_error("NURBSExtension::GetDivExtension currently"
-                   "only works for single patch NURBS meshes ");
+      mfem_error("NURBSExtension::GetDivExtension currently"
+                 "only works for single patch NURBS meshes ");
    }
 
    Array<int> newOrders  = GetOrders();
@@ -3803,12 +3803,12 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    // Smarter routine
    if (GetNP() > 1)
    {
-       mfem_error("NURBSExtension::GetCurlExtension currently"
-                   "only works for single patch NURBS meshes ");
+      mfem_error("NURBSExtension::GetCurlExtension currently"
+                 "only works for single patch NURBS meshes ");
    }
 
    Array<int> newOrders  = GetOrders();
-   for (int c = 0; c < newOrders.Size(); c++) newOrders[c]++;
+   for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
    newOrders[component] -= 1;
    newOrders.Print();
 
