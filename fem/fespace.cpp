@@ -2309,14 +2309,26 @@ void FiniteElementSpace::UpdateNURBS()
 
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
+   NURBS_HDivFECollection *div = dynamic_cast<const NURBS_HDivFECollection *>(fec)
+   NURBS_HCurlFECollection *curl = dynamic_cast<const NURBS_HCurlFECollection *>(fec)
+
+   if (div || curl)
    {
       if (mesh->Dimension() == 2)
       {
-         component.SetSize(2);
-         NURBSExtension* ext0 = NURBSext->GetDivExtension(0);
-         NURBSExtension* ext1 = NURBSext->GetDivExtension(1);
+         NURBSExtension* ext0, *ext1;
+         if (div)
+         {
+            ext0 = NURBSext->GetDivExtension(0);
+            ext1 = NURBSext->GetDivExtension(1);
+         }
+         else if (curl)
+         {
+            ext0 = NURBSext->GetCurlExtension(0);
+            ext1 = NURBSext->GetCurlExtension(1);
+         }
 
+         component.SetSize(2);
          component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
          component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
 
@@ -2333,12 +2345,21 @@ void FiniteElementSpace::UpdateNURBS()
       }
       else if (mesh->Dimension() == 3)
       {
+         NURBSExtension* ext0, *ext1, *ext2;
+         if (div)
+         {
+            ext0 = NURBSext->GetDivExtension(0);
+            ext1 = NURBSext->GetDivExtension(1);
+            ext2 = NURBSext->GetDivExtension(2);
+         }
+         else if (curl)
+         {
+            ext0 = NURBSext->GetCurlExtension(0);
+            ext1 = NURBSext->GetCurlExtension(1);
+            ext2 = NURBSext->GetCurlExtension(2);
+         }
+
          component.SetSize(3);
-
-         NURBSExtension* ext0 = NURBSext->GetDivExtension(0);
-         NURBSExtension* ext1 = NURBSext->GetDivExtension(1);
-         NURBSExtension* ext2 = NURBSext->GetDivExtension(2);
-
          component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
          component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
          component[2] = new FiniteElementSpace(mesh, ext2, new NURBSFECollection());
@@ -2361,6 +2382,7 @@ void FiniteElementSpace::UpdateNURBS()
       {
          mfem_error("FESpace implementation for  vector dimensions other then 2D/3D");
       }
+      
    }
    else
    {

@@ -496,6 +496,10 @@ public:
        an H(Div) conforming NURBS space.*/
    NURBSExtension* GetDivExtension(int component);
 
+   /** Returns the NURBSExtension to be used for @a component of
+       an H(curl) conforming NURBS space.*/
+   NURBSExtension* GetCurlExtension(int component);
+
    /// Returns the index of the patch containing element @a elem.
    int GetElementPatch(int elem) const { return el_to_patch[elem]; }
 
