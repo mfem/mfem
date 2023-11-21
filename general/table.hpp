@@ -42,6 +42,14 @@ struct Connection
     connectivity table, etc. */
 class Table
 {
+public:
+   enum Mode
+   {
+      MERGE,
+      H_DIV_BND,
+      H_CURL_BND,
+   };
+
 protected:
    /// size is the number of TYPE I elements.
    int size;
@@ -69,11 +77,11 @@ public:
                 components into an boundary-dof table for the complete vector.*/
    Table(const Table &table1,
          const Table &table2, int offset2,
-         bool merge = true);
+         const Mode = MERGE);
    Table(const Table &table1,
          const Table &table2, int offset2,
          const Table &table3, int offset3,
-         bool merge = true);
+         const Mode = MERGE);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);

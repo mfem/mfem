@@ -2317,15 +2317,18 @@ void FiniteElementSpace::UpdateNURBS()
       if (mesh->Dimension() == 2)
       {
          NURBSExtension* ext0, *ext1;
+         Table::Mode mode;
          if (div)
          {
             ext0 = NURBSext->GetDivExtension(0);
             ext1 = NURBSext->GetDivExtension(1);
+            mode = Table::H_DIV_BND;
          }
          else if (curl)
          {
             ext0 = NURBSext->GetCurlExtension(0);
             ext1 = NURBSext->GetCurlExtension(1);
+            mode = Table::H_CURL_BND;
          }
 
          component.SetSize(2);
@@ -2341,22 +2344,25 @@ void FiniteElementSpace::UpdateNURBS()
 
          bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
                                   *ext1->GetBdrElementDofTable(),offset1,
-                                  false );
+                                  mode);
       }
       else if (mesh->Dimension() == 3)
       {
          NURBSExtension* ext0, *ext1, *ext2;
+         Table::Mode mode;
          if (div)
          {
             ext0 = NURBSext->GetDivExtension(0);
             ext1 = NURBSext->GetDivExtension(1);
             ext2 = NURBSext->GetDivExtension(2);
+            mode = Table::H_DIV_BND;
          }
          else if (curl)
          {
             ext0 = NURBSext->GetCurlExtension(0);
             ext1 = NURBSext->GetCurlExtension(1);
             ext2 = NURBSext->GetCurlExtension(2);
+            mode = Table::H_CURL_BND;
          }
 
          component.SetSize(3);
@@ -2376,7 +2382,7 @@ void FiniteElementSpace::UpdateNURBS()
          bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
                                   *ext1->GetBdrElementDofTable(),offset1,
                                   *ext2->GetBdrElementDofTable(),offset2,
-                                  false );
+                                  mode );
       }
       else
       {
