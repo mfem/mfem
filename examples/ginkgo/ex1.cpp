@@ -286,7 +286,6 @@ int main(int argc, char *argv[])
                ginkgo_solver.SetRelTol(1e-12);
                ginkgo_solver.SetAbsTol(0.0);
                ginkgo_solver.SetMaxIter(400);
-               ginkgo_solver.SetRelTol(1e-6);
                ginkgo_solver.SetOperator(*(A.Ptr()));
                ginkgo_solver.Mult(B, X);
                break;
