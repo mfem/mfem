@@ -5644,7 +5644,7 @@ void NCMesh::Print(std::ostream &os, std::string const& comments) const
 {
    os << "MFEM NC mesh v1.0\n\n";
 
-   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+   if (!comments.empty()) { os << comments << "\n\n"; }
 
    os <<
       "# NCMesh supported geometry types:\n"
