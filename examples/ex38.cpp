@@ -21,7 +21,7 @@
 //              implicit interfaces.
 //
 //              The quadrature rules are constructed by means of moment-fitting.
-//              The interface is given by the zero iso line of a level-set
+//              The interface is given by the zero isoline of a level-set
 //              function ϕ and the subdomain is given as the domain where ϕ>0
 //              holds. The algorithm for construction of the quadrature rules
 //              was introduced by Mueller, Kummer and Oberlack [1].
@@ -31,7 +31,7 @@
 //
 // [1] Mueller, B., Kummer, F. and Oberlack, M. (2013) Highly accurate surface
 //     and volume integration on implicit domains by means of moment-fitting.
-//     Int. J. Numer. Meth. Engng. (96) 512-528. DOI:10.1002/nme.4569
+//     Int. J. Numer. Meth. Engr. (96) 512-528. DOI:10.1002/nme.4569
 
 #include "mfem.hpp"
 #include <iostream>
@@ -105,7 +105,7 @@ double Surface()
    }
 }
 
-/// @brief Analyitc volume integral over subdomain with positiv level-set
+/// @brief Analytic volume integral over subdomain with positive level-set
 double Volume()
 {
    switch (itype)
@@ -457,7 +457,7 @@ public:
     @brief Constructor for the volumetric subdomain linear form integrator
 
     Constructor for the subdomain linear form integrator to demonstrate the use
-    of the volumeric subdomain integration rule by means of moment-fitting.
+    of the volumetric subdomain integration rule by means of moment-fitting.
 
     @param [in] q coefficient representing the inegrand
     @param [in] levelset level-set defining the implicit interfac
@@ -499,7 +499,7 @@ public:
       }
    }
 };
-#endif //MFEM_USE_LAPACK
+#endif // MFEM_USE_LAPACK
 
 int main(int argc, char *argv[])
 {
@@ -608,7 +608,7 @@ int main(int argc, char *argv[])
       cir = new CIntegrationRule(order, levelset, 2, mesh);
    }
 
-   // 6. Define and assemble the linar forms on the finite element space.
+   // 6. Define and assemble the linear forms on the finite element space.
    LinearForm surface(fespace);
    LinearForm volume(fespace);
 
