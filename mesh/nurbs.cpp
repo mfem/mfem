@@ -3797,6 +3797,23 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
    return new NURBSExtension(this, newOrders);
 }
 
+NURBSExtension* NURBSExtension::GetCurlExtension(int component)
+{
+   // TODO IDO
+   // Smarter routine
+   if (GetNP() > 1)
+   {
+       mfem_error("NURBSExtension::GetCurlExtension currently"
+                   "only works for single patch NURBS meshes ");
+   }
+
+   Array<int> newOrders  = GetOrders();
+   newOrders += 1;
+   newOrders[component] -= 1;
+   newOrders.Print();
+
+   return new NURBSExtension(this, newOrders);
+}
 
 void NURBSExtension::UniformRefinement()
 {
