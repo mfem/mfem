@@ -161,8 +161,9 @@ class NURBS_HDiv2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
    mutable Vector shape1_x, shape1_y, dshape1_x, dshape1_y, d2shape1_x, d2shape1_y;
+   mutable Vector u;
    mutable DenseMatrix du;
    mutable Array <const KnotVector*> kv1;
 
@@ -232,11 +233,13 @@ class NURBS_HDiv3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
 protected:
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector d2shape_x, d2shape_y, d2shape_z;
+   mutable Vector shape1_x, shape1_y, shape1_z;
+   mutable Vector dshape1_x, dshape1_y, dshape1_z;
+   mutable Vector d2shape1_x, d2shape1_y, d2shape1_z;
    mutable Vector u;
-   mutable Vector shape_x, dshape_x, d2shape_x, shape1_x, dshape1_x, d2shape1_x;
-   mutable Vector shape_y, dshape_y, d2shape_y, shape1_y, dshape1_y, d2shape1_y;
-   mutable Vector shape_z, dshape_z, d2shape_z, shape1_z, dshape1_z, d2shape1_z;
-
    mutable DenseMatrix du;
    mutable Array <const KnotVector*> kv1;
 
@@ -264,9 +267,9 @@ public:
    /// Construct the NURBS_HDiv22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HDiv3DFiniteElement(int px, int py, int pz, int vdim)
       : VectorFiniteElement(3, Geometry::CUBE,
-                           (px + 2)*(py + 1)*(pz + 1) +
-                           (px + 1)*(py + 2)*(pz + 1) +
-                           (px + 1)*(py + 1)*(pz + 2),
+                            (px + 2)*(py + 1)*(pz + 1) +
+                            (px + 1)*(py + 2)*(pz + 1) +
+                            (px + 1)*(py + 1)*(pz + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
         NURBSFiniteElement(3,
                            (px + 2)*(py + 1)*(pz + 1) +
@@ -318,8 +321,9 @@ class NURBS_HCurl2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable Vector shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
    mutable Vector shape1_x, shape1_y, dshape1_x, dshape1_y, d2shape1_x, d2shape1_y;
+   mutable Vector u;
    mutable DenseMatrix du;
    mutable Array <const KnotVector*> kv1;
 
@@ -391,11 +395,13 @@ class NURBS_HCurl3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
 protected:
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector d2shape_x, d2shape_y, d2shape_z;
+   mutable Vector shape1_x, shape1_y, shape1_z;
+   mutable Vector dshape1_x, dshape1_y, dshape1_z;
+   mutable Vector d2shape1_x, d2shape1_y, d2shape1_z;
    mutable Vector u;
-   mutable Vector shape_x, dshape_x, d2shape_x, shape1_x, dshape1_x, d2shape1_x;
-   mutable Vector shape_y, dshape_y, d2shape_y, shape1_y, dshape1_y, d2shape1_y;
-   mutable Vector shape_z, dshape_z, d2shape_z, shape1_z, dshape1_z, d2shape1_z;
-
    mutable DenseMatrix du;
    mutable Array <const KnotVector*> kv1;
 
@@ -423,9 +429,9 @@ public:
    /// Construct the NURBS_HCurl22DFiniteElement with x-order @a px and y-order @a py
    NURBS_HCurl3DFiniteElement(int px, int py, int pz, int vdim)
       : VectorFiniteElement(3, Geometry::CUBE,
-                           (px + 1)*(py + 2)*(pz + 2) +
-                           (px + 2)*(py + 1)*(pz + 2) +
-                           (px + 2)*(py + 2)*(pz + 1),
+                            (px + 1)*(py + 2)*(pz + 2) +
+                            (px + 2)*(py + 1)*(pz + 2) +
+                            (px + 2)*(py + 2)*(pz + 1),
                             std::max(px, py), H_CURL, FunctionSpace::Qk),
         NURBSFiniteElement(3,
                            (px + 1)*(py + 2)*(pz + 2) +
