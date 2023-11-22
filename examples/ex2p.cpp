@@ -100,21 +100,6 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
-   {
-      HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
-      HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
-      HYPRE_DeviceInitialize();
-   }
-   else
-   {
-      HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
-      HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
-   }
-
-   auto loc = mfem::GetHypreMemoryLocation();
-   auto exec = mfem::GetHypreExecutionPolicy();
-
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.

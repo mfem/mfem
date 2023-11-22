@@ -291,7 +291,6 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const auto ltdof_ldof = HypreRead(R->GetMemoryJ());
 
    // Go from E-vector format directly to T-vector format
-   //MFEM_HYPRE_FORALL(i, ntdofs,
    mfem::forall_switch(HypreUsingGPU(), ntdofs, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_offsets[ltdof_ldof[i]];
