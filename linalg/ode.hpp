@@ -84,7 +84,7 @@ public:
 
    int  Size() const override { return ss; };
 
-   void Get(int i, Vector &state) const;
+   void Get(int i, Vector &state) const override;
 
    const Vector &Get(int i) const override;
 
