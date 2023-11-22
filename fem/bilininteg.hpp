@@ -2040,10 +2040,10 @@ protected:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the same (H1) space
-    as u.
+    scalar coefficient, u is in H1 space, and v is a vector with components v_i
+    in H1 or L2 space.
 
-    See also MixedVectorGradientIntegrator when v is in H(curl). */
+    See also MixedVectorGradientIntegrator when v is in H(curl) or H(div). */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
