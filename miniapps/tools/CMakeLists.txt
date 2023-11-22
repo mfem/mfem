@@ -33,8 +33,13 @@ if (MFEM_USE_MPI)
     MAIN plor-transfer.cpp LIBRARIES mfem)
 endif()
 
-add_mfem_miniapp(check-tmop-metric
-  MAIN check-tmop-metric.cpp LIBRARIES mfem)
+add_mfem_miniapp(tmop-check-metric
+  MAIN tmop-check-metric.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(tmop-metric-magnitude
+  MAIN tmop-metric-magnitude.cpp
+  ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem-common)
 
 if (MFEM_USE_MPI)
    add_mfem_miniapp(nodal-transfer
