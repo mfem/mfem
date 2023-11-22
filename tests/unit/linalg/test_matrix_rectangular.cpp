@@ -55,7 +55,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       for (int i = 0; i < 3; i++)
       {
          // Vector valued
-         FiniteElementCollection *fec2;
+         FiniteElementCollection *fec2 = nullptr;
          if (i == 0)
          {
             fec2 = new H1_FECollection(order, dim);
