@@ -248,6 +248,7 @@ void pa_gradient_testnd(int dim,
       field2 -= lf;
 
       REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+      delete fec2;
    }
 }
 
@@ -301,6 +302,7 @@ void pa_gradient_transpose_testnd(int dim)
 
       y_pa -= y_fa;
       REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+      delete fec1;
    }
 }
 

@@ -101,6 +101,7 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 
          subtract(B, field2, field2);
          REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+         delete fec2;
       }
    }
 }
