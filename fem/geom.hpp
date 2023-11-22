@@ -97,8 +97,8 @@ public:
 
    const DenseMatrix &GetGeomToPerfGeomJac(int GeomType) const
    { return *GeomToPerfGeomJac[GeomType]; }
-   const DenseMatrix &GetPerfGeomToGeomJac(int GeomType) const
-   { return *PerfGeomToGeomJac[GeomType]; }
+   const DenseMatrix *GetPerfGeomToGeomJac(int GeomType) const
+   { return PerfGeomToGeomJac[GeomType]; }
    void GetPerfPointMat(int GeomType, DenseMatrix &pm) const;
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
