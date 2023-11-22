@@ -250,10 +250,10 @@ static void PAGradientApply2D(const int NE,
    MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   auto B = Reshape(b.Read(), Q1D, TR_D1D);         // trial B
-   auto G = Reshape(g.Read(), Q1D, TR_D1D);         // trial G
-   auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);       // test Bt
-   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE); // weights
+   auto B = Reshape(b.Read(), Q1D, TR_D1D);
+   auto G = Reshape(g.Read(), Q1D, TR_D1D);
+   auto Bt = Reshape(bt.Read(), TE_D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
    auto x = Reshape(x_.Read(), TR_D1D, TR_D1D, NE);
    auto y = Reshape(y_.ReadWrite(), TE_D1D, TE_D1D, 2, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
@@ -363,10 +363,10 @@ static void PAGradientApplyTranspose2D(const int NE,
    MFEM_VERIFY(TR_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(TE_D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);       // trial Bt
-   auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);       // trial Gt
-   auto B = Reshape(b.Read(), Q1D, TE_D1D);         // test B
-   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE); // weights
+   auto Bt = Reshape(bt.Read(), TR_D1D, Q1D);
+   auto Gt = Reshape(gt.Read(), TR_D1D, Q1D);
+   auto B = Reshape(b.Read(), Q1D, TE_D1D);
+   auto op = Reshape(op_.Read(), Q1D*Q1D, 2,2, NE);
    auto x = Reshape(x_.Read(), TE_D1D, TE_D1D, 2, NE);
    auto y = Reshape(y_.ReadWrite(), TR_D1D, TR_D1D, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
@@ -671,7 +671,6 @@ static void PAGradientApplyTranspose3D(const int NE,
       constexpr int max_TR_D1D = T_TR_D1D ? T_TR_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      // TODO: implement
       // B: testdof-to-quad
       double Bxyz[max_Q1D][max_Q1D][max_Q1D][VDIM];
       for (int qz = 0; qz < Q1D; ++qz)
