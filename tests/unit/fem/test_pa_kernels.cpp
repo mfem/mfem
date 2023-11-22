@@ -212,7 +212,7 @@ void pa_gradient_testnd(int dim,
    for (int i = 0; i < 3; i++)
    {
       // Vector valued
-      FiniteElementCollection *fec2;
+      FiniteElementCollection *fec2 = nullptr;
       if (i == 0)
       {
          fec2 = new H1_FECollection(order, dim);
@@ -264,7 +264,7 @@ void pa_gradient_transpose_testnd(int dim)
    for (int i = 0; i < 3; i++)
    {
       // Vector valued
-      FiniteElementCollection *fec1;
+      FiniteElementCollection *fec1 = nullptr;
       if (i == 0)
       {
          fec1 = new H1_FECollection(order, dim);
