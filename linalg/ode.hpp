@@ -101,7 +101,6 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
-   ODEStateData state;
 
 public:
    ODESolver() : f(NULL) { mem_type = Device::GetHostMemoryType(); }
@@ -167,12 +166,6 @@ public:
    {
       while (t < tf) { Step(x, t, dt); }
    }
-
-   // Function for getting the state vectors
-   ODEStateData&  GetState() { return state; }
-
-   // Function for getting the state vectors
-   const ODEStateData&  GetState() const { return state; }
 
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
@@ -418,12 +411,23 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
+/// Abstract class for an ODESolver that has state history implemented as ODEStateData
+class ODESolverWithStates : public ODESolver
+{
+   public:
+
+      virtual ODEStateData& GetState() = 0;
+
+      virtual const ODEStateData& GetState() const = 0;
+};
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
 /// the filtered Navier-Stokes equations with a stabilized finite element
 /// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
-class GeneralizedAlphaSolver : public ODESolver
+class GeneralizedAlphaSolver : public ODESolverWithStates
 {
+   ODEStateDataVector state;
+
 protected:
    mutable Vector k,y;
    double alpha_f, alpha_m, gamma;
@@ -436,15 +440,18 @@ public:
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
 
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
 };
 
 /** An explicit Adams-Bashforth method. */
-class AdamsBashforthSolver : public ODESolver
+class AdamsBashforthSolver : public ODESolverWithStates
 {
 private:
    const double *a;
    const int stages;
    double dt_;
+   ODEStateDataVector state;
 
 protected:
    std::unique_ptr<ODESolver> RKsolver;
@@ -464,6 +471,9 @@ public:
    AdamsBashforthSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
+
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
 };
 
 /** A 1-stage, 1st order AB method.  */
@@ -517,12 +527,13 @@ public:
 };
 
 /** An implicit Adams-Moulton method. */
-class AdamsMoultonSolver : public ODESolver
+class AdamsMoultonSolver : public ODESolverWithStates
 {
 private:
    const double *a;
    const int stages;
    double dt_;
+   ODEStateDataVector state;
 
 protected:
    std::unique_ptr<ODESolver> RKsolver;
@@ -542,6 +553,9 @@ public:
    AdamsMoultonSolver(int s_, const double *a_);
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, double &t, double &dt) override;
+
+   ODEStateData& GetState() override { return state; }
+   const ODEStateData& GetState() const override { return state; }
 };
 
 /** A 1-stage, 2nd order AM method. */
@@ -662,7 +676,7 @@ protected:
    /// Pointer to the associated TimeDependentOperator.
    SecondOrderTimeDependentOperator *f;  // f(.,.,t) : R^n x R^n --> R^n
    MemoryType mem_type;
-   ODEStateData state;
+   ODEStateDataVector state;
 
 public:
    SecondOrderODESolver() : f(NULL) { mem_type = MemoryType::HOST; }
