@@ -245,7 +245,6 @@ void pa_gradient_testnd(int dim,
       LinearForm lf(&fes2);
       lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
       lf.Assemble();
-      std::cout << "field2.Norml2() = " << field2.Norml2() << std::endl;
       field2 -= lf;
 
       REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
