@@ -213,7 +213,7 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    dim = mesh->Dimension();
    ne = trial_fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS |
-                                         GeometricFactors::DETERMINANTS);
+                                    GeometricFactors::DETERMINANTS);
    trial_maps = &trial_fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    trial_dofs1D = trial_maps->ndof;
    quad1D = trial_maps->nqpt;
@@ -226,8 +226,9 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
-   PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D, ne, test_fe.GetMapType(),
-                   ir->GetWeights(), geom->J, geom->detJ, coeff, pa_data);
+   PAGradientSetup(dim, trial_dofs1D, test_dofs1D, quad1D, ne,
+                   test_fe.GetMapType(), ir->GetWeights(), geom->J, geom->detJ,
+                   coeff, pa_data);
 }
 
 // PA Gradient Apply 2D kernel
