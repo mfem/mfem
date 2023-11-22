@@ -114,7 +114,7 @@ ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
 }
 
 
-void ODEStateData::SetSize(int stages, int vsize, MemoryType m_t)
+void ODEStateDataVector::SetSize(int stages, int vsize, MemoryType m_t)
 {
    mem_type = m_t;
    smax = stages;
@@ -129,7 +129,7 @@ void ODEStateData::SetSize(int stages, int vsize, MemoryType m_t)
    ss = 0;
 }
 
-void ODEStateData::Get(int i, Vector &state) const
+void ODEStateDataVector::Get(int i, Vector &state) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
                 " LMSSolver::GetStateVector \n" <<
@@ -138,7 +138,7 @@ void ODEStateData::Get(int i, Vector &state) const
    state = data[idx[i]];
 }
 
-const Vector &ODEStateData::Get(int i) const
+const Vector &ODEStateDataVector::Get(int i) const
 {
    MFEM_ASSERT( (i >= 0) && ( i < ss ),
                 " LMSSolver::GetStateVector \n" <<
@@ -147,7 +147,7 @@ const Vector &ODEStateData::Get(int i) const
    return data[idx[i]];
 }
 
-void ODEStateData::Set(int i, Vector &state)
+void ODEStateDataVector::Set(int i, Vector &state)
 {
    MFEM_ASSERT( (i >= 0) && ( i < smax ),
                 " LMSSolver::SetStateVector \n" <<
@@ -155,14 +155,14 @@ void ODEStateData::Set(int i, Vector &state)
    data[idx[i]] = state;
 }
 
-void ODEStateData::Add(Vector &state)
+void ODEStateDataVector::Add(Vector &state)
 {
    ShiftStages();
    data[idx[0]] = state;
    Increment();
 }
 
-void ODEStateData::Print(std::ostream &os) const
+void ODEStateDataVector::Print(std::ostream &os) const
 {
    os << ss <<"/" <<smax<<std::endl;
    idx.Print(os);

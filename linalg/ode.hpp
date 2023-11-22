@@ -21,8 +21,31 @@
 namespace mfem
 {
 
-/// A class for storing states of previous timesteps
+/// An interface for storing state of previous timesteps
 class ODEStateData
+{
+public:
+   /// Get the maximum number of stored stages
+   virtual int MaxSize() const = 0;
+
+   /// Get the current number of stored stages
+   virtual int Size() const = 0;
+
+   /// Get the ith state vector
+   virtual void Get(int i, Vector &state) const = 0;
+
+   /// Get the ith state vector
+   virtual const Vector &Get(int i) const = 0;
+
+   /// Set the ith state vector
+   virtual void Set(int i, Vector &state) = 0;
+
+   /// Add state vector and increment state size
+   virtual void Add(Vector &state) = 0;
+};
+
+/// An implementation of ODEStateData that stores states in an std::vector<Vector>
+class ODEStateDataVector : public ODEStateData
 {
 private:
    MemoryType mem_type;
@@ -31,7 +54,7 @@ private:
    Array<int> idx;
 
 public:
-   ODEStateData () { ss = smax = 0;};
+   ODEStateDataVector () { ss = smax = 0;};
 
    /// Set the number of stages and the size of the vectors
    void  SetSize(int stages, int vsize, MemoryType mem_type);
@@ -42,29 +65,11 @@ public:
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
    };
 
-   /// Get the maximum number of stored tages
-   int  MaxSize() const { return smax; };
-
-   /// Get the current number of stored stages
-   int  Size() const  { return ss; };
-
    /// Increment the stage counter
    void Increment() { ss++; ss = std::min(ss,smax); };
 
    /// Reset the stage counter
    void Reset() { ss = 0; };
-
-   /// Get the ith state vector
-   const Vector &Get(int i) const;
-
-   /// Get the ith state vector
-   void Get(int i, Vector &state) const;
-
-   /// Set the ith state vector
-   void Set(int i, Vector &state);
-
-   /// Add state vector and increment state size
-   void Add(Vector &state);
 
    /// Reference access to the ith vector.
    inline Vector & operator[](int i) { return data[idx[i]]; };
@@ -74,7 +79,20 @@ public:
 
    /// Print state data
    void Print(std::ostream &out = mfem::out) const ;
+
+   int  MaxSize() const override { return smax; };
+
+   int  Size() const override { return ss; };
+
+   void Get(int i, Vector &state) const;
+
+   const Vector &Get(int i) const override;
+
+   void Set(int i, Vector &state) override;
+
+   void Add(Vector &state) override;
 };
+
 
 /// Abstract class for solving systems of ODEs: dx/dt = f(x,t)
 class ODESolver
