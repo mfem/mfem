@@ -414,11 +414,11 @@ public:
 /// Abstract class for an ODESolver that has state history implemented as ODEStateData
 class ODESolverWithStates : public ODESolver
 {
-   public:
+public:
 
-      virtual ODEStateData& GetState() = 0;
+   virtual ODEStateData& GetState() = 0;
 
-      virtual const ODEStateData& GetState() const = 0;
+   virtual const ODEStateData& GetState() const = 0;
 };
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
