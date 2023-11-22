@@ -197,9 +197,9 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
-double pa_gradient_testnd(int dim,
-                          double (*f1)(const Vector &),
-                          void (*gradf1)(const Vector &, Vector &))
+void pa_gradient_testnd(int dim,
+                        double (*f1)(const Vector &),
+                        void (*gradf1)(const Vector &, Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -207,31 +207,102 @@ double pa_gradient_testnd(int dim,
    // Scalar
    H1_FECollection fec1(order, dim);
    FiniteElementSpace fes1(&mesh, &fec1);
+   GridFunction field(&fes1);
 
-   // Vector valued
+   for (int i = 0; i < 3; i++)
+   {
+      // Vector valued
+      FiniteElementCollection *fec2;
+      if (i == 0)
+      {
+         fec2 = new H1_FECollection(order, dim);
+      }
+      else if (i == 1)
+      {
+         fec2 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::VALUE);
+      }
+      else if (i == 2)
+      {
+         fec2 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::INTEGRAL);
+      }
+      FiniteElementSpace fes2(&mesh, fec2, dim);
+      GridFunction field2(&fes2);
+
+      MixedBilinearForm gform(&fes1, &fes2);
+      gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      gform.AddDomainIntegrator(new GradientIntegrator);
+      gform.Assemble();
+
+      // Project u = f1
+      FunctionCoefficient fcoeff1(f1);
+      field.ProjectCoefficient(fcoeff1);
+
+      // Check if grad(u) = gradf1
+      gform.Mult(field, field2);
+      VectorFunctionCoefficient fcoeff2(dim, gradf1);
+      LinearForm lf(&fes2);
+      lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
+      lf.Assemble();
+      std::cout << "field2.Norml2() = " << field2.Norml2() << std::endl;
+      field2 -= lf;
+
+      REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+   }
+}
+
+void pa_gradient_transpose_testnd(int dim)
+{
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 4;
+
+   // Scalar
    H1_FECollection fec2(order, dim);
-   FiniteElementSpace fes2(&mesh, &fec2, dim);
+   FiniteElementSpace fes2(&mesh, &fec2);
+   GridFunction y_pa(&fes2), y_fa(&fes2);
 
-   GridFunction field(&fes1), field2(&fes2);
+   for (int i = 0; i < 3; i++)
+   {
+      // Vector valued
+      FiniteElementCollection *fec1;
+      if (i == 0)
+      {
+         fec1 = new H1_FECollection(order, dim);
+      }
+      else if (i == 1)
+      {
+         fec1 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::VALUE);
+      }
+      else if (i == 2)
+      {
+         fec1 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::INTEGRAL);
+      }
+      FiniteElementSpace fes1(&mesh, fec1, dim);
 
-   MixedBilinearForm gform(&fes1, &fes2);
-   gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   gform.AddDomainIntegrator(new GradientIntegrator);
-   gform.Assemble();
+      MixedBilinearForm g_pa(&fes1, &fes2);
+      g_pa.AddDomainIntegrator(
+         new TransposeIntegrator(new GradientIntegrator));
+      g_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      g_pa.Assemble();
 
-   // Project u = f1
-   FunctionCoefficient fcoeff1(f1);
-   field.ProjectCoefficient(fcoeff1);
+      MixedBilinearForm g_fa(&fes1, &fes2);
+      g_fa.AddDomainIntegrator(
+         new TransposeIntegrator(new GradientIntegrator));
+      g_fa.Assemble();
+      g_fa.Finalize();
 
-   // Check if grad(u) = gradf1
-   gform.Mult(field, field2);
-   VectorFunctionCoefficient fcoeff2(dim, gradf1);
-   LinearForm lf(&fes2);
-   lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
-   lf.Assemble();
-   field2 -= lf;
+      GridFunction x(&fes1);
+      x.Randomize(1);
 
-   return field2.Norml2();
+      g_pa.Mult(x, y_pa);
+      g_fa.Mult(x, y_fa);
+
+      y_pa -= y_fa;
+      REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+   }
 }
 
 TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
@@ -239,13 +310,17 @@ TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
    SECTION("2D")
    {
       // Check if grad(x^2 + y^3) == [2x, 3y^2]
-      REQUIRE(pa_gradient_testnd(2, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(2, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(2);
    }
 
    SECTION("3D")
    {
       // Check if grad(x^2 + y^3 + z^4) == [2x, 3y^2, 4z^3]
-      REQUIRE(pa_gradient_testnd(3, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(3, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(3);
    }
 }
 
