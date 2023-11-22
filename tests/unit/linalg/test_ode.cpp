@@ -114,7 +114,9 @@ TEST_CASE("First order ODE methods", "[ODE]")
          ODESolverWithStates *ode_solver_states =
             dynamic_cast<ODESolverWithStates*>(ode_solver);
          if (!ode_solver_states && init_hist_)
+         {
             mfem_error("CheckODE: ODESolver incompatible with init_hist_ value");
+         }
 
          t = 0.0;
          dt_order = t_final/double(steps);
