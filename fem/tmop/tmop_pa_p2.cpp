@@ -98,6 +98,7 @@ void EvalP_094(const double *Jpt, const double *w, double *P)
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
+                           const double metric_coeff,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -154,7 +155,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = metric_normal * W(qx,qy) * detJtr;
+            const double weight = metric_normal * metric_coeff *
+                                  W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -204,6 +206,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
+   const double mc = PA.metric_coeff_val;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
@@ -211,7 +214,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,mc,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

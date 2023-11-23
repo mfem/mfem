@@ -1829,9 +1829,8 @@ protected:
    // LD: E-Vector constructed using limiting distance grid function (delta).
    // H0: Q-Vector for Hessian associated with the limiting term.
    //
-   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
-   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
-   //            grid function.
+   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -1851,6 +1850,7 @@ protected:
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, H, C0, LD, H0;
+      double metric_coeff_val;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;

@@ -73,6 +73,7 @@ double EvalW_094(const double *Jpt, const double *w)
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const double metric_normal,
+                           const double metric_coeff,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -131,7 +132,8 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = metric_normal * W(qx,qy) * detJtr;
+            const double weight = metric_normal * metric_coeff *
+                                  W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -169,6 +171,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
+   const double mc = PA.metric_coeff_val;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -182,7 +185,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mp,M,N,J,W,B,G,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,mc,mp,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem
