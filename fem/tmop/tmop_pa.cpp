@@ -213,6 +213,14 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
 
+   if (metric_coeff)
+   {
+      auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff);
+      MFEM_VERIFY(cc, "TMOP+PA is not supported for non-ConstantCoefficients");
+      PA.metric_coeff_val = cc->constant;
+   }
+   else { PA.metric_coeff_val = 1.0; }
+
    // Setup ref->target Jacobians, PA.Jtr, (dim x dim) Q-vector, DenseTensor
    PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq, mt);
    PA.Jtr_needs_update = true;

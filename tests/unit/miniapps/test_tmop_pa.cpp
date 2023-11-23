@@ -318,7 +318,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    if (combo > 0)
    {
       // First metric.
-      coeff1 = new ConstantCoefficient(1.0);
+      coeff1 = new ConstantCoefficient(10.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }

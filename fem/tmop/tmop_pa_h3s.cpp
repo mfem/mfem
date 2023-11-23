@@ -312,6 +312,7 @@ void EvalH_338(const int e, const int qx, const int qy, const int qz,
 
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
                            const double metric_normal,
+                           const double metric_coeff,
                            const Array<double> &metric_param,
                            const int mid,
                            const Vector &x_,
@@ -369,7 +370,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_3D,
             {
                const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+               const double weight = metric_normal * metric_coeff *
+                                     W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -438,6 +440,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
    const int M = metric->Id();
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
+   const double mc = PA.metric_coeff_val;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -450,7 +453,7 @@ void TMOP_Integrator::AssembleGradPA_3D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mp,M,X,N,W,B,G,J,H);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_3D,id,mn,mc,mp,M,X,N,W,B,G,J,H);
 }
 
 } // namespace mfem
