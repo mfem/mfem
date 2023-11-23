@@ -216,7 +216,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    if (metric_coeff)
    {
       auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff);
-      MFEM_VERIFY(cc, "TMOP+PA is not supported for non-ConstantCoefficients");
+      MFEM_VERIFY(cc, "TMOP+PA supports only ConstantCoefficients.");
       PA.metric_coeff_val = cc->constant;
    }
    else { PA.metric_coeff_val = 1.0; }
