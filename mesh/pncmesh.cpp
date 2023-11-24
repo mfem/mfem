@@ -537,12 +537,13 @@ void ParNCMesh::CalculatePMatrixGroups()
    }
 }
 
-int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
+int ParNCMesh::get_face_orientation(const Face &face, const Element &e1,
+                                    const Element &e2,
                                     int local[2])
 {
    // Return face orientation in e2, assuming the face has orientation 0 in e1.
    int ids[2][4];
-   Element* e[2] = { &e1, &e2 };
+   const Element * const e[2] = { &e1, &e2 };
    for (int i = 0; i < 2; i++)
    {
       // get local face number (remember that p1, p2, p3 are not in order, and
@@ -577,7 +578,7 @@ void ParNCMesh::CalcFaceOrientations()
    face_orient.SetSize(NFaces);
    face_orient = 0;
 
-   for (auto face : faces)
+   for (const auto &face : faces)
    {
       if (face.elem[0] >= 0 && face.elem[1] >= 0 && face.index < NFaces)
       {
@@ -600,8 +601,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
 
    if (Dim == 3)
    {
-      // Mark masters of shared slave boundary faces as essential boundary faces. Some
-      // master faces may only have slave children.
+      // Mark masters of shared slave boundary faces as essential boundary
+      // faces. Some master faces may only have slave children.
       for (const auto &mf : shared_faces.masters)
       {
          if (elements[mf.element].rank != MyRank) { continue; }
@@ -613,8 +614,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                // Edge-face constraint. Skip this edge.
                continue;
             }
-            Face *face = GetFace(elements[sf.element], sf.local);
-            if (face && face->Boundary() && bdr_attr_is_ess[face->attribute - 1])
+            const Face &face = *GetFace(elements[sf.element], sf.local);
+            if (face.Boundary() && bdr_attr_is_ess[face.attribute - 1])
             {
                bdr_faces.Append(mf.index);
             }
@@ -623,8 +624,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    }
    else if (Dim == 2)
    {
-      // Mark masters of shared slave boundary edges as essential boundary edges. Some
-      // master edges may only have slave children.
+      // Mark masters of shared slave boundary edges as essential boundary
+      // edges. Some master edges may only have slave children.
       for (const auto &me : shared_edges.masters)
       {
          if (elements[me.element].rank != MyRank) { continue; }

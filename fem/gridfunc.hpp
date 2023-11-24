@@ -496,7 +496,6 @@ public:
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              Array<int> &bdr_attr);
 
-
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
                                  const Array<int> *elems = NULL) const;

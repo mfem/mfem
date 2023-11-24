@@ -333,7 +333,8 @@ protected: // implementation
    void CreateGroups(int nentities, Array<Connection> &index_rank,
                      Array<GroupId> &entity_group);
 
-   static int get_face_orientation(Face &face, Element &e1, Element &e2,
+   static int get_face_orientation(const Face &face, const Element &e1,
+                                   const Element &e2,
                                    int local[2] = NULL /* optional output */);
    void CalcFaceOrientations();
 

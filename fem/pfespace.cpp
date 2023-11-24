@@ -2049,8 +2049,10 @@ protected:
    ParNCMesh *pncmesh;
    const FiniteElementCollection* fec;
 
+   /// Encode a NeighborRowMessage for sending via MPI.
    void Encode(int rank) override;
-   void Decode(int) override;
+   /// Decode a NeighborRowMessage received via MPI.
+   void Decode(int rank) override;
 };
 
 void NeighborRowMessage::Encode(int rank)
@@ -2169,8 +2171,8 @@ void NeighborRowMessage::Decode(int rank)
             int fo = pncmesh->GetFaceOrientation(id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
          }
-         // P2 tri faces have dofs that must be processed in pairs, as the doftransformation
-         // is not diagonal.
+         // Tri faces with second order basis have dofs that must be processed
+         // in pairs, as the doftransformation is not diagonal.
          const bool process_dof_pairs = (ent == 2 &&
                                          fec->GetContType() == FiniteElementCollection::TANGENTIAL
                                          && !Geometry::IsTensorProduct(geom));
@@ -2249,17 +2251,19 @@ void NeighborRowMessage::Decode(int rank)
             // This is the second "fundamental unit" used in the transformation.
             const auto initial_second_row = second_row;
 
-            // Transform the received dofs by the primal transform. This is because
-            // within mfem as a face is visited its orientation is asigned to match the
-            // element that visited it first. Thus on processor boundaries, the transform
-            // will always be identity going into the element. However, the sending
-            // processor also thought the face orientation was zero, so it has sent the
-            // information in a different orientation. To map onto the local orientation
-            // definition, extract the orientation of the sending rank (the lower rank face
-            // defines the orientation fo), then apply the transform to the dependencies.
-            // The action of this transform on the dependencies is performed by adding
-            // scaled versions of the original two rows (which by the mfem assumption of
-            // face orientation, represent the identity transform).
+            // Transform the received dofs by the primal transform. This is
+            // because within mfem as a face is visited its orientation is
+            // assigned to match the element that visited it first. Thus on
+            // processor boundaries, the transform will always be identity going
+            // into the element. However, the sending processor also thought the
+            // face orientation was zero, so it has sent the information in a
+            // different orientation. To map onto the local orientation
+            // definition, extract the orientation of the sending rank (the
+            // lower rank face defines the orientation fo), then apply the
+            // transform to the dependencies. The action of this transform on
+            // the dependencies is performed by adding scaled versions of the
+            // original two rows (which by the mfem assumption of face
+            // orientation, represent the identity transform).
             const double *T =
                ND_DofTransformation::GetFaceTransform(fo).GetData();
 
@@ -2606,8 +2610,8 @@ int ParFiniteElementSpace
    {
       if (finalized[dof])
       {
-         pmatrix[dof].elems.emplace_back(my_tdof_offset + vdim_factor*tdof, tdof_stride,
-                                         1.);
+         pmatrix[dof].elems.emplace_back(
+            my_tdof_offset + vdim_factor*tdof, tdof_stride, 1.);
 
          // prepare messages to neighbors with identity rows
          if (dof_group[dof] != 0)

@@ -844,7 +844,6 @@ public:
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// face, including the DOFs for the edges and the vertices of the face.
    ///
-   ///
    /// In variable order spaces, multiple variants of DOFs can be returned.
    /// See GetEdgeDofs() for more details.
    /// @return Order of the selected variant, or -1 if there are no more

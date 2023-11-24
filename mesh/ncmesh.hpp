@@ -390,13 +390,29 @@ public:
        parent. */
    int GetEdgeMaster(int v1, int v2) const;
 
-   /** Get a list of vertices (2D/3D) and edges (3D) that coincide with boundary
-       elements with the specified attributes (marked in 'bdr_attr_is_ess').
-       In 3D this function also reveals "hidden" boundary edges. In parallel it
-       helps identifying boundary vertices/edges/faces affected by non-local boundary
-       elements. Hidden faces can occur for an internal boundary coincident to a processor
-       boundary.
+   /** Get a list of vertices (2D/3D), edges (3D) and faces (3D) that coincide
+       with boundary elements with the specified attributes (marked in
+       'bdr_attr_is_ess'). In 3D this function also reveals "hidden" boundary
+       edges. In parallel it helps identifying boundary vertices/edges/faces
+       affected by non-local boundary elements. Hidden faces can occur for an
+       internal boundary coincident to a processor boundary.
        */
+
+   /**
+    * @brief Get a list of vertices (2D/3D), edges (3D) and faces (3D) that
+    * coincide with boundary elements with the specified attributes (marked in
+    * 'bdr_attr_is_ess').
+    *
+    * @details In 3D this function also reveals "hidden" boundary edges. In
+    * parallel it helps identifying boundary vertices/edges/faces affected by
+    * non-local boundary elements. Hidden faces can occur for an internal
+    * boundary coincident to a processor boundary.
+    *
+    * @param bdr_attr_is_ess Indicator if a given attribute is essential.
+    * @param bdr_vertices Array of vertices that are essential.
+    * @param bdr_edges Array of edges that are essential.
+    * @param bdr_faces Array of faces that are essential.
+    */
    virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
@@ -748,7 +764,7 @@ protected: // implementation
    bool TriFaceSplit(int n1, int n2, int n3, int mid[3] = NULL) const;
 
    /**
-    * @brief Determine if a Triangle face is not a master
+    * @brief Determine if a Triangle face is a master face
     * @details This check requires looking for the edges making up the triangle
     * being split, if nodes exist at their midpoints, and there are vertices at
     * them, this implies the face COULD be split. To determine if it is, we then
@@ -759,32 +775,32 @@ protected: // implementation
     * @param n1 The first node defining the face
     * @param n2 The second node defining the face
     * @param n3 The third node defining the face
-    * @return true The face is not a master
-    * @return false The face is a master
+    * @return true The face is a master
+    * @return false The face is not a master
     */
-   inline bool TriFaceNotMaster(int n1, int n2, int n3) const
+   inline bool TriFaceIsMaster(int n1, int n2, int n3) const
    {
       int mid[3];
-      return !TriFaceSplit(n1, n2, n3, mid) // The edges aren't split
-             // OR none of the midpoints are connected.
-             || (nodes.FindId(mid[0], mid[1]) < 0 &&
-                 nodes.FindId(mid[0], mid[2]) < 0 &&
-                 nodes.FindId(mid[1], mid[2]) < 0);
+      return !(!TriFaceSplit(n1, n2, n3, mid) // The edges aren't split
+               // OR none of the midpoints are connected.
+               || (nodes.FindId(mid[0], mid[1]) < 0 &&
+                   nodes.FindId(mid[0], mid[2]) < 0 &&
+                   nodes.FindId(mid[1], mid[2]) < 0));
    }
 
    /**
-    * @brief Determine if  a Quad face is not a master
+    * @brief Determine if a Quad face is a master face
     *
     * @param n1 The first node defining the face
     * @param n2 The second node defining the face
     * @param n3 The third node defining the face
     * @param n4 The fourth node defining the face
-    * @return true The quad face is not a master
-    * @return false The quad face is a master
+    * @return true The quad face is a master face
+    * @return false The quad face is not a master face
     */
-   inline bool QuadFaceNotMaster(int n1, int n2, int n3, int n4) const
+   inline bool QuadFaceIsMaster(int n1, int n2, int n3, int n4) const
    {
-      return QuadFaceSplitType(n1, n2, n3, n4) == 0;
+      return QuadFaceSplitType(n1, n2, n3, n4) != 0;
    }
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);

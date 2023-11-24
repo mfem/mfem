@@ -57,13 +57,13 @@ public:
    /// Set element's attribute.
    inline void SetAttribute(const int attr) { attribute = attr; }
 
-   /// Get the indices defining the vertices
+   /// Get the indices defining the vertices.
    virtual void GetVertices(Array<int> &v) const = 0;
 
-   /// Set the indices defining the vertices
+   /// Set the indices defining the vertices.
    virtual void SetVertices(const Array<int> &v) = 0;
 
-   /// Set the indices the element according to the input.
+   /// Set the indices defining the vertices.
    virtual void SetVertices(const int *ind) = 0;
 
    /// @note The returned array should NOT be deleted by the caller.

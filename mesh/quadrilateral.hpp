@@ -38,10 +38,10 @@ public:
    /// Return element's type
    Type GetType() const override { return Element::QUADRILATERAL; }
 
-   /// Get the indices defining the vertices
+   /// Get the indices defining the vertices.
    void GetVertices(Array<int> &v) const override;
 
-   /// Set the indices defining the vertices
+   /// Set the indices defining the vertices.
    void SetVertices(const Array<int> &v) override;
 
    /// @note The returned array should NOT be deleted by the caller.
