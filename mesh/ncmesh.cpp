@@ -185,8 +185,8 @@ NCMesh::NCMesh(const Mesh *mesh)
    nodes.UpdateUnused();
    for (int i = 0; i < elements.Size(); i++)
    {
-      // increase reference count of all nodes the element is using
-      // (NOTE: this will also create and reference all edge nodes and faces)
+      // increase reference count of all nodes the element is using (NOTE: this
+      // will also create and reference all edge nodes and faces)
       ReferenceElement(i);
 
       // make links from faces back to the element
@@ -323,8 +323,8 @@ int NCMesh::FindMidEdgeNode(int node1, int node2) const
    int mid = nodes.FindId(node1, node2);
    if (mid < 0 && shadow.Size())
    {
-      // if (anisotropic) refinement is underway, some nodes may temporarily
-      // be available under alternate parents (see ReparentNode)
+      // if (anisotropic) refinement is underway, some nodes may temporarily be
+      // available under alternate parents (see ReparentNode)
       mid = shadow.FindId(node1, node2);
       if (mid >= 0)
       {
@@ -374,9 +374,9 @@ void NCMesh::ReferenceElement(int elem)
       const int* fv = gi.faces[i];
       faces.GetId(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
 
-      // NOTE: face->RegisterElement called separately to avoid having
-      // to store 3 element indices  temporarily in the face when refining.
-      // See also NCMesh::RegisterFaces.
+      // NOTE: face->RegisterElement called separately to avoid having to store
+      // 3 element indices  temporarily in the face when refining. See also
+      // NCMesh::RegisterFaces.
    }
 }
 
@@ -395,8 +395,8 @@ void NCMesh::UnreferenceElement(int elem, Array<int> &elemFaces)
       MFEM_ASSERT(face >= 0, "face not found.");
       faces[face].ForgetElement(elem);
 
-      // NOTE: faces.Delete() called later to avoid destroying and
-      // recreating faces during refinement, see NCMesh::DeleteUnusedFaces.
+      // NOTE: faces.Delete() called later to avoid destroying and recreating
+      // faces during refinement, see NCMesh::DeleteUnusedFaces.
       elemFaces.Append(face);
    }
 
@@ -770,10 +770,10 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
 void NCMesh::FindEdgeElements(int vn1, int vn2, int vn3, int vn4,
                               Array<MeshId> &elem_edge) const
 {
-   // Assuming that f = (vn1, vn2, vn3, vn4) is a quad face and
-   // e = (vn1, vn4) is its edge, this function finds the N elements
-   // sharing e, and returns the N different MeshIds of the edge (i.e.,
-   // different element-local pairs describing the edge).
+   // Assuming that f = (vn1, vn2, vn3, vn4) is a quad face and e = (vn1, vn4)
+   // is its edge, this function finds the N elements sharing e, and returns the
+   // N different MeshIds of the edge (i.e., different element-local pairs
+   // describing the edge).
 
    int ev1 = vn1, ev2 = vn4;
 
@@ -940,8 +940,8 @@ void NCMesh::CheckIsoFace(int vn1, int vn2, int vn3, int vn4,
    if (!Iso)
    {
       /* If anisotropic refinements are present in the mesh, we need to check
-         isotropically split faces as well, see second comment in
-         CheckAnisoFace above. */
+         isotropically split faces as well, see second comment in CheckAnisoFace
+         above. */
 
       CheckAnisoFace(vn1, vn2, en2, en4, en1, midf);
       CheckAnisoFace(en4, en2, vn3, vn4, midf, en3);
@@ -969,12 +969,10 @@ void NCMesh::RefineElement(int elem, char ref_type)
       return;
    }
 
-   /*mfem::out << "Refining element " << elem << " ("
-             << el.node[0] << ", " << el.node[1] << ", "
-             << el.node[2] << ", " << el.node[3] << ", "
-             << el.node[4] << ", " << el.node[5] << ", "
-             << el.node[6] << ", " << el.node[7] << "), "
-             << "ref_type " << int(ref_type) << std::endl;*/
+   /*mfem::out << "Refining element " << elem << " (" << el.node[0] << ", " <<
+             el.node[1] << ", " << el.node[2] << ", " << el.node[3] << ", " <<
+             el.node[4] << ", " << el.node[5] << ", " << el.node[6] << ", " <<
+             el.node[7] << "), " << "ref_type " << int(ref_type) << std::endl;*/
 
    int* no = el.node;
    int attr = el.attribute;
@@ -995,7 +993,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    // create child elements
    if (el.Geom() == Geometry::CUBE)
    {
-      // Vertex numbering is assumed to be as follows:
+      // Cube vertex numbering is assumed to be as follows:
       //
       //       7             6
       //        +-----------+                Faces: 0 bottom
@@ -1670,12 +1668,12 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    }
 
    /* TODO: the current algorithm of forced refinements is not optimal. As
-      forced refinements spread through the mesh, some may not be necessary
-      in the end, since the affected elements may still be scheduled for
-      refinement that could stop the propagation. We should introduce the
-      member Element::ref_pending that would show the intended refinement in
-      the batch. A forced refinement would be combined with ref_pending to
-      (possibly) stop the propagation earlier.
+      forced refinements spread through the mesh, some may not be necessary in
+      the end, since the affected elements may still be scheduled for refinement
+      that could stop the propagation. We should introduce the member
+      Element::ref_pending that would show the intended refinement in the batch.
+      A forced refinement would be combined with ref_pending to (possibly) stop
+      the propagation earlier.
 
       Update: what about a FIFO instead of ref_stack? */
 
@@ -1699,8 +1697,8 @@ int NCMesh::RetrieveNode(const Element &el, int index)
 {
    if (!el.ref_type) { return el.node[index]; }
 
-   // need to retrieve node from a child element (there is always a child
-   // that inherited the parent's corner under the same index)
+   // need to retrieve node from a child element (there is always a child that
+   // inherited the parent's corner under the same index)
    int ch;
    switch (el.Geom())
    {
@@ -2165,8 +2163,8 @@ void NCMesh::UpdateLeafElements()
    NElements = leaf_elements.Size();
    NGhostElements = ghosts.Size();
 
-   // append ghost elements at the end of 'leaf_element' (if any)
-   // and assign the final (Mesh) indices of leaves
+   // append ghost elements at the end of 'leaf_element' (if any) and assign the
+   // final (Mesh) indices of leaves
    leaf_elements.Append(ghosts);
    leaf_sfc_index.SetSize(leaf_elements.Size());
 
@@ -2181,24 +2179,24 @@ void NCMesh::UpdateLeafElements()
 void NCMesh::UpdateVertices()
 {
 #ifndef MFEM_NCMESH_OLD_VERTEX_ORDERING
-   // This method assigns indices to vertices (Node::vert_index) that will
-   // be seen by the Mesh class and the rest of MFEM. We must be careful to:
+   // This method assigns indices to vertices (Node::vert_index) that will be
+   // seen by the Mesh class and the rest of MFEM. We must be careful to:
    //
    //   1. Stay compatible with the conforming code, which expects top-level
    //      (original) vertices to be indexed first, otherwise GridFunctions
-   //      defined on a conforming mesh would no longer be valid when the
-   //      mesh is converted to an NC mesh.
+   //      defined on a conforming mesh would no longer be valid when the mesh
+   //      is converted to an NC mesh.
    //
-   //   2. Make sure serial NCMesh is compatible with the parallel ParNCMesh,
-   //      so it is possible to read parallel partial solutions in serial code
+   //   2. Make sure serial NCMesh is compatible with the parallel ParNCMesh, so
+   //      it is possible to read parallel partial solutions in serial code
    //      (e.g., serial GLVis). This means handling ghost elements, if present.
    //
    //   3. Assign vertices in a globally consistent order for parallel meshes:
    //      if two vertices i,j are shared by two ranks r1,r2, and i<j on r1,
    //      then i<j on r2 as well. This is true for top-level vertices but also
    //      for the remaining shared vertices thanks to the globally consistent
-   //      SFC ordering of the leaf elements. This property reduces communication
-   //      and simplifies ParNCMesh.
+   //      SFC ordering of the leaf elements. This property reduces
+   //      communication and simplifies ParNCMesh.
 
    // STEP 1: begin by splitting vertices into 4 classes:
    //   - local top-level vertices (code -1)
@@ -2277,8 +2275,8 @@ void NCMesh::UpdateVertices()
       }
    }
 
-   // STEP 5: assign remaining ghost vertices, ignore vertices beyond the
-   // ghost layer
+   // STEP 5: assign remaining ghost vertices, ignore vertices beyond the ghost
+   // layer
 
    NGhostVertices = 0;
    for (int i = 0; i < sfc_order.Size(); i++)
@@ -2525,15 +2523,16 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                 nc_elem.rank != std::min(elements[face.elem[0]].rank,
                                          elements[face.elem[1]].rank))
             {
-               // This is a conformal internal face, but this element is not the lowest
-               // ranking attached processor, thus not the owner of the face.
-               // Consequently, we do not add this face to avoid double
+               // This is a conformal internal face, but this element is not the
+               // lowest ranking attached processor, thus not the owner of the
+               // face. Consequently, we do not add this face to avoid double
                // counting.
                continue;
             }
 
-            // Add in all boundary faces that are actual boundaries or not masters of another face.
-            // The fv[2] in the edge split is on purpose.
+            // Add in all boundary faces that are actual boundaries or not
+            // masters of another face. The fv[2] in the edge split is on
+            // purpose.
             if ((nfv == 4 &&
                  !QuadFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]))
                 || (nfv == 3 && !TriFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]]))
@@ -2545,8 +2544,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
                unique_boundary_faces[id].SetSize(nfv);
                for (int v = 0; v < nfv; ++v)
                {
-                  // Using a map overwrites if a face is visited twice.
-                  // The nfv==2 is necessary because faces of 2D are storing the
+                  // Using a map overwrites if a face is visited twice. The
+                  // nfv==2 is necessary because faces of 2D are storing the
                   // second index in the 2 slot, not the 1 slot.
                   unique_boundary_faces[id][v] = nodes[node[fv[(nfv==2) ? 2*v : v]]].vert_index;
                }
@@ -2793,7 +2792,8 @@ bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
 
    if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
 
-   // This is necessary but not sufficient to determine if a face has been split.
+   // This is necessary but not sufficient to determine if a face has been
+   // split.
    return true;
 }
 
@@ -2867,8 +2867,8 @@ struct PointMatrixHash
       {
          for (int j = 0; j < pm.points[i].dim; j++)
          {
-            // mix the doubles by adding their binary representations
-            // many times over (note: 31 is 11111 in binary)
+            // mix the doubles by adding their binary representations many times
+            // over (note: 31 is 11111 in binary)
             double coord = pm.points[i].coord[j];
             hash = 31*hash + *((std::uint64_t*) &coord);
          }
@@ -3016,8 +3016,8 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
       Node& enode = nodes[mid[4]];
       if (enode.HasEdge())
       {
-         // process the edge only if it's not shared by slave faces
-         // within this master face (i.e. the edge is "hidden")
+         // process the edge only if it's not shared by slave faces within this
+         // master face (i.e. the edge is "hidden")
          const int fi[3][2] = {{0, 0}, {1, 3}, {2, 0}};
          if (!ef[0][fi[split][0]] && !ef[1][fi[split][1]])
          {
@@ -3148,15 +3148,16 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                              PointMatrix(pmid1, pmid2, pmid0),
                              level+1, matrix_map);
 
-      // Traverse possible tet edges constrained by the master face. This needs to occur if
-      // none of these first NC level faces are split further, OR if they are on different
-      // processors. The different processor constraint is needed in the case of local
-      // elements constrained by this face via the edge alone. Cannot know this a priori, so
-      // just constrain any edge attached to two neighbors.
+      // Traverse possible tet edges constrained by the master face. This needs
+      // to occur if none of these first NC level faces are split further, OR if
+      // they are on different processors. The different processor constraint is
+      // needed in the case of local elements constrained by this face via the
+      // edge alone. Cannot know this a priori, so just constrain any edge
+      // attached to two neighbors.
       if (HaveTets() && (!b[3].unsplit || b[3].ghost_neighbor))
       {
-         // If the faces have no further splits, so would not be captured by normal face
-         // relations, add possible edge constraints.
+         // If the faces have no further splits, so would not be captured by
+         // normal face relations, add possible edge constraints.
          if (!b[1].unsplit || b[1].ghost_neighbor) { TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map); }
          if (!b[2].unsplit || b[2].ghost_neighbor) { TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map); }
          if (!b[0].unsplit || b[0].ghost_neighbor) { TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map); }
@@ -3217,8 +3218,8 @@ void NCMesh::BuildFaceList()
          }
          else
          {
-            // this is either a master face or a slave face, but we can't
-            // tell until we traverse the face refinement 'tree'...
+            // this is either a master face or a slave face, but we can't tell
+            // until we traverse the face refinement 'tree'...
             int sb = face_list.slaves.Size();
             if (fgeom == Geometry::SQUARE)
             {
@@ -3707,8 +3708,8 @@ void NCMesh::FindSetNeighbors(const Array<char> &elem_set,
    // gives the neighbor set. To save memory, this function only computes the
    // action of A*A^T, the product itself is not stored anywhere.
 
-   // Optimization: the 'element_vertex' table does not store the obvious
-   // corner nodes in it. The table is therefore empty for conforming meshes.
+   // Optimization: the 'element_vertex' table does not store the obvious corner
+   // nodes in it. The table is therefore empty for conforming meshes.
 
    UpdateElementToVertexTable();
 
@@ -3811,10 +3812,10 @@ static bool sorted_lists_intersect(const int* a, const int* b, int na, int nb)
 void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
                            const Array<int> *search_set)
 {
-   // TODO future: this function is inefficient. For a single element, an
-   // octree neighbor search algorithm would be better. However, the octree
-   // neighbor algorithm is hard to get right in the multi-octree case due to
-   // the different orientations of the octrees (i.e., the root elements).
+   // TODO future: this function is inefficient. For a single element, an octree
+   // neighbor search algorithm would be better. However, the octree neighbor
+   // algorithm is hard to get right in the multi-octree case due to the
+   // different orientations of the octrees (i.e., the root elements).
 
    UpdateElementToVertexTable();
 
@@ -5160,16 +5161,14 @@ int NCMesh::GetEdgeMaster(int node) const
 
    if ((n2p1 != n2p2) && (p1 == n2p1 || p1 == n2p2))
    {
-      // n1 is parent of n2:
-      // (n1)--(nd)--(n2)------(*)
+      // n1 is parent of n2: (n1)--(nd)--(n2)------(*)
       if (n2.HasEdge()) { return p2; }
       else { return GetEdgeMaster(p2); }
    }
 
    if ((n1p1 != n1p2) && (p2 == n1p1 || p2 == n1p2))
    {
-      // n2 is parent of n1:
-      // (n2)--(nd)--(n1)------(*)
+      // n2 is parent of n1: (n2)--(nd)--(n1)------(*)
       if (n1.HasEdge()) { return p1; }
       else { return GetEdgeMaster(p1); }
    }
@@ -5332,8 +5331,8 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    // Filter, sort and unique an array, so it contains only local unique values.
    auto FilterSortUnique = [](Array<int> &v, int N)
    {
-      // Perform the O(N) filter before the O(NlogN) sort.
-      // begin -> it is only entries < N.
+      // Perform the O(N) filter before the O(NlogN) sort. begin -> it is only
+      // entries < N.
       auto it = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
       std::sort(v.begin(), it);
       v.SetSize(std::distance(v.begin(), std::unique(v.begin(), it)));
@@ -5536,7 +5535,7 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 }
 
 
-//// I/O ////////////////////////////////////////////////////////////////////////
+//// I/O ///////////////////////////////////////////////////////////////////////
 
 int NCMesh::PrintVertexParents(std::ostream *os) const
 {
@@ -5933,8 +5932,8 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
                input >> id;
                el.node[j] = id;
                nodes.Alloc(id, id, id);
-               // NOTE: nodes that won't get parents assigned will
-               // stay hashed with p1 == p2 == id (top-level nodes)
+               // NOTE: nodes that won't get parents assigned will stay hashed
+               // with p1 == p2 == id (top-level nodes)
             }
          }
       }
