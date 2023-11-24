@@ -270,8 +270,8 @@ public:
    double ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {
-      return GlobalLpNorm(1.0, GridFunction::ComputeW11Error(
-                             *exsol, NULL, 1, NULL, irs), pfes->GetComm());
+      return GlobalLpNorm(1.0, GridFunction::ComputeL1Error(exsol, irs),
+                          pfes->GetComm());
    }
 
    double ComputeL1Error(Coefficient &exsol,

@@ -503,7 +503,7 @@ void FiniteElementSpace::BuildDofToArrays()
    }
 }
 
-static void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
+void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 {
    for (auto d : dofs)
    {
@@ -975,7 +975,7 @@ int FiniteElementSpace::GetEntityVDofs(int entity, int index, Array<int> &dofs,
                                        Geometry::Type master_geom,
                                        int variant) const
 {
-   int n = GetEntityDofs(entity, index, dofs, master_geom, variant);
+   const int n = GetEntityDofs(entity, index, dofs, master_geom, variant);
    DofsToVDofs(dofs);
    return n;
 }

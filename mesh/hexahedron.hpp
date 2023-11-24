@@ -39,16 +39,16 @@ public:
    /// Return element's type
    Type GetType() const override { return Element::HEXAHEDRON; }
 
-   /// Get the indices defining the vertices
+   /// Get the indices defining the vertices.
    void GetVertices(Array<int> &v) const override;
 
-   /// Set the indices defining the vertices
+   /// Set the indices defining the vertices.
    void SetVertices(const Array<int> &v) override;
 
    /// @note The returned array should NOT be deleted by the caller.
    int * GetVertices () override { return indices; }
 
-   /// Set the vertices according to the given input.
+   /// Set the indices defining the vertices.
    void SetVertices(const int *ind) override;
 
    int GetNVertices() const override { return 8; }

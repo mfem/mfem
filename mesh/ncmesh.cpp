@@ -2535,8 +2535,8 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
             // Add in all boundary faces that are actual boundaries or not masters of another face.
             // The fv[2] in the edge split is on purpose.
             if ((nfv == 4 &&
-                 QuadFaceNotMaster(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]))
-                || (nfv == 3 && TriFaceNotMaster(node[fv[0]], node[fv[1]], node[fv[2]]))
+                 !QuadFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]))
+                || (nfv == 3 && !TriFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]]))
                 || (nfv == 2 &&
                     EdgeSplitLevel(node[fv[0]], node[fv[2]] /* [2] not an error */) == 0))
             {
@@ -2702,8 +2702,8 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       for (int j = 0; j < gi.nf; j++)
       {
          const int *fv = gi.faces[j];
-         int fid = faces.FindId(el.node[fv[0]], el.node[fv[1]],
-                                el.node[fv[2]], el.node[fv[3]]);
+         const int fid = faces.FindId(el.node[fv[0]], el.node[fv[1]],
+                                      el.node[fv[2]], el.node[fv[3]]);
          MFEM_ASSERT(fid >= 0, "face not found!");
          auto &face = faces[fid];
 
@@ -5293,13 +5293,13 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                }
             }
 
-            // If the face is a slave face, collect any non-ghost master face
+            // If the face is a slave face, collect its non-ghost master face
             const Face &face = faces[f];
 
             const auto id_and_type = GetFaceList().GetMeshIdAndType(face.index);
             if (id_and_type.type == NCList::MeshIdType::SLAVE)
             {
-               // A slave face must mark any masters
+               // A slave face must mark its masters
                const auto &slave_face_id = static_cast<const Slave&>(*id_and_type.id);
                bdr_faces.Append(slave_face_id.master);
             }
@@ -5322,7 +5322,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
          if (id_and_type.type == NCList::MeshIdType::SLAVE)
          {
-            // A slave face must mark any masters
+            // A slave face must mark its masters
             const auto &slave_edge_id = static_cast<const Slave&>(*id_and_type.id);
             bdr_edges.Append(slave_edge_id.master);
          }
