@@ -431,7 +431,7 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       }
    }
 
-   auto CheckSerialParallelH1Equivalence = [](Mesh &smesh)
+   auto check_serial_parallel_h1_equivalance = [](Mesh &smesh)
    {
       constexpr int dim = 3;
       constexpr int order = 2;
@@ -450,7 +450,7 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
       CHECK(serial_ntdof == parallel_ntdof);
    };
 
-   auto CheckSerialParallelNDEquivalence = [](Mesh &smesh)
+   auto check_serial_parallel_nd_equivalence = [](Mesh &smesh)
    {
       constexpr int dim = 3;
       constexpr int order = 1;
@@ -491,8 +491,8 @@ TEST_CASE("EdgeFaceConstraint",  "[Parallel], [NCMesh]")
             el_to_refine[0] = m;
             smesh3.GeneralRefinement(el_to_refine);
             CAPTURE(n,m);
-            CheckSerialParallelNDEquivalence(smesh3);
-            CheckSerialParallelH1Equivalence(smesh3);
+            check_serial_parallel_nd_equivalence(smesh3);
+            check_serial_parallel_h1_equivalance(smesh3);
          }
       }
    }
@@ -1217,7 +1217,7 @@ TEST_CASE("ParMeshInternalBoundaryTetStarMesh", "[Parallel], [NCMesh]")
 
 TEST_CASE("ParDividingPlaneMesh", "[Parallel], [NCMesh]")
 {
-   auto RefineAttribute = [](Mesh& mesh, int attr, int ref_level)
+   auto refine_attribute = [](Mesh& mesh, int attr, int ref_level)
    {
       for (int r = 0; r < ref_level; r++)
       {
@@ -1255,7 +1255,7 @@ TEST_CASE("ParDividingPlaneMesh", "[Parallel], [NCMesh]")
 
          auto attr = GENERATE(1,2);
          auto ref_level = GENERATE(1,2);
-         RefineAttribute(mesh, attr, ref_level);
+         refine_attribute(mesh, attr, ref_level);
 
          CHECK(CountEssentialDof<H1_FECollection>(mesh, 1,
                                                   mesh.bdr_attributes.Max()) == 3*3);
@@ -1300,7 +1300,7 @@ TEST_CASE("ParDividingPlaneMesh", "[Parallel], [NCMesh]")
                                                      mesh.bdr_attributes.Max()) == initial_num_vert + 3*initial_num_edge +
                3*initial_num_face);
 
-         RefineAttribute(*pmesh, attr, ref_level);
+         refine_attribute(*pmesh, attr, ref_level);
 
          CHECK(ParCountEssentialDof<H1_FECollection>(*pmesh, 1,
                                                      mesh.bdr_attributes.Max()) == initial_num_vert);
@@ -1325,7 +1325,7 @@ TEST_CASE("ParDividingPlaneMesh", "[Parallel], [NCMesh]")
          CHECK(ParCountEssentialDof<ND_FECollection>(*pmesh, 4,
                                                      mesh.bdr_attributes.Max()) == 44);
 
-         RefineAttribute(*pmesh, attr, ref_level);
+         refine_attribute(*pmesh, attr, ref_level);
          CHECK(ParCountEssentialDof<ND_FECollection>(*pmesh, 1,
                                                      mesh.bdr_attributes.Max()) == 5);
          CHECK(ParCountEssentialDof<ND_FECollection>(*pmesh, 2,
@@ -1380,7 +1380,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
    // Helper for evaluating the ND grid function on either side of the first
    // conformal shared face. Specific to the pair of tet mesh described above,
    // but can be generalized.
-   auto CheckParallelNDConformal = [&](ParMesh &mesh)
+   auto check_parallel_nc_conformal = [&](ParMesh &mesh)
    {
       ND_FECollection fe_collection(order, dim);
       ParFiniteElementSpace fe_space(&mesh, &fe_collection);
@@ -1406,6 +1406,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       IntegrationRule left_eir(ir.GetNPoints()),
                       right_eir(ir.GetNPoints()); // element integration rules
 
+      bool y_valid = true, z_valid = true;
       for (int n = 0; n < mesh.GetNBE(); n++)
       {
          auto f = mesh.GetBdrElementFaceIndex(n);
@@ -1436,11 +1437,13 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
             E.GetVectorValue(*face_element_transform.Elem2, right_eir[i], right_val);
 
             // Check that the second and third rows agree. The y and z should
-            // agree as the normal is in the x direction
-            CHECK(std::abs(left_val(1) - right_val(1)) < tol);
-            CHECK(std::abs(left_val(2) - right_val(2)) < tol);
+            // agree as the normal is in the x direction.
+            y_valid &= (std::abs(left_val(1) - right_val(1)) < tol);
+            z_valid &= (std::abs(left_val(2) - right_val(2)) < tol);
          }
       }
+      CHECK(y_valid);
+      CHECK(z_valid);
 
       return fe_space.GlobalTrueVSize();
    };
@@ -1462,7 +1465,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("ConformalSerialUniformRefined")
@@ -1472,7 +1475,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("ConformalParallelUniformRefined")
@@ -1492,7 +1495,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->UniformRefinement();
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("Nonconformal")
@@ -1513,7 +1516,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("NonconformalSerialUniformRefined")
@@ -1524,7 +1527,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("NonconformalSerialRefined")
@@ -1547,7 +1550,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("NonconformalParallelUniformRefined")
@@ -1569,7 +1572,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("NonconformalParallelRefined")
@@ -1603,7 +1606,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       pmesh->Finalize();
       pmesh->ExchangeFaceNbrData();
 
-      CheckParallelNDConformal(*pmesh);
+      check_parallel_nc_conformal(*pmesh);
    }
 
    SECTION("NonconformalLevelTwoRefined")
@@ -1627,7 +1630,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
                   Mesh smesh3(smesh2);
                   el_to_refine[0] = m;
                   smesh3.GeneralRefinement(el_to_refine);
-                  CheckParallelNDConformal(*CheckParMeshNBE(smesh3));
+                  check_parallel_nc_conformal(*CheckParMeshNBE(smesh3));
                }
             }
          }
@@ -2292,7 +2295,7 @@ TEST_CASE("TetInternalBoundaryTetStarMesh", "[NCMesh]")
 
 TEST_CASE("DividingPlaneMesh", "[NCMesh]")
 {
-   auto RefineAttribute = [](Mesh& mesh, int attr, int ref_level)
+   auto refine_attribute = [](Mesh& mesh, int attr, int ref_level)
    {
       for (int r = 0; r < ref_level; r++)
       {
@@ -2339,7 +2342,7 @@ TEST_CASE("DividingPlaneMesh", "[NCMesh]")
          CHECK(CountEssentialDof<H1_FECollection, false>(mesh, 3,
                                                          mesh.bdr_attributes.Max()) == 7*7);
 
-         RefineAttribute(mesh, attr, ref_level);
+         refine_attribute(mesh, attr, ref_level);
 
          CHECK(CountEssentialDof<H1_FECollection>(mesh, 1,
                                                   mesh.bdr_attributes.Max()) == 3*3);
@@ -2390,7 +2393,7 @@ TEST_CASE("DividingPlaneMesh", "[NCMesh]")
          CHECK(CountEssentialDof<ND_FECollection, false>(mesh, 3,
                                                          mesh.bdr_attributes.Max()) == initial_num_edge*3 + initial_num_face*2*2*3);
 
-         RefineAttribute(mesh, attr, ref_level);
+         refine_attribute(mesh, attr, ref_level);
          CHECK(CountEssentialDof<ND_FECollection, true>(mesh, 1,
                                                         mesh.bdr_attributes.Max()) == initial_num_edge);
          CHECK(CountEssentialDof<ND_FECollection, true>(mesh, 2,
@@ -2452,7 +2455,7 @@ TEST_CASE("DividingPlaneMesh", "[NCMesh]")
                                                          mesh.bdr_attributes.Max()) == initial_num_vert + 3*initial_num_edge +
                3*initial_num_face);
 
-         RefineAttribute(mesh, attr, ref_level);
+         refine_attribute(mesh, attr, ref_level);
 
          CHECK(CountEssentialDof<H1_FECollection>(mesh, 1,
                                                   mesh.bdr_attributes.Max()) == initial_num_vert);
@@ -2495,7 +2498,7 @@ TEST_CASE("DividingPlaneMesh", "[NCMesh]")
          CHECK(CountEssentialDof<ND_FECollection, false>(mesh, 4,
                                                          mesh.bdr_attributes.Max()) == 44);
 
-         RefineAttribute(mesh, attr, ref_level);
+         refine_attribute(mesh, attr, ref_level);
 
          CHECK(CountEssentialDof<ND_FECollection>(mesh, 1,
                                                   mesh.bdr_attributes.Max()) == 5);
@@ -2533,8 +2536,8 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
    };
    VectorFunctionCoefficient E_coeff(dim, E_exact);
 
-   auto CheckSerialNDConformal = [&](Mesh &mesh, int num_essential_tdof,
-                                     int num_essential_vdof)
+   auto check_serial_nd_conformal = [&](Mesh &mesh, int num_essential_tdof,
+                                        int num_essential_vdof)
    {
       ND_FECollection fe_collection(order, dim);
       FiniteElementSpace fe_space(&mesh, &fe_collection);
@@ -2573,6 +2576,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
          CHECK(num_essential_vdof == vdof_list.Size());
       }
 
+      bool y_valid = true, z_valid = true;
       for (int n = 0; n < mesh.GetNBE(); n++)
       {
          // NOTE: only works for internal boundaries
@@ -2609,18 +2613,20 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
 
                // Check that the second and third rows agree. The y and z should
                // agree as the normal is in the x direction
-               CHECK(std::abs(left_val(1) - right_val(1)) < tol);
-               CHECK(std::abs(left_val(2) - right_val(2)) < tol);
+               y_valid &= (std::abs(left_val(1) - right_val(1)) < tol);
+               z_valid &= (std::abs(left_val(2) - right_val(2)) < tol);
             }
          }
       }
+      CHECK(y_valid);
+      CHECK(z_valid);
    };
 
    SECTION("Conformal")
    {
       const int ntdof = 3*3 + 3*2;
       const int nvdof = ntdof;
-      CheckSerialNDConformal(smesh, ntdof, nvdof);
+      check_serial_nd_conformal(smesh, ntdof, nvdof);
    }
 
    SECTION("Nonconformal")
@@ -2628,7 +2634,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
       smesh.EnsureNCMesh(true);
       const int ntdof = 3*3 + 3*2;
       const int nvdof = ntdof;
-      CheckSerialNDConformal(smesh, ntdof, nvdof);
+      check_serial_nd_conformal(smesh, ntdof, nvdof);
    }
 
    SECTION("ConformalUniformRefined")
@@ -2636,7 +2642,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
       smesh.UniformRefinement();
       const int ntdof = 9*3 + 4*3*2;
       const int nvdof = ntdof;
-      CheckSerialNDConformal(smesh, ntdof, nvdof);
+      check_serial_nd_conformal(smesh, ntdof, nvdof);
    }
 
    SECTION("NonconformalUniformRefined")
@@ -2645,7 +2651,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
       smesh.UniformRefinement();
       const int ntdof = 9*3 + 4*3*2;
       const int nvdof = ntdof;
-      CheckSerialNDConformal(smesh, ntdof, nvdof);
+      check_serial_nd_conformal(smesh, ntdof, nvdof);
    }
 
    SECTION("NonconformalRefined")
@@ -2667,7 +2673,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
       }
       const int ntdof = 3*3 + 3*2;
       const int nvdof = ntdof + (ref_level == 1 ? 9*3 + 4*3*2 : 30*3 + 16*3*2);
-      CheckSerialNDConformal(smesh, ntdof, nvdof);
+      check_serial_nd_conformal(smesh, ntdof, nvdof);
    }
 
    SECTION("NonconformalLevelTwoRefined")
@@ -2688,14 +2694,14 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
          el_to_refine[0] = n;
          CAPTURE(n);
          smesh.GeneralRefinement(el_to_refine);
-         CheckSerialNDConformal(smesh, ntdof, -1);
+         check_serial_nd_conformal(smesh, ntdof, -1);
 
          if (smesh.GetAttribute(m) == 2)
          {
             el_to_refine[0] = m;
             CAPTURE(m);
             smesh.GeneralRefinement(el_to_refine);
-            CheckSerialNDConformal(smesh, ntdof, -1);
+            check_serial_nd_conformal(smesh, ntdof, -1);
          }
       }
 
@@ -2704,7 +2710,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
 
 TEST_CASE("RP=I", "[NCMesh]")
 {
-   auto CheckFESpace = [](const FiniteElementSpace& fespace)
+   auto check_fespace = [](const FiniteElementSpace& fespace)
    {
       auto * const R = fespace.GetConformingRestriction();
       auto * const P = fespace.GetConformingProlongation();
@@ -2715,6 +2721,7 @@ TEST_CASE("RP=I", "[NCMesh]")
       // Vector notation
       Vector e_i(R->Height()), e_j(P->Width());
       Vector Rrow(R->Width()), Pcol(P->Height());
+      bool valid = true;
       for (int i = 0; i < R->Height(); i++)
       {
          e_i = 0.0;
@@ -2726,13 +2733,15 @@ TEST_CASE("RP=I", "[NCMesh]")
             e_j(j) = 1.0;
             P->Mult(e_j, Pcol);
 
-            CHECK(Rrow * Pcol == (i == j ? 1.0 : 0.0));
+            valid &= (Rrow * Pcol == (i == j ? 1.0 : 0.0));
          }
       }
+      CHECK(valid);
 
       // Index notation
       CHECK(R->Height() == P->Width());
       CHECK(R->Width() == P->Height());
+      valid = true;
       for (int i = 0; i < R->Height(); i++)
          for (int j = 0; j < P->Width(); j++)
          {
@@ -2742,7 +2751,9 @@ TEST_CASE("RP=I", "[NCMesh]")
                dot += (*R)(i,k)*(*P)(k,j);
             }
             CHECK(dot == (i == j ? 1.0 : 0.0));
+            valid &= (dot == (i == j ? 1.0 : 0.0));
          }
+      CHECK(valid);
    };
 
    SECTION("Hex")
@@ -2761,13 +2772,13 @@ TEST_CASE("RP=I", "[NCMesh]")
       {
          ND_FECollection fec(order, dim);
          FiniteElementSpace fespace(&mesh, &fec);
-         CheckFESpace(fespace);
+         check_fespace(fespace);
       }
       SECTION("H1")
       {
          H1_FECollection fec(order, dim);
          FiniteElementSpace fespace(&mesh, &fec);
-         CheckFESpace(fespace);
+         check_fespace(fespace);
       }
    }
 
@@ -2788,13 +2799,13 @@ TEST_CASE("RP=I", "[NCMesh]")
       {
          ND_FECollection fec(order, dim);
          FiniteElementSpace fespace(&mesh, &fec);
-         CheckFESpace(fespace);
+         check_fespace(fespace);
       }
       SECTION("H1")
       {
          H1_FECollection fec(order, dim);
          FiniteElementSpace fespace(&mesh, &fec);
-         CheckFESpace(fespace);
+         check_fespace(fespace);
       }
    }
 }

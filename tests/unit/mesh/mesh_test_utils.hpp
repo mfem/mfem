@@ -15,6 +15,10 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <array>
+#include <functional>
+#include <memory>
+
 namespace mfem
 {
 
