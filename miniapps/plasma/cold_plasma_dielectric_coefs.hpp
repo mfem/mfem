@@ -115,8 +115,7 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    const Vector & mass,
                                    const Vector & temp,
                                    double iontemp,
-                                   int nuprof,
-                                   double res_lim);
+                                   int nuprof);
 
 std::complex<double> P_cold_plasma(double omega,
                                    double kparallel, double nue,
@@ -136,7 +135,8 @@ std::complex<double> S_cold_plasma(double omega,
                                    const Vector & temp,
                                    double iontemp,
                                    int nuprof,
-                                   double res_lim);
+                                   double Rval,
+                                   double Lval);
 
 std::complex<double> D_cold_plasma(double omega,
                                    double kparallel, double Bmag,
@@ -147,7 +147,8 @@ std::complex<double> D_cold_plasma(double omega,
                                    const Vector & temp,
                                    double iontemp,
                                    int nuprof,
-                                   double res_lim);
+                                   double Rval,
+                                   double Lval);
 
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath parameterization from Kohno et al 2017:
@@ -343,6 +344,31 @@ public:
 private:
    const ParGridFunction & B_;
 };
+
+class SheathPower: public SheathBase
+{
+public:
+   SheathPower(const ParGridFunction & B,
+               const BlockVector & density,
+               const BlockVector & temp,
+               const ParFiniteElementSpace & L2FESpace,
+               const ParFiniteElementSpace & H1FESpace,
+               double omega,
+               const Vector & charges,
+               const Vector & masses,
+               bool realPart);
+
+   SheathPower(const SheathBase &sb,
+               const ParGridFunction & B,
+               bool realPart)
+      : SheathBase(sb, realPart), B_(B) {}
+
+   double Eval(ElementTransformation &T,
+               const IntegrationPoint &ip);
+
+private:
+   const ParGridFunction & B_;
+}; 
 
 class StixCoefBase
 {
@@ -643,6 +669,34 @@ public:
                      const IntegrationPoint &ip);
 
    virtual ~InverseDielectricTensor() {}
+};
+
+class ConductivityTensor: public MatrixCoefficient, public StixTensorBase
+{
+public:
+   ConductivityTensor(const ParGridFunction & B,
+                    const ParGridFunction & k,
+                    const ParGridFunction & nue,
+                    const ParGridFunction & nui,
+                    const BlockVector & density,
+                    const BlockVector & temp,
+                    const ParGridFunction & iontemp,
+                    const ParFiniteElementSpace & L2FESpace,
+                    const ParFiniteElementSpace & H1FESpace,
+                    double omega,
+                    const Vector & charges,
+                    const Vector & masses,
+                    int nuprof,
+                    double res_lim,
+                    bool realPart);
+
+   ConductivityTensor(StixCoefBase &s)
+      : MatrixCoefficient(3), StixTensorBase(s) {}
+
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~ConductivityTensor() {}
 };
 
 class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase

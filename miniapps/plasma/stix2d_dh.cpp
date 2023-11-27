@@ -1340,20 +1340,21 @@ int main(int argc, char *argv[])
       double lam0 = c0_ / freq;
       double Bmag = 5.4; //BVec.Norml2();
       double kvecmag = kVec.Norml2();
+      double Rval = 0.0;
+      double Lval = 0.0;
 
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             Rval,Lval);
       std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof,
-                                             res_lim);
+                                             charges, masses, temps, Ti, nuprof);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -2328,12 +2329,12 @@ int main(int argc, char *argv[])
       }
 
       // Send the solution by socket to a GLVis server.
-      /*
+      
       if (visualization)
       {
          CPD.DisplayToGLVis();
       }
-      */
+      
       if (Mpi::Root())
       {
          cout << "AMR iteration " << it << " complete." << endl;
@@ -2991,12 +2992,22 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
 
    double theta = atan2(z, r);
 
+   /*
    double rmin = 2.415 + 0.035;
    double rmax = rmin + 0.02;
    double length = 0.325;
 
    double rthetamax = (3.8*M_PI)/180.0;
    double rthetamin = (-1.0*3.8*M_PI)/180.0;
+   double theta_ext = rthetamax - rthetamin;
+   */
+   double length = 0.325; 
+
+   double rmin = 0.25;
+   double rmax = 0.255;
+
+   double rthetamax = 0.2/rmin;
+   double rthetamin = -0.2/rmin;
    double theta_ext = rthetamax - rthetamin;
 
    if (theta >= rthetamin && theta <= rthetamax &&
@@ -3049,12 +3060,22 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
 
       double theta = atan2(z, r);
 
+      /*
       double rmin = 2.415 + 0.035;
       double rmax = rmin + 0.02;
       double length = 0.325;
 
       double rthetamax = (3.8*M_PI)/180.0;
       double rthetamin = (-1.0*3.8*M_PI)/180.0;
+      double theta_ext = rthetamax - rthetamin;
+      */
+      double length = 0.325; 
+
+      double rmin = 0.25;
+      double rmax = 0.255;
+
+      double rthetamax = 0.2/rmin;
+      double rthetamin = -0.2/rmin;
       double theta_ext = rthetamax - rthetamin;
 
       if (theta >= rthetamin && theta <= rthetamax &&
@@ -3721,13 +3742,15 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    double nui_ = 0;
    double Ti_ = 0;
    double k_ = 18;
+   double Rval_ = 0.0;
+   double Lval_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
+                      nuprof_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
+                      nuprof_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
@@ -3984,15 +4007,17 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double nui_ = 0;
    double Ti_ = 0;
    double k_ = 18;
+   double Rval_ = 0.0;
+   double Lval_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
+                      nuprof_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, res_lim_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_, temps_, Ti_,
-                      nuprof_);
+                      nuprof_, Rval_, Lval_);
+   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+                      temps_, Ti_, nuprof_);
 
    switch (type_)
    {

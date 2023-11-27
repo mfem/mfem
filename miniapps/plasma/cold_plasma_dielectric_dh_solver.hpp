@@ -336,6 +336,8 @@ public:
 
    void GetErrorEstimates(Vector & errors);
 
+   double GetSheathDissipation() const;
+
    void RegisterVisItFields(VisItDataCollection & visit_dc);
 
    void WriteVisItFields(int it = 0);
@@ -641,6 +643,7 @@ private:
    ConstantCoefficient negOneCoef_;
    ParSesquilinearForm * m0_;
    ParMixedSesquilinearForm * nzD12_;
+   ParBilinearForm * m3_;
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
@@ -663,6 +666,7 @@ private:
    // ParGridFunction * temp_; // Temporary grid function (HCurl)
    // ParComplexGridFunction * phi_tmp_; // Complex sheath potential temporary (H1)
    ParGridFunction * rectPot_; // Real valued rectified potential (H1)
+   ParGridFunction * sheath_pow_; // Real valued sheath power dissipation (H1)
    ParGridFunction * Bn_; // Real valued angle of B field into boundary(H1)
    // ParComplexGridFunction * j_;   // Complex current density (HCurl)
    ParComplexLinearForm   * rhs1_; // RHS of magnetic field eqn (HCurl)
@@ -688,6 +692,12 @@ private:
    ParComplexGridFunction * StixP_; // Stix P Coefficient (L2)
    ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
+   HypreParMatrix * M3_;
+   HypreParVector * PHIr_; 
+   HypreParVector * PHIi_; 
+   mutable HypreParVector * RHSr_;
+   mutable HypreParVector * RHSi_;
+
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    // MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    // MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
@@ -697,6 +707,7 @@ private:
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
    PowerCoefficient    muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaCoef_;      // Impedance Coefficient
+   Coefficient       * sheathPowCoef_; // Sheath Width * Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
 

@@ -483,11 +483,18 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      nxD01_(NULL),
      d21EpsInv_(NULL),
      // m2_(NULL),
+     m3_(NULL),
+     M3_(NULL),
+     PHIr_(NULL),
+     PHIi_(NULL),
+     RHSr_(NULL),
+     RHSi_(NULL),
      // m12EpsRe_(NULL),
      // m12EpsIm_(NULL),
      m1_(NULL),
      m21EpsInv_(NULL),
      negOneCoef_(-1.0),
+     sheathPowCoef_(NULL),
      m0_(NULL),
      // n20ZRe_(NULL),
      // n20ZIm_(NULL),
@@ -512,6 +519,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // temp_(NULL),
      // phi_tmp_(NULL),
      rectPot_(NULL),
+     sheath_pow_(NULL),
      Bn_(NULL),
      rhs1_(NULL),
      rhs0_(NULL),
@@ -732,6 +740,13 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    posMassCoef_ = new ProductCoefficient(*omega2Coef_,
                                          *muCoef_);
 
+   if ( sbcs_->Size() > 0)
+   {
+         ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
+         SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
+         SheathPower sheathPowCoef_(*sb, *b_hat_, true);
+   }
+
    // Impedance of free space
    /*
    if ( abcs.Size() > 0 )
@@ -922,6 +937,13 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       */
       m0_ = new ParSesquilinearForm(H1FESpace_, conv_);
       nzD12_ = new ParMixedSesquilinearForm(HCurlFESpace_, H1FESpace_, conv_);
+      m3_ = new ParBilinearForm(H1FESpace_);
+
+      PHIr_ = new HypreParVector(H1FESpace_);
+      PHIi_ = new HypreParVector(H1FESpace_);
+
+      RHSr_ = new HypreParVector(H1FESpace_);
+      RHSi_ = new HypreParVector(H1FESpace_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -939,6 +961,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
          nzD12_->AddBoundaryIntegrator(new VectorFECurlIntegrator(*sbc->real),
                                        new VectorFECurlIntegrator(*sbc->imag),
                                        sbc->attr_marker);
+         m3_->AddBoundaryIntegrator(new MassIntegrator(*sheathPowCoef_),
+                                       sbc->attr_marker);
+
          if (kReCoef_)
          {
             nzD12_->AddBoundaryIntegrator(new zkxIntegrator(*sbc->imag,
@@ -1003,6 +1028,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       */
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
+      sheath_pow_ = new ParGridFunction(H1FESpace_);
+      *sheath_pow_ = 0.0;
 
       Bn_ = new ParGridFunction(L2FESpace_);
       *Bn_ = 0.0;
@@ -1179,6 +1206,7 @@ CPDSolverDH::~CPDSolverDH()
    delete prev_phi_;
    // delete phi_tmp_;
    delete rectPot_;
+   delete sheath_pow_;
    delete Bn_;
    // delete b_;
    // delete h_;
@@ -1210,6 +1238,12 @@ CPDSolverDH::~CPDSolverDH()
    // delete b1_;
    delete d21EpsInv_;
    // delete m2_;
+   delete m3_;
+   delete M3_;
+   delete PHIr_;
+   delete PHIi_;
+   delete RHSr_;
+   delete RHSi_;
    // delete m12EpsRe_;
    // delete m12EpsIm_;
    delete m1_;
@@ -1406,6 +1440,9 @@ CPDSolverDH::Assemble()
       nzD12_->Assemble();
       nzD12_->Finalize();
 
+      m3_->Assemble();
+      m3_->Finalize();
+
       tic_toc.Stop();
       if ( myid_ == 0 && logging_ > 0 )
       {
@@ -1532,6 +1569,7 @@ CPDSolverDH::Update()
    if (j_v_) { j_v_->Update(); }
    if (phi_v_) { phi_v_->Update(); }
    if (rectPot_) { rectPot_ ->Update();}
+   if (sheath_pow_){sheath_pow_->Update();}
    if (Bn_) { Bn_ ->Update();}
    if (b_hat_) { b_hat_->Update(); }
    if (StixS_) { StixS_->Update(); }
@@ -1569,6 +1607,7 @@ CPDSolverDH::Update()
       // n20ZRe_->Update();
       // n20ZIm_->Update();
       nzD12_->Update();
+      m3_->Update();
    }
    // curlMuInvCurl_->Update();
    // hCurlMass_->Update();
@@ -1762,8 +1801,8 @@ CPDSolverDH::Solve()
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(400);
-         gmres.SetRelTol(1e-5);
-         gmres.SetAbsTol(1e-5);
+         gmres.SetRelTol(5e-5);
+         gmres.SetAbsTol(5e-5);
          gmres.SetMaxIter(600);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
@@ -1800,6 +1839,7 @@ CPDSolverDH::Solve()
          }
          */
          if ( phi_diff < 1e-5) {break;}
+         //if ( H_iter_ > 0) {break;}
       }
       if (myid_ == 0)
       {
@@ -1828,6 +1868,15 @@ CPDSolverDH::Solve()
 
       double nrmh = h_->ComputeL2Error(zeroVCoef, zeroVCoef);
       if (myid_ == 0) { cout << "norm of H: " << nrmh << endl; }
+      if (sbcs_->Size() > 0)
+      {
+         PHIr_ = phi_->real().ParallelProject();
+         PHIi_ = phi_->imag().ParallelProject();
+         M3_ = m3_->ParallelAssemble();
+         double sheath_diss = GetSheathDissipation(); 
+
+         if (myid_ == 0) { cout << "Sheath Dissipation: " << sheath_diss << endl; }
+      }
    }
 
    // Compute D from H and J:  D = (Curl(H) - J) / (-i omega)
@@ -2128,6 +2177,19 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
    if ( myid_ == 0 && logging_ > 0 ) { cout << "done." << endl; }
 }
 
+double
+CPDSolverDH::GetSheathDissipation() const
+{
+   double sheath_diss = 0.0;
+
+   M3_->Mult(*PHIr_,*RHSr_);
+   M3_->Mult(*PHIi_,*RHSi_);
+
+   sheath_diss = InnerProduct(*PHIr_,*RHSr_) + InnerProduct(*PHIi_,*RHSi_);
+
+   return 0.5*sheath_diss;
+}
+
 void
 CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
 {
@@ -2149,6 +2211,7 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
    {
       visit_dc.RegisterField("Re_Phi", &phi_->real());
       visit_dc.RegisterField("Im_Phi", &phi_->imag());
+      visit_dc.RegisterField("Sheath_Power", sheath_pow_);
    }
 
    if ( rectPot_ )
@@ -2277,12 +2340,16 @@ CPDSolverDH::WriteVisItFields(int it)
             RectifiedSheathPotential rectPotCoef(*sb, true);
             rectPot_->ProjectCoefficient(rectPotCoef);
 
+            //SheathPower sheathPowCoef(*sb, *b_hat_, true);
+            //sheath_pow_->ProjectCoefficient(sheathPowCoef);
+            //sheath_pow_->ProjectCoefficient(*sheathPowCoef_);
+
             if ( Bn_ && BCoef_ )
             {
                //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
                //if (myid_ == 0){ sbc_bdr_marker_.Print(cout); }
                b_hat_->ProjectCoefficient(*BCoef_);
-               BFieldAngle BnCoef(*sb, *b_hat_, true);
+               BFieldAngle BnCoef(*sb, *b_hat_,  true);
                //Bn_->ProjectBdrCoefficientNormal(*BCoef_, sbc_bdr_marker_);
                //Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
                Bn_->ProjectCoefficient(BnCoef);
@@ -2359,8 +2426,6 @@ CPDSolverDH::WriteVisItFields(int it)
        }
        */
 
-
-
       HYPRE_Int prob_size = this->GetProblemSize();
       visit_dc_->SetCycle(it);
       visit_dc_->SetTime(prob_size);
@@ -2386,13 +2451,14 @@ CPDSolverDH::InitializeGLVis()
 
    socks_["Ei"] = new socketstream;
    socks_["Ei"]->precision(8);
-
+   /*
    socks_["Dr"] = new socketstream;
    socks_["Dr"]->precision(8);
 
    socks_["Di"] = new socketstream;
    socks_["Di"]->precision(8);
-
+   */
+   /*
    if (sbcs_->Size() > 0)
    {
       socks_["Phir"] = new socketstream;
@@ -2413,13 +2479,14 @@ CPDSolverDH::InitializeGLVis()
       socks_["EBi"] = new socketstream;
       socks_["EBi"]->precision(8);
    }
-
+   */
    // socks_["B"] = new socketstream;
    // socks_["B"]->precision(8);
 
    // socks_["H"] = new socketstream;
    // socks_["H"]->precision(8);
 
+   /*
    if ( j_ )
    {
       socks_["Jr"] = new socketstream;
@@ -2428,6 +2495,7 @@ CPDSolverDH::InitializeGLVis()
       socks_["Ji"] = new socketstream;
       socks_["Ji"]->precision(8);
    }
+   */
    /*
    if ( u_ )
    {
@@ -2558,7 +2626,7 @@ CPDSolverDH::DisplayToGLVis()
    VisualizeField(*socks_["Di"], vishost, visport,
                  d_v_->imag(), "Electric Flux, Im(D)", Wx, Wy, Ww, Wh);
     */
-
+   /*
    if (sbcs_->Size() > 0)
    {
       ostringstream pr_keys, pi_keys;
@@ -2580,11 +2648,11 @@ CPDSolverDH::DisplayToGLVis()
       Wx += offx;
       VisualizeField(*socks_["RecPhi"], vishost, visport,
                     rectPot_->real(), "Rectified Potential, RecPhi", Wx, Wy, Ww, Wh);
-       */
+       
 
    }
-
-
+   */
+   /*
    if (BCoef_)
    {
       VectorGridFunctionCoefficient e_r(&e_v_->real());
@@ -2608,7 +2676,7 @@ CPDSolverDH::DisplayToGLVis()
                      Wx, Wy, Ww, Wh, ebi_keys.str().c_str());
       Wx += offx;
    }
-
+   */
    /*
    Wx += offx;
    VisualizeField(*socks_["B"], vishost, visport,
@@ -2618,6 +2686,7 @@ CPDSolverDH::DisplayToGLVis()
                   *h_, "Magnetic Field (H)", Wx, Wy, Ww, Wh);
    Wx += offx;
    */
+   /*
    if ( j_ )
    {
       Wx = 0; Wy += offy; // next line
@@ -2653,6 +2722,7 @@ CPDSolverDH::DisplayToGLVis()
    Wx += offx;
    VisualizeField(*socks_["Si"], vishost, visport,
                   S_->imag(), "Poynting Vector, Im(S)", Wx, Wy, Ww, Wh);
+   */
    /*
    if ( u_ )
    {
