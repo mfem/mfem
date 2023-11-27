@@ -37,7 +37,8 @@ Table::Table(const Table &table)
    }
 }
 
-Table::Table(const Table &table1, const Table &table2, int offset, const Mode mode)
+Table::Table(const Table &table1, const Table &table2, int offset,
+             const Mode mode)
 {
    MFEM_ASSERT(table1.size == table2.size,
                "Tables have different sizes can not merge.");
