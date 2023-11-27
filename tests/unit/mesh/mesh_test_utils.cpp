@@ -480,6 +480,7 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
                                                   order + 1);
 
    // Check that non-ghost elements match up on the serial and parallel spaces.
+   bool valid = true;
    for (int n = 0; n < pmesh.GetNE(); ++n)
    {
       constexpr double tol = 1e-12;
@@ -489,14 +490,14 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
          psol.GetVectorValue(n, ip, value);
 
          vector_exact_soln(position, exact);
-
-         REQUIRE(value.Size() == exact.Size());
-         CHECK((value -= exact).Normlinf() < tol);
+         valid &= ((value -= exact).Normlinf() < tol);
       }
    }
+   CHECK(valid);
 
    // Loop over face neighbor elements and check the vector values match in the
    // face neighbor elements.
+   valid = true;
    for (int n = 0; n < pmesh.GetNSharedFaces(); ++n)
    {
       const int local_face = pmesh.GetSharedFace(n);
@@ -514,11 +515,10 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
          psol.GetVectorValue(T, ip, value);
 
          vector_exact_soln(position, exact);
-
-         REQUIRE(value.Size() == exact.Size());
-         CHECK((value -= exact).Normlinf() < tol);
+         valid &= ((value -= exact).Normlinf() < tol);
       }
    }
+   CHECK(valid);
 }
 
 void CheckPoisson(ParMesh &pmesh, int order,
