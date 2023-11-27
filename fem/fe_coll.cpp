@@ -344,6 +344,32 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new Local_FECollection(name + 6);
    }
+   else if (!strncmp(name, "NURBS_HDiv", 10))
+   {
+      if (name[10] != '\0')
+      {
+         // "NURBS" + "number" --> fixed order nurbs collection
+         fec = new NURBS_HDivFECollection(atoi(name + 10));
+      }
+      else
+      {
+         // "NURBS" --> variable order nurbs collection
+         fec = new NURBS_HDivFECollection();
+      }
+   }
+   else if (!strncmp(name, "NURBS_HCurl", 11))
+   {
+      if (name[11] != '\0')
+      {
+         // "NURBS" + "number" --> fixed order nurbs collection
+         fec = new NURBS_HCurlFECollection(atoi(name + 11));
+      }
+      else
+      {
+         // "NURBS" --> variable order nurbs collection
+         fec = new NURBS_HCurlFECollection();
+      }
+   }
    else if (!strncmp(name, "NURBS", 5))
    {
       if (name[5] != '\0')
