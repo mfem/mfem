@@ -311,14 +311,15 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
-   ConstantCoefficient *coeff1 = nullptr;
+   FunctionCoefficient *coeff1 = nullptr;
    TMOP_QualityMetric *metric2 = nullptr;
    TargetConstructor *target_c2 = nullptr;
    FunctionCoefficient coeff2(weight_fun);
    if (combo > 0)
    {
       // First metric.
-      coeff1 = new ConstantCoefficient(10.0);
+      auto coeff_1_func = [&](const Vector &x) { return x(0) + 10.0; };
+      coeff1 = new FunctionCoefficient(coeff_1_func);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }
