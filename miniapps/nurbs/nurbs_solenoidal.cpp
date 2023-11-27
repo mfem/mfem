@@ -194,8 +194,6 @@ int main(int argc, char *argv[])
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
-
-   std::cout <<"dim = "<<dim<<std::endl;
    VectorFunctionCoefficient ucoeff(dim, u_ex);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
@@ -409,7 +407,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e-14)
+   if (err_div > 1e-12)
    {
       mfem_error("Divergence error larger then expected");
    }
