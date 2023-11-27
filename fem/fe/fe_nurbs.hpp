@@ -315,7 +315,6 @@ public:
 };
 
 
-
 /// An arbitrary order H(curl)-conforming 2D NURBS element on a square
 class NURBS_HCurl2DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
@@ -474,7 +473,6 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
-
 
    ~NURBS_HCurl3DFiniteElement();
 };
