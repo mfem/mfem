@@ -480,14 +480,14 @@ void NURBS_HDiv2DFiniteElement::CalcVShape(ElementTransformation &Trans,
    MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
                "NURBS_HDiv2DFiniteElement cannot be embedded in "
                "3 dimensional spaces");
-   /* for (int i=0; i<dof; i++)
-    {
-       double sx = shape(i, 0);
-       double sy = shape(i, 1);
-       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
-    }
-    shape *= (1.0 / Trans.Weight());*/
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+   }
+   shape *= (1.0 / Trans.Weight());
 }
 
 void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
@@ -639,14 +639,14 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(ElementTransformation &Trans,
    MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
                "RT_R2D_FiniteElement cannot be embedded in "
                "3 dimensional spaces");
-   /* for (int i=0; i<dof; i++)
-    {
-       double sx = shape(i, 0);
-       double sy = shape(i, 1);
-       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
-    }
-    shape *= (1.0 / Trans.Weight());*/
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
+      shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
+   }
+   shape *= (1.0 / Trans.Weight());
 }
 
 void NURBS_HDiv3DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
@@ -782,18 +782,17 @@ void NURBS_HCurl2DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
    CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 2 && J.Height() == 2,
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 2 && JI.Height() == 2,
                "NURBS_HCurl2DFiniteElement cannot be embedded in "
                "3 dimensional spaces");
-   /* HDIV LINES!!!! for (int i=0; i<dof; i++)
-    {
-       double sx = shape(i, 0);
-       double sy = shape(i, 1);
-       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
-    }
-    shape *= (1.0 / Trans.Weight());*/
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1);
+   }
 }
 
 void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
@@ -938,19 +937,20 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
-   CalcVShape(Trans.GetIntPoint(), shape);
-   const DenseMatrix & J = Trans.Jacobian();
-   MFEM_ASSERT(J.Width() == 3 && J.Height() == 3,
-               "RT_R2D_FiniteElement cannot be embedded in "
+  CalcVShape(Trans.GetIntPoint(), shape);
+   const DenseMatrix & JI = Trans.InverseJacobian();
+   MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
+               "NURBS_HCurl3DFiniteElement must be in a"
                "3 dimensional spaces");
-   /*  HDIV LINES!!!! for (int i=0; i<dof; i++)
-    {
-       double sx = shape(i, 0);
-       double sy = shape(i, 1);
-       shape(i, 0) = sx * J(0, 0) + sy * J(0, 1);
-       shape(i, 1) = sx * J(1, 0) + sy * J(1, 1);
-    }
-    shape *= (1.0 / Trans.Weight());*/
+   for (int i=0; i<dof; i++)
+   {
+      double sx = shape(i, 0);
+      double sy = shape(i, 1);
+      double sz = shape(i, 2);
+      shape(i, 0) = sx * JI(0, 0) + sy * JI(1, 0) + sz * JI(2, 0);
+      shape(i, 1) = sx * JI(0, 1) + sy * JI(1, 1) + sz * JI(2, 1);
+      shape(i, 2) = sx * JI(0, 2) + sy * JI(1, 2) + sz * JI(2, 2);
+   }
 }
 
 void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
