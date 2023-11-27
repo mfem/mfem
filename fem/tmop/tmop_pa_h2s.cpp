@@ -258,7 +258,7 @@ void EvalH_094(const int e, const int qx, const int qy,
 MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                            const Vector &x_,
                            const double metric_normal,
-                           const double metric_coeff,
+                           const Vector &m0_,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -274,11 +274,16 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
                || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
+   const bool const_m0 = m0_.Size() == 1;
+
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto M0 = const_m0 ?
+                   Reshape(m0_.Read(), 1, 1, 1) :
+                   Reshape(m0_.Read(), Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -313,8 +318,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, SetupGradPA_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = metric_normal * metric_coeff *
-                                  W(qx,qy) * detJtr;
+            const double m_coef = const_m0 ? M0(0,0,0) : M0(qx,qy,e);
+            const double weight = metric_normal * m_coef * W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -349,7 +354,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
-   const double mc = PA.metric_coeff_val;
+   const Vector &M0 = PA.MC;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -362,7 +367,7 @@ void TMOP_Integrator::AssembleGradPA_2D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,mc,mp,M,N,W,B,G,J,H);
+   MFEM_LAUNCH_TMOP_KERNEL(SetupGradPA_2D,id,X,mn,M0,mp,M,N,W,B,G,J,H);
 }
 
 } // namespace mfem

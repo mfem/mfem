@@ -1821,13 +1821,19 @@ protected:
 
    // PA extension
    // ------------
+   // Jtr: all ref->target Jacobians, (dim x dim) Q-Vector as DenseTensor.
+   //      updated when needed, based on Jtr_needs_update.
+   //
    //  E: Q-vector for TMOP-energy
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
    // X0: E-vector for initial nodal coordinates used for limiting.
    //  H: Q-Vector for Hessian associated with the metric term.
+   //     updated by every call to PANonlinearFormExtension::GetGradient().
    // C0: Q-Vector for spatial weight used for the limiting term.
    // LD: E-Vector constructed using limiting distance grid function (delta).
    // H0: Q-Vector for Hessian associated with the limiting term.
+   //     updated by every call to PANonlinearFormExtension::GetGradient().
+   // MC: Q-Vector for the metric Coefficient.
    //
    // maps:     Dof2Quad map for fes associated with the nodal coordinates.
    // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
@@ -1849,8 +1855,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0;
-      double metric_coeff_val;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1964,6 +1969,7 @@ protected:
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+   void UpdateCoefficientsPA() const;
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);

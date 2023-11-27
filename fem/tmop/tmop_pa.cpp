@@ -176,6 +176,37 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
+void TMOP_Integrator::UpdateCoefficientsPA() const
+{
+   const IntegrationRule &ir = *PA.ir;
+
+   if (PA.MC.Size() > 1)
+   {
+      auto MC = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
+      for (int e = 0; e < PA.ne; ++e)
+      {
+         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+         for (int q = 0; q < ir.GetNPoints(); ++q)
+         {
+            MC(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   if (PA.C0.Size() > 1)
+   {
+      auto C0 = Reshape(PA.C0.HostWrite(), PA.nq, PA.ne);
+      for (int e = 0; e < PA.ne; ++e)
+      {
+         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+         for (int q = 0; q < ir.GetNPoints(); ++q)
+         {
+            C0(q,e) = lim_coeff->Eval(T, ir.IntPoint(q));
+         }
+      }
+   }
+}
+
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -215,11 +246,23 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (metric_coeff)
    {
-      auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff);
-      MFEM_VERIFY(cc, "TMOP+PA supports only ConstantCoefficients.");
-      PA.metric_coeff_val = cc->constant;
+      PA.MC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
+      auto M0 = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
+      for (int e = 0; e < PA.ne; ++e)
+      {
+         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+         for (int q = 0; q < ir.GetNPoints(); ++q)
+         {
+            M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+         }
+      }
    }
-   else { PA.metric_coeff_val = 1.0; }
+   else
+   {
+      PA.MC.SetSize(1, Device::GetMemoryType());
+      PA.MC.HostWrite();
+      PA.MC(0) = 1.0;
+   }
 
    // Setup ref->target Jacobians, PA.Jtr, (dim x dim) Q-vector, DenseTensor
    PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq, mt);
