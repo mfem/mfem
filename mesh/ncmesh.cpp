@@ -3021,13 +3021,13 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
    if (nd.HasEdge())
    {
       // check if the edge is already a master in 'edge_list'
-      int type;
-      const MeshId &eid = edge_list.LookUp(nd.edge_index, &type);
-      if (type == 1)
+      const auto eid_and_type = edge_list.GetMeshIdAndType(nd.edge_index);
+      if (eid_and_type.type == NCList::MeshIdType::MASTER
+          || eid_and_type.type == NCList::MeshIdType::CONFORMING)
       {
          // in this case we need to add an edge-face constraint, because the
-         // master edge is really a (face-)slave itself
-
+         // non-slave edge is really a (face-)slave itself.
+         const MeshId &eid = *eid_and_type.id;
          face_list.slaves.Append(
             Slave(-1 - eid.index, eid.element, eid.local, Geometry::TRIANGLE));
 
@@ -3048,9 +3048,10 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
    TraverseTetEdge(mid, vn1, pmid, p1, matrix_map);
 }
 
-bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
-                             const PointMatrix& pm, int level,
-                             MatrixMap &matrix_map)
+NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
+                                                       int vn2,
+                                                       const PointMatrix& pm, int level,
+                                                       MatrixMap &matrix_map)
 {
    if (level > 0)
    {
@@ -3069,7 +3070,7 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
          sl.local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, pm, pm_r);
          sl.matrix = matrix_map.GetIndex(pm_r);
 
-         return true;
+         return {true, elements[elem].rank != MyRank};
       }
    }
 
@@ -3077,7 +3078,7 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
    if (TriFaceSplit(vn0, vn1, vn2, mid))
    {
       Point pmid0(pm(0), pm(1)), pmid1(pm(1), pm(2)), pmid2(pm(2), pm(0));
-      bool b[4];
+      TriFaceTraverseResults b[4];
 
       b[0] = TraverseTriFace(vn0, mid[0], mid[2],
                              PointMatrix(pm(0), pmid0, pmid2),
@@ -3095,16 +3096,21 @@ bool NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
                              PointMatrix(pmid1, pmid2, pmid0),
                              level+1, matrix_map);
 
-      // traverse possible tet edges constrained by the master face
-      if (HaveTets() && !b[3])
+      // Traverse possible tet edges constrained by the master face. This needs to occur if
+      // none of these first NC level faces are split further, OR if they are on different
+      // processors. The different processor constraint is needed in the case of local
+      // elements constrained by this face via the edge alone. Cannot know this a priori, so
+      // just constrain any edge attached to two neighbors.
+      if (HaveTets() && (!b[3].unsplit || b[3].ghost_neighbor))
       {
-         if (!b[1]) { TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map); }
-         if (!b[2]) { TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map); }
-         if (!b[0]) { TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map); }
+         // If the faces have no further splits, so would not be captured by normal face
+         // relations, add possible edge constraints.
+         if (!b[1].unsplit || b[1].ghost_neighbor) { TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map); }
+         if (!b[2].unsplit || b[2].ghost_neighbor) { TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map); }
+         if (!b[0].unsplit || b[0].ghost_neighbor) { TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map); }
       }
    }
-
-   return false;
+   return {false, false};
 }
 
 void NCMesh::BuildFaceList()
@@ -3402,76 +3408,79 @@ void NCMesh::NCList::Clear()
       point_matrices[i].DeleteAll();
    }
 
-   inv_index.DeleteAll();
+   inv_index.clear();
 }
 
-long NCMesh::NCList::TotalSize() const
+NCMesh::NCList::MeshIdAndType
+NCMesh::NCList::GetMeshIdAndType(int index) const
 {
-   return conforming.Size() + masters.Size() + slaves.Size();
-}
-
-const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
-{
-   if (!inv_index.Size())
+   BuildIndex();
+   const auto it = inv_index.find(index);
+   auto ft = it != inv_index.end() ? it->second.first : MeshIdType::UNRECOGNIZED;
+   switch (ft)
    {
-      int max_index = -1;
+      case MeshIdType::CONFORMING:
+         return {&conforming[it->second.second], it->second.first};
+      case MeshIdType::MASTER:
+         return {&masters[it->second.second], it->second.first};
+      case MeshIdType::SLAVE:
+         return {&slaves[it->second.second], it->second.first};
+      case MeshIdType::UNRECOGNIZED:
+      default:
+         return {nullptr, MeshIdType::UNRECOGNIZED};
+   }
+}
+
+NCMesh::NCList::MeshIdType
+NCMesh::NCList::GetMeshIdType(int index) const
+{
+   BuildIndex();
+   auto it = inv_index.find(index);
+   return (it != inv_index.end()) ? it->second.first : MeshIdType::UNRECOGNIZED;
+}
+
+bool
+NCMesh::NCList::CheckMeshIdType(int index, MeshIdType ft) const
+{
+   return GetMeshIdType(index) == ft;
+}
+
+void
+NCMesh::NCList::BuildIndex() const
+{
+   if (inv_index.size() == 0)
+   {
+      auto index_compare = [](const MeshId &a, const MeshId &b) { return a.index < b.index; };
+      auto max_conforming = std::max_element(conforming.begin(), conforming.end(),
+                                             index_compare);
+      auto max_master = std::max_element(masters.begin(), masters.end(),
+                                         index_compare);
+      auto max_slave = std::max_element(slaves.begin(), slaves.end(), index_compare);
+
+      int max_conforming_index = max_conforming != nullptr ? max_conforming->index :
+                                 -1;
+      int max_master_index = max_master != nullptr ? max_master->index : -1;
+      int max_slave_index = max_slave != nullptr ? max_slave->index : -1;
+
+      inv_index.reserve(std::max({max_conforming_index, max_master_index, max_slave_index}));
       for (int i = 0; i < conforming.Size(); i++)
       {
-         max_index = std::max(conforming[i].index, max_index);
+         inv_index.emplace(conforming[i].index, std::make_pair(MeshIdType::CONFORMING,
+                                                               i));
       }
       for (int i = 0; i < masters.Size(); i++)
       {
-         max_index = std::max(masters[i].index, max_index);
+         inv_index.emplace(masters[i].index, std::make_pair(MeshIdType::MASTER, i));
       }
       for (int i = 0; i < slaves.Size(); i++)
       {
-         if (slaves[i].index < 0) { continue; }
-         max_index = std::max(slaves[i].index, max_index);
-      }
-
-      inv_index.SetSize(max_index + 1);
-      inv_index = -1;
-
-      for (int i = 0; i < conforming.Size(); i++)
-      {
-         inv_index[conforming[i].index] = (i << 2);
-      }
-      for (int i = 0; i < masters.Size(); i++)
-      {
-         inv_index[masters[i].index] = (i << 2) + 1;
-      }
-      for (int i = 0; i < slaves.Size(); i++)
-      {
-         if (slaves[i].index < 0) { continue; }
-         inv_index[slaves[i].index] = (i << 2) + 2;
+         inv_index.emplace(slaves[i].index, std::make_pair(MeshIdType::SLAVE, i));
       }
    }
 
-   MFEM_ASSERT(index >= 0 && index < inv_index.Size(), "");
-   int key = inv_index[index];
-
-   if (!type)
-   {
-      MFEM_VERIFY(key >= 0, "index " << index << " not found.");
-   }
-   else // return entity type if requested, don't abort when not found
-   {
-      *type = (key >= 0) ? (key & 0x3) : -1;
-
-      static MeshId invalid;
-      if (*type < 0) { return invalid; } // not found
-   }
-
-   // return found entity MeshId
-   switch (key & 0x3)
-   {
-      case 0: return conforming[key >> 2];
-      case 1: return masters[key >> 2];
-      case 2: return slaves[key >> 2];
-      default: MFEM_ABORT("internal error"); return conforming[0];
-   }
+   MFEM_ASSERT(inv_index.size() > 0,
+               "Empty inverse index, member lists must be populated before BuildIndex is called!");
 }
-
 
 //// Neighbors /////////////////////////////////////////////////////////////////
 

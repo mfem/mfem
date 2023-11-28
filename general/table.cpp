@@ -218,7 +218,8 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
 
 int Table::Push(int i, int j)
 {
-   MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
+   MFEM_ASSERT(i >=0 &&
+               i<size, "Index out of bounds.  i = " << i << " size " << size);
 
    for (int k = I[i], end = I[i+1]; k < end; k++)
    {
