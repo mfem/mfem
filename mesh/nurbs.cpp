@@ -3792,7 +3792,6 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
 
    Array<int> newOrders  = GetOrders();
    newOrders[component] += 1;
-   newOrders.Print();
 
    return new NURBSExtension(this, newOrders);
 }
@@ -3810,7 +3809,6 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    Array<int> newOrders  = GetOrders();
    for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
    newOrders[component] -= 1;
-   newOrders.Print();
 
    return new NURBSExtension(this, newOrders);
 }
