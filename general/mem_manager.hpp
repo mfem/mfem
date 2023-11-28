@@ -865,6 +865,8 @@ public:
    inline static void* __enzyme_allocation_like2[4] = {(void*)static_cast<void*(*)(void*, size_t, MemoryType, MemoryType, unsigned, unsigned&)>(MemoryManager::New_),
                                                        (void*)1, (void*)"-1,2,4", (void*)MemoryManager::Delete_
                                                       };
+   __attribute__((used))
+   inline static void* __enzyme_function_like[2] = {(void*)MemoryManager::Delete_, (void*)"free"};
 #endif
 };
 
