@@ -73,7 +73,7 @@ double EvalW_094(const double *Jpt, const double *w)
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                            const double metric_normal,
-                           const Vector &m0_,
+                           const Vector &mc_,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -91,7 +91,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
                || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
-   const bool const_m0 = m0_.Size() == 1;
+   const bool const_m0 = mc_.Size() == 1;
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -99,9 +99,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto M0 = const_m0 ?
-                   Reshape(m0_.Read(), 1, 1, 1) :
-                   Reshape(m0_.Read(), Q1D, Q1D, NE);
+   const auto MC = const_m0 ?
+                   Reshape(mc_.Read(), 1, 1, 1) :
+                   Reshape(mc_.Read(), Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -137,7 +137,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double m_coef = const_m0 ? M0(0,0,0) : M0(qx,qy,e);
+            const double m_coef = const_m0 ? MC(0,0,0) : MC(qx,qy,e);
             const double weight = metric_normal * m_coef * W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
@@ -176,7 +176,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
-   const Vector &M0 = PA.MC;
+   const Vector &MC = PA.MC;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -190,7 +190,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_2D(const Vector &X) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,M0,mp,M,N,J,W,B,G,X,O,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_2D,id,mn,MC,mp,M,N,J,W,B,G,X,O,E);
 }
 
 } // namespace mfem
