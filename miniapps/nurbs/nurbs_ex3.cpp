@@ -1,10 +1,10 @@
-//                                MFEM Example 3
+//                                MFEM Example 3 -- modified for NURBS FE
 //
 // Compile with: make nurbs_ex3
 //
-// Sample runs:  nurbs_ex3 -m ../data/star.mesh
-//               nurbs_ex3 -m ../data/beam-tri.mesh -o 2
-//               nurbs_ex3 -m ../data/beam-tet.mesh
+// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
+//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
+//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
 //
 // Description:  This example code solves a simple electromagnetic diffusion
 //               problem corresponding to the second order definite Maxwell
@@ -153,8 +153,7 @@ int main(int argc, char *argv[])
    //    r.h.s. vector b.
    GridFunction x(fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
-   x = 0.0;
-   //x.ProjectCoefficient(E);
+   x.ProjectCoefficient(E);
 
    // 9. Set up the bilinear form corresponding to the EM diffusion operator
    //    curl muinv curl + sigma I, by adding the curl-curl and the mass domain
