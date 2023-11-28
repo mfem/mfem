@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(IC_coef);
    u_old_gf = u_gf;
 
-   // 9. Initialize the slack variable ψₕ = exp(uₕ)
+   // 9. Initialize the slack variable ψₕ = ln(uₕ)
    LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;

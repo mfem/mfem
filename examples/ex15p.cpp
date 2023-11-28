@@ -13,6 +13,7 @@
 //               mpirun -np 4 ex15p -m ../data/square-disc-nurbs.mesh
 //               mpirun -np 4 ex15p -m ../data/disc-nurbs.mesh
 //               mpirun -np 4 ex15p -m ../data/fichera.mesh -tf 0.5
+//               mpirun -np 4 ex15p -m ../data/fichera-mixed.mesh -tf 0.5
 //               mpirun -np 4 ex15p -m ../data/ball-nurbs.mesh -tf 0.5
 //               mpirun -np 4 ex15p -m ../data/mobius-strip.mesh
 //               mpirun -np 4 ex15p -m ../data/amr-quad.mesh

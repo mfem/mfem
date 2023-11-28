@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
       {
          cout << endl;
          cout << "Element Type:          " << elemTypeStr(eType) << endl;
-         cout << "Basis Type:            " << basisTypeStr(bType) << endl;;
+         cout << "Basis Type:            " << basisTypeStr(bType) << endl;
          cout << "Basis function order:  " << bOrder << endl;
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
