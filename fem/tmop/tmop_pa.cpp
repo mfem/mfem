@@ -176,35 +176,40 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA() const
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
 {
+   // Both are constant or not specified.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
+
+   // Coefficients are always evaluated on the CPU for now.
+   PA.MC.HostWrite();
+   PA.C0.HostWrite();
+
    const IntegrationRule &ir = *PA.ir;
-
-   if (PA.MC.Size() > 1)
+   auto T = new IsoparametricTransformation;
+   for (int e = 0; e < PA.ne; ++e)
    {
-      auto MC = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
-      for (int e = 0; e < PA.ne; ++e)
+      // Uses the node positions in x_loc.
+      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+
+      if (PA.MC.Size() > 1)
       {
-         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
-         for (int q = 0; q < ir.GetNPoints(); ++q)
+         for (int q = 0; q < PA.nq; ++q)
          {
-            MC(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+            PA.MC(q + e * PA.nq) = metric_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+
+      if (PA.C0.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
    }
 
-   if (PA.C0.Size() > 1)
-   {
-      auto C0 = Reshape(PA.C0.HostWrite(), PA.nq, PA.ne);
-      for (int e = 0; e < PA.ne; ++e)
-      {
-         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
-         for (int q = 0; q < ir.GetNPoints(); ++q)
-         {
-            C0(q,e) = lim_coeff->Eval(T, ir.IntPoint(q));
-         }
-      }
-   }
+   delete T;
 }
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
@@ -246,14 +251,23 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (metric_coeff)
    {
-      PA.MC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
-      auto M0 = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
-      for (int e = 0; e < PA.ne; ++e)
+      if (auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff))
       {
-         ElementTransformation& T = *PA.fes->GetElementTransformation(e);
-         for (int q = 0; q < ir.GetNPoints(); ++q)
+         PA.MC.SetSize(1, Device::GetMemoryType());
+         PA.MC.HostWrite();
+         PA.MC(0) = cc->constant;
+      }
+      else
+      {
+         PA.MC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
+         auto M0 = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
+         for (int e = 0; e < PA.ne; ++e)
          {
-            M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+            ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+            for (int q = 0; q < ir.GetNPoints(); ++q)
+            {
+               M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+            }
          }
       }
    }
