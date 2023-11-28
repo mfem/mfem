@@ -230,25 +230,9 @@ int main(int argc, char *argv[])
    }
 
    // 16. Create output in visit format
-   if (NURBS)
-   {
-      GridFunction uu, vv, ww;
-      uu.MakeRef(fespace->GetComponent(0), x, 0);
-      vv.MakeRef(fespace->GetComponent(1), x, fespace->GetVSize()/dim);
-      if (dim ==3)
-      {
-         ww.MakeRef(fespace->GetComponent(2), x, 2*fespace->GetVSize()/dim);
-      }
-
-      VisItDataCollection visit_dc("Example3", mesh);
-      visit_dc.RegisterField("uu", &uu);
-      visit_dc.RegisterField("vv", &vv);
-      if (dim ==3)
-      {
-         visit_dc.RegisterField("ww", &ww);
-      }
-      visit_dc.Save();
-   }
+   VisItDataCollection visit_dc("Example3", mesh);
+   visit_dc.RegisterField("x", &x);
+   visit_dc.Save();
 
    // 17. Free the used memory.
    delete a;

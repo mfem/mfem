@@ -309,15 +309,6 @@ int main(int argc, char *argv[])
    GridFunction u, p, uu, vv, ww;
    u.MakeRef(R_space, x.GetBlock(0), 0);
    p.MakeRef(W_space, x.GetBlock(1), 0);
-   if (NURBS)
-   {
-      uu.MakeRef(R_space->GetComponent(0), x.GetBlock(0), 0);
-      vv.MakeRef(R_space->GetComponent(1), x.GetBlock(0),R_space->GetVSize()/dim);
-      if (dim ==3)
-      {
-         ww.MakeRef(R_space->GetComponent(2), x.GetBlock(0), 2*R_space->GetVSize()/dim);
-      }
-   }
 
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
@@ -337,22 +328,13 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Solenoidal", mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
-   if (NURBS)
-   {
-      visit_dc.RegisterField("uu", &uu);
-      visit_dc.RegisterField("vv", &vv);
-      if (dim ==3)
-      {
-         visit_dc.RegisterField("ww", &ww);
-      }
-   }
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5", mesh);
+   ParaViewDataCollection paraview_dc("Solenoidal", mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
