@@ -98,7 +98,7 @@ void EvalP_094(const double *Jpt, const double *w, double *P)
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
-                           const Vector &m0_,
+                           const Vector &mc_,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -115,7 +115,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                || mid == 80 || mid == 94,
                "2D metric not yet implemented!");
 
-   const bool const_m0 = m0_.Size() == 1;
+   const bool const_m0 = mc_.Size() == 1;
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -123,9 +123,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   const auto M0 = const_m0 ?
-                   Reshape(m0_.Read(), 1, 1, 1) :
-                   Reshape(m0_.Read(), Q1D, Q1D, NE);
+   const auto MC = const_m0 ?
+                   Reshape(mc_.Read(), 1, 1, 1) :
+                   Reshape(mc_.Read(), Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -160,7 +160,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double m_coef = const_m0 ? M0(0,0,0) : M0(qx,qy,e);
+            const double m_coef = const_m0 ? MC(0,0,0) : MC(qx,qy,e);
             const double weight = metric_normal * m_coef *
                                   W(qx,qy) * detJtr;
 
@@ -212,7 +212,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
-   const Vector &M0 = PA.MC;
+   const Vector &MC = PA.MC;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
@@ -220,7 +220,7 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,M0,mp,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,MC,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem
