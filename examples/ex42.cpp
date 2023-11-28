@@ -53,7 +53,7 @@
 #include "mfem.hpp"
 #include <iostream>
 #include <fstream>
-#include "ex37.hpp"
+#include "compMech.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -391,6 +391,7 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient input_direction_cf(input_direction),
                              output_direction_cf(output_direction);
+   ConstantCoefficient input_spring_cf(input_spring), output_spring_cf(output_spring);
 
    int k;
    for (k = 1; k <= max_it; k++)
@@ -401,9 +402,9 @@ int main(int argc, char *argv[])
       BilinearForm elasticityForm(&state_fes);
       elasticityForm.AddDomainIntegrator(new ElasticityIntegrator(SIMP_lam, SIMP_mu));
       elasticityForm.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(
-                                             input_spring, input_direction_cf), input_bdr);
+                                             input_spring_cf, input_direction_cf), input_bdr);
       elasticityForm.AddBdrFaceIntegrator(new VectorBoundaryDirectionalMassIntegrator(
-                                             output_spring, output_direction_cf), output_bdr);
+                                             output_spring_cf, output_direction_cf), output_bdr);
 
       LinearForm elasticityRHS(&state_fes);
       elasticityRHS.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(
@@ -417,10 +418,10 @@ int main(int argc, char *argv[])
                                                                      SIMP_mu));
       adjElasticityForm.AddBdrFaceIntegrator(new
                                              VectorBoundaryDirectionalMassIntegrator(
-                                                input_spring, input_direction_cf), input_bdr);
+                                                input_spring_cf, input_direction_cf), input_bdr);
       adjElasticityForm.AddBdrFaceIntegrator(new
                                              VectorBoundaryDirectionalMassIntegrator(
-                                                output_spring, output_direction_cf), output_bdr);
+                                                output_spring_cf, output_direction_cf), output_bdr);
 
       LinearForm adjElasticityRHS(&state_fes);
       adjElasticityRHS.AddBdrFaceIntegrator(new VectorBoundaryDirectionalLFIntegrator(

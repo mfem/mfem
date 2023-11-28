@@ -42,12 +42,18 @@ int main(int argc, char *argv[])
    double epsilon = 1e-2;
    double vol_fraction = 0.3;
    int max_it = 1e3;
-   double itol = 0;
+   double itol = 1e-09;
    double ntol = 1e-6;
    double rho_min = 1e-6;
    double exponent = 3.0;
-   double lambda = 1.0;
-   double mu = 1.0;
+   // double lambda = 1.0;
+   // double mu = 1.0;
+
+   double E = 1;
+   double nu = 1/3;
+   double lambda = E*nu/((1+nu)*(1-nu));
+   double mu = 3*E/(4*(1+nu));
+
    double c1 = 1e-04;
    bool glvis_visualization = true;
    bool save = true;
@@ -113,11 +119,11 @@ int main(int argc, char *argv[])
          //                      |                     |
          //    fixed (0.1cm) (1) |                     |
          //                      -----------------------
-         mesh = mesh.MakeCartesian2D(80, 40, mfem::Element::Type::QUADRILATERAL, true,
+         mesh = mesh.MakeCartesian2D(160, 80, mfem::Element::Type::QUADRILATERAL, true,
                                      2.0, 1.0);
          double len = 0.025;
          input_spring = 1;
-         output_spring = 0.001;
+         output_spring = 1;
          input_direction.SetSize(2); input_direction = 0.0;
          output_direction.SetSize(2); output_direction = 0.0;
          input_direction[0] = 1.0;
