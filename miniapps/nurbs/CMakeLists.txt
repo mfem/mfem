@@ -16,7 +16,15 @@ add_mfem_miniapp(nurbs_ex1
 add_mfem_miniapp(nurbs_ex3
   MAIN nurbs_ex3.cpp
   LIBRARIES mfem)
-  
+
+add_mfem_miniapp(nurbs_ex5
+  MAIN nurbs_ex3.cpp
+  LIBRARIES mfem)
+
+add_mfem_miniapp(nurbs_ex24
+  MAIN nurbs_ex24.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(nurbs_curveint
   MAIN nurbs_curveint.cpp
   LIBRARIES mfem)
@@ -144,6 +152,10 @@ endif()
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(nurbs_ex24p
+    MAIN nurbs_ex24p.cpp
     LIBRARIES mfem)
 
   if (MFEM_ENABLE_TESTING)
