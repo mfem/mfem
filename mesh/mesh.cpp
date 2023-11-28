@@ -4421,9 +4421,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
 
    Array<int> rdofs;
    DenseMatrix phys_pts;
-
-   GeometryRefiner refiner;
-   refiner.SetType(q_type);
+   GeometryRefiner refiner(q_type);
 
    // Add refined elements and set vertex coordinates
    for (int el = 0; el < orig_ne; el++)
