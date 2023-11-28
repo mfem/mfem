@@ -937,7 +937,7 @@ void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
 void NURBS_HCurl3DFiniteElement::CalcVShape(ElementTransformation &Trans,
                                             DenseMatrix &shape) const
 {
-  CalcVShape(Trans.GetIntPoint(), shape);
+   CalcVShape(Trans.GetIntPoint(), shape);
    const DenseMatrix & JI = Trans.InverseJacobian();
    MFEM_ASSERT(JI.Width() == 3 && JI.Height() == 3,
                "NURBS_HCurl3DFiniteElement must be in a"
