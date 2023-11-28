@@ -294,7 +294,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParGridFunction dist(&dist_fes);
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
-   ConstantCoefficient lim_coeff(lim_const);
+   auto coeff_lim_func = [&](const Vector &x) { return x(0) + lim_const; };
+   FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
    {
       if (lim_type == 0)
