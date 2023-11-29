@@ -257,13 +257,13 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    // vertices of the LOR mesh. The vertex coordinates are already computed in
    // E-vector format and passed in in X_vert.
    //
-   // In this function, we need to convert X_vert (which has the shape (dim,
+   // In this function, we need to convert X_vert (which has the shape (sdim,
    // ndof_per_el, nel_ho)) to T-DOF format.
    //
-   // We place the results in the vector xyz_tvec, which has shape (ntdofs, dim)
+   // We place the results in the vector xyz_tvec, which has shape (ntdofs, sdim)
    // and then make the hypre vectors x, y, and z point to subvectors.
    //
-   // In 2D, z is NULL.
+   // When the space dimension is 2, z is NULL.
 
    // Create the H1 vertex space and get the element restriction
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
@@ -275,17 +275,17 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    const int nel_ho = vert_fes.GetNE();
    const int ndp1 = order + 1;
    const int ndof_per_el = static_cast<int>(pow(ndp1, dim));
-   const int sdim = dim;
+   const int sdim = vert_fes.GetMesh()->SpaceDimension();
    const int ntdofs = R->Height();
 
    const MemoryClass mc = GetHypreMemoryClass();
    bool dev = (mc == MemoryClass::DEVICE);
 
-   xyz_tvec = new Vector(ntdofs*dim);
+   xyz_tvec = new Vector(ntdofs*sdim);
 
-   auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, dim);
+   auto xyz_tv = Reshape(HypreWrite(xyz_tvec->GetMemory()), ntdofs, sdim);
    const auto xyz_e =
-      Reshape(HypreRead(X_vert.GetMemory()), dim, ndof_per_el, nel_ho);
+      Reshape(HypreRead(X_vert.GetMemory()), sdim, ndof_per_el, nel_ho);
    const auto d_offsets = HypreRead(el_restr->Offsets().GetMemory());
    const auto d_indices = HypreRead(el_restr->Indices().GetMemory());
    const auto ltdof_ldof = HypreRead(R->GetMemoryJ());
@@ -309,7 +309,7 @@ void BatchedLOR_AMS::FormCoordinateVectors(const Vector &X_vert)
    x = new HypreParVector(vert_fes.GetComm(), glob_size, d_x_ptr, cols, dev);
    double *d_y_ptr = xyz_tv + 1*ntdofs;
    y = new HypreParVector(vert_fes.GetComm(), glob_size, d_y_ptr, cols, dev);
-   if (dim == 3)
+   if (sdim == 3)
    {
       double *d_z_ptr = xyz_tv + 2*ntdofs;
       z = new HypreParVector(vert_fes.GetComm(), glob_size, d_z_ptr, cols, dev);
