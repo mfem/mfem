@@ -26,9 +26,9 @@ namespace mfem
 #define dlong int
 #define dfloat double
 
-static inline void lagrange_eval(dfloat *p0, dfloat x,
-                                 dlong i, dlong p_Nq,
-                                 dfloat *z, dfloat *lagrangeCoeff)
+static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
+                                           dlong i, dlong p_Nq,
+                                           dfloat *z, dfloat *lagrangeCoeff)
 {
    dfloat p_i = (1 << (p_Nq - 1));
    for (dlong j = 0; j < p_Nq; ++j)
@@ -56,12 +56,14 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
    const int p_Np = p_Nq*p_Nq*p_Nq;
-   mfem::forall_1D(npt, dof1Dsol, [=] MFEM_HOST_DEVICE (int i)
+   const int p_Nq_max = 12;
+   //    mfem::forall_1D(npt, dof1Dsol, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[p_Nq];
-      MFEM_SHARED dfloat wts[p_Nq];
-      MFEM_SHARED dfloat wtt[p_Nq];
-      MFEM_SHARED dfloat sums[p_Nq];
+      MFEM_SHARED dfloat wtr[p_Nq_max];
+      MFEM_SHARED dfloat wts[p_Nq_max];
+      MFEM_SHARED dfloat wtt[p_Nq_max];
+      MFEM_SHARED dfloat sums[p_Nq_max];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,p_Nq)
@@ -98,9 +100,9 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
             if (j == 0)
             {
                double sumv = 0.0;
-               for (dlong j = 0; j < p_Nq; ++j)
+               for (dlong jj = 0; jj < p_Nq; ++jj)
                {
-                  sumv += sums[j];
+                  sumv += sums[jj];
                }
                int_out[i + fld * npt] = sumv;
             }
