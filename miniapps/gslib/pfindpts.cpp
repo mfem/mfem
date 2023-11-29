@@ -85,7 +85,7 @@ int main (int argc, char *argv[])
    int mesh_poly_deg     = 3;
    int rs_levels         = 0;
    int rp_levels         = 0;
-   bool visualization    = true;
+   bool visualization    = false;
    int fieldtype         = 0;
    int ncomp             = 1;
    bool search_on_rank_0 = false;
@@ -98,6 +98,7 @@ int main (int argc, char *argv[])
    int smooth            = 0; //kershaw transformation parameter
    int jobid             = 0;
    int npt               = 100; //points per proc
+   int nx                = 6; //points per proc
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -142,6 +143,8 @@ int main (int argc, char *argv[])
                   "job id used for visit  save files");
    args.AddOption(&npt, "-npt", "--npt",
                   "# points per proc");
+   args.AddOption(&nx, "-nx", "--nx",
+                  "# of elements in x(is multipled by rs)");
    args.Parse();
    if (!args.Good())
    {
@@ -162,8 +165,14 @@ int main (int argc, char *argv[])
    func_order = std::min(exact_sol_order, 2);
 
    // Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   //    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
+   int nex = nx*std::pow(2, rs_levels);
+   const int etype = 0;
+   Mesh *mesh = new Mesh(Mesh::MakeCartesian3D(nex, nex, nex, etype == 0 ?
+                                               Element::HEXAHEDRON :
+                                               Element::TETRAHEDRON));
+
+   //    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
    const int dim = mesh->Dimension();
    if (myid == 0)
    {
@@ -209,6 +218,10 @@ int main (int argc, char *argv[])
    }
 
    int nelemglob = pmesh.GetGlobalNE();
+   if (myid == 0)
+   {
+      cout << "Number of elements: " << nelemglob << endl;
+   }
 
    // Kershaw transformation
    if (smooth > 0)
@@ -217,6 +230,7 @@ int main (int argc, char *argv[])
       common::KershawTransformation kershawT(pmesh.Dimension(), 0.3, 0.3, smooth);
       pmesh.Transform(kershawT);
    }
+   if (myid == 0) { cout << "Kershaw transformation done." << endl; }
 
    Vector h0(pfespace.GetNDofs());
    h0 = infinity();
@@ -342,6 +356,7 @@ int main (int argc, char *argv[])
    Vector vxyz(pts_cnt * dim);
    vxyz.UseDevice(!cpu_mode);
    vxyz.Randomize(myid+1);
+   //    vxyz = 0.1;
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -355,10 +370,13 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    finder.Setup(pmesh);
    finder.FindPoints(vxyz, point_ordering);
+   MPI_Barrier(MPI_COMM_WORLD);
+   //    std::cout << myid << " K10 done findpoints" << std::endl;
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
    Vector ref_rst1    = finder.GetGSLIBReferencePosition();
+   Vector ref_rst0   = finder.GetReferencePosition();
    Vector dist1    = finder.GetDist();
    Array<unsigned int> proc_out1    = finder.GetProc();
    vxyz.HostReadWrite();
@@ -370,7 +388,7 @@ int main (int argc, char *argv[])
       int e1 = el_out1[i];
       Vector ref1(ref_rst1.GetData()+i*dim, dim);
       Vector dref = ref1;
-      if (std::fabs(dist1(i)) > 1e-10 && myid == 0)
+      if (c1 == 2 || (std::fabs(dist1(i)) > 1e-10 && myid == 0))
       {
          notfound++;
          if (point_ordering == 0)
@@ -390,6 +408,11 @@ int main (int argc, char *argv[])
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
+   Vector info0    = finder.GetInfo();
+   //    info0.Print();
+   //    vxyz.Print();
+   //    ref_rst0.Print();
+   //    dist1.Print();
 
    finder.Interpolate(field_vals, interp_vals);
    Vector info1    = finder.GetInfo();
@@ -398,6 +421,8 @@ int main (int argc, char *argv[])
       interp_vals.HostReadWrite();
    }
    vxyz.HostReadWrite();
+   //    info1.Print();
+   //    interp_vals.Print();
 
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();

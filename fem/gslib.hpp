@@ -82,7 +82,7 @@ protected:
    struct gslib::comm *gsl_comm;          // gslib's internal data
    int dim, points_cnt;
    Array<unsigned int> gsl_code, gsl_proc, gsl_elem, gsl_mfem_elem;
-   Array<int> gsl_code_dev, gsl_proc_dev, gsl_elem_dev;
+   Array<int> gsl_code_dev, gsl_elem_dev;
    Vector gsl_mesh, gsl_ref, gsl_dist, gsl_mfem_ref;
    bool setupflag;              // flag to indicate whether gslib data has been setup
    double default_interp_value; // used for points that are not found in the mesh
