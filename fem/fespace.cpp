@@ -2288,7 +2288,7 @@ void FiniteElementSpace::UpdateNURBS()
       if (mesh->Dimension() == 2)
       {
          VNURBSext.SetSize(2);
-         Table::Mode mode;
+         Table::Mode mode = Table::MERGE;
          if (div)
          {
             VNURBSext[0] = NURBSext->GetDivExtension(0);
@@ -2316,7 +2316,7 @@ void FiniteElementSpace::UpdateNURBS()
       else if (mesh->Dimension() == 3)
       {
          VNURBSext.SetSize(3);
-         Table::Mode mode;
+         Table::Mode mode = Table::MERGE;
          if (div)
          {
             VNURBSext[0] = NURBSext->GetDivExtension(0);
