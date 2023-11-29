@@ -701,7 +701,7 @@ public:
       order, or VariableOrder (default). */
    explicit NURBSFECollection(int Order = VariableOrder);
 
-   virtual void Reset() const override
+   virtual void Reset() const
    {
       SegmentFE->Reset();
       QuadrilateralFE->Reset();
@@ -715,7 +715,7 @@ public:
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
-   virtual void SetOrder(int Order) const override;
+   virtual void SetOrder(int Order) const;
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -789,7 +789,7 @@ public:
       order, or VariableOrder (default). */
    explicit NURBS_HCurlFECollection(int Order = VariableOrder, const int vdim = 3);
 
-   virtual void Reset() const override;
+   virtual void Reset() const override
    {
       QuadrilateralVFE->Reset();
       ParallelepipedVFE->Reset();
