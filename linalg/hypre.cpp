@@ -565,7 +565,7 @@ void HypreParMatrix::Read(MemoryClass mc) const
 #if MFEM_HYPRE_VERSION >= 22600
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
    }
 #endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
@@ -597,7 +597,7 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
 #if MFEM_HYPRE_VERSION >= 22600
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
    }
 #endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
@@ -629,7 +629,7 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 #if MFEM_HYPRE_VERSION >= 22600
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
    }
 #endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
