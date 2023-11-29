@@ -1,28 +1,26 @@
-//                                MFEM Example 24
+//                                MFEM Example 24 -- modified for NURBS FE
 //
-// Compile with: make ex24
+// Compile with: make nurbs_ex24
 //
-// Sample runs:  ex24 -m ../data/star.mesh
-//               ex24 -m ../data/square-disc.mesh -o 2
-//               ex24 -m ../data/beam-tet.mesh
-//               ex24 -m ../data/beam-hex.mesh -o 2 -pa
-//               ex24 -m ../data/beam-hex.mesh -o 2 -pa -p 1
-//               ex24 -m ../data/beam-hex.mesh -o 2 -pa -p 2
-//               ex24 -m ../data/escher.mesh
-//               ex24 -m ../data/escher.mesh -o 2
-//               ex24 -m ../data/fichera.mesh
-//               ex24 -m ../data/fichera-q2.vtk
-//               ex24 -m ../data/fichera-q3.mesh
-//               ex24 -m ../data/square-disc-nurbs.mesh
-//               ex24 -m ../data/beam-hex-nurbs.mesh
-//               ex24 -m ../data/amr-quad.mesh -o 2
-//               ex24 -m ../data/amr-hex.mesh
+// Sample runs:  nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh
+//               nurbs_ex24 -m ../../data/pipe-nurbs-2d.mesh -p 1
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -o 2
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -o 2 -p 1
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -o 2 -p 2
+//               nurbs_ex24 -m ../../data/escher.mesh
+//               nurbs_ex24 -m ../../data/escher.mesh -o 2
+//               nurbs_ex24 -m ../../data/fichera.mesh
+//               nurbs_ex24 -m ../../data/fichera-q2.vtk
+//               nurbs_ex24 -m ../../data/fichera-q3.mesh
+//               nurbs_ex24 -m ../../data/square-disc-nurbs.mesh
+//               nurbs_ex24 -m ../../data/beam-hex-nurbs.mesh
+//               nurbs_ex24 -m ../../data/amr-quad.mesh -o 2
+//               nurbs_ex24 -m ../../data/amr-hex.mesh
 //
-// Device sample runs:
-//               ex24 -m ../data/star.mesh -pa -d cuda
-//               ex24 -m ../data/star.mesh -pa -d raja-cuda
-//               ex24 -m ../data/star.mesh -pa -d raja-omp
-//               ex24 -m ../data/beam-hex.mesh -pa -d cuda
+// Device sample runs -- do not work for NURBS:
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -pa -d cuda
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -pa -d raja-cuda
+//               nurbs_ex24 -m ../../data/cube_nurbs.mesh -pa -d raja-omp
 //
 // Description:  This example code illustrates usage of mixed finite element
 //               spaces, with three variants:
@@ -56,7 +54,8 @@ double freq = 1.0, kappa;
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/beam-hex.mesh";
+   const char *mesh_file = "../../data/cube-nurbs.mesh";
+   int ref_levels = -1;
    int order = 1;
    int prob = 0;
    bool static_cond = false;
@@ -67,6 +66,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&prob, "-p", "--problem-type",
@@ -107,7 +108,10 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0)
+      {
+         ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -287,6 +291,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the same field by applying a DiscreteInterpolator.
+   /* DicreteInterpolants are not implemented yet (NIY) for NURBS
    GridFunction discreteInterpolant(&test_fes);
    DiscreteLinearOperator dlo(&trial_fes, &test_fes);
    if (prob == 0)
@@ -303,7 +308,7 @@ int main(int argc, char *argv[])
    }
 
    dlo.Assemble();
-   dlo.Mult(gftrial, discreteInterpolant);
+   dlo.Mult(gftrial, discreteInterpolant);*/
 
    // 11. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
@@ -327,26 +332,26 @@ int main(int argc, char *argv[])
    if (prob == 0)
    {
       double errSol = x.ComputeL2Error(gradp_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
+      // NIY double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
       double errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
-           " ||_{L_2} = " << errInterp << '\n' << endl;
+      // NIYcout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
+      // NIY     " ||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
    else if (prob == 1)
    {
       double errSol = x.ComputeL2Error(curlv_coef);
-      double errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
+      // NIYdouble errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
       double errProj = exact_proj.ComputeL2Error(curlv_coef);
 
       cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
            "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Curl interpolant E_h = curl v_h in H(div): || E_h - curl v "
-           "||_{L_2} = " << errInterp << '\n' << endl;
+      // NIYcout << " Curl interpolant E_h = curl v_h in H(div): || E_h - curl v "
+      // NIY     "||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
@@ -360,13 +365,13 @@ int main(int argc, char *argv[])
       }
 
       double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      double errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
+      // NIYdouble errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
       double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
            "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
-      cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v "
-           "||_{L_2} = " << errInterp << '\n' << endl;
+      // NIY cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v "
+      // NIY      "||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection f_h of exact div v in L_2: || f_h - div v "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
