@@ -89,7 +89,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
          dt = t_final/double(ti_steps);
       };
 
-      void init_hist(ODESolver* ode_solver,double dt_)
+      void init_hist(ODESolverWithStates* ode_solver,double dt_)
       {
          int nstate = ode_solver->GetState().Size();
 
@@ -110,11 +110,19 @@ TEST_CASE("First order ODE methods", "[ODE]")
          Vector error(levels);
          int steps = ti_steps;
 
+         // Downcast pointer if possible and error check on init_hist_ value
+         ODESolverWithStates *ode_solver_states =
+            dynamic_cast<ODESolverWithStates*>(ode_solver);
+         if (!ode_solver_states && init_hist_)
+         {
+            mfem_error("CheckODE: ODESolver incompatible with init_hist_ value");
+         }
+
          t = 0.0;
          dt_order = t_final/double(steps);
          u = u0;
          ode_solver->Init(*oper);
-         if (init_hist_) { init_hist(ode_solver,dt_order); }
+         if (init_hist_) { init_hist(ode_solver_states,dt_order); }
          ode_solver->Run(u, t, dt_order, t_final - 1e-12);
          u +=u0;
          error[0] = u.Norml2();
@@ -124,7 +132,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
                   <<std::setw(12)<<"Order"<<std::endl;
          mfem::out<<std::setw(12)<<error[0]<<std::endl;
 
-         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
+         std::vector<Vector> uh;
+         if (ode_solver_states)
+         {
+            uh.resize(ode_solver_states->GetState().MaxSize());
+         }
          for (int l = 1; l < levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -144,11 +156,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
                {
                   ode_solver->Step(u, t, dt_order);
                }
-               int nstate = ode_solver->GetState().Size();
+               int nstate = ode_solver_states->GetState().Size();
 
                for (int s = 0; s < nstate; s++)
                {
-                  ode_solver->GetState().Get(s,uh[s]);
+                  ode_solver_states->GetState().Get(s,uh[s]);
                }
 
                for (int ll = 1; ll < lvl; ll++)
@@ -159,14 +171,14 @@ TEST_CASE("First order ODE methods", "[ODE]")
                      // ode_solver->state.ResetSize();
                      for (int s = nstate - 1; s >= 0; s--)
                      {
-                        ode_solver->GetState().Add(uh[s]);
+                        ode_solver_states->GetState().Add(uh[s]);
                      }
                   }
                   else
                   {
                      for (int s = 0; s < nstate; s++)
                      {
-                        ode_solver->GetState().Set(s,uh[s]);
+                        ode_solver_states->GetState().Get(s,uh[s]);
                      }
                   }
 
@@ -174,11 +186,11 @@ TEST_CASE("First order ODE methods", "[ODE]")
                   {
                      ode_solver->Step(u, t, dt_order);
                   }
-                  nstate = ode_solver->GetState().Size();
+                  nstate = ode_solver_states->GetState().Size();
 
                   for (int s = 0; s< nstate; s++)
                   {
-                     uh[s] = ode_solver->GetState().Get(s);
+                     uh[s] = ode_solver_states->GetState().Get(s);
                   }
                }
             }
