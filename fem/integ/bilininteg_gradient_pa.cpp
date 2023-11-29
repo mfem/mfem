@@ -793,7 +793,7 @@ static void PAGradientApplyTranspose3D(const int NE,
             {
                const double wy = Bt(dy,qy);
                const double wDy = Gt(dy,qy);
-               for (int dx = 0; dx < TE_D1D; ++dx)
+               for (int dx = 0; dx < TR_D1D; ++dx)
                {
                   Btxy[dy][dx][0] += wy *Btx[dx][0];
                   Btxy[dy][dx][1] += wDy*Btx[dx][1];
