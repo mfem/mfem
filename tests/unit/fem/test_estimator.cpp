@@ -244,7 +244,7 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       {
          REQUIRE(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);;
+      REQUIRE(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")

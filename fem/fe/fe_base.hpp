@@ -599,7 +599,7 @@ public:
    /** @brief Return a DoF transformation object for this particular type of
        basis.
    */
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return NULL; }
 
    /// Deconstruct the FiniteElement
