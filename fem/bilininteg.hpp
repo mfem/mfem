@@ -154,7 +154,8 @@ public:
 
    /** @brief  Integration on faces, interior or boundary, when one uses
                information from the neighbor volumetric elements. Depending on
-               the context, the arguments are used in different ways.
+               the context, the arguments are used in different ways. The output
+               matrix @elmat is always based on the volumetric DOFs.
 
        - Used with BilinearForm::AddInteriorFaceIntegrator(), where @a el1 and
          @a el2 are the FiniteElements for both sides of the internal face.
@@ -2332,7 +2333,12 @@ public:
    const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Mass integrator (u, v) restricted to the boundary of a domain */
+/** @brief Mass integrator (Q u, v) restricted to the boundary of a domain.
+
+    - SetIntRule() is expected to take a face-based quadrature rule.
+    - The Coefficient Q is evaluated through a FaceElementTransformation,
+      allowing to utilize both face-based information (e.g. face normals) and
+      volumetric element information (e.g. volumetric deformation). */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
@@ -2442,14 +2448,13 @@ public:
     by scalar FE through standard transformation. */
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
-private:
+protected:
    int vdim;
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
    int Q_order;
 
-protected:
    Coefficient *Q;
    VectorCoefficient *VQ;
    MatrixCoefficient *MQ;
@@ -2496,6 +2501,30 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultMF(const Vector &x, Vector &y) const;
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+};
+
+/** @brief Integrates (Q u, v) over the boundary of the domain, where
+    u=(u1,...,un) and v=(v1,...,vn); ui and vi are defined by scalar FE through
+    standard transformation.
+
+    - SetIntRule() is expected to take a face-based quadrature rule.
+    - The Coefficient Q is evaluated through a FaceElementTransformation,
+      allowing to utilize both face-based information (e.g. face normals) and
+      volumetric element information (e.g. volumetric deformation). */
+class BoundaryVectorMassIntegrator : public VectorMassIntegrator
+{
+public:
+   /// The given MatrixCoefficient fully couples the vector components, i.e.,
+   /// the local (dof x vdim) matrices have no zero blocks.
+   BoundaryVectorMassIntegrator(MatrixCoefficient &mc)
+      : VectorMassIntegrator(mc) { }
+
+   /// Expected use is with BilinearForm::AddBdrFaceIntegrator(), where @a el1
+   /// is for the volumetric neighbor of the boundary face, @a el2 is not used.
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           DenseMatrix &elmat) override;
 };
 
 

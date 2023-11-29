@@ -1561,9 +1561,9 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          if (ftr)
          {
             dom_dof_trans =
-                  trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
+               trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
             ran_dof_trans =
-                  test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+               test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
 
             trial_fe = trial_fes->GetFE(ftr->Elem1No);
             test_fe  = test_fes->GetFE(ftr->Elem1No);
