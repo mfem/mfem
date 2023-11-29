@@ -49,7 +49,6 @@ Table::Table(const Table &table1, const Table &table2, int offset,
    J.New(nnz, table1.J.GetMemoryType());
 
    I[0] = 0;
-   int j = 0;
    Array<int> row;
    for (int i = 0; i < size; i++)
    {
@@ -95,7 +94,6 @@ Table::Table(const Table &table1,
    J.New(nnz, table1.J.GetMemoryType());
 
    I[0] = 0;
-   int j = 0;
    Array<int> row;
    for (int i = 0; i < size; i++)
    {
