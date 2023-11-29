@@ -65,6 +65,18 @@ void Hypre::SetDefaultOptions()
 #endif
 #endif
 
+#if MFEM_HYPRE_VERSION >= 22600
+   if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+   {
+      HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
+      HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+   }
+   else
+   {
+      HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+      HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+   }
+#else
    // The following options are hypre's defaults as of hypre-2.24
 
    // Allocate hypre objects in GPU memory (default)
@@ -72,6 +84,16 @@ void Hypre::SetDefaultOptions()
 
    // Where to execute when using UVM (default)
    // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
+#endif
+
+   // TODO 23/11/28: introduced in https://github.com/hypre-space/hypre/pull/962,
+   //                not yet in a release
+   // #if MFEM_HYPRE_VERSION >= 23100
+   // if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+   // {
+   //    HYPRE_DeviceInitialize();
+   // }
+   // #endif
 
    // Use GPU-based random number generator (default)
    // HYPRE_SetUseGpuRand(1);
@@ -540,10 +562,12 @@ void HypreParMatrix::Init()
 
 void HypreParMatrix::Read(MemoryClass mc) const
 {
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+#if MFEM_HYPRE_VERSION >= 22600
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      mc = Device::GetHostMemoryClass();
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
    }
+#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -556,19 +580,26 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
-                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#if MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#else // MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#endif // MFEM_HYPRE_VERSION >= 22600
    diag->memory_location = ml;
    offd->memory_location = ml;
-#endif
+#endif // MFEM_HYPRE_VERSION >= 21800
 }
 
 void HypreParMatrix::ReadWrite(MemoryClass mc)
 {
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+#if MFEM_HYPRE_VERSION >= 22600
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      mc = Device::GetHostMemoryClass();
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
    }
+#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    const int num_rows = NumRows();
@@ -581,19 +612,26 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
-                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#if MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#else // MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#endif // MFEM_HYPRE_VERSION >= 22600
    diag->memory_location = ml;
    offd->memory_location = ml;
-#endif
+#endif // MFEM_HYPRE_VERSION >= 21800
 }
 
 void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 {
-   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST)
+#if MFEM_HYPRE_VERSION >= 22600
+   if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
-      mc = Device::GetHostMemoryClass();
+      MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass in DEVICE");
    }
+#endif
    hypre_CSRMatrix *diag = hypre_ParCSRMatrixDiag(A);
    hypre_CSRMatrix *offd = hypre_ParCSRMatrixOffd(A);
    if (set_diag)
@@ -609,11 +647,16 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-   decltype(diag->memory_location) ml = (mc == MemoryClass::HOST) ?
-                                        HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#if MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
+#else // MFEM_HYPRE_VERSION >= 22600
+   decltype(diag->memory_location) ml =
+      (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
+#endif // MFEM_HYPRE_VERSION >= 22600
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
-#endif
+#endif // MFEM_HYPRE_VERSION >= 21800
 }
 
 HypreParMatrix::HypreParMatrix()
@@ -2442,9 +2485,7 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       }
 
       // Which of the local rows are to be eliminated?
-      //MFEM_HYPRE_FORALL(i, diag_nrows, eliminate_row[i] = 0; ); // TODO TMS
       mfem::forall_switch(HypreUsingGPU(), diag_nrows, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[i] = 0; });
-      //MFEM_HYPRE_FORALL(i, n_ess_dofs, eliminate_row[ess_dofs_d[i]] = 1; ); // TODO TMS
       mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i) { eliminate_row[ess_dofs_d[i]] = 1; });
 
       // Use a matvec communication pattern to find (in eliminate_col) which of
@@ -2466,7 +2507,6 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       {
          send_map_elmts = hypre_ParCSRCommPkgSendMapElmts(comm_pkg);
       }
-      //MFEM_HYPRE_FORALL(i, int_buf_sz,
       mfem::forall_switch(HypreUsingGPU(), int_buf_sz, [=] MFEM_HOST_DEVICE (int i)
       {
          int k = send_map_elmts[i];
@@ -2495,7 +2535,6 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto J = diag->j;
       auto data = diag->data;
 
-      //MFEM_HYPRE_FORALL(i, n_ess_dofs,
       mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
@@ -2534,7 +2573,6 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
    {
       const auto I = offd->i;
       auto data = offd->data;
-      //MFEM_HYPRE_FORALL(i, n_ess_dofs,
       mfem::forall_switch(HypreUsingGPU(), n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
       {
          const int idof = ess_dofs_d[i];
@@ -2556,7 +2594,6 @@ void HypreParMatrix::EliminateBC(const Array<int> &ess_dofs,
       const auto I = offd->i;
       const auto J = offd->j;
       auto data = offd->data;
-      //MFEM_HYPRE_FORALL(i, nrows_offd,
       mfem::forall_switch(HypreUsingGPU(), nrows_offd, [=] MFEM_HOST_DEVICE (int i)
       {
          for (int j=I[i]; j<I[i+1]; ++j)

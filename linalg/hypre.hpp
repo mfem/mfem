@@ -43,19 +43,6 @@
 #error "MFEM_USE_HIP=YES is required when HYPRE is built with HIP!"
 #endif
 
-// MFEM_HYPRE_FORALL is a macro similar to mfem::forall, but it executes on the
-// device that hypre was configured with (no matter what device was selected
-// in MFEM's runtime configuration).
-//#if defined(HYPRE_USING_CUDA)
-//#define MFEM_HYPRE_FORALL(i, N,...) CuWrap1D(N, [=] MFEM_DEVICE      \
-//                                       (int i) {__VA_ARGS__})
-//#elif defined(HYPRE_USING_HIP)
-//#define MFEM_HYPRE_FORALL(i, N,...) HipWrap1D(N, [=] MFEM_DEVICE     \
-//                                        (int i) {__VA_ARGS__})
-//#else
-//#define MFEM_HYPRE_FORALL(i, N,...) for (int i = 0; i < N; i++) { __VA_ARGS__ }
-//#endif
-
 #include "sparsemat.hpp"
 #include "hypre_parcsr.hpp"
 
@@ -141,8 +128,12 @@ inline MemoryClass GetHypreMemoryClass()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
+#if MFEM_HYPRE_VERSION >= 22600
    return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE :
           MemoryClass::HOST;
+#else // MFEM_HYPRE_VERSION >= 22600
+   return MemoryClass::DEVICE;
+#endif // MFEM_HYPRE_VERSION >= 22600
 #endif
 }
 
@@ -154,17 +145,25 @@ inline MemoryType GetHypreMemoryType()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
+#if MFEM_HYPRE_VERSION >= 22600
    return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE :
           Device::GetHostMemoryType();
+#else // MFEM_HYPRE_VERSION >= 22600
+   return MemoryType::DEVICE;
+#endif // MFEM_HYPRE_VERSION >= 22600
 #endif
 }
 
 inline bool HypreUsingGPU()
 {
 #ifdef HYPRE_USING_GPU
+#if MFEM_HYPRE_VERSION >= 22600
    HYPRE_MemoryLocation loc;
    HYPRE_GetMemoryLocation(&loc);
    return loc == HYPRE_MEMORY_DEVICE;
+#else // MFEM_HYPRE_VERSION >= 22600
+   return true;
+#endif // MFEM_HYPRE_VERSION >= 22600
 #else
    return false;
 #endif
