@@ -1263,7 +1263,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
             {
                const int j = d_ess_tdof_list[k];
                d_diag_data[d_diag_i[j]] = 0.0;
-            };
+            });
          }
       }
       else
