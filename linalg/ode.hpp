@@ -184,6 +184,17 @@ public:
    virtual ~ODESolver() { }
 };
 
+/// Abstract class for an ODESolver that has state history implemented as ODEStateData
+class ODESolverWithStates : public ODESolver
+{
+public:
+   /// Returns the StateData
+   virtual ODEStateData& GetState() = 0;
+
+   /// Returns the StateData
+   virtual const ODEStateData& GetState() const = 0;
+};
+
 
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
@@ -411,15 +422,6 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
-/// Abstract class for an ODESolver that has state history implemented as ODEStateData
-class ODESolverWithStates : public ODESolver
-{
-public:
-
-   virtual ODEStateData& GetState() = 0;
-
-   virtual const ODEStateData& GetState() const = 0;
-};
 
 /// Generalized-alpha ODE solver from "A generalized-α method for integrating
 /// the filtered Navier-Stokes equations with a stabilized finite element
