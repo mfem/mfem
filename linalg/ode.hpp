@@ -455,7 +455,7 @@ private:
    static MFEM_EXPORT const double a[1];
 
 public:
-   AB1Solver() : AdamsBashforthSolver(1, a) { RKsolver = nullptr; }
+   AB1Solver() : AdamsBashforthSolver(1, a) { }
 };
 
 /** A 2-stage, 2nd order AB method.  */
