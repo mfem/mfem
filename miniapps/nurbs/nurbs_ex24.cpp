@@ -104,7 +104,10 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
-   if ((prob == 1) && (dim != 3)) MFEM_ABORT("The curl problem is only defined in 3D.")
+   if ((prob == 1) &&(dim != 3))
+   {
+      MFEM_ABORT("The curl problem is only defined in 3D.");
+   }
    int sdim = mesh->SpaceDimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
