@@ -300,7 +300,7 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
-miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
 miniapps/tools/nodal-transfer
 miniapps/tools/ParaView

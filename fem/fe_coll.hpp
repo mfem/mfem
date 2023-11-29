@@ -63,7 +63,7 @@ public:
    /** @brief Returns a DoF transformation object compatible with this basis
        and geometry type.
    */
-   virtual StatelessDofTransformation *
+   virtual const StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const
    { return NULL; }
 
@@ -483,7 +483,7 @@ public:
    int DofForGeometry(Geometry::Type GeomType) const override
    { return ND_dof[GeomType]; }
 
-   StatelessDofTransformation *
+   const StatelessDofTransformation *
    DofTransformationForGeometry(Geometry::Type GeomType) const override;
 
    const int *DofOrderForOrientation(Geometry::Type GeomType,
