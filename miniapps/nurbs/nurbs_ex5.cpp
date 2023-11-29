@@ -1,21 +1,19 @@
-//                                MFEM Example 5
+//                                MFEM Example 5 -- modified for NURBS FE
 //
-// Compile with: make ex5
+// Compile with: make nurbs_ex5
 //
-// Sample runs:  ex5 -m ../data/square-disc.mesh
-//               ex5 -m ../data/star.mesh
-//               ex5 -m ../data/star.mesh -pa
-//               ex5 -m ../data/beam-tet.mesh
-//               ex5 -m ../data/beam-hex.mesh
-//               ex5 -m ../data/beam-hex.mesh -pa
-//               ex5 -m ../data/escher.mesh
-//               ex5 -m ../data/fichera.mesh
+// Sample runs:  nurbs_ex5 -m ../../data/square-nurbs.mesh -o 3
+//               nurbs_ex5 -m ../../data/cube-nurbs.mesh -r 3
+//               nurbs_ex5 -m ../../data/pipe-nurbs-2d.mesh
+//               nurbs_ex5 -m ../../data/beam-tet.mesh
+//               nurbs_ex5 -m ../../data/beam-hex.mesh
+//               nurbs_ex5 -m ../../data/escher.mesh
+//               nurbs_ex5 -m ../../data/fichera.mesh
 //
-// Device sample runs:
-//               ex5 -m ../data/star.mesh -pa -d cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-cuda
-//               ex5 -m ../data/star.mesh -pa -d raja-omp
-//               ex5 -m ../data/beam-hex.mesh -pa -d cuda
+// Device sample runs -- do not work for NURBS:
+//               nurbs_ex5 -m ../../data/square-nurbs -pa -d cuda
+//               nurbs_ex5 -m ../../data/square-nurbs -pa -d raja-cuda
+//               nurbs_ex5 -m ../../data/square-nurbs -pa -d raja-omp
 //
 // Description:  This example code solves a simple 2D/3D mixed Darcy problem
 //               corresponding to the saddle point system
@@ -34,6 +32,11 @@
 //               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
+
+// Sample runs:  nurbs_ex3 -m ../../data/square-nurbs.mesh
+//               nurbs_ex3 -m ../../data/square-nurbs.mesh -o 2
+//               nurbs_ex3 -m ../../data/cube-nurbs.mesh
+
 
 #include "mfem.hpp"
 #include <fstream>
@@ -55,7 +58,8 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../../data/square-nurbs.mesh";
+   int ref_levels = -1;
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -64,6 +68,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -97,8 +103,11 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0)
+      {
+         ref_levels =
+            (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -111,7 +120,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext&& NURBS)//(false) //(mesh->NURBSext)
+   if (mesh->NURBSext&& NURBS)
    {
       hdiv_coll = new NURBS_HDivFECollection(order);
       l2_coll   = new NURBSFECollection(order);
