@@ -30,15 +30,13 @@ protected:
 
 public:
    /** @brief Construct NURBSFiniteElement with given
-       @param D    Reference space dimension
+       @param dim    Reference space dimension
     */
-   NURBSFiniteElement(int dim,int dof)
+   NURBSFiniteElement(int dim)
    {
       ijk = NULL;
       patch = elem = -1;
       kv.SetSize(dim);
-      weights.SetSize(dof);
-      weights = 1.0;
    }
 
    void                 Reset      ()         const { patch = elem = -1; }
@@ -69,7 +67,7 @@ public:
    /// Construct the NURBS1DFiniteElement of order @a p
    NURBS1DFiniteElement(int p)
       : ScalarFiniteElement(1, Geometry::SEGMENT, p + 1, p, FunctionSpace::Qk),
-        NURBSFiniteElement(1,(p + 1)),
+        NURBSFiniteElement(1),
         shape_x(p + 1) { }
 
    virtual void SetOrder() const;
@@ -93,7 +91,7 @@ public:
    NURBS2DFiniteElement(int p)
       : ScalarFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                             FunctionSpace::Qk),
-        NURBSFiniteElement(2, (p + 1)*(p + 1)),
+        NURBSFiniteElement(2),
         u(dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(dof,2)
    { orders[0] = orders[1] = p; }
@@ -102,7 +100,7 @@ public:
    NURBS2DFiniteElement(int px, int py)
       : ScalarFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                             std::max(px, py), FunctionSpace::Qk),
-        NURBSFiniteElement(2, (px + 1)*(py + 1)),
+        NURBSFiniteElement(2),
         u(dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(dof,2)
    { orders[0] = px; orders[1] = py; }
@@ -130,7 +128,7 @@ public:
    NURBS3DFiniteElement(int p)
       : ScalarFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                             FunctionSpace::Qk),
-        NURBSFiniteElement(3, (p + 1)*(p + 1)*(p + 1)),
+        NURBSFiniteElement(3),
         u(dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(dof,3)
@@ -141,7 +139,7 @@ public:
    NURBS3DFiniteElement(int px, int py, int pz)
       : ScalarFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                             std::max(std::max(px,py),pz), FunctionSpace::Qk),
-        NURBSFiniteElement(2, (px + 1)*(py + 1)*(pz + 1)),
+        NURBSFiniteElement(2),
         u(dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(dof,3)
@@ -172,7 +170,7 @@ public:
    NURBS_HDiv2DFiniteElement(int p, int vdim)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_DIV,FunctionSpace::Qk),
-        NURBSFiniteElement(2, 2*(p + 1)*(p + 2)),
+        NURBSFiniteElement(2),
         shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1),
         shape1_x(p + 2), shape1_y(p + 2), dshape1_x(p + 2),
@@ -190,7 +188,7 @@ public:
       : VectorFiniteElement(2, Geometry::SQUARE,
                             (px + 2)*(py + 1)+(px + 1)*(py + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
-        NURBSFiniteElement(2, (px + 2)*(py + 1)+(px + 1)*(py + 2)),
+        NURBSFiniteElement(2),
         shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
         shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
@@ -248,7 +246,7 @@ public:
    NURBS_HDiv3DFiniteElement(int p, int vdim)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 1)*(p + 2),
                             p, H_DIV,FunctionSpace::Qk),
-        NURBSFiniteElement(3, 3*(p + 1)*(p + 1)*(p + 2)),
+        NURBSFiniteElement(3),
         shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1),
@@ -271,10 +269,7 @@ public:
                             (px + 1)*(py + 2)*(pz + 1) +
                             (px + 1)*(py + 1)*(pz + 2),
                             std::max(px, py), H_DIV, FunctionSpace::Qk),
-        NURBSFiniteElement(3,
-                           (px + 2)*(py + 1)*(pz + 1) +
-                           (px + 1)*(py + 2)*(pz + 1) +
-                           (px + 1)*(py + 1)*(pz + 2)),
+        NURBSFiniteElement(3),
         shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1),
@@ -331,7 +326,7 @@ public:
    NURBS_HCurl2DFiniteElement(int p, int vdim)
       : VectorFiniteElement(2, Geometry::SQUARE, 2*(p + 1)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
-        NURBSFiniteElement(2, 2*(p + 1)*(p + 2)),
+        NURBSFiniteElement(2),
         shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
         dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1),
         shape1_x(p + 2), shape1_y(p + 2), dshape1_x(p + 2),
@@ -349,7 +344,7 @@ public:
       : VectorFiniteElement(2, Geometry::SQUARE,
                             (px + 2)*(py + 1)+(px + 1)*(py + 2),
                             std::max(px, py), H_CURL, FunctionSpace::Qk),
-        NURBSFiniteElement(2, (px + 2)*(py + 1)+(px + 1)*(py + 2)),
+        NURBSFiniteElement(2),
         shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
         dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1),
         shape1_x(px + 2), shape1_y(py + 2), dshape1_x(px + 2),
@@ -409,7 +404,7 @@ public:
    NURBS_HCurl3DFiniteElement(int p, int vdim)
       : VectorFiniteElement(3, Geometry::CUBE, 3*(p + 1)*(p + 2)*(p + 2), p,
                             H_CURL,FunctionSpace::Qk),
-        NURBSFiniteElement(3, 3*(p + 1)*(p + 2)*(p + 2)),
+        NURBSFiniteElement(3),
         shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
         d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1),
@@ -432,10 +427,7 @@ public:
                             (px + 2)*(py + 1)*(pz + 2) +
                             (px + 2)*(py + 2)*(pz + 1),
                             std::max(px, py), H_CURL, FunctionSpace::Qk),
-        NURBSFiniteElement(3,
-                           (px + 1)*(py + 2)*(pz + 2) +
-                           (px + 2)*(py + 1)*(pz + 2) +
-                           (px + 2)*(py + 2)*(pz + 1)),
+        NURBSFiniteElement(3),
         shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1),
