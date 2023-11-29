@@ -5075,7 +5075,8 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
+                                          bool interp_refine_)
 {
 #ifdef HYPRE_USING_GPU
    MFEM_ABORT("this method is not supported in hypre built with GPU support");
@@ -5101,7 +5102,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Optionally pre-process the interpolation matrix through iterative weight
    // refinement (this is generally applicable for any system)
-   int interp_refine         = 0;
+   int interp_refine         = interp_refine_;
 
    HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
    HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
