@@ -557,10 +557,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                       gsl_dist_l,
                       n);
 
-      gsl_ref_l.HostRead();
-      gsl_dist_l.HostRead();
-      gsl_code_dev.HostRead();
-      gsl_elem_dev.HostRead();
+      gsl_ref_l.HostReadWrite();
+      gsl_dist_l.HostReadWrite();
+      gsl_code_dev.HostReadWrite();
+      gsl_elem_dev.HostReadWrite();
 
       // unpack arrays into opt
       for (int point = 0; point < n; point++)
