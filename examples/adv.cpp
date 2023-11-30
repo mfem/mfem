@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
    int intOrderOffset = 3;
    int ref_levels = 2;
    int order = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 11;
    double t_final = 2.0;
    double dt = -0.01;
    double cfl = 0.3;
@@ -100,20 +100,8 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1:
-         ode_solver = new ForwardEulerSolver;
-         break;
-      case 2:
-         ode_solver = new RK2Solver(1.0);
-         break;
-      case 3:
-         ode_solver = new RK3SSPSolver;
-         break;
-      case 4:
-         ode_solver = new RK4Solver;
-         break;
-      case 6:
-         ode_solver = new RK6Solver;
+      case 11:
+         ode_solver = new BackwardEulerSolver;
          break;
       default:
          out << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -165,7 +153,8 @@ int main(int argc, char *argv[])
    Vector b(2); b[0] = 1.0; b[1] = 1.0;
    VectorConstantCoefficient b_cf(b);
    AdvectionFormIntegrator adv_fi(new RusanovFlux(), dim, b_cf, intOrderOffset);
-
+   ProxGalerkinPolynomialAlphaMaker alphamaker(1.0, 1.0);
+   ProxGalerkinHCL adv(&fes, &vfes, adv_fi, num_equations, alphamaker);
 
    // Visualize the density
    socketstream sout;
@@ -306,9 +295,7 @@ VectorFunctionCoefficient AdvInitCondition(const int problem)
          return VectorFunctionCoefficient(1, [](const Vector &x, Vector &y)
          {
             MFEM_ASSERT(x.Size() == 2, "");
-
-            y.SetSize(1);
-            y = std::sin(2.0*M_PI*x[0])*std::sin(2.0*M_PI*x[1]);
+            y = std::sin(2.0*M_PI*x[0])*std::sin(2.0*M_PI*x[1]) + 1.0;
          });
       default:
          throw invalid_argument("Problem Undefined");
