@@ -16,6 +16,10 @@ Discretization improvements
 - Introduced support for higher order non conformal Nedelec elements on
   simplices in ParMesh.
 
+- Added functionality for construction of cut-surface and cut-volume
+  IntegrationRules through a moment-fitting approach. The cut is specified by
+  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
+
 Miscellaneous
 -------------
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
