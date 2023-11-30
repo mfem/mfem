@@ -544,7 +544,7 @@ protected:
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
    void Printer(std::ostream &out = mfem::out,
-                std::string section_delimiter = "") const;
+                const std::string &section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
@@ -2013,7 +2013,7 @@ public:
        inserted, 2) the knots inserted as a double. The advantage of this method
        is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
-   void RefineNURBSFromFile(std::string ref_file);
+   void RefineNURBSFromFile(const std::string &ref_file);
    void KnotInsert(Array<KnotVector *> &kv);
    void KnotInsert(Array<Vector *> &kv);
    /* For each knot vector:
@@ -2059,14 +2059,14 @@ public:
                  int compression_level=0,
                  bool bdr_elements=false);
    /** Print the mesh in VTU format with file name fname. */
-   virtual void PrintVTU(std::string fname,
+   virtual void PrintVTU(const std::string &fname,
                          VTKFormat format=VTKFormat::ASCII,
                          bool high_order_output=false,
                          int compression_level=0,
                          bool bdr=false);
    /** Print the boundary elements of the mesh in VTU format, and output the
        boundary attributes as a data array (useful for boundary conditions). */
-   void PrintBdrVTU(std::string fname,
+   void PrintBdrVTU(const std::string &fname,
                     VTKFormat format=VTKFormat::ASCII,
                     bool high_order_output=false,
                     int compression_level=0);

@@ -6297,7 +6297,7 @@ void ParMesh::ParPrint(ostream &os) const
    os << "\nmfem_mesh_end" << endl;
 }
 
-void ParMesh::PrintVTU(std::string pathname,
+void ParMesh::PrintVTU(const std::string &pathname,
                        VTKFormat format,
                        bool high_order_output,
                        int compression_level,

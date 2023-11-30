@@ -662,7 +662,7 @@ public:
    /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
        stored in the directory specified by @a pathname. If the directory does
        not exist, it will be created. */
-   void PrintVTU(std::string pathname,
+   void PrintVTU(const std::string &pathname,
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
