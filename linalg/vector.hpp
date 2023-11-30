@@ -25,6 +25,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <functional>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -322,6 +323,8 @@ public:
 
    /// (*this) = -(*this)
    void Neg();
+
+   void ApplyMap(std::function<double(double)> fun);
 
    /// (*this)(i) = 1.0 / (*this)(i)
    void Reciprocal();

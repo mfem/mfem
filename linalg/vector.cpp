@@ -312,6 +312,13 @@ void Vector::Neg()
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = -y[i]; });
 }
+void Vector::ApplyMap(std::function<double(double)> fun)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = fun(y[i]); });
+}
 
 void Vector::Reciprocal()
 {
