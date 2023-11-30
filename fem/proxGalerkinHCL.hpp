@@ -408,7 +408,14 @@ ProxGalerkinHCL::ProxGalerkinHCL(
      dim(vfes->GetFE(0)->GetDim()),
      num_equations(num_equations),
      alphamaker(alphamaker),
-     TimeDependentOperator(vfes->GetVSize())
+     latent_k(MFEMNew::newGridFunction(vfes)),
+     latent(MFEMNew::newGridFunction(vfes)),
+     delta_dxdt(MFEMNew::newGridFunction(vfes)),
+     delta_latent(MFEMNew::newGridFunction(vfes)),
+     expDiffLatent(latent, [](Vector &y, const Vector &x, ElementTransformation &T,
+   const IntegrationPoint &ip) {y = x; y.ApplyMap([](double x) {return std::exp(x)*(1-x);} ); },
+latent->VectorDim()),
+TimeDependentOperator(vfes->GetVSize())
 {
    // Standard local assembly and inversion for energy mass matrices.
    ComputeInvMass();
@@ -417,17 +424,21 @@ ProxGalerkinHCL::ProxGalerkinHCL(
 
    nonlinearForm->AddDomainIntegrator(&formIntegrator);
    nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
+   latentMinv = MFEMNew::newNonlinearForm(vfes);
+   latentMinv->AddDomainIntegrator(new InverseIntegrator(new
+                                                         VectorMassIntegrator(expDiffLatent)));
 }
 
 void ProxGalerkinHCL::ComputeInvMass()
 {
-   if (M_inv)
-   {
-      delete M_inv;
-   }
+   if (M_inv) { delete M_inv; }
+   if (M) {delete M; }
    M_inv = MFEMNew::newBilinearForm(vfes);
    M_inv->AddDomainIntegrator(new InverseIntegrator(new VectorMassIntegrator()));
    M_inv->Assemble();
+   M = MFEMNew::newBilinearForm(vfes);
+   M->AddDomainIntegrator(new VectorMassIntegrator());
+   M->Assemble();
 }
 
 void ProxGalerkinHCL::Mult(const Vector &x, Vector &y) const
