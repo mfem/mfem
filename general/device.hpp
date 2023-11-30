@@ -144,7 +144,7 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   char *device_option = NULL;
+   std::string device_option;
    Device(Device const&);
    void operator=(Device const&);
    static Device& Get() { return device_singleton; }

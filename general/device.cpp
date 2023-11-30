@@ -150,7 +150,6 @@ Device::~Device()
    if ( device_env && !destroy_mm) { return; }
    if (!device_env &&  destroy_mm && !mem_host_env)
    {
-      free(device_option);
 #ifdef MFEM_USE_CEED
       // Destroy FES -> CeedBasis, CeedElemRestriction hash table contents
       for (auto entry : internal::ceed_basis_map)
@@ -211,7 +210,7 @@ void Device::Configure(const std::string &device, const int device_id)
       {
          const std::string backend = bname.substr(0, option);
          const std::string boption = bname.substr(option+1);
-         Get().device_option = strdup(boption.c_str());
+         Get().device_option = boption;
          std::map<std::string, Backend::Id>::iterator it = bmap.find(backend);
          MFEM_VERIFY(it != bmap.end(), "invalid backend name: '" << backend << '\'');
          Get().MarkBackend(it->second);
@@ -357,7 +356,7 @@ void Device::UpdateMemoryTypeAndClass()
    }
 
    // Enable the UVM shortcut when requested
-   if (device && device_option && !strcmp(device_option, "uvm"))
+   if (device && device_option == "uvm")
    {
       host_mem_type = MemoryType::MANAGED;
       device_mem_type = MemoryType::MANAGED;
@@ -481,14 +480,14 @@ static void OccaDeviceSetup(const int dev)
 #endif
 }
 
-static void CeedDeviceSetup(const char* ceed_spec)
+static void CeedDeviceSetup(const std::string &ceed_spec)
 {
 #ifdef MFEM_USE_CEED
-   CeedInit(ceed_spec, &internal::ceed);
+   CeedInit(ceed_spec.c_str(), &internal::ceed);
    const char *ceed_backend;
    CeedGetResource(internal::ceed, &ceed_backend);
-   if (strcmp(ceed_spec, ceed_backend) && strcmp(ceed_spec, "/cpu/self") &&
-       strcmp(ceed_spec, "/gpu/hip"))
+   if (ceed_spec != ceed_backend && ceed_spec != "/cpu/self" &&
+       ceed_spec != "/gpu/hip")
    {
       mfem::out << std::endl << "WARNING!!!\n"
                 "libCEED is not using the requested backend!!!\n"
@@ -543,7 +542,7 @@ void Device::Setup(const int device_id)
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_CPU))
    {
-      if (!device_option)
+      if (device_option.empty())
       {
          CeedDeviceSetup("/cpu/self");
       }
@@ -554,7 +553,7 @@ void Device::Setup(const int device_id)
    }
    if (Allows(Backend::CEED_CUDA))
    {
-      if (!device_option)
+      if (device_option.empty())
       {
          // NOTE: libCEED's /gpu/cuda/gen backend is non-deterministic!
          CeedDeviceSetup("/gpu/cuda/gen");
@@ -566,7 +565,7 @@ void Device::Setup(const int device_id)
    }
    if (Allows(Backend::CEED_HIP))
    {
-      if (!device_option)
+      if (device_option.empty())
       {
          CeedDeviceSetup("/gpu/hip");
       }
