@@ -464,16 +464,47 @@ void ProxGalerkinHCL::Mult(const Vector &x, Vector &y) const
 void ProxGalerkinHCL::ImplicitSolve(const double dt, const Vector &x,
                                     Vector &dxdt)
 {
-   int k;
+
+   *latent = x;
+   latent->ApplyMap([](double x) {return std::log(x);});
    GridFunction *xnew = MFEMNew::newGridFunction(vfes);
-   Mult(*xnew, dxdt);
-   const double alpha = alphamaker.GetAlpha(k);
-   dxdt.Add(alpha, *latent_k);
-   dxdt.Add(-alpha, *latent);
+   GridFunction *Mrhs = MFEMNew::newGridFunction(vfes);
+   LinearForm *newtonRHS = MFEMNew::newLinearForm(vfes);
+   newtonRHS->AddDomainIntegrator(new VectorDomainLFIntegrator(expDiffLatent));
+   *delta_dxdt = infinity();
+   *delta_latent = infinity();
+   int k=0;
+   dxdt.SetSize(x.Size());
+   dxdt = 0.0;
+   int k=0;
+   while (k++ < maxit & delta_latent->Normlinf() > 1e-07)
+   {
+      double alpha = alphamaker.GetAlpha(k);
+      *latent_k = *latent;
+      while (delta_dxdt->Normlinf() > 1e-07 & delta_latent->Normlinf() > 1e-07)
+      {
+         *delta_dxdt = dxdt;
 
+         *xnew = x;
+         xnew->Add(dt, dxdt);
+         Mult(*xnew, dxdt);
+         dxdt.Add(alpha, *latent_k);
+         dxdt.Add(-alpha, *latent);
 
+         *delta_dxdt -= dxdt;
 
+         *delta_latent = *latent;
 
+         newtonRHS->Assemble();
+         xnew->Add(-1.0, *newtonRHS);
+         M->Mult(*xnew, *Mrhs);
+         latentMinv->Mult(*Mrhs, *latent);
+
+         *delta_latent -= *latent;
+      }
+      *delta_latent = *latent_k;
+      *delta_latent -= *latent;
+   }
 }
 
 } // namespace mfem
