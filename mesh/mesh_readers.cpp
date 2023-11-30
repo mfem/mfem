@@ -3037,9 +3037,9 @@ static void ReadCubitDimensions(const int netcdf_descriptor,
 
 static void ReadCubitBoundaries(const int netcdf_descriptor,
                                 const int num_boundaries,
-                                std::vector<size_t> &num_boundary_elements,
-                                int **boundary_elements,
-                                int **boundary_sides)
+                                vector<size_t> &num_boundary_elements,
+                                vector<vector<int>> &boundary_elements,
+                                vector<vector<int>> &boundary_sides)
 {
    int netcdf_status, variable_id;
 
@@ -3062,15 +3062,15 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
       num_boundary_elements[iboundary] = num_sides;
 
       // 2. Extract elements and sides on each boundary.
-      boundary_elements[iboundary] = new int[num_sides]; // (element, face) pairs.
-      boundary_sides[iboundary] = new int[num_sides];
+      boundary_elements[iboundary].resize(num_sides); // (element, face) pairs.
+      boundary_sides[iboundary].resize(num_sides);
 
       //
       snprintf(string_buffer, buffer_size, "elem_ss%d", iboundary + 1);
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     boundary_elements[iboundary]);
+                                     boundary_elements[iboundary].data());
 
       if (netcdf_status != NC_NOERR) { break; }
 
@@ -3079,7 +3079,7 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     boundary_sides[iboundary]);
+                                     boundary_sides[iboundary].data());
 
       if (netcdf_status != NC_NOERR) { break; }
    }
@@ -3090,7 +3090,8 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
 
 static void ReadCubitElementBlocks(const int netcdf_descriptor,
                                    const int num_element_blocks, const int num_nodes_per_element,
-                                   const std::vector<std::size_t> & num_elements_for_block, int **block_elements)
+                                   const vector<size_t> &num_elements_for_block,
+                                   vector<vector<int>> &block_elements)
 {
    int netcdf_status, variable_id;
 
@@ -3099,8 +3100,8 @@ static void ReadCubitElementBlocks(const int netcdf_descriptor,
 
    for (int iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      block_elements[iblock] = new int[num_elements_for_block[iblock] *
-                                       num_nodes_per_element];
+      block_elements[iblock].resize(
+         num_elements_for_block[iblock]*num_nodes_per_element);
 
       // Write variable name to buffer.
       snprintf(string_buffer, buffer_size, "connect%d", iblock + 1);
@@ -3108,7 +3109,7 @@ static void ReadCubitElementBlocks(const int netcdf_descriptor,
       // Get variable ID and then set all nodes of element in block.
       netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     block_elements[iblock]);
+                                     block_elements[iblock].data());
 
       if (netcdf_status != NC_NOERR) { break; }
    }
@@ -3339,10 +3340,147 @@ static int GetCubitBlockIndexForElement(const int global_element_index,
    return iblock;
 }
 
+mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
+                          const int attribute)
+{
+   Element *new_element = mesh.NewElement(geom);
+   new_element->SetVertices(vertices);
+   new_element->SetAttribute(attribute);
+   return new_element;
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// element type. This is used to create the mesh elements from a Genesis file.
+mfem::Element *CreateCubitElement(Mesh &mesh,
+                                  const int cubit_element_type,
+                                  const int *vertex_ids,
+                                  const int block_id)
+{
+   switch (cubit_element_type)
+   {
+      case ELEMENT_TRI3:
+      case ELEMENT_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, block_id);
+      case ELEMENT_QUAD4:
+      case ELEMENT_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, block_id);
+      case ELEMENT_TET4:
+      case ELEMENT_TET10:
+         return NewElement(mesh, Geometry::TETRAHEDRON, vertex_ids, block_id);
+      case ELEMENT_HEX8:
+      case ELEMENT_HEX27:
+         return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
+      default:
+         MFEM_ABORT("Unsupported cubit element type encountered.");
+         return nullptr;
+   }
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// face type. This is used to create the boundary elements from a Genesis file.
+mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
+                                          const int cubit_face_type,
+                                          const int *vertex_ids,
+                                          const int sideset_id)
+{
+   switch (cubit_face_type)
+   {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
+         return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
+      case FACE_TRI3:
+      case FACE_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
+      case FACE_QUAD4:
+      case FACE_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
+      default:
+         MFEM_ABORT("Unsupported cubit face type encountered.");
+         return nullptr;
+   }
+}
+
+/// @brief The final step in constructing the mesh from a Genesis file. This is
+/// only called if the mesh order == 2 (determined internally from the cubit
+/// element type).
+void FinalizeCubitSecondOrderMesh(Mesh &mesh,
+                                  const int cubit_element_type,
+                                  const int num_element_blocks,
+                                  const int num_nodes_per_element,
+                                  const int *start_of_block,
+                                  const double *coordx,
+                                  const double *coordy,
+                                  const double *coordz,
+                                  const vector<vector<int>> &element_blocks)
+{
+   int *mfem_to_genesis_map = nullptr;
+
+   switch (cubit_element_type)
+   {
+      case ELEMENT_TRI6:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
+         break;
+      case ELEMENT_QUAD9:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
+         break;
+      case ELEMENT_TET10:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
+         break;
+      case ELEMENT_HEX27:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+         break;
+      default:
+         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+   }
+
+   mesh.FinalizeTopology();
+
+   // Define quadratic FE space.
+   const int Dim = mesh.Dimension();
+   FiniteElementCollection *fec = new H1_FECollection(2,3);
+   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
+                                                    Ordering::byVDIM);
+   GridFunction *Nodes = new GridFunction(fes);
+   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+   mesh.SetNodalGridFunction(Nodes, true);
+
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      Array<int> dofs;
+      fes->GetElementDofs(ielement, dofs);
+
+      Array<int> vdofs = dofs;   // Deep copy.
+      fes->DofsToVDofs(vdofs);
+
+      // Find block that element is part of.
+      const int iblock = GetCubitBlockIndexForElement(ielement,
+                                                      num_element_blocks,
+                                                      start_of_block);
+
+      // Find element offset in block.
+      const int element_offset = ielement - start_of_block[iblock];
+      const int node_offset    = element_offset * num_nodes_per_element;
+
+      for (int jnode = 0; jnode < dofs.Size(); jnode++)
+      {
+         const int node_index = element_blocks[iblock][node_offset +
+                                                       mfem_to_genesis_map[jnode] - 1] - 1;
+
+         (*Nodes)(vdofs[jnode])     = coordx[node_index];
+         (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
+
+         if (Dim == 3)
+         {
+            (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
+         }
+      }
+   }
+}
+
 }  // namespace cubit.
 
 
-void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
+void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
    using namespace cubit;
 
@@ -3352,14 +3490,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Setup buffer used to write variable names to.
    int variable_id;
 
-   const int buffer_size = NC_MAX_NAME + 1; // NB: Add 1 for '\0'.
-
-   char variable_name_buffer[buffer_size];
-
    // Open the file.
    int netcdf_status, netcdf_descriptor;
 
-   netcdf_status = nc_open(filename, NC_NOWRITE, &netcdf_descriptor);
+   netcdf_status = nc_open(filename.c_str(), NC_NOWRITE, &netcdf_descriptor);
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 
    // Read important dimensions from file.
@@ -3399,58 +3533,61 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    SetCubitFaceInfo(cubit_face_type, num_face_nodes, num_face_linear_nodes);
 
    // Read the (element, corresponding side) on each of the boundaries.
-   std::vector<size_t> num_boundary_elements(num_boundaries);
+   vector<size_t> num_boundary_elements(num_boundaries);
 
-   int **boundary_elements = new int*[num_boundaries];
-   int **boundary_sides    = new int*[num_boundaries];
+   vector<vector<int>> boundary_elements(num_boundaries);
+   vector<vector<int>> boundary_sides(num_boundaries);
 
    ReadCubitBoundaries(netcdf_descriptor, num_boundaries, num_boundary_elements,
                        boundary_elements, boundary_sides);
 
    // Read the boundary ids.
-   int *boundary_ids = nullptr;
+   vector<int> boundary_ids;
 
    if (num_boundaries > 0)
    {
-      boundary_ids = new int[num_boundaries];
+      boundary_ids.resize(num_boundaries);
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, "ss_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, boundary_ids);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     boundary_ids.data());
 
       if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
    }
 
    // Read the xyz coordinates for each node.
-   double *coordx = new double[num_nodes];
-   double *coordy = new double[num_nodes];
-   double *coordz = (num_dimensions == 3 ? new double[num_nodes] : nullptr);
+   vector<double> coordx(num_nodes);
+   vector<double> coordy(num_nodes);
+   vector<double> coordz(num_dimensions == 3 ? num_nodes : 0);
 
-   ReadCubitNodeCoordinates(netcdf_descriptor, coordx, coordy, coordz);
+   ReadCubitNodeCoordinates(netcdf_descriptor, coordx.data(), coordy.data(),
+                            coordz.data());
 
    // Read the elements that make-up each block.
-   int **block_elements = new int*[num_element_blocks];
+   vector<vector<int>> block_elements(num_element_blocks);
 
    ReadCubitElementBlocks(netcdf_descriptor, num_element_blocks,
                           num_nodes_per_element, num_elements_for_block,
                           block_elements);
 
    // Read the block IDs.
-   int *block_ids = new int[num_element_blocks];
+   vector<int> block_ids(num_element_blocks);
 
    {
       netcdf_status = nc_inq_varid(netcdf_descriptor, "eb_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id, block_ids);
+      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                     block_ids.data());
 
       if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
    }
 
    // Create an array holding the index of the first element in each block. This
    // will allow the determination of the block that each element is in.
-   int *start_of_block = new int[num_element_blocks + 1];
+   vector<int> start_of_block(num_element_blocks + 1);
 
    start_of_block[0] = 0;
 
-   for (int iblock = 1; iblock < num_element_blocks + 1; iblock++)
+   for (size_t iblock = 1; iblock < num_element_blocks + 1; iblock++)
    {
       start_of_block[iblock] = start_of_block[iblock - 1] +
                                num_elements_for_block[iblock - 1];
@@ -3459,15 +3596,15 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Iterate over each boundary. For each boundary, we run through the
    // (element, side) pairs and extract the face nodes of each element on the
    // corresponding side.
-   int **boundary_nodes = new int*[num_boundaries];
+   vector<vector<int>> boundary_nodes(num_boundaries);
 
    // Iterate over boundaries.
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       const int num_elements_on_boundary = num_boundary_elements[iboundary];
       const int num_nodes_on_boundary = num_elements_on_boundary * num_face_nodes;
 
-      boundary_nodes[iboundary] = new int[num_nodes_on_boundary];
+      boundary_nodes[iboundary].resize(num_nodes_on_boundary);
 
       // Iterate over (element, side) pairs on boundary.
       for (int jelement = 0; jelement < num_elements_on_boundary; jelement++)
@@ -3480,7 +3617,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          // Determine the block the element is part-of.
          const int iblock = GetCubitBlockIndexForElement(element_global_index,
                                                          num_element_blocks,
-                                                         start_of_block);
+                                                         start_of_block.data());
 
          const int element_block_offset = element_global_index - start_of_block[iblock];
          const int node_block_offset    = element_block_offset * num_nodes_per_element;
@@ -3546,13 +3683,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // We need another node ID mapping since MFEM needs contiguous vertex ids.
-   std::vector<int> unique_vertex_ids;
+   vector<int> unique_vertex_ids;
 
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      const int *nodes_in_block = block_elements[iblock];
+      const vector<int> &nodes_in_block = block_elements[iblock];
 
-      for (int jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
          const int element_block_offset = jelement * num_nodes_per_element;
 
@@ -3565,9 +3702,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    // Sort and only retain unique node IDs.
    std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
-   std::vector<int>::iterator new_end;
 
-   new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
+   auto new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
    unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 
    // unique_vertex_ids now contains a 1-based sorted list of node IDs for each
@@ -3576,7 +3712,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // ie. [1, 4, 5, 8, 9] --> [1, 2, 3, 4, 5].
    std::map<int,int> cubit_to_mfem_vertex_map;
 
-   for (int ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
+   for (size_t ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
    {
       const int key     = unique_vertex_ids[ivertex];
       const int value   = ivertex + 1;
@@ -3609,18 +3745,18 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   int renumbered_vertex_ids[max(num_element_linear_nodes, num_face_linear_nodes)];
+   std::vector<int> renumbered_vertex_ids(max(num_element_linear_nodes,
+                                              num_face_linear_nodes));
 
    int element_counter = 0;
 
    // Iterate over blocks.
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (size_t iblock = 0; iblock < num_element_blocks; iblock++)
    {
-      const int * nodes_ids_for_block = block_elements[iblock];
+      const vector<int> &nodes_ids_for_block = block_elements[iblock];
 
       // Iterate over elements in block.
-      for (int jelement = 0; jelement < num_elements_for_block[iblock];
-           jelement++)
+      for (size_t jelement = 0; jelement < num_elements_for_block[iblock]; jelement++)
       {
          // Iterate over linear nodes in block.
          for (int knode = 0; knode < num_element_linear_nodes; knode++)
@@ -3633,8 +3769,8 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
 
          // Create element.
-         elements[element_counter++] = CreateCubitElement(cubit_element_type,
-                                                          renumbered_vertex_ids,
+         elements[element_counter++] = CreateCubitElement(*this, cubit_element_type,
+                                                          renumbered_vertex_ids.data(),
                                                           block_ids[iblock]);
       }
    }
@@ -3643,7 +3779,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // Load up the boundary elements.
    //
    NumOfBdrElements = 0;
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
       NumOfBdrElements += num_boundary_elements[iboundary];
    }
@@ -3653,12 +3789,13 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int boundary_counter = 0;
 
    // Iterate over boundaries.
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
    {
-      const int *nodes_on_boundary = boundary_nodes[iboundary];
+      const vector<int> &nodes_on_boundary = boundary_nodes[iboundary];
 
       // Iterate over elements on boundary.
-      for (int jelement = 0; jelement < num_boundary_elements[iboundary]; jelement++)
+      for (size_t jelement = 0; jelement < num_boundary_elements[iboundary];
+           jelement++)
       {
          // Iterate over element's face linear nodes.
          for (int knode = 0; knode < num_face_linear_nodes; knode++)
@@ -3670,8 +3807,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          }
 
          // Create boundary element.
-         boundary[boundary_counter++] = CreateCubitBoundaryElement(cubit_face_type,
-                                                                   renumbered_vertex_ids,
+         boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
+                                                                   cubit_face_type,
+                                                                   renumbered_vertex_ids.data(),
                                                                    boundary_ids[iboundary]);
       }
    }
@@ -3683,219 +3821,19 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       curved = 1;
 
-      FinalizeCubitSecondOrderMesh(cubit_element_type, num_element_blocks,
-                                   num_nodes_per_element, start_of_block, coordx, coordy, coordz,
-                                   (const int **)block_elements);
+      FinalizeCubitSecondOrderMesh(*this,
+                                   cubit_element_type,
+                                   num_element_blocks,
+                                   num_nodes_per_element,
+                                   start_of_block.data(),
+                                   coordx.data(),
+                                   coordy.data(),
+                                   coordz.data(),
+                                   block_elements);
    }
 
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
-
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
-   {
-      delete [] boundary_elements[iboundary];
-      delete [] boundary_sides[iboundary];
-      delete [] boundary_nodes[iboundary];
-   }
-
-   delete [] boundary_elements;
-   delete [] boundary_sides;
-   delete [] boundary_nodes;
-
-   delete [] coordx;
-   delete [] coordy;
-   delete [] coordz;
-
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
-   {
-      delete [] block_elements[iblock];
-   }
-
-   delete [] block_elements;
-   delete [] start_of_block;
-
-   delete [] block_ids;
-   delete [] boundary_ids;
-}
-
-
-void Mesh::FinalizeCubitSecondOrderMesh(const int cubit_element_type,
-                                        const int num_element_blocks,
-                                        const int num_nodes_per_element,
-                                        const int *start_of_block,
-                                        const double *coordx,
-                                        const double *coordy,
-                                        const double *coordz,
-                                        const int **element_blocks)
-{
-   using namespace cubit;
-
-   int *mfem_to_genesis_map = nullptr;
-
-   switch (cubit_element_type)
-   {
-      case ELEMENT_TRI6:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
-         break;
-      }
-      case ELEMENT_QUAD9:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
-         break;
-      }
-      case ELEMENT_TET10:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
-         break;
-      }
-      case ELEMENT_HEX27:
-      {
-         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
-         break;
-      }
-      case ELEMENT_TRI3:
-      case ELEMENT_QUAD4:
-      case ELEMENT_TET4:
-      case ELEMENT_HEX8:
-      default:
-      {
-         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-         break;
-      }
-   }
-
-   FinalizeTopology();
-
-   // Define quadratic FE space.
-   FiniteElementCollection *fec = new H1_FECollection(2,3);
-   FiniteElementSpace *fes = new FiniteElementSpace(this, fec, Dim,
-                                                    Ordering::byVDIM);
-   Nodes = new GridFunction(fes);
-   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
-   own_nodes = 1;
-
-   for (int ielement = 0; ielement < NumOfElements; ielement++)
-   {
-      Array<int> dofs;
-      fes->GetElementDofs(ielement, dofs);
-
-      Array<int> vdofs = dofs;   // Deep copy.
-      fes->DofsToVDofs(vdofs);
-
-      // Find block that element is part of.
-      const int iblock = GetCubitBlockIndexForElement(ielement,
-                                                      num_element_blocks,
-                                                      start_of_block);
-
-      // Find element offset in block.
-      const int element_offset = ielement - start_of_block[iblock];
-      const int node_offset    = element_offset * num_nodes_per_element;
-
-      for (int jnode = 0; jnode < dofs.Size(); jnode++)
-      {
-         const int node_index = element_blocks[iblock][node_offset +
-                                                       mfem_to_genesis_map[jnode] - 1] - 1;
-
-         (*Nodes)(vdofs[jnode])     = coordx[node_index];
-         (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
-
-         if (Dim == 3)
-         {
-            (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
-         }
-      }
-   }
-}
-
-
-mfem::Element *Mesh::CreateCubitElement(const int cubit_element_type,
-                                        const int *vertex_ids,
-                                        const int block_id)
-{
-   using namespace cubit;
-
-   mfem::Element *new_element = nullptr;
-
-   switch (cubit_element_type)
-   {
-      case ELEMENT_TRI3:
-      case ELEMENT_TRI6:
-      {
-         new_element = new Triangle(vertex_ids, block_id);
-         break;
-      }
-      case ELEMENT_QUAD4:
-      case ELEMENT_QUAD9:
-      {
-         new_element = new Quadrilateral(vertex_ids, block_id);
-         break;
-      }
-      case ELEMENT_TET4:
-      case ELEMENT_TET10:
-      {
-#ifdef MFEM_USE_MEMALLOC
-         new_element = TetMemory.Alloc();
-         new_element->SetVertices(vertex_ids);
-         new_element->SetAttribute(block_id);
-#else
-         new_element = new Tetrahedron(vertex_ids, block_id);
-#endif
-         break;
-      }
-      case ELEMENT_HEX8:
-      case ELEMENT_HEX27:
-      {
-         new_element = new Hexahedron(vertex_ids, block_id);
-         break;
-      }
-      default:
-      {
-         MFEM_ABORT("Unsupported cubit element type encountered.");
-         break;
-      }
-   }
-
-   return new_element;
-}
-
-
-mfem::Element *Mesh::CreateCubitBoundaryElement(const int cubit_face_type,
-                                                const int *vertex_ids,
-                                                const int sideset_id) const
-{
-   using namespace cubit;
-
-   mfem::Element *new_element = nullptr;
-
-   switch (cubit_face_type)
-   {
-      case FACE_EDGE2:
-      case FACE_EDGE3:
-      {
-         new_element = new Segment(vertex_ids, sideset_id);
-         break;
-      }
-      case FACE_TRI3:
-      case FACE_TRI6:
-      {
-         new_element = new Triangle(vertex_ids, sideset_id);
-         break;
-      }
-      case FACE_QUAD4:
-      case FACE_QUAD9:
-      {
-         new_element = new Quadrilateral(vertex_ids, sideset_id);
-         break;
-      }
-      default:
-      {
-         MFEM_ABORT("Unsupported cubit face type encountered.");
-         break;
-      }
-   }
-
-   return new_element;
 }
 
 #endif // #ifdef MFEM_USE_NETCDF
