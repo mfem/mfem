@@ -182,7 +182,7 @@ void Device::Configure(const std::string &device, const int device_id)
    // and avoid the 'singleton_device' to destroy the mm.
    if (device_env)
    {
-      std::memcpy(this, &Get(), sizeof(Device));
+      *this = Get();
       Get().destroy_mm = false;
       return;
    }
@@ -245,7 +245,7 @@ void Device::Configure(const std::string &device, const int device_id)
    Enable();
 
    // Copy all data members from the global 'singleton_device' into '*this'.
-   if (this != &Get()) { std::memcpy(this, &Get(), sizeof(Device)); }
+   if (this != &Get()) { *this = Get(); }
 
    // Only '*this' will call the MemoryManager::Destroy() method.
    destroy_mm = true;
