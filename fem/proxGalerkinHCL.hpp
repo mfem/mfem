@@ -235,10 +235,6 @@ private:
    fun;
 };
 
-double lnit(double x){
-   
-}
-
 class Scalar2MatrixMappedGF : public MatrixCoefficient
 {
 public:
