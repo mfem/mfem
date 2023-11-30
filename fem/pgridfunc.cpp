@@ -469,17 +469,16 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no,
-                                                               vdofs);
-   const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
-
-   int dof = fe->GetDof();
+   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
    if (doftrans)
    {
       doftrans->InvTransformPrimal(loc_data);
    }
+
+   const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
+   const int dof = fe->GetDof();
    if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       Vector shape(dof);
@@ -501,7 +500,7 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    else
    {
       int spaceDim = pfes->GetMesh()->SpaceDimension();
-      int vdim = std::max(spaceDim, fe->GetVDim());
+      int vdim = std::max(spaceDim, fe->GetRangeDim());
       DenseMatrix vshape(dof, vdim);
       fe->CalcVShape(T, vshape);
       val.SetSize(vdim);
@@ -694,7 +693,23 @@ void ParGridFunction::ProjectBdrCoefficient(
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
-   pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   if (vcoeff) { pfes->GetEssentialVDofs(attr, ess_vdofs_marker); }
+   else
+   {
+      ess_vdofs_marker.SetSize(Size());
+      ess_vdofs_marker = 0;
+      for (int i = 0; i < fes->GetVDim(); i++)
+      {
+         if (!coeff[i]) { continue; }
+         Array<int> component_dof_marker;
+         pfes->GetEssentialVDofs(attr, component_dof_marker,i);
+         for (int j = 0; j<Size(); j++)
+         {
+            ess_vdofs_marker[j] = bool(ess_vdofs_marker[j]) ||
+                                  bool(component_dof_marker[j]);
+         }
+      }
+   }
    for (int i = 0; i < values_counter.Size(); i++)
    {
       MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
@@ -942,6 +957,103 @@ void ParGridFunction::SaveAsOne(const char *fname, int precision) const
       ofs.precision(precision);
    }
    SaveAsOne(ofs);
+}
+
+void ParGridFunction::SaveAsSerial(const char *fname, int precision,
+                                   int save_rank) const
+{
+   ParMesh *pmesh = ParFESpace()->GetParMesh();
+   Mesh serial_mesh = pmesh->GetSerialMesh(save_rank);
+   GridFunction serialgf = GetSerialGridFunction(save_rank, serial_mesh);
+
+   if (pmesh->GetMyRank() == save_rank)
+   {
+      serialgf.Save(fname, precision);
+   }
+   MPI_Barrier(pmesh->GetComm());
+}
+
+GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
+                                                    Mesh &serial_mesh) const
+{
+   ParFiniteElementSpace *pfespace = ParFESpace();
+   ParMesh *pmesh = pfespace->GetParMesh();
+
+   int vdim = pfespace->GetVDim();
+   auto *fec_serial = FiniteElementCollection::New(pfespace->FEColl()->Name());
+   auto *fespace_serial = new FiniteElementSpace(&serial_mesh,
+                                                 fec_serial,
+                                                 vdim,
+                                                 pfespace->GetOrdering());
+
+   GridFunction gf_serial(fespace_serial);
+   gf_serial.MakeOwner(fec_serial);
+   Array<double> vals;
+   Array<int> dofs;
+   MPI_Status status;
+   int n_send_recv;
+
+   int my_rank = pmesh->GetMyRank(),
+       nranks = pmesh->GetNRanks();
+   MPI_Comm my_comm = pmesh->GetComm();
+
+   int elem_count = 0; // To keep track of element count in serial mesh
+
+   if (my_rank == save_rank)
+   {
+      Vector nodeval;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         fespace_serial->GetElementVDofs(elem_count++, dofs);
+         gf_serial.SetSubVector(dofs, nodeval);
+      }
+
+      for (int p = 0; p < nranks; p++)
+      {
+         if (p == save_rank) { continue; }
+         MPI_Recv(&n_send_recv, 1, MPI_INT, p, 448, my_comm, &status);
+         vals.SetSize(n_send_recv);
+         if (n_send_recv)
+         {
+            MPI_Recv(&vals[0], n_send_recv, MPI_DOUBLE, p, 449, my_comm, &status);
+         }
+         for (int i = 0; i < n_send_recv; )
+         {
+            fespace_serial->GetElementVDofs(elem_count++, dofs);
+            gf_serial.SetSubVector(dofs, &vals[i]);
+            i += dofs.Size();
+         }
+      }
+   } // my_rank == save_rank
+   else
+   {
+      n_send_recv = 0;
+      Vector nodeval;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         const FiniteElement *fe = pfespace->GetFE(e);
+         n_send_recv += vdim*fe->GetDof();
+      }
+      MPI_Send(&n_send_recv, 1, MPI_INT, save_rank, 448, my_comm);
+      vals.Reserve(n_send_recv);
+      vals.SetSize(0);
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         GetElementDofValues(e, nodeval);
+         for (int j = 0; j < nodeval.Size(); j++)
+         {
+            vals.Append(nodeval(j));
+         }
+      }
+      if (n_send_recv)
+      {
+         MPI_Send(&vals[0], n_send_recv, MPI_DOUBLE, save_rank, 449, my_comm);
+      }
+   }
+
+   MPI_Barrier(my_comm);
+   return gf_serial;
 }
 
 #ifdef MFEM_USE_ADIOS2

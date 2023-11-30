@@ -179,6 +179,8 @@ class ND_TetrahedronElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
+   ND_TetDofTransformation doftrans;
+
 public:
    /// Construct the ND_TetrahedronElement of order @a p
    ND_TetrahedronElement(const int p);
@@ -199,6 +201,8 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -238,6 +242,8 @@ class ND_TriangleElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
+   ND_TriDofTransformation doftrans;
+
 public:
    /// Construct the ND_TriangleElement of order @a p
    ND_TriangleElement(const int p);
@@ -258,6 +264,8 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -338,6 +346,8 @@ private:
 #endif
    Array<int> dof2tk, t_dof, s_dof;
 
+   ND_WedgeDofTransformation doftrans;
+
    H1_TriangleElement H1TriangleFE;
    ND_TriangleElement NDTriangleFE;
    H1_SegmentElement  H1SegmentFE;
@@ -368,6 +378,9 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
 
    using FiniteElement::Project;
 

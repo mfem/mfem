@@ -536,8 +536,10 @@ int main(int argc, char *argv[])
       if (!sout)
       {
          if (Mpi::Root())
+         {
             cout << "Unable to connect to GLVis server at "
                  << vishost << ':' << visport << endl;
+         }
          visualization = false;
          if (Mpi::Root())
          {
@@ -552,8 +554,10 @@ int main(int argc, char *argv[])
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
+         {
             cout << "GLVis visualization paused."
                  << " Press space (in the GLVis window) to resume it.\n";
+         }
       }
    }
 
@@ -655,9 +659,9 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                            const Vector &b_, PrecType prec_type)
-   : TimeDependentOperator(M_.Height()), b(b_),
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
      M_solver(M_.ParFESpace()->GetComm()),
-     z(M_.Height())
+     z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {

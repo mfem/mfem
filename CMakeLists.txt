@@ -57,7 +57,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.5.3)
+set(${PROJECT_NAME}_VERSION 4.6.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -82,7 +82,7 @@ if (MFEM_USE_CONDUIT OR
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
@@ -138,11 +138,10 @@ if (MFEM_USE_CUDA)
       set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS})
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
+   find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
-   set(CUSPARSE_LIBRARIES "cusparse")
-   set(CUBLAS_FOUND TRUE)
-   set(CUBLAS_LIBRARIES "cublas")
+   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -317,6 +316,9 @@ if (MFEM_USE_SUNDIALS)
   if (MFEM_USE_CUDA)
     list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
   endif()
+  if (MFEM_USE_HIP)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Hip)
+  endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
 endif()
 
@@ -333,6 +335,7 @@ endif()
 if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
+    set(MFEM_MUMPS_VERSION ${MUMPS_VERSION})
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
@@ -466,10 +469,16 @@ if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
 endif()
 
+# MKL CPardiso
 if (MFEM_USE_MKL_CPARDISO)
   if (MFEM_USE_MPI)
    find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
   endif()
+endif()
+
+# MKL Pardiso
+if (MFEM_USE_MKL_PARDISO)
+   find_package(MKL_PARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64)
 endif()
 
 # PARELAG
@@ -521,8 +530,8 @@ find_package(Threads REQUIRED)
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
+    ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
+    BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -631,16 +640,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   foreach(Header mfem.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
-    file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/${Header}.tmp"
 "// Auto-generated file.
 #define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+    )
+
     # This version will be installed in the top include directory:
-    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
 "// Auto-generated file.
 #include \"mfem/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+    )
+
   endforeach()
 endif()
 
