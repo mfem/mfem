@@ -297,7 +297,8 @@ public:
 class ProxGalerkinPolynomialAlphaMaker : public ProxGalerkinAlphaMaker
 {
 public:
-   ProxGalerkinPolynomialAlphaMaker(const double alpha0, const double degree):alpha0(alpha0), degree(degree),
+   ProxGalerkinPolynomialAlphaMaker(const double alpha0,
+                                    const double degree):alpha0(alpha0), degree(degree),
       ProxGalerkinAlphaMaker() {}
    virtual double GetAlpha(const int k) {return alpha0*std::pow(k, degree);}
 protected:
@@ -308,7 +309,8 @@ protected:
 class ProxGalerkinExponentialAlphaMaker : public ProxGalerkinAlphaMaker
 {
 public:
-   ProxGalerkinExponentialAlphaMaker(const double alpha0, const double base):alpha0(alpha0), base(base),
+   ProxGalerkinExponentialAlphaMaker(const double alpha0,
+                                     const double base):alpha0(alpha0), base(base),
       ProxGalerkinAlphaMaker() {}
    virtual double GetAlpha(const int k) {return alpha0*std::pow(base, k);}
 protected:
@@ -334,9 +336,13 @@ private:
    // auxiliary variable used in Mult
    mutable Vector z;
    ProxGalerkinAlphaMaker alphamaker;
-   GridFunction *latent_k, *latent, *delta_latent;
+   GridFunction *latent_k, *latent, *delta_latent, *delta_dxdt;
+   BilinearForm *M;
+   NonlinearForm *latentMinv;
+   Vector2VectorMappedGF expDiffLatent;
    const int dim;
    const int num_equations;
+   const int maxit = 1e03;
 
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
