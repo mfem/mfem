@@ -6123,7 +6123,7 @@ void NCMesh::LoadLegacyFormat(std::istream &input, int &curved, int &is_nc)
    input >> std::ws >> ident;
    if (ident != "nodes")
    {
-      spaceDim = atoi(ident.c_str());
+      spaceDim = stoi(ident);
 
       coordinates.SetSize(3*nvert);
       coordinates = 0.0;

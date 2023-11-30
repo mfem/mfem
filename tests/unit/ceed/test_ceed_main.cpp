@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
    {
       return result;
    }
-   mfem::Device device(device_str.c_str());
+   mfem::Device device(device_str);
    result = session.run();
    return result;
 }

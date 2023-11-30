@@ -33,7 +33,7 @@ TEST_CASE("Save and load file", "[zlib]")
    SECTION("Save compressed mesh saved with bool argument")
    {
       // Load compressed mesh and create new mesh object.
-      Mesh loaded_mesh(mesh_name.c_str());
+      Mesh loaded_mesh(mesh_name);
 
       REQUIRE(mesh.Dimension() == loaded_mesh.Dimension());
       REQUIRE(std::remove(mesh_name.c_str()) == 0);
@@ -50,7 +50,7 @@ TEST_CASE("Save and load file", "[zlib]")
    SECTION("Load compressed mesh saved with string argument")
    {
       // Load compressed mesh and create new mesh object.
-      Mesh loaded_mesh(mesh_name.c_str());
+      Mesh loaded_mesh(mesh_name);
 
       REQUIRE(mesh.Dimension() == loaded_mesh.Dimension());
       REQUIRE(std::remove(mesh_name.c_str()) == 0);

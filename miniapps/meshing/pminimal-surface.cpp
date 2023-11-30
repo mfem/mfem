@@ -284,14 +284,14 @@ public:
 
       std::ostringstream mesh_name;
       mesh_name << mesh_file << "." << std::setfill('0') << std::setw(6) << opt.id;
-      std::ofstream mesh_ofs(mesh_name.str().c_str());
+      std::ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
       mesh_ofs.close();
 
       std::ostringstream sol_name;
       sol_name << sol_file << "." << std::setfill('0') << std::setw(6) << opt.id;
-      std::ofstream sol_ofs(sol_name.str().c_str());
+      std::ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       sol->Save(sol_ofs);
       sol_ofs.close();

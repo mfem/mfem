@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
       ostringstream mesh_name;
       mesh_name << "vortex-mesh." << setfill('0')
                 << setw(6) << Mpi::WorldRank();
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(precision);
       mesh_ofs << pmesh;
 
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init."
                   << setfill('0') << setw(6) << Mpi::WorldRank();
-         ofstream sol_ofs(sol_name.str().c_str());
+         ofstream sol_ofs(sol_name.str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final."
                << setfill('0') << setw(6) << Mpi::WorldRank();
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
    }

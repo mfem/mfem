@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
          GridFunction uk(&fes, u_block.GetBlock(k));
          ostringstream sol_name;
          sol_name << "vortex-" << k << "-init.gf";
-         ofstream sol_ofs(sol_name.str().c_str());
+         ofstream sol_ofs(sol_name.str());
          sol_ofs.precision(precision);
          sol_ofs << uk;
       }
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
       GridFunction uk(&fes, u_block.GetBlock(k));
       ostringstream sol_name;
       sol_name << "vortex-" << k << "-final.gf";
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(precision);
       sol_ofs << uk;
    }

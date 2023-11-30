@@ -222,15 +222,15 @@ int main(int argc, char *argv[])
       sol_name << "sol." << setfill('0') << setw(6) << myid;
       flux_name << "flux." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh.Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
 
-      ofstream flux_ofs(flux_name.str().c_str());
+      ofstream flux_ofs(flux_name.str());
       flux_ofs.precision(8);
       flux.Save(flux_ofs);
    }

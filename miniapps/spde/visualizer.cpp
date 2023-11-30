@@ -44,7 +44,7 @@ void Visualizer::SendToGLVis() const
    int process_rank = Mpi::WorldRank();
    socketstream uout;
    std::ostringstream oss_u;
-   uout.open(vishost.c_str(), visport);
+   uout.open(vishost, visport);
    uout.precision(8);
    oss_u.str("");
    oss_u.clear();
@@ -62,7 +62,7 @@ void Visualizer::SendToGLVis() const
 
    socketstream vout;
    std::ostringstream oss_v;
-   vout.open(vishost.c_str(), visport);
+   vout.open(vishost, visport);
    vout.precision(8);
    oss_v.str("");
    oss_v.clear();
@@ -75,7 +75,7 @@ void Visualizer::SendToGLVis() const
 
    socketstream wout;
    std::ostringstream oss_w;
-   wout.open(vishost.c_str(), visport);
+   wout.open(vishost, visport);
    wout.precision(8);
    oss_w.str("");
    oss_w.clear();
@@ -88,7 +88,7 @@ void Visualizer::SendToGLVis() const
 
    socketstream lout;
    std::ostringstream oss_l;
-   lout.open(vishost.c_str(), visport);
+   lout.open(vishost, visport);
    lout.precision(8);
    oss_l.str("");
    oss_l.clear();

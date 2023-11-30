@@ -172,9 +172,8 @@ void adios2stream::EndStep()
 {
    if (!engine || !active_step)
    {
-      const std::string message = "MFEM adios2stream error: calling EndStep "
-                                  "on uninitialized step (need BeginStep)";
-      mfem_error(message.c_str());
+      MFEM_ABORT("MFEM adios2stream error: calling EndStep "
+                 "on uninitialized step (need BeginStep)");
    }
 
    SafeDefineAttribute<std::string>(io, "vtk.xml", VTKSchema() );
@@ -524,10 +523,8 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
    }
    catch (std::exception& e)
    {
-      const std::string warning =
-         "MFEM: adios2stream exception caught, invalid bp dataset: " + name +
-         "," + e.what();
-      mfem_warning( warning.c_str());
+      MFEM_WARNING("MFEM: adios2stream exception caught, invalid bp dataset: "
+                   << name << "," << e.what());
    }
 }
 
@@ -769,10 +766,8 @@ noexcept
          adios2Mode = adios2::Mode::Read;
          break;
       default:
-         const std::string message = "MFEM adios2stream ERROR: only "
-                                     "openmode::out and openmode::in "
-                                     " are valid, in call to adios2stream constructor";
-         mfem_error(message.c_str());
+         MFEM_ABORT("MFEM adios2stream ERROR: only openmode::out and openmode::in "
+                    "are valid, in call to adios2stream constructor");
    }
    return adios2Mode;
 }

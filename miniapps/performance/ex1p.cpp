@@ -533,11 +533,11 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }

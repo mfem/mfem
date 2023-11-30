@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
          device_config = device->second;
       }
    }
-   Device device(device_config.c_str());
+   Device device(device_config);
    device.Print();
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return 1; }

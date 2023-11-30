@@ -247,11 +247,11 @@ int main(int argc, char *argv[])
       mesh_name << "cond.mesh";
       cond_name << "cond_j.gf";
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       mesh_cond.Print(mesh_ofs);
 
-      ofstream cond_ofs(cond_name.str().c_str());
+      ofstream cond_ofs(cond_name.str());
       cond_ofs.precision(8);
       j_cond.Save(cond_ofs);
    }
@@ -392,11 +392,11 @@ int main(int argc, char *argv[])
       mesh_name << "refined.mesh";
       sol_name << "sol.gf";
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       mesh.Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
@@ -428,7 +428,7 @@ int main(int argc, char *argv[])
       ostringstream dsol_name;
       dsol_name << "dsol.gf";
 
-      ofstream dsol_ofs(dsol_name.str().c_str());
+      ofstream dsol_ofs(dsol_name.str());
       dsol_ofs.precision(8);
       dx.Save(dsol_ofs);
    }

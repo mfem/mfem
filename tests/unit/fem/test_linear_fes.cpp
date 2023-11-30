@@ -166,7 +166,7 @@ void testGridFunctions(FEColType& fec, Mesh& mesh, int expScalarDofs)
 
       // Save meshes and grid functions in VTK format
       std::string fname = generateMeshFilename(fec, mesh, prefix_path, ".vtk");
-      std::fstream vtkFs( fname.c_str(), std::ios::out);
+      std::fstream vtkFs( fname, std::ios::out);
 
       const int ref = 0;
       mesh.PrintVTK( vtkFs, ref);

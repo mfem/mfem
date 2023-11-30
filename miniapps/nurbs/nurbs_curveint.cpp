@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 
    // 3. Open and write mesh output file
    string mesh_file("sin-fit.mesh");
-   ofstream output(mesh_file.c_str());
+   ofstream output(mesh_file);
 
    output<<"MFEM NURBS mesh v1.0"<<endl;
    output<< endl << "# Square nurbs mesh with a sine fitted at its bottom edge" <<
@@ -225,9 +225,9 @@ int main(int argc, char *argv[])
 
    // Print mesh info to screen
    cout << "=========================================================="<< endl;
-   cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
+   cout << " Attempting to read mesh: " <<mesh_file<< endl ;
    cout << "=========================================================="<< endl;
-   Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
+   Mesh *mesh = new Mesh(mesh_file, 1, 1);
    mesh->PrintInfo();
 
    if (visit)

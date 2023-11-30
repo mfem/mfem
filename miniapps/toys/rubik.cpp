@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
    {
       ostringstream oss;
       oss << "rubik-init.mesh";
-      ofstream ofs(oss.str().c_str());
+      ofstream ofs(oss.str());
       ofs.precision(8);
       mesh.Print(ofs);
       ofs.close();

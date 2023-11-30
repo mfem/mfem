@@ -52,9 +52,8 @@ void ADIOS2DataCollection::Save()
    {
       if (mesh == nullptr)
       {
-         const std::string error_message =
-            "MFEM ADIOS2DataCollection Save error: Mesh is null. Please call SetMesh before Save\n";
-         mfem_error(error_message.c_str());
+         MFEM_ABORT("MFEM ADIOS2DataCollection Save error: Mesh is null. "
+                    "Please call SetMesh before Save.")
       }
       stream->Print(*mesh);
    }

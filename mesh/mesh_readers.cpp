@@ -84,7 +84,7 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
    if (ident != "nodes")
    {
       // read the vertices
-      spaceDim = atoi(ident.c_str());
+      spaceDim = stoi(ident);
       for (int j = 0; j < NumOfVertices; j++)
       {
          for (int i = 0; i < spaceDim; i++)
@@ -2661,7 +2661,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             }
             else
             {
-               num_nodes = atoi(buff.c_str());
+               num_nodes = stoi(buff);
             }
             for (int j=0; j<num_nodes; j++)
             {

@@ -631,12 +631,12 @@ int main(int argc, char *argv[])
       sol_r_name << "ex25p-sol_r." << setfill('0') << setw(6) << myid;
       sol_i_name << "ex25p-sol_i." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
-      ofstream sol_r_ofs(sol_r_name.str().c_str());
-      ofstream sol_i_ofs(sol_i_name.str().c_str());
+      ofstream sol_r_ofs(sol_r_name.str());
+      ofstream sol_i_ofs(sol_i_name.str());
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
       x.real().Save(sol_r_ofs);

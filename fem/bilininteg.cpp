@@ -4192,17 +4192,17 @@ void TangentTraceIntegrator::AssembleTraceFaceMatrix(int elem,
    dim = test_fe.GetDim();
    if (dim == 3)
    {
-      std::string msg =
-         "Trial space should be ND face trace and test space should be a ND vector field in 3D ";
       MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::H_CURL &&
-                  trial_face_fe.GetDim() == 2 && test_fe.GetDim() == 3, msg);
+                  trial_face_fe.GetDim() == 2 && test_fe.GetDim() == 3,
+                  "Trial space should be ND face trace and test space should be"
+                  " a ND vector field in 3D ");
    }
    else
    {
-      std::string msg =
-         "Trial space should be H1 edge trace and test space should be a ND vector field in 2D";
       MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE &&
-                  trial_face_fe.GetDim() == 1 && test_fe.GetDim() == 2, msg);
+                  trial_face_fe.GetDim() == 1 && test_fe.GetDim() == 2,
+                  "Trial space should be H1 edge trace and test space should be"
+                  " a ND vector field in 2D");
    }
    face_ndof = trial_face_fe.GetDof();
    ndof = test_fe.GetDof();

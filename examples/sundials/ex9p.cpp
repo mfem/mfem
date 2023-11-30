@@ -442,10 +442,10 @@ int main(int argc, char *argv[])
       ostringstream mesh_name, sol_name;
       mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
       sol_name << "ex9-init." << setfill('0') << setw(6) << myid;
-      ofstream omesh(mesh_name.str().c_str());
+      ofstream omesh(mesh_name.str());
       omesh.precision(precision);
       pmesh->Print(omesh);
-      ofstream osol(sol_name.str().c_str());
+      ofstream osol(sol_name.str());
       osol.precision(precision);
       u->Save(osol);
    }
@@ -648,7 +648,7 @@ int main(int argc, char *argv[])
       *u = *U;
       ostringstream sol_name;
       sol_name << "ex9-final." << setfill('0') << setw(6) << myid;
-      ofstream osol(sol_name.str().c_str());
+      ofstream osol(sol_name.str());
       osol.precision(precision);
       u->Save(osol);
    }
