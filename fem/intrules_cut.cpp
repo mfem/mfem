@@ -268,7 +268,7 @@ void MomentFittingIntRules::ComputeVolumeWeights1D(ElementTransformation& Tr,
    if (LvlSet->Eval(Tr, ip0) * LvlSet->Eval(Tr, ip1) < 0.)
    {
       Vector tempX(ir.GetNPoints());
-      double length;
+      fptype length;
       if (LvlSet->Eval(Tr, ip0) > 0.)
       {
          length = sir->IntPoint(0).x;
@@ -1197,11 +1197,11 @@ void MomentFittingIntRules::DivFreeBasis2D(const IntegrationPoint& ip,
    {
       Vector a(2);
       a = 0.;
-      a(1) = pow(X(0), (double)(c));
+      a(1) = pow(X(0), (fptype)(c));
 
       Vector b(2);
       b = 0.;
-      b(0) = pow(X(1), (double)(c));
+      b(0) = pow(X(1), (fptype)(c));
 
       shape.SetRow(2 * c, a);
       shape.SetRow(2 * c + 1, b);
@@ -1215,11 +1215,11 @@ void MomentFittingIntRules::DivFreeBasis2D(const IntegrationPoint& ip,
       for (int expo = c; expo > 0; expo--)
       {
          Vector a(2);
-         a(0) = (double)(factorial[expo]) * pow(X(0), (double)(expo))
-                *  pow(X(1), (double)(c - expo));
-         a(1) = -1. * (double)(factorial[expo - 1])
-                * pow(X(0), (double)(expo - 1))
-                * pow(X(1), (double)(c - expo + 1));
+         a(0) = (fptype)(factorial[expo]) * pow(X(0), (fptype)(expo))
+                *  pow(X(1), (fptype)(c - expo));
+         a(1) = -1. * (fptype)(factorial[expo - 1])
+                * pow(X(0), (fptype)(expo - 1))
+                * pow(X(1), (fptype)(c - expo + 1));
 
          shape.SetRow(count, a);
          count++;
@@ -1276,8 +1276,8 @@ void MomentFittingIntRules::mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN,
 
    for (int count = step; count < shape.Height(); count++)
    {
-      double den = 0.;
-      double num = 0.;
+      fptype den = 0.;
+      fptype num = 0.;
 
       for (int ip = 0; ip < ir->GetNPoints(); ip++)
       {
@@ -1291,7 +1291,7 @@ void MomentFittingIntRules::mGSStep(DenseMatrix& shape, DenseTensor& shapeMFN,
          num += u * v * ir->IntPoint(ip).weight;
       }
 
-      double coeff = num / den;
+      fptype coeff = num / den;
 
       Vector s(2);
       Vector t(2);
@@ -1325,8 +1325,8 @@ void MomentFittingIntRules::Basis2D(const IntegrationPoint& ip, Vector& shape)
    {
       for (int expo = 0; expo <= c; expo++)
       {
-         shape(count) = pow(X(0), (double)(expo))
-                        * pow(X(1), (double)(c - expo));
+         shape(count) = pow(X(0), (fptype)(expo))
+                        * pow(X(1), (fptype)(c - expo));
          count++;
       }
    }
@@ -1346,12 +1346,12 @@ void MomentFittingIntRules::BasisAD2D(const IntegrationPoint& ip,
    {
       for (int expo = 0; expo <= c; expo++)
       {
-         shape(count, 0) = .25 * pow(X(0), (double)(expo + 1))
-                           * pow(X(1), (double)(c - expo))
-                           / (double)(expo + 1);
-         shape(count, 1) = .25 * pow(X(0), (double)(expo))
-                           * pow(X(1), (double)(c - expo + 1))
-                           / (double)(c - expo + 1);
+         shape(count, 0) = .25 * pow(X(0), (fptype)(expo + 1))
+                           * pow(X(1), (fptype)(c - expo))
+                           / (fptype)(expo + 1);
+         shape(count, 1) = .25 * pow(X(0), (fptype)(expo))
+                           * pow(X(1), (fptype)(c - expo + 1))
+                           / (fptype)(c - expo + 1);
          count++;
       }
    }
@@ -1371,9 +1371,9 @@ void MomentFittingIntRules::Basis3D(const IntegrationPoint& ip, Vector& shape)
       for (int expo = 0; expo <= c; expo++)
          for (int expo2 = 0; expo2 <= c - expo; expo2++)
          {
-            shape(count) = pow(X(0), (double)(expo))
-                           * pow(X(1), (double)(expo2))
-                           * pow(X(2), (double)(c - expo - expo2));
+            shape(count) = pow(X(0), (fptype)(expo))
+                           * pow(X(1), (fptype)(expo2))
+                           * pow(X(2), (fptype)(c - expo - expo2));
             count++;
          }
 }
@@ -1393,18 +1393,18 @@ void MomentFittingIntRules::BasisAD3D(const IntegrationPoint& ip,
       for (int expo = 0; expo <= c; expo++)
          for (int expo2 = 0; expo2 <= c - expo; expo2++)
          {
-            shape(count, 0) = pow(X(0), (double)(expo + 1))
-                              * pow(X(1), (double)(expo2))
-                              * pow(X(2), (double)(c - expo - expo2))
-                              / (6. * (double)(expo + 1));
-            shape(count, 1) = pow(X(0), (double)(expo))
-                              * pow(X(1), (double)(expo2 + 1))
-                              * pow(X(2), (double)(c - expo - expo2))
-                              / (6. * (double)(expo2 + 1));;
-            shape(count, 2) = pow(X(0), (double)(expo))
-                              * pow(X(1), (double)(expo2))
-                              * pow(X(2), (double)(c - expo - expo2 + 1))
-                              / (6. * (double)(c - expo + expo2 + 1));;
+            shape(count, 0) = pow(X(0), (fptype)(expo + 1))
+                              * pow(X(1), (fptype)(expo2))
+                              * pow(X(2), (fptype)(c - expo - expo2))
+                              / (6. * (fptype)(expo + 1));
+            shape(count, 1) = pow(X(0), (fptype)(expo))
+                              * pow(X(1), (fptype)(expo2 + 1))
+                              * pow(X(2), (fptype)(c - expo - expo2))
+                              / (6. * (fptype)(expo2 + 1));;
+            shape(count, 2) = pow(X(0), (fptype)(expo))
+                              * pow(X(1), (fptype)(expo2))
+                              * pow(X(2), (fptype)(c - expo - expo2 + 1))
+                              / (6. * (fptype)(c - expo + expo2 + 1));;
             count++;
          }
 }
@@ -1574,7 +1574,7 @@ void MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
       {
          Trafo.SetIntPoint(&(sir.IntPoint(ip)));
          LevelSet.GetGradient(Trafo, normal2);
-         double normphys = normal2.Norml2();
+         fptype normphys = normal2.Norml2();
 
          normal = 0.;
          fe->CalcDShape(sir.IntPoint(ip), dshape);
@@ -1584,7 +1584,7 @@ void MomentFittingIntRules::GetSurfaceWeights(ElementTransformation& Tr,
             gradi *= LevelSet(dofs[dof]);
             normal += gradi;
          }
-         double normref = normal.Norml2();
+         fptype normref = normal.Norml2();
          normal *= (-1. / normal.Norml2());
 
          weights(ip) = normphys / normref;
