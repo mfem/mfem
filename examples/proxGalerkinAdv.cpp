@@ -587,7 +587,7 @@ double u0_function(const Vector &x)
                   ry *= s;
                }
                return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
+                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16 + 1;
             }
          }
       }
