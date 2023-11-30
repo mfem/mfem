@@ -139,7 +139,12 @@ public:
    /** Compute the local matrix representation of a bilinear form
        a(u,v) defined on different trial (given by u) and test
        (given by v) spaces. The rows in the local matrix correspond
-       to the test dofs and the columns -- to the trial dofs. */
+       to the test dofs and the columns -- to the trial dofs.
+
+       - Used with MixedBilinearForm::AddDomainIntegrator() to assemble over
+         volumetric elements.
+       - Used with MixedBilinearForm::AddBoundaryIntegrator() to assemble over
+         boundary elements. */
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
@@ -155,7 +160,7 @@ public:
    /** @brief  Integration on faces, interior or boundary, when one uses
                information from the neighbor volumetric elements. Depending on
                the context, the arguments are used in different ways. The output
-               matrix @elmat is always based on the volumetric DOFs.
+               matrix @a elmat is always based on the volumetric DOFs.
 
        - Used with BilinearForm::AddInteriorFaceIntegrator(), where @a el1 and
          @a el2 are the FiniteElements for both sides of the internal face.
@@ -163,7 +168,8 @@ public:
          volumetric neighbor of the boundary face, while @a el2 is dummy and
          should not be used.
        - Used with MixedBilinearForm::AddBdrFaceIntegrator(), where @a el1 and
-         @a el2 are for the (mixed) volumetric neighbor of the boundary face. */
+         @a el2 are the trial and test FiniteElements, respectively, for the
+         volumetric neighbor element of the boundary face. */
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
