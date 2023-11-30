@@ -3451,12 +3451,4 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
    }
 }
 
-TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
-          "[MixedScalarWeakCurlCrossIntegrator]"
-          "[MixedScalarVectorIntegrator]"
-          "[BilinearFormIntegrator]"
-          "[NonlinearFormIntegrator]")
-
-TEST_CASE("2D Mixed Bilinear Integrator AssembleFaceMatrix",)
-
 } // namespace bilininteg_2d
