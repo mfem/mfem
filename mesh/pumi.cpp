@@ -1028,9 +1028,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    bel_to_edge = (AdaptedpMesh->bel_to_edge) ?
                  new Table(*(AdaptedpMesh->bel_to_edge)) : NULL;
 
-   // Copy the boudary-to-edge Array, be_to_edge (2D)
-   AdaptedpMesh->be_to_edge.Copy(be_to_edge);
-
    // Duplicate the faces and faces_info.
    faces.SetSize(AdaptedpMesh->faces.Size());
    for (int i = 0; i < faces.Size(); i++)

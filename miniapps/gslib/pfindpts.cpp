@@ -308,9 +308,8 @@ int main (int argc, char *argv[])
    if (myid == 0 )
    {
       int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
-      double err = 0.0, max_err = 0.0, max_dist = 0.0;
+      double error = 0.0, max_err = 0.0, max_dist = 0.0;
       Vector pos(dim);
-      int npt = 0;
       for (int j = 0; j < vec_dim; j++)
       {
          for (int i = 0; i < pts_cnt; i++)
@@ -330,15 +329,14 @@ int main (int argc, char *argv[])
                }
                Vector exact_val(vec_dim);
                F_exact(pos, exact_val);
-               err = gf_ordering == Ordering::byNODES ?
-                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
-                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
-               max_err  = std::max(max_err, err);
+               error = gf_ordering == Ordering::byNODES ?
+                       fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                       fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
+               max_err  = std::max(max_err, error);
                max_dist = std::max(max_dist, dist_p_out(i));
                if (code_out[i] == 1 && j == 0) { face_pts++; }
             }
             else { if (j == 0) { not_found++; } }
-            npt++;
          }
       }
 

@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
 //     --------------------------------------------------------------------
@@ -1019,7 +1019,7 @@ struct QuarterPeach: public Surface
       for (int i = 0; i < GetNBE(); i++)
       {
          Element *el = GetBdrElement(i);
-         const int fn = GetBdrElementEdgeIndex(i);
+         const int fn = GetBdrElementFaceIndex(i);
          MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
          Array<int> vertices;
          GetFaceVertices(fn, vertices);

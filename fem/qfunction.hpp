@@ -185,7 +185,7 @@ public:
    /// format is VTKFormat::ASCII. Otherwise, zlib compression will be used for
    /// binary data.
    void SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
 
    /// @brief Save the QuadratureFunction to a VTU (ParaView) file.
    ///
@@ -193,7 +193,7 @@ public:
    /// @sa SaveVTU(std::ostream &out, VTKFormat format=VTKFormat::ASCII,
    ///             int compression_level=0)
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
-                int compression_level=0) const;
+                int compression_level=0, const std::string &field_name="u") const;
 
    virtual ~QuadratureFunction()
    {

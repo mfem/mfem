@@ -25,7 +25,7 @@ namespace mfem
                         A^T G^-1 A u  = A^T G^-1 b
     This system results from the minimum residual formulation
                         u = argmin_w ||G^-1(b - Aw)||.
-    Here G is a symmetic positive definite matrix resulting from the discretization of
+    Here G is a symmetric positive definite matrix resulting from the discretization of
     the Riesz operator on the test space. Since the test space is broken
     (discontinuous),  G is defined and inverted element-wise and the assembly
     of the global system is performed in the same manner as the standard FEM method.
