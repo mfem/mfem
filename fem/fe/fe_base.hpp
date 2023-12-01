@@ -20,6 +20,7 @@
 
 namespace mfem
 {
+
 /// Possible basis types. Note that not all elements can use all BasisType(s).
 class BasisType
 {
@@ -595,8 +596,7 @@ public:
 
    /** @brief Return a DofToQuad structure corresponding to the given
        IntegrationRule using the given DofToQuad::Mode and ElementDofOrdering. */
-   /** See the documentation for DofToQuad and ElementDofOrdering for more details.
-   TODO - make this a reference again.*/
+   /** See the documentation for DofToQuad and ElementDofOrdering for more details.*/
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode,
                                          const ElementDofOrdering ordering) const;

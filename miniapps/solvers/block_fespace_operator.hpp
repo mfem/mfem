@@ -15,28 +15,28 @@ namespace mfem
 class BlockFESpaceOperator : public Operator
 {
 private:
-   /// @brief Offsets for the square "A" operator.
+   /// Offsets for the square "A" operator.
    Array<int> offsets;
-   /// @brief Column offsets for the prolongation operator.
+   /// Column offsets for the prolongation operator.
    Array<int> prolongColOffsets;
-   /// @brief Row offsets for the prolongation operator.
+   /// Row offsets for the prolongation operator.
    Array<int> restrictRowOffsets;
-   /// @brief The "A" part of "RAP".
+   /// The "A" part of "RAP".
    BlockOperator A;
-   /// @brief Maps local dofs of each block to true dofs.
+   /// Maps local dofs of each block to true dofs.
    BlockOperator prolongation;
-   /// @brief Maps true dofs of each block to local dofs.
+   /// Maps true dofs of each block to local dofs.
    BlockOperator restriction;
-   /// @brief Computes height for parent operator.
+   /// Computes height for parent operator.
    static int GetHeight(const std::vector<const FiniteElementSpace*>
                         &fespaces);
-   /// @brief Computes offsets for A BlockOperator.
+   /// Computes offsets for A BlockOperator.
    static Array<int> GetBlockOffsets(const std::vector<const FiniteElementSpace*>
                                      &fespaces);
-   /// @brief Computes col_offsets for prolongation operator.
+   /// Computes col_offsets for prolongation operator.
    static Array<int> GetProColBlockOffsets(const
                                            std::vector<const FiniteElementSpace*> &fespaces);
-   /// @brief Computes row_offsets for restriction operator.
+   /// Computes row_offsets for restriction operator.
    static Array<int> GetResRowBlockOffsets(const
                                            std::vector<const FiniteElementSpace*> &fespaces);
 public:

@@ -3005,8 +3005,7 @@ private:
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
-   const FiniteElementSpace
-   *fespace;   ///< Not owned. Not const because it is used in a getter to construct bilinearforms which require non-const fespaces for some reason. Can it be const?
+   const FiniteElementSpace *fespace;   ///< Not owned.
    bool PACalled = false;
 
    //Component integrator
@@ -3033,9 +3032,6 @@ public:
     * performed on host for now, since coefficients do not run on device.
     */
    virtual void AssemblePA(const FiniteElementSpace &fes);
-
-   virtual void AssemblePA (const FiniteElementSpace &,
-                            const FiniteElementSpace &) {MFEM_ABORT("Use other AssemblePA function.");};
 
    /** \brief Only valid for a component version of ElasticityIntegrator.
     */
