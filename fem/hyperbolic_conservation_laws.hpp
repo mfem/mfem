@@ -390,7 +390,9 @@ public:
       return max_char_speed;
    }
 
-   virtual ~DGHyperbolicConservationLaws() {}
+   virtual ~DGHyperbolicConservationLaws() {
+      delete nonlinearForm;
+   }
 };
 
 //////////////////////////////////////////////////////////////////

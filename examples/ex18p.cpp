@@ -387,6 +387,7 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
+   delete numericalFlux;
 
    return 0;
 }
