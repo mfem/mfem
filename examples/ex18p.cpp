@@ -203,10 +203,9 @@ int main(int argc, char *argv[])
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
-
    if (Mpi::Root())
    {
-      out << "Number of unknowns: " << vfes.GetVSize() << endl;
+      out << "Number of unknowns: " << vfes.GlobalTrueVSize() << endl;
    }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
@@ -342,9 +341,8 @@ int main(int argc, char *argv[])
          {
             ParGridFunction mom(&dfes, sol.GetData());
             sout << "parallel " << numProcs << " " << myRank << "\n";
-            sout << "solution\n" << pmesh << mom << flush;
-            sout << "window_title 't = " << t << "'";
-            MPI_Barrier(pmesh.GetComm());
+            sout << "solution\n" << pmesh << mom;
+            sout << "window_title 't = " << t << "'" << flush;
          }
       }
    }
