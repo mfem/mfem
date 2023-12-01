@@ -66,6 +66,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+
 class DG_Solver : public Solver
 {
 private:
@@ -128,6 +129,24 @@ private:
    Solver *M_prec;
    CGSolver M_solver;
    DG_Solver *dg_solver;
+   FiniteElementSpace *fes;
+
+   GridFunction latent;
+   GridFunction latent_k;
+   GridFunction xnew;
+
+   GridFunctionCoefficient latent_cf;
+   GridFunctionCoefficient latent_k_cf;
+   GridFunctionCoefficient xnew_cf;
+   Vector delta_k, delta_latent;
+
+   TransformedCoefficient expLatent_cf;
+   SumCoefficient diff_latent_cf;
+   TransformedCoefficient expResidual_cf;
+
+   LinearForm delta_latent_form;
+   NonlinearForm invExpLatentForm;
+   LinearForm newtonRHS;
 
    mutable Vector z;
 
@@ -138,16 +157,17 @@ public:
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
    virtual ~FE_Evolution();
+   bool postprocess = false;
 };
 
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   problem = 1;
+   const char *mesh_file = "../data/periodic-square-4x4.mesh";
+   int ref_levels = 4;
+   int order = 1;
    bool pa = false;
    bool ea = false;
    bool fa = false;
@@ -160,6 +180,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+   bool applyPostprocess = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -392,6 +413,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
+   adv.postprocess = applyPostprocess;
 
    double t = 0.0;
    adv.SetTime(t);
@@ -450,8 +472,20 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
+   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), fes(M.FESpace()),
+     latent(fes), latent_k(fes), xnew(fes), latent_cf(&latent),
+     latent_k_cf(&latent_k), xnew_cf(&xnew), delta_k(xnew.Size()),
+     delta_latent(latent.Size()), expLatent_cf(&latent_cf, exp),
+     diff_latent_cf(latent_cf, latent_k_cf, -1.0, 1.0), expResidual_cf(&xnew_cf,
+                                                                       &latent_cf, [](double x, double psi) {return x - exp(psi)*(1.0 - psi);}),
+delta_latent_form(fes), invExpLatentForm(fes), newtonRHS(fes), z(M_.Height())
 {
+
+   delta_latent_form.AddDomainIntegrator(new DomainLFIntegrator(diff_latent_cf));
+   // since DG is local space, we can perform inverse element-wise.
+   invExpLatentForm.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator(
+                                                                 expLatent_cf)));
+   newtonRHS.AddDomainIntegrator(new DomainLFIntegrator(expResidual_cf));
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
@@ -485,10 +519,78 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
-   K.Mult(x, z);
-   z += b;
-   dg_solver->SetTimeStep(dt);
-   dg_solver->Mult(z, k);
+
+   k.SetSize(x.Size());
+   k = 0.0;
+
+   latent = x;
+   latent.ApplyMap([](double x) {return x > 0 ? log(x) : -20.0; });
+
+   GridFunction zero_gf(fes);
+   zero_gf = 0.0;
+
+   for (int i=1; i<1e04; i++)
+   {
+      latent_k = latent;
+      for (int j=0; j<1e04; j++)
+      {
+         delta_k = k;
+
+         K.Mult(x, z);
+         z += b;
+         delta_latent_form.Assemble();
+         z.Add(dt*i, delta_latent_form);
+         dg_solver->SetTimeStep(dt);
+         dg_solver->Mult(z, k);
+
+         delta_k -= k;
+
+         xnew = x;
+         xnew.Add(dt, k);
+         latent = x;
+         latent.Add(dt, k);
+         latent.ApplyMap([](double x) {return x > 0 ? log(x) : -20.0;});
+         bool converged = false;
+         for (int jj=0; jj<1e04; jj++)
+         {
+            delta_latent = latent;
+
+            newtonRHS.Assemble();
+            invExpLatentForm.Mult(newtonRHS, latent);
+
+            delta_latent -= latent;
+            if (delta_latent.Normlinf() < 1e-07)
+            {
+               converged = true;
+               break;
+            }
+         }
+         if (!converged) {mfem_warning("Latent failed to converge."); }
+
+         // out << delta_latent.Normlinf() << ", " << delta_k.Normlinf() << std::endl;
+
+         if (delta_latent.Normlinf() < 1e-07 & delta_k.Normlinf() < 1e-07)
+         {
+            out << "\t\tInnerloop convereged in " << j << "steps."<< std::endl;
+            break;
+         }
+      }
+      latent_k -= latent;
+      TransformedCoefficient latent_diff(&latent_k_cf, &latent_cf, [](double x,
+      double xnew) {return exp(x)*(x-xnew);});
+      if (zero_gf.ComputeLpError(infinity(), latent_diff) < 1e-07)
+      {
+         out << "\tOuterloop convereged in " << i << "steps."<< std::endl;
+         break;
+      }
+   }
+   if (postprocess)
+   {
+      k = latent;
+      k.ApplyMap([](double x) {return exp(x); });
+      k -= x;
+      k *= dt;
+   }
 }
 
 FE_Evolution::~FE_Evolution()
@@ -587,7 +689,7 @@ double u0_function(const Vector &x)
                   ry *= s;
                }
                return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16 + 1;
+                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16 + 1e-09;
             }
          }
       }
