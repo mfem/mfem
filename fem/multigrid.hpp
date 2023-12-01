@@ -140,7 +140,7 @@ protected:
 
 public:
    /// Constructs an empty multigrid hierarchy
-   Multigrid() { }
+   Multigrid() = default;
 
    /// Constructs a multigrid hierarchy from the given inputs
    /** Inputs include operators and smoothers on all levels, prolongation
