@@ -1073,7 +1073,7 @@ int main(int argc, char *argv[])
    Vector field_mags;
    Vector fld_weights;
 
-   int precision = 8;
+   int precision = 16;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
@@ -2206,8 +2206,8 @@ int main(int argc, char *argv[])
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
    ThresholdRefiner refiner(estimator);
-   // refiner.SetTotalErrorFraction(0.7);
-   refiner.SetTotalErrorFraction(0.0); // use purely local threshold
+   refiner.SetTotalErrorFraction(0.8);
+   // refiner.SetTotalErrorFraction(0.0); // use purely local threshold
    refiner.SetLocalErrorGoal(max_elem_error);
    refiner.PreferConformingRefinement();
    refiner.SetNCLimit(nc_limit);
@@ -3195,19 +3195,19 @@ public:
 class AMRHeatSource: public Coefficient
 {
 private:
-   double a_, b_, midx_, midy_;
+   double scale_, a_, b_, midx_, midy_;
 
    mutable Vector x_;
 
 public:
-   AMRHeatSource(double a, double b, double midx, double midy)
-      : a_(a), b_(b), midx_(midx), midy_(midy), x_(3) {}
+   AMRHeatSource(double scale, double a, double b, double midx, double midy)
+      : scale_(scale), a_(a), b_(b), midx_(midx), midy_(midy), x_(3) {}
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
    {
       T.Transform(ip, x_);
-      return exp(-(a_ * ((pow(x_[0] - midx_, 2) / b_) + (pow(x_[1] - midy_,
-                                                             2) / b_))));
+      return scale_ * exp(-(a_ * ((pow(x_[0] - midx_, 2) / b_) + (pow(x_[1] - midy_,
+                                                                      2) / b_))));
    }
 };
 
@@ -4152,9 +4152,9 @@ Transport2DCoefFactory::GetScalarCoef(std::string &name, std::istream &input)
    }
    else if (name == "AMRHeatSource")
    {
-      double a, b, midx, midy;
-      input >> a >> b >> midx >> midy;
-      coef_idx = sCoefs.Append(new AMRHeatSource(a, b, midx, midy));
+      double scale, a, b, midx, midy;
+      input >> scale >> a >> b >> midx >> midy;
+      coef_idx = sCoefs.Append(new AMRHeatSource(scale, a, b, midx, midy));
    }
    else if (name == "SinPhi")
    {
