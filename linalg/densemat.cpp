@@ -4211,6 +4211,7 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 
    if (info)
    {
+      M.Print();
       mfem::err << "DenseMatrixSVD::Eval() : info = " << info << endl;
       mfem_error();
    }
