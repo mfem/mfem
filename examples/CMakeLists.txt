@@ -45,6 +45,12 @@ list(APPEND ALL_EXE_SRCS
   ex37.cpp
   )
 
+if(MFEM_USE_LAPACK)
+list(APPEND ALL_EXE_SRCS
+  ex38.cpp
+  )
+endif()
+
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
     ex0p.cpp

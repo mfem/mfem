@@ -384,6 +384,12 @@ void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
    }
 }
 
+ElementTransformation *Mesh::GetElementTransformation(int i)
+{
+   GetElementTransformation(i, &Transformation);
+   return &Transformation;
+}
+
 void Mesh::GetElementTransformation(int i, const Vector &nodes,
                                     IsoparametricTransformation *ElTr)
 {
@@ -426,19 +432,6 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
       }
       ElTr->SetFE(Nodes->FESpace()->GetFE(i));
    }
-}
-
-ElementTransformation *Mesh::GetElementTransformation(int i)
-{
-   GetElementTransformation(i, &Transformation);
-
-   return &Transformation;
-}
-
-ElementTransformation *Mesh::GetBdrElementTransformation(int i)
-{
-   GetBdrElementTransformation(i, &BdrTransformation);
-   return &BdrTransformation;
 }
 
 void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
@@ -499,6 +492,12 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          ElTr->SetFE(face_el);
       }
    }
+}
+
+ElementTransformation *Mesh::GetBdrElementTransformation(int i)
+{
+   GetBdrElementTransformation(i, &BdrTransformation);
+   return &BdrTransformation;
 }
 
 void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
@@ -4139,7 +4138,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       if (mesh_input)
       {
 #ifdef MFEM_USE_NETCDF
-         ReadCubit(mesh_input->filename.c_str(), curved, read_gf);
+         ReadCubit(mesh_input->filename, curved, read_gf);
 #else
          MFEM_ABORT("NetCDF support requires configuration with"
                     " MFEM_USE_NETCDF=YES");

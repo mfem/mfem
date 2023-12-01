@@ -659,8 +659,7 @@ The specific libraries and their options are:
   requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
   includes METIS 5 in its distribution. Starting with STRUMPACK v2.2.0, ParMETIS
   and PT-Scotch are optional dependencies.
-  The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
-  2.0.0 or later.
+  The support for STRUMPACK was added in MFEM v3.3.2.
   URL: http://portal.nersc.gov/project/sparse/strumpack
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
