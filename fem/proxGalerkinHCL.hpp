@@ -335,11 +335,12 @@ private:
    mutable double max_char_speed;
    // auxiliary variable used in Mult
    mutable Vector z;
-   ProxGalerkinAlphaMaker alphamaker;
+   ProxGalerkinAlphaMaker &alphamaker;
    GridFunction *latent_k, *latent, *delta_latent, *delta_dxdt;
    BilinearForm *M;
    NonlinearForm *latentMinv;
-   Vector2VectorMappedGF expDiffLatent;
+   Vector2VectorMappedGF FLatent;
+   Vector2VectorMappedGF NewtonFLatent;
    const int dim;
    const int num_equations;
    const int maxit = 1e03;
@@ -360,7 +361,7 @@ public:
       FiniteElementSpace *vfes,
       HyperbolicFormIntegrator &formIntegrator,
       const int num_equations,
-      ProxGalerkinAlphaMaker alphamaker);
+      ProxGalerkinAlphaMaker &alphamaker);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
     *
@@ -386,7 +387,11 @@ public:
    }
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &dxdt);
 
-   virtual ~ProxGalerkinHCL() {}
+   virtual ~ProxGalerkinHCL()
+   {
+      delete latent_k; delete latent; delete delta_dxdt; delta_latent;
+      delete nonlinearForm; delete latentMinv; delete M_inv; delete M;
+   }
 };
 
 //////////////////////////////////////////////////////////////////
@@ -399,11 +404,12 @@ ProxGalerkinHCL::ProxGalerkinHCL(
    FiniteElementSpace *vfes,
    HyperbolicFormIntegrator &formIntegrator,
    const int num_equations,
-   ProxGalerkinAlphaMaker alphamaker)
+   ProxGalerkinAlphaMaker &alphamaker)
    : fes(fes),
      vfes(vfes),
      formIntegrator(formIntegrator),
      M_inv(nullptr),
+     M(nullptr),
      z(vfes->GetVSize()),
      dim(vfes->GetFE(0)->GetDim()),
      num_equations(num_equations),
@@ -412,8 +418,10 @@ ProxGalerkinHCL::ProxGalerkinHCL(
      latent(MFEMNew::newGridFunction(vfes)),
      delta_dxdt(MFEMNew::newGridFunction(vfes)),
      delta_latent(MFEMNew::newGridFunction(vfes)),
-     expDiffLatent(latent, [](Vector &y, const Vector &x, ElementTransformation &T,
-   const IntegrationPoint &ip) {y = x; y.ApplyMap([](double x) {return std::exp(x)*(1-x);} ); },
+     FLatent(latent, [](Vector &y, const Vector &x, ElementTransformation &T,
+                        const IntegrationPoint &ip) {y = std::exp(x[0]); }, latent->VectorDim()),
+NewtonFLatent(latent, [](Vector &y, const Vector &x, ElementTransformation &T,
+const IntegrationPoint &ip) {y = -std::exp(x[0])*(1.0-x[0]); },
 latent->VectorDim()),
 TimeDependentOperator(vfes->GetVSize())
 {
@@ -426,7 +434,7 @@ TimeDependentOperator(vfes->GetVSize())
    nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
    latentMinv = MFEMNew::newNonlinearForm(vfes);
    latentMinv->AddDomainIntegrator(new InverseIntegrator(new
-                                                         VectorMassIntegrator(expDiffLatent)));
+                                                         VectorMassIntegrator(FLatent)));
 }
 
 void ProxGalerkinHCL::ComputeInvMass()
@@ -470,41 +478,54 @@ void ProxGalerkinHCL::ImplicitSolve(const double dt, const Vector &x,
    GridFunction *xnew = MFEMNew::newGridFunction(vfes);
    GridFunction *Mrhs = MFEMNew::newGridFunction(vfes);
    LinearForm *newtonRHS = MFEMNew::newLinearForm(vfes);
-   newtonRHS->AddDomainIntegrator(new VectorDomainLFIntegrator(expDiffLatent));
+   newtonRHS->AddDomainIntegrator(new VectorDomainLFIntegrator(NewtonFLatent));
+   VectorGridFunctionCoefficient xnew_cf(xnew);
+   newtonRHS->AddDomainIntegrator(new VectorDomainLFIntegrator(xnew_cf));
    *delta_dxdt = infinity();
    *delta_latent = infinity();
-   int k=0;
    dxdt.SetSize(x.Size());
    dxdt = 0.0;
+   *xnew = x;
+   xnew->Add(dt, dxdt);
    int k=0;
    while (k++ < maxit & delta_latent->Normlinf() > 1e-07)
    {
       double alpha = alphamaker.GetAlpha(k);
       *latent_k = *latent;
-      while (delta_dxdt->Normlinf() > 1e-07 & delta_latent->Normlinf() > 1e-07)
+      out << "Step " << k << ", " << alpha << std::endl;
+      while (delta_dxdt->Normlinf() > 1e-07)
       {
          *delta_dxdt = dxdt;
 
-         *xnew = x;
-         xnew->Add(dt, dxdt);
          Mult(*xnew, dxdt);
          dxdt.Add(alpha, *latent_k);
          dxdt.Add(-alpha, *latent);
 
          *delta_dxdt -= dxdt;
 
-         *delta_latent = *latent;
+         *xnew = x;
+         xnew->Add(dt, dxdt);
 
-         newtonRHS->Assemble();
-         xnew->Add(-1.0, *newtonRHS);
-         M->Mult(*xnew, *Mrhs);
-         latentMinv->Mult(*Mrhs, *latent);
+         *delta_latent = infinity();
+         while (delta_latent->Normlinf() > 1e-08)
+         {
+            *delta_latent = *latent;
+            newtonRHS->Assemble();
+            M->Mult(*newtonRHS, *Mrhs);
+            latentMinv->Mult(*Mrhs, *latent);
+            *delta_latent -= *latent;
+            out << latent->Normlinf() << std::endl;
+         }
 
-         *delta_latent -= *latent;
+         out << delta_dxdt->Normlinf() << ", " << delta_latent->Normlinf() << std::endl;
       }
       *delta_latent = *latent_k;
       *delta_latent -= *latent;
    }
+
+   delete xnew;
+   delete Mrhs;
+   delete newtonRHS;
 }
 
 } // namespace mfem
