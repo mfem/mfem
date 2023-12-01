@@ -157,7 +157,7 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    auto Q = Reshape(QVec.ReadWrite(), numPoints, d, qSize, numEls);
    const double *ipWeights = ir.GetWeights().Read();
-   MFEM_FORALL_2D(e, numEls, numPoints,1,1,
+   mfem::forall_2D(numEls, numPoints, 1, [=] MFEM_HOST_DEVICE (int e)
    {
       // for(int p = 0; p < numPoints, )
       MFEM_FOREACH_THREAD(p, x,numPoints)
@@ -232,7 +232,7 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    const auto QRead = Reshape(QVec.Read(), numPoints, d, qSize, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, numEls);
    auto yDev = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
-   MFEM_FORALL_2D(e, numEls, qSize, nDofs,1,
+   mfem::forall_2D(numEls, qSize, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(i, y, nDofs)
       {
@@ -270,7 +270,7 @@ void ElasticityAssembleDiagonalPA(const int nDofs,
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    auto Q = Reshape(QVec.ReadWrite(), numPoints, d,d, d, numEls);
    const double *ipWeights = ir.GetWeights().Read();
-   MFEM_FORALL_2D(e, numEls, numPoints,1,1,
+   mfem::forall_2D(numEls, numPoints,1, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(p, x,numPoints)
       {
@@ -309,7 +309,7 @@ void ElasticityAssembleDiagonalPA(const int nDofs,
    const auto QRead = Reshape(QVec.Read(), numPoints, d, d, d, numEls);
    auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, numEls);
-   MFEM_FORALL_2D(e, numEls, d, nDofs,1,
+   mfem::forall_2D(numEls, d, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(i, y, nDofs)
       {
@@ -350,7 +350,7 @@ void ElasticityAssembleEA(const int IBlock, const int JBlock, const int nDofs,
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto ematDev = Reshape(emat.Write(), nDofs, nDofs, numEls);
    const double *ipWeights = ir.GetWeights().Read();
-   MFEM_FORALL_2D(e, numEls, nDofs,nDofs,1,
+   mfem::forall_2D(numEls, nDofs, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(JDof, y, nDofs)
       {
