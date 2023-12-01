@@ -704,21 +704,21 @@ private:
    /**
     * @brief Compute F(ρ, ρu, E)
     *
-    * @param state state (ρ, ρu, E) at current integration point
+    * @param U U (ρ, ρu, E) at current integration point
     * @param Tr current element transformation with integration point
     * @param FU F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
 public:
-   double ComputeFlux(const Vector &x, ElementTransformation &Tr,
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
                       DenseMatrix &FU)
    {
-      const int dim = x.Size() - 2;
+      const int dim = U.Size() - 2;
 
       // 1. Get states
-      const double density = x(0);                  // ρ
-      const Vector momentum(x.GetData() + 1, dim);  // ρu
-      const double energy = x(1 + dim);             // E, internal energy ρe
+      const double density = U(0);                  // ρ
+      const Vector momentum(U.GetData() + 1, dim);  // ρu
+      const double energy = U(1 + dim);             // E, internal energy ρe
       // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
       const double pressure = (specific_heat_ratio - 1.0) *
                               (energy - 0.5 * (momentum * momentum) / density);
