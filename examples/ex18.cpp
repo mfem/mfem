@@ -39,11 +39,10 @@
 //               We recommend viewing examples 9, 14 and 17 before viewing this
 //               example.
 
+#include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
-#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
