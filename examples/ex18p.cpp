@@ -42,13 +42,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <cmath>
 
 #include "mfem.hpp"
-
-// Classes HyperbolicConservationLaws, RiemannSolver, and FaceIntegrator
-// shared between the serial and parallel version of the example.
-#include "fem/hyperbolic_conservation_laws.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -74,7 +69,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "";
    int IntOrderOffset = 3;
    int ser_ref_levels = 0;
-   int par_ref_levels = 2;
+   int par_ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
    double t_final = 2.0;
