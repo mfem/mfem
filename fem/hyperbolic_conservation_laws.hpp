@@ -38,7 +38,7 @@
 #ifndef MFEM_HYPERBOLIC_CONSERVATION_LAWS
 #define MFEM_HYPERBOLIC_CONSERVATION_LAWS
 
-#include "fem.hpp"
+#include "nonlinearform.hpp"
 namespace mfem
 {
 /**
