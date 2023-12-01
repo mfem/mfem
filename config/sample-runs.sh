@@ -138,7 +138,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -227,7 +227,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"

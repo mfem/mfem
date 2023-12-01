@@ -17,7 +17,7 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the BlockMatrix class, as
+//               The example demonstrates the use of the BlockOperator class, as
 //               well as the collective saving of several grid functions in a
 //               VisIt (visit.llnl.gov) visualization format.
 //

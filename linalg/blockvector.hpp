@@ -75,6 +75,9 @@ public:
    /// Wrap a Vector as a BlockVector
    BlockVector(Vector &v, const Array<int> &bOffsets);
 
+   /// Wrap a Vector as a BlockVector with offset
+   BlockVector(Vector &v, int offset,  const Array<int> &bOffsets);
+
    //! Return the number of blocks
    int NumBlocks() const { return numBlocks; }
 
