@@ -529,7 +529,6 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 
       const double mcs = ComputeFlux(state, Tr, flux);
       // update maximum characteristic speed
-      #pragma omp atomic
       max_char_speed = std::max(mcs, max_char_speed);
       // integrate (F(u,x), grad v)
       AddMult_a_ABt(ip.weight * Tr.Weight(), dshape, flux, elvect_mat);
