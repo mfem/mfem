@@ -342,6 +342,7 @@ private:
    FiniteElementSpace *vfes;
    // Element integration form. Should contain ComputeFlux
    HyperbolicFormIntegrator &formIntegrator;
+   HyperbolicFormIntegrator &faceFormIntegrator;
    // Base Nonlinear Form
    NonlinearForm *nonlinearForm;
    // element-wise inverse mass matrix
@@ -375,6 +376,7 @@ public:
    DGHyperbolicConservationLaws(
       FiniteElementSpace *vfes_,
       HyperbolicFormIntegrator &formIntegrator_,
+      HyperbolicFormIntegrator &faceFormIntegrator_,
       const int num_equations_);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
@@ -400,12 +402,14 @@ public:
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    FiniteElementSpace *vfes_, HyperbolicFormIntegrator &formIntegrator_,
+   HyperbolicFormIntegrator &faceFormIntegrator_,
    const int num_equations_)
    : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
      dim(vfes_->GetFE(0)->GetDim()),
      num_equations(num_equations_),
      vfes(vfes_),
      formIntegrator(formIntegrator_),
+     faceFormIntegrator(faceFormIntegrator_),
      Me_inv(0),
      z(vfes_->GetNDofs() * num_equations_)
 {
@@ -425,9 +429,10 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    }
 #endif
    formIntegrator.resetMaxCharSpeed();
+   faceFormIntegrator.resetMaxCharSpeed();
 
    nonlinearForm->AddDomainIntegrator(&formIntegrator);
-   nonlinearForm->AddInteriorFaceIntegrator(&formIntegrator);
+   nonlinearForm->AddInteriorFaceIntegrator(&faceFormIntegrator);
 
    height = z.Size();
    width = z.Size();
@@ -454,9 +459,10 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
    formIntegrator.resetMaxCharSpeed();
+   faceFormIntegrator.resetMaxCharSpeed();
    // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
    nonlinearForm->Mult(x, z);
-   max_char_speed = formIntegrator.getMaxCharSpeed();
+   max_char_speed = std::max(formIntegrator.getMaxCharSpeed(), faceFormIntegrator.getMaxCharSpeed());
 
    // 2. Multiply element-wise by the inverse mass matrices.
    Vector zval;             // local dual vector storage
@@ -846,10 +852,13 @@ DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
    const int dim = vfes->GetMesh()->Dimension();
    const int num_equations = dim + 2;
 
-   EulerFormIntegrator *elfi = new EulerFormIntegrator(
+   EulerFormIntegrator *enfi = new EulerFormIntegrator(
       numericalFlux, dim, specific_heat_ratio, IntOrderOffset);
 
-   return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
+   EulerFormIntegrator *fnfi = new EulerFormIntegrator(
+      numericalFlux, dim, specific_heat_ratio, IntOrderOffset);
+
+   return DGHyperbolicConservationLaws(vfes, *enfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -924,10 +933,12 @@ DGHyperbolicConservationLaws getBurgersEquation(FiniteElementSpace *vfes,
    const int dim = vfes->GetMesh()->Dimension();
    const int num_equations = 1;
 
-   BurgersFormIntegrator *elfi =
+   BurgersFormIntegrator *enfi =
+      new BurgersFormIntegrator(numericalFlux, dim, IntOrderOffset);
+   BurgersFormIntegrator *fnfi =
       new BurgersFormIntegrator(numericalFlux, dim, IntOrderOffset);
 
-   return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
+   return DGHyperbolicConservationLaws(vfes, *enfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1013,10 +1024,12 @@ DGHyperbolicConservationLaws getAdvectionEquation(FiniteElementSpace *vfes,
    const int dim = vfes->GetMesh()->Dimension();
    const int num_equations = 1;
 
-   AdvectionFormIntegrator *elfi =
+   AdvectionFormIntegrator *enfi =
+      new AdvectionFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
+   AdvectionFormIntegrator *fnfi =
       new AdvectionFormIntegrator(numericalFlux, dim, b, IntOrderOffset);
 
-   return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
+   return DGHyperbolicConservationLaws(vfes, *enfi, *fnfi, num_equations);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1131,10 +1144,12 @@ DGHyperbolicConservationLaws getShallowWaterEquation(
    const int dim = vfes->GetMesh()->Dimension();
    const int num_equations = dim + 1;
 
-   ShallowWaterFormIntegrator *elfi =
+   ShallowWaterFormIntegrator *enfi =
+      new ShallowWaterFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
+   ShallowWaterFormIntegrator *fnfi =
       new ShallowWaterFormIntegrator(numericalFlux, dim, g, IntOrderOffset);
 
-   return DGHyperbolicConservationLaws(vfes, *elfi, num_equations);
+   return DGHyperbolicConservationLaws(vfes, *enfi, *fnfi, num_equations);
 }
 }
 
