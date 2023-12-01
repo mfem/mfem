@@ -173,18 +173,18 @@ public:
     * @brief Compute normal flux. Optionally overloadded in the
     * derived class to avoid creating full dense matrix for flux.
     *
-    * @param[in] state state value at the current integration point
-    * @param[in] nor normal vector (usually not a unit vector)
+    * @param[in] U U value at the current integration point
+    * @param[in] normal normal vector (usually not a unit vector)
     * @param[in] Tr element transformation
-    * @param[out] fluxN normal flux from the given element at the current
+    * @param[out] FUdotN normal flux from the given element at the current
     * integration point
     * @return double maximum characteristic velocity
     */
-   virtual double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                                  ElementTransformation &Tr, Vector &fluxN)
+   virtual double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                                  ElementTransformation &Tr, Vector &FUdotN)
    {
-      double val = ComputeFlux(state, Tr, flux);
-      flux.Mult(nor, fluxN);
+      double val = ComputeFlux(U, Tr, flux);
+      flux.Mult(normal, FUdotN);
       return val;
    }
 
@@ -293,7 +293,7 @@ public:
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans, Vector &u,
-                                   const FiniteElement &fluxelem, Vector &flux,
+                                   const FiniteElement &fluxelem, Vector &FU,
                                    bool with_coef = true,
                                    const IntegrationRule *ir = NULL)
    {
@@ -706,19 +706,19 @@ private:
     *
     * @param state state (ρ, ρu, E) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
+    * @param FU F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
 public:
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
-                      DenseMatrix &flux)
+   double ComputeFlux(const Vector &x, ElementTransformation &Tr,
+                      DenseMatrix &FU)
    {
-      const int dim = state.Size() - 2;
+      const int dim = x.Size() - 2;
 
       // 1. Get states
-      const double density = state(0);                  // ρ
-      const Vector momentum(state.GetData() + 1, dim);  // ρu
-      const double energy = state(1 + dim);             // E, internal energy ρe
+      const double density = x(0);                  // ρ
+      const Vector momentum(x.GetData() + 1, dim);  // ρu
+      const double energy = x(1 + dim);             // E, internal energy ρe
       // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
       const double pressure = (specific_heat_ratio - 1.0) *
                               (energy - 0.5 * (momentum * momentum) / density);
@@ -731,21 +731,21 @@ public:
       // 2. Compute Flux
       for (int d = 0; d < dim; d++)
       {
-         flux(0, d) = momentum(d);  // ρu
+         FU(0, d) = momentum(d);  // ρu
          for (int i = 0; i < dim; i++)
          {
             // ρuuᵀ
-            flux(1 + i, d) = momentum(i) * momentum(d) / density;
+            FU(1 + i, d) = momentum(i) * momentum(d) / density;
          }
          // (ρuuᵀ) + p
-         flux(1 + d, d) += pressure;
+         FU(1 + d, d) += pressure;
       }
       // enthalpy H = e + p/ρ = (E + p)/ρ
       const double H = (energy + pressure) / density;
       for (int d = 0; d < dim; d++)
       {
          // u(E+p) = ρu*(E + p)/ρ = ρu*H
-         flux(1 + dim, d) = momentum(d) * H;
+         FU(1 + dim, d) = momentum(d) * H;
       }
 
       // 3. Compute maximum characteristic speed
@@ -760,21 +760,21 @@ public:
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
     *
-    * @param state state (ρ, ρu, E) at current integration point
-    * @param nor normal vector, usually not a unit vector
+    * @param x x (ρ, ρu, E) at current integration point
+    * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                          ElementTransformation &Tr, Vector &fluxN)
+   double ComputeFluxDotN(const Vector &x, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
    {
-      const int dim = nor.Size();
+      const int dim = normal.Size();
 
       // 1. Get states
-      const double density = state(0);                  // ρ
-      const Vector momentum(state.GetData() + 1, dim);  // ρu
-      const double energy = state(1 + dim);             // E, internal energy ρe
+      const double density = x(0);                  // ρ
+      const Vector momentum(x.GetData() + 1, dim);  // ρu
+      const double energy = x(1 + dim);             // E, internal energy ρe
       // pressure, p = (γ-1)*(E - ½ρ|u|^2)
       const double pressure = (specific_heat_ratio - 1.0) *
                               (energy - 0.5 * (momentum * momentum) / density);
@@ -786,16 +786,16 @@ public:
 
       // 2. Compute normal flux
 
-      fluxN(0) = momentum * nor;  // ρu⋅n
+      FUdotN(0) = momentum * normal;  // ρu⋅n
       // u⋅n
-      const double normal_velocity = fluxN(0) / density;
+      const double normal_velocity = FUdotN(0) / density;
       for (int d = 0; d < dim; d++)
       {
          // (ρuuᵀ + pI)n = ρu*(u⋅n) + pn
-         fluxN(1 + d) = normal_velocity * momentum(d) + pressure * nor(d);
+         FUdotN(1 + d) = normal_velocity * momentum(d) + pressure * normal(d);
       }
       // (u⋅n)(E + p)
-      fluxN(1 + dim) = normal_velocity * (energy + pressure);
+      FUdotN(1 + dim) = normal_velocity * (energy + pressure);
 
       // 3. Compute maximum characteristic speed
 
@@ -865,31 +865,31 @@ public:
    /**
     * @brief Compute F(u)
     *
-    * @param state state (u) at current integration point
+    * @param U U (u) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux F(u) = ½u²*1ᵀ where 1 is (dim x 1) vector
+    * @param FU F(u) = ½u²*1ᵀ where 1 is (dim x 1) vector
     * @return double maximum characteristic speed, |u|
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
-                      DenseMatrix &flux)
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
    {
-      flux = state * state * 0.5;
-      return abs(state(0));
+      FU = U * U * 0.5;
+      return abs(U(0));
    }
    /**
     * @brief Compute normal flux, F(u)n
     *
-    * @param state state (u) at current integration point
-    * @param nor normal vector, usually not a unit vector
+    * @param U U (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param fluxN F(u)n = ½u² 1⋅n
+    * @param FUdotN F(u)n = ½u² 1⋅n
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                          ElementTransformation &Tr, Vector &fluxN)
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
    {
-      fluxN = nor.Sum() * (state * state) * 0.5;
-      return abs(state(0));
+      FUdotN = normal.Sum() * (U * U) * 0.5;
+      return abs(U(0));
    }
 
    /**
@@ -945,34 +945,34 @@ public:
    /**
     * @brief Compute F(u)
     *
-    * @param state state (u) at current integration point
+    * @param U U (u) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux F(u) = ubᵀ
+    * @param FU F(u) = ubᵀ
     * @return double maximum characteristic speed, |b|
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
-                      DenseMatrix &flux)
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
    {
       b.Eval(bval, Tr, Tr.GetIntPoint());
-      MultVWt(state, bval, flux);
+      MultVWt(U, bval, FU);
       return bval.Norml2();
    }
    /**
     * @brief Compute normal flux, F(u)n
     *
-    * @param state state (u) at current integration point
-    * @param nor normal vector, usually not a unit vector
+    * @param U U (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param fluxN F(u)n = u(b⋅n)
+    * @param FUdotN F(u)n = u(b⋅n)
     * @return double maximum characteristic speed, |b|
     */
-   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                          ElementTransformation &Tr, Vector &fluxN)
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
    {
       b.Eval(bval, Tr, Tr.GetIntPoint());
-      const double bN = bval * nor;
-      fluxN = state;
-      fluxN *= bN;
+      const double bN = bval * normal;
+      FUdotN = U;
+      FUdotN *= bN;
       return bval.Norml2();
    }
 
@@ -1033,17 +1033,17 @@ public:
    /**
     * @brief Compute F(h, hu)
     *
-    * @param state state (h, hu) at current integration point
+    * @param U U (h, hu) at current integration point
     * @param Tr current element transformation with integration point
-    * @param flux F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
+    * @param FU F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
     * @return double maximum characteristic speed, |u| + √(gh)
     */
-   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
-                      DenseMatrix &flux)
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
    {
-      const int dim = state.Size() - 1;
-      const double height = state(0);
-      const Vector h_vel(state.GetData() + 1, dim);
+      const int dim = U.Size() - 1;
+      const double height = U(0);
+      const Vector h_vel(U.GetData() + 1, dim);
 
       const double energy = 0.5 * g * (height * height);
 
@@ -1051,12 +1051,12 @@ public:
 
       for (int d = 0; d < dim; d++)
       {
-         flux(0, d) = h_vel(d);
+         FU(0, d) = h_vel(d);
          for (int i = 0; i < dim; i++)
          {
-            flux(1 + i, d) = h_vel(i) * h_vel(d) / height;
+            FU(1 + i, d) = h_vel(i) * h_vel(d) / height;
          }
-         flux(1 + d, d) += energy;
+         FU(1 + d, d) += energy;
       }
 
       const double sound = sqrt(g * height);
@@ -1067,27 +1067,27 @@ public:
    /**
     * @brief Compute normal flux, F(h, hu)
     *
-    * @param state state (h, hu) at current integration point
-    * @param nor normal vector, usually not a unit vector
+    * @param U U (h, hu) at current integration point
+    * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &state, const Vector &nor,
-                          ElementTransformation &Tr, Vector &fluxN)
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
    {
-      const int dim = nor.Size();
-      const double height = state(0);
-      const Vector h_vel(state.GetData() + 1, dim);
+      const int dim = normal.Size();
+      const double height = U(0);
+      const Vector h_vel(U.GetData() + 1, dim);
 
       const double energy = 0.5 * g * (height * height);
 
       MFEM_ASSERT(height >= 0, "Negative Height");
-      fluxN(0) = h_vel * nor;
-      const double normal_vel = fluxN(0) / height;
+      FUdotN(0) = h_vel * normal;
+      const double normal_vel = FUdotN(0) / height;
       for (int i = 0; i < dim; i++)
       {
-         fluxN(1 + i) = normal_vel * h_vel(i) + energy * nor(i);
+         FUdotN(1 + i) = normal_vel * h_vel(i) + energy * normal(i);
       }
 
       const double sound = sqrt(g * height);
