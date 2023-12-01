@@ -237,7 +237,7 @@ void Boundary::AddInhomogeneousDirichletBoundaryCondition(int boundary,
 void Boundary::SetRobinCoefficient(double coefficient)
 {
    robin_coefficient = coefficient;
-};
+}
 
 double IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
                    double alpha, double beta, double gamma, double &glb_err)
@@ -442,7 +442,7 @@ SPDESolver::SPDESolver(double nu, const Boundary &bc,
    restriction_matrix_ = fespace->GetRestrictionMatrix();
    prolongation_matrix_ = fespace->GetProlongationMatrix();
 
-   // Resize the the vectors B and X to the appropriate size
+   // Resize the vectors B and X to the appropriate size
    if (prolongation_matrix_)
    {
       B_.SetSize(prolongation_matrix_->Width());
@@ -549,7 +549,7 @@ void SPDESolver::SetupRandomFieldGenerator(int seed)
       new WhiteGaussianNoiseDomainLFIntegrator(fespace_ptr_->GetComm(), seed);
    b_wn = new ParLinearForm(fespace_ptr_);
    b_wn->AddDomainIntegrator(integ);
-};
+}
 
 void SPDESolver::GenerateRandomField(ParGridFunction &x)
 {
@@ -565,7 +565,7 @@ void SPDESolver::GenerateRandomField(ParGridFunction &x)
 
    // Call back to solve to generate the random field
    Solve(*b_wn, x);
-};
+}
 
 double SPDESolver::ConstructNormalizationCoefficient(double nu, double l1,
                                                      double l2, double l3,

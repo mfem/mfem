@@ -385,17 +385,17 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    }
    int dim = mesh.Dimension();
 
-   FiniteElementCollection *fec;
+   std::unique_ptr<FiniteElementCollection> fec;
    if (prob)
    {
       auto basis = prob==3 ? BasisType::Positive : BasisType::GaussLobatto;
-      fec = new L2_FECollection(order, dim, basis);
+      fec.reset(new L2_FECollection(order, dim, basis));
    }
    else
    {
-      fec = new H1_FECollection(order, dim);
+      fec.reset(new H1_FECollection(order, dim));
    }
-   FiniteElementSpace fespace(&mesh, fec);
+   FiniteElementSpace fespace(&mesh, fec.get());
 
    L2_FECollection vel_fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace vel_fespace(&mesh, &vel_fec, dim);
@@ -405,21 +405,21 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    BilinearForm k_pa(&fespace);
    BilinearForm k_fa(&fespace);
 
-   VectorCoefficient *vel_coeff;
-   Coefficient *rho;
+   std::unique_ptr<VectorCoefficient> vel_coeff;
+   std::unique_ptr<Coefficient> rho;
 
    // prob: 0: CG, 1: DG continuous coeff, 2: DG discontinuous coeff
    if (prob >= 2)
    {
       vel_gf.Randomize(1);
-      vel_coeff = new VectorGridFunctionCoefficient(&vel_gf);
+      vel_coeff.reset(new VectorGridFunctionCoefficient(&vel_gf));
       rho_gf.Randomize(1);
-      rho = new GridFunctionCoefficient(&rho_gf);
+      rho.reset(new GridFunctionCoefficient(&rho_gf));
    }
    else
    {
-      vel_coeff = new VectorFunctionCoefficient(dim, velocity_function);
-      rho = new ConstantCoefficient(1.0);
+      vel_coeff.reset(new VectorFunctionCoefficient(dim, velocity_function));
+      rho.reset(new ConstantCoefficient(1.0));
    }
 
 
@@ -451,10 +451,6 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
    y_pa -= y_fa;
 
    REQUIRE(y_pa.Norml2() < 1.e-12);
-
-   delete vel_coeff;
-   delete rho;
-   delete fec;
 }
 
 // Basic unit tests for convection
@@ -468,7 +464,7 @@ TEST_CASE("PA Convection", "[PartialAssembly], [CUDA]")
    auto prob = GENERATE(0, 1, 2, 3);
    auto order = GENERATE(2);
    // refinement > 0 => Non-conforming mesh
-   auto refinement = GENERATE(0,1);
+   auto refinement = GENERATE(0, 1);
 
    SECTION("2D")
    {
@@ -572,6 +568,62 @@ TEST_CASE("PA Diffusion", "[PartialAssembly], [CUDA]")
 {
    test_pa_integrator<DiffusionIntegrator>();
 } // PA Diffusion test case
+
+TEST_CASE("PA Markers", "[PartialAssembly], [CUDA]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+   auto dg = GENERATE(false, true);
+   CAPTURE(fname, order, dg);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (dg) { fec.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto)); }
+   else { fec.reset(new H1_FECollection(order, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   for (int i = 0; i < mesh.GetNE(); ++i) { mesh.SetAttribute(i, 1 + i%2); }
+   for (int i = 0; i < mesh.GetNBE(); ++i) { mesh.SetBdrAttribute(i, 1 + i%2); }
+   mesh.SetAttributes();
+
+   Array<int> marker(2);
+   marker[0] = 0;
+   marker[1] = 1;
+
+   Vector vel_vec(dim);
+   vel_vec.Randomize(1);
+   VectorConstantCoefficient vel(vel_vec);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddDomainIntegrator(new MassIntegrator, marker);
+   if (dg) { blf_fa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0)); }
+   else { blf_fa.AddBoundaryIntegrator(new MassIntegrator, marker); }
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddDomainIntegrator(new MassIntegrator, marker);
+   if (dg) { blf_pa.AddBdrFaceIntegrator(new DGTraceIntegrator(vel, 1.0)); }
+   else { blf_pa.AddBoundaryIntegrator(new MassIntegrator, marker); }
+   blf_pa.Assemble();
+
+   blf_fa.Mult(x, y_fa);
+   blf_pa.Mult(x, y_pa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+
+   blf_fa.MultTranspose(x, y_fa);
+   blf_pa.MultTranspose(x, y_pa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
 
 TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
 {

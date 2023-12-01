@@ -224,11 +224,10 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const Vector &x_,
                             Vector &y_)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 2;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -244,6 +243,8 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -323,7 +324,7 @@ void PAHcurlHdivMassApply2D(const int D1D,
 
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            double massX[HDIV_MAX_D1D];
+            double massX[DofQuadLimits::HDIV_MAX_D1D];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                massX[dx] = 0.0;
@@ -370,11 +371,10 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const Vector &x_,
                             Vector &y_)
 {
-   constexpr static int MAX_D1D = HCURL_MAX_D1D;
-   constexpr static int MAX_Q1D = HCURL_MAX_Q1D;
-
-   MFEM_VERIFY(D1D <= MAX_D1D, "Error: D1D > MAX_D1D");
-   MFEM_VERIFY(Q1D <= MAX_Q1D, "Error: Q1D > MAX_Q1D");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -395,6 +395,8 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
+
       double mass[MAX_Q1D][MAX_Q1D][MAX_Q1D][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -507,7 +509,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         double massXY[HDIV_MAX_D1D][HDIV_MAX_D1D];
+         double massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
 
          osc = 0;
          for (int c = 0; c < VDIM; ++c)  // loop over x, y, z test components
@@ -528,7 +530,7 @@ void PAHcurlHdivMassApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               double massX[HDIV_MAX_D1D];
+               double massX[DofQuadLimits::HDIV_MAX_D1D];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0.0;

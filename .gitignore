@@ -213,6 +213,7 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
@@ -265,6 +266,8 @@ miniapps/navier/*_output
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_printfunc
+miniapps/nurbs/nurbs_patch_ex1
 miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
@@ -295,9 +298,14 @@ miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
+miniapps/tools/plor-transfer
 miniapps/tools/get-values
 miniapps/tools/check-tmop-metric
 miniapps/tools/tmop-metric-magnitude
+miniapps/tools/nodal-transfer
+miniapps/tools/ParaView
+miniapps/tools/gridfunc_*
+miniapps/tools/mesh_*
 
 miniapps/toys/automata
 miniapps/toys/life
