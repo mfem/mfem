@@ -320,7 +320,8 @@ public:
     * @brief Construct a new DGHyperbolicConservationLaws object
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
-    * @param formIntegrator_ (F(u,x), grad v) and (F̂(u±, x, n), [[v]])
+    * @param formIntegrator_ integrator (F(u,x), grad v)
+    * @param faceFormIntegrator_ integrator (F̂(u±, x, n), [[v]])
     * @param num_equations_ the number of equations
     */
    DGHyperbolicConservationLaws(
