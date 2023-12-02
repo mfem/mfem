@@ -291,8 +291,8 @@ private:
    // Vector finite element space containing conserved variables
    FiniteElementSpace *vfes;
    // Element integration form. Should contain ComputeFlux
-   HyperbolicFormIntegrator &formIntegrator;
-   HyperbolicFormIntegrator &faceFormIntegrator;
+   HyperbolicFormIntegrator *formIntegrator;
+   HyperbolicFormIntegrator *faceFormIntegrator;
    // Base Nonlinear Form
    NonlinearForm *nonlinearForm;
    // element-wise inverse mass matrix
@@ -326,8 +326,8 @@ public:
     */
    DGHyperbolicConservationLaws(
       FiniteElementSpace *vfes_,
-      HyperbolicFormIntegrator &formIntegrator_,
-      HyperbolicFormIntegrator &faceFormIntegrator_,
+      HyperbolicFormIntegrator *formIntegrator_,
+      HyperbolicFormIntegrator *faceFormIntegrator_,
       const int num_equations_);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
@@ -404,25 +404,373 @@ public:
    }
 };
 
-class AdvectionFormIntegrator;
-DGHyperbolicConservationLaws getAdvectionEquation(FiniteElementSpace *vfes,
-                                                  RiemannSolver *numericalFlux,
-                                                  VectorCoefficient &b,
-                                                  const int IntOrderOffset);
-class BurgersFormIntegrator;
-DGHyperbolicConservationLaws getBurgersEquation(FiniteElementSpace *vfes,
-                                                RiemannSolver *numericalFlux,
-                                                const int IntOrderOffset);
-class ShallowWaterFormIntegrator;
-DGHyperbolicConservationLaws getShallowWaterEquation(
-   FiniteElementSpace *vfes, RiemannSolver *numericalFlux, const double g,
-   const int IntOrderOffset);
-class EulerFormIntegrator;
-DGHyperbolicConservationLaws getEulerSystem(FiniteElementSpace *vfes,
-                                            RiemannSolver *numericalFlux,
-                                            const double specific_heat_ratio,
-                                            const int IntOrderOffset);
+class AdvectionFormIntegrator : public HyperbolicFormIntegrator
+{
+private:
+   VectorCoefficient &b;  // velocity coefficient
+   Vector bval;           // velocity value storage
 
+public:
+   /**
+    * @brief Compute F(u)
+    *
+    * @param U U (u) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param FU F(u) = ubᵀ
+    * @return double maximum characteristic speed, |b|
+    */
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
+   {
+      b.Eval(bval, Tr, Tr.GetIntPoint());
+      MultVWt(U, bval, FU);
+      return bval.Norml2();
+   }
+   /**
+    * @brief Compute normal flux, F(u)n
+    *
+    * @param U U (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param FUdotN F(u)n = u(b⋅n)
+    * @return double maximum characteristic speed, |b|
+    */
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
+   {
+      b.Eval(bval, Tr, Tr.GetIntPoint());
+      const double bN = bval * normal;
+      FUdotN = U;
+      FUdotN *= bN;
+      return bval.Norml2();
+   }
+
+   /**
+    * @brief Construct a new Advection Element Form Integrator object with given
+    * integral order offset
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param b_ velocity coefficient, possibly depends on space
+    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    */
+   AdvectionFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                           VectorCoefficient &b_,
+                           const int IntOrderOffset_ = 3)
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_), b(b_),
+        bval(dim) {}
+   /**
+    * @brief Construct a new Advection Element Form Integrator object with given
+    * integral rule
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param b_ velocity coefficient, possibly depends on space
+    * @param ir this integral rule will be used for the Gauss quadrature
+    */
+   AdvectionFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                           VectorCoefficient &b_,
+                           const IntegrationRule *ir)
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim) {}
+};
+class BurgersFormIntegrator : public HyperbolicFormIntegrator
+{
+public:
+   /**
+    * @brief Compute F(u)
+    *
+    * @param U U (u) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param FU F(u) = ½u²*1ᵀ where 1 is (dim x 1) vector
+    * @return double maximum characteristic speed, |u|
+    */
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
+   {
+      FU = U * U * 0.5;
+      return abs(U(0));
+   }
+   /**
+    * @brief Compute normal flux, F(u)n
+    *
+    * @param U U (u) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param FUdotN F(u)n = ½u² 1⋅n
+    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
+   {
+      FUdotN = normal.Sum() * (U * U) * 0.5;
+      return abs(U(0));
+   }
+
+   /**
+    * @brief Construct a new Burgers Element Form Integrator object with given
+    * integral order offset
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    */
+   BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                         const int IntOrderOffset_ = 3)
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_) {}
+   /**
+    * @brief Construct a new Burgers Element Form Integrator object with given
+    * integral rule
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param ir this integral rule will be used for the Gauss quadrature
+    */
+   BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                         const IntegrationRule *ir)
+      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir) {}
+};
+
+class ShallowWaterFormIntegrator : public HyperbolicFormIntegrator
+{
+private:
+   const double g;  // gravity constant
+
+public:
+   /**
+    * @brief Compute F(h, hu)
+    *
+    * @param U U (h, hu) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param FU F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
+    * @return double maximum characteristic speed, |u| + √(gh)
+    */
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
+   {
+      const int dim = U.Size() - 1;
+      const double height = U(0);
+      const Vector h_vel(U.GetData() + 1, dim);
+
+      const double energy = 0.5 * g * (height * height);
+
+      MFEM_ASSERT(height >= 0, "Negative Height");
+
+      for (int d = 0; d < dim; d++)
+      {
+         FU(0, d) = h_vel(d);
+         for (int i = 0; i < dim; i++)
+         {
+            FU(1 + i, d) = h_vel(i) * h_vel(d) / height;
+         }
+         FU(1 + d, d) += energy;
+      }
+
+      const double sound = sqrt(g * height);
+      const double vel = sqrt(h_vel * h_vel) / height;
+
+      return vel + sound;
+   }
+   /**
+    * @brief Compute normal flux, F(h, hu)
+    *
+    * @param U U (h, hu) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   double ComputeFluxDotN(const Vector &U, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
+   {
+      const int dim = normal.Size();
+      const double height = U(0);
+      const Vector h_vel(U.GetData() + 1, dim);
+
+      const double energy = 0.5 * g * (height * height);
+
+      MFEM_ASSERT(height >= 0, "Negative Height");
+      FUdotN(0) = h_vel * normal;
+      const double normal_vel = FUdotN(0) / height;
+      for (int i = 0; i < dim; i++)
+      {
+         FUdotN(1 + i) = normal_vel * h_vel(i) + energy * normal(i);
+      }
+
+      const double sound = sqrt(g * height);
+      const double vel = sqrt(h_vel * h_vel) / height;
+
+      return vel + sound;
+   }
+
+   /**
+    * @brief Construct a new Shallow Water Element Form Integrator object with
+    * given integral order offset
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param g_ gravity constant
+    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    */
+   ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                              const double g_,
+                              const int IntOrderOffset_ = 3)
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_), g(g_) {}
+   /**
+    * @brief Construct a new Shallow Water Element Form Integrator object with
+    * given integral rule
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param g_ gravity constant
+    * @param ir this integral rule will be used for the Gauss quadrature
+    */
+   ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                              const double g_,
+                              const IntegrationRule *ir)
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_) {}
+};
+class EulerFormIntegrator : public HyperbolicFormIntegrator
+{
+private:
+   const double specific_heat_ratio;  // specific heat ratio, γ
+   // const double gas_constant;         // gas constant
+
+public:
+   /**
+    * @brief Compute F(ρ, ρu, E)
+    *
+    * @param U U (ρ, ρu, E) at current integration point
+    * @param Tr current element transformation with integration point
+    * @param FU F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
+    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
+                      DenseMatrix &FU)
+   {
+      const int dim = U.Size() - 2;
+
+      // 1. Get states
+      const double density = U(0);                  // ρ
+      const Vector momentum(U.GetData() + 1, dim);  // ρu
+      const double energy = U(1 + dim);             // E, internal energy ρe
+      // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
+      const double pressure = (specific_heat_ratio - 1.0) *
+                              (energy - 0.5 * (momentum * momentum) / density);
+
+      // Check whether the solution is physical only in debug mode
+      MFEM_ASSERT(density >= 0, "Negative Density");
+      MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+      MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+      // 2. Compute Flux
+      for (int d = 0; d < dim; d++)
+      {
+         FU(0, d) = momentum(d);  // ρu
+         for (int i = 0; i < dim; i++)
+         {
+            // ρuuᵀ
+            FU(1 + i, d) = momentum(i) * momentum(d) / density;
+         }
+         // (ρuuᵀ) + p
+         FU(1 + d, d) += pressure;
+      }
+      // enthalpy H = e + p/ρ = (E + p)/ρ
+      const double H = (energy + pressure) / density;
+      for (int d = 0; d < dim; d++)
+      {
+         // u(E+p) = ρu*(E + p)/ρ = ρu*H
+         FU(1 + dim, d) = momentum(d) * H;
+      }
+
+      // 3. Compute maximum characteristic speed
+
+      // sound speed, √(γ p / ρ)
+      const double sound = sqrt(specific_heat_ratio * pressure / density);
+      // fluid speed |u|
+      const double speed = sqrt(momentum * momentum) / density;
+      // max characteristic speed = fluid speed + sound speed
+      return speed + sound;
+   }
+   /**
+    * @brief Compute normal flux, F(ρ, ρu, E)n
+    *
+    * @param x x (ρ, ρu, E) at current integration point
+    * @param normal normal vector, usually not a unit vector
+    * @param Tr current element transformation with integration point
+    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @return double maximum characteristic speed, |u| + √(γp/ρ)
+    */
+   double ComputeFluxDotN(const Vector &x, const Vector &normal,
+                          ElementTransformation &Tr, Vector &FUdotN)
+   {
+      const int dim = normal.Size();
+
+      // 1. Get states
+      const double density = x(0);                  // ρ
+      const Vector momentum(x.GetData() + 1, dim);  // ρu
+      const double energy = x(1 + dim);             // E, internal energy ρe
+      // pressure, p = (γ-1)*(E - ½ρ|u|^2)
+      const double pressure = (specific_heat_ratio - 1.0) *
+                              (energy - 0.5 * (momentum * momentum) / density);
+
+      // Check whether the solution is physical only in debug mode
+      MFEM_ASSERT(density >= 0, "Negative Density");
+      MFEM_ASSERT(pressure >= 0, "Negative Pressure");
+      MFEM_ASSERT(energy >= 0, "Negative Energy");
+
+      // 2. Compute normal flux
+
+      FUdotN(0) = momentum * normal;  // ρu⋅n
+      // u⋅n
+      const double normal_velocity = FUdotN(0) / density;
+      for (int d = 0; d < dim; d++)
+      {
+         // (ρuuᵀ + pI)n = ρu*(u⋅n) + pn
+         FUdotN(1 + d) = normal_velocity * momentum(d) + pressure * normal(d);
+      }
+      // (u⋅n)(E + p)
+      FUdotN(1 + dim) = normal_velocity * (energy + pressure);
+
+      // 3. Compute maximum characteristic speed
+
+      // sound speed, √(γ p / ρ)
+      const double sound = sqrt(specific_heat_ratio * pressure / density);
+      // fluid speed |u|
+      const double speed = sqrt(momentum * momentum) / density;
+      // max characteristic speed = fluid speed + sound speed
+      return speed + sound;
+   }
+
+   /**
+    * @brief Construct a new Euler Element Form Integrator object with given
+    * integral order offset
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param specific_heat_ratio_ specific heat ratio, γ
+    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    */
+   EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                       const double specific_heat_ratio_,
+                       const int IntOrderOffset_)
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
+        specific_heat_ratio(specific_heat_ratio_) {}
+
+   /**
+    * @brief Construct a new Euler Element Form Integrator object with given
+    * integral rule
+    *
+    * @param[in] rsolver_ numerical flux
+    * @param dim spatial dimension
+    * @param specific_heat_ratio_ specific heat ratio, γ
+    * @param ir this integral rule will be used for the Gauss quadrature
+    */
+   EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
+                       const double specific_heat_ratio_,
+                       const IntegrationRule *ir)
+      : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, ir),
+        specific_heat_ratio(specific_heat_ratio_) {}
+};
 }
 
 #endif

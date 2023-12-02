@@ -199,8 +199,13 @@ int main(int argc, char *argv[])
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
-   DGHyperbolicConservationLaws euler = getEulerSystem(
-                                           &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
+   auto euler = DGHyperbolicConservationLaws(&vfes,
+                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                                                     IntOrderOffset),
+                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                                                     IntOrderOffset), num_equations);
+   // DGHyperbolicConservationLaws euler = getEulerSystem(
+   //                                         &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
 
    // Visualize the density
    socketstream sout;
