@@ -182,6 +182,27 @@ int main (int argc, char *argv[])
       cout << endl;
    }
 
+   // {
+   //     Vector a1(4);
+   //     a1 = 1.5;
+   //     Vector a2;
+   //     a2.UseDevice(true);
+   //     // a2.SetDataAndSize(a1.GetData(), 4);
+   //     a2.MakeRef(a1, 0, 4);
+
+   //     auto pa2 = a2.ReadWrite();
+
+   //     mfem::forall(4, [=] MFEM_HOST_DEVICE (int i) { pa2[i] *= 3.0; });
+
+   //     a2.HostReadWrite();
+
+   //     for (int i = 0; i < 4;i++)
+   //     {
+   //         std::cout << i << " " << a2(i) << " k10ia2\n";
+   //     }
+   // }
+
+
    // Mesh bounding box (for the full serial mesh).
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
@@ -348,14 +369,17 @@ int main (int argc, char *argv[])
          sout << flush;
       }
    }
+   //    std::cout << " k10about to setup vxyz" << std::endl;
 
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
    // also that all tasks search the same points (not mandatory).
    int pts_cnt = npt;
-   Vector vxyz(pts_cnt * dim);
+   Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
+   vxyz.SetSize(pts_cnt * dim);
    vxyz.Randomize(myid+1);
+   //    std::cout << " k10 done setup vxyz" << std::endl;
    //    vxyz = 0.1;
 
    if ( (myid != 0) && (search_on_rank_0) )
@@ -368,7 +392,9 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
+   //    std::cout << " k10 do finder setup" << std::endl;
    finder.Setup(pmesh);
+   //    std::cout << " k10 do findpts" << std::endl;
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);
    //    std::cout << myid << " K10 done findpoints" << std::endl;
@@ -421,13 +447,14 @@ int main (int argc, char *argv[])
       interp_vals.HostReadWrite();
    }
    vxyz.HostReadWrite();
-   //    info1.Print();
-   //    interp_vals.Print();
 
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
    Vector rst = finder.GetReferencePosition();
+   //    vxyz.Print();
+   //    rst.Print();
+   //    interp_vals.Print();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double err = 0.0, max_err = 0.0, max_dist = 0.0;
@@ -457,6 +484,7 @@ int main (int argc, char *argv[])
                   fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_err  = std::max(max_err, err);
             max_dist = std::max(max_dist, dist_p_out(i));
+            // std::cout << exact_val(j) << " " << interp_vals[i + j*pts_cnt] << " k10" << std::endl;
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
@@ -499,13 +527,14 @@ int main (int argc, char *argv[])
    if (myid == 0)
    {
       cout << "FindPointsGSLIB-Timing-info " <<
-           "jobid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
+           "jobid,devid,ne,np,dim,meshorder,solorder,funcorder,fieldtype,smooth,npts,nptt,"
            <<
            "foundloc,foundaway,notfound,foundface,maxerr,maxdist,"<<
            "setup_split,setup_nodalmapping,setup_setup,findpts_findpts,findpts_device_setup,findpts_mapelemrst,"
            <<
            "interpolate_h1,interpolate_general,interpolate_l2_pass2 " <<
            jobid << "," <<
+           device.GetId() << "," <<
            nelemglob << "," <<
            num_procs << "," <<
            dim << "," <<

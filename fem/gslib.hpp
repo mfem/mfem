@@ -107,6 +107,7 @@ protected:
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash;
       mutable Vector o_x, o_y, o_z;
+      //   mutable Vector o_xyz;
       mutable Vector o_c, o_A, o_min, o_max;
       mutable Vector o_wtend_x, o_wtend_y, o_wtend_z;
       mutable Vector gll1d;
@@ -127,7 +128,7 @@ protected:
 #undef dfloat
 
    // Stopwatches
-   StopWatch setupSW;
+   StopWatch setupSW, SW2;
 
    /// Use GSLIB for communication and interpolation
    virtual void InterpolateH1(const GridFunction &field_in, Vector &field_out);
@@ -153,14 +154,6 @@ protected:
    /// find the original element number (that was split into micro quads/hexes)
    /// during the setup phase.
    virtual void MapRefPosAndElemIndices();
-
-   void FindPointsOnDevice(const Vector &point_pos,
-                           int point_pos_ordering = Ordering::byNODES);
-
-   void InterpolateOnDevice(const Vector &field_in, Vector &field_out,
-                            const int nel, const int ncomp,
-                            const int dof1dsol, const int gf_ordering,
-                            MemoryType mt);
 
    void FindPointsLocal(const Vector &point_pos,
                         int point_pos_ordering,
@@ -298,6 +291,14 @@ public:
    virtual const Vector &GetGSLIBReferencePosition() const { return gsl_ref; }
 
    virtual void SetupDevice(MemoryType mt); // probably should be internal
+
+   void FindPointsOnDevice(const Vector &point_pos,
+                           int point_pos_ordering = Ordering::byNODES);
+
+   void InterpolateOnDevice(const Vector &field_in, Vector &field_out,
+                            const int nel, const int ncomp,
+                            const int dof1dsol, const int gf_ordering,
+                            MemoryType mt);
 };
 
 /** \brief OversetFindPointsGSLIB enables use of findpts for arbitrary number of
