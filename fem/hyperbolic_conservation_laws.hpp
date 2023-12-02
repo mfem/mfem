@@ -39,6 +39,9 @@
 #define MFEM_HYPERBOLIC_CONSERVATION_LAWS
 
 #include "nonlinearform.hpp"
+#ifdef MFEM_USE_MPI
+#include "pnonlinearform.hpp"
+#endif
 namespace mfem
 {
 /**
@@ -51,25 +54,25 @@ namespace mfem
  *
  * @note avgs[densityIndex] = sqrt(den1*den2)
  */
-void densityWeightedAverage(const Vector &state1, const Vector &state2,
-                            Vector &avgs, const int densityIndex=0)
-{
-   const double den1 = state1[densityIndex];
-   const double den2 = state2[densityIndex];
-   const double sqrtden1 = sqrt(den1);
-   const double sqrtden2 = sqrt(den2);
-   avgs = state1;
-   avgs *= sqrtden1;
-   avgs.Add(sqrtden2, state2);
-   avgs /= sqrtden1*sqrtden2;
-   avgs[densityIndex] = sqrtden1*sqrtden2;
-}
+// void densityWeightedAverage(const Vector &state1, const Vector &state2,
+//                             Vector &avgs, const int densityIndex=0)
+// {
+//    const double den1 = state1[densityIndex];
+//    const double den2 = state2[densityIndex];
+//    const double sqrtden1 = sqrt(den1);
+//    const double sqrtden2 = sqrt(den2);
+//    avgs = state1;
+//    avgs *= sqrtden1;
+//    avgs.Add(sqrtden2, state2);
+//    avgs /= sqrtden1*sqrtden2;
+//    avgs[densityIndex] = sqrtden1*sqrtden2;
+// }
 
-enum PRefineType
-{
-   elevation,  // order <- order + value
-   setDegree,  // order <- value
-};
+// enum PRefineType
+// {
+//    elevation,  // order <- order + value
+//    setDegree,  // order <- value
+// };
 
 /**
  * @brief Prolongate varying-order GridFunction to equal-order GridFunction by interpolation. Usually used for visualization purpose.
@@ -77,21 +80,21 @@ enum PRefineType
  * @param x Varying order GridFunction
  * @return GridFunction Max-order GridFunction
  */
-GridFunction ProlongToMaxOrderDG(const GridFunction &x)
-{
-   const FiniteElementSpace *fes = x.FESpace();
-   Mesh *mesh = fes->GetMesh();
-   const int max_order = fes->GetMaxElementOrder();
-   FiniteElementCollection *fec =
-      new DG_FECollection(max_order, mesh->Dimension());
-   FiniteElementSpace *new_fes =
-      new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
-   GridFunctionCoefficient x_gf(&x);
-   GridFunction u(new_fes);
-   u.ProjectCoefficient(x_gf);
-   u.MakeOwner(fec);
-   return u;
-}
+// GridFunction ProlongToMaxOrderDG(const GridFunction &x)
+// {
+//    const FiniteElementSpace *fes = x.FESpace();
+//    Mesh *mesh = fes->GetMesh();
+//    const int max_order = fes->GetMaxElementOrder();
+//    FiniteElementCollection *fec =
+//       new DG_FECollection(max_order, mesh->Dimension());
+//    FiniteElementSpace *new_fes =
+//       new FiniteElementSpace(mesh, fec, fes->GetVDim(), fes->GetOrdering());
+//    GridFunctionCoefficient x_gf(&x);
+//    GridFunction u(new_fes);
+//    u.ProjectCoefficient(x_gf);
+//    u.MakeOwner(fec);
+//    return u;
+// }
 
 /**
  * @brief Abstract class for numerical flux for an hyperbolic conservation laws
