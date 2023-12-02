@@ -49,7 +49,7 @@ namespace mfem
 
 static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0,
                                                                    dfloat x, dlong i,
-                                                                   dfloat *z, dfloat *lagrangeCoeff, dlong p_Nr)
+                                                                   const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
 {
    dfloat u0 = 1, u1 = 0;
    for (dlong j = 0; j < p_Nr; ++j)
@@ -67,7 +67,7 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0,
 }
 static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0,
                                                                     dfloat x, dlong i,
-                                                                    dfloat *z, dfloat *lagrangeCoeff, dlong p_Nr)
+                                                                    const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
 {
    dfloat u0 = 1, u1 = 0, u2 = 0;
    //#pragma unroll p_Nq
@@ -246,7 +246,8 @@ static MFEM_HOST_DEVICE inline dlong point_index(const dlong x)
 // workspace is a shared workspace
 // side_init indicates the mode the workspace is set to
 static MFEM_HOST_DEVICE inline findptsElementGFace_t
-get_face(const dfloat *elx[3], dfloat *wtend[3], dlong fi, dfloat *workspace,
+get_face(const dfloat *elx[3], const dfloat *wtend[3], dlong fi,
+         dfloat *workspace,
          dlong &side_init, dlong j, dlong p_Nr)
 {
    const dlong dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
@@ -290,7 +291,8 @@ get_face(const dfloat *elx[3], dfloat *wtend[3], dlong fi, dfloat *workspace,
 }
 
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t
-get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace,
+get_edge(const dfloat *elx[3], const dfloat *wtend[3], dlong ei,
+         dfloat *workspace,
          dlong &side_init, dlong j, dlong p_Nr)
 {
    findptsElementGEdge_t edge;
@@ -348,7 +350,7 @@ get_edge(const dfloat *elx[3], dfloat *wtend[3], dlong ei, dfloat *workspace,
    return edge;
 }
 static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3],
-                                                          dfloat *wtend[3], dlong pi, dlong p_Nr)
+                                                          const dfloat *wtend[3], dlong pi, dlong p_Nr)
 {
    const dlong side_n1 = pi & 1, side_n2 = (pi >> 1) & 1, side_n3 = (pi >> 2) & 1;
    const dlong in1 = side_n1 * (p_Nr - 1), in2 = side_n2 * (p_Nr - 1),
@@ -362,9 +364,9 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[3],
       pt.x[d] = ELX(d, side_n1 * (p_Nr - 1), side_n2 * (p_Nr - 1),
                     side_n3 * (p_Nr - 1));
 
-      dfloat *wt1 = wtend[0] + p_Nr * (1 + 3 * side_n1);
-      dfloat *wt2 = wtend[1] + p_Nr * (1 + 3 * side_n2);
-      dfloat *wt3 = wtend[2] + p_Nr * (1 + 3 * side_n3);
+      const dfloat *wt1 = wtend[0] + p_Nr * (1 + 3 * side_n1);
+      const dfloat *wt2 = wtend[1] + p_Nr * (1 + 3 * side_n2);
+      const dfloat *wt3 = wtend[2] + p_Nr * (1 + 3 * side_n3);
 
       for (dlong i = 0; i < 3; ++i)
       {
@@ -920,7 +922,7 @@ newton_edge_fin:
 
 static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[3],
                                     const dfloat x[3],
-                                    dfloat *z, //GLL point locations [-1, 1]
+                                    const dfloat *z, //GLL point locations [-1, 1]
                                     dfloat *dist2,
                                     dfloat *r[3],
                                     const int j,
@@ -1001,9 +1003,9 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                      const dfloat *xElemCoord,
                                      const dfloat *yElemCoord,
                                      const dfloat *zElemCoord,
-                                     dfloat *wtend_x,
-                                     dfloat *wtend_y,
-                                     dfloat *wtend_z,
+                                     const dfloat *wtend_x,
+                                     const dfloat *wtend_y,
+                                     const dfloat *wtend_z,
                                      const dfloat *c,
                                      const dfloat *A,
                                      const dfloat *minBound,
@@ -1016,8 +1018,8 @@ static void FindPointsLocal3D_Kernel(const int npt,
                                      dlong *const el_base,
                                      dfloat *const r_base,
                                      dfloat *const dist2_base,
-                                     dfloat *gll1D,
-                                     double *lagcoeff,
+                                     const dfloat *gll1D,
+                                     const double *lagcoeff,
                                      dfloat *infok,
                                      const dlong p_Nr)
 {
@@ -1056,7 +1058,7 @@ static void FindPointsLocal3D_Kernel(const int npt,
       dlong id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
       dlong id_z = point_pos_ordering == 0 ? i+2*npt : i*dim+2;
       dfloat x_i[3] = {x[id_x], x[id_y], x[id_z]};
-      dfloat *wtend[3] = {&wtend_x[0], &wtend_y[0], &wtend_z[0]};
+      const dfloat *wtend[3] = {&wtend_x[0], &wtend_y[0], &wtend_z[0]};
 
       dlong *code_i = code_base + i;
       dlong *el_i = el_base + i;
@@ -1816,12 +1818,12 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos,
    {
       FindPointsLocal3D_Kernel(npt, DEV.tol,
                                point_pos.Read(), point_pos_ordering,
-                               DEV.o_x.ReadWrite(),
-                               DEV.o_y.ReadWrite(),
-                               DEV.o_z.ReadWrite(),
-                               DEV.o_wtend_x.ReadWrite(),
-                               DEV.o_wtend_y.ReadWrite(),
-                               DEV.o_wtend_z.ReadWrite(),
+                               DEV.o_x.Read(),
+                               DEV.o_y.Read(),
+                               DEV.o_z.Read(),
+                               DEV.o_wtend_x.Read(),
+                               DEV.o_wtend_y.Read(),
+                               DEV.o_wtend_z.Read(),
                                DEV.o_c.Read(),
                                DEV.o_A.Read(),
                                DEV.o_min.Read(),
@@ -1830,12 +1832,12 @@ void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos,
                                DEV.o_hashMin.Read(),
                                DEV.o_hashFac.Read(),
                                DEV.o_offset.ReadWrite(),
-                               gsl_code_dev_l.ReadWrite(),
-                               gsl_elem_dev_l.ReadWrite(),
-                               gsl_ref_l.ReadWrite(),
-                               gsl_dist_l.ReadWrite(),
+                               gsl_code_dev_l.Write(),
+                               gsl_elem_dev_l.Write(),
+                               gsl_ref_l.Write(),
+                               gsl_dist_l.Write(),
                                DEV.gll1d.ReadWrite(),
-                               DEV.lagcoeff.ReadWrite(),
+                               DEV.lagcoeff.Read(),
                                DEV.info.ReadWrite(),
                                DEV.dof1d);
    }
