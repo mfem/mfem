@@ -266,13 +266,14 @@ public:
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
 
-   /** @brief For Bilinear forms on element faces, specifies if the normal
+   /** @brief For bilinear forms on element faces, specifies if the normal
               derivatives are needed on the faces or just the face restriction.
 
        @details if RequiresFaceNormalDerivatives() == true, then
                 AddMultPAFaceNormalDerivatives(...) should be invoked in place
                 of AddMultPA(...) and L2NormalDerivativeFaceRestriction should
-                be used to compute the normal derivatives.
+                be used to compute the normal derivatives. This is used for some
+                DG integrators, for example DGDiffusionIntegrator.
 
        @returns whether normal derivatives appear in the bilinear form.
    */
