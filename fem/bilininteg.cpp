@@ -3644,6 +3644,12 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
    }
 }
 
+const IntegrationRule &DGDiffusionIntegrator::GetRule(
+   int order, FaceElementTransformations &T)
+{
+   int int_order = T.Elem1->OrderW() + 2*order;
+   return irs.Get(T.GetGeometryType(), int_order);
+}
 
 // static method
 void DGElasticityIntegrator::AssembleBlock(

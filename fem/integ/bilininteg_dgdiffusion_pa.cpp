@@ -1048,11 +1048,4 @@ void DGDiffusionIntegrator::AddMultPAFaceNormalDerivatives(const Vector &x,
                       sigma, pa_data, x, dxdn, y, dydn);
 }
 
-const IntegrationRule &DGDiffusionIntegrator::GetRule(
-   int order, FaceElementTransformations &T)
-{
-   int int_order = T.Elem1->OrderW() + 2*order;
-   return irs.Get(T.GetGeometryType(), int_order);
-}
-
 } // namespace mfem
