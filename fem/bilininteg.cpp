@@ -3647,8 +3647,9 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 const IntegrationRule &DGDiffusionIntegrator::GetRule(
    int order, FaceElementTransformations &T)
 {
-   int int_order = T.Elem1->OrderW() + 2*order;
-   return irs.Get(T.GetGeometryType(), int_order);
+   // order is typically the maximum of the order of the left and right elements
+   // neighboring the given face.
+   return irs.Get(T.GetGeometryType(), 2*order);
 }
 
 // static method
