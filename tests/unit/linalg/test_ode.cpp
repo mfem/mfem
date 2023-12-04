@@ -103,40 +103,43 @@ TEST_CASE("First order ODE methods", "[ODE]")
          }
       }
 
-      double order(ODESolver* ode_solver, bool init_hist_ = false)
+      void writeHeader(double error)
+      {
+         mfem::out<<std::setw(12)<<"Error"
+                  <<std::setw(12)<<"Ratio"
+                  <<std::setw(12)<<"Order"<<std::endl;
+         mfem::out<<std::setw(12)<<error<<std::endl;
+      }
+
+      double writeErrorAndOrder(double error0,double error1)
+      {
+         double order = log(error0/error1)/log(2);
+         mfem::out<<std::setw(12)<<error1             // Absolute Error
+                  <<std::setw(12)<<error0/error1      // Relative Error
+                  <<std::setw(12)<<order              // Order of Conv
+                  <<std::endl;
+         return order;
+      }
+
+      double order_with_restart(ODESolverWithStates* ode_solver)
       {
          double dt_order,t,order = -1;
          Vector u(2);
          Vector error(levels);
          int steps = ti_steps;
 
-         // Downcast pointer if possible and error check on init_hist_ value
-         ODESolverWithStates *ode_solver_states =
-            dynamic_cast<ODESolverWithStates*>(ode_solver);
-         if (!ode_solver_states && init_hist_)
-         {
-            mfem_error("CheckODE: ODESolver incompatible with init_hist_ value");
-         }
-
          t = 0.0;
          dt_order = t_final/double(steps);
          u = u0;
          ode_solver->Init(*oper);
-         if (init_hist_) { init_hist(ode_solver_states,dt_order); }
+         init_hist(ode_solver,dt_order);
          ode_solver->Run(u, t, dt_order, t_final - 1e-12);
          u +=u0;
          error[0] = u.Norml2();
 
-         mfem::out<<std::setw(12)<<"Error"
-                  <<std::setw(12)<<"Ratio"
-                  <<std::setw(12)<<"Order"<<std::endl;
-         mfem::out<<std::setw(12)<<error[0]<<std::endl;
+         writeHeader(error[0]);
 
-         std::vector<Vector> uh;
-         if (ode_solver_states)
-         {
-            uh.resize(ode_solver_states->GetState().MaxSize());
-         }
+         std::vector<Vector> uh(ode_solver->GetState().MaxSize());
          for (int l = 1; l < levels; l++)
          {
             int lvl = static_cast<int>(pow(2,l));
@@ -145,73 +148,97 @@ TEST_CASE("First order ODE methods", "[ODE]")
             u = u0;
             ode_solver->Init(*oper);
 
-            if (init_hist_)
+            // Instead of single run command
+            // Chop-up sequence with Get/Set in between
+            // in order to test these routines
+            for (int ti = 0; ti < steps; ti++)
             {
-               //init_hist(ode_solver,dt_order);
+               ode_solver->Step(u, t, dt_order);
+            }
+            int nstate = ode_solver->GetState().Size();
 
-               // Instead of single run command
-               // Chop-up sequence with Get/Set in between
-               // in order to test these routines
+            for (int s = 0; s < nstate; s++)
+            {
+               ode_solver->GetState().Get(s,uh[s]);
+            }
+
+            for (int ll = 1; ll < lvl; ll++)
+            {
+               // Use alternating options for setting the StateVector
+               if (ll%2  == 0)
+               {
+                  for (int s = nstate - 1; s >= 0; s--)
+                  {
+                     ode_solver->GetState().Add(uh[s]);
+                  }
+               }
+               else
+               {
+                  for (int s = 0; s < nstate; s++)
+                  {
+                     ode_solver->GetState().Get(s,uh[s]);
+                  }
+               }
+
                for (int ti = 0; ti < steps; ti++)
                {
                   ode_solver->Step(u, t, dt_order);
                }
-               int nstate = ode_solver_states->GetState().Size();
+               nstate = ode_solver->GetState().Size();
 
-               for (int s = 0; s < nstate; s++)
+               for (int s = 0; s< nstate; s++)
                {
-                  ode_solver_states->GetState().Get(s,uh[s]);
+                  uh[s] = ode_solver->GetState().Get(s);
                }
-
-               for (int ll = 1; ll < lvl; ll++)
-               {
-                  // Use alternating options for setting the StateVector
-                  if (ll%2  == 0)
-                  {
-                     // ode_solver->state.ResetSize();
-                     for (int s = nstate - 1; s >= 0; s--)
-                     {
-                        ode_solver_states->GetState().Add(uh[s]);
-                     }
-                  }
-                  else
-                  {
-                     for (int s = 0; s < nstate; s++)
-                     {
-                        ode_solver_states->GetState().Get(s,uh[s]);
-                     }
-                  }
-
-                  for (int ti = 0; ti < steps; ti++)
-                  {
-                     ode_solver->Step(u, t, dt_order);
-                  }
-                  nstate = ode_solver_states->GetState().Size();
-
-                  for (int s = 0; s< nstate; s++)
-                  {
-                     uh[s] = ode_solver_states->GetState().Get(s);
-                  }
-               }
-            }
-            else
-            {
-               ode_solver->Run(u, t, dt_order, t_final-1e-12);
             }
 
             u += u0;
             error[l] = u.Norml2();
-            order = log(error[l-1]/error[l])/log(2);
-            mfem::out<<std::setw(12)<<error[l]
-                     <<std::setw(12)<<error[l-1]/error[l]
-                     <<std::setw(12)<<order
-                     <<std::endl;
+            order = writeErrorAndOrder(error[l-1],error[l]);
             if (error[l] < 1e-10) { break; }
          }
          delete ode_solver;
 
          return order;
       }
+
+      double order(ODESolver* ode_solver)
+      {
+         double dt_order,t,order = -1;
+         Vector u(2);
+         Vector error(levels);
+         int steps = ti_steps;
+
+         t = 0.0;
+         dt_order = t_final/double(steps);
+         u = u0;
+         ode_solver->Init(*oper);
+         ode_solver->Run(u, t, dt_order, t_final - 1e-12);
+         u +=u0;
+         error[0] = u.Norml2();
+
+         writeHeader(error[0]);
+
+         for (int l = 1; l < levels; l++)
+         {
+            int lvl = static_cast<int>(pow(2,l));
+            t = 0.0;
+            dt_order *= 0.5;
+            u = u0;
+            ode_solver->Init(*oper);
+            ode_solver->Run(u, t, dt_order, t_final-1e-12);
+
+            u += u0;
+            error[l] = u.Norml2();
+            order = writeErrorAndOrder(error[l-1],error[l]);
+
+            if (error[l] < 1e-10) { break; }
+         }
+         delete ode_solver;
+
+         return order;
+      }
+
       virtual ~CheckODE() {delete oper;};
    };
    CheckODE check;
@@ -335,7 +362,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("GeneralizedAlphaSolver(0.5) - restart")
    {
       mfem::out<<"GeneralizedAlphaSolver(0.5) - restart"<<std::endl;
-      double conv_rate = check.order(new GeneralizedAlphaSolver(0.5), true);
+      double conv_rate = check.order_with_restart(new GeneralizedAlphaSolver(0.5));
       REQUIRE(conv_rate + tol > 2.0);
    }
 
@@ -364,7 +391,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("AB2Solver() - restart")
    {
       mfem::out<<"AB2Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AB2Solver(), true);
+      double conv_rate = check.order_with_restart(new AB2Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
@@ -392,7 +419,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("AB5Solver() - restart")
    {
       mfem::out<<"AB5Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AB5Solver(), true);
+      double conv_rate = check.order_with_restart(new AB5Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
@@ -407,7 +434,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("AM1Solver() - restart")
    {
       mfem::out<<"AM1Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AM1Solver(), true);
+      double conv_rate = check.order_with_restart(new AM1Solver());
       REQUIRE(conv_rate + tol > 2.0);
    }
 
@@ -421,7 +448,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("AM2Solver() - restart")
    {
       mfem::out<<"AM2Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AM2Solver(), true);
+      double conv_rate = check.order_with_restart(new AM2Solver());
       REQUIRE(conv_rate + tol > 1.0);
    }
 
@@ -442,7 +469,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
    SECTION("AM4Solver() - restart")
    {
       mfem::out<<"AM4Solver() - restart"<<std::endl;
-      double conv_rate = check.order(new AM4Solver(),true);
+      double conv_rate = check.order_with_restart(new AM4Solver());
       REQUIRE(conv_rate + tol > 5.0);
    }
 
