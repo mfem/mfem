@@ -171,14 +171,16 @@ public:
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
           are used to describe the "closed" and "open" 1D basis functions. */
-      TENSOR
+      TENSOR,
+
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is the
+          same as TENSOR, but the sizes of B and G are the same as FULL.*/
+      LEXICOGRAPHIC_FULL
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
    Mode mode;
-
-   /// Describes the contents of the #B, #Bt, #G, and #Gt arrays.
-   ElementDofOrdering ordering;
 
    /** @brief Number of degrees of freedom = number of basis functions. When
        #mode is TENSOR, this is the 1D number. */
@@ -730,6 +732,9 @@ public:
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
+private:
+   /// Create and cache the LEXICOGRAPHIC_FULL DofToQuad maps.
+   void CreateLexicographicFullMap(const IntegrationRule &ir) const;
 protected:
    Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
@@ -747,6 +752,9 @@ public:
    NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -1271,12 +1279,7 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const override
-   {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
-   }
+                                 DofToQuad::Mode mode) const override;
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode,

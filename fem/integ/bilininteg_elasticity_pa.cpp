@@ -54,7 +54,12 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
       lambda->Project(*lambda_quad);
       mu->Project(*mu_quad);
       auto ordering = GetEVectorOrdering(*fespace);
-      maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, DofToQuad::FULL, ordering);
+      auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
+                  DofToQuad::LEXICOGRAPHIC_FULL;
+      // Should be FULL if native and LEXICOGRAPHIC_FULL ow? should there be another function?
+      // maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, DofToQuad::FULL, ordering);
+      // maybe make a function of fespace as well, something that returns FULL, LEXICO, or TENSOR
+      maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
    }
    PACalled = true;
 }
