@@ -78,6 +78,7 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  intrules_cut.cpp
   ceed/interface/basis.cpp
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
@@ -97,9 +98,6 @@ set(SRCS
   lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
-  lor/lor_h1.cpp
-  lor/lor_nd.cpp
-  lor/lor_rt.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -188,6 +186,7 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  intrules_cut.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
