@@ -50,6 +50,20 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:plor_solvers> -fe n -m ../../data/fichera.mesh -no-vis
       ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME lor_elast-tri_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lor_elast> -l 2 -ca -pa -ss
+      -m ../../data/beam-tri.mesh -o 2
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME lor_elast-hex_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lor_elast> -l 1 -pa -o 2
+      -m ../../data/beam-hex.mesh
+      ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
 
