@@ -229,17 +229,19 @@ protected:
    Array<int> master;
    Array<int> slave;
 
-   // global offsets, meshOffsets == meshVertexOffsets
    Array<int> v_meshOffsets;
    Array<int> e_meshOffsets;
    Array<int> f_meshOffsets;
    Array<int> p_meshOffsets;
 
-   // global offsets, spaceOffsets == dofOffsets
+   Array<int> aux_e_meshOffsets;
+
    Array<int> v_spaceOffsets;
    Array<int> e_spaceOffsets;
    Array<int> f_spaceOffsets;
    Array<int> p_spaceOffsets;
+
+   Array<int> aux_e_spaceOffsets;
 
    Table *el_dof, *bel_dof;
 
@@ -261,6 +263,8 @@ protected:
 
    bool nonconforming = false;
    std::map<int,int> e2nce;
+
+   std::vector<int> auxEdges;
 
    inline int         KnotInd(int edge) const;
    /// @note The returned object should NOT be deleted by the caller.
@@ -490,6 +494,8 @@ public:
 
    // TODO: this function is not used. Should it be kept?
    int GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+
+   void GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const;
 };
 
 
