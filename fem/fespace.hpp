@@ -1333,6 +1333,10 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
           dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
 
+/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the elements are tensor
+/// elements, otherwise, return NATIVE.
+ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes);
+
 }
 
 #endif

@@ -3678,4 +3678,11 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    return r_fec;
 }
 
+ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
+{
+   return UsesTensorBasis(fes)?
+          ElementDofOrdering::LEXICOGRAPHIC:
+          ElementDofOrdering::NATIVE;
+}
+
 } // namespace mfem

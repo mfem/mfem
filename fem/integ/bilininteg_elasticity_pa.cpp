@@ -53,8 +53,7 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
       q_vec = std::make_shared<QuadratureFunction>(*quad_space, vdim*vdim);
       lambda->Project(*lambda_quad);
       mu->Project(*mu_quad);
-      auto ordering = UsesTensorBasis(*fespace) ? ElementDofOrdering::LEXICOGRAPHIC :
-                      ElementDofOrdering::NATIVE;
+      auto ordering = GetEVectorOrdering(*fespace);
       maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, DofToQuad::FULL, ordering);
    }
    PACalled = true;
