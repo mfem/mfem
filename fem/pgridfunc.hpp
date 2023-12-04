@@ -212,7 +212,7 @@ public:
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
    double GetValue(ElementTransformation &T)
-   { return GetValue(T.ElementNo, T.GetIntPoint()); }
+   { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
    virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
