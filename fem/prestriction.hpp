@@ -231,18 +231,12 @@ public:
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
        for the gathering: E-vector to L-vector.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
    void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
    void ComputeGatherIndices();
 
@@ -381,18 +375,12 @@ private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
        coarse to fine face for master non-comforming faces.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
    void ComputeScatterIndicesAndOffsets();
 
    /** @brief Compute the gather indices: E-vector to L-vector.
 
        Note: Requires the gather offsets to be computed.
-
-       @param[in] f_ordering Request a specific face dof ordering.
-       @param[in] type       Request internal or boundary faces dofs.
    */
    void ComputeGatherIndices();
 
