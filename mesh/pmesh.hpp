@@ -344,9 +344,11 @@ public:
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
-   ParMesh(MPI_Comm comm, std::istream &input, int generate_edges = 0,
-           int refine = 1, bool fix_orientation = true);
+   /** The @a generate_edges parameter is passed to Mesh::Loader. The @a refine
+       and @a fix_orientation parameters are passed to the method
+       Mesh::Finalize(). */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true,
+           int generate_edges = 0, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
