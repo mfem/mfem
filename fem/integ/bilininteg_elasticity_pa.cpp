@@ -20,14 +20,16 @@ namespace mfem
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   if(parent){
+   if (parent)
+   {
       // This is a component integrator, so just make sure monolithic operator
       // is assembled.
       parent->AssemblePA(fes);
       return;
    }
    const bool alreadyAssembled = bool(lambda_quad);
-   if(alreadyAssembled){
+   if (alreadyAssembled)
+   {
       // Don't reassemble vectors.
       return;
    }
