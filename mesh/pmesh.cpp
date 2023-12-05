@@ -930,8 +930,8 @@ void ParMesh::FinalizeParTopo()
    }
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input, int generate_edges,
-                 int refine, bool fix_orientation)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine, int generate_edges,
+                 bool fix_orientation)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
