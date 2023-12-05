@@ -69,6 +69,20 @@ Ordering::Map<Ordering::byVDIM>(int ndofs, int vdim, int dof, int vd)
    return (dof >= 0) ? vd+vdim*dof : -1-(vd+vdim*(-1-dof));
 }
 
+
+/// Constants describing the possible orderings of the DOFs in one element.
+enum class ElementDofOrdering
+{
+   /// Native ordering as defined by the FiniteElement.
+   /** This ordering can be used by tensor-product elements when the
+       interpolation from the DOFs to quadrature points does not use the
+       tensor-product structure. */
+   NATIVE,
+   /// Lexicographic ordering for tensor-product FiniteElements.
+   /** This ordering can be used only with tensor-product elements. */
+   LEXICOGRAPHIC
+};
+
 // Forward declarations
 class NURBSExtension;
 class BilinearFormIntegrator;

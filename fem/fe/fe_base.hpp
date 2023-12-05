@@ -128,19 +128,6 @@ public:
    }
 };
 
-/// Constants describing the possible orderings of the DOFs in one element.
-enum class ElementDofOrdering
-{
-   /// Native ordering as defined by the FiniteElement.
-   /** This ordering can be used by tensor-product elements when the
-       interpolation from the DOFs to quadrature points does not use the
-       tensor-product structure. */
-   NATIVE,
-   /// Lexicographic ordering for tensor-product FiniteElements.
-   /** This ordering can be used only with tensor-product elements. */
-   LEXICOGRAPHIC
-};
-
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
     FiniteElement at a the quadrature points of a given IntegrationRule. */
