@@ -679,10 +679,10 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                            const Vector &b_, PrecType prec_type)
-   : TimeDependentOperator(M_.Height()),
+   : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()),
      b(b_),
      M_solver(M_.ParFESpace()->GetComm()),
-     z(M_.Height())
+     z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {

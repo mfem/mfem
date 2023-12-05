@@ -19,15 +19,19 @@
 // variational formulation of the Target-Matrix Optimization Paradigm (TMOP).
 // Boundary/interface alignment is weakly enforced using a penalization term
 // that moves a selected set of nodes towards the zero level set of a signed
-// smooth discrete function. See the following papers for more details:
-// (1) "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
+// smooth discrete function.
+//
+// See the following papers for more details:
+//
+// [1] "Adaptive Surface Fitting and Tangential Relaxation for High-Order Mesh Optimization" by
 //     Knupp, Kolev, Mittal, Tomov.
-// (2) "High-Order Mesh Morphing for Boundary and Interface Fitting to Implicit Geometries" by
+// [2] "High-Order Mesh Morphing for Boundary and Interface Fitting to Implicit Geometries" by
 //     Barrera, Kolev, Mittal, Tomov.
-// (3) "The target-matrix optimization paradigm for high-order meshes" by
+// [3] "The target-matrix optimization paradigm for high-order meshes" by
 //     Dobrev, Knupp, Kolev, Mittal, Tomov.
-
+//
 // Compile with: make pmesh-fitting
+//
 // Sample runs:
 //  Interface fitting:
 //    mpirun -np 4 pmesh-fitting -o 3 -mid 58 -tid 1 -ni 200 -vl 1 -sfc 5e4 -rtol 1e-5
@@ -162,7 +166,7 @@ int main (int argc, char *argv[])
                   "1 - Interface (DEFAULT), 2 - Boundary attribute.");
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
                   "-fix-bndr-attr", "--fix-boundary-attribute",
-                  "Change boundary attribue based on alignment with Cartesian axes.");
+                  "Change boundary attribute based on alignment with Cartesian axes.");
    args.AddOption(&material, "-mat", "--mat",
                   "-no-mat","--no-mat", "Use default material attributes.");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
@@ -355,7 +359,6 @@ int main (int argc, char *argv[])
    }
    pmesh->ExchangeFaceNbrData();
 
-
    // Surface fitting.
    L2_FECollection mat_coll(0, dim);
    H1_FECollection surf_fit_fec(mesh_poly_deg, dim);
@@ -427,7 +430,6 @@ int main (int argc, char *argv[])
                                               *surf_fit_bg_gf0);
          }
          else { surf_fit_bg_gf0->ProjectCoefficient(*ls_coeff); }
-
 
          surf_fit_bg_grad_fes =
             new ParFiniteElementSpace(pmesh_surf_fit_bg, surf_fit_bg_fec, dim);
@@ -626,6 +628,7 @@ int main (int argc, char *argv[])
          }
       }
    }
+   pmesh->SetAttributes();
 
    // 13. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
