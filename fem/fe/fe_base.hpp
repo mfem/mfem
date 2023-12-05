@@ -583,6 +583,7 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
+
    /** @brief Return the mapping from lexicographic face DOFs to lexicographic
        element DOFs for the given local face @a face_id. */
    /** Given the @a ith DOF (lexicographically ordered) on the face referenced
