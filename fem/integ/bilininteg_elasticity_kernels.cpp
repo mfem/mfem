@@ -16,6 +16,17 @@ namespace mfem
 
 namespace internal
 {
+void ElastAssertCompressionSupported(const CoefficientVector &cv,
+                                     const IntegrationRule &ir, const FiniteElementSpace &fespace)
+{
+   const int numPoints = ir.GetNPoints();
+   const int vDim = cv.GetVDim();
+   const int size = cv.Size();
+   const int numEls = fespace.GetNE();
+   MFEM_VERIFY(vDim == 1, "Invalid paramter dimension.");
+   MFEM_VERIFY(size/vDim/numPoints == numEls, "Compression type not supported.");
+}
+
 void ElasticityAddMultPA(const int dim, const int nDofs,
                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
                          const CoefficientVector &mu, const GeometricFactors &geom,
