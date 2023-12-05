@@ -17,8 +17,8 @@ namespace mfem
 namespace internal
 {
 void ElasticityAddMultPA(const int dim, const int nDofs,
-                         const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                         const QuadratureFunction &mu, const GeometricFactors &geom,
+                         const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                         const CoefficientVector &mu, const GeometricFactors &geom,
                          const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y,
                          const int IBlock, const int JBlock)
 {
@@ -80,8 +80,8 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 }
 
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
-                                  const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                                  const QuadratureFunction &mu, const GeometricFactors &geom,
+                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                                  const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
    switch (dim)
@@ -97,17 +97,19 @@ void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
 }
 
 void ElasticityAssembleEA(const int dim, const int IBlock, const int JBlock,
-                          const int nDofs,
-                          const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                          const QuadratureFunction &mu, const GeometricFactors &geom,
+                          const int nDofs, const IntegrationRule &ir,
+                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                          const CoefficientVector &mu, const GeometricFactors &geom,
                           const DofToQuad &maps, Vector &emat)
 {
    switch (dim)
    {
-      case 2:ElasticityAssembleEA<2>(IBlock, JBlock, nDofs, fespace, lambda, mu, geom,
+      case 2:ElasticityAssembleEA<2>(IBlock, JBlock, nDofs, ir, fespace, lambda, mu,
+                                        geom,
                                         maps,
                                         emat); break;
-      case 3:ElasticityAssembleEA<3>(IBlock, JBlock, nDofs, fespace, lambda, mu, geom,
+      case 3:ElasticityAssembleEA<3>(IBlock, JBlock, nDofs, ir, fespace, lambda, mu,
+                                        geom,
                                         maps,
                                         emat); break;
       default:

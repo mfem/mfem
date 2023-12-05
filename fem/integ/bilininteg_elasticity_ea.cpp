@@ -23,7 +23,8 @@ void ElasticityIntegrator::AssembleEA(const FiniteElementSpace &fes,
    MFEM_VERIFY(fespace, "Need initialized FiniteElementSpace.");
    MFEM_VERIFY(!add, "AssembleEA not implemented for add yet.");
    AssemblePA(*fespace);
-   internal::ElasticityAssembleEA(vdim, IBlock, JBlock, ndofs,*fespace,
+   const auto &ir = q_vec->GetIntRule(0);
+   internal::ElasticityAssembleEA(vdim, IBlock, JBlock, ndofs, ir, *fespace,
                                   *lambda_quad, *mu_quad, *geom, *maps, emat);
 }
 }

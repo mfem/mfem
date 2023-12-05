@@ -38,6 +38,7 @@
 #include "../../linalg/tensor.hpp"
 #include "../quadinterpolator.hpp"
 #include "../bilininteg.hpp"
+#include "../coefficient.hpp"
 
 namespace mfem
 {
@@ -73,8 +74,8 @@ namespace internal
 /// @param[in] IBlock The row dimensional component. <= dim - 1
 /// @param[in] JBlock The column dimensional component. <= dim -1
 void ElasticityAddMultPA(const int dim, const int nDofs,
-                         const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                         const QuadratureFunction &mu, const GeometricFactors &geom,
+                         const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                         const CoefficientVector &mu, const GeometricFactors &geom,
                          const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y,
                          const int IBlock = -1, const int JBlock = -1);
 
@@ -101,9 +102,9 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
 /// @param[out] emat Resulting E-Matrix Vector. nDofs x nDofs x numEls.
 void ElasticityAssembleEA(const int dim, const int IBlock, const int JBlock,
-                          const int nDofs,
-                          const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                          const QuadratureFunction &mu, const GeometricFactors &geom,
+                          const int nDofs, const IntegrationRule &ir,
+                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                          const CoefficientVector &mu, const GeometricFactors &geom,
                           const DofToQuad &maps, Vector &emat);
 
 /// @brief Elasticity kernel for AssembleDiagonalPA. Whole system only.
@@ -118,14 +119,14 @@ void ElasticityAssembleEA(const int dim, const int IBlock, const int JBlock,
 /// @param QVec Scratch Q-Vector. nQuad x dim x dim x dim x dim x numEls.
 /// @param[out] diag diagonal of A. nDofs x dim x numEls.
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
-                                  const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                                  const QuadratureFunction &mu, const GeometricFactors &geom,
+                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                                  const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag);
 
 /// Templated implementation of ElasticityAddMultPA.
 template<int dim, int IBlock = -1, int JBlock = -1>
 void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
-                         const QuadratureFunction &lambda, const QuadratureFunction &mu,
+                         const CoefficientVector &lambda, const CoefficientVector &mu,
                          const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                          QuadratureFunction &QVec, Vector &y)
 {
@@ -141,7 +142,7 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    static constexpr bool isComponent = (IBlock >= 0);
 
    //Assuming all elements are the same
-   const auto &ir = lambda.GetIntRule(0);
+   const auto &ir = QVec.GetIntRule(0);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
@@ -256,12 +257,12 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
 /// Templated implementation of ElasticityAssembleDiagonalPA.
 template<int dim>
 void ElasticityAssembleDiagonalPA(const int nDofs,
-                                  const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                                  const QuadratureFunction &mu, const GeometricFactors &geom,
+                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                                  const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
    //Assuming all elements are the same
-   const auto &ir = lambda.GetIntRule(0);
+   const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
    int numPoints = ir.GetNPoints();
    int numEls = lambda.Size()/numPoints;
@@ -335,12 +336,12 @@ void ElasticityAssembleDiagonalPA(const int nDofs,
 //Templated implementation of ElasticityAssembleEA.
 template<int dim>
 void ElasticityAssembleEA(const int IBlock, const int JBlock, const int nDofs,
-                          const FiniteElementSpace &fespace, const QuadratureFunction &lambda,
-                          const QuadratureFunction &mu, const GeometricFactors &geom,
+                          const IntegrationRule &ir,
+                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                          const CoefficientVector &mu, const GeometricFactors &geom,
                           const DofToQuad &maps, Vector &emat)
 {
    //Assuming all elements are the same
-   const auto &ir = lambda.GetIntRule(0);
    static constexpr int d = dim;
    int numPoints = ir.GetNPoints();
    int numEls = lambda.Size()/numPoints;
