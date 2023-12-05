@@ -596,13 +596,6 @@ public:
    virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                          DofToQuad::Mode mode) const;
 
-   /** @brief Return a DofToQuad structure corresponding to the given
-       IntegrationRule using the given DofToQuad::Mode and ElementDofOrdering. */
-   /** See the documentation for DofToQuad and ElementDofOrdering for more details.*/
-   virtual const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                         DofToQuad::Mode mode,
-                                         const ElementDofOrdering ordering) const;
-
    /** @brief Return the mapping from lexicographic face DOFs to lexicographic
        element DOFs for the given local face @a face_id. */
    /** Given the @a ith DOF (lexicographically ordered) on the face referenced
@@ -1281,10 +1274,6 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override;
 
-   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode,
-                                 const ElementDofOrdering ordering) const override;
-
    void SetMapType(const int map_type_) override;
 
    void GetTransferMatrix(const FiniteElement &fe,
@@ -1326,15 +1315,15 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
+      return (mode == DofToQuad::TENSOR) ?
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
                                      DofToQuad::Mode mode) const
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }
