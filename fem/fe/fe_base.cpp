@@ -491,14 +491,6 @@ const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
    return *d2q;
 }
 
-const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
-                                             DofToQuad::Mode mode,
-                                             const ElementDofOrdering ordering) const
-{
-   MFEM_VERIFY(ordering == ElementDofOrdering::NATIVE, "invalid mode requested");
-   return GetDofToQuad(ir, mode);
-}
-
 void FiniteElement::GetFaceMap(const int face_id,
                                Array<int> &face_map) const
 {
@@ -648,7 +640,7 @@ const
 {
    // Get the FULL version of the map.
    auto &d2q = GetDofToQuad(ir, DofToQuad::FULL);
-   //Undo the native ordering which is the default in GetDofToQuad for FULL mode.
+   //Undo the native ordering which is what FiniteElement::GetDofToQuad returns.
    auto *d2q_new = new DofToQuad(d2q);
    d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
    const int nqpt = ir.GetNPoints();
@@ -734,9 +726,6 @@ const
 const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                                   DofToQuad::Mode mode) const
 {
-   MFEM_VERIFY(mode == DofToQuad::FULL ||
-               mode == DofToQuad::LEXICOGRAPHIC_FULL, "invalid mode requested");
-
    //Should make this loop a function of FiniteElement
    for (int i = 0; i < dof2quad_array.Size(); i++)
    {
@@ -744,7 +733,7 @@ const DofToQuad &NodalFiniteElement::GetDofToQuad(const IntegrationRule &ir,
       if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
    }
 
-   if (mode == DofToQuad::FULL)
+   if (mode != DofToQuad::LEXICOGRAPHIC_FULL)
    {
       return FiniteElement::GetDofToQuad(ir, mode);
    }
@@ -2645,17 +2634,6 @@ const DofToQuad &NodalTensorFiniteElement::GetDofToQuad(
    const IntegrationRule &ir,
    DofToQuad::Mode mode) const
 {
-   MFEM_VERIFY(mode == DofToQuad::FULL ||
-               mode == DofToQuad::TENSOR ||
-               mode == DofToQuad::LEXICOGRAPHIC_FULL, "invalid mode requested");
-
-   //Should make this loop a function of FiniteElement
-   for (int i = 0; i < dof2quad_array.Size(); i++)
-   {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
    if (mode != DofToQuad::TENSOR)
    {
       return NodalFiniteElement::GetDofToQuad(ir, mode);
@@ -2663,111 +2641,6 @@ const DofToQuad &NodalTensorFiniteElement::GetDofToQuad(
    else
    {
       return GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
-   }
-}
-
-const DofToQuad &NodalTensorFiniteElement::GetDofToQuad(
-   const IntegrationRule &ir,
-   DofToQuad::Mode mode,
-   const ElementDofOrdering ordering) const
-{
-   for (int i = 0; i < dof2quad_array.Size(); i++)
-   {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-   //First create the DofToQuad map for ElementDofOrdering::NATIVE.
-   //Either return d2q, or create the FULL and LEXICOGRAPHIC map and return.
-   auto &d2q = GetDofToQuad(ir, mode);
-   if (mode == DofToQuad::LEXICOGRAPHIC_FULL)
-   {
-      //Undo the native ordering which is the default in GetDofToQuad for FULL mode.
-      auto *d2q_new = new DofToQuad(d2q);
-      d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
-      const int nqpt = ir.GetNPoints();
-
-      if (range_type == SCALAR)
-      {
-         for (int i = 0; i < nqpt; i++)
-         {
-            for (int j = 0; j < dof; j++)
-            {
-               d2q_new->B[i+nqpt*j] = d2q_new->Bt[j+dof*i] = d2q.B[i+nqpt*dof_map[j]];
-            }
-         }
-      }
-      else if (range_type == VECTOR)
-      {
-         for (int i = 0; i < nqpt; i++)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               for (int j = 0; j < dof; j++)
-               {
-                  d2q_new->B[i+nqpt*(d+dim*j)] = d2q_new->Bt[j+dof*(i+nqpt*d)] = d2q.B[i+nqpt*
-                                                                                       (d+dim*dof_map[j])];
-               }
-            }
-         }
-      }
-      else
-      {
-         // Skip B and Bt for unknown range type
-      }
-      switch (deriv_type)
-      {
-         case GRAD:
-         {
-            for (int i = 0; i < nqpt; i++)
-            {
-               for (int d = 0; d < dim; d++)
-               {
-                  for (int j = 0; j < dof; j++)
-                  {
-                     d2q_new->G[i+nqpt*(d+dim*j)] = d2q_new->Gt[j+dof*(i+nqpt*d)] = d2q.G[i+nqpt*
-                                                                                          (d+dim*dof_map[j])];
-                  }
-               }
-            }
-            break;
-         }
-         case DIV:
-         {
-            for (int i = 0; i < nqpt; i++)
-            {
-               for (int j = 0; j < dof; j++)
-               {
-                  d2q_new->G[i+nqpt*j] = d2q_new->Gt[j+dof*i] = d2q.G[i+nqpt*dof_map[j]];
-               }
-            }
-            break;
-         }
-         case CURL:
-         {
-            for (int i = 0; i < nqpt; i++)
-            {
-               for (int d = 0; d < cdim; d++)
-               {
-                  for (int j = 0; j < dof; j++)
-                  {
-                     d2q_new->G[i+nqpt*(d+cdim*j)] = d2q_new->Gt[j+dof*(i+nqpt*d)] = d2q.G[i+nqpt*
-                                                                                           (d+cdim*dof_map[j])];
-                  }
-               }
-            }
-            break;
-         }
-         case NONE:
-         default:
-            // Skip G and Gt for unknown derivative type
-            break;
-      }
-      dof2quad_array.Append(d2q_new);
-      return *d2q_new;
-   }
-   else
-   {
-      return d2q;
    }
 }
 
