@@ -186,7 +186,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       if (Dim > 1)
       {
          el_to_edge = new Table;
-         NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge);
       }
 
       STable3D *faces_tbl = NULL;
@@ -196,6 +196,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
 
       GenerateFaces();
+
+      // Make sure the be_to_face array is initialized.
+      // In 2D, it will be set in the above call to Mesh::GetElementToEdgeTable.
+      // In 3D, it will be set in GetElementToFaceTable.
+      // In 1D, we need to set it manually.
+      if (Dim == 1)
+      {
+         be_to_face.SetSize(NumOfBdrElements);
+         for (int i = 0; i < NumOfBdrElements; ++i)
+         {
+            be_to_face[i] = boundary[i]->GetVertices()[0];
+         }
+      }
 
       ListOfIntegerSets  groups;
       {
@@ -435,7 +448,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
 
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
@@ -451,7 +464,7 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
       boundary.SetSize(nbdry);
       for (int i = 0; i < mesh.GetNBE(); i++)
       {
-         int edge = mesh.GetBdrElementEdgeIndex(i);
+         int edge = mesh.GetBdrElementFaceIndex(i);
          int el1 = edge_element->GetRow(edge)[0];
          if (partitioning[el1] == MyRank)
          {
@@ -3320,7 +3333,7 @@ void ParMesh::ReorientTetMesh()
       GenerateFaces();
       if (el_to_edge)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
       }
    }
    else
@@ -3555,7 +3568,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 6. Update element-to-edge relations.
       if (el_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
       }
    } //  'if (Dim == 3)'
 
@@ -3793,7 +3806,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       if (el_to_edge != NULL)
       {
-         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge);
          GenerateFaces();
       }
    } //  'if (Dim == 2)'
@@ -3854,6 +3867,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
                  "(you need to initialize the ParMesh from a nonconforming "
                  "serial Mesh)");
    }
+
+   ResetLazyData();
 
    DeleteFaceNbrData();
 
@@ -5286,7 +5301,7 @@ Mesh ParMesh::GetSerialMesh(int save_rank) const
       for (int e = 0; e < NumOfElements; e++)
       {
          const int attr = elements[e]->GetAttribute();
-         const int geom_type = elements[e]->GetGeometryType();;
+         const int geom_type = elements[e]->GetGeometryType();
          ints.Append(attr);
          ints.Append(geom_type);
          pfespace_linear.GetElementDofs(e, dofs);
