@@ -16,7 +16,6 @@
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
-#include "qfunction.hpp"
 #include <memory>
 
 namespace mfem
@@ -2981,6 +2980,7 @@ public:
 
 // Forward declarations
 class CoefficientVector;
+class QuadratureFunction;
 
 /** Integrator for the linear elasticity form:
     a(u,v) = (lambda div(u), div(v)) + (2 mu e(u), e(v)),
@@ -3009,14 +3009,13 @@ private:
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
    const FiniteElementSpace *fespace;   ///< Not owned.
-   bool PACalled = false;
 
    //Component integrator
    int IBlock = -1;
    int JBlock = -1;
    /// @brief Pointer to an integrator from which a component integrator is
    /// derived. Should be nullptr for the original integrator. Not owned.
-   const ElasticityIntegrator *parent = nullptr;
+   ElasticityIntegrator *parent = nullptr;
    std::shared_ptr<const FiniteElementSpace> componentFESpace = nullptr;
 
 public:

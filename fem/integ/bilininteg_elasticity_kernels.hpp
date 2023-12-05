@@ -39,12 +39,19 @@
 #include "../quadinterpolator.hpp"
 #include "../bilininteg.hpp"
 #include "../coefficient.hpp"
+#include "../qfunction.hpp"
 
 namespace mfem
 {
 
 namespace internal
 {
+/// @brief Assert that the CoefficientStorage type is supported by the kernel.
+/// For now, CoefficientStorage is inferred from the size of the cv, ir, and fespace.
+/// The kernels currently only support CoefficientVectors created with CoefficientStorage::FULL.
+void ElastAssertCompressionSupported(const CoefficientVector &cv,
+                                     const IntegrationRule &ir, const FiniteElementSpace &fespace);
+
 /// @brief Elasticity kernel for AddMultPA.
 ///
 /// Performs y += Ax. Implemented for byNODES ordering only, and does not
@@ -143,6 +150,8 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
 
    //Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
+   ElastAssertCompressionSupported(lambda, ir,fespace);
+   ElastAssertCompressionSupported(mu, ir,fespace);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
@@ -151,8 +160,8 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
    E_To_Q_Map->Mult(x,QuadratureInterpolator::PHYSICAL_DERIVATIVES, junk,
                     QVec, junk);
 
-   int numPoints = ir.GetNPoints();
-   int numEls = lambda.Size()/numPoints;
+   const int numPoints = ir.GetNPoints();
+   const int numEls = lambda.Size()/numPoints;
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
@@ -263,9 +272,11 @@ void ElasticityAssembleDiagonalPA(const int nDofs,
 {
    //Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
+   ElastAssertCompressionSupported(lambda, ir,fespace);
+   ElastAssertCompressionSupported(mu, ir,fespace);
    static constexpr int d = dim;
-   int numPoints = ir.GetNPoints();
-   int numEls = lambda.Size()/numPoints;
+   const int numPoints = ir.GetNPoints();
+   const int numEls = lambda.Size()/numPoints;
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
@@ -343,8 +354,10 @@ void ElasticityAssembleEA(const int IBlock, const int JBlock, const int nDofs,
 {
    //Assuming all elements are the same
    static constexpr int d = dim;
-   int numPoints = ir.GetNPoints();
-   int numEls = lambda.Size()/numPoints;
+   const int numPoints = ir.GetNPoints();
+   ElastAssertCompressionSupported(lambda, ir,fespace);
+   ElastAssertCompressionSupported(mu, ir,fespace);
+   const int numEls = lambda.Size()/numPoints;
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
