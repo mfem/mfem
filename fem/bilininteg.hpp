@@ -2979,6 +2979,9 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
+// Forward declarations
+class CoefficientVector;
+
 /** Integrator for the linear elasticity form:
     a(u,v) = (lambda div(u), div(v)) + (2 mu e(u), e(v)),
     where e(v) = (1/2) (grad(v) + grad(v)^T).
@@ -2998,7 +3001,7 @@ private:
 #endif
 
    // PA extension
-   std::shared_ptr<QuadratureFunction> lambda_quad, mu_quad;
+   std::shared_ptr<CoefficientVector> lambda_quad, mu_quad;
    std::shared_ptr<QuadratureFunction> q_vec;
    std::shared_ptr<QuadratureSpace> quad_space;
 

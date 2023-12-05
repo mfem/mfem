@@ -48,17 +48,14 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       geom = mesh->GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
       quad_space = std::make_shared<QuadratureSpace>(*mesh, *IntRule);
-      lambda_quad = std::make_shared<QuadratureFunction>(*quad_space);
-      mu_quad = std::make_shared<QuadratureFunction>(*quad_space);
+      lambda_quad = std::make_shared<CoefficientVector>(lambda, *quad_space,
+                                                        CoefficientStorage::FULL);
+      mu_quad = std::make_shared<CoefficientVector>(mu, *quad_space,
+                                                    CoefficientStorage::FULL);
       q_vec = std::make_shared<QuadratureFunction>(*quad_space, vdim*vdim);
-      lambda->Project(*lambda_quad);
-      mu->Project(*mu_quad);
       auto ordering = GetEVectorOrdering(*fespace);
       auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
                   DofToQuad::LEXICOGRAPHIC_FULL;
-      // Should be FULL if native and LEXICOGRAPHIC_FULL ow? should there be another function?
-      // maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, DofToQuad::FULL, ordering);
-      // maybe make a function of fespace as well, something that returns FULL, LEXICO, or TENSOR
       maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
    }
    PACalled = true;
