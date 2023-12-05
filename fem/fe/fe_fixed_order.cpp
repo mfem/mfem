@@ -6031,7 +6031,7 @@ void RT0PyrFiniteElement::CalcVShape(const IntegrationPoint &ip,
    shape(1,2) = z;
 
    shape(2,0) = x * (2.0 - z) * ozi;
-   shape(2,1) = - y * z * ozi;;
+   shape(2,1) = - y * z * ozi;
    shape(2,2) = z;
 
    shape(3,0) = - x * z * ozi;

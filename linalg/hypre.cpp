@@ -264,7 +264,6 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 Vector * HypreParVector::GlobalVector() const
 {
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   if (hv == nullptr) { return nullptr; }
    Vector *v = new Vector(hv->data, internal::to_int(hv->size));
    v->MakeDataOwner();
    hypre_SeqVectorSetDataOwner(hv,0);
@@ -5076,7 +5075,8 @@ void HypreBoomerAMG::RecomputeRBMs()
    }
 }
 
-void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
+void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
+                                          bool interp_refine_)
 {
 #ifdef HYPRE_USING_GPU
    MFEM_ABORT("this method is not supported in hypre built with GPU support");
@@ -5087,7 +5087,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim);
+   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
@@ -5102,7 +5102,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_)
 
    // Optionally pre-process the interpolation matrix through iterative weight
    // refinement (this is generally applicable for any system)
-   int interp_refine         = 1;
+   int interp_refine         = interp_refine_;
 
    HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
    HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
