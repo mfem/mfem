@@ -62,6 +62,8 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    max_elements = std::numeric_limits<long long>::max();
 
    threshold = 0.0;
+   local_size_limit = DBL_MIN;
+   global_size_limit = DBL_MIN;
    num_marked_elements = 0LL;
    current_sequence = -1;
 
@@ -79,6 +81,19 @@ double ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
    }
 #endif
    return local_err.Normlp(total_norm_p);
+}
+
+double ThresholdRefiner::GetMinDouble(double val, Mesh &mesh) const
+{
+   double ret_val = val;
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh)
+   {
+      MPI_Allreduce(&val, &ret_val, 1, MPI_DOUBLE, MPI_MIN, pmesh->GetComm());
+   }
+#endif
+   return val;
 }
 
 int ThresholdRefiner::ApplyImpl(Mesh &mesh)
@@ -109,13 +124,21 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
       threshold = std::max(total_err * total_fraction, local_err_goal);
    }
 
+   double min_el_size = DBL_MAX;
+
    for (int el = 0; el < NE; el++)
    {
-      if (local_err(el) > threshold)
+      // Compute h_min i.e. the smallest singular value of the Jacobian
+      double el_size = mesh.GetElementSize(el, 1);
+      min_el_size = std::min(el_size, min_el_size);
+      if (local_err(el) > threshold && el_size > local_size_limit)
       {
          marked_elements.Append(Refinement(el));
       }
    }
+
+   const double global_min_el_size = GetMinDouble(min_el_size, mesh);
+   if (global_min_el_size <= global_size_limit) { return STOP; }
 
    if (aniso_estimator)
    {

@@ -185,6 +185,8 @@ protected:
    long long max_elements;
 
    double threshold;
+   double local_size_limit;
+   double global_size_limit;
    long long num_marked_elements;
 
    Array<Refinement> marked_elements;
@@ -194,6 +196,9 @@ protected:
    int nc_limit;
 
    double GetNorm(const Vector &local_err, Mesh &mesh) const;
+
+   // Return "val" or minimum "val" over all MPI ranks.
+   double GetMinDouble(double val, Mesh &mesh) const;
 
    /** @brief Apply the operator to the mesh.
        @return STOP if a stopping criterion is satisfied or no elements were
@@ -231,6 +236,14 @@ public:
        the input mesh has num_elements >= max_elem. The default value is
        LONG_MAX. */
    void SetMaxElements(long long max_elem) { max_elements = max_elem; }
+
+   /** @brief Set the minimum element size below which elements will not be
+       marked. The default is unlimited. */
+   void SetLocalSizeLimit(double loc_size) { local_size_limit = loc_size; }
+
+   /** @brief Set the minimum global element size. Once any element drops below
+       this limit refinement will be halted. */
+   void SetGlobalSizeLimit(double glb_size) { global_size_limit = glb_size; }
 
    /// Use nonconforming refinement, if possible (triangles, quads, hexes).
    void PreferNonconformingRefinement() { non_conforming = 1; }

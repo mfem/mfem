@@ -126,7 +126,7 @@ void ParFluxVectors::ComputeDiffusiveFlux(const ParGridFunction& u)
 
       int dof = el->GetDof();
       int spaceDim = Tr->GetSpaceDim();
-      int vdim = std::max(spaceDim, el->GetVDim());
+      int vdim = std::max(spaceDim, el->GetRangeDim());
 
       vshape.SetSize(dof, vdim);
       elvec.SetSize(dof);
@@ -241,7 +241,7 @@ void ParFluxVectors::ComputeAdvectiveFlux(const ParGridFunction& u)
 
       int dof = el->GetDof();
       int spaceDim = Tr->GetSpaceDim();
-      int vdim = std::max(spaceDim, el->GetVDim());
+      int vdim = std::max(spaceDim, el->GetRangeDim());
 
       vshape.SetSize(dof, vdim);
       elvec.SetSize(dof);

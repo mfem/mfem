@@ -996,6 +996,8 @@ int main(int argc, char *argv[])
    int nc_limit = 3;         // maximum level of hanging nodes
    double max_elem_error = -1.0;
    double hysteresis = 0.25; // derefinement safety coefficient
+   double loc_size_lim = DBL_MIN;
+   double glb_size_lim = DBL_MIN;
    int order = 3;
 
    DGParams dg;
@@ -1118,6 +1120,10 @@ int main(int argc, char *argv[])
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
                   "Derefinement safety coefficient.");
+   args.AddOption(&loc_size_lim, "-loc-size", "--local-amr-size-limit",
+                  "Lower limit for AMR refinement (locally).");
+   args.AddOption(&glb_size_lim, "-glb-size", "--global-amr-size-limit",
+                  "Lower limit for AMR refinement (globally).");
    args.AddOption(&nc_limit, "-l", "--nc-limit",
                   "Maximum level of hanging nodes.");
    args.AddOption(&amr_weights, "-amr-w","--amr-weights",
@@ -2208,6 +2214,8 @@ int main(int argc, char *argv[])
    ThresholdRefiner refiner(estimator);
    refiner.SetTotalErrorFraction(0.8);
    // refiner.SetTotalErrorFraction(0.0); // use purely local threshold
+   refiner.SetLocalSizeLimit(loc_size_lim);
+   refiner.SetGlobalSizeLimit(glb_size_lim);
    refiner.SetLocalErrorGoal(max_elem_error);
    refiner.PreferConformingRefinement();
    refiner.SetNCLimit(nc_limit);
