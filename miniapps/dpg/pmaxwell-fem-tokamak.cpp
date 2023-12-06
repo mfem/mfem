@@ -5,7 +5,7 @@
 // srun -n 448 ./pmaxwell-fem-tokamak -o 4 -paraview
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
-// the "ultraweak" (UW) DPG formulation for the Maxwell problem
+// the standard FEM formulation for the Maxwell problem
 
 //      ∇×(1/μ ∇×E) - (ω^2 ϵ + i ω σ) E = J ,   in Ω
 //                E×n = E_0, on ∂Ω
@@ -80,18 +80,9 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
-   // const char *mesh_file = "tokamak_100k.msh";
-   // const char *mesh_file = "tokamak_200k.msh";
-   // const char *mesh_file = "meshes/tokamak_100k.msh";
-   const char *mesh_file = "data/mesh_300k.mesh";
-   const char * eps_r_file = "data/eps_r_100k.gf";
-   const char * eps_i_file = "data/eps_i_100k.gf";
-
-   // const char *mesh_file = "data/mesh_300k.mesh";
-   // const char * eps_r_file = "data/eps_r_300k.gf";
-   // const char * eps_i_file = "data/eps_i_300k.gf";
-
-   // const char *mesh_file = "meshes/box.msh";
+   const char *mesh_file = "data/mesh_330k.mesh";
+   const char * eps_r_file = "data/eps_r_330k.gf";
+   const char * eps_i_file = "data/eps_i_330k.gf";
 
    int order = 1;
    bool visualization = false;
@@ -100,9 +91,7 @@ int main(int argc, char *argv[])
    int pr = 0;
    bool paraview = false;
    double mu = 1.257e-6;
-   // double mu = 1.0;
    double epsilon = 1.0;
-   double sigma = 0.01;
    double epsilon_scale = 8.8541878128e-12;
 
    OptionsParser args(argc, argv);
@@ -116,8 +105,6 @@ int main(int argc, char *argv[])
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon, "-eps", "--permittivity",
                   "Permittivity of free space (or mass constant).");
-   args.AddOption(&sigma, "-sigma", "--sigma",
-                  "conductivity");
    args.AddOption(&sr, "-sref", "--serial_ref",
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pref", "--parallel_ref",
@@ -268,35 +255,35 @@ int main(int argc, char *argv[])
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, E_gf, *b, Ah, X, B);
 
-#ifdef MFEM_USE_MUMPS
-   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-   MUMPSSolver mumps;
-   mumps.SetPrintLevel(0);
-   mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-   mumps.SetOperator(*A);
-   mumps.Mult(B,X);
-   delete A;
-#else
-    MFEM_ABORT("MFEM compiled without mumps");
-#endif
-
-   a->RecoverFEMSolution(X, *b, E_gf);
-
-
    if (myid == 0)
    {
       std::cout << "Assembly finished" << endl;
    }
 
+#ifdef MFEM_USE_MUMPS
+   HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+   // auto cpardiso = new CPardisoSolver(A->GetComm());
+   auto solver = new MUMPSSolver;
+   solver->SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+   solver->SetPrintLevel(1);
+   solver->SetOperator(*A);
+   solver->Mult(B,X);
+   delete A;
+   delete solver;
+#else
+   MFEM_ABORT("MFEM compiled without mumps");
+#endif
 
-    if (visualization)
-    {
-        const char * keys = nullptr;
-        char vishost[] = "localhost";
-        int  visport   = 19916;
-        common::VisualizeField(E_out_r,vishost, visport, E_gf.real(),
-                            "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-    }
+   a->RecoverFEMSolution(X, *b, E_gf);
+
+   if (visualization)
+   {
+      const char * keys = nullptr;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      common::VisualizeField(E_out_r,vishost, visport, E_gf.real(),
+                             "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+   }
 
    if (paraview)
    {

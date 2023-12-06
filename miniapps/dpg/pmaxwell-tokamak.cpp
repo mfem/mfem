@@ -116,9 +116,9 @@ int main(int argc, char *argv[])
    // const char *mesh_file = "meshes/tokamak_100k.msh";
    // const char *mesh_file = "meshes/tokamak_100k.msh";
 
-   const char *mesh_file = "data/mesh_300k.mesh";
-   const char * eps_r_file = "data/eps_r_300k.gf";
-   const char * eps_i_file = "data/eps_i_300k.gf";
+   const char *mesh_file = "data/mesh_330k.mesh";
+   const char * eps_r_file = "data/eps_r_330k.gf";
+   const char * eps_i_file = "data/eps_i_330k.gf";
 
    // const char *mesh_file = "meshes/box.msh";
 
@@ -497,7 +497,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
-      paraview_dc->SetPrefixPath("ParaViewDPG");
+      paraview_dc->SetPrefixPath("ParaViewUWDPG");
       paraview_dc->SetLevelsOfDetail(order);
       paraview_dc->SetCycle(0);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -670,11 +670,11 @@ int main(int argc, char *argv[])
          if (!static_cond)
          {
             HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                         BlockA_r->GetBlock(0,0));
+                                                           BlockA_r->GetBlock(0,0));
             solver_E->SetPrintLevel(0);
             solver_E->SetSystemsOptions(dim);
             HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                            BlockA_r->GetBlock(1,1));
+                                                           BlockA_r->GetBlock(1,1));
             solver_H->SetPrintLevel(0);
             solver_H->SetSystemsOptions(dim);
             M.SetDiagonalBlock(0,solver_E);
@@ -683,9 +683,9 @@ int main(int argc, char *argv[])
             M.SetDiagonalBlock(num_blocks+1,solver_H);
          }
          HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                        skip), hatE_fes);
+                                                                                    skip), hatE_fes);
          HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                                   skip+1,skip+1), hatH_fes);
+                                                  skip+1,skip+1), hatH_fes);
          solver_hatE->SetPrintLevel(0);
          solver_hatH->SetPrintLevel(0);
 
@@ -700,8 +700,8 @@ int main(int argc, char *argv[])
          }
          CGSolver cg(MPI_COMM_WORLD);
          // GMRESSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-8);
-         cg.SetMaxIter(1000);
+         cg.SetRelTol(1e-6);
+         cg.SetMaxIter(500);
          cg.SetPrintLevel(1);
          cg.SetPreconditioner(M);
          cg.SetOperator(blockA);
