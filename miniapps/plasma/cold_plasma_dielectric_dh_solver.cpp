@@ -447,6 +447,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsInvReCoef,
                          MatrixCoefficient & epsInvImCoef,
                          MatrixCoefficient & epsAbsCoef,
+                         MatrixCoefficient & sigmaReCoef,
+                         MatrixCoefficient & sigmaImCoef,
                          Coefficient & muCoef,
                          Coefficient * etaCoef,
                          VectorCoefficient * kReCoef,
@@ -485,10 +487,20 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // m2_(NULL),
      m3_(NULL),
      M3_(NULL),
+     m4r_(NULL),
+     m4i_(NULL),
+     M4r_(NULL),
+     M4i_(NULL),
      PHIr_(NULL),
      PHIi_(NULL),
-     RHSr_(NULL),
-     RHSi_(NULL),
+     RHSr1_(NULL),
+     RHSi1_(NULL),
+     RHSr2_(NULL),
+     RHSi2_(NULL),
+     TMPr2_(NULL),
+     TMPi2_(NULL),
+     Er_(NULL),
+     Ei_(NULL),
      // m12EpsRe_(NULL),
      // m12EpsIm_(NULL),
      m1_(NULL),
@@ -548,6 +560,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // epsImCoef_(&epsImCoef),
      epsInvReCoef_(&epsInvReCoef),
      epsInvImCoef_(&epsInvImCoef),
+     sigmaReCoef_(&sigmaReCoef),
+     sigmaImCoef_(&sigmaImCoef),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
      muInvCoef_(muCoef, -1),
@@ -717,6 +731,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                                          *negOmegaCoef_) : NULL,
                                        sbc_bdr_marker_);
       }
+      ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
+      SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
+      sheathPowCoef_ = new SheathPower(*sb, *b_hat_, true);
+      if ( myid_ == 0 && logging_ > 0 ) {cout << "Setting Potenial *****************************" << endl;}
+      sheathPowCoef_->SetPotential(*phi_);
       if ( myid_ == 0 && logging_ > 0 ) {cout << "Done Building nxD01_" << endl;}
    }
 
@@ -739,13 +758,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                       *muCoef_);
    posMassCoef_ = new ProductCoefficient(*omega2Coef_,
                                          *muCoef_);
-
-   if ( sbcs_->Size() > 0)
-   {
-         ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
-         SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
-         SheathPower sheathPowCoef_(*sb, *b_hat_, true);
-   }
 
    // Impedance of free space
    /*
@@ -926,6 +938,19 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    m21EpsInv_->AddDomainIntegrator(new VectorFEMassIntegrator(*epsInvReCoef_),
                                    new VectorFEMassIntegrator(*epsInvImCoef_));
 
+   m4r_ = new ParBilinearForm(HCurlFESpace_);
+   m4r_->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaReCoef_));
+   m4i_ = new ParBilinearForm(HCurlFESpace_);
+   m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaImCoef_));
+
+   RHSr2_ = new HypreParVector(HCurlFESpace_);
+   RHSi2_ = new HypreParVector(HCurlFESpace_);
+   TMPr2_ = new HypreParVector(HCurlFESpace_);
+   TMPi2_ = new HypreParVector(HCurlFESpace_);
+
+   Er_ = new HypreParVector(HCurlFESpace_);
+   Ei_ = new HypreParVector(HCurlFESpace_);
+
    if (sbcs_->Size() > 0)
    {
       // TODO: PA does not support BoundaryIntegrator yet
@@ -942,8 +967,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       PHIr_ = new HypreParVector(H1FESpace_);
       PHIi_ = new HypreParVector(H1FESpace_);
 
-      RHSr_ = new HypreParVector(H1FESpace_);
-      RHSi_ = new HypreParVector(H1FESpace_);
+      RHSr1_ = new HypreParVector(H1FESpace_);
+      RHSi1_ = new HypreParVector(H1FESpace_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -1240,10 +1265,21 @@ CPDSolverDH::~CPDSolverDH()
    // delete m2_;
    delete m3_;
    delete M3_;
+   delete m4r_;
+   delete m4i_;
+   delete M4r_;
+   delete M4i_;
    delete PHIr_;
    delete PHIi_;
-   delete RHSr_;
-   delete RHSi_;
+   delete RHSr1_;
+   delete RHSi1_;
+   delete RHSr2_;
+   delete RHSi2_;
+   delete TMPr2_;
+   delete TMPi2_;
+   delete Er_;
+   delete Ei_;
+   delete sheathPowCoef_;
    // delete m12EpsRe_;
    // delete m12EpsIm_;
    delete m1_;
@@ -1455,6 +1491,12 @@ CPDSolverDH::Assemble()
    {
       cout << " done in " << tic_toc.RealTime() << " seconds." << endl;
    }
+
+   m4r_->Assemble();
+   m4r_->Finalize();
+   m4i_->Assemble();
+   m4i_->Finalize();
+
    if ( myid_ == 0 && logging_ > 0 )
    { cout << "  Source term..." << flush; }
    tic_toc.Clear();
@@ -1601,6 +1643,12 @@ CPDSolverDH::Update()
    // m12EpsIm_->Update();
    m1_->Update();
    m21EpsInv_->Update();
+   m4r_->Update();
+   m4i_->Update();
+   //RHSr2_->Update();
+   //RHSi2_->Update(); 
+   //TMPr2_->Update();
+   //TMPi2_->Update(); 
    if (m0_)
    {
       m0_->Update();
@@ -1608,6 +1656,10 @@ CPDSolverDH::Update()
       // n20ZIm_->Update();
       nzD12_->Update();
       m3_->Update();
+      //PHIr_->Update();
+      //PHIi_->Update();
+      //RHSr1_->Update();
+      //RHSi1_->Update();
    }
    // curlMuInvCurl_->Update();
    // hCurlMass_->Update();
@@ -1779,7 +1831,7 @@ CPDSolverDH::Solve()
           }
           phi_->Distribute(PHI);
       */
-      while (H_iter_ < 50)
+      while (H_iter_ < 2)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -1801,9 +1853,9 @@ CPDSolverDH::Solve()
 
          GMRESSolver gmres(MPI_COMM_WORLD);
          gmres.SetKDim(400);
-         gmres.SetRelTol(5e-5);
-         gmres.SetAbsTol(5e-5);
-         gmres.SetMaxIter(600);
+         gmres.SetRelTol(1e-7);
+         gmres.SetAbsTol(1e-7);
+         gmres.SetMaxIter(1000);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 
@@ -1819,9 +1871,12 @@ CPDSolverDH::Solve()
 
          if (myid_ == 0) { cout << H_iter_ << '\t' << phi_diff << endl; }
 
+         m3_->Update();
+
          prev_phi_->Vector::operator=((Vector&)(*phi_));
 
          H_iter_++;
+
          /*
          if ( phi_diff < 1e-5) {
              if (myid_ == 0) { cout << "Writing out solution" << endl; }
@@ -1870,6 +1925,14 @@ CPDSolverDH::Solve()
       if (myid_ == 0) { cout << "norm of H: " << nrmh << endl; }
       if (sbcs_->Size() > 0)
       {
+         m3_->Assemble();
+         m3_->Finalize();
+
+         ConstantCoefficient zeroCoef(0.0);
+
+         double phinorm = phi_->ComputeL2Error(zeroCoef, zeroCoef);
+         if (myid_ == 0) { cout << "norm of Phi: " << phinorm << endl; }
+
          PHIr_ = phi_->real().ParallelProject();
          PHIi_ = phi_->imag().ParallelProject();
          M3_ = m3_->ParallelAssemble();
@@ -1885,8 +1948,16 @@ CPDSolverDH::Solve()
    // Compute E from D: E = epsilon^{-1} D with BC given by -Grad(phi)
    this->computeE(*d_, *e_);
 
+   Er_ = e_->real().ParallelProject();
+   Ei_ = e_->imag().ParallelProject();
+   M4r_ = m4r_->ParallelAssemble();
+   M4i_ = m4i_->ParallelAssemble();
+
+   double global_diss = GetGlobalDissipation();
+
    if (myid_ == 0)
    {
+      cout << "Global Dissipation: " << global_diss << endl; 
       cout << " Solve done." << endl;
    }
 }
@@ -2111,7 +2182,12 @@ void CPDSolverDH::computeE(const ParComplexGridFunction & d,
       VectorConstantCoefficient zeroVCoef(zeroVec);
 
       double nrme = e.ComputeL2Error(zeroVCoef, zeroVCoef);
-      if (myid_ == 0) { cout << "norm of E: " << nrme << endl; }
+
+      if (myid_ == 0) 
+         { 
+            cout << "norm of E: " << nrme << endl; 
+            //cout << "Global Dissipation: " << global_diss << endl; 
+         }
    }
 }
 
@@ -2178,14 +2254,40 @@ CPDSolverDH::GetErrorEstimates(Vector & errors)
 }
 
 double
+CPDSolverDH::GetGlobalDissipation() const
+{
+   double global_diss = 0.0;
+
+   // Real sigma*E :
+   M4r_->Mult(*Er_,*RHSr2_);
+   M4i_->Mult(*Ei_,*TMPr2_);
+   *RHSr2_ -= *TMPr2_;
+
+   // Image sigma*E :
+   M4r_->Mult(*Ei_,*RHSi2_);
+   M4i_->Mult(*Er_,*TMPi2_);
+   *RHSi2_ += *TMPi2_;
+
+   global_diss = InnerProduct(*Er_,*RHSr2_) + InnerProduct(*Ei_,*RHSi2_);
+
+   return 0.25*global_diss;
+}
+
+double
 CPDSolverDH::GetSheathDissipation() const
 {
    double sheath_diss = 0.0;
 
-   M3_->Mult(*PHIr_,*RHSr_);
-   M3_->Mult(*PHIi_,*RHSi_);
+   M3_->Mult(*PHIr_,*RHSr1_);
+   M3_->Mult(*PHIi_,*RHSi1_);
 
-   sheath_diss = InnerProduct(*PHIr_,*RHSr_) + InnerProduct(*PHIi_,*RHSi_);
+   sheath_diss = InnerProduct(*PHIr_,*RHSr1_) + InnerProduct(*PHIi_,*RHSi1_);
+   //cout << "InnerProduct 1" << InnerProduct(*PHIr_,*RHSr1_) << endl;
+   //cout << "InnerProduct 2" << InnerProduct(*PHIi_,*RHSi1_) << endl;
+   //cout << "Norm Phir" << PHIr_->Norml2() << endl;
+   //cout << "Norm Phii" << PHIi_->Norml2() << endl;
+   //cout << "Norm RHSr" << RHSr1_->Norml2() << endl;
+   //cout << "Norm RHSi" << RHSi1_->Norml2() << endl;
 
    return 0.5*sheath_diss;
 }
@@ -2219,10 +2321,12 @@ CPDSolverDH::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Rec_Phi", rectPot_);
    }
 
+   /*
    if ( Bn_ )
    {
       visit_dc.RegisterField("Bn", Bn_);
    }
+   */
 
    if ( BCoef_)
    {
@@ -2341,9 +2445,9 @@ CPDSolverDH::WriteVisItFields(int it)
             rectPot_->ProjectCoefficient(rectPotCoef);
 
             //SheathPower sheathPowCoef(*sb, *b_hat_, true);
-            //sheath_pow_->ProjectCoefficient(sheathPowCoef);
-            //sheath_pow_->ProjectCoefficient(*sheathPowCoef_);
+            sheath_pow_->ProjectCoefficient(*sheathPowCoef_);
 
+            /*
             if ( Bn_ && BCoef_ )
             {
                //if (myid_ == 0){ cout << "SIZE.... " << sbc_bdr_marker_.Size() << endl; }
@@ -2354,6 +2458,7 @@ CPDSolverDH::WriteVisItFields(int it)
                //Bn_->ProjectBdrCoefficient(BnCoef, sbc_bdr_marker_);
                Bn_->ProjectCoefficient(BnCoef);
             }
+            */
          }
       }
 

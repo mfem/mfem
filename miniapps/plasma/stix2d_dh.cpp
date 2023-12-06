@@ -629,6 +629,7 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type dpt_sol = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type dpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt_def = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type tpt_vac = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt_sol = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tpt_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nept = PlasmaProfile::CONSTANT;
@@ -638,6 +639,7 @@ int main(int argc, char *argv[])
    Array<int> dpa_vac;
    Array<int> dpa_sol;
    Array<int> dpa_cor;
+   Array<int> tpa_vac;
    Array<int> tpa_sol;
    Array<int> tpa_cor;
    Vector dpp_def;
@@ -645,6 +647,7 @@ int main(int argc, char *argv[])
    Vector dpp_sol;
    Vector dpp_cor;
    Vector tpp_def;
+   Vector tpp_vac;
    Vector tpp_sol;
    Vector tpp_cor;
    Vector bpp;
@@ -797,6 +800,20 @@ int main(int argc, char *argv[])
    args.AddOption(&tpp_def, "-tpp", "--temperature-profile-params",
                   "Temperature Profile Parameters: \n"
                   "   CONSTANT: temperature value \n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&tpa_vac, "-tpa-vac", "-vac-temp-profile-attr",
+                  "Temperature Profile (for ions) in Vacuum");
+   args.AddOption((int*)&tpt_vac, "-tp-vac", "--vac-temp-profile",
+                  "Temperature Profile Type (for ions) in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&tpp_vac, "-tpp-vac", "--vac-temp-profile-params",
+                  "Temperature Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
                   "   GRADIENT: value, location, gradient (7 params)\n"
                   "   TANH:     value at 0, value at 1, skin depth, "
                   "location of 0 point, unit vector along gradient, "
@@ -1580,6 +1597,20 @@ int main(int argc, char *argv[])
    }
    */
    PlasmaProfile TeCoef(tpt_def, tpp_def, coord_sys, eqdsk);
+   if (tpa_vac.Size() > 0)
+   {
+      /*
+      if (Mpi::Root())
+      {
+
+         cout << "   Setting vacuum layer temperature profile type " << tpt_sol
+              << " with parameters \"";
+         tpp_vac.Print(cout);
+         cout << "\" on attributes \"" << tpa_vac << "\".";
+      }
+      */
+      TeCoef.SetParams(tpa_vac, tpt_vac, tpp_vac);
+   }
    if (tpa_sol.Size() > 0)
    {
       /*
@@ -1855,6 +1886,21 @@ int main(int argc, char *argv[])
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false);
+   ConductivityTensor sigma_real(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, true);
+   ConductivityTensor sigma_imag(BField, k_gf, nue_gf, nui_gf, density,
+                                           temperature, iontemp_gf,
+                                           L2FESpace, H1FESpace,
+                                           omega, charges, masses, nuprof,
+                                           res_lim, false);
+   TransposeMatrixCoefficient sigma_realT(sigma_real);
+   TransposeMatrixCoefficient sigma_imagT(sigma_imag);
+   MatrixSumCoefficient sigma_real_diss(sigma_realT, sigma_real,1.0,-1.0);
+   // SIGN ERROR HERE:
+   MatrixSumCoefficient sigma_imag_diss(sigma_imagT, sigma_imag,-1.0,-1.0);
    SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
                                    temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
@@ -2219,7 +2265,9 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::SolverType)sol, solOpts,
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
-                   epsilonInv_real, epsilonInv_imag, epsilon_abs,
+                   epsilonInv_real, epsilonInv_imag, 
+                   sigma_real_diss, sigma_imag_diss,
+                   epsilon_abs,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
                    (phase_shift) ? &kImCoef : NULL,
@@ -2718,6 +2766,7 @@ void record_cmd_line(int argc, char *argv[])
           strcmp(argv[i], "-dpa-sol") == 0 ||
           strcmp(argv[i], "-dpa-cor") == 0 ||
           strcmp(argv[i], "-tpp"    ) == 0 ||
+          strcmp(argv[i], "-tpp-vac") == 0 ||
           strcmp(argv[i], "-tpp-sol") == 0 ||
           strcmp(argv[i], "-tpp-cor") == 0 ||
           strcmp(argv[i], "-tpa-sol") == 0 ||

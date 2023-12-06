@@ -155,7 +155,7 @@ complex<double> L_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.1;
+   double res_lim = 0.0;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -177,7 +177,7 @@ complex<double> L_cold_plasma(double omega,
    }
    return val;
 }
-/*
+
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -229,8 +229,8 @@ complex<double> S_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -332,32 +332,12 @@ complex<double> S_cold_plasma(double omega,
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
       }
-
-      /*
-      // SPARC Case 2: D (H Minority)
-      else if (i == 1)
-      {
-         // Z function:
-         kperpFW = 47.617099;
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
-
-         // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
-
-         // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,
-                                 2.0)/omega)*exp(-1.0*lambda)*(0.5)*(1.0/(kparallel*vth))*(Zp+Zm);
-      }
-      */
       val += suscept_particle;
    }
    return val;
 }
+*/
 
-/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -409,8 +389,8 @@ complex<double> D_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> D_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -507,32 +487,12 @@ complex<double> D_cold_plasma(double omega,
          // Total particle susceptibility contribution:
          suscept_particle = first_harm + second_harm;
       }
-      /*
-      // SPARC Case 2: D (H Minority)
-      else if (i == 1)
-      {
-         // Z function:
-         kperpFW = 47.617099;
-         complex<double>  lambda = pow(kperpFW*vth,2.0)/(2*pow(w_c,2.0));
-
-         // n > 0:
-         complex<double> Zp = Zfunction((omega - w_c)/(kparallel*vth));
-
-         // n < 0:
-         complex<double> Zm = Zfunction((omega + w_c)/(kparallel*vth));
-
-         // Total particle susceptibility contribution:
-         suscept_particle = (pow(w_p,
-                                 2.0)/omega)*exp(-1.0*lambda)*(-0.5)*(1.0/(kparallel*vth))*(Zp-Zm)
-                                 - complex<double>(0.0,nui);
-      }
-      */
       val += suscept_particle;
    }
    return val;
 }
+*/
 
-/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -567,8 +527,8 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-*/
 
+/*
 complex<double> P_cold_plasma(double omega,
                               double kparallel,
                               double nue,
@@ -612,7 +572,7 @@ complex<double> P_cold_plasma(double omega,
    }
    return val;
 }
-
+*/
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
 double gabsANY(double x)
@@ -867,6 +827,7 @@ complex<double> SheathBase::EvalSheathPotential(ElementTransformation &T,
 {
    double phir = (potential_) ? potential_->real().GetValue(T, ip) : 0.0 ;
    double phii = (potential_) ? potential_->imag().GetValue(T, ip) : 0.0 ;
+   // Issue error here....
    return complex<double>(phir, phii);
 }
 
@@ -1093,7 +1054,7 @@ double SheathPower::Eval(ElementTransformation &T,
                                           volt_norm, masses_[0], masses_[1]) );
 
    double dc_volt_norm = phi0avg(w_norm, volt_norm); // Unitless
-   double sheath_width = debye_length*pow(dc_volt_norm, 0.75); // (Myra 2021 Tutorial)
+   double sheath_width = 1.0; //debye_length*pow(dc_volt_norm, 0.75); // (Myra 2021 Tutorial)
 
    if (isnan(zsheath_norm.real()))
    {
@@ -1112,7 +1073,9 @@ double SheathPower::Eval(ElementTransformation &T,
    double yei_real = 0.0;
    if (zsheath_real != 0.0){yei_real = 1.0 / zsheath_real;}
 
-   return yei_real*sheath_width;
+   if (phi_mag > 1.0){cout << "PHI....." << phi_mag << endl;}
+
+   return yei_real*sheath_width*phi_mag;
 }
 
 StixCoefBase::StixCoefBase(const ParGridFunction & B,
@@ -1770,10 +1733,10 @@ void ConductivityTensor::Eval(DenseMatrix &sigma, ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
-   this->addParallelComp(realPart_ ?  -P.imag() : P.real(), sigma);
-   this->addPerpDiagComp(realPart_ ?  -S.imag() : S.real(), sigma);
-   this->addPerpSkewComp(realPart_ ?  -D.real() : -D.imag(), sigma);
-   sigma *= -1.0*omega_*epsilon0_;
+   this->addParallelComp(realPart_ ?  (P.imag() - 1.0) : (-P.real() + 1.0), sigma);
+   this->addPerpDiagComp(realPart_ ?  (S.imag() - 1.0) : (-S.real() + 1.0), sigma);
+   this->addPerpSkewComp(realPart_ ?  D.real() : D.imag(), sigma);
+   sigma *= omega_*epsilon0_;
 }
 
 SPDDielectricTensor::SPDDielectricTensor(

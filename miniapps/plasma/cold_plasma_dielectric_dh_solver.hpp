@@ -14,6 +14,7 @@
 
 #include "../common/pfem_extras.hpp"
 #include "cold_plasma_dielectric_solver.hpp"
+#include "cold_plasma_dielectric_coefs.hpp"
 #include "plasma.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -303,6 +304,8 @@ public:
                VectorCoefficient & BCoef,
                MatrixCoefficient & epsInvReCoef,
                MatrixCoefficient & epsInvImCoef,
+               MatrixCoefficient & sigmaReCoef,
+               MatrixCoefficient & sigmaImCoef,
                MatrixCoefficient & epsAbsCoef,
                Coefficient & muCoef,
                Coefficient * etaCoef,
@@ -335,6 +338,8 @@ public:
                          const VectorCoefficient & HImCoef) const;
 
    void GetErrorEstimates(Vector & errors);
+
+   double GetGlobalDissipation() const;
 
    double GetSheathDissipation() const;
 
@@ -644,6 +649,8 @@ private:
    ParSesquilinearForm * m0_;
    ParMixedSesquilinearForm * nzD12_;
    ParBilinearForm * m3_;
+   ParBilinearForm * m4r_;
+   ParBilinearForm * m4i_;
 
    ParDiscreteGradOperator * grad_; // For Computing E from phi
    ParDiscreteCurlOperator * curl_; // For Computing D from H
@@ -693,21 +700,31 @@ private:
    ParComplexGridFunction * EpsPara_; // B^T eps B / |B|^2 Coefficient (L2)
 
    HypreParMatrix * M3_;
+   HypreParMatrix * M4r_;
+   HypreParMatrix * M4i_;
    HypreParVector * PHIr_; 
    HypreParVector * PHIi_; 
-   mutable HypreParVector * RHSr_;
-   mutable HypreParVector * RHSi_;
+   mutable HypreParVector * RHSr1_;
+   mutable HypreParVector * RHSi1_;
+   mutable HypreParVector * RHSr2_;
+   mutable HypreParVector * RHSi2_;
+   mutable HypreParVector * TMPr2_;
+   mutable HypreParVector * TMPi2_;
+   HypreParVector * Er_; 
+   HypreParVector * Ei_;  
 
    VectorCoefficient * BCoef_;        // B Field Unit Vector
    // MatrixCoefficient * epsReCoef_;    // Dielectric Material Coefficient
    // MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsInvReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsInvImCoef_;    // Dielectric Material Coefficient
+   MatrixCoefficient * sigmaReCoef_;    // Real Conductivity Coefficient
+   MatrixCoefficient * sigmaImCoef_;    // Imag Conductivity Coefficient
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
    PowerCoefficient    muInvCoef_;    // Dia/Paramagnetic Material Coefficient
    Coefficient       * etaCoef_;      // Impedance Coefficient
-   Coefficient       * sheathPowCoef_; // Sheath Width * Admittance Coefficient
+   SheathPower       * sheathPowCoef_; // Sheath Width * Admittance Coefficient
    VectorCoefficient * kReCoef_;        // Wave Vector
    VectorCoefficient * kImCoef_;        // Wave Vector
 
