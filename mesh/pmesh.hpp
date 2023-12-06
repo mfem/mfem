@@ -346,9 +346,12 @@ public:
    /// Read a parallel mesh, each MPI rank from its own file/stream.
    /** The @a generate_edges parameter is passed to Mesh::Loader. The @a refine
        and @a fix_orientation parameters are passed to the method
-       Mesh::Finalize(). */
+       Mesh::Finalize().
+
+       @note The order of arguments and their default values are different than
+       for the Mesh class. */
    ParMesh(MPI_Comm comm, std::istream &input, bool refine = true,
-           int generate_edges = 0, bool fix_orientation = true);
+           int generate_edges = 1, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
