@@ -150,7 +150,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                                  const double L = (l1 == 1 ? Gy : By);
                                  const double R = (r1 == 1 ? Gy : By);
                                  QDD(l1,l2,r1,r2,qx,dy,dz) +=
-                                       L * QQD(l1,l2,r1,r2,qx,qy,dz) * R;
+                                    L * QQD(l1,l2,r1,r2,qx,qy,dz) * R;
                               }
                            }
                         }
