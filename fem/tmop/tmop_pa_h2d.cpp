@@ -126,9 +126,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                         {
                            for (int r2 = 0; r2 < DIM; r2++)
                            {
-                              const double L = (l1 == 0 ? By : Gy) * Jrt(l1,l2);
+                              const double L = (l1 == 1 ? Gy : By) * Jrt(l1,l2);
                               const double h = H(v,l2,v,r2,qx,qy,e);
-                              const double R = (r1 == 0 ? By : Gy) * Jrt(r1,r2);
+                              const double R = (r1 == 1 ? Gy : By) * Jrt(r1,r2);
                               QD(l1,l2,r1,r2,qx,dy) += L * h * R;
                            }
                         }
