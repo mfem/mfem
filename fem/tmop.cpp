@@ -4382,6 +4382,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
+   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
+
    Ordering::Type ordering = x_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
