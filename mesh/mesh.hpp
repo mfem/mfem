@@ -32,8 +32,6 @@
 namespace mfem
 {
 
-// Data type mesh
-
 class GeometricFactors;
 class FaceGeometricFactors;
 class KnotVector;
@@ -50,15 +48,15 @@ class ParMesh;
 class ParNCMesh;
 #endif
 
+/// Mesh data type
 class Mesh
 {
+   friend class NCMesh;
+   friend class NURBSExtension;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
 #endif
-   friend class NCMesh;
-   friend class NURBSExtension;
-
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
@@ -339,8 +337,8 @@ protected:
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
-   void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
-   virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
+   void GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order);
+   virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming
    // that the mesh elements may be rotated (e.g. to mark triangle or tet edges
