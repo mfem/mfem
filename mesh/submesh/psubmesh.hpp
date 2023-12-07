@@ -173,6 +173,21 @@ public:
                                            const ParGridFunction &dst);
 
    /**
+   * @brief Returns the parent boundary element index corresponding to a
+   * submesh face @a child_face. Returns -1 if the face is not a parent 
+   * boundary element.
+   *
+   * @param child_face The submesh face index
+   * 
+   * @note Currently only works in 2D and 3D.
+   */
+   int SubmeshFaceToParentBE(const int child_face)
+   {
+      return Dim == 3 ? parent_face_to_be[parent_face_ids_[child_face]] :
+            parent_face_to_be[parent_edge_ids_[child_face]];
+   }
+
+   /**
    * @brief Check if ParMesh @a m is a ParSubMesh.
    *
    * @param m The input ParMesh
@@ -372,6 +387,9 @@ private:
    /// Mapping from SubMesh face ids (index of the array), to the orientation
    /// of the face relative to the parent face.
    Array<int> parent_face_ori_;
+
+   /// Mapping from parent face ids (index of the array), to  
+   Array<int> parent_face_to_be;
 
    /// Mapping from parent ParMesh vertex ids (index of the array), to the
    /// ParSubMesh vertex ids. Inverse map of parent_vertex_ids_.

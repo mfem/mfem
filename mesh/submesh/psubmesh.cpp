@@ -243,6 +243,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          else { MFEM_ABORT("Invalid dimension."); return -1; }
       }();
 
+      if (Dim > 1) parent_face_to_be = parent.GetFaceToBdrElMap();
+
       if (Dim == 3)
       {
          // In 3D we check for `bel_to_edge`. It shouldn't have been set
@@ -254,7 +256,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       NumOfBdrElements = 0;
       for (int i = 0; i < num_codim_1; i++)
       {
-         if (GetFaceInformation(i).IsBoundary())
+         if (GetFaceInformation(i).IsBoundary() 
+            || (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
          {
             NumOfBdrElements++;
          }
@@ -262,20 +265,20 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       boundary.SetSize(NumOfBdrElements);
       be_to_face.SetSize(NumOfBdrElements);
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
       int max_bdr_attr = parent.bdr_attributes.Max();
 
       for (int i = 0, j = 0; i < num_codim_1; i++)
       {
-         if (GetFaceInformation(i).IsBoundary())
+         if (GetFaceInformation(i).IsBoundary() || 
+            (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
          {
             boundary[j] = faces[i]->Duplicate(this);
             be_to_face[j] = i;
 
             if (from == SubMesh::From::Domain && Dim >= 2)
             {
-               int pbeid = Dim == 3 ? parent_face_to_be[parent_face_ids_[i]] :
-                           parent_face_to_be[parent_edge_ids_[i]];
+               int pbeid = SubmeshFaceToParentBE(i);
+                           
                if (pbeid != -1)
                {
                   boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));
