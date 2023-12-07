@@ -151,7 +151,7 @@ void mfem_backtrace(int mode, int depth)
 #endif // MFEM_USE_LIBUNWIND
 }
 
-void mfem_error(const char *msg)
+[[noreturn]] void mfem_error(const char *msg)
 {
    std::ostream &merr = internal::mfem_err_initialized ? mfem::err : std::cerr;
    if (msg)
