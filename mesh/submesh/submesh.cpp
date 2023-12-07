@@ -60,9 +60,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       parent_face_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                     parent_element_ids_);
 
-      Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+      parent_face_to_be = parent.GetFaceToBdrElMap();
       int max_bdr_attr = parent.bdr_attributes.Max();
-
       for (int i = 0; i < NumOfBdrElements; i++)
       {
          int pbeid = parent_face_to_be[parent_face_ids_[GetBdrElementFaceIndex(i)]];
@@ -79,6 +78,21 @@ SubMesh::SubMesh(const Mesh &parent, From from,
             GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
          }
       }
+      // Now we add internal faces which weren't set in the previous loop
+      face_to_be = GetFaceToBdrElMap();
+      for (int i = 0; i < NumOfFaces; ++i)
+      {
+         int pbeid = parent_face_to_be[parent_face_ids_[i]];
+         if (pbeid != -1 && face_to_be[i] == -1)
+         {
+            int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+            auto *new_elem = GetFace(i)->Duplicate(this);
+            new_elem->SetAttribute(attr);
+            AddBdrElement(new_elem);
+         }
+      }
+
+      FinalizeTopology();
 
       parent_face_ori_.SetSize(NumOfFaces);
 
@@ -112,7 +126,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       {
          parent_edge_ids_ = SubMeshUtils::BuildFaceMap(parent, *this,
                                                        parent_element_ids_);
-         Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
+         parent_face_to_be = parent.GetFaceToBdrElMap();
          int max_bdr_attr = parent.bdr_attributes.Max();
 
          for (int i = 0; i < NumOfBdrElements; i++)
@@ -131,6 +145,23 @@ SubMesh::SubMesh(const Mesh &parent, From from,
                GetBdrElement(i)->SetAttribute(max_bdr_attr + 1);
             }
          }
+
+         // Now we add internal faces which weren't set in the previous loop
+         face_to_be = GetFaceToBdrElMap();
+         for (int i = 0; i < NumOfEdges; ++i)
+         {
+            int pbeid = parent_face_to_be[parent_edge_ids_[i]];
+            if (pbeid != -1 && face_to_be[i] == -1)
+            {
+               int attr = parent.GetBdrElement(pbeid)->GetAttribute();
+               auto *new_elem = GetFace(i)->Duplicate(this);
+               new_elem->SetAttribute(attr);
+               AddBdrElement(new_elem);
+            }
+         }
+
+         FinalizeTopology();
+
       }
 
       parent_face_ori_.SetSize(NumOfElements);

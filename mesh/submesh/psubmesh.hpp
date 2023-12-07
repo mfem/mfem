@@ -388,7 +388,8 @@ private:
    /// of the face relative to the parent face.
    Array<int> parent_face_ori_;
 
-   /// Mapping from parent face ids (index of the array), to  
+   /// Mapping from parent face ids (index of the array), to boundary
+   /// element ids of the parent mesh.
    Array<int> parent_face_to_be;
 
    /// Mapping from parent ParMesh vertex ids (index of the array), to the
