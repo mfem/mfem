@@ -131,6 +131,7 @@ void EvalP_338(const double *J, const double *w, double *P)
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                            const double metric_normal,
+                           const Vector &mc_,
                            const Array<double> &metric_param,
                            const int mid,
                            const int NE,
@@ -147,10 +148,15 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
                mid == 321 || mid == 332 || mid == 338,
                "3D metric not yet implemented!");
 
+   const bool const_m0 = mc_.Size() == 1;
+
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto MC = const_m0 ?
+                   Reshape(mc_.Read(), 1, 1, 1, 1) :
+                   Reshape(mc_.Read(), Q1D, Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -188,7 +194,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_3D,
             {
                const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+               const double m_coef = const_m0 ? MC(0,0,0,0) : MC(qx,qy,qz,e);
+               const double weight = metric_normal * m_coef *
+                                     W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -240,6 +248,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
+   const Vector &MC = PA.MC;
 
    Array<double> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
@@ -247,7 +256,7 @@ void TMOP_Integrator::AddMultPA_3D(const Vector &X, Vector &Y) const
       m->GetWeights(mp);
    }
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_3D,id,mn,MC,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

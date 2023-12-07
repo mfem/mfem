@@ -359,135 +359,148 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
 
    // Hessian in physical coords
    lhm.Invert();
-   Mult( hess, lhm, Hessian);
+   Mult(hess, lhm, Hessian);
 }
 
 const DofToQuad &FiniteElement::GetDofToQuad(const IntegrationRule &ir,
                                              DofToQuad::Mode mode) const
 {
+   DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::FULL, "invalid mode requested");
 
-   for (int i = 0; i < dof2quad_array.Size(); i++)
-   {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
-#ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(dof, dim);
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
 #endif
-
-   DofToQuad *d2q = new DofToQuad;
-   const int nqpt = ir.GetNPoints();
-   d2q->FE = this;
-   d2q->IntRule = &ir;
-   d2q->mode = mode;
-   d2q->ndof = dof;
-   d2q->nqpt = nqpt;
-   if (range_type == SCALAR)
    {
-      d2q->B.SetSize(nqpt*dof);
-      d2q->Bt.SetSize(dof*nqpt);
-
-      Vector shape;
-      vshape.GetColumnReference(0, shape);
-      for (int i = 0; i < nqpt; i++)
+      for (int i = 0; i < dof2quad_array.Size(); i++)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         CalcShape(ip, shape);
-         for (int j = 0; j < dof; j++)
-         {
-            d2q->B[i+nqpt*j] = d2q->Bt[j+dof*i] = shape(j);
-         }
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
       }
-   }
-   else if (range_type == VECTOR)
-   {
-      d2q->B.SetSize(nqpt*dim*dof);
-      d2q->Bt.SetSize(dof*nqpt*dim);
-
-      for (int i = 0; i < nqpt; i++)
+      if (!d2q)
       {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         CalcVShape(ip, vshape);
-         for (int d = 0; d < dim; d++)
+#ifdef MFEM_THREAD_SAFE
+         DenseMatrix vshape(dof, dim);
+#endif
+         d2q = new DofToQuad;
+         const int nqpt = ir.GetNPoints();
+         d2q->FE = this;
+         d2q->IntRule = &ir;
+         d2q->mode = mode;
+         d2q->ndof = dof;
+         d2q->nqpt = nqpt;
+         switch (range_type)
          {
-            for (int j = 0; j < dof; j++)
+            case SCALAR:
             {
-               d2q->B[i+nqpt*(d+dim*j)] = d2q->Bt[j+dof*(i+nqpt*d)] = vshape(j, d);
-            }
-         }
-      }
-   }
-   else
-   {
-      // Skip B and Bt for unknown range type
-   }
-   switch (deriv_type)
-   {
-      case GRAD:
-      {
-         d2q->G.SetSize(nqpt*dim*dof);
-         d2q->Gt.SetSize(dof*nqpt*dim);
+               d2q->B.SetSize(nqpt*dof);
+               d2q->Bt.SetSize(dof*nqpt);
 
-         for (int i = 0; i < nqpt; i++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-            CalcDShape(ip, vshape);
-            for (int d = 0; d < dim; d++)
-            {
-               for (int j = 0; j < dof; j++)
+               Vector shape;
+               vshape.GetColumnReference(0, shape);
+               for (int i = 0; i < nqpt; i++)
                {
-                  d2q->G[i+nqpt*(d+dim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = vshape(j, d);
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  CalcShape(ip, shape);
+                  for (int j = 0; j < dof; j++)
+                  {
+                     d2q->B[i+nqpt*j] = d2q->Bt[j+dof*i] = shape(j);
+                  }
                }
+               break;
             }
-         }
-         break;
-      }
-      case DIV:
-      {
-         d2q->G.SetSize(nqpt*dof);
-         d2q->Gt.SetSize(dof*nqpt);
-
-         Vector divshape;
-         vshape.GetColumnReference(0, divshape);
-         for (int i = 0; i < nqpt; i++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-            CalcDivShape(ip, divshape);
-            for (int j = 0; j < dof; j++)
+            case VECTOR:
             {
-               d2q->G[i+nqpt*j] = d2q->Gt[j+dof*i] = divshape(j);
-            }
-         }
-         break;
-      }
-      case CURL:
-      {
-         d2q->G.SetSize(nqpt*cdim*dof);
-         d2q->Gt.SetSize(dof*nqpt*cdim);
+               d2q->B.SetSize(nqpt*dim*dof);
+               d2q->Bt.SetSize(dof*nqpt*dim);
 
-         DenseMatrix curlshape(vshape.GetData(), dof, cdim);  // cdim <= dim
-         for (int i = 0; i < nqpt; i++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(i);
-            CalcCurlShape(ip, curlshape);
-            for (int d = 0; d < cdim; d++)
-            {
-               for (int j = 0; j < dof; j++)
+               for (int i = 0; i < nqpt; i++)
                {
-                  d2q->G[i+nqpt*(d+cdim*j)] = d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  CalcVShape(ip, vshape);
+                  for (int d = 0; d < dim; d++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        d2q->B[i+nqpt*(d+dim*j)] =
+                           d2q->Bt[j+dof*(i+nqpt*d)] = vshape(j, d);
+                     }
+                  }
                }
+               break;
             }
+            case UNKNOWN_RANGE_TYPE:
+               // Skip B and Bt for unknown range type
+               break;
          }
-         break;
+         switch (deriv_type)
+         {
+            case GRAD:
+            {
+               d2q->G.SetSize(nqpt*dim*dof);
+               d2q->Gt.SetSize(dof*nqpt*dim);
+
+               for (int i = 0; i < nqpt; i++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  CalcDShape(ip, vshape);
+                  for (int d = 0; d < dim; d++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        d2q->G[i+nqpt*(d+dim*j)] =
+                           d2q->Gt[j+dof*(i+nqpt*d)] = vshape(j, d);
+                     }
+                  }
+               }
+               break;
+            }
+            case DIV:
+            {
+               d2q->G.SetSize(nqpt*dof);
+               d2q->Gt.SetSize(dof*nqpt);
+
+               Vector divshape;
+               vshape.GetColumnReference(0, divshape);
+               for (int i = 0; i < nqpt; i++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  CalcDivShape(ip, divshape);
+                  for (int j = 0; j < dof; j++)
+                  {
+                     d2q->G[i+nqpt*j] = d2q->Gt[j+dof*i] = divshape(j);
+                  }
+               }
+               break;
+            }
+            case CURL:
+            {
+               d2q->G.SetSize(nqpt*cdim*dof);
+               d2q->Gt.SetSize(dof*nqpt*cdim);
+
+               DenseMatrix curlshape(vshape.GetData(), dof, cdim);  // cdim <= dim
+               for (int i = 0; i < nqpt; i++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  CalcCurlShape(ip, curlshape);
+                  for (int d = 0; d < cdim; d++)
+                  {
+                     for (int j = 0; j < dof; j++)
+                     {
+                        d2q->G[i+nqpt*(d+cdim*j)] =
+                           d2q->Gt[j+dof*(i+nqpt*d)] = curlshape(j, d);
+                     }
+                  }
+               }
+               break;
+            }
+            case NONE:
+               // Skip G and Gt for unknown derivative type
+               break;
+         }
+         dof2quad_array.Append(d2q);
       }
-      case NONE:
-      default:
-         // Skip G and Gt for unknown derivative type
-         break;
    }
-   dof2quad_array.Append(d2q);
    return *d2q;
 }
 
@@ -904,14 +917,14 @@ VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
 }
 
 void VectorFiniteElement::CalcShape(
-   const IntegrationPoint &ip, Vector &shape ) const
+   const IntegrationPoint &ip, Vector &shape) const
 {
    mfem_error("Error: Cannot use scalar CalcShape(...) function with\n"
               "   VectorFiniteElements!");
 }
 
 void VectorFiniteElement::CalcDShape(
-   const IntegrationPoint &ip, DenseMatrix &dshape ) const
+   const IntegrationPoint &ip, DenseMatrix &dshape) const
 {
    mfem_error("Error: Cannot use scalar CalcDShape(...) function with\n"
               "   VectorFiniteElements!");
@@ -2183,51 +2196,72 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d,
 
 const double *Poly_1D::GetPoints(const int p, const int btype)
 {
+   Array<double*> *pts;
    BasisType::Check(btype);
    const int qtype = BasisType::GetQuadrature1D(btype);
-
    if (qtype == Quadrature1D::Invalid) { return NULL; }
 
-   if (points_container.find(btype) == points_container.end())
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (Poly1DGetPoints)
+#endif
    {
-      points_container[btype] = new Array<double*>(h_mt);
+      auto it = points_container.find(btype);
+      if (it != points_container.end())
+      {
+         pts = it->second;
+      }
+      else
+      {
+         pts = new Array<double*>(h_mt);
+         points_container[btype] = pts;
+      }
+      if (pts->Size() <= p)
+      {
+         pts->SetSize(p + 1, NULL);
+      }
+      if ((*pts)[p] == NULL)
+      {
+         (*pts)[p] = new double[p + 1];
+         quad_func.GivePolyPoints(p + 1, (*pts)[p], qtype);
+      }
    }
-   Array<double*> &pts = *points_container[btype];
-   if (pts.Size() <= p)
-   {
-      pts.SetSize(p + 1, NULL);
-   }
-   if (pts[p] == NULL)
-   {
-      pts[p] = new double[p + 1];
-      quad_func.GivePolyPoints(p+1, pts[p], qtype);
-   }
-   return pts[p];
+   return (*pts)[p];
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
 {
+   Array<Basis*> *bases;
    BasisType::Check(btype);
 
-   if ( bases_container.find(btype) == bases_container.end() )
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (Poly1DGetBasis)
+#endif
    {
-      // we haven't been asked for basis or points of this type yet
-      bases_container[btype] = new Array<Basis*>(h_mt);
+      auto it = bases_container.find(btype);
+      if (it != bases_container.end())
+      {
+         bases = it->second;
+      }
+      else
+      {
+         // we haven't been asked for basis or points of this type yet
+         bases = new Array<Basis*>(h_mt);
+         bases_container[btype] = bases;
+      }
+      if (bases->Size() <= p)
+      {
+         bases->SetSize(p + 1, NULL);
+      }
+      if ((*bases)[p] == NULL)
+      {
+         EvalType etype;
+         if (btype == BasisType::Positive) { etype = Positive; }
+         else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
+         else { etype = Barycentric; }
+         (*bases)[p] = new Basis(p, GetPoints(p, btype), etype);
+      }
    }
-   Array<Basis*> &bases = *bases_container[btype];
-   if (bases.Size() <= p)
-   {
-      bases.SetSize(p + 1, NULL);
-   }
-   if (bases[p] == NULL)
-   {
-      EvalType etype;
-      if (btype == BasisType::Positive) { etype = Positive; }
-      else if (btype == BasisType::IntegratedGLL) { etype = Integrated; }
-      else { etype = Barycentric; }
-      bases[p] = new Basis(p, GetPoints(p, btype), etype);
-   }
-   return *bases[p];
+   return *(*bases)[p];
 }
 
 Poly_1D::~Poly_1D()
@@ -2236,7 +2270,7 @@ Poly_1D::~Poly_1D()
         it != points_container.end() ; ++it)
    {
       Array<double*>& pts = *it->second;
-      for ( int i = 0 ; i < pts.Size() ; ++i )
+      for (int i = 0; i < pts.Size(); ++i)
       {
          delete [] pts[i];
       }
@@ -2247,7 +2281,7 @@ Poly_1D::~Poly_1D()
         it != bases_container.end() ; ++it)
    {
       Array<Basis*>& bases = *it->second;
-      for ( int i = 0 ; i < bases.Size() ; ++i )
+      for (int i = 0; i < bases.Size(); ++i)
       {
          delete bases[i];
       }
@@ -2461,39 +2495,47 @@ const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
    DofToQuad::Mode mode, const Poly_1D::Basis &basis, bool closed,
    Array<DofToQuad*> &dof2quad_array)
 {
+   DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
 
-   for (int i = 0; i < dof2quad_array.Size(); i++)
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
    {
-      const DofToQuad &d2q = *dof2quad_array[i];
-      if (d2q.IntRule == &ir && d2q.mode == mode) { return d2q; }
-   }
-
-   DofToQuad *d2q = new DofToQuad;
-   const int ndof = closed ? fe.GetOrder() + 1 : fe.GetOrder();
-   const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
-   d2q->FE = &fe;
-   d2q->IntRule = &ir;
-   d2q->mode = mode;
-   d2q->ndof = ndof;
-   d2q->nqpt = nqpt;
-   d2q->B.SetSize(nqpt*ndof);
-   d2q->Bt.SetSize(ndof*nqpt);
-   d2q->G.SetSize(nqpt*ndof);
-   d2q->Gt.SetSize(ndof*nqpt);
-   Vector val(ndof), grad(ndof);
-   for (int i = 0; i < nqpt; i++)
-   {
-      // The first 'nqpt' points in 'ir' have the same x-coordinates as those
-      // of the 1D rule.
-      basis.Eval(ir.IntPoint(i).x, val, grad);
-      for (int j = 0; j < ndof; j++)
+      for (int i = 0; i < dof2quad_array.Size(); i++)
       {
-         d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
-         d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
+      }
+      if (!d2q)
+      {
+         d2q = new DofToQuad;
+         const int ndof = closed ? fe.GetOrder() + 1 : fe.GetOrder();
+         const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
+         d2q->FE = &fe;
+         d2q->IntRule = &ir;
+         d2q->mode = mode;
+         d2q->ndof = ndof;
+         d2q->nqpt = nqpt;
+         d2q->B.SetSize(nqpt*ndof);
+         d2q->Bt.SetSize(ndof*nqpt);
+         d2q->G.SetSize(nqpt*ndof);
+         d2q->Gt.SetSize(ndof*nqpt);
+         Vector val(ndof), grad(ndof);
+         for (int i = 0; i < nqpt; i++)
+         {
+            // The first 'nqpt' points in 'ir' have the same x-coordinates as those
+            // of the 1D rule.
+            basis.Eval(ir.IntPoint(i).x, val, grad);
+            for (int j = 0; j < ndof; j++)
+            {
+               d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
+               d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+            }
+         }
+         dof2quad_array.Append(d2q);
       }
    }
-   dof2quad_array.Append(d2q);
    return *d2q;
 }
 
