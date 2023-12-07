@@ -93,6 +93,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
       }
 
       FinalizeTopology();
+      // Update face_to_be
+      face_to_be = GetFaceToBdrElMap();
 
       parent_face_ori_.SetSize(NumOfFaces);
 
@@ -146,7 +148,7 @@ SubMesh::SubMesh(const Mesh &parent, From from,
             }
          }
 
-         // Now we add internal faces which weren't set in the previous loop
+         // Now we add internal edges which weren't set in the previous loop
          face_to_be = GetFaceToBdrElMap();
          for (int i = 0; i < NumOfEdges; ++i)
          {
@@ -161,6 +163,8 @@ SubMesh::SubMesh(const Mesh &parent, From from,
          }
 
          FinalizeTopology();
+         // Update face_to_be
+         face_to_be = GetFaceToBdrElMap();
 
       }
 
