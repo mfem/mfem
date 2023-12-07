@@ -580,6 +580,9 @@ public:
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
+   
+   /// Return the number of all local faces (3D), edges (2D), vertices (1D) including the ghosts
+   int GetNumFacesTotal() const;
 
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;

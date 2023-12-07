@@ -281,6 +281,7 @@ public:
       /// inverse index.
       long MemoryUsage() const;
       ~NCList() { Clear(); }
+
    private:
       // Check for existence or construct the inv_index list map if necessary.
       // const because only modifies the mutable member inv_index.
@@ -292,6 +293,18 @@ public:
       /// or Master elements appropriately.
       mutable std::unordered_map<int, std::pair<MeshIdType, int>> inv_index;
    };
+
+   int GetRootElementIndex(int leaf_index)
+   {
+      auto element_index = leaf_elements[leaf_index];
+      auto element = elements[element_index];
+      while (element.parent >= 0)
+      {
+         element_index = element.parent;
+         element = elements[element_index];
+      }
+      return element_index;
+   }
 
    /// Return the current list of conforming and nonconforming faces.
    const NCList& GetFaceList()

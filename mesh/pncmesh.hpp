@@ -115,6 +115,7 @@ public:
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const override { return NGhostElements; }
+   int GetNumGhostFaces() const;
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */

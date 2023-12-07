@@ -1313,6 +1313,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    // ParMesh::face_nbr_vertices_offset, these are not used outside of ParMesh
 }
 
+int ParNCMesh::GetNumGhostFaces() const
+{
+   switch (Dim)
+   {
+      case 1:  return GetNGhostVertices();
+      case 2:  return GetNGhostEdges();
+      default: return GetNGhostFaces();
+   }
+}
+
 void ParNCMesh::ClearAuxPM()
 {
    for (int i = 0; i < aux_pm_store.Size(); i++)

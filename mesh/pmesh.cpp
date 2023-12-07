@@ -3133,6 +3133,20 @@ int ParMesh::GetNSharedFaces() const
    }
 }
 
+
+int ParMesh::GetNumFacesTotal() const
+{
+   if (Conforming())
+   {
+      return GetNumFaces()+GetNSharedFaces();
+   }
+   else
+   {
+      return GetNumFaces()+GetNSharedFaces()+pncmesh->GetNumGhostFaces();
+   }
+}
+
+
 int ParMesh::GetSharedFace(int sface) const
 {
    if (Conforming())
