@@ -83,6 +83,23 @@ struct Norm_li
 
 }
 
+/// @brief Abstract base class for KDTree. Can be used when the dimension of the
+/// space is known dynamically.
+template <typename Tindex, typename Tfloat>
+class KDTreeBase
+{
+public:
+   /// Adds a point to the tree. See KDTree::AddPoint().
+   virtual void AddPoint(const Tfloat *xx, Tindex ii) = 0;
+   /// @brief Sorts the tree. Should be performed after adding points and before
+   /// performing queries. See KDTree::Sort().
+   virtual void Sort() = 0;
+   /// Returns the index of the closest point to @a xx.
+   virtual Tindex FindClosestPoint(const Tfloat *xx) const = 0;
+   /// Virtual destructor.
+   virtual ~KDTreeBase() { }
+};
+
 /// Template class for build KDTree with template parameters Tindex
 /// specifying the type utilized for indexing the points, Tfloat
 /// specifying a float type for representing the coordinates of the
@@ -96,19 +113,20 @@ struct Norm_li
 /// computed with n or 1 rank(s).
 template <typename Tindex, typename Tfloat, size_t ndim=3,
           typename Tnorm=KDTreeNorms::Norm_l2<Tfloat,ndim> >
-class KDTree
+class KDTree : public KDTreeBase<Tindex, Tfloat>
 {
 public:
 
-   /// Structure defining a geometric point in the ndim-dimensional
-   /// space. The coordinate type (Tfloat) can be any floating or
-   /// integer type. It can be even a character if necessary. For
-   /// such types users should redefine the norms.
+   /// Structure defining a geometric point in the ndim-dimensional space. The
+   /// coordinate type (Tfloat) can be any floating or integer type. It can be
+   /// even a character if necessary. For such types users should redefine the
+   /// norms.
    struct PointND
    {
-      /// Geometric point constructor
-      PointND() { std::fill(xx,xx+ndim,Tfloat(0.0));}
-
+      /// Default constructor: fill with zeros
+      PointND() { std::fill(xx,xx+ndim,Tfloat(0.0)); }
+      /// Copy coordinates from pointer/array @a xx_
+      PointND(const Tfloat *xx_) { std::copy(xx_,xx_+ndim,xx); }
       /// Coordinates of the point
       Tfloat xx[ndim];
    };
@@ -118,9 +136,12 @@ public:
    {
       /// Defines a point in the ndim-dimensional space
       PointND pt;
-
       /// Defines the attached index
-      Tindex  ind;
+      Tindex  ind = 0;
+      /// Default constructor: fill with zeros
+      NodeND() = default;
+      /// Create from given point and index
+      NodeND(PointND pt_, Tindex ind_ = 0) : pt(pt_), ind(ind_) { }
    };
 
    /// Default constructor
@@ -161,7 +182,7 @@ public:
 
    /// Builds the KDTree. If the point cloud is modified the tree
    /// needs to be rebuild by a new call to Sort().
-   void Sort()
+   virtual void Sort() override
    {
       SortInPlace(data.begin(),data.end(),0);
    }
@@ -169,22 +190,13 @@ public:
    /// Adds a new node to the point cloud
    void AddPoint(const PointND &pt, Tindex ii)
    {
-      NodeND nd;
-      nd.pt=pt;
-      nd.ind=ii;
-      data.push_back(nd);
+      data.emplace_back(pt, ii);
    }
 
    /// Adds a new node by coordinates and an associated index
-   void AddPoint(const Tfloat *xx,Tindex ii)
+   virtual void AddPoint(const Tfloat *xx,Tindex ii) override
    {
-      NodeND nd;
-      for (size_t i=0; i<ndim; i++)
-      {
-         nd.pt.xx[i]=xx[i];
-      }
-      nd.ind=ii;
-      data.push_back(nd);
+      data.emplace_back(xx, ii);
    }
 
    /// Finds the nearest neighbour index
@@ -198,6 +210,11 @@ public:
       best_candidate.level=0;
       PSearch(data.begin(), data.end(), 0, best_candidate);
       return data[best_candidate.pos].ind;
+   }
+
+   virtual Tindex FindClosestPoint(const Tfloat *xx) const override
+   {
+      return FindClosestPoint(PointND(xx));
    }
 
    /// Finds the nearest neighbour index and return the clossest point in clp
@@ -223,7 +240,8 @@ public:
    }
 
    /// Returns the closest point and the distance to the input point pt.
-   void FindClosestPoint(const PointND &pt, Tindex &ind, Tfloat &dist,  PointND &clp) const
+   void FindClosestPoint(const PointND &pt, Tindex &ind, Tfloat &dist,
+                         PointND &clp) const
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -278,8 +296,9 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void FindNeighborPointsSlow(const PointND &pt,Tfloat R, std::vector<Tindex> & res,
-                               std::vector<Tfloat> & dist)
+   void FindNeighborPointsSlow(const PointND &pt,Tfloat R,
+                               std::vector<Tindex> &res,
+                               std::vector<Tfloat> &dist)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
@@ -294,7 +313,8 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void FindNeighborPointsSlow(const PointND &pt,Tfloat R, std::vector<Tindex> & res)
+   void FindNeighborPointsSlow(const PointND &pt,Tfloat R,
+                               std::vector<Tindex> &res)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
