@@ -48,11 +48,17 @@ ACOUSTICS_OBJ = $(ACOUSTICS_SRC:.cpp=.o)
 PACOUSTICS_SRC = pacoustics.cpp $(DPG_COMPLEX_PAR_SRC)
 PACOUSTICS_OBJ = $(PACOUSTICS_SRC:.cpp=.o)
 
+PACOUSTICS_PRIMAL_SRC = pacoustics-primal.cpp $(DPG_COMPLEX_PAR_SRC)
+PACOUSTICS_PRIMAL_OBJ = $(PACOUSTICS_PRIMAL_SRC:.cpp=.o)
+
 MAXWELL_SRC = maxwell.cpp $(DPG_COMPLEX_SEQ_SRC)
 MAXWELL_OBJ = $(MAXWELL_SRC:.cpp=.o)
 
 PMAXWELL_SRC = pmaxwell.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_OBJ = $(PMAXWELL_SRC:.cpp=.o)
+
+PMAXWELL_PRIMAL_SRC = pmaxwell-primal.cpp $(DPG_COMPLEX_PAR_SRC)
+PMAXWELL_PRIMAL_OBJ = $(PMAXWELL_PRIMAL_SRC:.cpp=.o)
 
 PMAXWELL_TOKAMAK_SRC = pmaxwell-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_TOKAMAK_OBJ = $(PMAXWELL_TOKAMAK_SRC:.cpp=.o)
@@ -67,7 +73,8 @@ PMAXWELL_UW_TOKAMAK_SRC = pmaxwell-uw-tokamak.cpp $(DPG_COMPLEX_PAR_SRC)
 PMAXWELL_UW_TOKAMAK_OBJ = $(PMAXWELL_UW_TOKAMAK_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = diffusion convection-diffusion acoustics maxwell
-PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak pmaxwell-primal-tokamak pmaxwell-uw-tokamak
+PAR_MINIAPPS = pdiffusion pconvection-diffusion pacoustics pmaxwell pmaxwell-tokamak pmaxwell-fem-tokamak \
+ pmaxwell-primal-tokamak pmaxwell-uw-tokamak pacoustics-primal pmaxwell-primal
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -117,8 +124,14 @@ maxwell: $(MAXWELL_OBJ)
 pacoustics: $(PACOUSTICS_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PACOUSTICS_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+pacoustics-primal: $(PACOUSTICS_PRIMAL_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PACOUSTICS_PRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 pmaxwell: $(PMAXWELL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pmaxwell-primal: $(PMAXWELL_PRIMAL_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_PRIMAL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
 pmaxwell-tokamak: $(PMAXWELL_TOKAMAK_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PMAXWELL_TOKAMAK_OBJ) $(COMMON_LIB) $(MFEM_LIBS)

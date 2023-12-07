@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
                 << "    ω    |" ;
       if (exact_known)
       {
-         std::cout  << "  L2 Error  |"
+         std::cout  << "  L² Error  |"
                     << "  Rate  |" ;
       }
       std::cout << "  Residual  |"
