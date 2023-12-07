@@ -237,7 +237,7 @@ protected:
    FaceElementTransformations FaceElemTr;
 
    // refinement embeddings for forward compatibility with NCMesh
-   CoarseFineTransformations CoarseFineTr;
+   mutable CoarseFineTransformations CoarseFineTr;
 
    // Nodes are only active for higher order meshes, and share locations with
    // the vertices, plus all the higher- order control points within the
@@ -437,39 +437,34 @@ protected:
    void PrintTopo(std::ostream &out, const Array<int> &e_to_k) const;
 
    /// Used in GetFaceElementTransformations (...)
-   void GetLocalPtToSegTransformation(IsoparametricTransformation &, int);
-   void GetLocalSegToTriTransformation (IsoparametricTransformation &loc,
-                                        int i);
-   void GetLocalSegToQuadTransformation (IsoparametricTransformation &loc,
-                                         int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalTriToTetTransformation (IsoparametricTransformation &loc,
-                                        int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalTriToWdgTransformation (IsoparametricTransformation &loc,
-                                        int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalTriToPyrTransformation (IsoparametricTransformation &loc,
-                                        int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
-                                         int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalQuadToWdgTransformation (IsoparametricTransformation &loc,
-                                         int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalQuadToPyrTransformation (IsoparametricTransformation &loc,
-                                         int i);
+   void GetLocalPtToSegTransformation(IsoparametricTransformation &,
+                                      int i) const;
+   void GetLocalSegToTriTransformation(IsoparametricTransformation &loc,
+                                       int i) const;
+   void GetLocalSegToQuadTransformation(IsoparametricTransformation &loc,
+                                        int i) const;
+   void GetLocalTriToTetTransformation(IsoparametricTransformation &loc,
+                                       int i) const;
+   void GetLocalTriToWdgTransformation(IsoparametricTransformation &loc,
+                                       int i) const;
+   void GetLocalTriToPyrTransformation(IsoparametricTransformation &loc,
+                                       int i) const;
+   void GetLocalQuadToHexTransformation(IsoparametricTransformation &loc,
+                                        int i) const;
+   void GetLocalQuadToWdgTransformation(IsoparametricTransformation &loc,
+                                        int i) const;
+   void GetLocalQuadToPyrTransformation(IsoparametricTransformation &loc,
+                                        int i) const;
 
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
    void ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
-                                      const FaceInfo &fi, bool is_ghost);
+                                      const FaceInfo &fi, bool is_ghost) const;
 
    bool IsSlaveFace(const FaceInfo &fi) const;
 
    /// Returns the orientation of "test" relative to "base"
-   static int GetTriOrientation (const int * base, const int * test);
+   static int GetTriOrientation(const int *base, const int *test);
 
    /// Returns the orientation of "base" relative to "test"
    /// In other words: GetTriOrientation(test, base) should equal
@@ -482,7 +477,7 @@ protected:
    static int ComposeTriOrientations(int ori_a_b, int ori_b_c);
 
    /// Returns the orientation of "test" relative to "base"
-   static int GetQuadOrientation (const int * base, const int * test);
+   static int GetQuadOrientation(const int *base, const int *test);
 
    /// Returns the orientation of "base" relative to "test"
    /// In other words: GetQuadOrientation(test, base) should equal
@@ -495,7 +490,7 @@ protected:
    static int ComposeQuadOrientations(int ori_a_b, int ori_b_c);
 
    /// Returns the orientation of "test" relative to "base"
-   static int GetTetOrientation (const int * base, const int * test);
+   static int GetTetOrientation(const int *base, const int *test);
 
    static void GetElementArrayEdgeTable(const Array<Element*> &elem_array,
                                         const DSTable &v_to_v,
@@ -579,8 +574,6 @@ protected:
    // used in GetElementData() and GetBdrElementData()
    void GetElementData(const Array<Element*> &elem_array, int geom,
                        Array<int> &elem_vtx, Array<int> &attr) const;
-
-   double GetElementSize(ElementTransformation *T, int type = 0);
 
    // Internal helper used in MakeSimplicial (and ParMesh::MakeSimplicial).
    void MakeSimplicial_(const Mesh &orig_mesh, int *vglobal);
@@ -1166,6 +1159,9 @@ public:
    /// the Element object itself should not be deleted by the caller.
    Element *GetBdrElement(int i) { return boundary[i]; }
 
+   /// @brief Return pointer to the i'th face element object
+   ///
+   /// The index @a i should be in the range [0, this->Mesh::GetNFaces())
    const Element *GetFace(int i) const { return faces[i]; }
 
    /// @}
@@ -1259,6 +1255,8 @@ public:
 
    double GetElementSize(int i, const Vector &dir);
 
+   double GetElementSize(ElementTransformation *T, int type = 0) const;
+
    double GetElementVolume(int i);
 
    void GetElementCenter(int i, Vector &center);
@@ -1278,12 +1276,12 @@ public:
       Geometry::Type geom_buf[Geometry::NumGeom];
    public:
       /// Construct a GeometryList of all element geometries in @a mesh.
-      GeometryList(Mesh &mesh)
+      GeometryList(const Mesh &mesh)
          : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
       { mesh.GetGeometries(mesh.Dimension(), *this); }
       /** @brief Construct a GeometryList of all geometries of dimension @a dim
           in @a mesh. */
-      GeometryList(Mesh &mesh, int dim)
+      GeometryList(const Mesh &mesh, int dim)
          : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
       { mesh.GetGeometries(dim, *this); }
    };
@@ -1440,7 +1438,8 @@ public:
 
    /// Builds the transformation defining the i-th element in @a ElTr.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
-   void GetElementTransformation(int i, IsoparametricTransformation *ElTr);
+   void GetElementTransformation(int i,
+                                 IsoparametricTransformation *ElTr) const;
 
    /// Returns a pointer to the transformation defining the i-th element.
    ///
@@ -1453,7 +1452,7 @@ public:
    /// assuming position of the vertices/nodes are given by @a nodes.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, const Vector &nodes,
-                                 IsoparametricTransformation *ElTr);
+                                 IsoparametricTransformation *ElTr) const;
 
    /// Returns a pointer to the transformation defining the i-th boundary
    /// element.
@@ -1464,11 +1463,18 @@ public:
 
    /// Builds the transformation defining the i-th boundary element in @a ElTr.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
-   void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
+   void GetBdrElementTransformation(int i,
+                                    IsoparametricTransformation *ElTr) const;
+
+   /// Returns a pointer to the transformation defining the given face element.
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   ElementTransformation *GetFaceTransformation(int FaceNo);
 
    /// Builds the transformation defining the i-th face element in @a FTr.
    /// @a FTr must be allocated in advance and will be owned by the caller.
-   void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
+   void GetFaceTransformation(int i, IsoparametricTransformation *FTr) const;
 
    /** @brief A helper method that constructs a transformation from the
        reference space of a face to the reference space of an element. */
@@ -1477,17 +1483,11 @@ public:
        loc_face_orientation. */
    void GetLocalFaceTransformation(int face_type, int elem_type,
                                    IsoparametricTransformation &Transf,
-                                   int info);
-
-   /// Returns a pointer to the transformation defining the given face element.
-   /// @note The returned object is owned by the class and is shared, i.e.,
-   /// calling this function resets pointers obtained from previous calls.
-   /// Also, the returned object should NOT be deleted by the caller.
-   ElementTransformation *GetFaceTransformation(int FaceNo);
+                                   int info) const;
 
    /// Builds the transformation defining the i-th edge element in @a EdTr.
    /// @a EdTr must be allocated in advance and will be owned by the caller.
-   void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr);
+   void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr) const;
 
    /// Returns a pointer to the transformation defining the given edge element.
    /// @note The returned object is owned by the class and is shared, i.e.,
@@ -1529,21 +1529,44 @@ public:
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
-   virtual FaceElementTransformations *GetFaceElementTransformations(
-      int FaceNo,
-      int mask = 31);
+   virtual FaceElementTransformations *
+   GetFaceElementTransformations(int FaceNo, int mask = 31);
+
+   /// Variant of GetFaceElementTransformations using a user allocated
+   /// FaceElementTransformations object.
+   virtual void GetFaceElementTransformations(int FaceNo,
+                                              FaceElementTransformations *FElTr,
+                                              IsoparametricTransformation *ElTr1,
+                                              IsoparametricTransformation *ElTr2,
+                                              int mask = 31) const;
 
    /// See GetFaceElementTransformations().
-   /// @note The returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
-   {
-      if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
-      return GetFaceElementTransformations (FaceNo);
-   }
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, this pointer should NOT be deleted by the caller.
+   FaceElementTransformations *GetInteriorFaceTransformations(int FaceNo);
+
+   /// Variant of GetInteriorFaceTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetInteriorFaceTransformations(int FaceNo,
+                                       FaceElementTransformations *FElTr,
+                                       IsoparametricTransformation *ElTr1,
+                                       IsoparametricTransformation *ElTr2) const;
 
    /// Builds the transformation defining the given boundary face.
-   /// @note The returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, this pointer should NOT be deleted by the caller.
+   FaceElementTransformations *GetBdrFaceTransformations(int BdrElemNo);
+
+   /// Variant of GetBdrFaceTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetBdrFaceTransformations(int BdrElemNo,
+                                  FaceElementTransformations *FElTr,
+                                  IsoparametricTransformation *ElTr1,
+                                  IsoparametricTransformation *ElTr2) const;
 
    /// @}
 
@@ -1991,7 +2014,7 @@ public:
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
-   const CoarseFineTransformations &GetRefinementTransforms();
+   const CoarseFineTransformations &GetRefinementTransforms() const;
 
    /// Return type of last modification of the mesh.
    Operation GetLastOperation() const { return last_operation; }
