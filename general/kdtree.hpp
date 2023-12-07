@@ -30,7 +30,7 @@ namespace KDTreeNorms
 template <typename Tfloat, int ndim>
 struct Norm_l1
 {
-   Tfloat operator() (const Tfloat* xx)
+   Tfloat operator()(const Tfloat* xx) const
    {
       Tfloat tm=abs(xx[0]);
       for (int i=1; i<ndim; i++)
@@ -45,7 +45,7 @@ struct Norm_l1
 template<typename Tfloat,int ndim>
 struct Norm_l2
 {
-   Tfloat operator() (const Tfloat* xx)
+   Tfloat operator()(const Tfloat* xx) const
    {
       Tfloat tm;
       tm=xx[0]*xx[0];
@@ -61,7 +61,7 @@ struct Norm_l2
 template<typename Tfloat,int ndim>
 struct Norm_li
 {
-   Tfloat operator() (const Tfloat* xx)
+   Tfloat operator()(const Tfloat* xx) const
    {
       Tfloat tm;
       if (xx[0]<Tfloat(0.0)) { tm=-xx[0];}
@@ -127,7 +127,7 @@ public:
    KDTree() = default;
 
    /// Returns the spatial dimension of the points
-   int SpaceDimension()
+   int SpaceDimension() const
    {
       return ndim;
    }
@@ -148,7 +148,7 @@ public:
    }
 
    /// Returns the size of the point cloud
-   size_t size()
+   size_t size() const
    {
       return data.size();
    }
@@ -167,7 +167,7 @@ public:
    }
 
    /// Adds a new node to the point cloud
-   void AddPoint(PointND& pt, Tindex ii)
+   void AddPoint(const PointND &pt, Tindex ii)
    {
       NodeND nd;
       nd.pt=pt;
@@ -176,7 +176,7 @@ public:
    }
 
    /// Adds a new node by coordinates and an associated index
-   void AddPoint(Tfloat* xx,Tindex ii)
+   void AddPoint(const Tfloat *xx,Tindex ii)
    {
       NodeND nd;
       for (size_t i=0; i<ndim; i++)
@@ -188,7 +188,7 @@ public:
    }
 
    /// Finds the nearest neighbour index
-   Tindex FindClosestPoint(PointND& pt)
+   Tindex FindClosestPoint(const PointND &pt) const
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -200,8 +200,8 @@ public:
       return data[best_candidate.pos].ind;
    }
 
-   /// Finds the nearest neighbour index and return the clossest poitn in clp
-   Tindex FindClosestPoint(PointND& pt, PointND& clp)
+   /// Finds the nearest neighbour index and return the clossest point in clp
+   Tindex FindClosestPoint(const PointND &pt, const PointND &clp) const
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -216,15 +216,14 @@ public:
    }
 
    /// Returns the closest point and the distance to the input point pt.
-   void FindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist)
+   void FindClosestPoint(const PointND &pt, Tindex &ind, Tfloat &dist) const
    {
       PointND clp;
       FindClosestPoint(pt,ind,dist,clp);
-
    }
 
    /// Returns the closest point and the distance to the input point pt.
-   void FindClosestPoint(PointND& pt, Tindex& ind, Tfloat& dist,  PointND& clp)
+   void FindClosestPoint(const PointND &pt, Tindex &ind, Tfloat &dist,  PointND &clp) const
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -241,7 +240,7 @@ public:
 
 
    /// Brute force search - please, use it only for debuging purposes
-   void FindClosestPointSlow(PointND& pt, Tindex& ind, Tfloat& dist)
+   void FindClosestPointSlow(const PointND &pt, Tindex &ind, Tfloat &dist) const
    {
       PointS best_candidate;
       best_candidate.sp=pt;
@@ -265,7 +264,7 @@ public:
 
    /// Finds all points within a distance R from point pt. The indices are
    /// returned in the vector res and the correponding distances in vector dist.
-   void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res,
+   void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res,
                            std::vector<Tfloat> & dist)
    {
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res,dist);
@@ -273,13 +272,13 @@ public:
 
    /// Finds all points within a distance R from point pt. The indices are
    /// returned in the vector res and the correponding distances in vector dist.
-   void FindNeighborPoints(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+   void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res)
    {
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res);
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void FindNeighborPointsSlow(PointND& pt,Tfloat R, std::vector<Tindex> & res,
+   void FindNeighborPointsSlow(const PointND &pt,Tfloat R, std::vector<Tindex> & res,
                                std::vector<Tfloat> & dist)
    {
       Tfloat dd;
@@ -295,7 +294,7 @@ public:
    }
 
    /// Brute force search - please, use it only for debuging purposes
-   void FindNeighborPointsSlow(PointND& pt,Tfloat R, std::vector<Tindex> & res)
+   void FindNeighborPointsSlow(const PointND &pt,Tfloat R, std::vector<Tindex> & res)
    {
       Tfloat dd;
       for (auto iti=data.begin(); iti!=data.end(); iti++)
@@ -333,12 +332,11 @@ private:
       }
    };
 
-   /// Point for storing tmp data
-   PointND tp;
+   mutable PointND tp; ///< Point for storing tmp data
    Tnorm fnorm;
 
    /// Computes the distance between two nodes
-   Tfloat Dist(const PointND& pt1,const  PointND& pt2)
+   Tfloat Dist(const PointND &pt1, const PointND &pt2) const
    {
       for (size_t i=0; i<ndim; i++)
       {
@@ -388,13 +386,13 @@ private:
 
    /// Finds the closest point to bc.sp in the point cloud
    /// bounded between [itb,ite).
-   void PSearch(typename std::vector<NodeND>::iterator itb,
-                typename std::vector<NodeND>::iterator ite,
-                size_t level, PointS& bc)
+   void PSearch(typename std::vector<NodeND>::const_iterator itb,
+                typename std::vector<NodeND>::const_iterator ite,
+                size_t level, PointS& bc) const
    {
       std::uint8_t dim=(std::uint8_t) (level%ndim);
       size_t siz=ite-itb;
-      typename std::vector<NodeND>::iterator mtb=itb+siz/2;
+      typename std::vector<NodeND>::const_iterator mtb=itb+siz/2;
       if (siz>2)
       {
          // median is at itb+siz/2
@@ -469,7 +467,7 @@ private:
             typename std::vector<NodeND>::iterator itb,
             typename std::vector<NodeND>::iterator ite,
             size_t level,
-            std::vector< std::tuple<Tfloat,Tindex> > & res)
+            std::vector< std::tuple<Tfloat,Tindex> > & res) const
    {
       std::uint8_t dim=(std::uint8_t) (level%ndim);
       size_t siz=ite-itb;
@@ -521,7 +519,7 @@ private:
                            typename std::vector<NodeND>::iterator itb,
                            typename std::vector<NodeND>::iterator ite,
                            size_t level,
-                           std::vector<Tindex> & res)
+                           std::vector<Tindex> & res) const
    {
       std::uint8_t dim=(std::uint8_t) (level%ndim);
       size_t siz=ite-itb;
@@ -570,7 +568,7 @@ private:
                            typename std::vector<NodeND>::iterator itb,
                            typename std::vector<NodeND>::iterator ite,
                            size_t level,
-                           std::vector<Tindex> & res, std::vector<Tfloat> & dist)
+                           std::vector<Tindex> & res, std::vector<Tfloat> & dist) const
    {
       std::uint8_t dim=(std::uint8_t) (level%ndim);
       size_t siz=ite-itb;
