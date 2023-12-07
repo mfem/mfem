@@ -77,19 +77,33 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED double qd[DIM*DIM*MQ1*MD1];
-      DeviceTensor<4,double> QD(qd, DIM, DIM, MQ1, MD1);
+      MFEM_SHARED double qd[DIM*DIM*DIM*DIM*MQ1*MD1];
+      DeviceTensor<6,double> QD(qd, DIM, DIM, DIM, DIM, MQ1, MD1);
 
       for (int v = 0; v < DIM; v++)
       {
+         // W_inv = (w00, w10, w01, w11).
+         // (d_dx w00 + d_dy w_10, d_dx w01 + d_dy w_11)   on both sides of H.
+         //     0,0        1,0        0,1        1,1
+
+         // Contract in y.
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
-               QD(0,0,qx,dy) = 0.0;
-               QD(0,1,qx,dy) = 0.0;
-               QD(1,0,qx,dy) = 0.0;
-               QD(1,1,qx,dy) = 0.0;
+               for (int d1 = 0; d1 < DIM; d1++)
+               {
+                  for (int d2 = 0; d2 < DIM; d2++)
+                  {
+                     for (int d3 = 0; d3 < DIM; d3++)
+                     {
+                        for (int d4 = 0; d4 < DIM; d4++)
+                        {
+                           QD(d1,d2,d3,d4,qx,dy) = 0.0;
+                        }
+                     }
+                  }
+               }
 
                MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
@@ -101,25 +115,31 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                   ConstDeviceMatrix Jrt(jrt_data,2,2);
                   kernels::CalcInverse<2>(Jtr, jrt_data);
 
-                  const double gg = G(qy,dy) * G(qy,dy);
-                  const double gb = G(qy,dy) * B(qy,dy);
-                  const double bb = B(qy,dy) * B(qy,dy);
-                  const double bgb[4] = { bb, gb, gb, gg };
-                  ConstDeviceMatrix BG(bgb,2,2);
+                  const double By = B(qy,dy);
+                  const double Gy = G(qy,dy);
 
-                  for (int i = 0; i < DIM; i++)
+                  for (int l1 = 0; l1 < DIM; l1++)
                   {
-                     for (int j = 0; j < DIM; j++)
+                     for (int l2 = 0; l2 < DIM; l2++)
                      {
-                        const double Jij = Jrt(i,i) * Jrt(j,j);
-                        const double alpha = Jij * BG(i,j);
-                        QD(i,j,qx,dy) += alpha * H(v,i,v,j,qx,qy,e);
+                        for (int r1 = 0; r1 < DIM; r1++)
+                        {
+                           for (int r2 = 0; r2 < DIM; r2++)
+                           {
+                              const double L = (l1 == 0 ? By : Gy) * Jrt(l1,l2);
+                              const double h = H(v,l2,v,r2,qx,qy,e);
+                              const double R = (r1 == 0 ? By : Gy) * Jrt(r1,r2);
+                              QD(l1,l2,r1,r2,qx,dy) += L * h * R;
+                           }
+                        }
                      }
                   }
                }
             }
          }
          MFEM_SYNC_THREAD;
+
+         // Contract in x.
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
@@ -128,13 +148,24 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                MFEM_UNROLL(MQ1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const double gg = G(qx,dx) * G(qx,dx);
-                  const double gb = G(qx,dx) * B(qx,dx);
-                  const double bb = B(qx,dx) * B(qx,dx);
-                  d += gg * QD(0,0,qx,dy);
-                  d += gb * QD(0,1,qx,dy);
-                  d += gb * QD(1,0,qx,dy);
-                  d += bb * QD(1,1,qx,dy);
+                  const double Bx = B(qx,dx);
+                  const double Gx = G(qx,dx);
+
+                  for (int l1 = 0; l1 < DIM; l1++)
+                  {
+                     for (int l2 = 0; l2 < DIM; l2++)
+                     {
+                        for (int r1 = 0; r1 < DIM; r1++)
+                        {
+                           for (int r2 = 0; r2 < DIM; r2++)
+                           {
+                              const double L = (l1 == 0 ? Gx : Bx);
+                              const double R = (r1 == 0 ? Gx : Bx);
+                              d += L * QD(l1,l2,r1,r2,qx,dy) * R;
+                           }
+                        }
+                     }
+                  }
                }
                D(dx,dy,v,e) += d;
             }
