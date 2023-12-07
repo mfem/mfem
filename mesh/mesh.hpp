@@ -1046,7 +1046,7 @@ public:
 
        In parallel, the result takes into account elements on all processors.
    */
-   inline int MeshGenerator() { return meshgen; }
+   inline int MeshGenerator() const { return meshgen; }
 
    /// Checks if the mesh has boundary elements
    virtual bool HasBoundaryElements() const { return (NumOfBdrElements > 0); }
