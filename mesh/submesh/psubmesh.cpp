@@ -243,7 +243,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          else { MFEM_ABORT("Invalid dimension."); return -1; }
       }();
 
-      if (Dim > 1) parent_face_to_be = parent.GetFaceToBdrElMap();
+      if (Dim > 1) { parent_face_to_be = parent.GetFaceToBdrElMap(); }
 
       if (Dim == 3)
       {
@@ -256,8 +256,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       NumOfBdrElements = 0;
       for (int i = 0; i < num_codim_1; i++)
       {
-         if (GetFaceInformation(i).IsBoundary() 
-            || (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
+         if (GetFaceInformation(i).IsBoundary()
+             || (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
          {
             NumOfBdrElements++;
          }
@@ -269,8 +269,8 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       for (int i = 0, j = 0; i < num_codim_1; i++)
       {
-         if (GetFaceInformation(i).IsBoundary() || 
-            (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
+         if (GetFaceInformation(i).IsBoundary() ||
+             (from == SubMesh::From::Domain && SubmeshFaceToParentBE(i) != -1))
          {
             boundary[j] = faces[i]->Duplicate(this);
             be_to_face[j] = i;
@@ -278,7 +278,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
             if (from == SubMesh::From::Domain && Dim >= 2)
             {
                int pbeid = SubmeshFaceToParentBE(i);
-                           
+
                if (pbeid != -1)
                {
                   boundary[j]->SetAttribute(parent.GetBdrAttribute(pbeid));

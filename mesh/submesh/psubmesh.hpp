@@ -174,17 +174,17 @@ public:
 
    /**
    * @brief Returns the parent boundary element index corresponding to a
-   * submesh face @a child_face. Returns -1 if the face is not a parent 
+   * submesh face @a child_face. Returns -1 if the face is not a parent
    * boundary element.
    *
    * @param child_face The submesh face index
-   * 
+   *
    * @note Currently only works in 2D and 3D.
    */
    int SubmeshFaceToParentBE(const int child_face)
    {
       return Dim == 3 ? parent_face_to_be[parent_face_ids_[child_face]] :
-            parent_face_to_be[parent_edge_ids_[child_face]];
+             parent_face_to_be[parent_edge_ids_[child_face]];
    }
 
    /**
