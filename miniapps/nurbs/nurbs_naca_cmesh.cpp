@@ -1,7 +1,7 @@
 // Compile with: make nurbs_naca_cmesh
 //
 // Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0
-//                 -srad 2.5 -stip 1.1 -aoa 3
+//                 -sbnd 2.5 -stip 1.1 -aoa 3
 //
 // Description:  This example code demonstrates the use of MFEM to create a C-mesh
 //               around a NACA-foil section. The foil section is defined in the class
@@ -17,11 +17,12 @@
 //               remainder of the foil section. The aim is to create a mesh with the highest
 //               quality close to the boundary of the foil section and the wake.
 //
-//               The example returns a visit data structure for visualization. Note that
-//               one will need to increase the multiress-control to inspect the shape of the
-//               NURBS. The multiress-control allows for evaluating the NURBS at more intervals
-//               than only the controlpoints. In this waythe tip of the foil is also shown
-//               correctly for small amounts of control points.
+//               The example returns a VisIt and a GLVis data structure for visualization.
+//               Note that one will need to use the option "Operators/Selection/
+//               MultiresControl" to inspect the shape of the NURBS in Visit. This allows
+//               for increasing the resolution on which the NURBS curves are evaluated.
+//               This is required for correct visualisation of course meshes. In the current
+//               mesh it allows to visualize the tip of the foil section.
 //
 //               Possible improvements:
 //               - Implement optimization with TMOP
