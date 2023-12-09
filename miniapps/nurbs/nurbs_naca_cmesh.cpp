@@ -70,7 +70,7 @@ public:
 // based on the @a foil_section, knot vector @a kv and tip fraction @a tf
 // We have two cases, with an odd number of control points and with an even number of
 // control points. These may be streamlined in the future.
-void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf,
+void GetTipXY(const NACA4 & foil_section, KnotVector *kv, double tf,
               Array<Vector*> &xy);
 
 // Function that returns a uniform knot vector based on the @a order and the
