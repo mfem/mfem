@@ -21,7 +21,7 @@
 //               Note that one will need to use the option "Operators/Selection/
 //               MultiresControl" to inspect the shape of the NURBS in Visit. This allows
 //               for increasing the resolution on which the NURBS curves are evaluated.
-//               This is required for correct visualisation of course meshes. In the current
+//               This is required for correct visualisation of coarse meshes. In the current
 //               mesh it allows to visualize the tip of the foil section.
 //
 //               Possible improvements:
@@ -52,25 +52,25 @@ protected:
 public:
    NACA4(double t_, double c_);
    // Returns the coordinate y corresponding to coordinate @a xi
-   double y(double xi);
+   double y(double xi) const;
    // Returns the derivative of the curve at location coordinate @a xi
-   double dydx(double xi);
+   double dydx(double xi) const;
    // Returns the curve length at coordinate @a xi
-   double len(double xi);
+   double len(double xi) const;
    // Returns the derivative of the curve length at coordinate @a xi
-   double dlendx(double xi);
+   double dlendx(double xi) const;
    // Returns the coordinate x corresponding to the curve length @a l from
    // the tip of the foil section
-   double xl(double l);
+   double xl(double l) const;
    // Get the chord of the foil_section
-   double GetChord() {return c;}
+   double GetChord() const {return c;}
 };
 
 // Function that finds the coordinates of the control points of the tip of the foil section @a xy
 // based on the @a foil_section, knot vector @a kv and tip fraction @a tf
 // We have two cases, with an odd number of control points and with an even number of
 // control points. These may be streamlined in the future.
-void GetTipXY(const NACA4 & foil_section, KnotVector *kv, double tf,
+void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
               Array<Vector*> &xy);
 
 // Function that returns a uniform knot vector based on the @a order and the
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    xyf[1] = new Vector();
 
    // 3. Create required (variables for) curves: foil_section and flair
-   NACA4 foil_section(foil_thickness, foil_length);
+   const NACA4 foil_section(foil_thickness, foil_length);
 
    // The default flair angle is defined to be the same as the angle of the curve of the
    // foil section to create an elegant mesh.
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 1: Lower tail of foil
-   NURBSPatch patch1(kv_o1, kv_o1, 3);;
+   NURBSPatch patch1(kv_o1, kv_o1, 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
       patch1(1,0,1) = -foil_section.y(patch1(1,0,0));
 
       patch1(0,1,0) = foil_length;
-      patch1(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch1(0,1,0));;
+      patch1(0,1,1) = -FlairBoundDist(flair, boundary_dist, patch1(0,1,0));
 
       patch1(1,1,0) = -boundary_dist*sin(flair) + tip_fraction*foil_length;
       patch1(1,1,1) = -boundary_dist*cos(flair);
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 3: Upper part of trailing part foil section
-   NURBSPatch patch3(kv_o1, kv_o1, 3);;
+   NURBSPatch patch3(kv_o1, kv_o1, 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
       patch3(0,1,1) = boundary_dist*cos(flair);
 
       patch3(1,1,0) = foil_length;
-      patch3(1,1,1) = FlairBoundDist(flair, boundary_dist, patch3(1,1,0));;
+      patch3(1,1,1) = FlairBoundDist(flair, boundary_dist, patch3(1,1,0));
 
       // Refine
       patch3.DegreeElevate(0, order-1);
@@ -411,7 +411,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 4: Upper trailing wake part
-   NURBSPatch patch4(kv_o1, kv_o1, 3);;
+   NURBSPatch patch4(kv_o1, kv_o1, 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -427,10 +427,10 @@ int main(int argc, char *argv[])
       patch4(1,0,1) = 0.0;
 
       patch4(0,1,0) = foil_length;
-      patch4(0,1,1) = FlairBoundDist(flair, boundary_dist, patch4(0,1,0));;
+      patch4(0,1,1) = FlairBoundDist(flair, boundary_dist, patch4(0,1,0));
 
       patch4(1,1,0) = foil_length+ wake_length;
-      patch4(1,1,1) = FlairBoundDist(flair, boundary_dist, patch4(1,1,0));;
+      patch4(1,1,1) = FlairBoundDist(flair, boundary_dist, patch4(1,1,0));
 
       // Refine
       patch4.DegreeElevate(0, order-1);
@@ -596,33 +596,33 @@ NACA4::NACA4(double t_, double c_)
    epsilon = 1e-8;
 }
 
-double NACA4::y(double x)
+double NACA4::y(double x) const
 {
    double y = 5*t*(A*sqrt(x/c) - B*x/c - C*pow(x/c,2)
                    + D*pow(x/c,3) - E*pow(x/c,4));
    return y*c;
 }
 
-double NACA4::dydx(double x)
+double NACA4::dydx(double x) const
 {
    double y = 5*t*(0.5 * A/sqrt(x/c) - B - 2*C*x/c
                    + 3* D*pow(x/c,2) - 4* E*pow(x/c,3));
    return y*c;
 }
 
-double NACA4::len(double x)
+double NACA4::len(double x) const
 {
    double l = 5 * t * (A*sqrt(x/c) - B*x - C*pow(x/c,2)
                        + D*pow(x/c,3) - E * pow(x/c,4)) + x/c;
    return l*c;
 }
 
-double NACA4::dlendx(double xi)
+double NACA4::dlendx(double xi) const
 {
    return 1 + dydx(xi);
 }
 
-double NACA4::xl(double l)
+double NACA4::xl(double l) const
 {
    double x = l; // Initial guess, length should be a good one
    double h;
@@ -640,11 +640,12 @@ double NACA4::xl(double l)
    return x;
 }
 
-void GetTipXY(NACA4 foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
+void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
-   double l = foil_section.len(tf * foil_section.GetChord());
+   const double  llll = foil_section.GetChord();
+   const double l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
    Array<int> i_args;
