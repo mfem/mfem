@@ -654,7 +654,7 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf, Array<Vector
 
    // We have two cases: one with an odd number of control points and one
    // with an even number of control points.
-   int n = ncp/2;
+   const int n = ncp/2;
    if (ncp % 2)
    {
       // Find arc lengths to control points on upperside of foil section
