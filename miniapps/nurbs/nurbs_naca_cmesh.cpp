@@ -640,7 +640,8 @@ double NACA4::xl(double l) const
    return x;
 }
 
-void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf, Array<Vector*> &xy)
+void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
+              Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
