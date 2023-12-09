@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    const double tail_fraction = 1.0 - tip_fraction;
 
    // Convert angles to radians
-   double deg2rad = M_PI/180;
+   constexpr double deg2rad = M_PI/180;
    aoa = aoa*deg2rad;
 
    // 2. Create knot vectors
