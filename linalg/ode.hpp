@@ -42,6 +42,9 @@ public:
 
    /// Add state vector and increment state size
    virtual void Add(Vector &state) = 0;
+
+   /// Virtual destructor
+   virtual ~ODEStateData() = default;
 };
 
 /// An implementation of ODEStateData that stores states in an std::vector<Vector>
