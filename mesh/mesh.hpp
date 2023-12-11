@@ -1131,7 +1131,7 @@ public:
 
    /// @brief Return pointer to the i'th element object
    ///
-   /// The index @a i should be in the range [0, this->Mesh::GetNE())
+   /// The index @a i should be in the range [0, Mesh::GetNE())
    ///
    /// In parallel, @a i is the local element index which is in the
    /// same range mentioned above.
@@ -1146,7 +1146,7 @@ public:
 
    /// @brief Return pointer to the i'th boundary element object
    ///
-   /// The index @a i should be in the range [0, this->Mesh::GetNBE())
+   /// The index @a i should be in the range [0, Mesh::GetNBE())
    ///
    /// In parallel, @a i is the local boundary element index which is
    /// in the same range mentioned above.
@@ -1161,7 +1161,7 @@ public:
 
    /// @brief Return pointer to the i'th face element object
    ///
-   /// The index @a i should be in the range [0, this->Mesh::GetNFaces())
+   /// The index @a i should be in the range [0, Mesh::GetNFaces())
    const Element *GetFace(int i) const { return faces[i]; }
 
    /// @}
