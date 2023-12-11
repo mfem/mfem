@@ -2520,11 +2520,11 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
 
       for (int i = 0; i < nfaces; i++)
       {
-          fes->GetFaceVDofs(i, vdofs);
-          vals.SetSize(vdofs.Size());
-          fes->GetFaceElement(i)->Project(coeff, *mesh->GetFaceElementTransformations(i),
-                                        vals);
-          SetSubVector(vdofs, vals);
+         fes->GetFaceVDofs(i, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(i)->Project(coeff, *mesh->GetFaceElementTransformations(i),
+                                         vals);
+         SetSubVector(vdofs, vals);
       }
    }
    else
@@ -2557,12 +2557,12 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
 
    for (int i = 0; i < nfaces; i++)
    {
-       fes->GetFaceVDofs(i, vdofs);
-       vals.SetSize(vdofs.Size());
-       fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetFaceElementTransformations(i),
-                                    vals);
-       SetSubVector(vdofs, vals);
-    }
+      fes->GetFaceVDofs(i, vdofs);
+      vals.SetSize(vdofs.Size());
+      fes->GetFaceElement(i)->Project(vcoeff, *mesh->GetFaceElementTransformations(i),
+                                      vals);
+      SetSubVector(vdofs, vals);
+   }
 }
 
 void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
@@ -2587,12 +2587,13 @@ void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
 
       for (int i = 0; i < nbdrfaces; i++)
       {
-          int face = mesh->GetBdrFace(i);
-          fes->GetFaceVDofs(face, vdofs);
-          vals.SetSize(vdofs.Size());
-          fes->GetFaceElement(face)->Project(coeff, *mesh->GetFaceElementTransformations(face),
-                                         vals);
-          SetSubVector(vdofs, vals);
+         int face = mesh->GetBdrFace(i);
+         fes->GetFaceVDofs(face, vdofs);
+         vals.SetSize(vdofs.Size());
+         fes->GetFaceElement(face)->Project(coeff,
+                                            *mesh->GetFaceElementTransformations(face),
+                                            vals);
+         SetSubVector(vdofs, vals);
       }
    }
    else
@@ -2621,8 +2622,9 @@ void GridFunction::ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff)
       int face = mesh->GetBdrFace(i);
       fes->GetFaceVDofs(face, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFaceElement(face)->Project(vcoeff, *mesh->GetFaceElementTransformations(face),
-                                      vals);
+      fes->GetFaceElement(face)->Project(vcoeff,
+                                         *mesh->GetFaceElementTransformations(face),
+                                         vals);
       SetSubVector(vdofs, vals);
    }
 
