@@ -1075,8 +1075,6 @@ FaceElementTransformations *Mesh::GetInteriorFaceTransformations(int FaceNo)
    return (FaceElemTr.geom == Geometry::INVALID) ? nullptr : &FaceElemTr;
 }
 
-/// Variant of GetInteriorFaceTransformations using a user allocated
-/// FaceElementTransformations object.
 void Mesh::GetInteriorFaceTransformations(int FaceNo,
                                           FaceElementTransformations *FElTr,
                                           IsoparametricTransformation *ElTr1,
