@@ -212,6 +212,17 @@ int main(int argc, char *argv[])
     Mesh *mesh = new Mesh(mesh_file, 1, 1);
     int dim = mesh->Dimension();
 
+    if (mesh->Nonconforming())
+    {
+        if (verbose)
+            cout << "The current implementation does not support Nonconforming meshes. Terminating" << endl << flush;
+#ifdef MFEM_USE_PETSC
+        MFEMFinalizePetsc();
+#endif
+        MPI_Finalize();
+        return 1;
+    }
+
     for (int ii=0; ii<initial_ref_levels; ii++)
     {
         mesh->UniformRefinement();

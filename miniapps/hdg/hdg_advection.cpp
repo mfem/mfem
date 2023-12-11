@@ -137,6 +137,13 @@ int main(int argc, char *argv[])
 
     // 2. Read the mesh from the given mesh file. Refine it up to the initial_ref_levels.
     Mesh *mesh = new Mesh(mesh_file, 1, 1);
+    
+    if (mesh->Nonconforming())
+    {
+        cout << "The current implementation does not support Nonconforming meshes. Terminating" << endl << flush;
+        return 1;
+    }
+    
     dim = mesh->Dimension();
 
     for (int ii=0; ii<initial_ref_levels; ii++)

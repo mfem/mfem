@@ -103,7 +103,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
     const FiniteElement &face_fe,
     FaceElementTransformations &Trans,
     const int elem1or2,
-    const bool onlyB,
+    const bool reconstruct_only,
     DenseMatrix &elmat1,
     DenseMatrix &elmat2,
     DenseMatrix &elmat3,
@@ -213,7 +213,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
 
             for (int j = 0; j < ndof_face; j++)
             {
-                if (!onlyB)
+                if (!reconstruct_only)
                 {
                     // - < ubar, [(1-zeta) a.n v] >
                     elmat3(j, i) -= w * an * (1.-zeta) * shape(i) * shape_face(j);
@@ -224,7 +224,7 @@ void HDGFaceIntegratorAdvection::AssembleFaceMatrixOneElement1and1FES(
 
             }
         }
-        if (!onlyB)
+        if (!reconstruct_only)
         {
 
             for (int i = 0; i < ndof_face; i++)
@@ -445,7 +445,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
     const FiniteElement &face_fe,
     FaceElementTransformations &Trans,
     const int elem1or2,
-    const bool onlyB,
+    const bool reconstruct_only,
     DenseMatrix &elmat1,
     DenseMatrix &elmat2,
     DenseMatrix &elmat3,
@@ -589,7 +589,7 @@ void HDGFaceIntegratorDiffusion::AssembleFaceMatrixOneElement2and1FES(
             }
         }
 
-        if (!onlyB)
+        if (!reconstruct_only)
         {
             // local_D = < \tau \lambda, \mu>
 
