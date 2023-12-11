@@ -453,22 +453,6 @@ public:
                              p, exsol, weight, v_weight, irs), pfes->GetComm());
    }
 
-   /* HDG */
-   virtual double ComputeLpErrorFacets(const double p, Coefficient &exsol,
-                                       Coefficient *weight = NULL,
-                                       const IntegrationRule *irs[] = NULL) const
-   {
-      return GlobalLpNorm(p, GridFunction::ComputeLpErrorFacets(
-                             p, exsol, weight, irs), pfes->GetComm());
-   }
-   /* HDG */
-   virtual double ComputeL2ErrorFacets(Coefficient &exsol,
-                                       const IntegrationRule *irs[] = NULL) const
-   {
-      return GlobalLpNorm(2., GridFunction::ComputeL2ErrorFacets(
-                             exsol, irs), pfes->GetComm());
-   }
-
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
                             bool wcoef = true, int subdomain = -1);
