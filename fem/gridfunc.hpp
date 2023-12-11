@@ -667,16 +667,6 @@ public:
                                        ) const
    { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
 
-   /* HDG  - Lp error for facets */
-   virtual double ComputeLpErrorFacets(const double p, Coefficient &exsol,
-                                       Coefficient *weight = NULL,
-                                       const IntegrationRule *irs[] = NULL) const;
-
-   /* HDG - L2 error for facets */
-   virtual double ComputeL2ErrorFacets(Coefficient &exsol,
-                                       const IntegrationRule *irs[] = NULL) const
-   { return ComputeLpErrorFacets(2.0, exsol, NULL, irs); }
-
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
