@@ -809,7 +809,7 @@ public:
       (currently returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is LEGACY.*/
+   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is AssemblyLevel::LEGACY.*/
    virtual void Finalize(int skip_zeros = 1);
 
    /** @brief Extract the associated matrix as SparseMatrix blocks. The number of
