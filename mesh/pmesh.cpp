@@ -4742,7 +4742,7 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os, std::string const& comments) const
+void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
@@ -4888,7 +4888,7 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &os, std::string const& comments) const
+void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
@@ -5199,7 +5199,7 @@ void ParMesh::PrintAsOne(std::ostream &os, std::string const& comments) const
    }
 }
 
-void ParMesh::PrintAsSerial(std::ostream &os, std::string const& comments) const
+void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
 {
    int save_rank = 0;
    Mesh serialmesh = GetSerialMesh(save_rank);
@@ -6216,7 +6216,7 @@ long long ParMesh::ReduceInt(int value) const
    return global;
 }
 
-void ParMesh::ParPrint(ostream &os, std::string const& comments) const
+void ParMesh::ParPrint(ostream &os, const std::string &comments) const
 {
    if (NURBSext)
    {

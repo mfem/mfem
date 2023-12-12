@@ -424,7 +424,7 @@ public:
    /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
-   void Print(std::ostream &out, std::string const& comments = "") const;
+   void Print(std::ostream &out, const std::string &comments = "") const;
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
