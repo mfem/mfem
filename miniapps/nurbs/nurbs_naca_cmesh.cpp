@@ -27,6 +27,9 @@
 //               correct visualisation of coarse meshes. In the current mesh, it
 //               allows to visualize the tip of the foil section.
 //
+//               For visualization of the result MFEM 4.6 or higher is required
+//               in GlVis or VisIt.
+//
 //               Possible improvements:
 //               - Implement optimization with TMOP
 //               - Streamline GetTipXY() for two options
