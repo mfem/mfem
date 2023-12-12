@@ -10647,7 +10647,7 @@ void Mesh::PrintXG(std::ostream &os) const
 }
 
 void Mesh::Printer(std::ostream &os, std::string section_delimiter,
-                   std::string const& comments) const
+                   const std::string &comments) const
 {
    int i, j;
 
