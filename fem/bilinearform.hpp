@@ -136,7 +136,7 @@ protected:
    void AllocMat();
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing A := P^t A P where A is the internal
+       assembly process by performing \f$ A := P^t A P\f$ where A is the internal
        sparse matrix and P is the conforming prolongation matrice of the
        trial/test FE space. After this call the
        BilinearForm becomes an operator on the conforming FE space. */
