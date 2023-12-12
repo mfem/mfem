@@ -132,7 +132,7 @@ protected:
 
    int precompute_sparsity;
 
-   /// Allocate appropriate SparseMatrix and assign it to mat
+   /// Allocate appropriate SparseMatrix and assign it to #mat
    void AllocMat();
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
