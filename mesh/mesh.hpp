@@ -575,7 +575,7 @@ protected:
        the file, and each line should begin with '#'. */
    void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "",
-                std::string const& comments = "") const;
+                const std::string &comments = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
