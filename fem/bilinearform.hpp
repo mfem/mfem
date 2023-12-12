@@ -256,7 +256,7 @@ public:
    void UseSparsity(SparseMatrix &A);
 
    /** @brief Pre-allocate the internal SparseMatrix before assembly.
-       If the flag 'precompute sparsity'
+       If the internal flag #precompute_sparsity
        is set, the matrix is allocated in CSR format (i.e.
        finalized) and the entries are initialized with zeros. */
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
