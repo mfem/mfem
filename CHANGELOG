@@ -27,6 +27,10 @@ Miscellaneous
 - Updated the Doxygen documentation style, which now requires Doxygen version
   1.9.8 or later. See the doc/ directory.
 
+- Improved thread safety for global variables in the library, for example
+  IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
+  GlobGeometryRefiner, and FiniteElement::dof2quad_array.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
