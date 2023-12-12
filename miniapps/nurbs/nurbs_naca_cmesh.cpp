@@ -22,7 +22,7 @@
 //               The example returns a VisIt and a GLVis data structure for
 //               visualization. Note that one will need to use the option
 //               "Operators/Selection/MultiresControl" to inspect the shape of
-//               the NURBS in Visit. This allows for increasing the resolution
+//               the NURBS in VisIt. This allows for increasing the resolution
 //               on which the NURBS curves are evaluated. This is required for
 //               correct visualisation of coarse meshes. In the current mesh, it
 //               allows to visualize the tip of the foil section.
