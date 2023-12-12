@@ -1,28 +1,31 @@
 // Compile with: make nurbs_naca_cmesh
 //
-// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40 -sw 2.0
-//                 -sbnd 2.5 -stip 1.1 -aoa 3
+// Sample run:   ./nurbs_naca_cmesh -ntail 80 -nbnd 80 -ntip 20 -nwake 40
+//                 -sw 2.0 -sbnd 2.5 -stip 1.1 -aoa 3
 //
-// Description:  This example code demonstrates the use of MFEM to create a C-mesh
-//               around a NACA-foil section. The foil section is defined in the class
-//               NACA4, which can be easily replaced with any other description of a
-//               foil section. To apply an angle of attack, we rotate the domain
-//               around the origin.
+// Description:  This example code demonstrates the use of MFEM to create a
+//               C-mesh around a NACA-foil section. The foil section is defined
+//               in the class NACA4, which can be easily replaced with any other
+//               description of a foil section. To apply an angle of attack, we
+//               rotate the domain around the origin.
 //
-//               The mesh employs five patches of which two describe the domain behind the
-//               foil section (wake). The boundary describing the foil section is divided
-//               over three patches. One patch describes the domain adjacent to the boundary
-//               which describes the tip / leading edge of the foil section and two patches
-//               describe the domain which is adjacent to the two boundaries describing the
-//               remainder of the foil section. The aim is to create a mesh with the highest
-//               quality close to the boundary of the foil section and the wake.
+//               The mesh employs five patches of which two describe the domain
+//               behind the foil section (wake). The boundary describing the
+//               foil section is divided over three patches. One patch describes
+//               the domain adjacent to the boundary which describes the tip /
+//               leading edge of the foil section and two patches describe the
+//               domain which is adjacent to the two boundaries describing the
+//               remainder of the foil section. The aim is to create a mesh with
+//               the highest quality close to the boundary of the foil section
+//               and the wake.
 //
-//               The example returns a VisIt and a GLVis data structure for visualization.
-//               Note that one will need to use the option "Operators/Selection/
-//               MultiresControl" to inspect the shape of the NURBS in Visit. This allows
-//               for increasing the resolution on which the NURBS curves are evaluated.
-//               This is required for correct visualisation of coarse meshes. In the current
-//               mesh it allows to visualize the tip of the foil section.
+//               The example returns a VisIt and a GLVis data structure for
+//               visualization. Note that one will need to use the option
+//               "Operators/Selection/MultiresControl" to inspect the shape of
+//               the NURBS in Visit. This allows for increasing the resolution
+//               on which the NURBS curves are evaluated. This is required for
+//               correct visualisation of coarse meshes. In the current mesh, it
+//               allows to visualize the tip of the foil section.
 //
 //               Possible improvements:
 //               - Implement optimization with TMOP
@@ -66,10 +69,11 @@ public:
    double GetChord() const {return c;}
 };
 
-// Function that finds the coordinates of the control points of the tip of the foil section @a xy
-// based on the @a foil_section, knot vector @a kv and tip fraction @a tf
-// We have two cases, with an odd number of control points and with an even number of
-// control points. These may be streamlined in the future.
+// Function that finds the coordinates of the control points of the tip of the
+// foil section @a xy based on the @a foil_section, knot vector @a kv and tip
+// fraction @a tf. We have two cases, with an odd number of control points and
+// with an even number of control points. These may be streamlined in the
+// future.
 void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
               Array<Vector*> &xy);
 
@@ -78,22 +82,23 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
 KnotVector *UniformKnotVector(int order, int ncp);
 
 // Function that returns a knot vector that is stretched with stretch @s
-// with the form x^s based on the @a order and the number of control points @a ncp.
-// Special case @a s = 0 will give a uniform knot vector.
+// with the form x^s based on the @a order and the number of control points
+// @a ncp. Special case @a s = 0 will give a uniform knot vector.
 KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing
 // with a cut-off @c using the @a order and the number of control points @a ncp.
 KnotVector *TanhKnotVector(int order, int ncp, double c);
 
-// Function that returns a knot vector with a hyperbolic tangent spacing from both sides
-// of the knot vector with a cut-off @c using the @a order and the number of control points @a ncp.
+// Function that returns a knot vector with a hyperbolic tangent spacing from
+// both sides of the knot vector with a cut-off @c using the @a order and the
+// number of control points @a ncp.
 KnotVector *DoubleTanhKnotVector(int order, int ncp, double c);
 
-// Function that evaluates a linear function which describes the boundary distance
-// based on the flair angle @a flair, smallest boundary distance @a bd and
-// coordinate @a x. The flair angle is mainly used to be able to enforce inflow on
-// the top and bottom boundary and to create an elegant mesh.
+// Function that evaluates a linear function which describes the boundary
+// distance based on the flair angle @a flair, smallest boundary distance @a bd
+// and coordinate @a x. The flair angle is mainly used to be able to enforce
+// inflow on the top and bottom boundary and to create an elegant mesh.
 double FlairBoundDist(double flair, double bd, double x);
 
 int main(int argc, char *argv[])
@@ -117,7 +122,7 @@ int main(int argc, char *argv[])
    args.AddOption(&foil_length, "-l", "--foil-length",
                   "Length of the used foil in the mesh. ");
    args.AddOption(&foil_thickness, "-t", "--foil-thickness",
-                  "Thickness of the used NACA foil in the mesh as a fraction of length.");
+                  "Thickness of the foil in the mesh as a fraction of length.");
    args.AddOption(&aoa, "-aoa", "--angle-of-attack",
                   "Angle of attack of the foil. ");
 
@@ -127,15 +132,15 @@ int main(int argc, char *argv[])
    double tip_fraction = 0.05;
    double flair = -999;
    args.AddOption(&boundary_dist, "-b", "--boundary-distance",
-                  "Radius of the c-mesh, distance between the foil and the boundary");
+                  "Radius of the c-mesh, distance between foil and boundary");
    args.AddOption(&wake_length, "-w", "--wake_length",
                   "Length of the mesh after the foil");
    args.AddOption(&tip_fraction, "-tf", "--tip-fraction",
-                  "Fraction of the length of the foil that will be in tip patch");
+                  "Fraction of the length of foil that will be in tip patch");
    args.AddOption(&flair, "-f", "--flair-angle",
-                  "Flair angle of the top and bottom boundary to enforce inflow. If left \
-                at default, the flair angle is determined automatically to create an \
-                elegant mesh.");
+                  "Flair angle of top and bottom boundary to enforce inflow. If\
+                  left at default, the flair angle is determined automatically\
+                  to create an elegant mesh.");
 
    int ncp_tip  = 3;
    int ncp_tail = 3;
@@ -146,9 +151,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ncp_tail, "-ntail", "--ncp-tail",
                   "Number of control points used over the tail of the foil.");
    args.AddOption(&ncp_wake, "-nwake", "--ncp-wake",
-                  "Number of control points used over the wake behind the foil.");
+                  "Number of control points over the wake behind the foil.");
    args.AddOption(&ncp_bnd, "-nbnd", "--ncp-circ",
-                  "Number of control points used between the foil and the boundary.");
+                  "Number of control points between the foil and boundary.");
 
    double str_tip = 1;
    double str_wake = 1;
@@ -169,7 +174,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit", "-no-visit", "--no-visit",
-                  "Enable or disable VisIt visualization in output Naca_cmesh.");
+                  "Enable/disable VisIt visualization in output Naca_cmesh.");
 
    // Parse and print command line options
    args.Parse();
@@ -211,17 +216,18 @@ int main(int argc, char *argv[])
    // 3. Create required (variables for) curves: foil_section and flair
    const NACA4 foil_section(foil_thickness, foil_length);
 
-   // The default flair angle is defined to be the same as the angle of the curve of the
-   // foil section to create an elegant mesh.
+   // The default flair angle is defined to be the same as the angle of the
+   // curve of the foil section to create an elegant mesh.
    if (flair == -999)
    {
       flair = atan(foil_section.dydx(tip_fraction*foil_length));
    }
 
-   // 4. We map coordinates in patches, apply refinement and interpolate the foil section in
-   //    patches 1, 2 and 3. Note the case of non-unity weights in patch 2 to create a circular
-   //    shape: its coordinates are converted to homogeneous coordinates. This is not needed
-   //    for other patches as homogeneous coordinates and cartesian coordinates are the same
+   // 4. We map coordinates in patches, apply refinement and interpolate the
+   //    foil section in patches 1, 2 and 3. Note the case of non-unity weights
+   //    in patch 2 to create a circular shape: its coordinates are converted to
+   //    homogeneous coordinates. This is not needed for other patches as
+   //    homogeneous coordinates and cartesian coordinates are the same
    //    for patches with unity weight.
 
    // Patch 0: lower wake part behind foil section.
@@ -323,14 +329,16 @@ int main(int argc, char *argv[])
       patch2(0,0,1) = -foil_section.y(patch2(0,0,0));
 
 
-      patch2(2,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
+      patch2(2,1,0) = -boundary_dist*cos(90*deg2rad-flair)
+                      + tip_fraction*foil_length;
       patch2(2,1,1) = boundary_dist*sin(90*deg2rad-flair);
 
       patch2(1,1,0) = -boundary_dist/sin(flair);
       patch2(1,1,1) = 0.0;
       patch2(1,1,2) = cos((180*deg2rad-2*flair)/2);
 
-      patch2(0,1,0) = -boundary_dist*cos(90*deg2rad-flair) + tip_fraction*foil_length;
+      patch2(0,1,0) = -boundary_dist*cos(90*deg2rad-flair)
+                      + tip_fraction*foil_length;
       patch2(0,1,1) = -boundary_dist*sin(90*deg2rad-flair);
 
       // Deal with non-uniform weight: convert to homogeneous coordinates
@@ -352,7 +360,8 @@ int main(int argc, char *argv[])
       kv2->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
       {
-         // Also deal with non-uniform weights here: convert to homogeneous coordinates
+         // Also deal with non-uniform weights here: convert to homogeneous
+         // coordinates
          patch2(i,0,0) = (*xyf[0])[i]*patch2(i,0,2);
          patch2(i,0,1) = (*xyf[1])[i]*patch2(i,0,2);
       }
@@ -457,7 +466,8 @@ int main(int argc, char *argv[])
 
    // File header
    output<<"MFEM NURBS mesh v1.0"<<endl;
-   output<< endl << "# " << mdim << "D C-mesh around a symmetric NACA foil section"
+   output<< endl << "# " << mdim
+         << "D C-mesh around a symmetric NACA foil section"
          << endl << endl;
    output<< "dimension"<<endl;
    output<< mdim <<endl;
@@ -645,7 +655,6 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
 {
    int ncp = kv->GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
-   const double  llll = foil_section.GetChord();
    const double l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
@@ -674,15 +683,18 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
       for (int i = 0; i < n; i++)
       {
          // Lower half
-         xy[0]->Elem(i) = xcp[n-i];     xy[1]->Elem(i) = -foil_section.y(xcp[n-i]);
+         xy[0]->Elem(i) = xcp[n-i];
+         xy[1]->Elem(i) = -foil_section.y(xcp[n-i]);
 
          // Upper half
-         xy[0]->Elem(n+1+i) = xcp[i+1]; xy[1]->Elem(n+1+i) = foil_section.y(xcp[i+1]);
+         xy[0]->Elem(n+1+i) = xcp[i+1];
+         xy[1]->Elem(n+1+i) = foil_section.y(xcp[i+1]);
       }
    }
    else
    {
-      // Find arc lengths to control points on upperside of foil section then find x-coordinates
+      // Find arc lengths to control points on upperside of foil section then
+      // find x-coordinates
       Vector xcp(n);
       for (int i = 0; i < n; i++)
       {
@@ -696,10 +708,12 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
       for (int i = 0; i < n; i++)
       {
          // Lower half
-         xy[0]->Elem(i) = xcp[n-1-i]; xy[1]->Elem(i) = -foil_section.y(xcp[n-1-i]);
+         xy[0]->Elem(i) = xcp[n-1-i];
+         xy[1]->Elem(i) = -foil_section.y(xcp[n-1-i]);
 
          // Upper half
-         xy[0]->Elem(n+i) = xcp[i];   xy[1]->Elem(n+i) = foil_section.y(xcp[i]);
+         xy[0]->Elem(n+i) = xcp[i];
+         xy[1]->Elem(n+i) = foil_section.y(xcp[i]);
       }
    }
 }
