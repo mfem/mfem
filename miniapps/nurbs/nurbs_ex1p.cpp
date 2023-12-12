@@ -25,7 +25,7 @@
 //               mpirun -np 4 nurbs_ex1p -m ../../data/square-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
-//               mpirun -np 4 nurbs_ex1p -m ../../../miniapps/nurbs/meshes/square-nurbs.mesh -r 4 -pm "1" -ps "2"
+//               mpirun -np 4 nurbs_ex1p -m meshes/square-nurbs.mesh -r 4 -pm "1" -ps "2"
 //
 
 // Description:  This example code demonstrates the use of MFEM to define a
