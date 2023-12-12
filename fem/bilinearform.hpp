@@ -73,7 +73,7 @@ protected:
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
 
-   /// The ::AssemblyLevel of the form (LEGACY, FULL, ELEMENT, PARTIAL)
+   /// The ::AssemblyLevel of the form (AssemblyLevel::LEGACY, AssemblyLevel::FULL, AssemblyLevel::ELEMENT, AssemblyLevel::PARTIAL)
    AssemblyLevel assembly;
 
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
