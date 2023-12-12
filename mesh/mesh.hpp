@@ -434,7 +434,7 @@ protected:
    void UpdateNURBS();
 
    void PrintTopo(std::ostream &out, const Array<int> &e_to_k,
-                  std::string const& comments) const;
+                  const std::string &comments) const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &, int);
@@ -2151,7 +2151,7 @@ public:
    /// @a comments is non-empty, it will be printed after the first line of the
    /// file, and each line should begin with '#'.
    virtual void Print(std::ostream &os = mfem::out,
-                      std::string const& comments = "") const
+                      const std::string &comments = "") const
    { Printer(os, "", comments); }
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be

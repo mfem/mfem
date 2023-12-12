@@ -626,7 +626,7 @@ public:
    /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
        will be printed after the first line of the file, and each line should
        begin with '#'. */
-   void ParPrint(std::ostream &out, std::string const& comments = "") const;
+   void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
    // for visualization purposes)
@@ -638,7 +638,7 @@ public:
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out = mfem::out,
-              std::string const& comments = "") const override;
+              const std::string &comments = "") const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
@@ -663,14 +663,14 @@ public:
        it will be printed after the first line of the file, and each line should
        begin with '#'. */
    void PrintAsOne(std::ostream &out = mfem::out,
-                   std::string const& comments = "") const;
+                   const std::string &comments = "") const;
 
    /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
        output mesh does not have any duplication of vertices/nodes at processor
        boundaries. If @a comments is non-empty, it will be printed after the
        first line of the file, and each line should begin with '#'. */
    void PrintAsSerial(std::ostream &out = mfem::out,
-                      std::string const& comments = "") const;
+                      const std::string &comments = "") const;
 
    /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
        duplication of vertices/nodes at processor boundaries. */

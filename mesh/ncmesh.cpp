@@ -5640,7 +5640,7 @@ bool NCMesh::ZeroRootStates() const
    return true;
 }
 
-void NCMesh::Print(std::ostream &os, std::string const& comments) const
+void NCMesh::Print(std::ostream &os, const std::string &comments) const
 {
    os << "MFEM NC mesh v1.0\n\n";
 

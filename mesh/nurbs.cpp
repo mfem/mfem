@@ -1914,7 +1914,7 @@ NURBSExtension::~NURBSExtension()
    }
 }
 
-void NURBSExtension::Print(std::ostream &os, std::string const& comments) const
+void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
 {
    patchTopo->PrintTopo(os, edge_to_knot, comments);
    if (patches.Size() == 0)
