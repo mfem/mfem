@@ -1039,7 +1039,7 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   /// Must be called after making changes to trial_fes or test_fes.
+   /// Must be called after making changes to #trial_fes or #test_fes.
    void Update();
 
    /// Return the trial FE space associated with the BilinearForm.
