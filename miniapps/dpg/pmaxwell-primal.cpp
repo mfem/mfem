@@ -11,7 +11,7 @@
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
-//      ∇×(1/μ ∇×E) - ω² ϵ E = Ĵ ,   in Ω
+//      ∇×(1/μ ∇×E) - ω² ϵ E = J ,   in Ω
 //                       E×n = E₀ , on ∂Ω
 
 // It solves the following kinds of problems
@@ -298,8 +298,13 @@ int main(int argc, char *argv[])
       X = 0.;
       BlockDiagonalPreconditioner M(tdof_offsets);
 
+      ParFiniteElementSpace *ams_fes = nullptr;
+      if (static_cond)
+      {
+         ams_fes = new ParFiniteElementSpace(&pmesh,E_fes->FEColl()->GetTraceCollection());
+      }
       HypreAMS * solver_E = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(0,0),
-                                         (static_cond) ? hatE_fes : E_fes);
+                                         (static_cond) ? ams_fes : E_fes);
       solver_E->SetPrintLevel(0);
 
       HypreSolver * solver_hatE = nullptr;
@@ -322,13 +327,13 @@ int main(int argc, char *argv[])
       M.SetDiagonalBlock(num_blocks+1,solver_hatE);
 
       CGSolver cg(MPI_COMM_WORLD);
-      cg.SetRelTol(1e-6);
+      cg.SetRelTol(1e-12);
       cg.SetMaxIter(10000);
       cg.SetPrintLevel(0);
       cg.SetPreconditioner(M);
       cg.SetOperator(blockA);
       cg.Mult(B, X);
-
+      delete ams_fes;
       for (int i = 0; i<num_blocks; i++)
       {
          delete &M.GetDiagonalBlock(i);
