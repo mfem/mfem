@@ -77,26 +77,27 @@ public:
 // fraction @a tf. We have two cases, with an odd number of control points and
 // with an even number of control points. These may be streamlined in the
 // future.
-void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
+void GetTipXY(const NACA4 &foil_section, unique_ptr <KnotVector> &kv, double tf,
               Array<Vector*> &xy);
 
 // Function that returns a uniform knot vector based on the @a order and the
 // number of control points @a ncp.
-KnotVector *UniformKnotVector(int order, int ncp);
+unique_ptr <KnotVector> UniformKnotVector(int order, int ncp);
 
 // Function that returns a knot vector that is stretched with stretch @s
 // with the form x^s based on the @a order and the number of control points
 // @a ncp. Special case @a s = 0 will give a uniform knot vector.
-KnotVector *PowerStretchKnotVector(int order, int ncp, double s = 0.0);
+unique_ptr <KnotVector> PowerStretchKnotVector(int order, int ncp,
+                                               double s = 0.0);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing
 // with a cut-off @c using the @a order and the number of control points @a ncp.
-KnotVector *TanhKnotVector(int order, int ncp, double c);
+unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing from
 // both sides of the knot vector with a cut-off @c using the @a order and the
 // number of control points @a ncp.
-KnotVector *DoubleTanhKnotVector(int order, int ncp, double c);
+unique_ptr <KnotVector> DoubleTanhKnotVector(int order, int ncp, double c);
 
 // Function that evaluates a linear function which describes the boundary
 // distance based on the flair angle @a flair, smallest boundary distance @a bd
@@ -196,18 +197,19 @@ int main(int argc, char *argv[])
    aoa = aoa*deg2rad;
 
    // 2. Create knot vectors
-   KnotVector *kv0 = TanhKnotVector(order, ncp_wake, str_wake);
+   unique_ptr <KnotVector> kv0 = TanhKnotVector(order, ncp_wake, str_wake);
    kv0->Flip();
-   KnotVector *kv4 = new KnotVector(*kv0);
+   unique_ptr <KnotVector> kv4 (new KnotVector(*kv0));
    kv4->Flip();
 
-   KnotVector *kv1 = PowerStretchKnotVector(order, ncp_tail, -str_tail);
-   KnotVector *kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
-   KnotVector *kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
-   KnotVector *kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
+   unique_ptr <KnotVector> kv1 = PowerStretchKnotVector(order, ncp_tail,
+                                                        -str_tail);
+   unique_ptr <KnotVector> kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
+   unique_ptr <KnotVector> kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
+   unique_ptr <KnotVector> kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
 
-   KnotVector *kv_o1 = UniformKnotVector(1, 2);
-   KnotVector *kv_o2 = UniformKnotVector(2, 3);
+   unique_ptr <KnotVector> kv_o1 = UniformKnotVector(1, 2);
+   unique_ptr <KnotVector> kv_o2 = UniformKnotVector(2, 3);
 
    // Variables required for curve interpolation
    Vector xi_args, u_args;
@@ -234,7 +236,7 @@ int main(int argc, char *argv[])
    //    for patches with unity weight.
 
    // Patch 0: lower wake part behind foil section.
-   NURBSPatch patch0(kv_o1, kv_o1, 3);
+   NURBSPatch patch0(kv_o1.get(), kv_o1.get(), 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -263,7 +265,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 1: Lower tail of foil
-   NURBSPatch patch1(kv_o1, kv_o1, 3);
+   NURBSPatch patch1(kv_o1.get(), kv_o1.get(), 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -311,7 +313,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 2: Tip of foil section
-   NURBSPatch patch2(kv_o2, kv_o1, 3);
+   NURBSPatch patch2(kv_o2.get(), kv_o1.get(), 3);
    {
       // Define weights
       for (int i = 0; i < 3; i++)
@@ -375,7 +377,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 3: Upper part of trailing part foil section
-   NURBSPatch patch3(kv_o1, kv_o1, 3);
+   NURBSPatch patch3(kv_o1.get(), kv_o1.get(), 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -423,7 +425,7 @@ int main(int argc, char *argv[])
    }
 
    // Patch 4: Upper trailing wake part
-   NURBSPatch patch4(kv_o1, kv_o1, 3);
+   NURBSPatch patch4(kv_o1.get(), kv_o1.get(), 3);
    {
       for (int i = 0; i < 2; i++)
          for (int j = 0; j < 2; j++)
@@ -545,14 +547,6 @@ int main(int argc, char *argv[])
 
    // Close
    output.close();
-   delete kv0;
-   delete kv1;
-   delete kv2;
-   delete kv3;
-   delete kv4;
-   delete kvr;
-   delete kv_o1;
-   delete kv_o2;
    delete xyf[0];
    delete xyf[1];
 
@@ -570,13 +564,13 @@ int main(int argc, char *argv[])
    cout << "=========================================================="<< endl;
    cout << " Attempting to read mesh: " <<mesh_file.c_str()<< endl ;
    cout << "=========================================================="<< endl;
-   Mesh *mesh = new Mesh(mesh_file.c_str(), 1, 1);
-   mesh->PrintInfo();
+   Mesh mesh(mesh_file.c_str(), 1, 1);
+   mesh.PrintInfo();
 
    // Print mesh to file for visualization
    if (visit)
    {
-      VisItDataCollection dc = VisItDataCollection("mesh", mesh);
+      VisItDataCollection dc = VisItDataCollection("mesh", &mesh);
       dc.SetPrefixPath("Naca_cmesh");
       dc.SetCycle(0);
       dc.SetTime(0.0);
@@ -592,11 +586,10 @@ int main(int argc, char *argv[])
       glvis_file.append(msh_filename);
       glvis_file.append(".mesh");
       ofstream glvis_output(glvis_file.c_str());
-      mesh->Print(glvis_output);
+      mesh.Print(glvis_output);
       glvis_output.close();
    }
 
-   delete mesh;
    return 0;
 }
 
@@ -653,7 +646,7 @@ double NACA4::xl(double l) const
    return x;
 }
 
-void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
+void GetTipXY(const NACA4 &foil_section, unique_ptr <KnotVector> &kv, double tf,
               Array<Vector*> &xy)
 {
    int ncp = kv->GetNCP();
@@ -721,9 +714,9 @@ void GetTipXY(const NACA4 &foil_section, KnotVector *kv, double tf,
    }
 }
 
-KnotVector *UniformKnotVector(int order, int ncp)
+unique_ptr <KnotVector> UniformKnotVector(int order, int ncp)
 {
-   KnotVector *kv = new KnotVector(order, ncp);
+   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -740,9 +733,9 @@ KnotVector *UniformKnotVector(int order, int ncp)
    return kv;
 }
 
-KnotVector *PowerStretchKnotVector(int order, int ncp, double s)
+unique_ptr <KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
 {
-   KnotVector *kv = new KnotVector(order, ncp);
+   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -761,9 +754,9 @@ KnotVector *PowerStretchKnotVector(int order, int ncp, double s)
    return kv;
 }
 
-KnotVector *TanhKnotVector(int order, int ncp, double c)
+unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c)
 {
-   KnotVector *kv = new KnotVector(order, ncp);
+   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -781,9 +774,9 @@ KnotVector *TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-KnotVector *DoubleTanhKnotVector(int order, int ncp, double c)
+unique_ptr <KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
 {
-   KnotVector *kv = UniformKnotVector(order, ncp);
+   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
