@@ -776,7 +776,7 @@ unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c)
 
 unique_ptr <KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
 {
-   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
+   unique_ptr <KnotVector> kv = UniformKnotVector(order, ncp);
 
    for (int i = 0; i < order+1; i++)
    {
