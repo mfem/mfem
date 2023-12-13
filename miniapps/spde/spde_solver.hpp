@@ -41,34 +41,34 @@ struct Boundary
 
    /// Helper function to compute the coefficients alpha, beta, gamma (see in
    /// `IntegrateBC`) for a given boundary attribute.
-   void UpdateIntegrationCoefficients(int i, fptype &alpha, fptype &beta,
-                                      fptype &gamma);
+   void UpdateIntegrationCoefficients(int i, real_t &alpha, real_t &beta,
+                                      real_t &gamma);
 
    /// Add a homogeneous boundary condition to the boundary.
    void AddHomogeneousBoundaryCondition(int boundary, BoundaryType type);
 
    /// Add a inhomogeneous Dirichlet boundary condition to the boundary.
    void AddInhomogeneousDirichletBoundaryCondition(int boundary,
-                                                   fptype coefficient);
+                                                   real_t coefficient);
 
    /// Set the robin coefficient for the boundary.
-   void SetRobinCoefficient(fptype coefficient);
+   void SetRobinCoefficient(real_t coefficient);
 
    /// Map to assign homogeneous boundary conditions to defined boundary types.
    std::map<int, BoundaryType> boundary_attributes;
    /// Coefficient for inhomogeneous Dirichlet boundary conditions.
-   std::map<int, fptype> dirichlet_coefficients;
+   std::map<int, real_t> dirichlet_coefficients;
    /// Coefficient for Robin boundary conditions (n.grad(u) + coeff u = 0) on
    /// defined boundaries.
-   fptype robin_coefficient = 1.0;
+   real_t robin_coefficient = 1.0;
 };
 
 /// IntegrateBC function from ex27p.cpp. For boundary verification.
 /// Compute the average value of alpha*n.Grad(sol) + beta*sol over the boundary
 /// attributes marked in bdr_marker. Also computes the L2 norm of
 /// alpha*n.Grad(sol) + beta*sol - gamma over the same boundary.
-fptype IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
-                   fptype alpha, fptype beta, fptype gamma, fptype &glb_err);
+real_t IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
+                   real_t alpha, real_t beta, real_t gamma, real_t &glb_err);
 
 /// Solver for the SPDE method based on a rational approximation with the AAA
 /// algorithm. The SPDE method is described in the paper
@@ -101,9 +101,9 @@ public:
    /// @param e1 Rotation angle in x
    /// @param e2 Rotation angle in y
    /// @param e3 Rotation angle in z
-   SPDESolver(fptype nu, const Boundary &bc, ParFiniteElementSpace *fespace,
-              fptype l1 = 0.1, fptype l2 = 0.1, fptype l3 = 0.1,
-              fptype e1 = 0.0, fptype e2 = 0.0, fptype e3 = 0.0);
+   SPDESolver(real_t nu, const Boundary &bc, ParFiniteElementSpace *fespace,
+              real_t l1 = 0.1, real_t l2 = 0.1, real_t l3 = 0.1,
+              real_t e1 = 0.0, real_t e2 = 0.0, real_t e3 = 0.0);
 
    /// Destructor.
    ~SPDESolver();
@@ -123,15 +123,15 @@ public:
 
    /// Construct the normalization coefficient eta of the white noise right hands
    /// side.
-   static fptype ConstructNormalizationCoefficient(fptype nu, fptype l1,
-                                                   fptype l2, fptype l3,
+   static real_t ConstructNormalizationCoefficient(real_t nu, real_t l1,
+                                                   real_t l2, real_t l3,
                                                    int dim);
 
    /// Construct the second order tensor (matrix coefficient) Theta from the
    /// equation R^T(e1,e2,e3) diag(l1,l2,l3) R (e1,e2,e3).
-   static DenseMatrix ConstructMatrixCoefficient(fptype l1, fptype l2, fptype l3,
-                                                 fptype e1, fptype e2, fptype e3,
-                                                 fptype nu, int dim);
+   static DenseMatrix ConstructMatrixCoefficient(real_t l1, real_t l2, real_t l3,
+                                                 real_t e1, real_t e2, real_t e3,
+                                                 real_t nu, int dim);
 
    /// Set the print level
    void SetPrintLevel(int print_level) {print_level_ = print_level;}
@@ -140,8 +140,8 @@ private:
    /// The rational approximation of the SPDE results in multiple
    /// reaction-diffusion PDEs that need to be solved. This call solves the PDE
    /// (div Theta grad + alpha I)^exponent x = beta b.
-   void Solve(const ParLinearForm &b, ParGridFunction &x, fptype alpha,
-              fptype beta, int exponent = 1);
+   void Solve(const ParLinearForm &b, ParGridFunction &x, real_t alpha,
+              real_t beta, int exponent = 1);
 
    /// Lift the solution to satisfy the inhomogeneous boundary conditions.
    void LiftSolution(ParGridFunction &x);
@@ -163,7 +163,7 @@ private:
    void UpdateRHS(ParLinearForm &b) const;
 
    // Compute the coefficients for the rational approximation of the solution.
-   void ComputeRationalCoefficients(fptype exponent);
+   void ComputeRationalCoefficients(real_t exponent);
 
    // Bilinear forms and corresponding matrices for the solver.
    ParBilinearForm k_;
@@ -190,21 +190,21 @@ private:
    Array<int> rbc_marker_;  // Markers for Robin boundary conditions.
 
    // Coefficients for the rational approximation of the solution.
-   Array<fptype> coeffs_;
-   Array<fptype> poles_;
+   Array<real_t> coeffs_;
+   Array<real_t> poles_;
 
    // Exponents of the operator
-   fptype nu_ = 0.0;
-   fptype alpha_ = 0.0;
+   real_t nu_ = 0.0;
+   real_t alpha_ = 0.0;
    int integer_order_of_exponent_ = 0;
 
    // Correlation length
-   fptype l1_ = 0.1;
-   fptype l2_ = 0.1;
-   fptype l3_ = 0.1;
-   fptype e1_ = 0.0;
-   fptype e2_ = 0.0;
-   fptype e3_ = 0.0;
+   real_t l1_ = 0.1;
+   real_t l2_ = 0.1;
+   real_t l3_ = 0.1;
+   real_t e1_ = 0.0;
+   real_t e2_ = 0.0;
+   real_t e3_ = 0.0;
 
    // Print level
    int print_level_ = 1;

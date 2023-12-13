@@ -48,7 +48,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
    }
 }
 
-void Operator::AddMult(const Vector &x, Vector &y, const fptype a) const
+void Operator::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
    mfem::Vector z(y.Size());
    Mult(x, z);
@@ -56,7 +56,7 @@ void Operator::AddMult(const Vector &x, Vector &y, const fptype a) const
 }
 
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
-                                const fptype a) const
+                                const real_t a) const
 {
    mfem::Vector z(y.Size());
    MultTranspose(x, z);
@@ -88,7 +88,7 @@ void Operator::ArrayMultTranspose(const Array<const Vector *> &X,
 }
 
 void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
-                            const fptype a) const
+                            const real_t a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMult!");
@@ -100,7 +100,7 @@ void Operator::ArrayAddMult(const Array<const Vector *> &X, Array<Vector *> &Y,
 }
 
 void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
-                                     Array<Vector *> &Y, const fptype a) const
+                                     Array<Vector *> &Y, const real_t a) const
 {
    MFEM_ASSERT(X.Size() == Y.Size(),
                "Number of columns mismatch in Operator::AddMultTranspose!");
@@ -295,14 +295,14 @@ void TimeDependentOperator::Mult(const Vector &, Vector &) const
    mfem_error("TimeDependentOperator::Mult() is not overridden!");
 }
 
-void TimeDependentOperator::ImplicitSolve(const fptype, const Vector &,
+void TimeDependentOperator::ImplicitSolve(const real_t, const Vector &,
                                           Vector &)
 {
    mfem_error("TimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
 Operator &TimeDependentOperator::GetImplicitGradient(
-   const Vector &, const Vector &, fptype) const
+   const Vector &, const Vector &, real_t) const
 {
    mfem_error("TimeDependentOperator::GetImplicitGradient() is "
               "not overridden!");
@@ -318,13 +318,13 @@ Operator &TimeDependentOperator::GetExplicitGradient(const Vector &) const
 
 int TimeDependentOperator::SUNImplicitSetup(const Vector &,
                                             const Vector &,
-                                            int, int *, fptype)
+                                            int, int *, real_t)
 {
    mfem_error("TimeDependentOperator::SUNImplicitSetup() is not overridden!");
    return (-1);
 }
 
-int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, fptype)
+int TimeDependentOperator::SUNImplicitSolve(const Vector &, Vector &, real_t)
 {
    mfem_error("TimeDependentOperator::SUNImplicitSolve() is not overridden!");
    return (-1);
@@ -336,7 +336,7 @@ int TimeDependentOperator::SUNMassSetup()
    return (-1);
 }
 
-int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, fptype)
+int TimeDependentOperator::SUNMassSolve(const Vector &, Vector &, real_t)
 {
    mfem_error("TimeDependentOperator::SUNMassSolve() is not overridden!");
    return (-1);
@@ -356,8 +356,8 @@ void SecondOrderTimeDependentOperator::Mult(const Vector &x,
    mfem_error("SecondOrderTimeDependentOperator::Mult() is not overridden!");
 }
 
-void SecondOrderTimeDependentOperator::ImplicitSolve(const fptype dt0,
-                                                     const fptype dt1,
+void SecondOrderTimeDependentOperator::ImplicitSolve(const real_t dt0,
+                                                     const real_t dt1,
                                                      const Vector &x,
                                                      const Vector &dxdt,
                                                      Vector &k)
@@ -707,8 +707,8 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    }
 }
 
-fptype PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
-                                              int numSteps, fptype tolerance, int seed)
+real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
+                                              int numSteps, real_t tolerance, int seed)
 {
    v1.SetSize(v0.Size());
    if (seed != 0)
@@ -716,11 +716,11 @@ fptype PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
       v0.Randomize(seed);
    }
 
-   fptype eigenvalue = 1.0;
+   real_t eigenvalue = 1.0;
 
    for (int iter = 0; iter < numSteps; ++iter)
    {
-      fptype normV0;
+      real_t normV0;
 
 #ifdef MFEM_USE_MPI
       if (comm != MPI_COMM_NULL)
@@ -738,7 +738,7 @@ fptype PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
       v0 /= sqrt(normV0);
       opr.Mult(v0, v1);
 
-      fptype eigenvalueNew;
+      real_t eigenvalueNew;
 #ifdef MFEM_USE_MPI
       if (comm != MPI_COMM_NULL)
       {
@@ -751,7 +751,7 @@ fptype PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,
 #else
       eigenvalueNew = InnerProduct(v0, v1);
 #endif
-      fptype diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
+      real_t diff = std::abs((eigenvalueNew - eigenvalue) / eigenvalue);
 
       eigenvalue = eigenvalueNew;
       std::swap(v0, v1);

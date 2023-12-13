@@ -35,7 +35,7 @@ protected:
 
 public:
    /// Computes the energy of the system
-   virtual fptype GetEnergy(const Vector &x) const;
+   virtual real_t GetEnergy(const Vector &x) const;
 
    /// Construct an empty ParParametricBNLForm. Initialize with SetParSpaces().
    ParParametricBNLForm() : pBlockGrad(nullptr) { }

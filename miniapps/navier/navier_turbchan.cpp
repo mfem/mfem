@@ -25,37 +25,37 @@ using namespace navier;
 struct s_NavierContext
 {
    int order = 5;
-   fptype Re_tau = 180.0;
-   fptype kin_vis = 1.0 / Re_tau;
-   fptype t_final = 50.0;
-   fptype dt = -1.0;
+   real_t Re_tau = 180.0;
+   real_t kin_vis = 1.0 / Re_tau;
+   real_t t_final = 50.0;
+   real_t dt = -1.0;
 } ctx;
 
-fptype mesh_stretching_func(const fptype y)
+real_t mesh_stretching_func(const real_t y)
 {
-   fptype C = 1.8;
-   fptype delta = 1.0;
+   real_t C = 1.8;
+   real_t delta = 1.0;
 
    return delta * tanh(C * (2.0 * y - 1.0)) / tanh(C);
 }
 
-void accel(const Vector &x, fptype t, Vector &f)
+void accel(const Vector &x, real_t t, Vector &f)
 {
    f(0) = 1.0;
    f(1) = 0.0;
    f(2) = 0.0;
 }
 
-void vel_ic_reichardt(const Vector &coords, fptype t, Vector &u)
+void vel_ic_reichardt(const Vector &coords, real_t t, Vector &u)
 {
-   fptype yp;
-   fptype x = coords(0);
-   fptype y = coords(1);
-   fptype z = coords(2);
+   real_t yp;
+   real_t x = coords(0);
+   real_t y = coords(1);
+   real_t z = coords(2);
 
-   fptype C = 5.17;
-   fptype k = 0.4;
-   fptype eps = 1e-2;
+   real_t C = 5.17;
+   real_t k = 0.4;
+   real_t eps = 1e-2;
 
    if (y < 0)
    {
@@ -69,18 +69,18 @@ void vel_ic_reichardt(const Vector &coords, fptype t, Vector &u)
    u(0) = 1.0 / k * log(1.0 + k * yp) + (C - (1.0 / k) * log(k)) * (1 - exp(
                                                                        -yp / 11.0) - yp / 11.0 * exp(-yp / 3.0));
 
-   fptype kx = 23.0;
-   fptype kz = 13.0;
+   real_t kx = 23.0;
+   real_t kz = 13.0;
 
-   fptype alpha = kx * 2.0 * M_PI / 2.0 * M_PI;
-   fptype beta = kz * 2.0 * M_PI / M_PI;
+   real_t alpha = kx * 2.0 * M_PI / 2.0 * M_PI;
+   real_t beta = kz * 2.0 * M_PI / M_PI;
 
    u(0) += eps * beta * sin(alpha * x) * cos(beta * z);
    u(1) = eps * sin(alpha * x) * sin(beta * z);
    u(2) = -eps * alpha * cos(alpha * x) * sin(beta * z);
 }
 
-void vel_wall(const Vector &x, fptype t, Vector &u)
+void vel_wall(const Vector &x, real_t t, Vector &u)
 {
    u(0) = 0.0;
    u(1) = 0.0;
@@ -92,15 +92,15 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   fptype Lx = 2.0 * M_PI;
-   fptype Ly = 1.0;
-   fptype Lz = M_PI;
+   real_t Lx = 2.0 * M_PI;
+   real_t Ly = 1.0;
+   real_t Lz = M_PI;
 
    int N = ctx.order + 1;
    int NL = static_cast<int>(std::round(64.0 / N)); // Coarse
    // int NL = std::round(96.0 / N); // Baseline
    // int NL = std::round(128.0 / N); // Fine
-   fptype LC = M_PI / NL;
+   real_t LC = M_PI / NL;
    int NX = 2 * NL;
    int NY = 2 * static_cast<int>(std::round(48.0 / N));
    int NZ = NL;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < mesh.GetNV(); ++i)
    {
-      fptype *v = mesh.GetVertex(i);
+      real_t *v = mesh.GetVertex(i);
       v[1] = mesh_stretching_func(v[1]);
    }
 
@@ -128,10 +128,10 @@ int main(int argc, char *argv[])
       std::cout << "Number of elements: " << mesh.GetNE() << std::endl;
    }
 
-   fptype hmin, hmax, kappa_min, kappa_max;
+   real_t hmin, hmax, kappa_min, kappa_max;
    periodic_mesh.GetCharacteristics(hmin, hmax, kappa_min, kappa_max);
 
-   fptype umax = 22.0;
+   real_t umax = 22.0;
    ctx.dt = 1.0 / pow(ctx.order, 1.5) * hmin / umax;
 
    auto *pmesh = new ParMesh(MPI_COMM_WORLD, periodic_mesh);
@@ -156,9 +156,9 @@ int main(int argc, char *argv[])
    attr[3] = 1;
    flowsolver.AddVelDirichletBC(vel_wall, attr);
 
-   fptype t = 0.0;
-   fptype dt = ctx.dt;
-   fptype t_final = ctx.t_final;
+   real_t t = 0.0;
+   real_t dt = ctx.dt;
+   real_t t_final = ctx.t_final;
    bool last_step = false;
 
    flowsolver.Setup(dt);

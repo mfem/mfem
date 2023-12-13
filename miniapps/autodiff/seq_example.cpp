@@ -50,9 +50,9 @@ public:
    /// Constructor Input: imesh - FE mesh, finite element space, power for the
    /// p-Laplacian, external load (source, input), regularization parameter
    NLSolverPLaplacian(Mesh& imesh, FiniteElementSpace& ifespace,
-                      fptype powerp=2,
+                      real_t powerp=2,
                       Coefficient* load=nullptr,
-                      fptype regularizationp=1e-7)
+                      real_t regularizationp=1e-7)
    {
       // default parameters for the Newton solver
       newton_rtol = 1e-4;
@@ -117,13 +117,13 @@ public:
 
 
    // set relative tolerance for the Newton solver
-   void SetNRRTol(fptype rtol)
+   void SetNRRTol(real_t rtol)
    {
       newton_rtol=rtol;
    }
 
    // set absolute tolerance for the Newton solver
-   void SetNRATol(fptype atol)
+   void SetNRATol(real_t atol)
    {
       newton_atol=atol;
    }
@@ -134,12 +134,12 @@ public:
       newton_iter=miter;
    }
 
-   void SetLSRTol(fptype rtol)
+   void SetLSRTol(real_t rtol)
    {
       linear_rtol=rtol;
    }
 
-   void SetLSATol(fptype atol)
+   void SetLSATol(real_t atol)
    {
       linear_atol=atol;
    }
@@ -169,7 +169,7 @@ public:
    }
 
    /// Compute the energy
-   fptype GetEnergy(Vector& statev)
+   real_t GetEnergy(Vector& statev)
    {
       if (nlform==nullptr)
       {
@@ -256,12 +256,12 @@ private:
       nsolver->SetMaxIter(newton_iter);
    }
 
-   fptype newton_rtol;
-   fptype newton_atol;
+   real_t newton_rtol;
+   real_t newton_atol;
    int newton_iter;
 
-   fptype linear_rtol;
-   fptype linear_atol;
+   real_t linear_rtol;
+   real_t linear_atol;
    int linear_iter;
 
    int print_level;
@@ -295,12 +295,12 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 3;
    int order = 1;
    bool visualization = true;
-   fptype newton_rel_tol = 1e-4;
-   fptype newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 10;
    int print_level = 0;
 
-   fptype pp = 2.0; // p-Laplacian power
+   real_t pp = 2.0; // p-Laplacian power
 
    IntegratorType integrator = IntegratorType::ADHessianIntegrator;
    int int_integrator = integrator;
@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
    std::cout << "[pp=2] The solution time is: " << timer->RealTime()
              << std::endl;
    // Compute the energy
-   fptype energy = nr->GetEnergy(sv);
+   real_t energy = nr->GetEnergy(sv);
    std::cout << "[pp=2] The total energy of the system is E=" << energy
              << std::endl;
    delete nr;
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
    // 11. Continue with powers higher than 2
    for (int i = 3; i < pp; i++)
    {
-      nr=new NLSolverPLaplacian(*mesh, fespace, (fptype)i, &load);
+      nr=new NLSolverPLaplacian(*mesh, fespace, (real_t)i, &load);
       nr->SetIntegrator(integrator);
       nr->SetMaxNRIter(newton_iter);
       nr->SetNRATol(newton_abs_tol);
@@ -440,7 +440,7 @@ int main(int argc, char *argv[])
    }
 
    // 12. Continue with the final power
-   if (std::abs(pp - 2.0) > std::numeric_limits<fptype>::epsilon())
+   if (std::abs(pp - 2.0) > std::numeric_limits<real_t>::epsilon())
    {
       nr=new NLSolverPLaplacian(*mesh, fespace, pp, &load);
       nr->SetIntegrator(integrator);

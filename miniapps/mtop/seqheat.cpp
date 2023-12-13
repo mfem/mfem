@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 1;
    int order = 2;
    bool visualization = false;
-   fptype newton_rel_tol = 1e-4;
-   fptype newton_abs_tol = 1e-6;
+   real_t newton_rel_tol = 1e-4;
+   real_t newton_abs_tol = 1e-6;
    int newton_iter = 10;
    int print_level = 0;
 
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    std::cout<<"Norm residual="<<resbv.Norml2()<<std::endl;
 
    // Compute the energy of the state system
-   fptype energy = nf->GetEnergy(solbv);
+   real_t energy = nf->GetEnergy(solbv);
    std::cout<<"energy ="<< energy<<std::endl;
 
    // Define the block nonlinear form utilized for representing the
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator());
 
    // Compute the objective
-   fptype obj=ob->GetEnergy(solbv);
+   real_t obj=ob->GetEnergy(solbv);
    std::cout<<"Objective ="<<obj<<std::endl;
 
    // Solve the adjoint
@@ -256,16 +256,16 @@ int main(int argc, char *argv[])
       prtbv.GetBlock(0).Randomize();
       prtbv*=1.0;
       // Scaling parameter
-      fptype lsc=1.0;
+      real_t lsc=1.0;
 
       // Compute initial objective
-      fptype gQoI=ob->GetEnergy(solbv);
-      fptype lQoI;
+      real_t gQoI=ob->GetEnergy(solbv);
+      real_t lQoI;
 
       // Norm of the perturbation
-      fptype nd=mfem::InnerProduct(prtbv,prtbv);
+      real_t nd=mfem::InnerProduct(prtbv,prtbv);
       // Projection of the adjoint gradient on the perturbation
-      fptype td=mfem::InnerProduct(prtbv,grdbv);
+      real_t td=mfem::InnerProduct(prtbv,grdbv);
       // Normalize the directional derivative
       td=td/nd;
 
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
          // Compute the objective
          lQoI=ob->GetEnergy(solbv);
          // FD approximation
-         fptype ld=(lQoI-gQoI)/lsc;
+         real_t ld=(lQoI-gQoI)/lsc;
          std::cout << "dx=" << lsc << " FD gradient=" << ld/nd
                    << " adjoint gradient=" << td
                    << " err=" << std::fabs(ld/nd-td) << std::endl;

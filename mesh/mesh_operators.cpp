@@ -69,7 +69,7 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    nc_limit = 0;
 }
 
-fptype ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
+real_t ThresholdRefiner::GetNorm(const Vector &local_err, Mesh &mesh) const
 {
 #ifdef MFEM_USE_MPI
    ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
@@ -95,12 +95,12 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    MFEM_ASSERT(local_err.Size() == NE, "invalid size of local_err");
 
-   const fptype total_err = GetNorm(local_err, mesh);
+   const real_t total_err = GetNorm(local_err, mesh);
    if (total_err <= total_err_goal) { return STOP; }
 
    if (total_norm_p < infinity())
    {
-      threshold = std::max((fptype) (total_err * total_fraction *
+      threshold = std::max((real_t) (total_err * total_fraction *
                                      std::pow(num_elements, -1.0/total_norm_p)),
                            local_err_goal);
    }
@@ -207,7 +207,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       // Compute number of elements and L2-norm of f.
       int NE = mesh.GetNE();
       int globalNE = 0;
-      fptype norm_of_coeff = 0.0;
+      real_t norm_of_coeff = 0.0;
       if (par)
       {
 #ifdef MFEM_USE_MPI
@@ -222,7 +222,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       }
 
       // Compute average L2-norm of f
-      fptype av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
+      real_t av_norm_of_coeff = norm_of_coeff / sqrt(globalNE);
 
       // Compute element-wise L2-norms of (I - Π) f
       Vector element_norms_of_fine_scale(NE);
@@ -239,8 +239,8 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       element_oscs = 0.0;
       for (int j = 0; j < NE; j++)
       {
-         fptype h = mesh.GetElementSize(j);
-         fptype element_osc = h * element_norms_of_fine_scale(j);
+         real_t h = mesh.GetElementSize(j);
+         real_t element_osc = h * element_norms_of_fine_scale(j);
          if ( element_osc > threshold * av_norm_of_coeff )
          {
             mesh_refinements.Append(j);
@@ -252,7 +252,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
       if (par)
       {
          MPI_Comm comm = pmesh->GetComm();
-         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPITypeMap<fptype>::mpi_type,
+         MPI_Allreduce(MPI_IN_PLACE, &global_osc, 1, MPITypeMap<real_t>::mpi_type,
                        MPI_SUM, comm);
          MPI_Comm_rank(comm, &rank);
       }

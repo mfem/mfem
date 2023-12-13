@@ -104,8 +104,8 @@ void AdvectionOper::ComputeElementsMinMax(const ParGridFunction &gf,
    const int NE = pfes.GetNE(), ndof = pfes.GetFE(0)->GetDof();
    for (int k = 0; k < NE; k++)
    {
-      el_min(k) = numeric_limits<fptype>::infinity();
-      el_max(k) = -numeric_limits<fptype>::infinity();
+      el_min(k) = numeric_limits<real_t>::infinity();
+      el_max(k) = -numeric_limits<real_t>::infinity();
 
       for (int i = 0; i < ndof; i++)
       {
@@ -135,7 +135,7 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
    Array<int> face_nbr_el;
    for (int k = 0; k < NE; k++)
    {
-      fptype k_min = el_min_gf(k), k_max = el_max_gf(k);
+      real_t k_min = el_min_gf(k), k_max = el_max_gf(k);
 
       el_to_el.GetRow(k, face_nbr_el);
       for (int n = 0; n < face_nbr_el.Size(); n++)
@@ -164,7 +164,7 @@ void AdvectionOper::ComputeBounds(const ParFiniteElementSpace &pfes,
 
 void Extrapolator::Extrapolate(Coefficient &level_set,
                                const ParGridFunction &input,
-                               const fptype time_period,
+                               const real_t time_period,
                                ParGridFunction &xtrap)
 {
    ParMesh &pmesh = *input.ParFESpace()->GetParMesh();
@@ -263,7 +263,7 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
 
    ParBilinearForm lhs_bf(&pfes_L2), rhs_bf(&pfes_L2);
    lhs_bf.AddDomainIntegrator(new MassIntegrator);
-   const fptype alpha = -1.0;
+   const real_t alpha = -1.0;
    rhs_bf.AddDomainIntegrator(new ConvectionIntegrator(ls_n_coeff, alpha));
    auto trace_i = new NonconservativeDGTraceIntegrator(ls_n_coeff, alpha);
    rhs_bf.AddInteriorFaceIntegrator(trace_i);
@@ -276,16 +276,16 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
    rhs_bf.Finalize(0);
 
    // Compute a CFL time step.
-   fptype h_min = std::numeric_limits<fptype>::infinity();
+   real_t h_min = std::numeric_limits<real_t>::infinity();
    for (int k = 0; k < NE; k++)
    {
       h_min = std::min(h_min, pmesh.GetElementSize(k));
    }
-   MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPITypeMap<fptype>::mpi_type, MPI_MIN,
+   MPI_Allreduce(MPI_IN_PLACE, &h_min, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
                  pmesh.GetComm());
    // The propagation speed is 1.
-   fptype dt = 0.25 * h_min / order / 1.0;
-   fptype half_dt = 0.5 * dt;
+   real_t dt = 0.25 * h_min / order / 1.0;
+   real_t half_dt = 0.5 * dt;
    if (advection_mode == AdvectionOper::LO)
    {
       dt = half_dt;
@@ -394,8 +394,8 @@ void Extrapolator::Extrapolate(Coefficient &level_set,
 void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
                                       const ParGridFunction &exact,
                                       const ParGridFunction &xtrap,
-                                      fptype &err_L1, fptype &err_L2,
-                                      fptype &err_LI)
+                                      real_t &err_L1, real_t &err_L2,
+                                      real_t &err_LI)
 {
    ParMesh &pmesh = *exact.ParFESpace()->GetParMesh();
    const int order = exact.ParFESpace()->GetOrder(0),
@@ -419,7 +419,7 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
    xtrap.ComputeElementL2Errors(exact_coeff, errors_L2);
    xtrap.ComputeElementMaxErrors(exact_coeff, errors_LI);
    err_L1 = 0.0, err_L2 = 0.0, err_LI = 0.0;
-   fptype cut_volume = 0.0;
+   real_t cut_volume = 0.0;
    for (int k = 0; k < NE; k++)
    {
       if (elem_marker[k] == ShiftedFaceMarker::CUT)
@@ -431,30 +431,30 @@ void Extrapolator::ComputeLocalErrors(Coefficient &level_set,
       }
    }
    MPI_Comm comm = pmesh.GetComm();
-   MPI_Allreduce(MPI_IN_PLACE, &err_L1, 1, MPITypeMap<fptype>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &err_L1, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &err_L2, 1, MPITypeMap<fptype>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &err_L2, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &err_LI, 1, MPITypeMap<fptype>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &err_LI, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_MAX, comm);
-   MPI_Allreduce(MPI_IN_PLACE, &cut_volume, 1, MPITypeMap<fptype>::mpi_type,
+   MPI_Allreduce(MPI_IN_PLACE, &cut_volume, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
    err_L1 /= cut_volume;
    err_L2 /= cut_volume;
 }
 
 void Extrapolator::TimeLoop(ParGridFunction &sltn, ODESolver &ode_solver,
-                            fptype t_final, fptype dt,
+                            real_t t_final, real_t dt,
                             int vis_x_pos, std::string vis_name)
 {
    socketstream sock;
 
    const int myid  = sltn.ParFESpace()->GetMyRank();
    bool done = false;
-   fptype t = 0.0;
+   real_t t = 0.0;
    for (int ti = 0; !done;)
    {
-      fptype dt_real = min(dt, t_final - t);
+      real_t dt_real = min(dt, t_final - t);
       ode_solver.Step(sltn, t, dt_real);
       ti++;
 
@@ -522,20 +522,20 @@ void DiscreteUpwindLOSolver::ComputeDiscreteUpwindMatrix() const
 {
    const int *I = K.HostReadI(), *J = K.HostReadJ(), n = K.Size();
 
-   const fptype *K_data = K.HostReadData();
+   const real_t *K_data = K.HostReadData();
 
-   fptype *D_data = D.HostReadWriteData();
+   real_t *D_data = D.HostReadWriteData();
    D.HostReadWriteI(); D.HostReadWriteJ();
 
    for (int i = 0, k = 0; i < n; i++)
    {
-      fptype rowsum = 0.;
+      real_t rowsum = 0.;
       for (int end = I[i+1]; k < end; k++)
       {
          int j = J[k];
-         fptype kij = K_data[k];
-         fptype kji = K_data[K_smap[k]];
-         fptype dij = fmax(fmax(0.0,-kij),-kji);
+         real_t kij = K_data[k];
+         real_t kji = K_data[K_smap[k]];
+         real_t dij = fmax(fmax(0.0,-kij),-kji);
          D_data[k] = kij + dij;
          D_data[K_smap[k]] = kji + dij;
          if (i != j) { rowsum += dij; }
@@ -549,7 +549,7 @@ void DiscreteUpwindLOSolver::ApplyDiscreteUpwindMatrix(ParGridFunction &u,
 {
    const int s = u.Size();
    const int *I = D.HostReadI(), *J = D.HostReadJ();
-   const fptype *D_data = D.HostReadData();
+   const real_t *D_data = D.HostReadData();
 
    u.ExchangeFaceNbrData();
    const Vector &u_np = u.FaceNbrData();
@@ -560,8 +560,8 @@ void DiscreteUpwindLOSolver::ApplyDiscreteUpwindMatrix(ParGridFunction &u,
       for (int k = I[i]; k < I[i + 1]; k++)
       {
          int j = J[k];
-         fptype u_j  = (j < s) ? u(j) : u_np[j - s];
-         fptype d_ij = D_data[k];
+         real_t u_j  = (j < s) ? u(j) : u_np[j - s];
+         real_t d_ij = D_data[k];
          du(i) += d_ij * u_j;
       }
    }

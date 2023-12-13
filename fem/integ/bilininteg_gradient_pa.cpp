@@ -69,7 +69,7 @@ namespace mfem
 // PA Gradient Assemble 2D kernel
 static void PAGradientSetup2D(const int Q1D,
                               const int NE,
-                              const Array<fptype> &w,
+                              const Array<real_t> &w,
                               const Vector &j,
                               const Vector &c,
                               Vector &op)
@@ -87,12 +87,12 @@ static void PAGradientSetup2D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const fptype J11 = J(q,0,0,e);
-         const fptype J12 = J(q,0,1,e);
-         const fptype J21 = J(q,1,0,e);
-         const fptype J22 = J(q,1,1,e);
+         const real_t J11 = J(q,0,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J22 = J(q,1,1,e);
          // Store wq * Q * adj(J)
-         const fptype Co = const_c ? C(0,0) : C(q,e);
+         const real_t Co = const_c ? C(0,0) : C(q,e);
          y(q,0,0,e) = W[q] * Co *  J22; // 1,1
          y(q,0,1,e) = W[q] * Co * -J12; // 1,2
          y(q,1,0,e) = W[q] * Co * -J21; // 2,1
@@ -104,7 +104,7 @@ static void PAGradientSetup2D(const int Q1D,
 // PA Gradient Assemble 3D kernel
 static void PAGradientSetup3D(const int Q1D,
                               const int NE,
-                              const Array<fptype> &w,
+                              const Array<real_t> &w,
                               const Vector &j,
                               const Vector &c,
                               Vector &op)
@@ -122,28 +122,28 @@ static void PAGradientSetup3D(const int Q1D,
    {
       for (int q = 0; q < NQ; ++q)
       {
-         const fptype Co = const_c ? C(0,0) : C(q,e);
+         const real_t Co = const_c ? C(0,0) : C(q,e);
 
-         const fptype J11 = J(q,0,0,e);
-         const fptype J21 = J(q,1,0,e);
-         const fptype J31 = J(q,2,0,e);
-         const fptype J12 = J(q,0,1,e);
-         const fptype J22 = J(q,1,1,e);
-         const fptype J32 = J(q,2,1,e);
-         const fptype J13 = J(q,0,2,e);
-         const fptype J23 = J(q,1,2,e);
-         const fptype J33 = J(q,2,2,e);
-         const fptype cw  = W[q] * Co;
+         const real_t J11 = J(q,0,0,e);
+         const real_t J21 = J(q,1,0,e);
+         const real_t J31 = J(q,2,0,e);
+         const real_t J12 = J(q,0,1,e);
+         const real_t J22 = J(q,1,1,e);
+         const real_t J32 = J(q,2,1,e);
+         const real_t J13 = J(q,0,2,e);
+         const real_t J23 = J(q,1,2,e);
+         const real_t J33 = J(q,2,2,e);
+         const real_t cw  = W[q] * Co;
          // adj(J)
-         const fptype A11 = (J22 * J33) - (J23 * J32);
-         const fptype A12 = (J32 * J13) - (J12 * J33);
-         const fptype A13 = (J12 * J23) - (J22 * J13);
-         const fptype A21 = (J31 * J23) - (J21 * J33);
-         const fptype A22 = (J11 * J33) - (J13 * J31);
-         const fptype A23 = (J21 * J13) - (J11 * J23);
-         const fptype A31 = (J21 * J32) - (J31 * J22);
-         const fptype A32 = (J31 * J12) - (J11 * J32);
-         const fptype A33 = (J11 * J22) - (J12 * J21);
+         const real_t A11 = (J22 * J33) - (J23 * J32);
+         const real_t A12 = (J32 * J13) - (J12 * J33);
+         const real_t A13 = (J12 * J23) - (J22 * J13);
+         const real_t A21 = (J31 * J23) - (J21 * J33);
+         const real_t A22 = (J11 * J33) - (J13 * J31);
+         const real_t A23 = (J21 * J13) - (J11 * J23);
+         const real_t A31 = (J21 * J32) - (J31 * J22);
+         const real_t A32 = (J31 * J12) - (J11 * J32);
+         const real_t A33 = (J11 * J22) - (J12 * J21);
          // Store wq * Q * adj(J)
          y(q,0,0,e) = cw * A11; // 1,1
          y(q,0,1,e) = cw * A12; // 1,2
@@ -163,7 +163,7 @@ static void PAGradientSetup(const int dim,
                             const int TE_D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<fptype> &W,
+                            const Array<real_t> &W,
                             const Vector &J,
                             const Vector &COEFF,
                             Vector &op)
@@ -216,9 +216,9 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // PA Gradient Apply 2D kernel
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void PAGradientApply2D(const int NE,
-                              const Array<fptype> &b,
-                              const Array<fptype> &g,
-                              const Array<fptype> &bt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -248,7 +248,7 @@ static void PAGradientApply2D(const int NE,
       constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      fptype grad[max_Q1D][max_Q1D][VDIM];
+      real_t grad[max_Q1D][max_Q1D][VDIM];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -259,7 +259,7 @@ static void PAGradientApply2D(const int NE,
       }
       for (int dy = 0; dy < TR_D1D; ++dy)
       {
-         fptype gradX[max_Q1D][VDIM];
+         real_t gradX[max_Q1D][VDIM];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             gradX[qx][0] = 0.0;
@@ -267,7 +267,7 @@ static void PAGradientApply2D(const int NE,
          }
          for (int dx = 0; dx < TR_D1D; ++dx)
          {
-            const fptype s = x(dx,dy,e);
+            const real_t s = x(dx,dy,e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] += s * G(qx,dx);
@@ -276,8 +276,8 @@ static void PAGradientApply2D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const fptype wy  = B(qy,dy);
-            const fptype wDy = G(qy,dy);
+            const real_t wy  = B(qy,dy);
+            const real_t wDy = G(qy,dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                grad[qy][qx][0] += gradX[qx][0] * wy;
@@ -291,8 +291,8 @@ static void PAGradientApply2D(const int NE,
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const int q = qx + qy * Q1D;
-            const fptype gradX = grad[qy][qx][0];
-            const fptype gradY = grad[qy][qx][1];
+            const real_t gradX = grad[qy][qx][0];
+            const real_t gradY = grad[qy][qx][1];
 
             grad[qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e);
             grad[qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e);
@@ -301,7 +301,7 @@ static void PAGradientApply2D(const int NE,
       // We've now calculated grad = grad p * op
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         fptype opX[max_TE_D1D][VDIM];
+         real_t opX[max_TE_D1D][VDIM];
          for (int dx = 0; dx < TE_D1D; ++dx)
          {
             opX[dx][0] = 0.0;
@@ -329,9 +329,9 @@ static void PAGradientApply2D(const int NE,
 // PA Gradient Apply 2D kernel transpose
 template<int T_TR_D1D = 0, int T_TE_D1D = 0, int T_Q1D = 0>
 static void PAGradientApplyTranspose2D(const int NE,
-                                       const Array<fptype> &bt,
-                                       const Array<fptype> &gt,
-                                       const Array<fptype> &b,
+                                       const Array<real_t> &bt,
+                                       const Array<real_t> &gt,
+                                       const Array<real_t> &b,
                                        const Vector &op_,
                                        const Vector &x_,
                                        Vector &y_,
@@ -346,9 +346,9 @@ static void PAGradientApplyTranspose2D(const int NE,
 // PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PAGradientApply3D(const int NE,
-                              const Array<fptype> &b,
-                              const Array<fptype> &g,
-                              const Array<fptype> &bt,
+                              const Array<real_t> &b,
+                              const Array<real_t> &g,
+                              const Array<real_t> &bt,
                               const Vector &op_,
                               const Vector &x_,
                               Vector &y_,
@@ -378,7 +378,7 @@ static void PAGradientApply3D(const int NE,
       constexpr int max_TE_D1D = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      fptype grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t grad[max_Q1D][max_Q1D][max_Q1D][VDIM];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -393,7 +393,7 @@ static void PAGradientApply3D(const int NE,
       }
       for (int dz = 0; dz < TR_D1D; ++dz)
       {
-         fptype gradXY[max_Q1D][max_Q1D][3];
+         real_t gradXY[max_Q1D][max_Q1D][3];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -405,7 +405,7 @@ static void PAGradientApply3D(const int NE,
          }
          for (int dy = 0; dy < TR_D1D; ++dy)
          {
-            fptype gradX[max_Q1D][2];
+            real_t gradX[max_Q1D][2];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx][0] = 0.0;
@@ -413,7 +413,7 @@ static void PAGradientApply3D(const int NE,
             }
             for (int dx = 0; dx < TR_D1D; ++dx)
             {
-               const fptype s = x(dx,dy,dz,e);
+               const real_t s = x(dx,dy,dz,e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   gradX[qx][0] += s * B(qx,dx);
@@ -422,12 +422,12 @@ static void PAGradientApply3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const fptype wy  = B(qy,dy);
-               const fptype wDy = G(qy,dy);
+               const real_t wy  = B(qy,dy);
+               const real_t wDy = G(qy,dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const fptype wx  = gradX[qx][0];
-                  const fptype wDx = gradX[qx][1];
+                  const real_t wx  = gradX[qx][0];
+                  const real_t wDx = gradX[qx][1];
                   gradXY[qy][qx][0] += wDx * wy;
                   gradXY[qy][qx][1] += wx  * wDy;
                   gradXY[qy][qx][2] += wx  * wy;
@@ -436,8 +436,8 @@ static void PAGradientApply3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const fptype wz  = B(qz,dz);
-            const fptype wDz = G(qz,dz);
+            const real_t wz  = B(qz,dz);
+            const real_t wDz = G(qz,dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -457,9 +457,9 @@ static void PAGradientApply3D(const int NE,
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + (qy + qz * Q1D) * Q1D;
-               const fptype gradX = grad[qz][qy][qx][0];
-               const fptype gradY = grad[qz][qy][qx][1];
-               const fptype gradZ = grad[qz][qy][qx][2];
+               const real_t gradX = grad[qz][qy][qx][0];
+               const real_t gradY = grad[qz][qy][qx][1];
+               const real_t gradZ = grad[qz][qy][qx][2];
 
                grad[qz][qy][qx][0] = gradX*op(q,0,0,e) + gradY*op(q,1,0,e) + gradZ*op(q,2,0,e);
                grad[qz][qy][qx][1] = gradX*op(q,0,1,e) + gradY*op(q,1,1,e) + gradZ*op(q,2,1,e);
@@ -470,7 +470,7 @@ static void PAGradientApply3D(const int NE,
       // We've now calculated grad = grad p * op
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         fptype opXY[max_TE_D1D][max_TE_D1D][VDIM];
+         real_t opXY[max_TE_D1D][max_TE_D1D][VDIM];
          for (int dy = 0; dy < TE_D1D; ++dy)
          {
             for (int dx = 0; dx < TE_D1D; ++dx)
@@ -482,7 +482,7 @@ static void PAGradientApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            fptype opX[max_TE_D1D][VDIM];
+            real_t opX[max_TE_D1D][VDIM];
             for (int dx = 0; dx < TE_D1D; ++dx)
             {
                opX[dx][0] = 0.0;
@@ -525,9 +525,9 @@ static void PAGradientApply3D(const int NE,
 // PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void PAGradientApplyTranspose3D(const int NE,
-                                       const Array<fptype> &bt,
-                                       const Array<fptype> &gt,
-                                       const Array<fptype> &b,
+                                       const Array<real_t> &bt,
+                                       const Array<real_t> &gt,
+                                       const Array<real_t> &b,
                                        const Vector &op_,
                                        const Vector &x_,
                                        Vector &y_,
@@ -541,9 +541,9 @@ static void PAGradientApplyTranspose3D(const int NE,
 // Shared memory PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPAGradientApply3D(const int NE,
-                                  const Array<fptype> &b_,
-                                  const Array<fptype> &g_,
-                                  const Array<fptype> &bt_,
+                                  const Array<real_t> &b_,
+                                  const Array<real_t> &g_,
+                                  const Array<real_t> &bt_,
                                   const Vector &d_,
                                   const Vector &x_,
                                   Vector &y_,
@@ -580,31 +580,31 @@ static void SmemPAGradientApply3D(const int NE,
       constexpr int MD1E = T_TE_D1D ? T_TE_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MD1 = MD1E > MD1R ? MD1E : MD1R;
       constexpr int MDQ = MQ1 > MD1 ? MQ1 : MD1;
-      MFEM_SHARED fptype sBG[2][MQ1*MD1];
-      fptype (*B)[MD1] = (fptype (*)[MD1]) (sBG+0);
-      fptype (*G)[MD1] = (fptype (*)[MD1]) (sBG+1);
-      fptype (*Bt)[MQ1] = (fptype (*)[MQ1]) (sBG+0);
-      MFEM_SHARED fptype sm0[3][MDQ*MDQ*MDQ];
-      MFEM_SHARED fptype sm1[3][MDQ*MDQ*MDQ];
-      fptype (*X)[MD1][MD1]    = (fptype (*)[MD1][MD1]) (sm0+2);
-      fptype (*DDQ0)[MD1][MQ1] = (fptype (*)[MD1][MQ1]) (sm0+0);
-      fptype (*DDQ1)[MD1][MQ1] = (fptype (*)[MD1][MQ1]) (sm0+1);
+      MFEM_SHARED real_t sBG[2][MQ1*MD1];
+      real_t (*B)[MD1] = (real_t (*)[MD1]) (sBG+0);
+      real_t (*G)[MD1] = (real_t (*)[MD1]) (sBG+1);
+      real_t (*Bt)[MQ1] = (real_t (*)[MQ1]) (sBG+0);
+      MFEM_SHARED real_t sm0[3][MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[3][MDQ*MDQ*MDQ];
+      real_t (*X)[MD1][MD1]    = (real_t (*)[MD1][MD1]) (sm0+2);
+      real_t (*DDQ0)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+0);
+      real_t (*DDQ1)[MD1][MQ1] = (real_t (*)[MD1][MQ1]) (sm0+1);
 
-      fptype (*DQQ0)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm1+0);
-      fptype (*DQQ1)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm1+1);
-      fptype (*DQQ2)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm1+2);
+      real_t (*DQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+0);
+      real_t (*DQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+1);
+      real_t (*DQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm1+2);
 
-      fptype (*QQQ0)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm0+0);
-      fptype (*QQQ1)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm0+1);
-      fptype (*QQQ2)[MQ1][MQ1] = (fptype (*)[MQ1][MQ1]) (sm0+2);
+      real_t (*QQQ0)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+0);
+      real_t (*QQQ1)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+1);
+      real_t (*QQQ2)[MQ1][MQ1] = (real_t (*)[MQ1][MQ1]) (sm0+2);
 
-      fptype (*QQD0)[MQ1][MD1] = (fptype (*)[MQ1][MD1]) (sm1+0);
-      fptype (*QQD1)[MQ1][MD1] = (fptype (*)[MQ1][MD1]) (sm1+1);
-      fptype (*QQD2)[MQ1][MD1] = (fptype (*)[MQ1][MD1]) (sm1+2);
+      real_t (*QQD0)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm1+0);
+      real_t (*QQD1)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm1+1);
+      real_t (*QQD2)[MQ1][MD1] = (real_t (*)[MQ1][MD1]) (sm1+2);
 
-      fptype (*QDD0)[MD1][MD1] = (fptype (*)[MD1][MD1]) (sm0+0);
-      fptype (*QDD1)[MD1][MD1] = (fptype (*)[MD1][MD1]) (sm0+1);
-      fptype (*QDD2)[MD1][MD1] = (fptype (*)[MD1][MD1]) (sm0+2);
+      real_t (*QDD0)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm0+0);
+      real_t (*QDD1)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm0+1);
+      real_t (*QDD2)[MD1][MD1] = (real_t (*)[MD1][MD1]) (sm0+2);
       MFEM_FOREACH_THREAD(dz,z,D1DR)
       {
          MFEM_FOREACH_THREAD(dy,y,D1DR)
@@ -633,11 +633,11 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
                for (int dx = 0; dx < D1DR; ++dx)
                {
-                  const fptype coord = X[dz][dy][dx];
+                  const real_t coord = X[dz][dy][dx];
                   u += coord * B[qx][dx];
                   v += coord * G[qx][dx];
                }
@@ -653,9 +653,9 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
-               fptype w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int dy = 0; dy < D1DR; ++dy)
                {
                   u += DDQ1[dz][dy][qx] * B[qy][dy];
@@ -675,9 +675,9 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
-               fptype w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int dz = 0; dz < D1DR; ++dz)
                {
                   u += DQQ0[dz][qy][qx] * B[qz][dz];
@@ -698,9 +698,9 @@ static void SmemPAGradientApply3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                const int q = qx + (qy + qz * Q1D) * Q1D;
-               const fptype gX = QQQ0[qz][qy][qx];
-               const fptype gY = QQQ1[qz][qy][qx];
-               const fptype gZ = QQQ2[qz][qy][qx];
+               const real_t gX = QQQ0[qz][qy][qx];
+               const real_t gY = QQQ1[qz][qy][qx];
+               const real_t gZ = QQQ2[qz][qy][qx];
                QQQ0[qz][qy][qx] = (D(q,0,0,e)*gX) + (D(q,1,0,e)*gY) + (D(q,2,0,e)*gZ);
                QQQ1[qz][qy][qx] = (D(q,0,1,e)*gX) + (D(q,1,1,e)*gY) + (D(q,2,1,e)*gZ);
                QQQ2[qz][qy][qx] = (D(q,0,2,e)*gX) + (D(q,1,2,e)*gY) + (D(q,2,2,e)*gZ);
@@ -725,9 +725,9 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
-               fptype w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   u += QQQ0[qz][qy][qx] * Bt[dx][qx];
@@ -747,9 +747,9 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
-               fptype w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int qy = 0; qy < Q1D; ++qy)
                {
                   u += QQD0[qz][qy][dx] * Bt[dy][qy];
@@ -769,9 +769,9 @@ static void SmemPAGradientApply3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1DE)
             {
-               fptype u = 0.0;
-               fptype v = 0.0;
-               fptype w = 0.0;
+               real_t u = 0.0;
+               real_t v = 0.0;
+               real_t w = 0.0;
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   u += QDD0[qz][dy][dx] * Bt[dz][qz];
@@ -792,9 +792,9 @@ static void PAGradientApply(const int dim,
                             const int TE_D1D,
                             const int Q1D,
                             const int NE,
-                            const Array<fptype> &B,
-                            const Array<fptype> &G,
-                            const Array<fptype> &Bt,
+                            const Array<real_t> &B,
+                            const Array<real_t> &G,
+                            const Array<real_t> &Bt,
                             const Vector &op,
                             const Vector &x,
                             Vector &y,

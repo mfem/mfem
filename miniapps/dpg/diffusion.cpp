@@ -81,13 +81,13 @@ enum prob_type
 
 prob_type prob;
 
-fptype exact_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector &gradu);
-fptype exact_laplacian_u(const Vector & X);
+real_t exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-fptype exact_hatu(const Vector & X);
+real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
-fptype f_exact(const Vector & X);
+real_t f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   fptype err0 = 0.;
+   real_t err0 = 0.;
    int dof0=0.;
    if (static_cond) { a->EnableStaticCondensation(); }
    for (int it = 0; it<=ref; it++)
@@ -318,10 +318,10 @@ int main(int argc, char *argv[])
       if (prob == prob_type::manufactured)
       {
          int l2dofs = u_fes->GetVSize() + sigma_fes->GetVSize();
-         fptype u_err = u_gf.ComputeL2Error(uex);
-         fptype sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-         fptype L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-         fptype rate_err = (it) ? dim*log(err0/L2Error)/log((fptype)dof0/l2dofs) : 0.0;
+         real_t u_err = u_gf.ComputeL2Error(uex);
+         real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+         real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+         real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/l2dofs) : 0.0;
          err0 = L2Error;
          dof0 = l2dofs;
 
@@ -374,16 +374,16 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-fptype exact_u(const Vector & X)
+real_t exact_u(const Vector & X)
 {
-   fptype alpha = M_PI * (X.Sum());
+   real_t alpha = M_PI * (X.Sum());
    return sin(alpha);
 }
 
 void exact_gradu(const Vector & X, Vector & du)
 {
    du.SetSize(X.Size());
-   fptype alpha = M_PI * (X.Sum());
+   real_t alpha = M_PI * (X.Sum());
    du.SetSize(X.Size());
    for (int i = 0; i<du.Size(); i++)
    {
@@ -391,10 +391,10 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-fptype exact_laplacian_u(const Vector & X)
+real_t exact_laplacian_u(const Vector & X)
 {
-   fptype alpha = M_PI * (X.Sum());
-   fptype u = sin(alpha);
+   real_t alpha = M_PI * (X.Sum());
+   real_t u = sin(alpha);
    return - M_PI*M_PI * u * X.Size();
 }
 
@@ -404,7 +404,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    exact_gradu(X,sigma);
 }
 
-fptype exact_hatu(const Vector & X)
+real_t exact_hatu(const Vector & X)
 {
    return exact_u(X);
 }
@@ -415,7 +415,7 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
    hatsigma *= -1.;
 }
 
-fptype f_exact(const Vector & X)
+real_t f_exact(const Vector & X)
 {
    return -exact_laplacian_u(X);
 }

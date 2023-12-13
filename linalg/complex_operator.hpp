@@ -195,8 +195,8 @@ protected:
    void Init();
 
 public:
-   fptype Control[UMFPACK_CONTROL];
-   mutable fptype Info[UMFPACK_INFO];
+   real_t Control[UMFPACK_CONTROL];
+   mutable real_t Info[UMFPACK_INFO];
 
    /** @brief For larger matrices, if the solver fails, set the parameter @a
        use_long_ints_ = true. */

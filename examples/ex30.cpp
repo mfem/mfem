@@ -42,9 +42,9 @@ using namespace std;
 using namespace mfem;
 
 // Piecewise-affine function which is sometimes mesh-conforming
-fptype affine_function(const Vector &p)
+real_t affine_function(const Vector &p)
 {
-   fptype x = p(0), y = p(1);
+   real_t x = p(0), y = p(1);
    if (x < 0.0)
    {
       return 1.0 + x + y;
@@ -56,7 +56,7 @@ fptype affine_function(const Vector &p)
 }
 
 // Piecewise-constant function which is never mesh-conforming
-fptype jump_function(const Vector &p)
+real_t jump_function(const Vector &p)
 {
    if (p.Normlp(2.0) > 0.4 && p.Normlp(2.0) < 0.6)
    {
@@ -70,17 +70,17 @@ fptype jump_function(const Vector &p)
 
 // Singular function derived from the Laplacian of the "steep wavefront" problem
 // in [2].
-fptype singular_function(const Vector &p)
+real_t singular_function(const Vector &p)
 {
-   fptype x = p(0), y = p(1);
-   fptype alpha = 1000.0;
-   fptype xc = 0.75, yc = 0.5;
-   fptype r0 = 0.7;
-   fptype r = sqrt(pow(x - xc,2.0) + pow(y - yc,2.0));
-   fptype num = - ( alpha - pow(alpha,3) * (pow(r,2) - pow(r0,2)) );
-   fptype denom = pow(r * ( pow(alpha,2) * pow(r0,2) + pow(alpha,2) * pow(r,2) \
+   real_t x = p(0), y = p(1);
+   real_t alpha = 1000.0;
+   real_t xc = 0.75, yc = 0.5;
+   real_t r0 = 0.7;
+   real_t r = sqrt(pow(x - xc,2.0) + pow(y - yc,2.0));
+   real_t num = - ( alpha - pow(alpha,3) * (pow(r,2) - pow(r0,2)) );
+   real_t denom = pow(r * ( pow(alpha,2) * pow(r0,2) + pow(alpha,2) * pow(r,2) \
                             - 2 * pow(alpha,2) * r0 * r + 1.0 ),2);
-   denom = std::max(denom, (fptype) 1.0e-8);
+   denom = std::max(denom, (real_t) 1.0e-8);
    return num / denom;
 }
 
@@ -91,9 +91,9 @@ int main(int argc, char *argv[])
    int order = 1;
    int nc_limit = 1;
    int max_elems = 100*1000;
-   fptype double_max_elems = fptype(max_elems);
+   real_t double_max_elems = real_t(max_elems);
    bool visualization = true;
-   fptype osc_threshold = 1e-3;
+   real_t osc_threshold = 1e-3;
    int enriched_order = 5;
 
    OptionsParser args(argc, argv);

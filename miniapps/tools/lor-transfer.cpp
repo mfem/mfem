@@ -58,11 +58,11 @@ string space;
 string direction;
 
 // Exact functions to project
-fptype RHO_exact(const Vector &x);
+real_t RHO_exact(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int);
-fptype compute_mass(FiniteElementSpace *, fptype, VisItDataCollection &,
+real_t compute_mass(FiniteElementSpace *, real_t, VisItDataCollection &,
                     string);
 
 int main(int argc, char *argv[])
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    rho.SetTrueVector();
    rho.SetFromTrueVector();
 
-   fptype ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
    if (vis) { visualize(HO_dc, "HO", Wx, Wy); Wx += offx; }
 
    GridTransfer *gt;
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    GridFunction rho_lor_prev = rho_lor;
-   fptype lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
 }
 
 
-fptype RHO_exact(const Vector &x)
+real_t RHO_exact(const Vector &x)
 {
    switch (problem)
    {
@@ -277,7 +277,7 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y)
 }
 
 
-fptype compute_mass(FiniteElementSpace *L2, fptype massL2,
+real_t compute_mass(FiniteElementSpace *L2, real_t massL2,
                     VisItDataCollection &dc, string prefix)
 {
    ConstantCoefficient one(1.0);
@@ -285,7 +285,7 @@ fptype compute_mass(FiniteElementSpace *L2, fptype massL2,
    lf.AddDomainIntegrator(new DomainLFIntegrator(one));
    lf.Assemble();
 
-   fptype newmass = lf(*dc.GetField("density"));
+   real_t newmass = lf(*dc.GetField("density"));
    cout.precision(18);
    cout << space << " " << prefix << " mass   = " << newmass;
    if (massL2 >= 0)

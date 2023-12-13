@@ -35,9 +35,9 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
    const int dim = maps.FE->GetDim();
    const int D1D = maps.ndof;
    const int Q1D = maps.nqpt;
-   const fptype *B = maps.B.Read();
-   const fptype *X = e_vec.Read();
-   fptype *Y = q_val.Write();
+   const real_t *B = maps.B.Read();
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_val.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byVDIM;
 

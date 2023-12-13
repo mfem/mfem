@@ -38,12 +38,12 @@ class MaxwellSolver : public TimeDependentOperator
 {
 public:
    MaxwellSolver(ParMesh & pmesh, int sOrder,
-                 fptype (*eps     )(const Vector&),
-                 fptype (*muInv   )(const Vector&),
-                 fptype (*sigma   )(const Vector&),
-                 void   (*j_src   )(const Vector&, fptype, Vector&),
+                 real_t (*eps     )(const Vector&),
+                 real_t (*muInv   )(const Vector&),
+                 real_t (*sigma   )(const Vector&),
+                 void   (*j_src   )(const Vector&, real_t, Vector&),
                  Array<int> & abcs, Array<int> & dbcs,
-                 void   (*dEdt_bc )(const Vector&, fptype, Vector&));
+                 void   (*dEdt_bc )(const Vector&, real_t, Vector&));
 
    ~MaxwellSolver();
 
@@ -59,11 +59,11 @@ public:
 
    void Mult(const Vector &B, Vector &dEdt) const;
 
-   void ImplicitSolve(const fptype dt, const Vector &x, Vector &k);
+   void ImplicitSolve(const real_t dt, const Vector &x, Vector &k);
 
-   fptype GetMaximumTimeStep() const;
+   real_t GetMaximumTimeStep() const;
 
-   fptype GetEnergy() const;
+   real_t GetEnergy() const;
 
    Operator & GetNegCurl() { return *NegCurl_; }
 
@@ -83,9 +83,9 @@ public:
 private:
 
    // This method alters mutable member data
-   void setupSolver(const int idt, const fptype dt) const;
+   void setupSolver(const int idt, const real_t dt) const;
 
-   void implicitSolve(const fptype dt, const Vector &x, Vector &k) const;
+   void implicitSolve(const real_t dt, const Vector &x, Vector &k) const;
 
    int myid_;
    int num_procs_;
@@ -94,8 +94,8 @@ private:
 
    bool lossy_;
 
-   fptype dtMax_;   // Maximum stable time step
-   fptype dtScale_; // Used to scale dt before converting to an integer
+   real_t dtMax_;   // Maximum stable time step
+   real_t dtScale_; // Used to scale dt before converting to an integer
 
    ParMesh * pmesh_;
 
@@ -133,17 +133,17 @@ private:
    VectorCoefficient * jCoef_;      // Time dependent current density
    VectorCoefficient * dEdtBCCoef_; // Time dependent boundary condition
 
-   fptype (*eps_    )(const Vector&);
-   fptype (*muInv_  )(const Vector&);
-   fptype (*sigma_  )(const Vector&);
-   void   (*j_src_  )(const Vector&, fptype, Vector&);
+   real_t (*eps_    )(const Vector&);
+   real_t (*muInv_  )(const Vector&);
+   real_t (*sigma_  )(const Vector&);
+   void   (*j_src_  )(const Vector&, real_t, Vector&);
 
    // Array of 0's and 1's marking the location of absorbing surfaces
    Array<int> abc_marker_;
 
    // Array of 0's and 1's marking the location of Dirichlet boundaries
    Array<int> dbc_marker_;
-   void   (*dEdt_bc_)(const Vector&, fptype, Vector&);
+   void   (*dEdt_bc_)(const Vector&, real_t, Vector&);
 
    // Dirichlet degrees of freedom
    Array<int>   dbc_dofs_;

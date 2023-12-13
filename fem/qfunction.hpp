@@ -55,7 +55,7 @@ public:
        @warning @a qspace_ may not be NULL.
        @note @a qf_data must be a valid **host** pointer (see the constructor
        Vector::Vector(double *, int)). */
-   QuadratureFunction(QuadratureSpaceBase *qspace_, fptype *qf_data, int vdim_ = 1)
+   QuadratureFunction(QuadratureSpaceBase *qspace_, real_t *qf_data, int vdim_ = 1)
       : Vector(qf_data, vdim_*qspace_->GetSize()),
         qspace(qspace_), own_qspace(false), vdim(vdim_) { UseDevice(true); }
 
@@ -105,7 +105,7 @@ public:
        the same.
 
        The data array is replaced by calling Vector::NewDataAndSize(). */
-   inline void SetSpace(QuadratureSpaceBase *qspace_, fptype *qf_data,
+   inline void SetSpace(QuadratureSpaceBase *qspace_, real_t *qf_data,
                         int vdim_ = -1);
 
    /// Get the QuadratureSpaceBase ownership flag.
@@ -115,7 +115,7 @@ public:
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
    /// Set this equal to a constant value.
-   QuadratureFunction &operator=(fptype value);
+   QuadratureFunction &operator=(real_t value);
 
    /// Copy the data from @a v.
    /** The size of @a v must be equal to the size of the associated
@@ -218,7 +218,7 @@ inline void QuadratureFunction::GetValues(
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim*sl_size);
    values.HostWrite();
-   const fptype *q = HostRead() + vdim*s_offset;
+   const real_t *q = HostRead() + vdim*s_offset;
    for (int i = 0; i<values.Size(); i++)
    {
       values(i) = *(q++);
@@ -238,7 +238,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx] * vdim + ip_num * vdim;
    values.SetSize(vdim);
    values.HostWrite();
-   const fptype *q = HostRead() + s_offset;
+   const real_t *q = HostRead() + s_offset;
    for (int i = 0; i < values.Size(); i++)
    {
       values(i) = *(q++);
@@ -251,7 +251,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->offsets[idx];
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
-   Memory<fptype> &values_mem = values.GetMemory();
+   Memory<real_t> &values_mem = values.GetMemory();
    values_mem.Delete();
    values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
    values.SetSize(vdim, sl_size);
@@ -264,7 +264,7 @@ inline void QuadratureFunction::GetValues(
    const int sl_size = qspace->offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
    values.HostWrite();
-   const fptype *q = HostRead() + vdim*s_offset;
+   const real_t *q = HostRead() + vdim*s_offset;
    for (int j = 0; j<sl_size; j++)
    {
       for (int i = 0; i<vdim; i++)
@@ -289,7 +289,7 @@ inline void QuadratureFunction::SetSpace(QuadratureSpaceBase *qspace_,
 }
 
 inline void QuadratureFunction::SetSpace(
-   QuadratureSpaceBase *qspace_, fptype *qf_data, int vdim_)
+   QuadratureSpaceBase *qspace_, real_t *qf_data, int vdim_)
 {
    if (qspace_ != qspace)
    {

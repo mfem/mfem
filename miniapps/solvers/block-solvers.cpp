@@ -63,10 +63,10 @@ using namespace blocksolvers;
 
 // Exact solution, u and p, and r.h.s., f and g.
 void u_exact(const Vector & x, Vector & u);
-fptype p_exact(const Vector & x);
+real_t p_exact(const Vector & x);
 void f_exact(const Vector & x, Vector & f);
-fptype g_exact(const Vector & x);
-fptype natural_bc(const Vector & x);
+real_t g_exact(const Vector & x);
+real_t natural_bc(const Vector & x);
 
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
@@ -183,10 +183,10 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    u_.Distribute(Vector(sol.GetData(), M_->NumRows()));
    p_.Distribute(Vector(sol.GetData()+M_->NumRows(), B_->NumRows()));
 
-   fptype err_u  = u_.ComputeL2Error(ucoeff_, irs_);
-   fptype norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
-   fptype err_p  = p_.ComputeL2Error(pcoeff_, irs_);
-   fptype norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
+   real_t err_u  = u_.ComputeL2Error(ucoeff_, irs_);
+   real_t norm_u = ComputeGlobalLpNorm(2, ucoeff_, mesh_, irs_);
+   real_t err_p  = p_.ComputeL2Error(pcoeff_, irs_);
+   real_t norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
 
    if (!verbose) { return; }
    cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
    }
 
    // Setup various solvers for the discrete problem
-   std::map<const DarcySolver*, fptype> setup_time;
+   std::map<const DarcySolver*, real_t> setup_time;
    ResetTimer();
    BDPMinresSolver bdp(M, B, param);
    setup_time[&bdp] = chrono.RealTime();
@@ -389,9 +389,9 @@ int main(int argc, char *argv[])
 
 void u_exact(const Vector & x, Vector & u)
 {
-   fptype xi(x(0));
-   fptype yi(x(1));
-   fptype zi(x.Size() == 3 ? x(2) : 0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(x.Size() == 3 ? x(2) : 0.0);
 
    u(0) = - exp(xi)*sin(yi)*cos(zi);
    u(1) = - exp(xi)*cos(yi)*cos(zi);
@@ -401,11 +401,11 @@ void u_exact(const Vector & x, Vector & u)
    }
 }
 
-fptype p_exact(const Vector & x)
+real_t p_exact(const Vector & x)
 {
-   fptype xi(x(0));
-   fptype yi(x(1));
-   fptype zi(x.Size() == 3 ? x(2) : 0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(x.Size() == 3 ? x(2) : 0.0);
    return exp(xi)*sin(yi)*cos(zi);
 }
 
@@ -414,13 +414,13 @@ void f_exact(const Vector & x, Vector & f)
    f = 0.0;
 }
 
-fptype g_exact(const Vector & x)
+real_t g_exact(const Vector & x)
 {
    if (x.Size() == 3) { return -p_exact(x); }
    return 0;
 }
 
-fptype natural_bc(const Vector & x)
+real_t natural_bc(const Vector & x)
 {
    return (-p_exact(x));
 }

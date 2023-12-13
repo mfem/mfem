@@ -28,8 +28,8 @@ using namespace std;
 using namespace mfem;
 
 // Exact solution and r.h.s., see below for implementation.
-fptype analytic_solution(const Vector &x);
-fptype analytic_rhs(const Vector &x);
+real_t analytic_solution(const Vector &x);
+real_t analytic_rhs(const Vector &x);
 void SnapNodes(Mesh &mesh);
 
 int main(int argc, char *argv[])
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
    if (elem_type == 0) // inscribed octahedron
    {
-      const fptype tri_v[6][3] =
+      const real_t tri_v[6][3] =
       {
          { 1,  0,  0}, { 0,  1,  0}, {-1,  0,  0},
          { 0, -1,  0}, { 0,  0,  1}, { 0,  0, -1}
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    }
    else // inscribed cube
    {
-      const fptype quad_v[8][3] =
+      const real_t quad_v[8][3] =
       {
          {-1, -1, -1}, {+1, -1, -1}, {+1, +1, -1}, {-1, +1, -1},
          {-1, -1, +1}, {+1, -1, +1}, {+1, +1, +1}, {-1, +1, +1}
@@ -249,15 +249,15 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-fptype analytic_solution(const Vector &x)
+real_t analytic_solution(const Vector &x)
 {
-   fptype l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
+   real_t l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return x(0)*x(1)/l2;
 }
 
-fptype analytic_rhs(const Vector &x)
+real_t analytic_rhs(const Vector &x)
 {
-   fptype l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
+   real_t l2 = x(0)*x(0) + x(1)*x(1) + x(2)*x(2);
    return 7*x(0)*x(1)/l2;
 }
 

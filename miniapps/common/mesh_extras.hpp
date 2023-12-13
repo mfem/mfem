@@ -53,12 +53,12 @@ class KershawTransformation : public VectorCoefficient
 {
 private:
    int dim;
-   fptype epsy, epsz;
+   real_t epsy, epsz;
    int smooth;
 
 public:
-   KershawTransformation(const int dim_, fptype epsy_ = 0.3,
-                         fptype epsz_ = 0.3, int smooth_ = 1)
+   KershawTransformation(const int dim_, real_t epsy_ = 0.3,
+                         real_t epsz_ = 0.3, int smooth_ = 1)
       : VectorCoefficient(dim_), dim(dim_), epsy(epsy_),
         epsz(epsz_), smooth(smooth_)
    {
@@ -76,20 +76,20 @@ public:
    }
 
    // 1D transformation at the right boundary.
-   fptype right(const fptype eps, const fptype x)
+   real_t right(const real_t eps, const real_t x)
    {
       return (x <= 0.5) ? (2-eps) * x : 1 + eps*(x-1);
    }
 
    // 1D transformation at the left boundary
-   fptype left(const fptype eps, const fptype x)
+   real_t left(const real_t eps, const real_t x)
    {
       return 1-right(eps,1-x);
    }
 
    // Transition from a value of "a" for x=0, to a value of "b" for x=1.
    // Controlled through "smooth" parameter.
-   fptype step(const fptype a, const fptype b, fptype x)
+   real_t step(const real_t a, const real_t b, real_t x)
    {
       if (x <= 0) { return a; }
       if (x >= 1) { return b; }

@@ -46,10 +46,10 @@ using namespace mfem;
 
 // Define the analytical solution and forcing terms / boundary conditions
 void uFun_ex(const Vector & x, Vector & u);
-fptype pFun_ex(const Vector & x);
+real_t pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
-fptype gFun(const Vector & x);
-fptype f_natural(const Vector & x);
+real_t gFun(const Vector & x);
+real_t f_natural(const Vector & x);
 
 int main(int argc, char *argv[])
 {
@@ -326,8 +326,8 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(pa ? 1000 : 500);
-   fptype rtol(1.e-6);
-   fptype atol(1.e-10);
+   real_t rtol(1.e-6);
+   real_t atol(1.e-10);
 
    chrono.Clear();
    chrono.Start();
@@ -371,10 +371,10 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   fptype err_u  = u->ComputeL2Error(ucoeff, irs);
-   fptype norm_u = ComputeGlobalLpNorm(2, ucoeff, *pmesh, irs);
-   fptype err_p  = p->ComputeL2Error(pcoeff, irs);
-   fptype norm_p = ComputeGlobalLpNorm(2, pcoeff, *pmesh, irs);
+   real_t err_u  = u->ComputeL2Error(ucoeff, irs);
+   real_t norm_u = ComputeGlobalLpNorm(2, ucoeff, *pmesh, irs);
+   real_t err_p  = p->ComputeL2Error(pcoeff, irs);
+   real_t norm_p = ComputeGlobalLpNorm(2, pcoeff, *pmesh, irs);
 
    if (verbose)
    {
@@ -493,9 +493,9 @@ int main(int argc, char *argv[])
 
 void uFun_ex(const Vector & x, Vector & u)
 {
-   fptype xi(x(0));
-   fptype yi(x(1));
-   fptype zi(0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(0.0);
    if (x.Size() == 3)
    {
       zi = x(2);
@@ -511,11 +511,11 @@ void uFun_ex(const Vector & x, Vector & u)
 }
 
 // Change if needed
-fptype pFun_ex(const Vector & x)
+real_t pFun_ex(const Vector & x)
 {
-   fptype xi(x(0));
-   fptype yi(x(1));
-   fptype zi(0.0);
+   real_t xi(x(0));
+   real_t yi(x(1));
+   real_t zi(0.0);
 
    if (x.Size() == 3)
    {
@@ -530,7 +530,7 @@ void fFun(const Vector & x, Vector & f)
    f = 0.0;
 }
 
-fptype gFun(const Vector & x)
+real_t gFun(const Vector & x)
 {
    if (x.Size() == 3)
    {
@@ -542,7 +542,7 @@ fptype gFun(const Vector & x)
    }
 }
 
-fptype f_natural(const Vector & x)
+real_t f_natural(const Vector & x)
 {
    return (-pFun_ex(x));
 }

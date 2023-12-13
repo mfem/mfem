@@ -497,7 +497,7 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
       this->CalcTestShape(test_fe, Trans, test_shape);
       this->CalcTrialShape(trial_fe, Trans, trial_shape);
 
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
       if (Q)
       {
@@ -591,7 +591,7 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
          this->CalcTrialShape(trial_fe, Trans, trial_shape);
       }
 
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
       if (MQ)
       {
@@ -705,7 +705,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    int sca_nd = sca_fe->GetDof();
    int vec_nd = vec_fe->GetDof();
    int vdim = GetVDim(*vec_fe);
-   fptype vtmp;
+   real_t vtmp;
 
    MFEM_VERIFY(VQ->GetVDim() == vdim, "MixedScalarVectorIntegrator: "
                "Dimensions of VectorCoefficient and Vector-valued basis "
@@ -744,7 +744,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
       this->CalcShape(*sca_fe, Trans, shape);
       this->CalcVShape(*vec_fe, Trans, vshape);
 
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
       VQ->Eval(V, Trans, ip);
       V *= w;
@@ -769,7 +769,7 @@ void GradientIntegrator::AssembleElementMatrix2(
    dim = test_fe.GetDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
-   fptype c;
+   real_t c;
    Vector d_col;
 
    dshape.SetSize(trial_dof, dim);
@@ -836,7 +836,7 @@ void DiffusionIntegrator::AssembleElementMatrix
    dim = el.GetDim();
    int spaceDim = Trans.GetSpaceDim();
    bool square = (dim == spaceDim);
-   fptype w;
+   real_t w;
 
    if (VQ)
    {
@@ -930,7 +930,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
    dim = trial_fe.GetDim();
    int spaceDim = Trans.GetSpaceDim();
    bool square = (dim == spaceDim);
-   fptype w;
+   real_t w;
 
    if (VQ)
    {
@@ -1012,7 +1012,7 @@ void DiffusionIntegrator::AssembleElementVector(
    int nd = el.GetDof();
    dim = el.GetDim();
    int spaceDim = Tr.GetSpaceDim();
-   fptype w;
+   real_t w;
 
    if (VQ)
    {
@@ -1186,7 +1186,7 @@ void DiffusionIntegrator::ComputeElementFlux
    }
 }
 
-fptype DiffusionIntegrator::ComputeFluxEnergy
+real_t DiffusionIntegrator::ComputeFluxEnergy
 ( const FiniteElement &fluxelem, ElementTransformation &Trans,
   Vector &flux, Vector* d_energy)
 {
@@ -1209,7 +1209,7 @@ fptype DiffusionIntegrator::ComputeFluxEnergy
    int order = 2 * fluxelem.GetOrder(); // <--
    const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
 
-   fptype energy = 0.0;
+   real_t energy = 0.0;
    if (d_energy) { *d_energy = 0.0; }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
@@ -1227,7 +1227,7 @@ fptype DiffusionIntegrator::ComputeFluxEnergy
       }
 
       Trans.SetIntPoint(&ip);
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
       if (MQ)
       {
@@ -1242,7 +1242,7 @@ fptype DiffusionIntegrator::ComputeFluxEnergy
       }
       else
       {
-         fptype e = (pointflux * pointflux);
+         real_t e = (pointflux * pointflux);
          if (Q) { e *= Q->Eval(Trans, ip); }
          energy += w * e;
       }
@@ -1290,7 +1290,7 @@ void MassIntegrator::AssembleElementMatrix
 {
    int nd = el.GetDof();
    // int dim = el.GetDim();
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
@@ -1324,7 +1324,7 @@ void MassIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape, te_shape;
@@ -1378,7 +1378,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
                "support for interior faces is not implemented");
 
    int nd1 = el1.GetDof();
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector shape;
@@ -1497,15 +1497,15 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
 
       Mult(dshape, adjJ, grad);
 
-      fptype w = alpha * ip.weight;
+      real_t w = alpha * ip.weight;
 
       // elmat(k,l) += \sum_s w*shape(k)*Q_nodal(s,k)*grad(l,s)
       for (int k = 0; k < nd; k++)
       {
-         fptype wsk = w*shape(k);
+         real_t wsk = w*shape(k);
          for (int l = 0; l < nd; l++)
          {
-            fptype a = 0.0;
+            real_t a = 0.0;
             for (int s = 0; s < dim; s++)
             {
                a += Q_nodal(s,k)*grad(l,s);
@@ -1538,7 +1538,7 @@ void VectorMassIntegrator::AssembleElementMatrix
    int nd = el.GetDof();
    int spaceDim = Trans.GetSpaceDim();
 
-   fptype norm;
+   real_t norm;
 
    // If vdim is not set, set it to the space dimension
    vdim = (vdim == -1) ? spaceDim : vdim;
@@ -1620,7 +1620,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
 
-   fptype norm;
+   real_t norm;
 
    // If vdim is not set, set it to the space dimension
    vdim = (vdim == -1) ? Trans.GetSpaceDim() : vdim;
@@ -1727,7 +1727,7 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
       trial_fe.CalcDivShape(ip, divshape);
       Trans.SetIntPoint(&ip);
       test_fe.CalcPhysShape(Trans, shape);
-      fptype w = ip.weight;
+      real_t w = ip.weight;
       if (Q)
       {
          Trans.SetIntPoint(&ip);
@@ -1808,7 +1808,7 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
 
       trial_fe.CalcVShape(Trans, vshape);
 
-      fptype w = ip.weight;
+      real_t w = ip.weight;
 
       if (Q)
       {
@@ -1898,7 +1898,7 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
          }
       }
 
-      fptype w = ip.weight;
+      real_t w = ip.weight;
 
       if (Q)
       {
@@ -1929,7 +1929,7 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
    int spaceDim = Trans.GetSpaceDim();
 
    int i, l;
-   fptype det;
+   real_t det;
 
    elmat.SetSize (test_nd,trial_nd);
    dshape.SetSize (trial_nd,dim);
@@ -1992,7 +1992,7 @@ void CurlCurlIntegrator::AssembleElementMatrix
    int nd = el.GetDof();
    dim = el.GetDim();
    int dimc = el.GetCurlDim();
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector D;
@@ -2065,7 +2065,7 @@ void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
    int te_nd = test_fe.GetDof();
    dim = trial_fe.GetDim();
    int dimc = trial_fe.GetCurlDim();
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector D;
@@ -2152,7 +2152,7 @@ void CurlCurlIntegrator
    // TODO: Q, wcoef?
 }
 
-fptype CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
+real_t CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                              ElementTransformation &Trans,
                                              Vector &flux, Vector *d_energy)
 {
@@ -2169,7 +2169,7 @@ fptype CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    int order = 2 * fluxelem.GetOrder(); // <--
    const IntegrationRule &ir = IntRules.Get(fluxelem.GetGeomType(), order);
 
-   fptype energy = 0.0;
+   real_t energy = 0.0;
    if (d_energy) { *d_energy = 0.0; }
 
    Vector* pfluxes = NULL;
@@ -2187,9 +2187,9 @@ fptype CurlCurlIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       // fluxelem.CalcVShape(ip, vshape);
       vshape.MultTranspose(flux, pointflux);
 
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
-      fptype e = w * (pointflux * pointflux);
+      real_t e = w * (pointflux * pointflux);
 
       if (Q)
       {
@@ -2291,7 +2291,7 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), Jadj);
-      fptype w = ip.weight / Trans.Weight();
+      real_t w = ip.weight / Trans.Weight();
 
       Mult(dshape_hat, Jadj, dshape);
       dshape.GradToCurl(curlshape);
@@ -2305,7 +2305,7 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
    }
 }
 
-fptype VectorCurlCurlIntegrator::GetElementEnergy(
+real_t VectorCurlCurlIntegrator::GetElementEnergy(
    const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun)
 {
    int dim = el.GetDim();
@@ -2330,7 +2330,7 @@ fptype VectorCurlCurlIntegrator::GetElementEnergy(
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
 
-   fptype energy = 0.;
+   real_t energy = 0.;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -2340,20 +2340,20 @@ fptype VectorCurlCurlIntegrator::GetElementEnergy(
 
       Tr.SetIntPoint(&ip);
       CalcAdjugate(Tr.Jacobian(), Jadj);
-      fptype w = ip.weight / Tr.Weight();
+      real_t w = ip.weight / Tr.Weight();
 
       Mult(grad_hat, Jadj, grad);
 
       if (dim == 2)
       {
-         fptype curl = grad(0,1) - grad(1,0);
+         real_t curl = grad(0,1) - grad(1,0);
          w *= curl * curl;
       }
       else
       {
-         fptype curl_x = grad(2,1) - grad(1,2);
-         fptype curl_y = grad(0,2) - grad(2,0);
-         fptype curl_z = grad(1,0) - grad(0,1);
+         real_t curl_x = grad(2,1) - grad(1,2);
+         real_t curl_y = grad(0,2) - grad(2,0);
+         real_t curl_z = grad(1,0) - grad(0,1);
          w *= curl_x * curl_x + curl_y * curl_y + curl_z * curl_z;
       }
 
@@ -2403,7 +2403,7 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
    shape.SetSize(test_dof);
    elmat = 0.0;
 
-   fptype c;
+   real_t c;
    Vector d_col;
    const IntegrationRule *ir = IntRule;
 
@@ -2436,7 +2436,7 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
 
       for (int d = 0; d < dimc; ++d)
       {
-         fptype * curldata = &(curlshape.GetData())[d*trial_dof];
+         real_t * curldata = &(curlshape.GetData())[d*trial_dof];
          for (int jj = 0; jj < trial_dof; ++jj)
          {
             for (int ii = 0; ii < test_dof; ++ii)
@@ -2458,7 +2458,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
    int spaceDim = Trans.GetSpaceDim();
    int vdim = std::max(spaceDim, el.GetRangeDim());
 
-   fptype w;
+   real_t w;
 
 #ifdef MFEM_THREAD_SAFE
    Vector D(DQ ? DQ->GetVDim() : 0);
@@ -2527,7 +2527,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       int vdim = std::max(spaceDim, trial_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
-      fptype w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof, spaceDim);
@@ -2587,7 +2587,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
                {
                   for (int k = 0; k < trial_dof; k++)
                   {
-                     fptype Kv = 0.0;
+                     real_t Kv = 0.0;
                      for (int vd = 0; vd < spaceDim; vd++)
                      {
                         Kv += K(d, vd) * trial_vshape(k, vd);
@@ -2626,7 +2626,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
       int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
-      fptype w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       DenseMatrix trial_vshape(trial_dof,trial_vdim);
@@ -2700,7 +2700,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    dim  = trial_fe.GetDim();
    int trial_dof = trial_fe.GetDof();
    int test_dof = test_fe.GetDof();
-   fptype c;
+   real_t c;
 
    dshape.SetSize (trial_dof, dim);
    gshape.SetSize (trial_dof, dim);
@@ -2757,7 +2757,7 @@ void DivDivIntegrator::AssembleElementMatrix(
    DenseMatrix &elmat)
 {
    int dof = el.GetDof();
-   fptype c;
+   real_t c;
 
 #ifdef MFEM_THREAD_SAFE
    Vector divshape(dof);
@@ -2802,7 +2802,7 @@ void DivDivIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
-   fptype c;
+   real_t c;
 
 #ifdef MFEM_THREAD_SAFE
    Vector divshape(tr_nd);
@@ -2886,7 +2886,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
       el.CalcDShape(ip, dshape);
 
       Trans.SetIntPoint(&ip);
-      fptype w = Trans.Weight();
+      real_t w = Trans.Weight();
       w = ip.weight / (square ? w : w*w*w);
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
@@ -2971,7 +2971,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       el.CalcDShape(ip, dshape);
 
       Tr.SetIntPoint(&ip);
-      fptype w = Tr.Weight();
+      real_t w = Tr.Weight();
       w = ip.weight / (square ? w : w*w*w);
       Mult(dshape, Tr.AdjugateJacobian(), dshapedxt);
       MultAAt(dshapedxt, pelmat);
@@ -3021,7 +3021,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 {
    int dof = el.GetDof();
    int dim = el.GetDim();
-   fptype w, L, M;
+   real_t w, L, M;
 
    MFEM_ASSERT(dim == Trans.GetSpaceDim(), "");
 
@@ -3106,7 +3106,7 @@ void ElasticityIntegrator::ComputeElementFlux(
    const int dof = el.GetDof();
    const int dim = el.GetDim();
    const int tdim = dim*(dim+1)/2; // num. entries in a symmetric tensor
-   fptype L, M;
+   real_t L, M;
 
    MFEM_ASSERT(dim == 2 || dim == 3,
                "dimension is not supported: dim = " << dim);
@@ -3120,7 +3120,7 @@ void ElasticityIntegrator::ComputeElementFlux(
    dshape.SetSize(dof, dim);
 #endif
 
-   fptype gh_data[9], grad_data[9];
+   real_t gh_data[9], grad_data[9];
    DenseMatrix gh(gh_data, dim, dim);
    DenseMatrix grad(grad_data, dim, dim);
 
@@ -3154,7 +3154,7 @@ void ElasticityIntegrator::ComputeElementFlux(
 
       // stress = 2*M*e(u) + L*tr(e(u))*I, where
       //   e(u) = (1/2)*(grad(u) + grad(u)^T)
-      const fptype M2 = 2.0*M;
+      const real_t M2 = 2.0*M;
       if (dim == 2)
       {
          L *= (grad(0,0) + grad(1,1));
@@ -3177,14 +3177,14 @@ void ElasticityIntegrator::ComputeElementFlux(
    }
 }
 
-fptype ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
+real_t ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                                ElementTransformation &Trans,
                                                Vector &flux, Vector *d_energy)
 {
    const int dof = fluxelem.GetDof();
    const int dim = fluxelem.GetDim();
    const int tdim = dim*(dim+1)/2; // num. entries in a symmetric tensor
-   fptype L, M;
+   real_t L, M;
 
    // The MFEM_ASSERT constraints in ElasticityIntegrator::ComputeElementFlux
    // are assumed here too.
@@ -3196,7 +3196,7 @@ fptype ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
 #else
    Vector shape(dof);
 #endif
-   fptype pointstress_data[6];
+   real_t pointstress_data[6];
    Vector pointstress(pointstress_data, tdim);
 
    // View of the 'flux' vector as a (dof x tdim) matrix
@@ -3212,7 +3212,7 @@ fptype ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       ir = &IntRules.Get(fluxelem.GetGeomType(), order);
    }
 
-   fptype energy = 0.0;
+   real_t energy = 0.0;
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -3222,7 +3222,7 @@ fptype ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       flux_mat.MultTranspose(shape, pointstress);
 
       Trans.SetIntPoint(&ip);
-      fptype w = Trans.Weight() * ip.weight;
+      real_t w = Trans.Weight() * ip.weight;
 
       M = mu->Eval(Trans, ip);
       if (lambda)
@@ -3246,19 +3246,19 @@ fptype ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       // Then from the first identity above we can find the strain:
       //    e = (1/(2*mu))*(s - lambda*tr(e)*I)
 
-      fptype pt_e; // point strain energy density
-      const fptype *s = pointstress_data;
+      real_t pt_e; // point strain energy density
+      const real_t *s = pointstress_data;
       if (dim == 2)
       {
          // s entries: s_xx, s_yy, s_xy
-         const fptype tr_e = (s[0] + s[1])/(2*(M + L));
+         const real_t tr_e = (s[0] + s[1])/(2*(M + L));
          L *= tr_e;
          pt_e = (0.25/M)*(s[0]*(s[0] - L) + s[1]*(s[1] - L) + 2*s[2]*s[2]);
       }
       else // (dim == 3)
       {
          // s entries: s_xx, s_yy, s_zz, s_xy, s_xz, s_yz
-         const fptype tr_e = (s[0] + s[1] + s[2])/(2*M + 3*L);
+         const real_t tr_e = (s[0] + s[1] + s[2])/(2*M + 3*L);
          L *= tr_e;
          pt_e = (0.25/M)*(s[0]*(s[0] - L) + s[1]*(s[1] - L) + s[2]*(s[2] - L) +
                           2*(s[3]*s[3] + s[4]*s[4] + s[5]*s[5]));
@@ -3277,7 +3277,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 {
    int ndof1, ndof2;
 
-   fptype un, a, b, w;
+   real_t un, a, b, w;
 
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
@@ -3350,7 +3350,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
       if (rho)
       {
-         fptype rho_p;
+         real_t rho_p;
          if (un >= 0.0 && ndof2)
          {
             rho_p = rho->Eval(*Trans.Elem2, eip2);
@@ -3417,7 +3417,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 {
    int dim, ndof1, ndof2, ndofs;
    bool kappa_is_nonzero = (kappa != 0.);
-   fptype w, wq = 0.0;
+   real_t w, wq = 0.0;
 
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
@@ -3592,7 +3592,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          wq *= kappa;
          for (int i = 0; i < ndof1; i++)
          {
-            const fptype wsi = wq*shape1(i);
+            const real_t wsi = wq*shape1(i);
             for (int j = 0; j <= i; j++)
             {
                jmat(i, j) += wsi * shape1(j);
@@ -3603,7 +3603,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
             for (int i = 0; i < ndof2; i++)
             {
                const int i2 = ndof1 + i;
-               const fptype wsi = wq*shape2(i);
+               const real_t wsi = wq*shape2(i);
                for (int j = 0; j < ndof1; j++)
                {
                   jmat(i2, j) -= wsi * shape1(j);
@@ -3624,7 +3624,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          for (int j = 0; j < i; j++)
          {
-            fptype aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            real_t aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
             elmat(i,j) = sigma*aji - aij + mij;
             elmat(j,i) = sigma*aij - aji + mij;
          }
@@ -3637,7 +3637,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          for (int j = 0; j < i; j++)
          {
-            fptype aij = elmat(i,j), aji = elmat(j,i);
+            real_t aij = elmat(i,j), aji = elmat(j,i);
             elmat(i,j) = sigma*aji - aij;
             elmat(j,i) = sigma*aij - aji;
          }
@@ -3651,7 +3651,7 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 void DGElasticityIntegrator::AssembleBlock(
    const int dim, const int row_ndofs, const int col_ndofs,
    const int row_offset, const int col_offset,
-   const fptype jmatcoef, const Vector &col_nL, const Vector &col_nM,
+   const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
    const Vector &row_shape, const Vector &col_shape,
    const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
    DenseMatrix &elmat, DenseMatrix &jmat)
@@ -3660,12 +3660,12 @@ void DGElasticityIntegrator::AssembleBlock(
    {
       for (int jdof = 0; jdof < col_ndofs; ++jdof, ++j)
       {
-         const fptype t2 = col_dshape_dnM(jdof);
+         const real_t t2 = col_dshape_dnM(jdof);
          for (int im = 0, i = row_offset; im < dim; ++im)
          {
-            const fptype t1 = col_dshape(jdof, jm) * col_nL(im);
-            const fptype t3 = col_dshape(jdof, im) * col_nM(jm);
-            const fptype tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
+            const real_t t1 = col_dshape(jdof, jm) * col_nL(im);
+            const real_t t3 = col_dshape(jdof, im) * col_nM(jm);
+            const real_t tt = t1 + ((im == jm) ? t2 : 0.0) + t3;
             for (int idof = 0; idof < row_ndofs; ++idof, ++i)
             {
                elmat(i, j) += row_shape(idof) * tt;
@@ -3682,7 +3682,7 @@ void DGElasticityIntegrator::AssembleBlock(
       const int io = row_offset + d*row_ndofs;
       for (int jdof = 0, j = jo; jdof < col_ndofs; ++jdof, ++j)
       {
-         const fptype sj = jmatcoef * col_shape(jdof);
+         const real_t sj = jmatcoef * col_shape(jdof);
          for (int i = max(io,j), idof = i - io; idof < row_ndofs; ++idof, ++i)
          {
             jmat(i, j) += row_shape(idof) * sj;
@@ -3782,7 +3782,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          CalcOrtho(Trans.Jacobian(), nor);
       }
 
-      fptype w, wLM;
+      real_t w, wLM;
       if (ndofs2)
       {
          el2.CalcShape(eip2, shape2);
@@ -3791,9 +3791,9 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
          Mult(dshape2, adjJ, dshape2_ps);
 
          w = ip.weight/2;
-         const fptype w2 = w / Trans.Elem2->Weight();
-         const fptype wL2 = w2 * lambda->Eval(*Trans.Elem2, eip2);
-         const fptype wM2 = w2 * mu->Eval(*Trans.Elem2, eip2);
+         const real_t w2 = w / Trans.Elem2->Weight();
+         const real_t wL2 = w2 * lambda->Eval(*Trans.Elem2, eip2);
+         const real_t wM2 = w2 * mu->Eval(*Trans.Elem2, eip2);
          nL2.Set(wL2, nor);
          nM2.Set(wM2, nor);
          wLM = (wL2 + 2.0*wM2);
@@ -3806,16 +3806,16 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       }
 
       {
-         const fptype w1 = w / Trans.Elem1->Weight();
-         const fptype wL1 = w1 * lambda->Eval(*Trans.Elem1, eip1);
-         const fptype wM1 = w1 * mu->Eval(*Trans.Elem1, eip1);
+         const real_t w1 = w / Trans.Elem1->Weight();
+         const real_t wL1 = w1 * lambda->Eval(*Trans.Elem1, eip1);
+         const real_t wM1 = w1 * mu->Eval(*Trans.Elem1, eip1);
          nL1.Set(wL1, nor);
          nM1.Set(wM1, nor);
          wLM += (wL1 + 2.0*wM1);
          dshape1_ps.Mult(nM1, dshape1_dnM);
       }
 
-      const fptype jmatcoef = kappa * (nor*nor) * wLM;
+      const real_t jmatcoef = kappa * (nor*nor) * wLM;
 
       // (1,1) block
       AssembleBlock(
@@ -3848,7 +3848,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       {
          for (int j = 0; j < i; ++j)
          {
-            fptype aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+            real_t aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
             elmat(i,j) = alpha*aji - aij + mij;
             elmat(j,i) = alpha*aij - aji + mij;
          }
@@ -3861,7 +3861,7 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
       {
          for (int j = 0; j < i; ++j)
          {
-            fptype aij = elmat(i,j), aji = elmat(j,i);
+            real_t aij = elmat(i,j), aji = elmat(j,i);
             elmat(i,j) = alpha*aji - aij;
             elmat(j,i) = alpha*aij - aji;
          }
@@ -3879,7 +3879,7 @@ void TraceJumpIntegrator::AssembleFaceMatrix(
    int i, j, face_ndof, ndof1, ndof2;
    int order;
 
-   fptype w;
+   real_t w;
 
    face_ndof = trial_face_fe.GetDof();
    ndof1 = test_fe1.GetDof();
@@ -4087,7 +4087,7 @@ void TraceIntegrator::AssembleTraceFaceMatrix(int elem,
       MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
    }
 
-   fptype scale = 1.0;
+   real_t scale = 1.0;
    if (iel != elem) { scale = -1.; }
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -4153,7 +4153,7 @@ void NormalTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
    }
 
-   fptype scale = 1.0;
+   real_t scale = 1.0;
    if (iel != elem) { scale = -1.; }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -4232,7 +4232,7 @@ void TangentTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       MFEM_VERIFY(elem == Trans.Elem2->ElementNo, "Elem != Trans.Elem2->ElementNo");
    }
 
-   fptype scale = 1.0;
+   real_t scale = 1.0;
    if (iel != elem) { scale = -1.; }
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
@@ -4256,7 +4256,7 @@ void TangentTraceIntegrator::AssembleTraceFaceMatrix(int elem,
       // rotate
       cross_product(normal, shape, shape_n);
 
-      const fptype w = scale*ip.weight;
+      const real_t w = scale*ip.weight;
       AddMult_a_ABt(w,shape_n, face_shape, elmat);
    }
 }

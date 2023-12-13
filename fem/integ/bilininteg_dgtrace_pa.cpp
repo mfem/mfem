@@ -21,13 +21,13 @@ namespace mfem
 // PA DG Trace Integrator
 static void PADGTraceSetup2D(const int Q1D,
                              const int NF,
-                             const Array<fptype> &w,
+                             const Array<real_t> &w,
                              const Vector &det,
                              const Vector &nor,
                              const Vector &rho,
                              const Vector &vel,
-                             const fptype alpha,
-                             const fptype beta,
+                             const real_t alpha,
+                             const real_t beta,
                              Vector &op)
 {
    const int VDIM = 2;
@@ -48,12 +48,12 @@ static void PADGTraceSetup2D(const int Q1D,
       const int f = tid / Q1D;
       const int q = tid % Q1D;
       {
-         const fptype r = const_r ? R(0,0) : R(q,f);
-         const fptype v0 = const_v ? V(0,0,0) : V(0,q,f);
-         const fptype v1 = const_v ? V(1,0,0) : V(1,q,f);
-         const fptype dot = n(q,0,f) * v0 + n(q,1,f) * v1;
-         const fptype abs = dot > 0.0 ? dot : -dot;
-         const fptype w = W[q]*r*d(q,f);
+         const real_t r = const_r ? R(0,0) : R(q,f);
+         const real_t v0 = const_v ? V(0,0,0) : V(0,q,f);
+         const real_t v1 = const_v ? V(1,0,0) : V(1,q,f);
+         const real_t dot = n(q,0,f) * v0 + n(q,1,f) * v1;
+         const real_t abs = dot > 0.0 ? dot : -dot;
+         const real_t w = W[q]*r*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
          qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
          qd(q,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -64,13 +64,13 @@ static void PADGTraceSetup2D(const int Q1D,
 
 static void PADGTraceSetup3D(const int Q1D,
                              const int NF,
-                             const Array<fptype> &w,
+                             const Array<real_t> &w,
                              const Vector &det,
                              const Vector &nor,
                              const Vector &rho,
                              const Vector &vel,
-                             const fptype alpha,
-                             const fptype beta,
+                             const real_t alpha,
+                             const real_t beta,
                              Vector &op)
 {
    const int VDIM = 3;
@@ -93,14 +93,14 @@ static void PADGTraceSetup3D(const int Q1D,
       int q1 = tid % Q1D;
       {
          {
-            const fptype r = const_r ? R(0,0,0) : R(q1,q2,f);
-            const fptype v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
-            const fptype v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
-            const fptype v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
-            const fptype dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
+            const real_t r = const_r ? R(0,0,0) : R(q1,q2,f);
+            const real_t v0 = const_v ? V(0,0,0,0) : V(0,q1,q2,f);
+            const real_t v1 = const_v ? V(1,0,0,0) : V(1,q1,q2,f);
+            const real_t v2 = const_v ? V(2,0,0,0) : V(2,q1,q2,f);
+            const real_t dot = n(q1,q2,0,f) * v0 + n(q1,q2,1,f) * v1 +
                                n(q1,q2,2,f) * v2;
-            const fptype abs = dot > 0.0 ? dot : -dot;
-            const fptype w = W[q1+q2*Q1D]*r*d(q1,q2,f);
+            const real_t abs = dot > 0.0 ? dot : -dot;
+            const real_t w = W[q1+q2*Q1D]*r*d(q1,q2,f);
             qd(q1,q2,0,0,f) = w*( alpha/2 * dot + beta * abs );
             qd(q1,q2,1,0,f) = w*( alpha/2 * dot - beta * abs );
             qd(q1,q2,0,1,f) = w*(-alpha/2 * dot - beta * abs );
@@ -114,13 +114,13 @@ static void PADGTraceSetup(const int dim,
                            const int D1D,
                            const int Q1D,
                            const int NF,
-                           const Array<fptype> &W,
+                           const Array<real_t> &W,
                            const Vector &det,
                            const Vector &nor,
                            const Vector &rho,
                            const Vector &u,
-                           const fptype alpha,
-                           const fptype beta,
+                           const real_t alpha,
+                           const real_t beta,
                            Vector &op)
 {
    if (dim == 1) { MFEM_ABORT("dim==1 not supported in PADGTraceSetup"); }
@@ -207,7 +207,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             T.SetAllIntPoints(&ir->IntPoint(q));
             const IntegrationPoint &eip1 = T.GetElement1IntPoint();
             const IntegrationPoint &eip2 = T.GetElement2IntPoint();
-            fptype rq;
+            real_t rq;
 
             if (face.IsBoundary())
             {
@@ -215,7 +215,7 @@ void DGTraceIntegrator::SetupPA(const FiniteElementSpace &fes, FaceType type)
             }
             else
             {
-               fptype udotn = 0.0;
+               real_t udotn = 0.0;
                for (int d=0; d<dim; ++d)
                {
                   udotn += C_vel(d,iq,f_ind)*n(iq,d,f_ind);
@@ -247,8 +247,8 @@ void DGTraceIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace& fes)
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApply2D(const int NF,
-                      const Array<fptype> &b,
-                      const Array<fptype> &bt,
+                      const Array<real_t> &b,
+                      const Array<real_t> &bt,
                       const Vector &op_,
                       const Vector &x_,
                       Vector &y_,
@@ -274,8 +274,8 @@ void PADGTraceApply2D(const int NF,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      fptype u0[max_D1D][VDIM];
-      fptype u1[max_D1D][VDIM];
+      real_t u0[max_D1D][VDIM];
+      real_t u1[max_D1D][VDIM];
       for (int d = 0; d < D1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
@@ -284,8 +284,8 @@ void PADGTraceApply2D(const int NF,
             u1[d][c] = x(d,c,1,f);
          }
       }
-      fptype Bu0[max_Q1D][VDIM];
-      fptype Bu1[max_Q1D][VDIM];
+      real_t Bu0[max_Q1D][VDIM];
+      real_t Bu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -295,7 +295,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int d = 0; d < D1D; ++d)
          {
-            const fptype b = B(q,d);
+            const real_t b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
                Bu0[q][c] += b*u0[d][c];
@@ -303,7 +303,7 @@ void PADGTraceApply2D(const int NF,
             }
          }
       }
-      fptype DBu[max_Q1D][VDIM];
+      real_t DBu[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -311,7 +311,7 @@ void PADGTraceApply2D(const int NF,
             DBu[q][c] = op(q,0,0,f)*Bu0[q][c] + op(q,1,0,f)*Bu1[q][c];
          }
       }
-      fptype BDBu[max_D1D][VDIM];
+      real_t BDBu[max_D1D][VDIM];
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
@@ -320,7 +320,7 @@ void PADGTraceApply2D(const int NF,
          }
          for (int q = 0; q < Q1D; ++q)
          {
-            const fptype b = Bt(d,q);
+            const real_t b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
                BDBu[d][c] += b*DBu[q][c];
@@ -338,8 +338,8 @@ void PADGTraceApply2D(const int NF,
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApply3D(const int NF,
-                      const Array<fptype> &b,
-                      const Array<fptype> &bt,
+                      const Array<real_t> &b,
+                      const Array<real_t> &bt,
                       const Vector &op_,
                       const Vector &x_,
                       Vector &y_,
@@ -365,8 +365,8 @@ void PADGTraceApply3D(const int NF,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      fptype u0[max_D1D][max_D1D][VDIM];
-      fptype u1[max_D1D][max_D1D][VDIM];
+      real_t u0[max_D1D][max_D1D][VDIM];
+      real_t u1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; d1++)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -378,8 +378,8 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      fptype Bu0[max_Q1D][max_D1D][VDIM];
-      fptype Bu1[max_Q1D][max_D1D][VDIM];
+      real_t Bu0[max_Q1D][max_D1D][VDIM];
+      real_t Bu1[max_Q1D][max_D1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -391,7 +391,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const fptype b = B(q,d1);
+               const real_t b = B(q,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   Bu0[q][d2][c] += b*u0[d1][d2][c];
@@ -400,8 +400,8 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      fptype BBu0[max_Q1D][max_Q1D][VDIM];
-      fptype BBu1[max_Q1D][max_Q1D][VDIM];
+      real_t BBu0[max_Q1D][max_Q1D][VDIM];
+      real_t BBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; q2++)
@@ -413,7 +413,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const fptype b = B(q2,d2);
+               const real_t b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
@@ -422,7 +422,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      fptype DBBu[max_Q1D][max_Q1D][VDIM];
+      real_t DBBu[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; q2++)
@@ -434,7 +434,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      fptype BDBBu[max_Q1D][max_D1D][VDIM];
+      real_t BDBBu[max_Q1D][max_D1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -445,7 +445,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const fptype b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBBu[q1][d2][c] += b*DBBu[q1][q2][c];
@@ -453,7 +453,7 @@ void PADGTraceApply3D(const int NF,
             }
          }
       }
-      fptype BBDBBu[max_D1D][max_D1D][VDIM];
+      real_t BBDBBu[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -464,7 +464,7 @@ void PADGTraceApply3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const fptype b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBBu[d1][d2][c] += b*BDBBu[q1][d2][c];
@@ -483,8 +483,8 @@ void PADGTraceApply3D(const int NF,
 // Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPADGTraceApply3D(const int NF,
-                          const Array<fptype> &b,
-                          const Array<fptype> &bt,
+                          const Array<real_t> &b,
+                          const Array<real_t> &bt,
                           const Vector &op_,
                           const Vector &x_,
                           Vector &y_,
@@ -511,8 +511,8 @@ void SmemPADGTraceApply3D(const int NF,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      MFEM_SHARED fptype u0[NBZ][max_D1D][max_D1D];
-      MFEM_SHARED fptype u1[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u1[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(d1,x,D1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
@@ -522,17 +522,17 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype Bu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED fptype Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype Bu0_ = 0.0;
-            fptype Bu1_ = 0.0;
+            real_t Bu0_ = 0.0;
+            real_t Bu1_ = 0.0;
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const fptype b = B(q1,d1);
+               const real_t b = B(q1,d1);
                Bu0_ += b*u0[tidz][d1][d2];
                Bu1_ += b*u1[tidz][d1][d2];
             }
@@ -541,17 +541,17 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype BBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED fptype BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            fptype BBu0_ = 0.0;
-            fptype BBu1_ = 0.0;
+            real_t BBu0_ = 0.0;
+            real_t BBu1_ = 0.0;
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const fptype b = B(q2,d2);
+               const real_t b = B(q2,d2);
                BBu0_ += b*Bu0[tidz][q1][d2];
                BBu1_ += b*Bu1[tidz][q1][d2];
             }
@@ -560,7 +560,7 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype DBBu[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
@@ -570,15 +570,15 @@ void SmemPADGTraceApply3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype BDBBu[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype BDBBu_ = 0.0;
+            real_t BDBBu_ = 0.0;
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const fptype b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                BDBBu_ += b*DBBu[tidz][q1][q2];
             }
             BDBBu[tidz][q1][d2] = BDBBu_;
@@ -589,10 +589,10 @@ void SmemPADGTraceApply3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype BBDBBu_ = 0.0;
+            real_t BBDBBu_ = 0.0;
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const fptype b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                BBDBBu_ += b*BDBBu[tidz][q1][d2];
             }
             y(d1,d2,0,f) +=  BBDBBu_;
@@ -606,8 +606,8 @@ static void PADGTraceApply(const int dim,
                            const int D1D,
                            const int Q1D,
                            const int NF,
-                           const Array<fptype> &B,
-                           const Array<fptype> &Bt,
+                           const Array<real_t> &B,
+                           const Array<real_t> &Bt,
                            const Vector &op,
                            const Vector &x,
                            Vector &y)
@@ -648,8 +648,8 @@ static void PADGTraceApply(const int dim,
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApplyTranspose2D(const int NF,
-                               const Array<fptype> &b,
-                               const Array<fptype> &bt,
+                               const Array<real_t> &b,
+                               const Array<real_t> &bt,
                                const Vector &op_,
                                const Vector &x_,
                                Vector &y_,
@@ -675,8 +675,8 @@ void PADGTraceApplyTranspose2D(const int NF,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      fptype u0[max_D1D][VDIM];
-      fptype u1[max_D1D][VDIM];
+      real_t u0[max_D1D][VDIM];
+      real_t u1[max_D1D][VDIM];
       for (int d = 0; d < D1D; d++)
       {
          for (int c = 0; c < VDIM; c++)
@@ -685,8 +685,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             u1[d][c] = x(d,c,1,f);
          }
       }
-      fptype Bu0[max_Q1D][VDIM];
-      fptype Bu1[max_Q1D][VDIM];
+      real_t Bu0[max_Q1D][VDIM];
+      real_t Bu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -696,7 +696,7 @@ void PADGTraceApplyTranspose2D(const int NF,
          }
          for (int d = 0; d < D1D; ++d)
          {
-            const fptype b = B(q,d);
+            const real_t b = B(q,d);
             for (int c = 0; c < VDIM; c++)
             {
                Bu0[q][c] += b*u0[d][c];
@@ -704,8 +704,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             }
          }
       }
-      fptype DBu0[max_Q1D][VDIM];
-      fptype DBu1[max_Q1D][VDIM];
+      real_t DBu0[max_Q1D][VDIM];
+      real_t DBu1[max_Q1D][VDIM];
       for (int q = 0; q < Q1D; ++q)
       {
          for (int c = 0; c < VDIM; c++)
@@ -714,8 +714,8 @@ void PADGTraceApplyTranspose2D(const int NF,
             DBu1[q][c] = op(q,1,0,f)*Bu0[q][c] + op(q,1,1,f)*Bu1[q][c];
          }
       }
-      fptype BDBu0[max_D1D][VDIM];
-      fptype BDBu1[max_D1D][VDIM];
+      real_t BDBu0[max_D1D][VDIM];
+      real_t BDBu1[max_D1D][VDIM];
       for (int d = 0; d < D1D; ++d)
       {
          for (int c = 0; c < VDIM; c++)
@@ -725,7 +725,7 @@ void PADGTraceApplyTranspose2D(const int NF,
          }
          for (int q = 0; q < Q1D; ++q)
          {
-            const fptype b = Bt(d,q);
+            const real_t b = Bt(d,q);
             for (int c = 0; c < VDIM; c++)
             {
                BDBu0[d][c] += b*DBu0[q][c];
@@ -744,8 +744,8 @@ void PADGTraceApplyTranspose2D(const int NF,
 // PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0> static
 void PADGTraceApplyTranspose3D(const int NF,
-                               const Array<fptype> &b,
-                               const Array<fptype> &bt,
+                               const Array<real_t> &b,
+                               const Array<real_t> &bt,
                                const Vector &op_,
                                const Vector &x_,
                                Vector &y_,
@@ -771,8 +771,8 @@ void PADGTraceApplyTranspose3D(const int NF,
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      fptype u0[max_D1D][max_D1D][VDIM];
-      fptype u1[max_D1D][max_D1D][VDIM];
+      real_t u0[max_D1D][max_D1D][VDIM];
+      real_t u1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; d1++)
       {
          for (int d2 = 0; d2 < D1D; d2++)
@@ -784,8 +784,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      fptype Bu0[max_Q1D][max_D1D][VDIM];
-      fptype Bu1[max_Q1D][max_D1D][VDIM];
+      real_t Bu0[max_Q1D][max_D1D][VDIM];
+      real_t Bu1[max_Q1D][max_D1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int d2 = 0; d2 < D1D; ++d2)
@@ -797,7 +797,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const fptype b = B(q1,d1);
+               const real_t b = B(q1,d1);
                for (int c = 0; c < VDIM; c++)
                {
                   Bu0[q1][d2][c] += b*u0[d1][d2][c];
@@ -806,8 +806,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      fptype BBu0[max_Q1D][max_Q1D][VDIM];
-      fptype BBu1[max_Q1D][max_Q1D][VDIM];
+      real_t BBu0[max_Q1D][max_Q1D][VDIM];
+      real_t BBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
@@ -819,7 +819,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const fptype b = B(q2,d2);
+               const real_t b = B(q2,d2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBu0[q1][q2][c] += b*Bu0[q1][d2][c];
@@ -828,16 +828,16 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      fptype DBu0[max_Q1D][max_Q1D][VDIM];
-      fptype DBu1[max_Q1D][max_Q1D][VDIM];
+      real_t DBu0[max_Q1D][max_Q1D][VDIM];
+      real_t DBu1[max_Q1D][max_Q1D][VDIM];
       for (int q1 = 0; q1 < Q1D; ++q1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
          {
-            const fptype D00 = op(q1,q2,0,0,f);
-            const fptype D01 = op(q1,q2,0,1,f);
-            const fptype D10 = op(q1,q2,1,0,f);
-            const fptype D11 = op(q1,q2,1,1,f);
+            const real_t D00 = op(q1,q2,0,0,f);
+            const real_t D01 = op(q1,q2,0,1,f);
+            const real_t D10 = op(q1,q2,1,0,f);
+            const real_t D11 = op(q1,q2,1,1,f);
             for (int c = 0; c < VDIM; c++)
             {
                DBu0[q1][q2][c] = D00*BBu0[q1][q2][c] + D01*BBu1[q1][q2][c];
@@ -845,8 +845,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      fptype BDBu0[max_D1D][max_Q1D][VDIM];
-      fptype BDBu1[max_D1D][max_Q1D][VDIM];
+      real_t BDBu0[max_D1D][max_Q1D][VDIM];
+      real_t BDBu1[max_D1D][max_Q1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int q2 = 0; q2 < Q1D; ++q2)
@@ -858,7 +858,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const fptype b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                for (int c = 0; c < VDIM; c++)
                {
                   BDBu0[d1][q2][c] += b*DBu0[q1][q2][c];
@@ -867,8 +867,8 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
          }
       }
-      fptype BBDBu0[max_D1D][max_D1D][VDIM];
-      fptype BBDBu1[max_D1D][max_D1D][VDIM];
+      real_t BBDBu0[max_D1D][max_D1D][VDIM];
+      real_t BBDBu1[max_D1D][max_D1D][VDIM];
       for (int d1 = 0; d1 < D1D; ++d1)
       {
          for (int d2 = 0; d2 < D1D; ++d2)
@@ -880,7 +880,7 @@ void PADGTraceApplyTranspose3D(const int NF,
             }
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const fptype b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                for (int c = 0; c < VDIM; c++)
                {
                   BBDBu0[d1][d2][c] += b*BDBu0[d1][q2][c];
@@ -900,8 +900,8 @@ void PADGTraceApplyTranspose3D(const int NF,
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0> static
 void SmemPADGTraceApplyTranspose3D(const int NF,
-                                   const Array<fptype> &b,
-                                   const Array<fptype> &bt,
+                                   const Array<real_t> &b,
+                                   const Array<real_t> &bt,
                                    const Vector &op_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -928,8 +928,8 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      MFEM_SHARED fptype u0[NBZ][max_D1D][max_D1D];
-      MFEM_SHARED fptype u1[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u0[NBZ][max_D1D][max_D1D];
+      MFEM_SHARED real_t u1[NBZ][max_D1D][max_D1D];
       MFEM_FOREACH_THREAD(d1,x,D1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
@@ -939,17 +939,17 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype Bu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED fptype Bu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t Bu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype Bu0_ = 0.0;
-            fptype Bu1_ = 0.0;
+            real_t Bu0_ = 0.0;
+            real_t Bu1_ = 0.0;
             for (int d1 = 0; d1 < D1D; ++d1)
             {
-               const fptype b = B(q1,d1);
+               const real_t b = B(q1,d1);
                Bu0_ += b*u0[tidz][d1][d2];
                Bu1_ += b*u1[tidz][d1][d2];
             }
@@ -958,17 +958,17 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype BBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED fptype BBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t BBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            fptype BBu0_ = 0.0;
-            fptype BBu1_ = 0.0;
+            real_t BBu0_ = 0.0;
+            real_t BBu1_ = 0.0;
             for (int d2 = 0; d2 < D1D; ++d2)
             {
-               const fptype b = B(q2,d2);
+               const real_t b = B(q2,d2);
                BBu0_ += b*Bu0[tidz][q1][d2];
                BBu1_ += b*Bu1[tidz][q1][d2];
             }
@@ -977,34 +977,34 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype DBBu0[NBZ][max_Q1D][max_Q1D];
-      MFEM_SHARED fptype DBBu1[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu0[NBZ][max_Q1D][max_Q1D];
+      MFEM_SHARED real_t DBBu1[NBZ][max_Q1D][max_Q1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(q2,y,Q1D)
          {
-            const fptype D00 = op(q1,q2,0,0,f);
-            const fptype D01 = op(q1,q2,0,1,f);
-            const fptype D10 = op(q1,q2,1,0,f);
-            const fptype D11 = op(q1,q2,1,1,f);
-            const fptype u0q = BBu0[tidz][q1][q2];
-            const fptype u1q = BBu1[tidz][q1][q2];
+            const real_t D00 = op(q1,q2,0,0,f);
+            const real_t D01 = op(q1,q2,0,1,f);
+            const real_t D10 = op(q1,q2,1,0,f);
+            const real_t D11 = op(q1,q2,1,1,f);
+            const real_t u0q = BBu0[tidz][q1][q2];
+            const real_t u1q = BBu1[tidz][q1][q2];
             DBBu0[tidz][q1][q2] = D00*u0q + D01*u1q;
             DBBu1[tidz][q1][q2] = D10*u0q + D11*u1q;
          }
       }
       MFEM_SYNC_THREAD;
-      MFEM_SHARED fptype BDBBu0[NBZ][max_Q1D][max_D1D];
-      MFEM_SHARED fptype BDBBu1[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu0[NBZ][max_Q1D][max_D1D];
+      MFEM_SHARED real_t BDBBu1[NBZ][max_Q1D][max_D1D];
       MFEM_FOREACH_THREAD(q1,x,Q1D)
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype BDBBu0_ = 0.0;
-            fptype BDBBu1_ = 0.0;
+            real_t BDBBu0_ = 0.0;
+            real_t BDBBu1_ = 0.0;
             for (int q2 = 0; q2 < Q1D; ++q2)
             {
-               const fptype b = Bt(d2,q2);
+               const real_t b = Bt(d2,q2);
                BDBBu0_ += b*DBBu0[tidz][q1][q2];
                BDBBu1_ += b*DBBu1[tidz][q1][q2];
             }
@@ -1017,11 +1017,11 @@ void SmemPADGTraceApplyTranspose3D(const int NF,
       {
          MFEM_FOREACH_THREAD(d2,y,D1D)
          {
-            fptype BBDBBu0_ = 0.0;
-            fptype BBDBBu1_ = 0.0;
+            real_t BBDBBu0_ = 0.0;
+            real_t BBDBBu1_ = 0.0;
             for (int q1 = 0; q1 < Q1D; ++q1)
             {
-               const fptype b = Bt(d1,q1);
+               const real_t b = Bt(d1,q1);
                BBDBBu0_ += b*BDBBu0[tidz][q1][d2];
                BBDBBu1_ += b*BDBBu1[tidz][q1][d2];
             }
@@ -1036,8 +1036,8 @@ static void PADGTraceApplyTranspose(const int dim,
                                     const int D1D,
                                     const int Q1D,
                                     const int NF,
-                                    const Array<fptype> &B,
-                                    const Array<fptype> &Bt,
+                                    const Array<real_t> &B,
+                                    const Array<real_t> &Bt,
                                     const Vector &op,
                                     const Vector &x,
                                     Vector &y)

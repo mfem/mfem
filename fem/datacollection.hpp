@@ -176,10 +176,10 @@ protected:
    /**  When cycle >= 0, it is appended to directory names. */
    int cycle;
    /// Physical time (for time-dependent simulations)
-   fptype time;
+   real_t time;
 
    /// Time step i.e. delta_t (for time-dependent simulations)
-   fptype time_step;
+   real_t time_step;
 
    /// Serial or parallel run? False iff mesh is a ParMesh
    bool serial;
@@ -318,17 +318,17 @@ public:
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
    /// Set physical time (for time-dependent simulations)
-   void SetTime(fptype t) { time = t; }
+   void SetTime(real_t t) { time = t; }
 
    /// Set the simulation time step (for time-dependent simulations)
-   void SetTimeStep(fptype ts) { time_step = ts; }
+   void SetTimeStep(real_t ts) { time_step = ts; }
 
    /// Get time cycle (for time-dependent simulations)
    int GetCycle() const { return cycle; }
    /// Get physical time (for time-dependent simulations)
-   fptype GetTime() const { return time; }
+   real_t GetTime() const { return time; }
    /// Get the simulation time step (for time-dependent simulations)
-   fptype GetTimeStep() const { return time_step; }
+   real_t GetTimeStep() const { return time_step; }
 
    /// Get the name of the collection
    const std::string& GetCollectionName() const { return name; }

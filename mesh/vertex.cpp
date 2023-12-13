@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-Vertex::Vertex (fptype *xx, int dim)
+Vertex::Vertex (real_t *xx, int dim)
 {
    for (int i = 0; i < dim; i++)
    {

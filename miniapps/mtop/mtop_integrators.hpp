@@ -31,7 +31,7 @@ public:
 
    // Returns the energy at an integration point.
    virtual
-   fptype QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                   mfem::Vector &dd, mfem::Vector &uu)
    {
       return 0.0;
@@ -70,7 +70,7 @@ class QLinearDiffusion:public BaseQFunction
 {
 public:
    QLinearDiffusion(mfem::Coefficient& diffco, mfem::Coefficient& hsrco,
-                    fptype pp=1.0, fptype minrho=1e-7, fptype betac=4.0, fptype etac=0.5):
+                    real_t pp=1.0, real_t minrho=1e-7, real_t betac=4.0, real_t etac=0.5):
       diff(diffco),load(hsrco), powerc(pp), rhomin(minrho), beta(betac), eta(etac)
    {
 
@@ -82,7 +82,7 @@ public:
    }
 
    virtual
-   fptype QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
+   real_t QEnergy(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu) override
    {
       // dd[0] - density
@@ -91,15 +91,15 @@ public:
       // uu[2] - grad_z
       // uu[3] - temperature/scalar field
 
-      fptype di=diff.Eval(T,ip);
-      fptype ll=load.Eval(T,ip);
+      real_t di=diff.Eval(T,ip);
+      real_t ll=load.Eval(T,ip);
       // Computes the physical density using projection.
-      fptype rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
+      real_t rz=0.5+0.5*std::tanh(beta*(dd[0]-eta)); //projection
       // Computes the diffusion coefficient at the integration point.
-      fptype fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
       // Computes the sum of the energy and the product of the temperature and
       // the external input at the integration point.
-      fptype rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
+      real_t rez = 0.5*(uu[0]*uu[0]+uu[1]*uu[1]+uu[2]*uu[2])*fd-uu[3]*ll;
       return rez;
    }
 
@@ -108,10 +108,10 @@ public:
    void QResidual(ElementTransformation &T, const IntegrationPoint &ip,
                   Vector &dd, Vector &uu, Vector &rr) override
    {
-      fptype di=diff.Eval(T,ip);
-      fptype ll=load.Eval(T,ip);
-      fptype rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
-      fptype fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t di=diff.Eval(T,ip);
+      real_t ll=load.Eval(T,ip);
+      real_t rz=0.5+0.5*std::tanh(beta*(dd[0]-eta));
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
 
       rr[0]=uu[0]*fd;
       rr[1]=uu[1]*fd;
@@ -126,10 +126,10 @@ public:
    void AQResidual(ElementTransformation &T, const IntegrationPoint &ip,
                    Vector &dd, Vector &uu, Vector &aa, Vector &rr) override
    {
-      fptype di=diff.Eval(T,ip);
-      fptype tt=std::tanh(beta*(dd[0]-eta));
-      fptype rz=0.5+0.5*tt;
-      fptype fd=di*powerc*std::pow(rz,powerc-1.0)*0.5*(1.0-tt*tt)*beta;
+      real_t di=diff.Eval(T,ip);
+      real_t tt=std::tanh(beta*(dd[0]-eta));
+      real_t rz=0.5+0.5*tt;
+      real_t fd=di*powerc*std::pow(rz,powerc-1.0)*0.5*(1.0-tt*tt)*beta;
 
       rr[0] = -(aa[0]*uu[0]+aa[1]*uu[1]+aa[2]*uu[2])*fd;
    }
@@ -140,10 +140,10 @@ public:
    void QGradResidual(ElementTransformation &T, const IntegrationPoint &ip,
                       Vector &dd, Vector &uu, DenseMatrix &hh) override
    {
-      fptype di=diff.Eval(T,ip);
-      fptype tt=std::tanh(beta*(dd[0]-eta));
-      fptype rz=0.5+0.5*tt;
-      fptype fd=di*(std::pow(rz,powerc)+rhomin);
+      real_t di=diff.Eval(T,ip);
+      real_t tt=std::tanh(beta*(dd[0]-eta));
+      real_t rz=0.5+0.5*tt;
+      real_t fd=di*(std::pow(rz,powerc)+rhomin);
       hh=0.0;
 
       hh(0,0)=fd;
@@ -155,10 +155,10 @@ public:
 private:
    mfem::Coefficient& diff; //diffusion coefficient
    mfem::Coefficient& load; //load coefficient
-   fptype powerc; //penalization coefficient
-   fptype rhomin; //lower bound for the density
-   fptype beta;   //controls the sharpness of the projection
-   fptype eta;    //projection threshold for tanh
+   real_t powerc; //penalization coefficient
+   real_t rhomin; //lower bound for the density
+   real_t beta;   //controls the sharpness of the projection
+   real_t eta;    //projection threshold for tanh
 };
 
 /// Provides implementation of an integrator for linear diffusion with
@@ -174,7 +174,7 @@ public:
 
    /// Computes the local energy.
    virtual
-   fptype GetElementEnergy(const Array<const FiniteElement *> &el,
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            const Array<const FiniteElement *> &pel,
                            ElementTransformation &Tr,
                            const Array<const Vector *> &elfun,
@@ -226,7 +226,7 @@ public:
 
    /// Returns the objective contribution at element level.
    virtual
-   fptype GetElementEnergy(const Array<const FiniteElement *> &el,
+   real_t GetElementEnergy(const Array<const FiniteElement *> &el,
                            ElementTransformation &Tr,
                            const Array<const Vector *> &elfun) override;
 

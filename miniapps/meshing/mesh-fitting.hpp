@@ -17,28 +17,28 @@ using namespace mfem;
 using namespace common;
 
 // Used for exact surface alignment
-fptype circle_level_set(const Vector &x)
+real_t circle_level_set(const Vector &x)
 {
    const int dim = x.Size();
    if (dim == 2)
    {
-      const fptype xc = x(0) - 0.5, yc = x(1) - 0.5;
-      const fptype r = sqrt(xc*xc + yc*yc);
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5;
+      const real_t r = sqrt(xc*xc + yc*yc);
       return r-0.25;
    }
    else
    {
-      const fptype xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
-      const fptype r = sqrt(xc*xc + yc*yc + zc*zc);
+      const real_t xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
       return r-0.3;
    }
 }
 
-fptype in_circle(const Vector &x, const Vector &x_center, fptype radius)
+real_t in_circle(const Vector &x, const Vector &x_center, real_t radius)
 {
    Vector x_current = x;
    x_current -= x_center;
-   fptype dist = x_current.Norml2();
+   real_t dist = x_current.Norml2();
    if (dist < radius)
    {
       return 1.0;
@@ -51,72 +51,72 @@ fptype in_circle(const Vector &x, const Vector &x_center, fptype radius)
    return -1.0;
 }
 
-fptype in_trapezium(const Vector &x, fptype a, fptype b, fptype l)
+real_t in_trapezium(const Vector &x, real_t a, real_t b, real_t l)
 {
-   fptype phi_t = x(1) + (a-b)*x(0)/l - a;
+   real_t phi_t = x(1) + (a-b)*x(0)/l - a;
    return (phi_t <= 0.0) ? 1.0 : -1.0;
 }
 
-fptype in_parabola(const Vector &x, fptype h, fptype k, fptype t)
+real_t in_parabola(const Vector &x, real_t h, real_t k, real_t t)
 {
-   fptype phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
-   fptype phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
+   real_t phi_p1 = (x(0)-h-t/2) - k*x(1)*x(1);
+   real_t phi_p2 = (x(0)-h+t/2) - k*x(1)*x(1);
    return (phi_p1 <= 0.0 && phi_p2 >= 0.0) ? 1.0 : -1.0;
 }
 
-fptype in_rectangle(const Vector &x, fptype xc, fptype yc, fptype w, fptype h)
+real_t in_rectangle(const Vector &x, real_t xc, real_t yc, real_t w, real_t h)
 {
-   fptype dx = std::abs(x(0) - xc);
-   fptype dy = std::abs(x(1) - yc);
+   real_t dx = std::abs(x(0) - xc);
+   real_t dy = std::abs(x(1) - yc);
    return (dx <= w/2 && dy <= h/2) ? 1.0 : -1.0;
 }
 
 // Fischer-Tropsch like geometry
-fptype reactor(const Vector &x)
+real_t reactor(const Vector &x)
 {
    // Circle
    Vector x_circle1(2);
    x_circle1(0) = 0.0;
    x_circle1(1) = 0.0;
-   fptype in_circle1_val = in_circle(x, x_circle1, 0.2);
+   real_t in_circle1_val = in_circle(x, x_circle1, 0.2);
 
-   fptype r1 = 0.2;
-   fptype r2 = 1.0;
-   fptype in_trapezium_val = in_trapezium(x, 0.05, 0.1, r2-r1);
+   real_t r1 = 0.2;
+   real_t r2 = 1.0;
+   real_t in_trapezium_val = in_trapezium(x, 0.05, 0.1, r2-r1);
 
-   fptype return_val = max(in_circle1_val, in_trapezium_val);
+   real_t return_val = max(in_circle1_val, in_trapezium_val);
 
-   fptype h = 0.4;
-   fptype k = 2;
-   fptype t = 0.15;
-   fptype in_parabola_val = in_parabola(x, h, k, t);
+   real_t h = 0.4;
+   real_t k = 2;
+   real_t t = 0.15;
+   real_t in_parabola_val = in_parabola(x, h, k, t);
    return_val = max(return_val, in_parabola_val);
 
-   fptype in_rectangle_val = in_rectangle(x, 0.99, 0.0, 0.12, 0.35);
+   real_t in_rectangle_val = in_rectangle(x, 0.99, 0.0, 0.12, 0.35);
    return_val = max(return_val, in_rectangle_val);
 
-   fptype in_rectangle_val2 = in_rectangle(x, 0.99, 0.5, 0.12, 0.28);
+   real_t in_rectangle_val2 = in_rectangle(x, 0.99, 0.5, 0.12, 0.28);
    return_val = max(return_val, in_rectangle_val2);
    return return_val;
 }
 
-fptype in_cube(const Vector &x, fptype xc, fptype yc, fptype zc, fptype lx,
-               fptype ly, fptype lz)
+real_t in_cube(const Vector &x, real_t xc, real_t yc, real_t zc, real_t lx,
+               real_t ly, real_t lz)
 {
-   fptype dx = std::abs(x(0) - xc);
-   fptype dy = std::abs(x(1) - yc);
-   fptype dz = std::abs(x(2) - zc);
+   real_t dx = std::abs(x(0) - xc);
+   real_t dy = std::abs(x(1) - yc);
+   real_t dz = std::abs(x(2) - zc);
    return (dx <= lx/2 && dy <= ly/2 && dz <= lz/2) ? 1.0 : -1.0;
 }
 
-fptype in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
-               fptype radius, fptype minv, fptype maxv)
+real_t in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
+               real_t radius, real_t minv, real_t maxv)
 {
    Vector x_pipe_copy = x_pipe_center;
    x_pipe_copy -= x;
    x_pipe_copy(pipedir-1) = 0.0;
-   fptype dist = x_pipe_copy.Norml2();
-   fptype xv = x(pipedir-1);
+   real_t dist = x_pipe_copy.Norml2();
+   real_t xv = x(pipedir-1);
    if (dist < radius && xv > minv && xv < maxv)
    {
       return 1.0;
@@ -130,45 +130,45 @@ fptype in_pipe(const Vector &x, int pipedir, Vector x_pipe_center,
    return -1.0;
 }
 
-fptype r_intersect(fptype r1, fptype r2)
+real_t r_intersect(real_t r1, real_t r2)
 {
    return r1 + r2 - std::pow(r1*r1 + r2*r2, 0.5);
 }
 
-fptype r_union(fptype r1, fptype r2)
+real_t r_union(real_t r1, real_t r2)
 {
    return r1 + r2 + std::pow(r1*r1 + r2*r2, 0.5);
 }
 
-fptype r_remove(fptype r1, fptype r2)
+real_t r_remove(real_t r1, real_t r2)
 {
    return r_intersect(r1, -r2);
 }
 
-fptype csg_cubecylsph(const Vector &x)
+real_t csg_cubecylsph(const Vector &x)
 {
    Vector xcc(3);
    xcc = 0.5;
-   fptype cube_x = 0.25*2;
-   fptype cube_y = 0.25*2;
-   fptype cube_z = 0.25*2;
+   real_t cube_x = 0.25*2;
+   real_t cube_y = 0.25*2;
+   real_t cube_z = 0.25*2;
 
-   fptype in_cube_val = in_cube(x, xcc(0), xcc(1), xcc(2), cube_x, cube_y, cube_z);
+   real_t in_cube_val = in_cube(x, xcc(0), xcc(1), xcc(2), cube_x, cube_y, cube_z);
 
    Vector x_circle_c(3);
    x_circle_c = 0.5;
 
-   fptype sphere_radius = 0.30;
-   fptype in_sphere_val = in_circle(x, x_circle_c, sphere_radius);
-   fptype in_return_val = std::min(in_cube_val, in_sphere_val);
+   real_t sphere_radius = 0.30;
+   real_t in_sphere_val = in_circle(x, x_circle_c, sphere_radius);
+   real_t in_return_val = std::min(in_cube_val, in_sphere_val);
 
    int pipedir = 1;
    Vector x_pipe_center(3);
    x_pipe_center = 0.5;
-   fptype xmin = 0.5-sphere_radius;
-   fptype xmax = 0.5+sphere_radius;
-   fptype pipe_radius = 0.075;
-   fptype in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
+   real_t xmin = 0.5-sphere_radius;
+   real_t xmax = 0.5+sphere_radius;
+   real_t pipe_radius = 0.075;
+   real_t in_pipe_x = in_pipe(x, pipedir, x_pipe_center, pipe_radius, xmin, xmax);
 
    in_return_val = std::min(in_return_val, -1*in_pipe_x);
 
@@ -365,8 +365,8 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
          const IntegrationRule &ir = irRules.Get(pmesh.GetElementGeometry(e),
                                                  quad_order);
          x.GetValues(e, ir, x_vals);
-         fptype min_val = x_vals.Min();
-         fptype max_val = x_vals.Max();
+         real_t min_val = x_vals.Min();
+         real_t max_val = x_vals.Max();
          // If the zero level set cuts the elements, mark it for refinement
          if (min_val < 0 && max_val >= 0)
          {
@@ -388,7 +388,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(ParMesh &pmesh,
             const IntegrationRule &ir =
                irRules.Get(pmesh.GetElementGeometry(e), quad_order);
             lhx.GetValues(e, ir, x_vals);
-            fptype max_val = x_vals.Max();
+            real_t max_val = x_vals.Max();
             if (max_val > 0)
             {
                el_to_refine(e) = 1.0;
@@ -457,7 +457,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    x.ExchangeFaceNbrData();
 
    //Now determine distance
-   const fptype dx = AvgElementSize(pmesh);
+   const real_t dx = AvgElementSize(pmesh);
    PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());

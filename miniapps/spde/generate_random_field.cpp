@@ -63,22 +63,22 @@ int main(int argc, char *argv[])
    int num_parallel_refs = 3;
    int number_of_particles = 3;
    int topological_support = TopologicalSupport::kOctetTruss;
-   fptype nu = 2.0;
-   fptype tau = 0.08;
-   fptype l1 = 0.02;
-   fptype l2 = 0.02;
-   fptype l3 = 0.02;
-   fptype e1 = 0;
-   fptype e2 = 0;
-   fptype e3 = 0;
-   fptype pl1 = 1.0;
-   fptype pl2 = 1.0;
-   fptype pl3 = 1.0;
-   fptype uniform_min = 0.0;
-   fptype uniform_max = 1.0;
-   fptype offset = 0.0;
-   fptype scale = 0.01;
-   fptype level_set_threshold = 0.0;
+   real_t nu = 2.0;
+   real_t tau = 0.08;
+   real_t l1 = 0.02;
+   real_t l2 = 0.02;
+   real_t l3 = 0.02;
+   real_t e1 = 0;
+   real_t e2 = 0;
+   real_t e3 = 0;
+   real_t pl1 = 1.0;
+   real_t pl2 = 1.0;
+   real_t pl3 = 1.0;
+   real_t uniform_min = 0.0;
+   real_t uniform_max = 1.0;
+   real_t offset = 0.0;
+   real_t scale = 0.01;
+   real_t level_set_threshold = 0.0;
    bool paraview_export = true;
    bool glvis_export = true;
    bool uniform_rf = false;
@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
       else if (topological_support == TopologicalSupport::kParticles)
       {
          // Create the same random particles on all processors.
-         std::vector<fptype> random_positions(3 * number_of_particles);
-         std::vector<fptype> random_rotations(9 * number_of_particles);
+         std::vector<real_t> random_positions(3 * number_of_particles);
+         std::vector<real_t> random_rotations(9 * number_of_particles);
          if (Mpi::Root())
          {
             // Generate random positions and rotations. We generate them on the root
@@ -208,9 +208,9 @@ int main(int argc, char *argv[])
 
          // Broadcast the random positions and rotations to all processes.
          MPI_Bcast(random_positions.data(), 3 * number_of_particles,
-                   MPITypeMap<fptype>::mpi_type, 0, MPI_COMM_WORLD);
+                   MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
          MPI_Bcast(random_rotations.data(), 9 * number_of_particles,
-                   MPITypeMap<fptype>::mpi_type, 0, MPI_COMM_WORLD);
+                   MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
 
          mdm = new ParticleTopology(pl1, pl2, pl3, random_positions,
                                     random_rotations);

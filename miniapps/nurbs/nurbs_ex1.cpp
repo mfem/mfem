@@ -45,8 +45,8 @@ using namespace mfem;
 class Data
 {
 public:
-   fptype x,val;
-   Data(fptype x_, fptype val_) {x=x_; val=val_;};
+   real_t x,val;
+   Data(real_t x_, real_t val_) {x=x_; val=val_;};
 };
 
 inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
@@ -77,7 +77,7 @@ public:
    {
       int nd = el.GetDof();
       int dim = el.GetDim();
-      fptype w;
+      real_t w;
 
 #ifdef MFEM_THREAD_SAFE
       Vector shape(nd);
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    int lod = 0;
    bool ibp = 1;
    bool strongBC = 1;
-   fptype kappa = -1;
+   real_t kappa = -1;
    Array<int> order(1);
    order[0] = 1;
 

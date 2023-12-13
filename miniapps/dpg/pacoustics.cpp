@@ -129,30 +129,30 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::common;
 
-complex<fptype> acoustics_solution(const Vector & X);
-void acoustics_solution_grad(const Vector & X,vector<complex<fptype>> &dp);
-complex<fptype> acoustics_solution_laplacian(const Vector & X);
+complex<real_t> acoustics_solution(const Vector & X);
+void acoustics_solution_grad(const Vector & X,vector<complex<real_t>> &dp);
+complex<real_t> acoustics_solution_laplacian(const Vector & X);
 
-fptype p_exact_r(const Vector &x);
-fptype p_exact_i(const Vector &x);
+real_t p_exact_r(const Vector &x);
+real_t p_exact_i(const Vector &x);
 void u_exact_r(const Vector &x, Vector & u);
 void u_exact_i(const Vector &x, Vector & u);
-fptype rhs_func_r(const Vector &x);
-fptype rhs_func_i(const Vector &x);
+real_t rhs_func_r(const Vector &x);
+real_t rhs_func_i(const Vector &x);
 void gradp_exact_r(const Vector &x, Vector &gradu);
 void gradp_exact_i(const Vector &x, Vector &gradu);
-fptype divu_exact_r(const Vector &x);
-fptype divu_exact_i(const Vector &x);
-fptype d2_exact_r(const Vector &x);
-fptype d2_exact_i(const Vector &x);
-fptype hatp_exact_r(const Vector & X);
-fptype hatp_exact_i(const Vector & X);
+real_t divu_exact_r(const Vector &x);
+real_t divu_exact_i(const Vector &x);
+real_t d2_exact_r(const Vector &x);
+real_t d2_exact_i(const Vector &x);
+real_t hatp_exact_r(const Vector & X);
+real_t hatp_exact_i(const Vector & X);
 void hatu_exact_r(const Vector & X, Vector & hatu);
 void hatu_exact_i(const Vector & X, Vector & hatu);
-fptype source_function(const Vector &x);
+real_t source_function(const Vector &x);
 
 int dim;
-fptype omega;
+real_t omega;
 
 enum prob_type
 {
@@ -186,8 +186,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = true;
-   fptype rnum=1.0;
-   fptype theta = 0.0;
+   real_t rnum=1.0;
+   real_t theta = 0.0;
    bool static_cond = false;
    int iprob = 0;
    int sr = 0;
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
    CartesianPML * pml = nullptr;
    if (with_pml)
    {
-      Array2D<fptype> length(dim, 2); length = 0.125;
+      Array2D<real_t> length(dim, 2); length = 0.125;
       pml = new CartesianPML(&mesh,length);
       pml->SetOmega(omega);
    }
@@ -544,8 +544,8 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   fptype res0 = 0.;
-   fptype err0 = 0.;
+   real_t res0 = 0.;
+   real_t err0 = 0.;
    int dof0 = 0;
 
    ParGridFunction p_r, p_i, u_r, u_i;
@@ -708,13 +708,13 @@ int main(int argc, char *argv[])
 
       Vector & residuals = a->ComputeResidual(x);
 
-      fptype residual = residuals.Norml2();
-      fptype maxresidual = residuals.Max();
-      fptype globalresidual = residual * residual;
-      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<fptype>::mpi_type,
+      real_t residual = residuals.Norml2();
+      real_t maxresidual = residuals.Max();
+      real_t globalresidual = residual * residual;
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_MAX,MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
-                    MPITypeMap<fptype>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
@@ -730,31 +730,31 @@ int main(int argc, char *argv[])
          dofs += trial_fes[i]->GlobalTrueVSize();
       }
 
-      fptype L2Error = 0.0;
-      fptype rate_err = 0.0;
+      real_t L2Error = 0.0;
+      real_t rate_err = 0.0;
       if (exact_known)
       {
          FunctionCoefficient p_ex_r(p_exact_r);
          FunctionCoefficient p_ex_i(p_exact_i);
-         fptype p_err_r = p_r.ComputeL2Error(p_ex_r);
-         fptype p_err_i = p_i.ComputeL2Error(p_ex_i);
+         real_t p_err_r = p_r.ComputeL2Error(p_ex_r);
+         real_t p_err_i = p_i.ComputeL2Error(p_ex_i);
 
          // Error in velocity
          VectorFunctionCoefficient u_ex_r(dim,u_exact_r);
          VectorFunctionCoefficient u_ex_i(dim,u_exact_i);
 
-         fptype u_err_r = u_r.ComputeL2Error(u_ex_r);
-         fptype u_err_i = u_i.ComputeL2Error(u_ex_i);
+         real_t u_err_r = u_r.ComputeL2Error(u_ex_r);
+         real_t u_err_i = u_i.ComputeL2Error(u_ex_i);
 
          L2Error = sqrt(p_err_r*p_err_r + p_err_i*p_err_i
                         +u_err_r*u_err_r + u_err_i*u_err_i);
 
-         rate_err = (it) ? dim*log(err0/L2Error)/log((fptype)dof0/dofs) : 0.0;
+         rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
          err0 = L2Error;
       }
 
-      fptype rate_res = (it) ? dim*log(res0/globalresidual)/log((
-                                                                   fptype)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   real_t)dof0/dofs) : 0.0;
 
       res0 = globalresidual;
       dof0 = dofs;
@@ -797,7 +797,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((fptype)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -857,22 +857,22 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-fptype p_exact_r(const Vector &x)
+real_t p_exact_r(const Vector &x)
 {
    return acoustics_solution(x).real();
 }
 
-fptype p_exact_i(const Vector &x)
+real_t p_exact_i(const Vector &x)
 {
    return acoustics_solution(x).imag();
 }
 
-fptype hatp_exact_r(const Vector & X)
+real_t hatp_exact_r(const Vector & X)
 {
    return p_exact_r(X);
 }
 
-fptype hatp_exact_i(const Vector & X)
+real_t hatp_exact_i(const Vector & X)
 {
    return p_exact_i(X);
 }
@@ -880,7 +880,7 @@ fptype hatp_exact_i(const Vector & X)
 void gradp_exact_r(const Vector &x, Vector &grad_r)
 {
    grad_r.SetSize(x.Size());
-   vector<complex<fptype>> grad;
+   vector<complex<real_t>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -891,7 +891,7 @@ void gradp_exact_r(const Vector &x, Vector &grad_r)
 void gradp_exact_i(const Vector &x, Vector &grad_i)
 {
    grad_i.SetSize(x.Size());
-   vector<complex<fptype>> grad;
+   vector<complex<real_t>> grad;
    acoustics_solution_grad(x,grad);
    for (unsigned i = 0; i < grad.size(); i++)
    {
@@ -899,12 +899,12 @@ void gradp_exact_i(const Vector &x, Vector &grad_i)
    }
 }
 
-fptype d2_exact_r(const Vector &x)
+real_t d2_exact_r(const Vector &x)
 {
    return acoustics_solution_laplacian(x).real();
 }
 
-fptype d2_exact_i(const Vector &x)
+real_t d2_exact_i(const Vector &x)
 {
    return acoustics_solution_laplacian(x).imag();
 }
@@ -937,92 +937,92 @@ void hatu_exact_i(const Vector & X, Vector & hatu)
 //      = i (Δ p_r + i * Δ p_i)  / ω
 //      = - Δ p_i / ω + i Δ p_r / ω
 
-fptype divu_exact_r(const Vector &x)
+real_t divu_exact_r(const Vector &x)
 {
    return -d2_exact_i(x)/omega;
 }
 
-fptype divu_exact_i(const Vector &x)
+real_t divu_exact_i(const Vector &x)
 {
    return d2_exact_r(x)/omega;
 }
 
 // f = ∇⋅u + i ω p
 // f_r = ∇⋅u_r - ω p_i
-fptype rhs_func_r(const Vector &x)
+real_t rhs_func_r(const Vector &x)
 {
-   fptype p = p_exact_i(x);
-   fptype divu = divu_exact_r(x);
+   real_t p = p_exact_i(x);
+   real_t divu = divu_exact_r(x);
    return divu - omega * p;
 }
 
 // f_i = ∇⋅u_i + ω p_r
-fptype rhs_func_i(const Vector &x)
+real_t rhs_func_i(const Vector &x)
 {
-   fptype p = p_exact_r(x);
-   fptype divu = divu_exact_i(x);
+   real_t p = p_exact_r(x);
+   real_t divu = divu_exact_i(x);
    return divu + omega * p;
 }
 
-complex<fptype> acoustics_solution(const Vector & X)
+complex<real_t> acoustics_solution(const Vector & X)
 {
-   complex<fptype> zi = complex<fptype>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    switch (prob)
    {
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         fptype beta = omega/std::sqrt((fptype)X.Size());
-         complex<fptype> alpha = beta * zi * X.Sum();
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
          return exp(alpha);
       }
       break;
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         fptype rk = omega;
-         fptype degrees = 45;
-         fptype alpha = (180+degrees) * M_PI/180.;
-         fptype sina = sin(alpha);
-         fptype cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         fptype shift = 0.1;
-         fptype xprim=X(0) + shift;
-         fptype yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         fptype x = xprim*sina - yprim*cosa;
-         fptype y = xprim*cosa + yprim*sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
          //wavelength
-         fptype rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         fptype w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         fptype fact = rl/M_PI/(w0*w0);
-         fptype aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         fptype w = w0*sqrt(aux);
+         real_t w = w0*sqrt(aux);
 
-         fptype phi0 = atan(fact*y);
+         real_t phi0 = atan(fact*y);
 
-         fptype r = y + 1./y/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
 
          // pressure
-         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
-         fptype pf = pow(2.0/M_PI/(w*w),0.25);
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
 
          return pf*exp(ze);
       }
       break;
       case pml_pointsource:
       {
-         fptype x = X(0)-0.5;
-         fptype y = X(1)-0.5;
-         fptype r = sqrt(x*x + y*y);
-         fptype beta = omega * r;
-         complex<fptype> Ho = jn(0, beta) + zi * yn(0, beta);
+         real_t x = X(0)-0.5;
+         real_t y = X(1)-0.5;
+         real_t r = sqrt(x*x + y*y);
+         real_t beta = omega * r;
+         complex<real_t> Ho = jn(0, beta) + zi * yn(0, beta);
          return 0.25*zi*Ho;
       }
       break;
@@ -1033,10 +1033,10 @@ complex<fptype> acoustics_solution(const Vector & X)
    }
 }
 
-void acoustics_solution_grad(const Vector & X, vector<complex<fptype>> & dp)
+void acoustics_solution_grad(const Vector & X, vector<complex<real_t>> & dp)
 {
    dp.resize(X.Size());
-   complex<fptype> zi = complex<fptype>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    // initialize
    for (int i = 0; i<X.Size(); i++) { dp[i] = 0.0; }
    switch (prob)
@@ -1044,9 +1044,9 @@ void acoustics_solution_grad(const Vector & X, vector<complex<fptype>> & dp)
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         fptype beta = omega/std::sqrt((fptype)X.Size());
-         complex<fptype> alpha = beta * zi * X.Sum();
-         complex<fptype> p = exp(alpha);
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
+         complex<real_t> p = exp(alpha);
          for (int i = 0; i<X.Size(); i++)
          {
             dp[i] = zi * beta * p;
@@ -1056,53 +1056,53 @@ void acoustics_solution_grad(const Vector & X, vector<complex<fptype>> & dp)
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         fptype rk = omega;
-         fptype degrees = 45;
-         fptype alpha = (180+degrees) * M_PI/180.;
-         fptype sina = sin(alpha);
-         fptype cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         fptype shift = 0.1;
-         fptype xprim=X(0) + shift;
-         fptype yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         fptype x = xprim*sina - yprim*cosa;
-         fptype y = xprim*cosa + yprim*sina;
-         fptype dxdxprim = sina, dxdyprim = -cosa;
-         fptype dydxprim = cosa, dydyprim =  sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
+         real_t dxdxprim = sina, dxdyprim = -cosa;
+         real_t dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         fptype rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         fptype w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         fptype fact = rl/M_PI/(w0*w0);
-         fptype aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         fptype w = w0*sqrt(aux);
-         fptype dwdy = w0*fact*fact*y/sqrt(aux);
+         real_t w = w0*sqrt(aux);
+         real_t dwdy = w0*fact*fact*y/sqrt(aux);
 
-         fptype phi0 = atan(fact*y);
-         fptype dphi0dy = cos(phi0)*cos(phi0)*fact;
+         real_t phi0 = atan(fact*y);
+         real_t dphi0dy = cos(phi0)*cos(phi0)*fact;
 
-         fptype r = y + 1./y/(fact*fact);
-         fptype drdy = 1. - 1./(y*y)/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
+         real_t drdy = 1. - 1./(y*y)/(fact*fact);
 
          // pressure
-         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
 
-         complex<fptype> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<fptype> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+         complex<real_t> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<real_t> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
                                  (r*r)*drdy + zi*dphi0dy/2.;
 
-         fptype pf = pow(2.0/M_PI/(w*w),0.25);
-         fptype dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
+         real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
 
-         complex<fptype> zp = pf*exp(ze);
-         complex<fptype> zdpdx = zp*zdedx;
-         complex<fptype> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<real_t> zp = pf*exp(ze);
+         complex<real_t> zdpdx = zp*zdedx;
+         complex<real_t> zdpdy = dpfdy*exp(ze)+zp*zdedy;
 
          dp[0] = (zdpdx*dxdxprim + zdpdy*dydxprim);
          dp[1] = (zdpdx*dxdyprim + zdpdy*dydyprim);
@@ -1114,85 +1114,85 @@ void acoustics_solution_grad(const Vector & X, vector<complex<fptype>> & dp)
    }
 }
 
-complex<fptype> acoustics_solution_laplacian(const Vector & X)
+complex<real_t> acoustics_solution_laplacian(const Vector & X)
 {
-   complex<fptype> zi = complex<fptype>(0., 1.);
+   complex<real_t> zi = complex<real_t>(0., 1.);
    switch (prob)
    {
       case pml_plane_wave_scatter:
       case plane_wave:
       {
-         fptype beta = omega/std::sqrt((fptype)X.Size());
-         complex<fptype> alpha = beta * zi * X.Sum();
+         real_t beta = omega/std::sqrt((real_t)X.Size());
+         complex<real_t> alpha = beta * zi * X.Sum();
          return dim * beta * beta * exp(alpha);
       }
       break;
       case gaussian_beam:
       case pml_beam_scatter:
       {
-         fptype rk = omega;
-         fptype degrees = 45;
-         fptype alpha = (180+degrees) * M_PI/180.;
-         fptype sina = sin(alpha);
-         fptype cosa = cos(alpha);
+         real_t rk = omega;
+         real_t degrees = 45;
+         real_t alpha = (180+degrees) * M_PI/180.;
+         real_t sina = sin(alpha);
+         real_t cosa = cos(alpha);
          // shift the origin
-         fptype shift = 0.1;
-         fptype xprim=X(0) + shift;
-         fptype yprim=X(1) + shift;
+         real_t shift = 0.1;
+         real_t xprim=X(0) + shift;
+         real_t yprim=X(1) + shift;
 
-         fptype x = xprim*sina - yprim*cosa;
-         fptype y = xprim*cosa + yprim*sina;
-         fptype dxdxprim = sina, dxdyprim = -cosa;
-         fptype dydxprim = cosa, dydyprim =  sina;
+         real_t x = xprim*sina - yprim*cosa;
+         real_t y = xprim*cosa + yprim*sina;
+         real_t dxdxprim = sina, dxdyprim = -cosa;
+         real_t dydxprim = cosa, dydyprim =  sina;
          //wavelength
-         fptype rl = 2.*M_PI/rk;
+         real_t rl = 2.*M_PI/rk;
 
          // beam waist radius
-         fptype w0 = 0.05;
+         real_t w0 = 0.05;
 
          // function w
-         fptype fact = rl/M_PI/(w0*w0);
-         fptype aux = 1. + (fact*y)*(fact*y);
+         real_t fact = rl/M_PI/(w0*w0);
+         real_t aux = 1. + (fact*y)*(fact*y);
 
-         fptype w = w0*sqrt(aux);
-         fptype dwdy = w0*fact*fact*y/sqrt(aux);
-         fptype d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
+         real_t w = w0*sqrt(aux);
+         real_t dwdy = w0*fact*fact*y/sqrt(aux);
+         real_t d2wdydy = w0*fact*fact*(1. - (fact*y)*(fact*y)/aux)/sqrt(aux);
 
-         fptype phi0 = atan(fact*y);
-         fptype dphi0dy = cos(phi0)*cos(phi0)*fact;
-         fptype d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
+         real_t phi0 = atan(fact*y);
+         real_t dphi0dy = cos(phi0)*cos(phi0)*fact;
+         real_t d2phi0dydy = -2.*cos(phi0)*sin(phi0)*fact*dphi0dy;
 
-         fptype r = y + 1./y/(fact*fact);
-         fptype drdy = 1. - 1./(y*y)/(fact*fact);
-         fptype d2rdydy = 2./(y*y*y)/(fact*fact);
+         real_t r = y + 1./y/(fact*fact);
+         real_t drdy = 1. - 1./(y*y)/(fact*fact);
+         real_t d2rdydy = 2./(y*y*y)/(fact*fact);
 
          // pressure
-         complex<fptype> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
                               zi*phi0/2.;
 
-         complex<fptype> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<fptype> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
+         complex<real_t> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
+         complex<real_t> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
                                  (r*r)*drdy + zi*dphi0dy/2.;
-         complex<fptype> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-         complex<fptype> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
-         complex<fptype> zd2edydx = zd2edxdy;
-         complex<fptype> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
+         complex<real_t> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
+         complex<real_t> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
+         complex<real_t> zd2edydx = zd2edxdy;
+         complex<real_t> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
                                     (w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
                                     + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
 
-         fptype pf = pow(2.0/M_PI/(w*w),0.25);
-         fptype dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
-         fptype d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
+         real_t pf = pow(2.0/M_PI/(w*w),0.25);
+         real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
+         real_t d2pfdydy = -1./M_PI*pow(2./M_PI,-0.75)*(-1.5*pow(w,-2.5)
                                                         *dwdy*dwdy + pow(w,-1.5)*d2wdydy);
 
 
-         complex<fptype> zp = pf*exp(ze);
-         complex<fptype> zdpdx = zp*zdedx;
-         complex<fptype> zdpdy = dpfdy*exp(ze)+zp*zdedy;
-         complex<fptype> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
-         complex<fptype> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
-         complex<fptype> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
-         complex<fptype> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
+         complex<real_t> zp = pf*exp(ze);
+         complex<real_t> zdpdx = zp*zdedx;
+         complex<real_t> zdpdy = dpfdy*exp(ze)+zp*zdedy;
+         complex<real_t> zd2pdxdx = zdpdx*zdedx + zp*zd2edxdx;
+         complex<real_t> zd2pdxdy = zdpdy*zdedx + zp*zd2edxdy;
+         complex<real_t> zd2pdydx = dpfdy*exp(ze)*zdedx + zdpdx*zdedy + zp*zd2edydx;
+         complex<real_t> zd2pdydy = d2pfdydy*exp(ze) + dpfdy*exp(
                                        ze)*zdedy + zdpdy*zdedy + zp*zd2edydy;
 
 
@@ -1209,17 +1209,17 @@ complex<fptype> acoustics_solution_laplacian(const Vector & X)
    }
 }
 
-fptype source_function(const Vector &x)
+real_t source_function(const Vector &x)
 {
    Vector center(dim);
    center = 0.5;
-   fptype r = 0.0;
+   real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
       r += pow(x[i] - center[i], 2.);
    }
-   fptype n = 5.0 * omega / M_PI;
-   fptype coeff = pow(n, 2) / M_PI;
-   fptype alpha = -pow(n, 2) * r;
+   real_t n = 5.0 * omega / M_PI;
+   real_t coeff = pow(n, 2) / M_PI;
+   real_t alpha = -pow(n, 2) * r;
    return -omega * coeff * exp(alpha)/omega;
 }

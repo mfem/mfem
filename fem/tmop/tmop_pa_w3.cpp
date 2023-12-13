@@ -23,73 +23,73 @@ using Args = kernels::InvariantsEvaluator3D::Buffers;
 
 // mu_302 = I1b * I2b / 9 - 1
 static MFEM_HOST_DEVICE inline
-fptype EvalW_302(const fptype *J)
+real_t EvalW_302(const real_t *J)
 {
-   fptype B[9];
+   real_t B[9];
    kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1b()*ie.Get_I2b()/9. - 1.;
 }
 
 // mu_303 = I1b/3 - 1
 static MFEM_HOST_DEVICE inline
-fptype EvalW_303(const fptype *J)
+real_t EvalW_303(const real_t *J)
 {
-   fptype B[9];
+   real_t B[9];
    kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1b()/3. - 1.;
 }
 
 // mu_315 = (I3b - 1)^2
 static MFEM_HOST_DEVICE inline
-fptype EvalW_315(const fptype *J)
+real_t EvalW_315(const real_t *J)
 {
-   fptype B[9];
+   real_t B[9];
    kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
-   const fptype a = ie.Get_I3b() - 1.0;
+   const real_t a = ie.Get_I3b() - 1.0;
    return a*a;
 }
 
 // mu_318 = 0.5 * (I3 + 1/I3) - 1.
 static MFEM_HOST_DEVICE inline
-fptype EvalW_318(const fptype *J)
+real_t EvalW_318(const real_t *J)
 {
-   fptype B[9];
+   real_t B[9];
    kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
-   const fptype I3 = ie.Get_I3();
+   const real_t I3 = ie.Get_I3();
    return 0.5*(I3 + 1.0/I3) - 1.0;
 }
 
 // mu_321 = I1 + I2/I3 - 6
 static MFEM_HOST_DEVICE inline
-fptype EvalW_321(const fptype *J)
+real_t EvalW_321(const real_t *J)
 {
-   fptype B[9];
+   real_t B[9];
    kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
    return ie.Get_I1() + ie.Get_I2()/ie.Get_I3() - 6.0;
 }
 
 static MFEM_HOST_DEVICE inline
-fptype EvalW_332(const fptype *J, const fptype *w)
+real_t EvalW_332(const real_t *J, const real_t *w)
 {
    return w[0] * EvalW_302(J) + w[1] * EvalW_315(J);
 }
 
 static MFEM_HOST_DEVICE inline
-fptype EvalW_338(const fptype *J, const fptype *w)
+real_t EvalW_338(const real_t *J, const real_t *w)
 {
    return w[0] * EvalW_302(J) + w[1] * EvalW_318(J);
 }
 
-MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_3D,
-                           const fptype metric_normal,
+MFEM_REGISTER_TMOP_KERNELS(real_t, EnergyPA_3D,
+                           const real_t metric_normal,
                            const Vector &mc_,
-                           const Array<fptype> &metric_param,
+                           const Array<real_t> &metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
-                           const Array<fptype> &w_,
-                           const Array<fptype> &b_,
-                           const Array<fptype> &g_,
+                           const Array<real_t> &w_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &g_,
                            const Vector &ones,
                            const Vector &x_,
                            Vector &energy,
@@ -117,7 +117,7 @@ MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_3D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
-   const fptype *metric_data = metric_param.Read();
+   const real_t *metric_data = metric_param.Read();
 
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -126,11 +126,11 @@ MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED fptype BG[2][MQ1*MD1];
-      MFEM_SHARED fptype DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED fptype DDQ[6][MD1*MD1*MQ1];
-      MFEM_SHARED fptype DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED fptype QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t BG[2][MQ1*MD1];
+      MFEM_SHARED real_t DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED real_t DDQ[6][MD1*MD1*MQ1];
+      MFEM_SHARED real_t DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED real_t QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -145,26 +145,26 @@ MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const fptype *Jtr = &J(0,0,qx,qy,qz,e);
-               const fptype detJtr = kernels::Det<3>(Jtr);
-               const fptype m_coef = const_m0 ? MC(0,0,0,0) : MC(qx,qy,qz,e);
-               const fptype weight = metric_normal * m_coef *
+               const real_t *Jtr = &J(0,0,qx,qy,qz,e);
+               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t m_coef = const_m0 ? MC(0,0,0,0) : MC(qx,qy,qz,e);
+               const real_t weight = metric_normal * m_coef *
                                      W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
-               fptype Jrt[9];
+               real_t Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^t.DSh
-               fptype Jpr[9];
+               real_t Jpr[9];
                kernels::internal::PullGrad<MQ1>(Q1D,qx,qy,qz, QQQ, Jpr);
 
                // Jpt = X^t.DS = (X^t.DSh).Jrt = Jpr.Jrt
-               fptype Jpt[9];
+               real_t Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // metric->EvalW(Jpt);
-               const fptype EvalW =
+               const real_t EvalW =
                   mid == 302 ? EvalW_302(Jpt) :
                   mid == 303 ? EvalW_303(Jpt) :
                   mid == 315 ? EvalW_315(Jpt) :
@@ -181,23 +181,23 @@ MFEM_REGISTER_TMOP_KERNELS(fptype, EnergyPA_3D,
    return energy * ones;
 }
 
-fptype TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
 {
    const int N = PA.ne;
    const int M = metric->Id();
    const int D1D = PA.maps->ndof;
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
-   const fptype mn = metric_normal;
+   const real_t mn = metric_normal;
    const Vector &MC = PA.MC;
    const DenseTensor &J = PA.Jtr;
-   const Array<fptype> &W = PA.ir->GetWeights();
-   const Array<fptype> &B = PA.maps->B;
-   const Array<fptype> &G = PA.maps->G;
+   const Array<real_t> &W = PA.ir->GetWeights();
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   Array<fptype> mp;
+   Array<real_t> mp;
    if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
    {
       m->GetWeights(mp);
