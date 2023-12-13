@@ -77,27 +77,27 @@ public:
 // fraction @a tf. We have two cases, with an odd number of control points and
 // with an even number of control points. These may be streamlined in the
 // future.
-void GetTipXY(const NACA4 &foil_section, unique_ptr <KnotVector> &kv, double tf,
+void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
               Array<Vector*> &xy);
 
 // Function that returns a uniform knot vector based on the @a order and the
 // number of control points @a ncp.
-unique_ptr <KnotVector> UniformKnotVector(int order, int ncp);
+unique_ptr<KnotVector> UniformKnotVector(int order, int ncp);
 
 // Function that returns a knot vector that is stretched with stretch @s
 // with the form x^s based on the @a order and the number of control points
 // @a ncp. Special case @a s = 0 will give a uniform knot vector.
-unique_ptr <KnotVector> PowerStretchKnotVector(int order, int ncp,
-                                               double s = 0.0);
+unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp,
+                                              double s = 0.0);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing
 // with a cut-off @c using the @a order and the number of control points @a ncp.
-unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c);
+unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c);
 
 // Function that returns a knot vector with a hyperbolic tangent spacing from
 // both sides of the knot vector with a cut-off @c using the @a order and the
 // number of control points @a ncp.
-unique_ptr <KnotVector> DoubleTanhKnotVector(int order, int ncp, double c);
+unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c);
 
 // Function that evaluates a linear function which describes the boundary
 // distance based on the flair angle @a flair, smallest boundary distance @a bd
@@ -197,19 +197,19 @@ int main(int argc, char *argv[])
    aoa = aoa*deg2rad;
 
    // 2. Create knot vectors
-   unique_ptr <KnotVector> kv0 = TanhKnotVector(order, ncp_wake, str_wake);
+   unique_ptr<KnotVector> kv0 = TanhKnotVector(order, ncp_wake, str_wake);
    kv0->Flip();
-   unique_ptr <KnotVector> kv4 (new KnotVector(*kv0));
+   unique_ptr<KnotVector> kv4 (new KnotVector(*kv0));
    kv4->Flip();
 
-   unique_ptr <KnotVector> kv1 = PowerStretchKnotVector(order, ncp_tail,
-                                                        -str_tail);
-   unique_ptr <KnotVector> kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
-   unique_ptr <KnotVector> kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
-   unique_ptr <KnotVector> kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
+   unique_ptr<KnotVector> kv1 = PowerStretchKnotVector(order, ncp_tail,
+                                                       -str_tail);
+   unique_ptr<KnotVector> kv3 = PowerStretchKnotVector(order, ncp_tail, str_tail);
+   unique_ptr<KnotVector> kv2 = DoubleTanhKnotVector(order, ncp_tip, str_tip);
+   unique_ptr<KnotVector> kvr = TanhKnotVector(order, ncp_bnd, str_bnd);
 
-   unique_ptr <KnotVector> kv_o1 = UniformKnotVector(1, 2);
-   unique_ptr <KnotVector> kv_o2 = UniformKnotVector(2, 3);
+   unique_ptr<KnotVector> kv_o1 = UniformKnotVector(1, 2);
+   unique_ptr<KnotVector> kv_o2 = UniformKnotVector(2, 3);
 
    // Variables required for curve interpolation
    Vector xi_args, u_args;
@@ -360,7 +360,7 @@ int main(int argc, char *argv[])
       int ncp = kv2->GetNCP();
       xyf[0]->SetSize(ncp); xyf[1]->SetSize(ncp);
 
-      GetTipXY(foil_section, kv2, tip_fraction, xyf);
+      GetTipXY(foil_section, *kv2, tip_fraction, xyf);
 
       kv2->FindInterpolant(xyf);
       for (int i = 0; i < ncp; i++)
@@ -646,17 +646,17 @@ double NACA4::xl(double l) const
    return x;
 }
 
-void GetTipXY(const NACA4 &foil_section, unique_ptr <KnotVector> &kv, double tf,
+void GetTipXY(const NACA4 &foil_section, const KnotVector &kv, double tf,
               Array<Vector*> &xy)
 {
-   int ncp = kv->GetNCP();
+   int ncp = kv.GetNCP();
    // Length of half the curve: the boundary covers both sides of the tip
    const double l = foil_section.len(tf * foil_section.GetChord());
 
    // Find location of maxima of knot vector
    Array<int> i_args;
    Vector xi_args, u_args;
-   kv->FindMaxima(i_args,xi_args, u_args);
+   kv.FindMaxima(i_args,xi_args, u_args);
 
    // We have two cases: one with an odd number of control points and one
    // with an even number of control points.
@@ -714,9 +714,9 @@ void GetTipXY(const NACA4 &foil_section, unique_ptr <KnotVector> &kv, double tf,
    }
 }
 
-unique_ptr <KnotVector> UniformKnotVector(int order, int ncp)
+unique_ptr<KnotVector> UniformKnotVector(int order, int ncp)
 {
-   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
+   unique_ptr<KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -733,9 +733,9 @@ unique_ptr <KnotVector> UniformKnotVector(int order, int ncp)
    return kv;
 }
 
-unique_ptr <KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
+unique_ptr<KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
 {
-   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
+   unique_ptr<KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -754,9 +754,9 @@ unique_ptr <KnotVector> PowerStretchKnotVector(int order, int ncp, double s)
    return kv;
 }
 
-unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c)
+unique_ptr<KnotVector> TanhKnotVector(int order, int ncp, double c)
 {
-   unique_ptr <KnotVector> kv(new KnotVector(order, ncp));
+   unique_ptr<KnotVector> kv(new KnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
@@ -774,9 +774,9 @@ unique_ptr <KnotVector> TanhKnotVector(int order, int ncp, double c)
    return kv;
 }
 
-unique_ptr <KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
+unique_ptr<KnotVector> DoubleTanhKnotVector(int order, int ncp, double c)
 {
-   unique_ptr <KnotVector> kv = UniformKnotVector(order, ncp);
+   unique_ptr<KnotVector> kv(UniformKnotVector(order, ncp));
 
    for (int i = 0; i < order+1; i++)
    {
