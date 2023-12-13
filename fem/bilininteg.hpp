@@ -261,7 +261,7 @@ public:
                              for anisotropic error estimation.
        @returns The computed energy.
     */
-   virtual fptype ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
@@ -2147,7 +2147,7 @@ private:
    std::vector<std::vector<Vector>> reducedWeights;
    std::vector<IntArrayVar2D> reducedIDs;
    std::vector<Array<int>> pQ1D, pD1D;
-   std::vector<std::vector<Array2D<fptype>>> pB, pG;
+   std::vector<std::vector<Array2D<real_t>>> pB, pG;
    std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
 
    std::vector<Array<const IntegrationRule*>> pir1d;
@@ -2222,7 +2222,7 @@ public:
                                    Vector &flux, bool with_coef = true,
                                    const IntegrationRule *ir = NULL);
 
-   virtual fptype ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
@@ -2341,7 +2341,7 @@ class ConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
    VectorCoefficient *Q;
-   fptype alpha;
+   real_t alpha;
    // PA extension
    Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
@@ -2355,7 +2355,7 @@ private:
 #endif
 
 public:
-   ConvectionIntegrator(VectorCoefficient &q, fptype a = 1.0)
+   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
 
    virtual void AssembleElementMatrix(const FiniteElement &,
@@ -2398,7 +2398,7 @@ using NonconservativeConvectionIntegrator = ConvectionIntegrator;
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
 public:
-   ConservativeConvectionIntegrator(VectorCoefficient &q, fptype a = 1.0)
+   ConservativeConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
@@ -2407,14 +2407,14 @@ class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
    VectorCoefficient *Q;
-   fptype alpha;
+   real_t alpha;
 
 private:
    DenseMatrix dshape, adjJ, Q_nodal, grad;
    Vector shape;
 
 public:
-   GroupConvectionIntegrator(VectorCoefficient &q, fptype a = 1.0)
+   GroupConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
       : Q(&q) { alpha = a; }
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
@@ -2659,7 +2659,7 @@ public:
                                    Vector &flux, bool with_coef,
                                    const IntegrationRule *ir = NULL);
 
-   virtual fptype ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
@@ -2693,7 +2693,7 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
    /// Compute element energy: (1/2) (curl u, curl u)_E
-   virtual fptype GetElementEnergy(const FiniteElement &el,
+   virtual real_t GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 };
@@ -2985,7 +2985,7 @@ public:
 class ElasticityIntegrator : public BilinearFormIntegrator
 {
 protected:
-   fptype q_lambda, q_mu;
+   real_t q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
 private:
@@ -3000,7 +3000,7 @@ public:
    { lambda = &l; mu = &m; }
    /** With this constructor lambda = q_l * m and mu = q_m * m;
        if dim * q_l + 2 * q_m = 0 then trace(sigma) = 0. */
-   ElasticityIntegrator(Coefficient &m, fptype q_l, fptype q_m)
+   ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
    virtual void AssembleElementMatrix(const FiniteElement &,
@@ -3032,7 +3032,7 @@ public:
        symmetric part of the (symmetric) stress tensor. The order of the
        components is: s_xx, s_yy, s_xy in 2D, and s_xx, s_yy, s_zz, s_xy, s_xz,
        s_yz in 3D. */
-   virtual fptype ComputeFluxEnergy(const FiniteElement &fluxelem,
+   virtual real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 };
@@ -3067,7 +3067,7 @@ class DGTraceIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *rho;
    VectorCoefficient *u;
-   fptype alpha, beta;
+   real_t alpha, beta;
    // PA extension
    Vector pa_data;
    const DofToQuad *maps;             ///< Not owned
@@ -3079,15 +3079,15 @@ private:
 
 public:
    /// Construct integrator with rho = 1, b = 0.5*a.
-   DGTraceIntegrator(VectorCoefficient &u_, fptype a)
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a)
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
    /// Construct integrator with rho = 1.
-   DGTraceIntegrator(VectorCoefficient &u_, fptype a, fptype b)
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
    { rho = NULL; u = &u_; alpha = a; beta = b; }
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                     fptype a, fptype b)
+                     real_t a, real_t b)
    { rho = &rho_; u = &u_; alpha = a; beta = b; }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -3135,14 +3135,14 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 class NonconservativeDGTraceIntegrator : public TransposeIntegrator
 {
 public:
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u, fptype a)
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, real_t a)
       : TransposeIntegrator(new DGTraceIntegrator(u, -a, 0.5*a)) { }
 
-   NonconservativeDGTraceIntegrator(VectorCoefficient &u, fptype a, fptype b)
+   NonconservativeDGTraceIntegrator(VectorCoefficient &u, real_t a, real_t b)
       : TransposeIntegrator(new DGTraceIntegrator(u, -a, b)) { }
 
    NonconservativeDGTraceIntegrator(Coefficient &rho, VectorCoefficient &u,
-                                    fptype a, fptype b)
+                                    real_t a, real_t b)
       : TransposeIntegrator(new DGTraceIntegrator(rho, u, -a, b)) { }
 };
 
@@ -3163,18 +3163,18 @@ class DGDiffusionIntegrator : public BilinearFormIntegrator
 protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
-   fptype sigma, kappa;
+   real_t sigma, kappa;
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
 public:
-   DGDiffusionIntegrator(const fptype s, const fptype k)
+   DGDiffusionIntegrator(const real_t s, const real_t k)
       : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(Coefficient &q, const fptype s, const fptype k)
+   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k)
       : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const fptype s, const fptype k)
+   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3206,11 +3206,11 @@ public:
 class DGDiffusionBR2Integrator : public BilinearFormIntegrator
 {
 protected:
-   fptype eta;
+   real_t eta;
 
    // Block factorizations of local mass matrices, with offsets for the case of
    // not equally sized blocks (mixed meshes, p-refinement)
-   Array<fptype> Minv;
+   Array<real_t> Minv;
    Array<int> ipiv;
    Array<int> ipiv_offsets, Minv_offsets;
 
@@ -3230,11 +3230,11 @@ protected:
    void PrecomputeMassInverse(class FiniteElementSpace &fes);
 
 public:
-   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, fptype e = 1.0);
+   DGDiffusionBR2Integrator(class FiniteElementSpace &fes, real_t e = 1.0);
    DGDiffusionBR2Integrator(class FiniteElementSpace &fes, Coefficient &Q_,
-                            fptype e = 1.0);
+                            real_t e = 1.0);
    MFEM_DEPRECATED DGDiffusionBR2Integrator(class FiniteElementSpace *fes,
-                                            fptype e = 1.0);
+                                            real_t e = 1.0);
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3306,11 +3306,11 @@ public:
 class DGElasticityIntegrator : public BilinearFormIntegrator
 {
 public:
-   DGElasticityIntegrator(fptype alpha_, fptype kappa_)
+   DGElasticityIntegrator(real_t alpha_, real_t kappa_)
       : lambda(NULL), mu(NULL), alpha(alpha_), kappa(kappa_) { }
 
    DGElasticityIntegrator(Coefficient &lambda_, Coefficient &mu_,
-                          fptype alpha_, fptype kappa_)
+                          real_t alpha_, real_t kappa_)
       : lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
@@ -3321,7 +3321,7 @@ public:
 
 protected:
    Coefficient *lambda, *mu;
-   fptype alpha, kappa;
+   real_t alpha, kappa;
 
 #ifndef MFEM_THREAD_SAFE
    // values of all scalar basis functions for one component of u (which is a
@@ -3347,7 +3347,7 @@ protected:
    static void AssembleBlock(
       const int dim, const int row_ndofs, const int col_ndofs,
       const int row_offset, const int col_offset,
-      const fptype jmatcoef, const Vector &col_nL, const Vector &col_nM,
+      const real_t jmatcoef, const Vector &col_nL, const Vector &col_nM,
       const Vector &row_shape, const Vector &col_shape,
       const Vector &col_dshape_dnM, const DenseMatrix &col_dshape,
       DenseMatrix &elmat, DenseMatrix &jmat);

@@ -62,7 +62,7 @@ protected:
    HypreParMatrix Mmat;
    HypreParMatrix Kmat;
    HypreParMatrix *T; // T = M + dt K
-   fptype current_dt;
+   real_t current_dt;
 
    CGSolver M_solver;    // Krylov solver for inverting the mass matrix M
    HypreSmoother M_prec; // Preconditioner for the mass matrix M
@@ -70,18 +70,18 @@ protected:
    CGSolver T_solver;    // Implicit solver for T = M + dt K
    HypreSmoother T_prec; // Preconditioner for the implicit solver
 
-   fptype alpha, kappa;
+   real_t alpha, kappa;
 
    mutable Vector z; // auxiliary vector
 
 public:
-   ConductionOperator(ParFiniteElementSpace &f, fptype alpha, fptype kappa,
+   ConductionOperator(ParFiniteElementSpace &f, real_t alpha, real_t kappa,
                       const Vector &u);
 
    virtual void Mult(const Vector &u, Vector &du_dt) const;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const fptype dt, const Vector &u, Vector &k);
+   virtual void ImplicitSolve(const real_t dt, const Vector &u, Vector &k);
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
@@ -89,7 +89,7 @@ public:
    virtual ~ConductionOperator();
 };
 
-fptype InitialTemperature(const Vector &x);
+real_t InitialTemperature(const Vector &x);
 
 int main(int argc, char *argv[])
 {
@@ -105,10 +105,10 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;
    int order = 2;
    int ode_solver_type = 3;
-   fptype t_final = 0.5;
-   fptype dt = 1.0e-2;
-   fptype alpha = 1.0e-2;
-   fptype kappa = 0.5;
+   real_t t_final = 0.5;
+   real_t dt = 1.0e-2;
+   real_t alpha = 1.0e-2;
+   real_t kappa = 0.5;
    bool visualization = true;
    bool visit = false;
    int vis_steps = 5;
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
    // 10. Perform time-integration (looping over the time iterations, ti, with a
    //     time-step dt).
    ode_solver->Init(oper);
-   fptype t = 0.0;
+   real_t t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -382,13 +382,13 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, fptype al,
-                                       fptype kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), (fptype) 0.0), fespace(f),
+ConductionOperator::ConductionOperator(ParFiniteElementSpace &f, real_t al,
+                                       real_t kap, const Vector &u)
+   : TimeDependentOperator(f.GetTrueVSize(), (real_t) 0.0), fespace(f),
      M(NULL), K(NULL), T(NULL), current_dt(0.0),
      M_solver(f.GetComm()), T_solver(f.GetComm()), z(height)
 {
-   const fptype rel_tol = 1e-8;
+   const real_t rel_tol = 1e-8;
 
    M = new ParBilinearForm(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
@@ -427,7 +427,7 @@ void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
    M_solver.Mult(z, du_dt);
 }
 
-void ConductionOperator::ImplicitSolve(const fptype dt,
+void ConductionOperator::ImplicitSolve(const real_t dt,
                                        const Vector &u, Vector &du_dt)
 {
    // Solve the equation:
@@ -473,7 +473,7 @@ ConductionOperator::~ConductionOperator()
    delete K;
 }
 
-fptype InitialTemperature(const Vector &x)
+real_t InitialTemperature(const Vector &x)
 {
    if (x.Norml2() < 0.5)
    {

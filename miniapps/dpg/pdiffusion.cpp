@@ -92,13 +92,13 @@ static const char *enum_str[] =
 
 prob_type prob;
 
-fptype exact_u(const Vector & X);
+real_t exact_u(const Vector & X);
 void exact_gradu(const Vector & X, Vector &gradu);
-fptype exact_laplacian_u(const Vector & X);
+real_t exact_laplacian_u(const Vector & X);
 void exact_sigma(const Vector & X, Vector & sigma);
-fptype exact_hatu(const Vector & X);
+real_t exact_hatu(const Vector & X);
 void exact_hatsigma(const Vector & X, Vector & hatsigma);
-fptype f_exact(const Vector & X);
+real_t f_exact(const Vector & X);
 
 int main(int argc, char *argv[])
 {
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    int pref = 0; // parallel mesh refinements for AMR
    int iprob = 0;
    bool static_cond = false;
-   fptype theta = 0.7;
+   real_t theta = 0.7;
    bool visualization = true;
    bool paraview = false;
 
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
       int size = nodes->Size()/2;
       for (int i = 0; i<size; i++)
       {
-         fptype x = (*nodes)[2*i];
+         real_t x = (*nodes)[2*i];
          (*nodes)[2*i] =  2*(*nodes)[2*i+1]-1;
          (*nodes)[2*i+1] = -2*x+1;
       }
@@ -314,9 +314,9 @@ int main(int argc, char *argv[])
    }
 
    Array<int> elements_to_refine; // for AMR
-   fptype err0 = 0.;
+   real_t err0 = 0.;
    int dof0=0.;
-   fptype res0=0.0;
+   real_t res0=0.0;
 
    ParGridFunction u_gf(u_fes);
    ParGridFunction sigma_gf(sigma_fes);
@@ -418,15 +418,15 @@ int main(int argc, char *argv[])
 
       Vector & residuals = a->ComputeResidual(x);
 
-      fptype residual = residuals.Norml2();
+      real_t residual = residuals.Norml2();
 
-      fptype maxresidual = residuals.Max();
-      fptype globalresidual = residual * residual;
+      real_t maxresidual = residuals.Max();
+      real_t globalresidual = residual * residual;
 
-      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<fptype>::mpi_type,
+      MPI_Allreduce(MPI_IN_PLACE, &maxresidual, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_MAX, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &globalresidual, 1,
-                    MPITypeMap<fptype>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
 
       globalresidual = sqrt(globalresidual);
 
@@ -436,12 +436,12 @@ int main(int argc, char *argv[])
       int dofs = u_fes->GlobalTrueVSize() + sigma_fes->GlobalTrueVSize()
                  + hatu_fes->GlobalTrueVSize() + hatsigma_fes->GlobalTrueVSize();
 
-      fptype u_err = u_gf.ComputeL2Error(uex);
-      fptype sigma_err = sigma_gf.ComputeL2Error(sigmaex);
-      fptype L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
-      fptype rate_err = (it) ? dim*log(err0/L2Error)/log((fptype)dof0/dofs) : 0.0;
-      fptype rate_res = (it) ? dim*log(res0/globalresidual)/log((
-                                                                   fptype)dof0/dofs) : 0.0;
+      real_t u_err = u_gf.ComputeL2Error(uex);
+      real_t sigma_err = sigma_gf.ComputeL2Error(sigmaex);
+      real_t L2Error = sqrt(u_err*u_err + sigma_err*sigma_err);
+      real_t rate_err = (it) ? dim*log(err0/L2Error)/log((real_t)dof0/dofs) : 0.0;
+      real_t rate_res = (it) ? dim*log(res0/globalresidual)/log((
+                                                                   real_t)dof0/dofs) : 0.0;
       err0 = L2Error;
       res0 = globalresidual;
       dof0 = dofs;
@@ -480,7 +480,7 @@ int main(int argc, char *argv[])
       if (paraview)
       {
          paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((fptype)it);
+         paraview_dc->SetTime((real_t)it);
          paraview_dc->Save();
       }
 
@@ -524,24 +524,24 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-fptype exact_u(const Vector & X)
+real_t exact_u(const Vector & X)
 {
    switch (prob)
    {
       case prob_type::lshape:
       {
-         fptype x = X[0];
-         fptype y = X[1];
-         fptype r = sqrt(x*x + y*y);
-         fptype alpha = 2./3.;
-         fptype phi = atan2(y,x);
+         real_t x = X[0];
+         real_t y = X[1];
+         real_t r = sqrt(x*x + y*y);
+         real_t alpha = 2./3.;
+         real_t phi = atan2(y,x);
          if (phi < 0) { phi += 2*M_PI; }
          return pow(r,alpha) * sin(alpha * phi);
       }
       break;
       default:
       {
-         fptype alpha = M_PI * (X.Sum());
+         real_t alpha = M_PI * (X.Sum());
          return sin(alpha);
       }
       break;
@@ -555,25 +555,25 @@ void exact_gradu(const Vector & X, Vector & du)
    {
       case prob_type::lshape:
       {
-         fptype x = X[0];
-         fptype y = X[1];
-         fptype r = sqrt(x*x + y*y);
-         fptype alpha = 2./3.;
-         fptype phi = atan2(y,x);
+         real_t x = X[0];
+         real_t y = X[1];
+         real_t r = sqrt(x*x + y*y);
+         real_t alpha = 2./3.;
+         real_t phi = atan2(y,x);
          if (phi < 0) { phi += 2*M_PI; }
 
-         fptype r_x = x/r;
-         fptype r_y = y/r;
-         fptype phi_x = - y / (r*r);
-         fptype phi_y = x / (r*r);
-         fptype beta = alpha * pow(r,alpha - 1.);
+         real_t r_x = x/r;
+         real_t r_y = y/r;
+         real_t phi_x = - y / (r*r);
+         real_t phi_y = x / (r*r);
+         real_t beta = alpha * pow(r,alpha - 1.);
          du[0] = beta*(r_x * sin(alpha*phi) + r * phi_x * cos(alpha*phi));
          du[1] = beta*(r_y * sin(alpha*phi) + r * phi_y * cos(alpha*phi));
       }
       break;
       default:
       {
-         fptype alpha = M_PI * (X.Sum());
+         real_t alpha = M_PI * (X.Sum());
          du.SetSize(X.Size());
          for (int i = 0; i<du.Size(); i++)
          {
@@ -584,14 +584,14 @@ void exact_gradu(const Vector & X, Vector & du)
    }
 }
 
-fptype exact_laplacian_u(const Vector & X)
+real_t exact_laplacian_u(const Vector & X)
 {
    switch (prob)
    {
       case prob_type::manufactured:
       {
-         fptype alpha = M_PI * (X.Sum());
-         fptype u = sin(alpha);
+         real_t alpha = M_PI * (X.Sum());
+         real_t u = sin(alpha);
          return - M_PI*M_PI * u * X.Size();
       }
       break;
@@ -608,7 +608,7 @@ void exact_sigma(const Vector & X, Vector & sigma)
    exact_gradu(X,sigma);
 }
 
-fptype exact_hatu(const Vector & X)
+real_t exact_hatu(const Vector & X)
 {
    return exact_u(X);
 }
@@ -619,7 +619,7 @@ void exact_hatsigma(const Vector & X, Vector & hatsigma)
    hatsigma *= -1.;
 }
 
-fptype f_exact(const Vector & X)
+real_t f_exact(const Vector & X)
 {
    MFEM_VERIFY(prob!=prob_type::lshape,
                "f_exact should not be called for l-shape benchmark problem, i.e., f = 0")

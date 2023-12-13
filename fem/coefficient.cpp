@@ -73,7 +73,7 @@ void ConstantCoefficient::Project(QuadratureFunction &qf)
    qf = constant;
 }
 
-fptype PWConstCoefficient::Eval(ElementTransformation & T,
+real_t PWConstCoefficient::Eval(ElementTransformation & T,
                                 const IntegrationPoint & ip)
 {
    int att = T.Attribute;
@@ -97,7 +97,7 @@ void PWCoefficient::InitMap(const Array<int> & attr,
    }
 }
 
-void PWCoefficient::SetTime(fptype t)
+void PWCoefficient::SetTime(real_t t)
 {
    Coefficient::SetTime(t);
 
@@ -111,7 +111,7 @@ void PWCoefficient::SetTime(fptype t)
    }
 }
 
-fptype PWCoefficient::Eval(ElementTransformation &T,
+real_t PWCoefficient::Eval(ElementTransformation &T,
                            const IntegrationPoint &ip)
 {
    const int att = T.Attribute;
@@ -126,10 +126,10 @@ fptype PWCoefficient::Eval(ElementTransformation &T,
    return 0.0;
 }
 
-fptype FunctionCoefficient::Eval(ElementTransformation & T,
+real_t FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
-   fptype x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -144,42 +144,42 @@ fptype FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-fptype CartesianCoefficient::Eval(ElementTransformation & T,
+real_t CartesianCoefficient::Eval(ElementTransformation & T,
                                   const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
    return transip[comp];
 }
 
-fptype CylindricalRadialCoefficient::Eval(ElementTransformation & T,
+real_t CylindricalRadialCoefficient::Eval(ElementTransformation & T,
                                           const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
    return sqrt(transip[0] * transip[0] + transip[1] * transip[1]);
 }
 
-fptype CylindricalAzimuthalCoefficient::Eval(ElementTransformation & T,
+real_t CylindricalAzimuthalCoefficient::Eval(ElementTransformation & T,
                                              const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
    return atan2(transip[1], transip[0]);
 }
 
-fptype SphericalRadialCoefficient::Eval(ElementTransformation & T,
+real_t SphericalRadialCoefficient::Eval(ElementTransformation & T,
                                         const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
    return sqrt(transip * transip);
 }
 
-fptype SphericalAzimuthalCoefficient::Eval(ElementTransformation & T,
+real_t SphericalAzimuthalCoefficient::Eval(ElementTransformation & T,
                                            const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
    return atan2(transip[1], transip[0]);
 }
 
-fptype SphericalPolarCoefficient::Eval(ElementTransformation & T,
+real_t SphericalPolarCoefficient::Eval(ElementTransformation & T,
                                        const IntegrationPoint & ip)
 {
    T.Transform(ip, transip);
@@ -187,7 +187,7 @@ fptype SphericalPolarCoefficient::Eval(ElementTransformation & T,
                 transip[2]);
 }
 
-fptype GridFunctionCoefficient::Eval (ElementTransformation &T,
+real_t GridFunctionCoefficient::Eval (ElementTransformation &T,
                                       const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
@@ -208,14 +208,14 @@ void GridFunctionCoefficient::Project(QuadratureFunction &qf)
    qf.ProjectGridFunction(*GridF);
 }
 
-void TransformedCoefficient::SetTime(fptype t)
+void TransformedCoefficient::SetTime(real_t t)
 {
    if (Q1) { Q1->SetTime(t); }
    if (Q2) { Q2->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-fptype TransformedCoefficient::Eval(ElementTransformation &T,
+real_t TransformedCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
    if (Q2)
@@ -229,7 +229,7 @@ fptype TransformedCoefficient::Eval(ElementTransformation &T,
    }
 }
 
-void DeltaCoefficient::SetTime(fptype t)
+void DeltaCoefficient::SetTime(real_t t)
 {
    if (weight) { weight->SetTime(t); }
    this->Coefficient::SetTime(t);
@@ -249,14 +249,14 @@ void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
    vcenter = center;
 }
 
-fptype DeltaCoefficient::EvalDelta(ElementTransformation &T,
+real_t DeltaCoefficient::EvalDelta(ElementTransformation &T,
                                    const IntegrationPoint &ip)
 {
-   fptype w = Scale();
+   real_t w = Scale();
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
 }
 
-void RestrictedCoefficient::SetTime(fptype t)
+void RestrictedCoefficient::SetTime(real_t t)
 {
    if (c) { c->SetTime(t); }
    this->Coefficient::SetTime(t);
@@ -324,7 +324,7 @@ void PWVectorCoefficient::UpdateCoefficient(int attr, VectorCoefficient & coef)
    pieces[attr] = &coef;
 }
 
-void PWVectorCoefficient::SetTime(fptype t)
+void PWVectorCoefficient::SetTime(real_t t)
 {
    VectorCoefficient::SetTime(t);
 
@@ -366,7 +366,7 @@ void PositionVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   fptype x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -396,7 +396,7 @@ VectorArrayCoefficient::VectorArrayCoefficient (int dim)
    }
 }
 
-void VectorArrayCoefficient::SetTime(fptype t)
+void VectorArrayCoefficient::SetTime(real_t t)
 {
    for (int i = 0; i < vdim; i++)
    {
@@ -553,7 +553,7 @@ DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
    GridFunc = gf;
 }
 
-fptype DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
+real_t DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
@@ -569,7 +569,7 @@ fptype DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
    }
 }
 
-void VectorDeltaCoefficient::SetTime(fptype t)
+void VectorDeltaCoefficient::SetTime(real_t t)
 {
    d.SetTime(t);
    this->VectorCoefficient::SetTime(t);
@@ -589,7 +589,7 @@ void VectorDeltaCoefficient::EvalDelta(
    V *= d.EvalDelta(T, ip);
 }
 
-void VectorRestrictedCoefficient::SetTime(fptype t)
+void VectorRestrictedCoefficient::SetTime(real_t t)
 {
    if (c) { c->SetTime(t); }
    this->VectorCoefficient::SetTime(t);
@@ -682,7 +682,7 @@ void PWMatrixCoefficient::UpdateCoefficient(int attr, MatrixCoefficient & coef)
    pieces[attr] = &coef;
 }
 
-void PWMatrixCoefficient::SetTime(fptype t)
+void PWMatrixCoefficient::SetTime(real_t t)
 {
    MatrixCoefficient::SetTime(t);
 
@@ -714,7 +714,7 @@ void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    K = 0.0;
 }
 
-void MatrixFunctionCoefficient::SetTime(fptype t)
+void MatrixFunctionCoefficient::SetTime(real_t t)
 {
    if (Q) { Q->SetTime(t); }
    this->MatrixCoefficient::SetTime(t);
@@ -723,7 +723,7 @@ void MatrixFunctionCoefficient::SetTime(fptype t)
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   fptype x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -745,7 +745,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
       {
          for (int j=i; j<width; ++j)
          {
-            const fptype Kij = Ksym[j - i + os];
+            const real_t Kij = Ksym[j - i + os];
             K(i,j) = Kij;
             if (j != i) { K(j,i) = Kij; }
          }
@@ -782,7 +782,7 @@ void MatrixFunctionCoefficient::EvalSymmetric(Vector &K,
    MFEM_VERIFY(symmetric && height == width && SymmFunction,
                "MatrixFunctionCoefficient is not symmetric");
 
-   fptype x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -839,7 +839,7 @@ void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-void SymmetricMatrixFunctionCoefficient::SetTime(fptype t)
+void SymmetricMatrixFunctionCoefficient::SetTime(real_t t)
 {
    if (Q) { Q->SetTime(t); }
    MatrixCoefficient::SetTime(t);
@@ -849,7 +849,7 @@ void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
                                               ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
-   fptype x[3];
+   real_t x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);
@@ -887,7 +887,7 @@ MatrixArrayCoefficient::MatrixArrayCoefficient (int dim)
    }
 }
 
-void MatrixArrayCoefficient::SetTime(fptype t)
+void MatrixArrayCoefficient::SetTime(real_t t)
 {
    for (int i=0; i < height*width; i++)
    {
@@ -924,7 +924,7 @@ void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-void MatrixRestrictedCoefficient::SetTime(fptype t)
+void MatrixRestrictedCoefficient::SetTime(real_t t)
 {
    if (c) { c->SetTime(t); }
    this->MatrixCoefficient::SetTime(t);
@@ -945,28 +945,28 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
-void SumCoefficient::SetTime(fptype t)
+void SumCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-void ProductCoefficient::SetTime(fptype t)
+void ProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-void RatioCoefficient::SetTime(fptype t)
+void RatioCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-void PowerCoefficient::SetTime(fptype t)
+void PowerCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    this->Coefficient::SetTime(t);
@@ -981,14 +981,14 @@ InnerProductCoefficient::InnerProductCoefficient(VectorCoefficient &A,
                "Arguments have incompatible dimensions.");
 }
 
-void InnerProductCoefficient::SetTime(fptype t)
+void InnerProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-fptype InnerProductCoefficient::Eval(ElementTransformation &T,
+real_t InnerProductCoefficient::Eval(ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    a->Eval(va, T, ip);
@@ -1005,14 +1005,14 @@ VectorRotProductCoefficient::VectorRotProductCoefficient(VectorCoefficient &A,
                "Arguments must have dimension equal to two.");
 }
 
-void VectorRotProductCoefficient::SetTime(fptype t)
+void VectorRotProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-fptype VectorRotProductCoefficient::Eval(ElementTransformation &T,
+real_t VectorRotProductCoefficient::Eval(ElementTransformation &T,
                                          const IntegrationPoint &ip)
 {
    a->Eval(va, T, ip);
@@ -1028,13 +1028,13 @@ DeterminantCoefficient::DeterminantCoefficient(MatrixCoefficient &A)
                "Argument must be a square matrix.");
 }
 
-void DeterminantCoefficient::SetTime(fptype t)
+void DeterminantCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    this->Coefficient::SetTime(t);
 }
 
-fptype DeterminantCoefficient::Eval(ElementTransformation &T,
+real_t DeterminantCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
    a->Eval(ma, T, ip);
@@ -1053,7 +1053,7 @@ VectorSumCoefficient::VectorSumCoefficient(int dim)
 
 VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A_,
                                            VectorCoefficient &B_,
-                                           fptype alpha_, fptype beta_)
+                                           real_t alpha_, real_t beta_)
    : VectorCoefficient(A_.GetVDim()),
      ACoef(&A_), BCoef(&B_),
      A(A_.GetVDim()), B(A_.GetVDim()),
@@ -1082,7 +1082,7 @@ VectorSumCoefficient::VectorSumCoefficient(VectorCoefficient &A_,
                "Arguments must have the same dimension.");
 }
 
-void VectorSumCoefficient::SetTime(fptype t)
+void VectorSumCoefficient::SetTime(real_t t)
 {
    if (ACoef) { ACoef->SetTime(t); }
    if (BCoef) { BCoef->SetTime(t); }
@@ -1103,7 +1103,7 @@ void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
-   fptype A,
+   real_t A,
    VectorCoefficient &B)
    : VectorCoefficient(B.GetVDim()), aConst(A), a(NULL), b(&B)
 {}
@@ -1114,7 +1114,7 @@ ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
    : VectorCoefficient(B.GetVDim()), aConst(0.0), a(&A), b(&B)
 {}
 
-void ScalarVectorProductCoefficient::SetTime(fptype t)
+void ScalarVectorProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1124,17 +1124,17 @@ void ScalarVectorProductCoefficient::SetTime(fptype t)
 void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   fptype sa = (a == NULL) ? aConst : a->Eval(T, ip);
+   real_t sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(V, T, ip);
    V *= sa;
 }
 
 NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
-                                                         fptype tol_)
+                                                         real_t tol_)
    : VectorCoefficient(A.GetVDim()), a(&A), tol(tol_)
 {}
 
-void NormalizedVectorCoefficient::SetTime(fptype t)
+void NormalizedVectorCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    this->VectorCoefficient::SetTime(t);
@@ -1144,7 +1144,7 @@ void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
                                        const IntegrationPoint &ip)
 {
    a->Eval(V, T, ip);
-   fptype nv = V.Norml2();
+   real_t nv = V.Norml2();
    V *= (nv > tol) ? (1.0/nv) : 0.0;
 }
 
@@ -1158,7 +1158,7 @@ VectorCrossProductCoefficient::VectorCrossProductCoefficient(
                "Arguments must have dimension equal to three.");
 }
 
-void VectorCrossProductCoefficient::SetTime(fptype t)
+void VectorCrossProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1186,7 +1186,7 @@ MatrixVectorProductCoefficient::MatrixVectorProductCoefficient(
                "Arguments have incompatible dimensions.");
 }
 
-void MatrixVectorProductCoefficient::SetTime(fptype t)
+void MatrixVectorProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1212,7 +1212,7 @@ void IdentityMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 
 MatrixSumCoefficient::MatrixSumCoefficient(MatrixCoefficient &A,
                                            MatrixCoefficient &B,
-                                           fptype alpha_, fptype beta_)
+                                           real_t alpha_, real_t beta_)
    : MatrixCoefficient(A.GetHeight(), A.GetWidth()),
      a(&A), b(&B), alpha(alpha_), beta(beta_),
      ma(A.GetHeight(), A.GetWidth())
@@ -1222,7 +1222,7 @@ MatrixSumCoefficient::MatrixSumCoefficient(MatrixCoefficient &A,
                "Arguments must have the same dimensions.");
 }
 
-void MatrixSumCoefficient::SetTime(fptype t)
+void MatrixSumCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1259,7 +1259,7 @@ void MatrixProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 }
 
 ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
-   fptype A,
+   real_t A,
    MatrixCoefficient &B)
    : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(A), a(NULL), b(&B)
 {}
@@ -1270,7 +1270,7 @@ ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
    : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(0.0), a(&A), b(&B)
 {}
 
-void ScalarMatrixProductCoefficient::SetTime(fptype t)
+void ScalarMatrixProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1281,7 +1281,7 @@ void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
                                           ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   fptype sa = (a == NULL) ? aConst : a->Eval(T, ip);
+   real_t sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(M, T, ip);
    M *= sa;
 }
@@ -1290,7 +1290,7 @@ TransposeMatrixCoefficient::TransposeMatrixCoefficient(MatrixCoefficient &A)
    : MatrixCoefficient(A.GetWidth(), A.GetHeight()), a(&A)
 {}
 
-void TransposeMatrixCoefficient::SetTime(fptype t)
+void TransposeMatrixCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    this->MatrixCoefficient::SetTime(t);
@@ -1312,7 +1312,7 @@ InverseMatrixCoefficient::InverseMatrixCoefficient(MatrixCoefficient &A)
                "Argument must be a square matrix.");
 }
 
-void InverseMatrixCoefficient::SetTime(fptype t)
+void InverseMatrixCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    this->MatrixCoefficient::SetTime(t);
@@ -1332,7 +1332,7 @@ OuterProductCoefficient::OuterProductCoefficient(VectorCoefficient &A,
      va(A.GetVDim()), vb(B.GetVDim())
 {}
 
-void OuterProductCoefficient::SetTime(fptype t)
+void OuterProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
@@ -1354,7 +1354,7 @@ void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
-CrossCrossCoefficient::CrossCrossCoefficient(fptype A, VectorCoefficient &K)
+CrossCrossCoefficient::CrossCrossCoefficient(real_t A, VectorCoefficient &K)
    : MatrixCoefficient(K.GetVDim(), K.GetVDim()), aConst(A), a(NULL), k(&K),
      vk(K.GetVDim())
 {}
@@ -1365,7 +1365,7 @@ CrossCrossCoefficient::CrossCrossCoefficient(Coefficient &A,
      vk(K.GetVDim())
 {}
 
-void CrossCrossCoefficient::SetTime(fptype t)
+void CrossCrossCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (k) { k->SetTime(t); }
@@ -1378,7 +1378,7 @@ void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    k->Eval(vk, T, ip);
    M.SetSize(vk.Size(), vk.Size());
    M = 0.0;
-   fptype k2 = vk*vk;
+   real_t k2 = vk*vk;
    for (int i=0; i<vk.Size(); i++)
    {
       M(i, i) = k2;
@@ -1390,10 +1390,10 @@ void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    M *= ((a == NULL ) ? aConst : a->Eval(T, ip) );
 }
 
-fptype LpNormLoop(fptype p, Coefficient &coeff, Mesh &mesh,
+real_t LpNormLoop(real_t p, Coefficient &coeff, Mesh &mesh,
                   const IntegrationRule *irs[])
 {
-   fptype norm = 0.0;
+   real_t norm = 0.0;
    ElementTransformation *tr;
 
    for (int i = 0; i < mesh.GetNE(); i++)
@@ -1404,7 +1404,7 @@ fptype LpNormLoop(fptype p, Coefficient &coeff, Mesh &mesh,
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
-         fptype val = fabs(coeff.Eval(*tr, ip));
+         real_t val = fabs(coeff.Eval(*tr, ip));
          if (p < infinity())
          {
             norm += ip.weight * tr->Weight() * pow(val, p);
@@ -1421,14 +1421,14 @@ fptype LpNormLoop(fptype p, Coefficient &coeff, Mesh &mesh,
    return norm;
 }
 
-fptype LpNormLoop(fptype p, VectorCoefficient &coeff, Mesh &mesh,
+real_t LpNormLoop(real_t p, VectorCoefficient &coeff, Mesh &mesh,
                   const IntegrationRule *irs[])
 {
-   fptype norm = 0.0;
+   real_t norm = 0.0;
    ElementTransformation *tr;
    int vdim = coeff.GetVDim();
    Vector vval(vdim);
-   fptype val;
+   real_t val;
 
    for (int i = 0; i < mesh.GetNE(); i++)
    {
@@ -1463,10 +1463,10 @@ fptype LpNormLoop(fptype p, VectorCoefficient &coeff, Mesh &mesh,
    return norm;
 }
 
-fptype ComputeLpNorm(fptype p, Coefficient &coeff, Mesh &mesh,
+real_t ComputeLpNorm(real_t p, Coefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[])
 {
-   fptype norm = LpNormLoop(p, coeff, mesh, irs);
+   real_t norm = LpNormLoop(p, coeff, mesh, irs);
 
    if (p < infinity())
    {
@@ -1484,10 +1484,10 @@ fptype ComputeLpNorm(fptype p, Coefficient &coeff, Mesh &mesh,
    return norm;
 }
 
-fptype ComputeLpNorm(fptype p, VectorCoefficient &coeff, Mesh &mesh,
+real_t ComputeLpNorm(real_t p, VectorCoefficient &coeff, Mesh &mesh,
                      const IntegrationRule *irs[])
 {
-   fptype norm = LpNormLoop(p, coeff, mesh, irs);
+   real_t norm = LpNormLoop(p, coeff, mesh, irs);
 
    if (p < infinity())
    {
@@ -1506,17 +1506,17 @@ fptype ComputeLpNorm(fptype p, VectorCoefficient &coeff, Mesh &mesh,
 }
 
 #ifdef MFEM_USE_MPI
-fptype ComputeGlobalLpNorm(fptype p, Coefficient &coeff, ParMesh &pmesh,
+real_t ComputeGlobalLpNorm(real_t p, Coefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[])
 {
-   fptype loc_norm = LpNormLoop(p, coeff, pmesh, irs);
-   fptype glob_norm = 0;
+   real_t loc_norm = LpNormLoop(p, coeff, pmesh, irs);
+   real_t glob_norm = 0;
 
    MPI_Comm comm = pmesh.GetComm();
 
    if (p < infinity())
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     comm);
 
       // negative quadrature weights may cause norm to be negative
@@ -1531,24 +1531,24 @@ fptype ComputeGlobalLpNorm(fptype p, Coefficient &coeff, ParMesh &pmesh,
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                     comm);
    }
 
    return glob_norm;
 }
 
-fptype ComputeGlobalLpNorm(fptype p, VectorCoefficient &coeff, ParMesh &pmesh,
+real_t ComputeGlobalLpNorm(real_t p, VectorCoefficient &coeff, ParMesh &pmesh,
                            const IntegrationRule *irs[])
 {
-   fptype loc_norm = LpNormLoop(p, coeff, pmesh, irs);
-   fptype glob_norm = 0;
+   real_t loc_norm = LpNormLoop(p, coeff, pmesh, irs);
+   real_t glob_norm = 0;
 
    MPI_Comm comm = pmesh.GetComm();
 
    if (p < infinity())
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     comm);
 
       // negative quadrature weights may cause norm to be negative
@@ -1563,7 +1563,7 @@ fptype ComputeGlobalLpNorm(fptype p, VectorCoefficient &coeff, ParMesh &pmesh,
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                     comm);
    }
 
@@ -1631,7 +1631,7 @@ QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
    MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
 }
 
-fptype QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
+real_t QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
                                            const IntegrationPoint &ip)
 {
    QuadF.HostRead();
@@ -1781,7 +1781,7 @@ void CoefficientVector::MakeRef(const QuadratureFunction &qf_)
    Vector::MakeRef(const_cast<QuadratureFunction&>(qf_), 0, qf_.Size());
 }
 
-void CoefficientVector::SetConstant(fptype constant)
+void CoefficientVector::SetConstant(real_t constant)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    vdim = 1;
@@ -1833,7 +1833,7 @@ void CoefficientVector::SetConstant(const DenseSymmetricMatrix &constant)
    {
       for (int vd = 0; vd < vdim; ++vd)
       {
-         const fptype value = sym ? constant.GetData()[vd] : constant(vd % height,
+         const real_t value = sym ? constant.GetData()[vd] : constant(vd % height,
                                                                       vd / height);
          (*this)[vd + iq*vdim] = value;
       }

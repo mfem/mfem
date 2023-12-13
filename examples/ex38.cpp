@@ -46,7 +46,7 @@ enum class IntegrationType { Volumetric1D, Surface2D, Volumetric2D,
 IntegrationType itype;
 
 /// @brief Level-set function defining the implicit interface
-fptype lvlset(const Vector& X)
+real_t lvlset(const Vector& X)
 {
    switch (itype)
    {
@@ -66,7 +66,7 @@ fptype lvlset(const Vector& X)
 }
 
 /// @brief Function that should be integrated
-fptype integrand(const Vector& X)
+real_t integrand(const Vector& X)
 {
    switch (itype)
    {
@@ -86,7 +86,7 @@ fptype integrand(const Vector& X)
 }
 
 /// @brief Analytic surface integral
-fptype Surface()
+real_t Surface()
 {
    switch (itype)
    {
@@ -106,7 +106,7 @@ fptype Surface()
 }
 
 /// @brief Analytic volume integral over subdomain with positive level-set
-fptype Volume()
+real_t Volume()
 {
    switch (itype)
    {
@@ -424,7 +424,7 @@ public:
       for (int ip = 0; ip < SIntRule->GetNPoints(); ip++)
       {
          Tr.SetIntPoint((&(SIntRule->IntPoint(ip))));
-         fptype val = Tr.Weight() * Q.Eval(Tr, SIntRule->IntPoint(ip));
+         real_t val = Tr.Weight() * Q.Eval(Tr, SIntRule->IntPoint(ip));
          el.CalcShape(SIntRule->IntPoint(ip), shape);
          add(elvect, SIntRule->IntPoint(ip).weight * val, shape, elvect);
       }
@@ -492,7 +492,7 @@ public:
       for (int ip = 0; ip < CIntRule->GetNPoints(); ip++)
       {
          Tr.SetIntPoint((&(CIntRule->IntPoint(ip))));
-         fptype val = Tr.Weight()
+         real_t val = Tr.Weight()
                       * Q.Eval(Tr, CIntRule->IntPoint(ip));
          el.CalcPhysShape(Tr, shape);
          add(elvect, CIntRule->IntPoint(ip).weight * val, shape, elvect);
@@ -636,11 +636,11 @@ int main(int argc, char *argv[])
    cout << "Mesh size dx:                       ";
    if (itype != IntegrationType::Volumetric1D)
    {
-      cout << 3.2 / pow(2., (fptype)ref_levels) << endl;
+      cout << 3.2 / pow(2., (real_t)ref_levels) << endl;
    }
    else
    {
-      cout << .25 / pow(2., (fptype)ref_levels) << endl;
+      cout << .25 / pow(2., (real_t)ref_levels) << endl;
    }
    if (itype == IntegrationType::Surface2D
        || itype == IntegrationType::Volumetric2D)

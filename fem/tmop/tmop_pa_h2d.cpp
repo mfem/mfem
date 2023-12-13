@@ -50,8 +50,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                            const int NE,
-                           const Array<fptype> &b,
-                           const Array<fptype> &g,
+                           const Array<real_t> &b,
+                           const Array<real_t> &g,
                            const DenseTensor &j,
                            const Vector &h,
                            Vector &diagonal,
@@ -77,8 +77,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED fptype qd[DIM*DIM*MQ1*MD1];
-      DeviceTensor<4,fptype> QD(qd, DIM, DIM, MQ1, MD1);
+      MFEM_SHARED real_t qd[DIM*DIM*MQ1*MD1];
+      DeviceTensor<4,real_t> QD(qd, DIM, DIM, MQ1, MD1);
 
       for (int v = 0; v < DIM; v++)
       {
@@ -94,25 +94,25 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                MFEM_UNROLL(MQ1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  const fptype *Jtr = &J(0,0,qx,qy,e);
+                  const real_t *Jtr = &J(0,0,qx,qy,e);
 
                   // Jrt = Jtr^{-1}
-                  fptype jrt_data[4];
+                  real_t jrt_data[4];
                   ConstDeviceMatrix Jrt(jrt_data,2,2);
                   kernels::CalcInverse<2>(Jtr, jrt_data);
 
-                  const fptype gg = G(qy,dy) * G(qy,dy);
-                  const fptype gb = G(qy,dy) * B(qy,dy);
-                  const fptype bb = B(qy,dy) * B(qy,dy);
-                  const fptype bgb[4] = { bb, gb, gb, gg };
+                  const real_t gg = G(qy,dy) * G(qy,dy);
+                  const real_t gb = G(qy,dy) * B(qy,dy);
+                  const real_t bb = B(qy,dy) * B(qy,dy);
+                  const real_t bgb[4] = { bb, gb, gb, gg };
                   ConstDeviceMatrix BG(bgb,2,2);
 
                   for (int i = 0; i < DIM; i++)
                   {
                      for (int j = 0; j < DIM; j++)
                      {
-                        const fptype Jij = Jrt(i,i) * Jrt(j,j);
-                        const fptype alpha = Jij * BG(i,j);
+                        const real_t Jij = Jrt(i,i) * Jrt(j,j);
+                        const real_t alpha = Jij * BG(i,j);
                         QD(i,j,qx,dy) += alpha * H(v,i,v,j,qx,qy,e);
                      }
                   }
@@ -124,13 +124,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               fptype d = 0.0;
+               real_t d = 0.0;
                MFEM_UNROLL(MQ1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const fptype gg = G(qx,dx) * G(qx,dx);
-                  const fptype gb = G(qx,dx) * B(qx,dx);
-                  const fptype bb = B(qx,dx) * B(qx,dx);
+                  const real_t gg = G(qx,dx) * G(qx,dx);
+                  const real_t gb = G(qx,dx) * B(qx,dx);
+                  const real_t bb = B(qx,dx) * B(qx,dx);
                   d += gg * QD(0,0,qx,dy);
                   d += gb * QD(0,1,qx,dy);
                   d += gb * QD(1,0,qx,dy);
@@ -151,8 +151,8 @@ void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &D) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<fptype> &B = PA.maps->B;
-   const Array<fptype> &G = PA.maps->G;
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
    const Vector &H = PA.H;
 
    MFEM_LAUNCH_TMOP_KERNEL(AssembleDiagonalPA_Kernel_2D,id,N,B,G,J,H,D);

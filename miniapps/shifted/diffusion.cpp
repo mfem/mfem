@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    int neumann_level_set_type = -1;
    bool dirichlet_combo = false;
    int ho_terms = 0;
-   fptype alpha = 1;
+   real_t alpha = 1;
    bool include_cut_cell = false;
 
    OptionsParser args(argc, argv);
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    if (dirichlet_level_set_type > 0)
    {
       dirichlet_dist_coef = new Dist_Level_Set_Coefficient(dirichlet_level_set_type);
-      const fptype dx = AvgElementSize(pmesh);
+      const real_t dx = AvgElementSize(pmesh);
       PDEFilter filter(pmesh, dx);
       filter.Filter(*dirichlet_dist_coef, level_set_gf);
       //level_set_gf.ProjectCoefficient(*dirichlet_dist_coef);
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
       ParGridFunction elem_marker_gf(&pfesl2);
       for (int i = 0; i < elem_marker_gf.Size(); i++)
       {
-         elem_marker_gf(i) = (fptype)elem_marker[i];
+         elem_marker_gf(i) = (real_t)elem_marker[i];
       }
       char vishost[] = "localhost";
       int  visport   = 19916, s = 350;
@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
    else
    {
       // Discrete distance vector.
-      fptype dx = AvgElementSize(pmesh);
+      real_t dx = AvgElementSize(pmesh);
       ParGridFunction filt_gf(&pfespace);
       PDEFilter filter(pmesh, 2.0 * dx);
       filter.Filter(combo_dist_coef, filt_gf);
@@ -609,7 +609,7 @@ int main(int argc, char *argv[])
       {
          pxyz(0) = vxyz(i);
          pxyz(1) = vxyz(i+nodes_cnt);
-         fptype exact_val = 0.;
+         real_t exact_val = 0.;
          if (dirichlet_level_set_type == 2 || neumann_level_set_type == 2)
          {
             exact_val = dirichlet_velocity_xy_exponent(pxyz);
@@ -630,14 +630,14 @@ int main(int argc, char *argv[])
                                 "Error", 2*s, 0, s, s, "Rj");
       }
 
-      const fptype global_error = x.ComputeL2Error(*exactCoef);
+      const real_t global_error = x.ComputeL2Error(*exactCoef);
       if (myid == 0)
       {
          std::cout << "Global L2 error: " << global_error << endl;
       }
    }
 
-   const fptype norm = x.ComputeL1Error(one);
+   const real_t norm = x.ComputeL1Error(one);
    if (myid == 0) { std::cout << setprecision(10) << norm << std::endl; }
 
    // Free the used memory.

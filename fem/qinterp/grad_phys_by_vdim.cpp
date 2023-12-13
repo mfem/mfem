@@ -39,11 +39,11 @@ void TensorPhysDerivatives<QVectorLayout::byVDIM>(const int NE,
 
    const int sdim = geom.mesh->SpaceDimension();
 
-   const fptype *B = maps.B.Read();
-   const fptype *G = maps.G.Read();
-   const fptype *J = geom.J.Read();
-   const fptype *X = e_vec.Read();
-   fptype *Y = q_der.Write();
+   const real_t *B = maps.B.Read();
+   const real_t *G = maps.G.Read();
+   const real_t *J = geom.J.Read();
+   const real_t *X = e_vec.Read();
+   real_t *Y = q_der.Write();
 
    constexpr QVectorLayout L = QVectorLayout::byVDIM;
    constexpr bool P = true; // GRAD_PHYS

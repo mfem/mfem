@@ -276,7 +276,7 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
       el_tr->SetIntPoint(&ip_lor);
       // For now we use the geometry information from the LOR space, which means
       // we won't be mass conservative if the mesh is curved
-      fptype w = el_tr->Weight() * ip_lor.weight;
+      real_t w = el_tr->Weight() * ip_lor.weight;
       shape_lor *= w;
       AddMultVWt(shape_lor, shape_ho, M_mixed_el);
    }
@@ -756,12 +756,12 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    SetFromTDofsTranspose(fes_lor, Y, y);
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(fptype p_rtol_)
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
    pcg.SetRelTol(p_rtol_);
 }
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(fptype p_atol_)
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
    pcg.SetAbsTol(p_atol_);
 }
@@ -1098,7 +1098,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::AllocR()
    }
 
    dof_lor_dof_ho.SortRows();
-   fptype* data = Memory<fptype>(dof_dofI[ndof_lor]);
+   real_t* data = Memory<real_t>(dof_dofI[ndof_lor]);
 
    std::unique_ptr<SparseMatrix> R_local(new SparseMatrix(
                                             dof_dofI, dof_dofJ, data, ndof_lor,
@@ -1417,7 +1417,7 @@ namespace TransferKernels
 {
 void Prolongation2D(const int NE, const int D1D, const int Q1D,
                     const Vector& localL, Vector& localH,
-                    const Array<fptype>& B, const Vector& mask)
+                    const Array<real_t>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
    auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
@@ -1430,14 +1430,14 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    {
       for (int dy = 0; dy < D1D; ++dy)
       {
-         fptype sol_x[DofQuadLimits::MAX_Q1D];
+         real_t sol_x[DofQuadLimits::MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             sol_x[qy] = 0.0;
          }
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const fptype s = x_(dx, dy, e);
+            const real_t s = x_(dx, dy, e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] += B_(qx, dx) * s;
@@ -1445,7 +1445,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const fptype d2q = B_(qy, dy);
+            const real_t d2q = B_(qy, dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                y_(qx, qy, e) += d2q * sol_x[qx];
@@ -1464,7 +1464,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
 
 void Prolongation3D(const int NE, const int D1D, const int Q1D,
                     const Vector& localL, Vector& localH,
-                    const Array<fptype>& B, const Vector& mask)
+                    const Array<real_t>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, NE);
    auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
@@ -1477,7 +1477,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
    {
       for (int dz = 0; dz < D1D; ++dz)
       {
-         fptype sol_xy[DofQuadLimits::MAX_Q1D][DofQuadLimits::MAX_Q1D];
+         real_t sol_xy[DofQuadLimits::MAX_Q1D][DofQuadLimits::MAX_Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -1487,14 +1487,14 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            fptype sol_x[DofQuadLimits::MAX_Q1D];
+            real_t sol_x[DofQuadLimits::MAX_Q1D];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                sol_x[qx] = 0;
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const fptype s = x_(dx, dy, dz, e);
+               const real_t s = x_(dx, dy, dz, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_x[qx] += B_(qx, dx) * s;
@@ -1502,7 +1502,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const fptype wy = B_(qy, dy);
+               const real_t wy = B_(qy, dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   sol_xy[qy][qx] += wy * sol_x[qx];
@@ -1511,7 +1511,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const fptype wz = B_(qz, dz);
+            const real_t wz = B_(qz, dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -1536,7 +1536,7 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
 
 void Restriction2D(const int NE, const int D1D, const int Q1D,
                    const Vector& localH, Vector& localL,
-                   const Array<fptype>& Bt, const Vector& mask)
+                   const Array<real_t>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
    auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
@@ -1549,14 +1549,14 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
    {
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         fptype sol_x[DofQuadLimits::MAX_D1D];
+         real_t sol_x[DofQuadLimits::MAX_D1D];
          for (int dx = 0; dx < D1D; ++dx)
          {
             sol_x[dx] = 0.0;
          }
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            const fptype s = m_(qx, qy, e) * x_(qx, qy, e);
+            const real_t s = m_(qx, qy, e) * x_(qx, qy, e);
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] += Bt_(dx, qx) * s;
@@ -1564,7 +1564,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            const fptype q2d = Bt_(dy, qy);
+            const real_t q2d = Bt_(dy, qy);
             for (int dx = 0; dx < D1D; ++dx)
             {
                y_(dx, dy, e) += q2d * sol_x[dx];
@@ -1575,7 +1575,7 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
 }
 void Restriction3D(const int NE, const int D1D, const int Q1D,
                    const Vector& localH, Vector& localL,
-                   const Array<fptype>& Bt, const Vector& mask)
+                   const Array<real_t>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
    auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
@@ -1588,7 +1588,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
    {
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         fptype sol_xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
+         real_t sol_xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -1598,14 +1598,14 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            fptype sol_x[DofQuadLimits::MAX_D1D];
+            real_t sol_x[DofQuadLimits::MAX_D1D];
             for (int dx = 0; dx < D1D; ++dx)
             {
                sol_x[dx] = 0;
             }
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const fptype s = m_(qx, qy, qz, e) * x_(qx, qy, qz, e);
+               const real_t s = m_(qx, qy, qz, e) * x_(qx, qy, qz, e);
                for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_x[dx] += Bt_(dx, qx) * s;
@@ -1613,7 +1613,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
             }
             for (int dy = 0; dy < D1D; ++dy)
             {
-               const fptype wy = Bt_(dy, qy);
+               const real_t wy = Bt_(dy, qy);
                for (int dx = 0; dx < D1D; ++dx)
                {
                   sol_xy[dy][dx] += wy * sol_x[dx];
@@ -1622,7 +1622,7 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
          }
          for (int dz = 0; dz < D1D; ++dz)
          {
-            const fptype wz = Bt_(dz, qz);
+            const real_t wz = Bt_(dz, qz);
             for (int dy = 0; dy < D1D; ++dy)
             {
                for (int dx = 0; dx < D1D; ++dx)

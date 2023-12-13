@@ -46,12 +46,12 @@ public:
    TestCoeff() {}
 
    virtual
-   fptype Eval(ElementTransformation &T,
+   real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip)
    {
       if (T.GetSpaceDim()==3)
       {
-         fptype x[3];
+         real_t x[3];
          Vector transip(x, 3);
          T.Transform(ip, transip);
          return std::sin(x[0])*std::cos(x[1]) +
@@ -60,7 +60,7 @@ public:
       }
       else if (T.GetSpaceDim()==2)
       {
-         fptype x[2];
+         real_t x[2];
          Vector transip(x, 2);
          T.Transform(ip, transip);
          return std::sin(x[0])*std::cos(x[1]) +
@@ -68,7 +68,7 @@ public:
       }
       else
       {
-         fptype x;
+         real_t x;
          Vector transip(&x,1);
          T.Transform(ip, transip);
          return std::sin(x)+std::cos(x);
@@ -255,7 +255,7 @@ int main(int argc, char* argv[])
       // Compare the results
       Vector tmpv = x;
       tmpv -= y;
-      fptype l2err = mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
+      real_t l2err = mfem::InnerProduct(MPI_COMM_WORLD,tmpv,tmpv);
       if (myrank==0)
       {
          std::cout<<"|l2 error|="<<sqrt(l2err)<<std::endl;

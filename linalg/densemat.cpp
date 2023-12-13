@@ -143,7 +143,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
       data.New(hw);
-      std::memcpy(data, m.data, sizeof(fptype)*hw);
+      std::memcpy(data, m.data, sizeof(real_t)*hw);
    }
 }
 
@@ -207,29 +207,29 @@ void DenseMatrix::SetSize(int h, int w)
    }
 }
 
-fptype &DenseMatrix::Elem(int i, int j)
+real_t &DenseMatrix::Elem(int i, int j)
 {
    return (*this)(i,j);
 }
 
-const fptype &DenseMatrix::Elem(int i, int j) const
+const real_t &DenseMatrix::Elem(int i, int j) const
 {
    return (*this)(i,j);
 }
 
-void DenseMatrix::Mult(const fptype *x, fptype *y) const
+void DenseMatrix::Mult(const real_t *x, real_t *y) const
 {
    kernels::Mult(height, width, Data(), x, y);
 }
 
-void DenseMatrix::Mult(const fptype *x, Vector &y) const
+void DenseMatrix::Mult(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size(), "incompatible dimensions");
 
    Mult(x, y.GetData());
 }
 
-void DenseMatrix::Mult(const Vector &x, fptype *y) const
+void DenseMatrix::Mult(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(width == x.Size(), "incompatible dimensions");
 
@@ -244,13 +244,13 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
    Mult(x.GetData(), y.GetData());
 }
 
-fptype DenseMatrix::operator *(const DenseMatrix &m) const
+real_t DenseMatrix::operator *(const DenseMatrix &m) const
 {
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible dimensions");
 
    const int hw = height * width;
-   fptype a = 0.0;
+   real_t a = 0.0;
    for (int i = 0; i < hw; i++)
    {
       a += data[i] * m.data[i];
@@ -259,12 +259,12 @@ fptype DenseMatrix::operator *(const DenseMatrix &m) const
    return a;
 }
 
-void DenseMatrix::MultTranspose(const fptype *x, fptype *y) const
+void DenseMatrix::MultTranspose(const real_t *x, real_t *y) const
 {
-   fptype *d_col = Data();
+   real_t *d_col = Data();
    for (int col = 0; col < width; col++)
    {
-      fptype y_col = 0.0;
+      real_t y_col = 0.0;
       for (int row = 0; row < height; row++)
       {
          y_col += x[row]*d_col[row];
@@ -274,14 +274,14 @@ void DenseMatrix::MultTranspose(const fptype *x, fptype *y) const
    }
 }
 
-void DenseMatrix::MultTranspose(const fptype *x, Vector &y) const
+void DenseMatrix::MultTranspose(const real_t *x, Vector &y) const
 {
    MFEM_ASSERT(width == y.Size(), "incompatible dimensions");
 
    MultTranspose(x, y.GetData());
 }
 
-void DenseMatrix::MultTranspose(const Vector &x, fptype *y) const
+void DenseMatrix::MultTranspose(const Vector &x, real_t *y) const
 {
    MFEM_ASSERT(height == x.Size(), "incompatible dimensions");
 
@@ -296,7 +296,7 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
    MultTranspose(x.GetData(), y.GetData());
 }
 
-void DenseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
+void DenseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
 {
    if (a != 1.0)
    {
@@ -306,11 +306,11 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const fptype *xp = x.GetData(), *d_col = data;
-   fptype *yp = y.GetData();
+   const real_t *xp = x.GetData(), *d_col = data;
+   real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
    {
-      fptype x_col = xp[col];
+      real_t x_col = xp[col];
       for (int row = 0; row < height; row++)
       {
          yp[row] += x_col*d_col[row];
@@ -320,7 +320,7 @@ void DenseMatrix::AddMult(const Vector &x, Vector &y, const fptype a) const
 }
 
 void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
-                                   const fptype a) const
+                                   const real_t a) const
 {
    if (a != 1.0)
    {
@@ -330,10 +330,10 @@ void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   const fptype *d_col = data;
+   const real_t *d_col = data;
    for (int col = 0; col < width; col++)
    {
-      fptype y_col = 0.0;
+      real_t y_col = 0.0;
       for (int row = 0; row < height; row++)
       {
          y_col += x[row]*d_col[row];
@@ -343,16 +343,16 @@ void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
 }
 
-void DenseMatrix::AddMult_a(fptype a, const Vector &x, Vector &y) const
+void DenseMatrix::AddMult_a(real_t a, const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
-   const fptype *xp = x.GetData(), *d_col = data;
-   fptype *yp = y.GetData();
+   const real_t *xp = x.GetData(), *d_col = data;
+   real_t *yp = y.GetData();
    for (int col = 0; col < width; col++)
    {
-      const fptype x_col = a*xp[col];
+      const real_t x_col = a*xp[col];
       for (int row = 0; row < height; row++)
       {
          yp[row] += x_col*d_col[row];
@@ -361,16 +361,16 @@ void DenseMatrix::AddMult_a(fptype a, const Vector &x, Vector &y) const
    }
 }
 
-void DenseMatrix::AddMultTranspose_a(fptype a, const Vector &x,
+void DenseMatrix::AddMultTranspose_a(real_t a, const Vector &x,
                                      Vector &y) const
 {
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   const fptype *d_col = data;
+   const real_t *d_col = data;
    for (int col = 0; col < width; col++)
    {
-      fptype y_col = 0.0;
+      real_t y_col = 0.0;
       for (int row = 0; row < height; row++)
       {
          y_col += x[row]*d_col[row];
@@ -380,13 +380,13 @@ void DenseMatrix::AddMultTranspose_a(fptype a, const Vector &x,
    }
 }
 
-fptype DenseMatrix::InnerProduct(const fptype *x, const fptype *y) const
+real_t DenseMatrix::InnerProduct(const real_t *x, const real_t *y) const
 {
-   fptype prod = 0.0;
+   real_t prod = 0.0;
 
    for (int i = 0; i < height; i++)
    {
-      fptype Axi = 0.0;
+      real_t Axi = 0.0;
       for (int j = 0; j < width; j++)
       {
          Axi += (*this)(i,j) * x[j];
@@ -400,7 +400,7 @@ fptype DenseMatrix::InnerProduct(const fptype *x, const fptype *y) const
 // LeftScaling this = diag(s) * this
 void DenseMatrix::LeftScaling(const Vector & s)
 {
-   fptype * it_data = data;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++i)
@@ -413,7 +413,7 @@ void DenseMatrix::LeftScaling(const Vector & s)
 // InvLeftScaling this = diag(1./s) * this
 void DenseMatrix::InvLeftScaling(const Vector & s)
 {
-   fptype * it_data = data;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++i)
@@ -426,8 +426,8 @@ void DenseMatrix::InvLeftScaling(const Vector & s)
 // RightScaling: this = this * diag(s);
 void DenseMatrix::RightScaling(const Vector & s)
 {
-   fptype sj;
-   fptype * it_data = data;
+   real_t sj;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
       sj = s(j);
@@ -441,10 +441,10 @@ void DenseMatrix::RightScaling(const Vector & s)
 // InvRightScaling: this = this * diag(1./s);
 void DenseMatrix::InvRightScaling(const Vector & s)
 {
-   fptype * it_data = data;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
-      const fptype sj = 1./s(j);
+      const real_t sj = 1./s(j);
       for (int i = 0; i < height; ++i)
       {
          *(it_data++) *= sj;
@@ -460,15 +460,15 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
       mfem_error("DenseMatrix::SymmetricScaling: dimension mismatch");
    }
 
-   fptype * ss = new fptype[width];
-   fptype * it_s = s.GetData();
-   fptype * it_ss = ss;
-   for ( fptype * end_s = it_s + width; it_s != end_s; ++it_s)
+   real_t * ss = new real_t[width];
+   real_t * it_s = s.GetData();
+   real_t * it_ss = ss;
+   for ( real_t * end_s = it_s + width; it_s != end_s; ++it_s)
    {
       *(it_ss++) = sqrt(*it_s);
    }
 
-   fptype * it_data = data;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++i)
@@ -488,15 +488,15 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
       mfem_error("DenseMatrix::InvSymmetricScaling: dimension mismatch");
    }
 
-   fptype * ss = new fptype[width];
-   fptype * it_s = s.GetData();
-   fptype * it_ss = ss;
-   for (fptype * end_s = it_s + width; it_s != end_s; ++it_s)
+   real_t * ss = new real_t[width];
+   real_t * it_s = s.GetData();
+   real_t * it_ss = ss;
+   for (real_t * end_s = it_s + width; it_s != end_s; ++it_s)
    {
       *(it_ss++) = 1./sqrt(*it_s);
    }
 
-   fptype * it_data = data;
+   real_t * it_data = data;
    for (int j = 0; j < width; ++j)
    {
       for (int i = 0; i < height; ++i)
@@ -508,7 +508,7 @@ void DenseMatrix::InvSymmetricScaling(const Vector & s)
    delete[] ss;
 }
 
-fptype DenseMatrix::Trace() const
+real_t DenseMatrix::Trace() const
 {
 #ifdef MFEM_DEBUG
    if (Width() != Height())
@@ -517,7 +517,7 @@ fptype DenseMatrix::Trace() const
    }
 #endif
 
-   fptype t = 0.0;
+   real_t t = 0.0;
 
    for (int i = 0; i < width; i++)
    {
@@ -532,7 +532,7 @@ MatrixInverse *DenseMatrix::Inverse() const
    return new DenseMatrixInverse(*this);
 }
 
-fptype DenseMatrix::Det() const
+real_t DenseMatrix::Det() const
 {
    MFEM_ASSERT(Height() == Width() && Height() > 0,
                "The matrix must be square and "
@@ -550,7 +550,7 @@ fptype DenseMatrix::Det() const
 
       case 3:
       {
-         const fptype *d = data;
+         const real_t *d = data;
          return
             d[0] * (d[4] * d[8] - d[5] * d[7]) +
             d[3] * (d[2] * d[7] - d[1] * d[8]) +
@@ -558,7 +558,7 @@ fptype DenseMatrix::Det() const
       }
       case 4:
       {
-         const fptype *d = data;
+         const real_t *d = data;
          return
             d[ 0] * (d[ 5] * (d[10] * d[15] - d[11] * d[14]) -
                      d[ 9] * (d[ 6] * d[15] - d[ 7] * d[14]) +
@@ -589,7 +589,7 @@ fptype DenseMatrix::Det() const
    // not reachable
 }
 
-fptype DenseMatrix::Weight() const
+real_t DenseMatrix::Weight() const
 {
    if (Height() == Width())
    {
@@ -606,17 +606,17 @@ fptype DenseMatrix::Weight() const
    }
    else if ((Height() == 3) && (Width() == 2))
    {
-      const fptype *d = data;
-      fptype E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-      fptype G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
-      fptype F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
+      const real_t *d = data;
+      real_t E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      real_t G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
+      real_t F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
    mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;
 }
 
-void DenseMatrix::Set(fptype alpha, const fptype *A)
+void DenseMatrix::Set(real_t alpha, const real_t *A)
 {
    const int s = Width()*Height();
    for (int i = 0; i < s; i++)
@@ -625,7 +625,7 @@ void DenseMatrix::Set(fptype alpha, const fptype *A)
    }
 }
 
-void DenseMatrix::Add(const fptype c, const DenseMatrix &A)
+void DenseMatrix::Add(const real_t c, const DenseMatrix &A)
 {
    for (int j = 0; j < Width(); j++)
    {
@@ -636,7 +636,7 @@ void DenseMatrix::Add(const fptype c, const DenseMatrix &A)
    }
 }
 
-void DenseMatrix::Add(const fptype c, const fptype *A)
+void DenseMatrix::Add(const real_t c, const real_t *A)
 {
    const int s = Width()*Height();
    for (int i = 0; i < s; i++)
@@ -645,7 +645,7 @@ void DenseMatrix::Add(const fptype c, const fptype *A)
    }
 }
 
-DenseMatrix &DenseMatrix::operator=(fptype c)
+DenseMatrix &DenseMatrix::operator=(real_t c)
 {
    const int s = Height()*Width();
    for (int i = 0; i < s; i++)
@@ -655,7 +655,7 @@ DenseMatrix &DenseMatrix::operator=(fptype c)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator=(const fptype *d)
+DenseMatrix &DenseMatrix::operator=(const real_t *d)
 {
    const int s = Height()*Width();
    for (int i = 0; i < s; i++)
@@ -678,9 +678,9 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator+=(const fptype *m)
+DenseMatrix &DenseMatrix::operator+=(const real_t *m)
 {
-   kernels::Add(Height(), Width(), m, (fptype*)data);
+   kernels::Add(Height(), Width(), m, (real_t*)data);
    return *this;
 }
 
@@ -704,7 +704,7 @@ DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator*=(fptype c)
+DenseMatrix &DenseMatrix::operator*=(real_t c)
 {
    int s = Height()*Width();
    for (int i = 0; i < s; i++)
@@ -735,7 +735,7 @@ void DenseMatrix::Invert()
 #ifdef MFEM_USE_LAPACK
    int   *ipiv = new int[width];
    int    lwork = -1;
-   fptype qwork, *work;
+   real_t qwork, *work;
    int    info;
 
 #ifdef MFEM_USE_FLOAT
@@ -774,7 +774,7 @@ void DenseMatrix::Invert()
    delete [] ipiv;
 #else
    int c, i, j, n = Width();
-   fptype a, b;
+   real_t a, b;
    Array<int> piv(n);
 
    for (c = 0; c < n; c++)
@@ -797,7 +797,7 @@ void DenseMatrix::Invert()
       piv[c] = i;
       for (j = 0; j < n; j++)
       {
-         mfem::Swap<fptype>((*this)(c, j), (*this)(i, j));
+         mfem::Swap<real_t>((*this)(c, j), (*this)(i, j));
       }
 
       a = (*this)(c, c) = 1.0 / (*this)(c, c);
@@ -840,7 +840,7 @@ void DenseMatrix::Invert()
       j = piv[c];
       for (i = 0; i < n; i++)
       {
-         mfem::Swap<fptype>((*this)(i, c), (*this)(i, j));
+         mfem::Swap<real_t>((*this)(i, c), (*this)(i, j));
       }
    }
 #endif
@@ -891,7 +891,7 @@ void DenseMatrix::SquareRootInverse()
    }
 }
 
-void DenseMatrix::Norm2(fptype *v) const
+void DenseMatrix::Norm2(real_t *v) const
 {
    for (int j = 0; j < Width(); j++)
    {
@@ -904,11 +904,11 @@ void DenseMatrix::Norm2(fptype *v) const
    }
 }
 
-fptype DenseMatrix::MaxMaxNorm() const
+real_t DenseMatrix::MaxMaxNorm() const
 {
    int hw = Height()*Width();
-   const fptype *d = data;
-   fptype norm = 0.0, abs_entry;
+   const real_t *d = data;
+   real_t norm = 0.0, abs_entry;
 
    for (int i = 0; i < hw; i++)
    {
@@ -922,10 +922,10 @@ fptype DenseMatrix::MaxMaxNorm() const
    return norm;
 }
 
-void DenseMatrix::FNorm(fptype &scale_factor, fptype &scaled_fnorm2) const
+void DenseMatrix::FNorm(real_t &scale_factor, real_t &scaled_fnorm2) const
 {
    int i, hw = Height() * Width();
-   fptype max_norm = 0.0, entry, fnorm2;
+   real_t max_norm = 0.0, entry, fnorm2;
 
    for (i = 0; i < hw; i++)
    {
@@ -962,21 +962,21 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    char      RANGE    = 'A';
    char      UPLO     = 'U';
    int       N        = a.Width();
-   fptype   *A        = new fptype[N*N];
+   real_t   *A        = new real_t[N*N];
    int       LDA      = N;
-   fptype    VL       = 0.0;
-   fptype    VU       = 1.0;
+   real_t    VL       = 0.0;
+   real_t    VU       = 1.0;
    int       IL       = 0;
    int       IU       = 1;
-   fptype    ABSTOL   = 0.0;
+   real_t    ABSTOL   = 0.0;
    int       M;
-   fptype   *W        = ev.GetData();
-   fptype   *Z        = NULL;
+   real_t   *W        = ev.GetData();
+   real_t   *Z        = NULL;
    int       LDZ      = 1;
    int      *ISUPPZ   = new int[2*N];
    int       LWORK    = -1; // query optimal (double) workspace size
-   fptype    QWORK;
-   fptype   *WORK     = NULL;
+   real_t    QWORK;
+   real_t   *WORK     = NULL;
    int       LIWORK   = -1; // query optimal (int) workspace size
    int       QIWORK;
    int      *IWORK    = NULL;
@@ -992,7 +992,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
 
    int hw = a.Height() * a.Width();
-   fptype *data = a.Data();
+   real_t *data = a.Data();
 
    for (int i = 0; i < hw; i++)
    {
@@ -1010,7 +1010,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    LWORK  = (int) QWORK;
    LIWORK = QIWORK;
 
-   WORK  = new fptype[LWORK];
+   WORK  = new real_t[LWORK];
    IWORK = new int[LIWORK];
 
 #ifdef MFEM_USE_FLOAT
@@ -1136,10 +1136,10 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    ev.SetSize(N);
 
-   fptype *A    = NULL;
-   fptype *W    = ev.GetData();
-   fptype *WORK = NULL;
-   fptype  QWORK;
+   real_t *A    = NULL;
+   real_t *W    = ev.GetData();
+   real_t *WORK = NULL;
+   real_t  QWORK;
 
    if (evect)
    {
@@ -1149,11 +1149,11 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    }
    else
    {
-      A = new fptype[N*N];
+      A = new real_t[N*N];
    }
 
    int hw = a.Height() * a.Width();
-   fptype *data = a.Data();
+   real_t *data = a.Data();
    for (int i = 0; i < hw; i++)
    {
       A[i] = data[i];
@@ -1166,7 +1166,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 #endif
 
    LWORK = (int) QWORK;
-   WORK = new fptype[LWORK];
+   WORK = new real_t[LWORK];
 
 #ifdef MFEM_USE_FLOAT
    ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
@@ -1221,11 +1221,11 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
 
    ev.SetSize(N);
 
-   fptype *A    = NULL;
-   fptype *B    = new fptype[N*N];
-   fptype *W    = ev.GetData();
-   fptype *WORK = NULL;
-   fptype  QWORK;
+   real_t *A    = NULL;
+   real_t *B    = new real_t[N*N];
+   real_t *W    = ev.GetData();
+   real_t *WORK = NULL;
+   real_t  QWORK;
 
    if (evect)
    {
@@ -1235,12 +1235,12 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    }
    else
    {
-      A = new fptype[N*N];
+      A = new real_t[N*N];
    }
 
    int hw = a.Height() * a.Width();
-   fptype *a_data = a.Data();
-   fptype *b_data = b.Data();
+   real_t *a_data = a.Data();
+   real_t *b_data = b.Data();
    for (int i = 0; i < hw; i++)
    {
       A[i] = a_data[i];
@@ -1254,7 +1254,7 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
 #endif
 
    LWORK = (int) QWORK;
-   WORK = new fptype[LWORK];
+   WORK = new real_t[LWORK];
 
 #ifdef MFEM_USE_FLOAT
    ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
@@ -1302,15 +1302,15 @@ void DenseMatrix::SingularValues(Vector &sv) const
    char        jobvt        = 'N';
    int         m            = Height();
    int         n            = Width();
-   fptype      *a           = copy_of_this.data;
+   real_t      *a           = copy_of_this.data;
    sv.SetSize(min(m, n));
-   fptype      *s           = sv.GetData();
-   fptype      *u           = NULL;
-   fptype      *vt          = NULL;
-   fptype      *work        = NULL;
+   real_t      *s           = sv.GetData();
+   real_t      *u           = NULL;
+   real_t      *vt          = NULL;
+   real_t      *work        = NULL;
    int         lwork        = -1;
    int         info;
-   fptype      qwork;
+   real_t      qwork;
 
 #ifdef MFEM_USE_FLOAT
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
@@ -1320,7 +1320,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
            s, u, &m, vt, &n, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new fptype[lwork];
+   work = new real_t[lwork];
 
 #ifdef MFEM_USE_FLOAT
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
@@ -1342,7 +1342,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
 #endif
 }
 
-int DenseMatrix::Rank(fptype tol) const
+int DenseMatrix::Rank(real_t tol) const
 {
    int rank=0;
    Vector sv(min(Height(), Width()));
@@ -1357,7 +1357,7 @@ int DenseMatrix::Rank(fptype tol) const
    return rank;
 }
 
-fptype DenseMatrix::CalcSingularvalue(const int i) const
+real_t DenseMatrix::CalcSingularvalue(const int i) const
 {
    MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
                "The matrix must be square and sized 1, 2, or 3 to compute the"
@@ -1366,7 +1366,7 @@ fptype DenseMatrix::CalcSingularvalue(const int i) const
                << ", Width() = " << Width());
 
    const int n = Height();
-   const fptype *d = data;
+   const real_t *d = data;
 
    if (n == 1)
    {
@@ -1382,7 +1382,7 @@ fptype DenseMatrix::CalcSingularvalue(const int i) const
    }
 }
 
-void DenseMatrix::CalcEigenvalues(fptype *lambda, fptype *vec) const
+void DenseMatrix::CalcEigenvalues(real_t *lambda, real_t *vec) const
 {
 #ifdef MFEM_DEBUG
    if (Height() != Width() || Height() < 2 || Height() > 3)
@@ -1392,7 +1392,7 @@ void DenseMatrix::CalcEigenvalues(fptype *lambda, fptype *vec) const
 #endif
 
    const int n = Height();
-   const fptype *d = data;
+   const real_t *d = data;
 
    if (n == 2)
    {
@@ -1410,8 +1410,8 @@ void DenseMatrix::GetRow(int r, Vector &row) const
    int n = Width();
    row.SetSize(n);
 
-   const fptype* rp = data + r;
-   fptype* vp = row.GetData();
+   const real_t* rp = data + r;
+   real_t* vp = row.GetData();
 
    for (int i = 0; i < n; i++)
    {
@@ -1425,8 +1425,8 @@ void DenseMatrix::GetColumn(int c, Vector &col) const
    int m = Height();
    col.SetSize(m);
 
-   fptype *cp = Data() + c * m;
-   fptype *vp = col.GetData();
+   real_t *cp = Data() + c * m;
+   real_t *vp = col.GetData();
 
    for (int i = 0; i < m; i++)
    {
@@ -1470,7 +1470,7 @@ void DenseMatrix::GetRowSums(Vector &l) const
    l.SetSize(height);
    for (int i = 0; i < height; i++)
    {
-      fptype d = 0.0;
+      real_t d = 0.0;
       for (int j = 0; j < width; j++)
       {
          d += operator()(i, j);
@@ -1479,7 +1479,7 @@ void DenseMatrix::GetRowSums(Vector &l) const
    }
 }
 
-void DenseMatrix::Diag(fptype c, int n)
+void DenseMatrix::Diag(real_t c, int n)
 {
    SetSize(n);
 
@@ -1494,7 +1494,7 @@ void DenseMatrix::Diag(fptype c, int n)
    }
 }
 
-void DenseMatrix::Diag(fptype *diag, int n)
+void DenseMatrix::Diag(real_t *diag, int n)
 {
    SetSize(n);
 
@@ -1512,7 +1512,7 @@ void DenseMatrix::Diag(fptype *diag, int n)
 void DenseMatrix::Transpose()
 {
    int i, j;
-   fptype t;
+   real_t t;
 
    if (Width() == Height())
    {
@@ -1557,7 +1557,7 @@ void DenseMatrix::Lump()
 {
    for (int i = 0; i < Height(); i++)
    {
-      fptype L = 0.0;
+      real_t L = 0.0;
       for (int j = 0; j < Width(); j++)
       {
          L += (*this)(i, j);
@@ -1584,8 +1584,8 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
       for (int i = 0; i < n; i++)
       {
          // (x,y) is grad of Ui
-         fptype x = (*this)(i,0);
-         fptype y = (*this)(i,1);
+         real_t x = (*this)(i,0);
+         real_t y = (*this)(i,1);
 
          int j = i+n;
 
@@ -1601,9 +1601,9 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
       for (int i = 0; i < n; i++)
       {
          // (x,y,z) is grad of Ui
-         fptype x = (*this)(i,0);
-         fptype y = (*this)(i,1);
-         fptype z = (*this)(i,2);
+         real_t x = (*this)(i,0);
+         real_t y = (*this)(i,1);
+         real_t z = (*this)(i,2);
 
          int j = i+n;
          int k = j+n;
@@ -1647,7 +1647,7 @@ void DenseMatrix::GradToDiv(Vector &div)
    // div(dof*j+i) <-- (*this)(i,j)
 
    const int n = height * width;
-   fptype *ddata = div.GetData();
+   real_t *ddata = div.GetData();
 
    for (int i = 0; i < n; i++)
    {
@@ -1696,7 +1696,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco)
 
 void DenseMatrix::CopyMN(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   fptype *v = A.Data();
+   real_t *v = A.Data();
 
    for (int j = 0; j < A.Width(); j++)
    {
@@ -1709,7 +1709,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int row_offset, int col_offset)
 
 void DenseMatrix::CopyMNt(const DenseMatrix &A, int row_offset, int col_offset)
 {
-   fptype *v = A.Data();
+   real_t *v = A.Data();
 
    for (int i = 0; i < A.Width(); i++)
    {
@@ -1751,7 +1751,7 @@ void DenseMatrix::CopyMN(const DenseMatrix &A, int m, int n, int Aro, int Aco,
    }
 }
 
-void DenseMatrix::CopyMNDiag(fptype c, int n, int row_offset, int col_offset)
+void DenseMatrix::CopyMNDiag(real_t c, int n, int row_offset, int col_offset)
 {
    for (int i = 0; i < n; i++)
    {
@@ -1768,7 +1768,7 @@ void DenseMatrix::CopyMNDiag(fptype c, int n, int row_offset, int col_offset)
    }
 }
 
-void DenseMatrix::CopyMNDiag(fptype *diag, int n, int row_offset,
+void DenseMatrix::CopyMNDiag(real_t *diag, int n, int row_offset,
                              int col_offset)
 {
    for (int i = 0; i < n; i++)
@@ -1815,7 +1815,7 @@ void DenseMatrix::CopyExceptMN(const DenseMatrix &A, int m, int n)
 void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
 {
    int h, ah, aw;
-   fptype *p, *ap;
+   real_t *p, *ap;
 
    h  = Height();
    ah = A.Height();
@@ -1842,10 +1842,10 @@ void DenseMatrix::AddMatrix(DenseMatrix &A, int ro, int co)
    }
 }
 
-void DenseMatrix::AddMatrix(fptype a, const DenseMatrix &A, int ro, int co)
+void DenseMatrix::AddMatrix(real_t a, const DenseMatrix &A, int ro, int co)
 {
    int h, ah, aw;
-   fptype *p, *ap;
+   real_t *p, *ap;
 
    h  = Height();
    ah = A.Height();
@@ -1879,7 +1879,7 @@ void DenseMatrix::GetSubMatrix(const Array<int> & idx, DenseMatrix & A) const
    MFEM_VERIFY(idx.Min() >=0 && idx_max < this->height && idx_max < this->width,
                "DenseMatrix::GetSubMatrix: Index out of bounds");
    A.SetSize(k);
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -1905,7 +1905,7 @@ void DenseMatrix::GetSubMatrix(const Array<int> & idx_i,
                "DenseMatrix::GetSubMatrix: Col index out of bounds");
 
    A.SetSize(k,l);
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -1929,7 +1929,7 @@ void DenseMatrix::GetSubMatrix(int ibeg, int iend, DenseMatrix & A)
 
    int k = iend - ibeg;
    A.SetSize(k);
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -1962,7 +1962,7 @@ void DenseMatrix::GetSubMatrix(int ibeg, int iend, int jbeg, int jend,
    int k = iend - ibeg;
    int l = jend - jbeg;
    A.SetSize(k,l);
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -1991,7 +1991,7 @@ void DenseMatrix::SetSubMatrix(const Array<int> & idx, const DenseMatrix & A)
    MFEM_VERIFY(idx_max < this->width,
                "DenseMatrix::SetSubMatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2021,7 +2021,7 @@ void DenseMatrix::SetSubMatrix(const Array<int> & idx_i,
    MFEM_VERIFY(idx_j.Max() < this->width,
                "DenseMatrix::SetSubMatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2047,7 +2047,7 @@ void DenseMatrix::SetSubMatrix(int ibeg, const DenseMatrix & A)
    MFEM_VERIFY(ibeg + k <= this->width,
                "DenseMatrix::SetSubmatrix: index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2075,7 +2075,7 @@ void DenseMatrix::SetSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
    MFEM_VERIFY(jbeg + l <= this->width,
                "DenseMatrix::SetSubmatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2103,7 +2103,7 @@ void DenseMatrix::AddSubMatrix(const Array<int> & idx, const DenseMatrix & A)
    MFEM_VERIFY(idx_max < this->width,
                "DenseMatrix::AddSubMatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2134,7 +2134,7 @@ void DenseMatrix::AddSubMatrix(const Array<int> & idx_i,
    MFEM_VERIFY(idx_j.Max() < this->width,
                "DenseMatrix::AddSubMatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2160,7 +2160,7 @@ void DenseMatrix::AddSubMatrix(int ibeg, const DenseMatrix & A)
    MFEM_VERIFY(ibeg + k <= this->Width(),
                "DenseMatrix::AddSubmatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2188,7 +2188,7 @@ void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
    MFEM_VERIFY(jbeg + l <= this->width,
                "DenseMatrix::AddSubmatrix: Index bigger than col upper bound");
 
-   fptype * adata = A.Data();
+   real_t * adata = A.Data();
 
    int ii, jj;
    for (int i = 0; i<k; i++)
@@ -2205,7 +2205,7 @@ void DenseMatrix::AddSubMatrix(int ibeg, int jbeg, const DenseMatrix & A)
 void DenseMatrix::AddToVector(int offset, Vector &v) const
 {
    const int n = height * width;
-   fptype *vdata = v.GetData() + offset;
+   real_t *vdata = v.GetData() + offset;
 
    for (int i = 0; i < n; i++)
    {
@@ -2216,7 +2216,7 @@ void DenseMatrix::AddToVector(int offset, Vector &v) const
 void DenseMatrix::GetFromVector(int offset, const Vector &v)
 {
    const int n = height * width;
-   const fptype *vdata = v.GetData() + offset;
+   const real_t *vdata = v.GetData() + offset;
 
    for (int i = 0; i < n; i++)
    {
@@ -2251,7 +2251,7 @@ void DenseMatrix::AdjustDofDirection(Array<int> &dofs)
    }
 }
 
-void DenseMatrix::SetRow(int row, fptype value)
+void DenseMatrix::SetRow(int row, real_t value)
 {
    for (int j = 0; j < Width(); j++)
    {
@@ -2259,7 +2259,7 @@ void DenseMatrix::SetRow(int row, fptype value)
    }
 }
 
-void DenseMatrix::SetCol(int col, fptype value)
+void DenseMatrix::SetCol(int col, real_t value)
 {
    for (int i = 0; i < Height(); i++)
    {
@@ -2267,7 +2267,7 @@ void DenseMatrix::SetCol(int col, fptype value)
    }
 }
 
-void DenseMatrix::SetRow(int r, const fptype* row)
+void DenseMatrix::SetRow(int r, const real_t* row)
 {
    MFEM_ASSERT(row != nullptr, "supplied row pointer is null");
    for (int j = 0; j < Width(); j++)
@@ -2282,7 +2282,7 @@ void DenseMatrix::SetRow(int r, const Vector &row)
    SetRow(r, row.GetData());
 }
 
-void DenseMatrix::SetCol(int c, const fptype* col)
+void DenseMatrix::SetCol(int c, const real_t* col)
 {
    MFEM_ASSERT(col != nullptr, "supplied column pointer is null");
    for (int i = 0; i < Height(); i++)
@@ -2297,7 +2297,7 @@ void DenseMatrix::SetCol(int c, const Vector &col)
    SetCol(c, col.GetData());
 }
 
-void DenseMatrix::Threshold(fptype eps)
+void DenseMatrix::Threshold(real_t eps)
 {
    for (int col = 0; col < Width(); col++)
    {
@@ -2411,19 +2411,19 @@ DenseMatrix::~DenseMatrix()
 
 
 void Add(const DenseMatrix &A, const DenseMatrix &B,
-         fptype alpha, DenseMatrix &C)
+         real_t alpha, DenseMatrix &C)
 {
    kernels::Add(C.Height(), C.Width(), alpha, A.Data(), B.Data(), C.Data());
 }
 
-void Add(fptype alpha, const fptype *A,
-         fptype beta,  const fptype *B, DenseMatrix &C)
+void Add(real_t alpha, const real_t *A,
+         real_t beta,  const real_t *B, DenseMatrix &C)
 {
    kernels::Add(C.Height(), C.Width(), alpha, A, beta, B, C.Data());
 }
 
-void Add(fptype alpha, const DenseMatrix &A,
-         fptype beta,  const DenseMatrix &B, DenseMatrix &C)
+void Add(real_t alpha, const DenseMatrix &A,
+         real_t beta,  const DenseMatrix &B, DenseMatrix &C)
 {
    MFEM_ASSERT(A.Height() == C.Height(), "");
    MFEM_ASSERT(B.Height() == C.Height(), "");
@@ -2432,7 +2432,7 @@ void Add(fptype alpha, const DenseMatrix &A,
    Add(alpha, A.GetData(), beta, B.GetData(), C);
 }
 
-bool LinearSolve(DenseMatrix& A, fptype* X, fptype TOL)
+bool LinearSolve(DenseMatrix& A, real_t* X, real_t TOL)
 {
    MFEM_VERIFY(A.IsSquare(), "A must be a square matrix!");
    MFEM_ASSERT(A.NumCols() > 0, "supplied matrix, A, is empty!");
@@ -2444,7 +2444,7 @@ bool LinearSolve(DenseMatrix& A, fptype* X, fptype TOL)
    {
       case 1:
       {
-         fptype det = A(0,0);
+         real_t det = A(0,0);
          if (std::abs(det) <= TOL) { return false; } // singular
 
          X[0] /= det;
@@ -2452,13 +2452,13 @@ bool LinearSolve(DenseMatrix& A, fptype* X, fptype TOL)
       }
       case 2:
       {
-         fptype det = A.Det();
+         real_t det = A.Det();
          if (std::abs(det) <= TOL) { return false; } // singular
 
-         fptype invdet = 1. / det;
+         real_t invdet = 1. / det;
 
-         fptype b0 = X[0];
-         fptype b1 = X[1];
+         real_t b0 = X[0];
+         real_t b1 = X[1];
 
          X[0] = ( A(1,1)*b0 - A(0,1)*b1) * invdet;
          X[1] = (-A(1,0)*b0 + A(0,0)*b1) * invdet;
@@ -2487,7 +2487,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static fptype alpha = 1.0, beta = 0.0;
+   static real_t alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -2500,14 +2500,14 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    const int ah = a.Height();
    const int aw = a.Width();
    const int bw = b.Width();
-   fptype *ad = a.Data();
-   const fptype *bd = b.Data();
-   const fptype *cd = c.Data();
+   real_t *ad = a.Data();
+   const real_t *bd = b.Data();
+   const real_t *cd = c.Data();
    kernels::Mult(ah,aw,bw,bd,cd,ad);
 #endif
 }
 
-void AddMult_a(fptype alpha, const DenseMatrix &b, const DenseMatrix &c,
+void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
                DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -2515,7 +2515,7 @@ void AddMult_a(fptype alpha, const DenseMatrix &b, const DenseMatrix &c,
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static fptype beta = 1.0;
+   static real_t beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -2528,9 +2528,9 @@ void AddMult_a(fptype alpha, const DenseMatrix &b, const DenseMatrix &c,
    const int ah = a.Height();
    const int aw = a.Width();
    const int bw = b.Width();
-   fptype *ad = a.Data();
-   const fptype *bd = b.Data();
-   const fptype *cd = c.Data();
+   real_t *ad = a.Data();
+   const real_t *bd = b.Data();
+   const real_t *cd = c.Data();
    for (int j = 0; j < aw; j++)
    {
       for (int k = 0; k < bw; k++)
@@ -2551,7 +2551,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
-   static fptype alpha = 1.0, beta = 1.0;
+   static real_t alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -2564,9 +2564,9 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    const int ah = a.Height();
    const int aw = a.Width();
    const int bw = b.Width();
-   fptype *ad = a.Data();
-   const fptype *bd = b.Data();
-   const fptype *cd = c.Data();
+   real_t *ad = a.Data();
+   const real_t *bd = b.Data();
+   const real_t *cd = c.Data();
    for (int j = 0; j < aw; j++)
    {
       for (int k = 0; k < bw; k++)
@@ -2595,8 +2595,8 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 
    if (a.Width() < a.Height())
    {
-      const fptype *d = a.Data();
-      fptype *ad = adja.Data();
+      const real_t *d = a.Data();
+      real_t *ad = adja.Data();
       if (a.Width() == 1)
       {
          // N x 1, N = 2,3
@@ -2610,7 +2610,7 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
       else
       {
          // 3 x 2
-         fptype e, g, f;
+         real_t e, g, f;
          e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
          g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
          f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
@@ -2696,8 +2696,8 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 
    if (a.Width() < a.Height())
    {
-      const fptype *d = a.Data();
-      fptype *id = inva.Data();
+      const real_t *d = a.Data();
+      real_t *id = inva.Data();
       if (a.Height() == 2)
       {
          kernels::CalcLeftInverse<2,1>(d, id);
@@ -2717,7 +2717,7 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
    }
 
 #ifdef MFEM_DEBUG
-   const fptype t = a.Det();
+   const real_t t = a.Det();
    MFEM_ASSERT(std::abs(t) > 1.0e-14 * pow(a.FNorm()/a.Width(), a.Width()),
                "singular matrix!");
 #endif
@@ -2746,7 +2746,7 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
    }
 #endif
 
-   fptype t = 1. / a.Det() ;
+   real_t t = 1. / a.Det() ;
 
    switch (a.Height())
    {
@@ -2787,7 +2787,7 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
                 << ", n.Size() = " << n.Size()
               );
 
-   const fptype *d = J.Data();
+   const real_t *d = J.Data();
    if (J.Height() == 2)
    {
       n(0) =  d[1];
@@ -2809,7 +2809,7 @@ void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
    {
       for (int j = 0; j <= i; j++)
       {
-         fptype temp = 0.;
+         real_t temp = 0.;
          for (int k = 0; k < width; k++)
          {
             temp += a(i,k) * a(j,k);
@@ -2825,7 +2825,7 @@ void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
    {
       for (int j = 0; j < i; j++)
       {
-         fptype t = 0.;
+         real_t t = 0.;
          for (int k = 0; k < A.Width(); k++)
          {
             t += D(k) * A(i, k) * A(j, k);
@@ -2838,7 +2838,7 @@ void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
    // process diagonal
    for (int i = 0; i < A.Height(); i++)
    {
-      fptype t = 0.;
+      real_t t = 0.;
       for (int k = 0; k < A.Width(); k++)
       {
          t += D(k) * A(i, k) * A(i, k);
@@ -2853,7 +2853,7 @@ void MultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
    {
       for (int j = 0; j <= i; j++)
       {
-         fptype t = 0.;
+         real_t t = 0.;
          for (int k = 0; k < A.Width(); k++)
          {
             t += D(k) * A(i, k) * A(j, k);
@@ -2875,7 +2875,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   static fptype alpha = 1.0, beta = 0.0;
+   static real_t alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -2888,25 +2888,25 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   fptype *cd = ABt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = ABt.Data();
 
    kernels::MultABt(ah, aw, bh, ad, bd, cd);
 #elif 1
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   fptype *cd = ABt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = ABt.Data();
 
    for (int j = 0; j < bh; j++)
       for (int i = 0; i < ah; i++)
       {
-         fptype d = 0.0;
-         const fptype *ap = ad + i;
-         const fptype *bp = bd + j;
+         real_t d = 0.0;
+         const real_t *ap = ad + i;
+         const real_t *bp = bd + j;
          for (int k = 0; k < aw; k++)
          {
             d += (*ap) * (*bp);
@@ -2917,7 +2917,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
       }
 #else
    int i, j, k;
-   fptype d;
+   real_t d;
 
    for (i = 0; i < A.Height(); i++)
       for (j = 0; j < B.Height(); j++)
@@ -2946,10 +2946,10 @@ void MultADBt(const DenseMatrix &A, const Vector &D,
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   const fptype *dd = D.GetData();
-   fptype *cd = ADBt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   const real_t *dd = D.GetData();
+   real_t *cd = ADBt.Data();
 
    for (int i = 0, s = ah*bh; i < s; i++)
    {
@@ -2957,10 +2957,10 @@ void MultADBt(const DenseMatrix &A, const Vector &D,
    }
    for (int k = 0; k < aw; k++)
    {
-      fptype *cp = cd;
+      real_t *cp = cd;
       for (int j = 0; j < bh; j++)
       {
-         const fptype dk_bjk = dd[k] * bd[j];
+         const real_t dk_bjk = dd[k] * bd[j];
          for (int i = 0; i < ah; i++)
          {
             cp[i] += ad[i] * dk_bjk;
@@ -2984,7 +2984,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   static fptype alpha = 1.0, beta = 1.0;
+   static real_t alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -2997,16 +2997,16 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   fptype *cd = ABt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = ABt.Data();
 
    for (int k = 0; k < aw; k++)
    {
-      fptype *cp = cd;
+      real_t *cp = cd;
       for (int j = 0; j < bh; j++)
       {
-         const fptype bjk = bd[j];
+         const real_t bjk = bd[j];
          for (int i = 0; i < ah; i++)
          {
             cp[i] += ad[i] * bjk;
@@ -3018,7 +3018,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    }
 #else
    int i, j, k;
-   fptype d;
+   real_t d;
 
    for (i = 0; i < A.Height(); i++)
       for (j = 0; j < B.Height(); j++)
@@ -3047,17 +3047,17 @@ void AddMultADBt(const DenseMatrix &A, const Vector &D,
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   const fptype *dd = D.GetData();
-   fptype *cd = ADBt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   const real_t *dd = D.GetData();
+   real_t *cd = ADBt.Data();
 
    for (int k = 0; k < aw; k++)
    {
-      fptype *cp = cd;
+      real_t *cp = cd;
       for (int j = 0; j < bh; j++)
       {
-         const fptype dk_bjk = dd[k] * bd[j];
+         const real_t dk_bjk = dd[k] * bd[j];
          for (int i = 0; i < ah; i++)
          {
             cp[i] += ad[i] * dk_bjk;
@@ -3069,7 +3069,7 @@ void AddMultADBt(const DenseMatrix &A, const Vector &D,
    }
 }
 
-void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
+void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
                    DenseMatrix &ABt)
 {
 #ifdef MFEM_DEBUG
@@ -3082,8 +3082,8 @@ void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'T';
-   fptype alpha = a;
-   static fptype beta = 1.0;
+   real_t alpha = a;
+   static real_t beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
 #ifdef MFEM_USE_FLOAT
@@ -3096,16 +3096,16 @@ void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
    const int ah = A.Height();
    const int bh = B.Height();
    const int aw = A.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   fptype *cd = ABt.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = ABt.Data();
 
    for (int k = 0; k < aw; k++)
    {
-      fptype *cp = cd;
+      real_t *cp = cd;
       for (int j = 0; j < bh; j++)
       {
-         const fptype bjk = a * bd[j];
+         const real_t bjk = a * bd[j];
          for (int i = 0; i < ah; i++)
          {
             cp[i] += ad[i] * bjk;
@@ -3117,7 +3117,7 @@ void AddMult_a_ABt(fptype a, const DenseMatrix &A, const DenseMatrix &B,
    }
 #else
    int i, j, k;
-   fptype d;
+   real_t d;
 
    for (i = 0; i < A.Height(); i++)
       for (j = 0; j < B.Height(); j++)
@@ -3144,7 +3144,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'T', transb = 'N';
-   static fptype alpha = 1.0, beta = 0.0;
+   static real_t alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
 #ifdef MFEM_USE_FLOAT
@@ -3157,16 +3157,16 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    const int ah = A.Height();
    const int aw = A.Width();
    const int bw = B.Width();
-   const fptype *ad = A.Data();
-   const fptype *bd = B.Data();
-   fptype *cd = AtB.Data();
+   const real_t *ad = A.Data();
+   const real_t *bd = B.Data();
+   real_t *cd = AtB.Data();
 
    for (int j = 0; j < bw; j++)
    {
-      const fptype *ap = ad;
+      const real_t *ap = ad;
       for (int i = 0; i < aw; i++)
       {
-         fptype d = 0.0;
+         real_t d = 0.0;
          for (int k = 0; k < ah; k++)
          {
             d += ap[k] * bd[k];
@@ -3178,7 +3178,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    }
 #else
    int i, j, k;
-   fptype d;
+   real_t d;
 
    for (i = 0; i < A.Width(); i++)
       for (j = 0; j < B.Width(); j++)
@@ -3193,9 +3193,9 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 #endif
 }
 
-void AddMult_a_AAt(fptype a, const DenseMatrix &A, DenseMatrix &AAt)
+void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
 {
-   fptype d;
+   real_t d;
 
    for (int i = 0; i < A.Height(); i++)
    {
@@ -3218,13 +3218,13 @@ void AddMult_a_AAt(fptype a, const DenseMatrix &A, DenseMatrix &AAt)
    }
 }
 
-void Mult_a_AAt(fptype a, const DenseMatrix &A, DenseMatrix &AAt)
+void Mult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
 {
    for (int i = 0; i < A.Height(); i++)
    {
       for (int j = 0; j <= i; j++)
       {
-         fptype d = 0.;
+         real_t d = 0.;
          for (int k = 0; k < A.Width(); k++)
          {
             d += A(i,k) * A(j,k);
@@ -3256,7 +3256,7 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 
    for (int i = 0; i < v.Size(); i++)
    {
-      const fptype vi = v(i);
+      const real_t vi = v(i);
       for (int j = 0; j < w.Size(); j++)
       {
          VWt(i, j) = vi * w(j);
@@ -3277,7 +3277,7 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
 
    for (int i = 0; i < m; i++)
    {
-      const fptype vi = v(i);
+      const real_t vi = v(i);
       for (int j = 0; j < n; j++)
       {
          VWt(i, j) += vi * w(j);
@@ -3298,10 +3298,10 @@ void AddMultVVt(const Vector &v, DenseMatrix &VVt)
 
    for (int i = 0; i < n; i++)
    {
-      const fptype vi = v(i);
+      const real_t vi = v(i);
       for (int j = 0; j < i; j++)
       {
-         const fptype vivj = vi * v(j);
+         const real_t vivj = vi * v(j);
          VVt(i, j) += vivj;
          VVt(j, i) += vivj;
       }
@@ -3309,7 +3309,7 @@ void AddMultVVt(const Vector &v, DenseMatrix &VVt)
    }
 }
 
-void AddMult_a_VWt(const fptype a, const Vector &v, const Vector &w,
+void AddMult_a_VWt(const real_t a, const Vector &v, const Vector &w,
                    DenseMatrix &VWt)
 {
    const int m = v.Size(), n = w.Size();
@@ -3323,7 +3323,7 @@ void AddMult_a_VWt(const fptype a, const Vector &v, const Vector &w,
 
    for (int j = 0; j < n; j++)
    {
-      const fptype awj = a * w(j);
+      const real_t awj = a * w(j);
       for (int i = 0; i < m; i++)
       {
          VWt(i, j) += v(i) * awj;
@@ -3331,7 +3331,7 @@ void AddMult_a_VWt(const fptype a, const Vector &v, const Vector &w,
    }
 }
 
-void AddMult_a_VVt(const fptype a, const Vector &v, DenseMatrix &VVt)
+void AddMult_a_VVt(const real_t a, const Vector &v, DenseMatrix &VVt)
 {
    MFEM_ASSERT(VVt.Height() == v.Size() && VVt.Width() == v.Size(),
                "incompatible dimensions!");
@@ -3339,10 +3339,10 @@ void AddMult_a_VVt(const fptype a, const Vector &v, DenseMatrix &VVt)
    const int n = v.Size();
    for (int i = 0; i < n; i++)
    {
-      fptype avi = a * v(i);
+      real_t avi = a * v(i);
       for (int j = 0; j < i; j++)
       {
-         const fptype avivj = avi * v(j);
+         const real_t avivj = avi * v(j);
          VVt(i, j) += avivj;
          VVt(j, i) += avivj;
       }
@@ -3367,7 +3367,7 @@ void RAP(const DenseMatrix &Rt, const DenseMatrix &A,
    Mult(RA,P, RAP);
 }
 
-bool LUFactors::Factor(int m, fptype TOL)
+bool LUFactors::Factor(int m, real_t TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
@@ -3379,16 +3379,16 @@ bool LUFactors::Factor(int m, fptype TOL)
    return info == 0;
 #else
    // compiling without LAPACK
-   fptype *data_ptr = this->data;
+   real_t *data_ptr = this->data;
    for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
-         fptype a = std::abs(data_ptr[piv+i*m]);
+         real_t a = std::abs(data_ptr[piv+i*m]);
          for (int j = i+1; j < m; j++)
          {
-            const fptype b = std::abs(data_ptr[j+i*m]);
+            const real_t b = std::abs(data_ptr[j+i*m]);
             if (b > a)
             {
                a = b;
@@ -3401,7 +3401,7 @@ bool LUFactors::Factor(int m, fptype TOL)
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               mfem::Swap<fptype>(data_ptr[i+j*m], data_ptr[piv+j*m]);
+               mfem::Swap<real_t>(data_ptr[i+j*m], data_ptr[piv+j*m]);
             }
          }
       }
@@ -3411,14 +3411,14 @@ bool LUFactors::Factor(int m, fptype TOL)
          return false; // failed
       }
 
-      const fptype a_ii_inv = 1.0 / data_ptr[i+i*m];
+      const real_t a_ii_inv = 1.0 / data_ptr[i+i*m];
       for (int j = i+1; j < m; j++)
       {
          data_ptr[j+i*m] *= a_ii_inv;
       }
       for (int k = i+1; k < m; k++)
       {
-         const fptype a_ik = data_ptr[i+k*m];
+         const real_t a_ik = data_ptr[i+k*m];
          for (int j = i+1; j < m; j++)
          {
             data_ptr[j+k*m] -= a_ik * data_ptr[j+i*m];
@@ -3430,9 +3430,9 @@ bool LUFactors::Factor(int m, fptype TOL)
    return true; // success
 }
 
-fptype LUFactors::Det(int m) const
+real_t LUFactors::Det(int m) const
 {
-   fptype det = 1.0;
+   real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
       if (ipiv[i] != i-ipiv_base)
@@ -3447,15 +3447,15 @@ fptype LUFactors::Det(int m) const
    return det;
 }
 
-void LUFactors::Mult(int m, int n, fptype *X) const
+void LUFactors::Mult(int m, int n, real_t *X) const
 {
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       // X <- U X
       for (int i = 0; i < m; i++)
       {
-         fptype x_i = x[i] * data[i+i*m];
+         real_t x_i = x[i] * data[i+i*m];
          for (int j = i+1; j < m; j++)
          {
             x_i += x[j] * data[i+j*m];
@@ -3465,7 +3465,7 @@ void LUFactors::Mult(int m, int n, fptype *X) const
       // X <- L X
       for (int i = m-1; i >= 0; i--)
       {
-         fptype x_i = x[i];
+         real_t x_i = x[i];
          for (int j = 0; j < i; j++)
          {
             x_i += x[j] * data[i+j*m];
@@ -3475,26 +3475,26 @@ void LUFactors::Mult(int m, int n, fptype *X) const
       // X <- P^{-1} X
       for (int i = m-1; i >= 0; i--)
       {
-         mfem::Swap<fptype>(x[i], x[ipiv[i]-ipiv_base]);
+         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
       }
       x += m;
    }
 }
 
-void LUFactors::LSolve(int m, int n, fptype *X) const
+void LUFactors::LSolve(int m, int n, real_t *X) const
 {
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         mfem::Swap<fptype>(x[i], x[ipiv[i]-ipiv_base]);
+         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
       {
-         const fptype x_j = x[j];
+         const real_t x_j = x[j];
          for (int i = j+1; i < m; i++)
          {
             x[i] -= data[i+j*m] * x_j;
@@ -3504,15 +3504,15 @@ void LUFactors::LSolve(int m, int n, fptype *X) const
    }
 }
 
-void LUFactors::USolve(int m, int n, fptype *X) const
+void LUFactors::USolve(int m, int n, real_t *X) const
 {
-   fptype *x = X;
+   real_t *x = X;
    // X <- U^{-1} X
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
       {
-         const fptype x_j = ( x[j] /= data[j+j*m] );
+         const real_t x_j = ( x[j] /= data[j+j*m] );
          for (int i = 0; i < j; i++)
          {
             x[i] -= data[i+j*m] * x_j;
@@ -3522,7 +3522,7 @@ void LUFactors::USolve(int m, int n, fptype *X) const
    }
 }
 
-void LUFactors::Solve(int m, int n, fptype *X) const
+void LUFactors::Solve(int m, int n, real_t *X) const
 {
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
@@ -3540,12 +3540,12 @@ void LUFactors::Solve(int m, int n, fptype *X) const
 #endif
 }
 
-void LUFactors::RightSolve(int m, int n, fptype *X) const
+void LUFactors::RightSolve(int m, int n, real_t *X) const
 {
-   fptype *x;
+   real_t *x;
 #ifdef MFEM_USE_LAPACK
    char n_ch = 'N', side = 'R', u_ch = 'U', l_ch = 'L';
-   fptype alpha = 1.0;
+   real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
 #ifdef MFEM_USE_FLOAT
@@ -3564,7 +3564,7 @@ void LUFactors::RightSolve(int m, int n, fptype *X) const
    {
       for (int j = 0; j < m; j++)
       {
-         const fptype x_j = ( x[j*n] /= data[j+j*m]);
+         const real_t x_j = ( x[j*n] /= data[j+j*m]);
          for (int i = j+1; i < m; i++)
          {
             x[i*n] -= data[j + i*m] * x_j;
@@ -3579,7 +3579,7 @@ void LUFactors::RightSolve(int m, int n, fptype *X) const
    {
       for (int j = m-1; j >= 0; j--)
       {
-         const fptype x_j = x[j*n];
+         const real_t x_j = x[j*n];
          for (int i = 0; i < j; i++)
          {
             x[i*n] -= data[j + i*m] * x_j;
@@ -3594,27 +3594,27 @@ void LUFactors::RightSolve(int m, int n, fptype *X) const
    {
       for (int i = m-1; i >= 0; --i)
       {
-         mfem::Swap<fptype>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
+         mfem::Swap<real_t>(x[i*n], x[(ipiv[i]-ipiv_base)*n]);
       }
       ++x;
    }
 }
 
-void LUFactors::GetInverseMatrix(int m, fptype *X) const
+void LUFactors::GetInverseMatrix(int m, real_t *X) const
 {
    // A^{-1} = U^{-1} L^{-1} P
    // X <- U^{-1} (set only the upper triangular part of X)
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < m; k++)
    {
-      const fptype minus_x_k = -( x[k] = 1.0/data[k+k*m] );
+      const real_t minus_x_k = -( x[k] = 1.0/data[k+k*m] );
       for (int i = 0; i < k; i++)
       {
          x[i] = data[i+k*m] * minus_x_k;
       }
       for (int j = k-1; j >= 0; j--)
       {
-         const fptype x_j = ( x[j] /= data[j+j*m] );
+         const real_t x_j = ( x[j] /= data[j+j*m] );
          for (int i = 0; i < j; i++)
          {
             x[i] -= data[i+j*m] * x_j;
@@ -3627,7 +3627,7 @@ void LUFactors::GetInverseMatrix(int m, fptype *X) const
       int k = m-1;
       for (int j = 0; j < k; j++)
       {
-         const fptype minus_L_kj = -data[k+j*m];
+         const real_t minus_L_kj = -data[k+j*m];
          for (int i = 0; i <= j; i++)
          {
             X[i+j*m] += X[i+k*m] * minus_L_kj;
@@ -3642,7 +3642,7 @@ void LUFactors::GetInverseMatrix(int m, fptype *X) const
    {
       for (int j = 0; j < k; j++)
       {
-         const fptype L_kj = data[k+j*m];
+         const real_t L_kj = data[k+j*m];
          for (int i = 0; i < m; i++)
          {
             X[i+j*m] -= X[i+k*m] * L_kj;
@@ -3657,21 +3657,21 @@ void LUFactors::GetInverseMatrix(int m, fptype *X) const
       {
          for (int i = 0; i < m; i++)
          {
-            Swap<fptype>(X[i+k*m], X[i+piv_k*m]);
+            Swap<real_t>(X[i+k*m], X[i+piv_k*m]);
          }
       }
    }
 }
 
-void LUFactors::SubMult(int m, int n, int r, const fptype *A21,
-                        const fptype *X1, fptype *X2)
+void LUFactors::SubMult(int m, int n, int r, const real_t *A21,
+                        const real_t *X1, real_t *X2)
 {
    // X2 <- X2 - A21 X1
    for (int k = 0; k < r; k++)
    {
       for (int j = 0; j < m; j++)
       {
-         const fptype x1_jk = X1[j+k*m];
+         const real_t x1_jk = X1[j+k*m];
          for (int i = 0; i < n; i++)
          {
             X2[i+k*n] -= A21[i+j*n] * x1_jk;
@@ -3681,21 +3681,21 @@ void LUFactors::SubMult(int m, int n, int r, const fptype *A21,
 }
 
 void LUFactors::BlockFactor(
-   int m, int n, fptype *A12, fptype *A21, fptype *A22) const
+   int m, int n, real_t *A12, real_t *A21, real_t *A22) const
 {
    // A12 <- L^{-1} P A12
    LSolve(m, n, A12);
    // A21 <- A21 U^{-1}
    for (int j = 0; j < m; j++)
    {
-      const fptype u_jj_inv = 1.0/data[j+j*m];
+      const real_t u_jj_inv = 1.0/data[j+j*m];
       for (int i = 0; i < n; i++)
       {
          A21[i+j*n] *= u_jj_inv;
       }
       for (int k = j+1; k < m; k++)
       {
-         const fptype u_jk = data[j+k*m];
+         const real_t u_jk = data[j+k*m];
          for (int i = 0; i < n; i++)
          {
             A21[i+k*n] -= A21[i+j*n] * u_jk;
@@ -3706,8 +3706,8 @@ void LUFactors::BlockFactor(
    SubMult(m, n, n, A21, A12, A22);
 }
 
-void LUFactors::BlockForwSolve(int m, int n, int r, const fptype *L21,
-                               fptype *B1, fptype *B2) const
+void LUFactors::BlockForwSolve(int m, int n, int r, const real_t *L21,
+                               real_t *B1, real_t *B2) const
 {
    // B1 <- L^{-1} P B1
    LSolve(m, r, B1);
@@ -3715,8 +3715,8 @@ void LUFactors::BlockForwSolve(int m, int n, int r, const fptype *L21,
    SubMult(m, n, r, L21, B1, B2);
 }
 
-void LUFactors::BlockBackSolve(int m, int n, int r, const fptype *U12,
-                               const fptype *X2, fptype *Y1) const
+void LUFactors::BlockBackSolve(int m, int n, int r, const real_t *U12,
+                               const real_t *X2, real_t *Y1) const
 {
    // Y1 <- Y1 - U12 X2
    SubMult(n, m, r, U12, X2, Y1);
@@ -3725,7 +3725,7 @@ void LUFactors::BlockBackSolve(int m, int n, int r, const fptype *U12,
 }
 
 
-bool CholeskyFactors::Factor(int m, fptype TOL)
+bool CholeskyFactors::Factor(int m, real_t TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
@@ -3741,7 +3741,7 @@ bool CholeskyFactors::Factor(int m, fptype TOL)
    // Cholesky–Crout algorithm
    for (int j = 0; j<m; j++)
    {
-      fptype a = 0.;
+      real_t a = 0.;
       for (int k = 0; k<j; k++)
       {
          a+=data[j+k*m]*data[j+k*m];
@@ -3771,9 +3771,9 @@ bool CholeskyFactors::Factor(int m, fptype TOL)
 #endif
 }
 
-fptype CholeskyFactors::Det(int m) const
+real_t CholeskyFactors::Det(int m) const
 {
-   fptype det = 1.0;
+   real_t det = 1.0;
    for (int i=0; i<m; i++)
    {
       det *=  data[i + i*m];
@@ -3781,15 +3781,15 @@ fptype CholeskyFactors::Det(int m) const
    return det;
 }
 
-void CholeskyFactors::LMult(int m, int n, fptype * X) const
+void CholeskyFactors::LMult(int m, int n, real_t * X) const
 {
    // X <- L X
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
       {
-         fptype x_j = x[j] * data[j+j*m];
+         real_t x_j = x[j] * data[j+j*m];
          for (int i = 0; i < j; i++)
          {
             x_j += x[i] * data[j+i*m];
@@ -3800,14 +3800,14 @@ void CholeskyFactors::LMult(int m, int n, fptype * X) const
    }
 }
 
-void CholeskyFactors::UMult(int m, int n, fptype * X) const
+void CholeskyFactors::UMult(int m, int n, real_t * X) const
 {
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int i = 0; i < m; i++)
       {
-         fptype x_i = x[i] * data[i+i*m];
+         real_t x_i = x[i] * data[i+i*m];
          for (int j = i+1; j < m; j++)
          {
             x_i += x[j] * data[j+i*m];
@@ -3818,7 +3818,7 @@ void CholeskyFactors::UMult(int m, int n, fptype * X) const
    }
 }
 
-void CholeskyFactors::LSolve(int m, int n, fptype * X) const
+void CholeskyFactors::LSolve(int m, int n, real_t * X) const
 {
 
 #ifdef MFEM_USE_LAPACK
@@ -3835,13 +3835,13 @@ void CholeskyFactors::LSolve(int m, int n, fptype * X) const
    MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
 
 #else
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
       {
-         const fptype x_j = (x[j] /= data[j+j*m]);
+         const real_t x_j = (x[j] /= data[j+j*m]);
          for (int i = j+1; i < m; i++)
          {
             x[i] -= data[i+j*m] * x_j;
@@ -3852,7 +3852,7 @@ void CholeskyFactors::LSolve(int m, int n, fptype * X) const
 #endif
 }
 
-void CholeskyFactors::USolve(int m, int n, fptype * X) const
+void CholeskyFactors::USolve(int m, int n, real_t * X) const
 {
 #ifdef MFEM_USE_LAPACK
 
@@ -3870,12 +3870,12 @@ void CholeskyFactors::USolve(int m, int n, fptype * X) const
 
 #else
    // X <- L^{-t} X
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
       {
-         const fptype x_j = ( x[j] /= data[j+j*m] );
+         const real_t x_j = ( x[j] /= data[j+j*m] );
          for (int i = 0; i < j; i++)
          {
             x[i] -= data[j+i*m] * x_j;
@@ -3886,7 +3886,7 @@ void CholeskyFactors::USolve(int m, int n, fptype * X) const
 #endif
 }
 
-void CholeskyFactors::Solve(int m, int n, fptype * X) const
+void CholeskyFactors::Solve(int m, int n, real_t * X) const
 {
 #ifdef MFEM_USE_LAPACK
    char uplo = 'L';
@@ -3904,7 +3904,7 @@ void CholeskyFactors::Solve(int m, int n, fptype * X) const
 #endif
 }
 
-void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
+void CholeskyFactors::RightSolve(int m, int n, real_t * X) const
 {
 #ifdef MFEM_USE_LAPACK
    char side = 'R';
@@ -3913,7 +3913,7 @@ void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
    char trans = 'N';
    char diag = 'N';
 
-   fptype alpha = 1.0;
+   real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
 #ifdef MFEM_USE_FLOAT
@@ -3926,12 +3926,12 @@ void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
    }
 #else
    // X <- X L^{-t}
-   fptype *x = X;
+   real_t *x = X;
    for (int k = 0; k < n; k++)
    {
       for (int j = 0; j < m; j++)
       {
-         const fptype x_j = ( x[j*n] /= data[j+j*m]);
+         const real_t x_j = ( x[j*n] /= data[j+j*m]);
          for (int i = j+1; i < m; i++)
          {
             x[i*n] -= data[i + j*m] * x_j;
@@ -3945,7 +3945,7 @@ void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
    {
       for (int j = m-1; j >= 0; j--)
       {
-         const fptype x_j = (x[j*n] /= data[j+j*m]);
+         const real_t x_j = (x[j*n] /= data[j+j*m]);
          for (int i = 0; i < j; i++)
          {
             x[i*n] -= data[j + i*m] * x_j;
@@ -3956,7 +3956,7 @@ void CholeskyFactors::RightSolve(int m, int n, fptype * X) const
 #endif
 }
 
-void CholeskyFactors::GetInverseMatrix(int m, fptype * X) const
+void CholeskyFactors::GetInverseMatrix(int m, real_t * X) const
 {
    // A^{-1} = L^{-t} L^{-1}
 #ifdef MFEM_USE_LAPACK
@@ -3991,7 +3991,7 @@ void CholeskyFactors::GetInverseMatrix(int m, fptype * X) const
       X[k+k*m] = 1./data[k+k*m];
       for (int i = k+1; i < m; i++)
       {
-         fptype s=0.;
+         real_t s=0.;
          for (int j=k; j<i; j++)
          {
             s -= data[i+j*m] * X[j+k*m]/data[i+i*m];
@@ -4003,7 +4003,7 @@ void CholeskyFactors::GetInverseMatrix(int m, fptype * X) const
    {
       for (int j = i; j < m; j++)
       {
-         fptype s = 0.;
+         real_t s = 0.;
          for (int k=j; k<m; k++)
          {
             s += X[k+i*m] * X[k+j*m];
@@ -4027,7 +4027,7 @@ void DenseMatrixInverse::Init(int m)
    }
    if (m>0)
    {
-      factors->data = new fptype[m*m];
+      factors->data = new real_t[m*m];
       if (!spd)
       {
          dynamic_cast<LUFactors *>(factors)->ipiv = new int[m];
@@ -4056,7 +4056,7 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat, bool spd_)
 void DenseMatrixInverse::Factor()
 {
    MFEM_ASSERT(a, "DenseMatrix is not given");
-   const fptype *adata = a->data;
+   const real_t *adata = a->data;
    const int s = width*width;
    for (int i = 0; i < s; i++)
    {
@@ -4078,7 +4078,7 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    {
       height = width = mat.width;
       if (own_data) { delete [] factors->data; }
-      factors->data = new fptype[width*width];
+      factors->data = new real_t[width*width];
 
       if (!spd)
       {
@@ -4099,7 +4099,7 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
    Factor(*p);
 }
 
-void DenseMatrixInverse::Mult(const fptype *x, fptype *y) const
+void DenseMatrixInverse::Mult(const real_t *x, real_t *y) const
 {
    for (int row = 0; row < height; row++)
    {
@@ -4157,7 +4157,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    jobz = 'V';
    uplo = 'U';
    lwork = -1;
-   fptype qwork;
+   real_t qwork;
 #ifdef MFEM_USE_FLOAT
    ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
 #else
@@ -4166,7 +4166,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new fptype[lwork];
+   work = new real_t[lwork];
 }
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(
@@ -4178,7 +4178,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
    uplo = other.uplo;
    lwork = other.lwork;
 
-   work = new fptype[lwork];
+   work = new real_t[lwork];
 }
 
 void DenseMatrixEigensystem::Eval()
@@ -4239,11 +4239,11 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    }
 
    lwork = -1;
-   fptype qwork;
+   real_t qwork;
 
-   alphar = new fptype[n];
-   alphai = new fptype[n];
-   beta = new fptype[n];
+   alphar = new real_t[n];
+   alphai = new real_t[n];
+   beta = new real_t[n];
 
    int nl = max(1,Vl.Height());
    int nr = max(1,Vr.Height());
@@ -4257,7 +4257,7 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
           &qwork, &lwork, &info);
 
    lwork = (int) qwork;
-   work = new fptype[lwork];
+   work = new real_t[lwork];
 }
 
 void DenseMatrixGeneralizedEigensystem::Eval()
@@ -4352,7 +4352,7 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w,
 void DenseMatrixSVD::Init()
 {
    sv.SetSize(min(m, n));
-   fptype qwork;
+   real_t qwork;
    lwork = -1;
 #ifdef MFEM_USE_FLOAT
    sgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
@@ -4361,7 +4361,7 @@ void DenseMatrixSVD::Init()
 #endif
            NULL, &n, &qwork, &lwork, &info);
    lwork = (int) qwork;
-   work = new fptype[lwork];
+   work = new real_t[lwork];
 }
 
 void DenseMatrixSVD::Eval(DenseMatrix &M)
@@ -4372,8 +4372,8 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       mfem_error("DenseMatrixSVD::Eval()");
    }
 #endif
-   fptype * datau = nullptr;
-   fptype * datavt = nullptr;
+   real_t * datau = nullptr;
+   real_t * datavt = nullptr;
    if (jobu == 'A')
    {
       U.SetSize(m,m);
@@ -4422,10 +4422,10 @@ const
 {
    int n = SizeI(), ne = SizeK();
    const int *I = elem_dof.GetI(), *J = elem_dof.GetJ(), *dofs;
-   const fptype *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
-   fptype *yp = y.HostReadWrite();
-   fptype x_col;
-   const fptype *xp = x.HostRead();
+   const real_t *d_col = mfem::HostRead(tdata, n*SizeJ()*ne);
+   real_t *yp = y.HostReadWrite();
+   real_t x_col;
+   const real_t *xp = x.HostRead();
    // the '4' here can be tuned for given platform and compiler
    if (n <= 4)
    {
@@ -4472,7 +4472,7 @@ const
    }
 }
 
-DenseTensor &DenseTensor::operator=(fptype c)
+DenseTensor &DenseTensor::operator=(real_t c)
 {
    int s = SizeI() * SizeJ() * SizeK();
    for (int i=0; i<s; i++)
@@ -4489,7 +4489,7 @@ DenseTensor &DenseTensor::operator=(const DenseTensor &other)
    return *this;
 }
 
-void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL)
+void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    const int m = Mlu.SizeI();
    const int NE = Mlu.SizeK();
@@ -4508,10 +4508,10 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL)
          // pivoting
          {
             int piv = i;
-            fptype a = fabs(data_all(piv,i,e));
+            real_t a = fabs(data_all(piv,i,e));
             for (int j = i+1; j < m; j++)
             {
-               const fptype b = fabs(data_all(j,i,e));
+               const real_t b = fabs(data_all(j,i,e));
                if (b > a)
                {
                   a = b;
@@ -4524,7 +4524,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL)
                // swap rows i and piv in both L and U parts
                for (int j = 0; j < m; j++)
                {
-                  mfem::kernels::internal::Swap<fptype>(data_all(i,j,e), data_all(piv,j,e));
+                  mfem::kernels::internal::Swap<real_t>(data_all(i,j,e), data_all(piv,j,e));
                }
             }
          } // pivot end
@@ -4534,7 +4534,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL)
             d_pivot_flag[0] = false;
          }
 
-         const fptype a_ii_inv = 1.0 / data_all(i,i,e);
+         const real_t a_ii_inv = 1.0 / data_all(i,i,e);
          for (int j = i+1; j < m; j++)
          {
             data_all(j,i,e) *= a_ii_inv;
@@ -4542,7 +4542,7 @@ void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const fptype TOL)
 
          for (int k = i+1; k < m; k++)
          {
-            const fptype a_ik = data_all(i,k,e);
+            const real_t a_ik = data_all(i,k,e);
             for (int j = i+1; j < m; j++)
             {
                data_all(j,k,e) -= a_ik * data_all(j,i,e);

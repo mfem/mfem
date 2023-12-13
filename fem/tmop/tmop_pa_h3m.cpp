@@ -19,8 +19,8 @@ namespace mfem
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                            const int NE,
-                           const Array<fptype> &b_,
-                           const Array<fptype> &g_,
+                           const Array<real_t> &b_,
+                           const Array<real_t> &g_,
                            const DenseTensor &j_,
                            const Vector &h_,
                            const Vector &x_,
@@ -47,11 +47,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX;
 
-      MFEM_SHARED fptype BG[2][MQ1*MD1];
-      MFEM_SHARED fptype DDD[3][MD1*MD1*MD1];
-      MFEM_SHARED fptype DDQ[9][MD1*MD1*MQ1];
-      MFEM_SHARED fptype DQQ[9][MD1*MQ1*MQ1];
-      MFEM_SHARED fptype QQQ[9][MQ1*MQ1*MQ1];
+      MFEM_SHARED real_t BG[2][MQ1*MD1];
+      MFEM_SHARED real_t DDD[3][MD1*MD1*MD1];
+      MFEM_SHARED real_t DDQ[9][MD1*MD1*MQ1];
+      MFEM_SHARED real_t DQQ[9][MD1*MQ1*MQ1];
+      MFEM_SHARED real_t QQQ[9][MQ1*MQ1*MQ1];
 
       kernels::internal::LoadX<MD1>(e,D1D,X,DDD);
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
@@ -66,22 +66,22 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               const fptype *Jtr = &J(0,0,qx,qy,qz,e);
+               const real_t *Jtr = &J(0,0,qx,qy,qz,e);
 
                // Jrt = Jtr^{-1}
-               fptype Jrt[9];
+               real_t Jrt[9];
                kernels::CalcInverse<3>(Jtr, Jrt);
 
                // Jpr = X^T.DSh
-               fptype Jpr[9];
+               real_t Jpr[9];
                kernels::internal::PullGrad<MQ1>(Q1D, qx,qy,qz, QQQ, Jpr);
 
                // Jpt = X^T.DS = (X^T.DSh).Jrt = Jpr.Jrt
-               fptype Jpt[9];
+               real_t Jpt[9];
                kernels::Mult(3,3,3, Jpr, Jrt, Jpt);
 
                // B = Jpt : H
-               fptype B[9];
+               real_t B[9];
                DeviceMatrix M(B,3,3);
                ConstDeviceMatrix J(Jpt,3,3);
                for (int i = 0; i < DIM; i++)
@@ -100,7 +100,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultGradPA_Kernel_3D,
                }
 
                // Y +=  DS . M^t += DSh . (Jrt . M^t)
-               fptype A[9];
+               real_t A[9];
                kernels::MultABt(3,3,3, Jrt, B, A);
                kernels::internal::PushGrad<MQ1>(Q1D, qx,qy,qz, A, QQQ);
             }
@@ -121,8 +121,8 @@ void TMOP_Integrator::AddMultGradPA_3D(const Vector &R, Vector &C) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const DenseTensor &J = PA.Jtr;
-   const Array<fptype> &B = PA.maps->B;
-   const Array<fptype> &G = PA.maps->G;
+   const Array<real_t> &B = PA.maps->B;
+   const Array<real_t> &G = PA.maps->G;
    const Vector &H = PA.H;
 
    MFEM_LAUNCH_TMOP_KERNEL(AddMultGradPA_Kernel_3D,id,N,B,G,J,H,R,C);

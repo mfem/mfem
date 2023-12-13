@@ -562,7 +562,7 @@ protected: // implementation
 
    /** Coordinates of top-level vertices (organized as triples). If empty,
        the Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
-   Array<fptype> coordinates;
+   Array<real_t> coordinates;
 
 
    // secondary data
@@ -781,7 +781,7 @@ protected: // implementation
                                           MatrixMap &matrix_map);
    void TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
                         MatrixMap &matrix_map);
-   void TraverseEdge(int vn0, int vn1, fptype t0, fptype t1, int flags,
+   void TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
                      int level, MatrixMap &matrix_map);
 
    virtual void BuildFaceList();
@@ -848,19 +848,19 @@ protected: // implementation
    struct Point
    {
       int dim;
-      fptype coord[3];
+      real_t coord[3];
 
       Point() { dim = 0; }
 
       Point(const Point &) = default;
 
-      Point(fptype x)
+      Point(real_t x)
       { dim = 1; coord[0] = x; }
 
-      Point(fptype x, fptype y)
+      Point(real_t x, real_t y)
       { dim = 2; coord[0] = x; coord[1] = y; }
 
-      Point(fptype x, fptype y, fptype z)
+      Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
 
       Point(const Point& p0, const Point& p1)
@@ -987,13 +987,13 @@ protected: // implementation
    struct TmpVertex
    {
       bool valid, visited;
-      fptype pos[3];
+      real_t pos[3];
       TmpVertex() : valid(false), visited(false) {}
    };
 
    mutable TmpVertex* tmp_vertex;
 
-   const fptype *CalcVertexPos(int node) const;
+   const real_t *CalcVertexPos(int node) const;
 
 
    // utility

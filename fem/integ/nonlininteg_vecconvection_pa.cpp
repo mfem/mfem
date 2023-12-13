@@ -45,7 +45,7 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    pa_data.SetSize(ne * nq * dim * dim, Device::GetMemoryType());
-   fptype COEFF = 1.0;
+   real_t COEFF = 1.0;
    if (Q)
    {
       ConstantCoefficient *cQ = dynamic_cast<ConstantCoefficient *>(Q);
@@ -67,10 +67,10 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const fptype J11 = J(q, 0, 0, e);
-            const fptype J12 = J(q, 0, 1, e);
-            const fptype J21 = J(q, 1, 0, e);
-            const fptype J22 = J(q, 1, 1, e);
+            const real_t J11 = J(q, 0, 0, e);
+            const real_t J12 = J(q, 0, 1, e);
+            const real_t J21 = J(q, 1, 0, e);
+            const real_t J22 = J(q, 1, 1, e);
             // Store wq * Q * adj(J)
             G(q, 0, 0, e) = W[q] * COEFF * J22;  // 1,1
             G(q, 0, 1, e) = W[q] * COEFF * -J12; // 1,2
@@ -87,26 +87,26 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
       {
          for (int q = 0; q < NQ; ++q)
          {
-            const fptype J11 = J(q, 0, 0, e);
-            const fptype J21 = J(q, 1, 0, e);
-            const fptype J31 = J(q, 2, 0, e);
-            const fptype J12 = J(q, 0, 1, e);
-            const fptype J22 = J(q, 1, 1, e);
-            const fptype J32 = J(q, 2, 1, e);
-            const fptype J13 = J(q, 0, 2, e);
-            const fptype J23 = J(q, 1, 2, e);
-            const fptype J33 = J(q, 2, 2, e);
-            const fptype cw = W[q] * COEFF;
+            const real_t J11 = J(q, 0, 0, e);
+            const real_t J21 = J(q, 1, 0, e);
+            const real_t J31 = J(q, 2, 0, e);
+            const real_t J12 = J(q, 0, 1, e);
+            const real_t J22 = J(q, 1, 1, e);
+            const real_t J32 = J(q, 2, 1, e);
+            const real_t J13 = J(q, 0, 2, e);
+            const real_t J23 = J(q, 1, 2, e);
+            const real_t J33 = J(q, 2, 2, e);
+            const real_t cw = W[q] * COEFF;
             // adj(J)
-            const fptype A11 = (J22 * J33) - (J23 * J32);
-            const fptype A12 = (J32 * J13) - (J12 * J33);
-            const fptype A13 = (J12 * J23) - (J22 * J13);
-            const fptype A21 = (J31 * J23) - (J21 * J33);
-            const fptype A22 = (J11 * J33) - (J13 * J31);
-            const fptype A23 = (J21 * J13) - (J11 * J23);
-            const fptype A31 = (J21 * J32) - (J31 * J22);
-            const fptype A32 = (J31 * J12) - (J11 * J32);
-            const fptype A33 = (J11 * J22) - (J12 * J21);
+            const real_t A11 = (J22 * J33) - (J23 * J32);
+            const real_t A12 = (J32 * J13) - (J12 * J33);
+            const real_t A13 = (J12 * J23) - (J22 * J13);
+            const real_t A21 = (J31 * J23) - (J21 * J33);
+            const real_t A22 = (J11 * J33) - (J13 * J31);
+            const real_t A23 = (J21 * J13) - (J11 * J23);
+            const real_t A31 = (J21 * J32) - (J31 * J22);
+            const real_t A32 = (J31 * J12) - (J11 * J32);
+            const real_t A33 = (J11 * J22) - (J12 * J21);
             // Store wq * Q * adj(J)
             G(q, 0, 0, e) = cw * A11; // 1,1
             G(q, 0, 1, e) = cw * A12; // 1,2
@@ -125,9 +125,9 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 // PA Convection NL 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAConvectionNLApply2D(const int NE,
-                                  const Array<fptype> &b,
-                                  const Array<fptype> &g,
-                                  const Array<fptype> &bt,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
+                                  const Array<real_t> &bt,
                                   const Vector &q_,
                                   const Vector &x_,
                                   Vector &y_,
@@ -151,10 +151,10 @@ static void PAConvectionNLApply2D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      fptype data[max_Q1D][max_Q1D][2];
-      fptype grad0[max_Q1D][max_Q1D][2];
-      fptype grad1[max_Q1D][max_Q1D][2];
-      fptype Z[max_Q1D][max_Q1D][2];
+      real_t data[max_Q1D][max_Q1D][2];
+      real_t grad0[max_Q1D][max_Q1D][2];
+      real_t grad1[max_Q1D][max_Q1D][2];
+      real_t Z[max_Q1D][max_Q1D][2];
       for (int qy = 0; qy < Q1D; ++qy)
       {
          for (int qx = 0; qx < Q1D; ++qx)
@@ -169,9 +169,9 @@ static void PAConvectionNLApply2D(const int NE,
       }
       for (int dy = 0; dy < D1D; ++dy)
       {
-         fptype dataX[max_Q1D][2];
-         fptype gradX0[max_Q1D][2];
-         fptype gradX1[max_Q1D][2];
+         real_t dataX[max_Q1D][2];
+         real_t gradX0[max_Q1D][2];
+         real_t gradX1[max_Q1D][2];
          for (int qx = 0; qx < Q1D; ++qx)
          {
             dataX[qx][0] = 0.0;
@@ -183,12 +183,12 @@ static void PAConvectionNLApply2D(const int NE,
          }
          for (int dx = 0; dx < D1D; ++dx)
          {
-            const fptype s0 = x(dx, dy, 0, e);
-            const fptype s1 = x(dx, dy, 1, e);
+            const real_t s0 = x(dx, dy, 0, e);
+            const real_t s1 = x(dx, dy, 1, e);
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const fptype Bx = B(qx, dx);
-               const fptype Gx = G(qx, dx);
+               const real_t Bx = B(qx, dx);
+               const real_t Gx = G(qx, dx);
                dataX[qx][0] += s0 * Bx;
                dataX[qx][1] += s1 * Bx;
                gradX0[qx][0] += s0 * Gx;
@@ -199,8 +199,8 @@ static void PAConvectionNLApply2D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            const fptype By = B(qy, dy);
-            const fptype Gy = G(qy, dy);
+            const real_t By = B(qy, dy);
+            const real_t Gy = G(qy, dy);
             for (int qx = 0; qx < Q1D; ++qx)
             {
                data[qy][qx][0] += dataX[qx][0] * By;
@@ -217,30 +217,30 @@ static void PAConvectionNLApply2D(const int NE,
          for (int qx = 0; qx < Q1D; ++qx)
          {
             const int q = qx + qy * Q1D;
-            const fptype u1 = data[qy][qx][0];
-            const fptype u2 = data[qy][qx][1];
-            const fptype grad00 = grad0[qy][qx][0];
-            const fptype grad01 = grad0[qy][qx][1];
-            const fptype grad10 = grad1[qy][qx][0];
-            const fptype grad11 = grad1[qy][qx][1];
-            const fptype Dxu1 = grad00 * Q(q, 0, 0, e) + grad01 * Q(q, 1, 0, e);
-            const fptype Dyu1 = grad00 * Q(q, 0, 1, e) + grad01 * Q(q, 1, 1, e);
-            const fptype Dxu2 = grad10 * Q(q, 0, 0, e) + grad11 * Q(q, 1, 0, e);
-            const fptype Dyu2 = grad10 * Q(q, 0, 1, e) + grad11 * Q(q, 1, 1, e);
+            const real_t u1 = data[qy][qx][0];
+            const real_t u2 = data[qy][qx][1];
+            const real_t grad00 = grad0[qy][qx][0];
+            const real_t grad01 = grad0[qy][qx][1];
+            const real_t grad10 = grad1[qy][qx][0];
+            const real_t grad11 = grad1[qy][qx][1];
+            const real_t Dxu1 = grad00 * Q(q, 0, 0, e) + grad01 * Q(q, 1, 0, e);
+            const real_t Dyu1 = grad00 * Q(q, 0, 1, e) + grad01 * Q(q, 1, 1, e);
+            const real_t Dxu2 = grad10 * Q(q, 0, 0, e) + grad11 * Q(q, 1, 0, e);
+            const real_t Dyu2 = grad10 * Q(q, 0, 1, e) + grad11 * Q(q, 1, 1, e);
             Z[qy][qx][0] = u1 * Dxu1 + u2 * Dyu1;
             Z[qy][qx][1] = u1 * Dxu2 + u2 * Dyu2;
          }
       }
       for (int qy = 0; qy < Q1D; ++qy)
       {
-         fptype Y[max_D1D][2];
+         real_t Y[max_D1D][2];
          for (int dx = 0; dx < D1D; ++dx)
          {
             Y[dx][0] = 0.0;
             Y[dx][1] = 0.0;
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               const fptype Btx = Bt(dx, qx);
+               const real_t Btx = Bt(dx, qx);
                Y[dx][0] += Btx * Z[qy][qx][0];
                Y[dx][1] += Btx * Z[qy][qx][1];
             }
@@ -249,7 +249,7 @@ static void PAConvectionNLApply2D(const int NE,
          {
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const fptype Bty = Bt(dy, qy);
+               const real_t Bty = Bt(dy, qy);
                y(dx, dy, 0, e) += Bty * Y[dx][0];
                y(dx, dy, 1, e) += Bty * Y[dx][1];
             }
@@ -261,9 +261,9 @@ static void PAConvectionNLApply2D(const int NE,
 // PA Convection NL 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 static void PAConvectionNLApply3D(const int NE,
-                                  const Array<fptype> &b,
-                                  const Array<fptype> &g,
-                                  const Array<fptype> &bt,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
+                                  const Array<real_t> &bt,
                                   const Vector &q_,
                                   const Vector &x_,
                                   Vector &y_,
@@ -291,11 +291,11 @@ static void PAConvectionNLApply3D(const int NE,
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      fptype data[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      fptype grad0[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      fptype grad1[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      fptype grad2[max_Q1D][max_Q1D][max_Q1D][VDIM];
-      fptype Z[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t data[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t grad0[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t grad1[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t grad2[max_Q1D][max_Q1D][max_Q1D][VDIM];
+      real_t Z[max_Q1D][max_Q1D][max_Q1D][VDIM];
       for (int qz = 0; qz < Q1D; ++qz)
       {
          for (int qy = 0; qy < Q1D; ++qy)
@@ -322,10 +322,10 @@ static void PAConvectionNLApply3D(const int NE,
       }
       for (int dz = 0; dz < D1D; ++dz)
       {
-         fptype dataXY[max_Q1D][max_Q1D][VDIM];
-         fptype gradXY0[max_Q1D][max_Q1D][VDIM];
-         fptype gradXY1[max_Q1D][max_Q1D][VDIM];
-         fptype gradXY2[max_Q1D][max_Q1D][VDIM];
+         real_t dataXY[max_Q1D][max_Q1D][VDIM];
+         real_t gradXY0[max_Q1D][max_Q1D][VDIM];
+         real_t gradXY1[max_Q1D][max_Q1D][VDIM];
+         real_t gradXY2[max_Q1D][max_Q1D][VDIM];
          for (int qy = 0; qy < Q1D; ++qy)
          {
             for (int qx = 0; qx < Q1D; ++qx)
@@ -349,10 +349,10 @@ static void PAConvectionNLApply3D(const int NE,
          }
          for (int dy = 0; dy < D1D; ++dy)
          {
-            fptype dataX[max_Q1D][VDIM];
-            fptype gradX0[max_Q1D][VDIM];
-            fptype gradX1[max_Q1D][VDIM];
-            fptype gradX2[max_Q1D][VDIM];
+            real_t dataX[max_Q1D][VDIM];
+            real_t gradX0[max_Q1D][VDIM];
+            real_t gradX1[max_Q1D][VDIM];
+            real_t gradX2[max_Q1D][VDIM];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                dataX[qx][0] = 0.0;
@@ -373,13 +373,13 @@ static void PAConvectionNLApply3D(const int NE,
             }
             for (int dx = 0; dx < D1D; ++dx)
             {
-               const fptype s0 = x(dx, dy, dz, 0, e);
-               const fptype s1 = x(dx, dy, dz, 1, e);
-               const fptype s2 = x(dx, dy, dz, 2, e);
+               const real_t s0 = x(dx, dy, dz, 0, e);
+               const real_t s1 = x(dx, dy, dz, 1, e);
+               const real_t s2 = x(dx, dy, dz, 2, e);
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const fptype Bx = B(qx, dx);
-                  const fptype Gx = G(qx, dx);
+                  const real_t Bx = B(qx, dx);
+                  const real_t Gx = G(qx, dx);
 
                   dataX[qx][0] += s0 * Bx;
                   dataX[qx][1] += s1 * Bx;
@@ -400,8 +400,8 @@ static void PAConvectionNLApply3D(const int NE,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               const fptype By = B(qy, dy);
-               const fptype Gy = G(qy, dy);
+               const real_t By = B(qy, dy);
+               const real_t Gy = G(qy, dy);
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   dataXY[qy][qx][0] += dataX[qx][0] * By;
@@ -424,8 +424,8 @@ static void PAConvectionNLApply3D(const int NE,
          }
          for (int qz = 0; qz < Q1D; ++qz)
          {
-            const fptype Bz = B(qz, dz);
-            const fptype Gz = G(qz, dz);
+            const real_t Bz = B(qz, dz);
+            const real_t Gz = G(qz, dz);
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -457,49 +457,49 @@ static void PAConvectionNLApply3D(const int NE,
             {
                const int q = qx + Q1D * (qy + qz * Q1D);
 
-               const fptype u1 = data[qz][qy][qx][0];
-               const fptype u2 = data[qz][qy][qx][1];
-               const fptype u3 = data[qz][qy][qx][2];
+               const real_t u1 = data[qz][qy][qx][0];
+               const real_t u2 = data[qz][qy][qx][1];
+               const real_t u3 = data[qz][qy][qx][2];
 
-               const fptype grad00 = grad0[qz][qy][qx][0];
-               const fptype grad01 = grad0[qz][qy][qx][1];
-               const fptype grad02 = grad0[qz][qy][qx][2];
+               const real_t grad00 = grad0[qz][qy][qx][0];
+               const real_t grad01 = grad0[qz][qy][qx][1];
+               const real_t grad02 = grad0[qz][qy][qx][2];
 
-               const fptype grad10 = grad1[qz][qy][qx][0];
-               const fptype grad11 = grad1[qz][qy][qx][1];
-               const fptype grad12 = grad1[qz][qy][qx][2];
+               const real_t grad10 = grad1[qz][qy][qx][0];
+               const real_t grad11 = grad1[qz][qy][qx][1];
+               const real_t grad12 = grad1[qz][qy][qx][2];
 
-               const fptype grad20 = grad2[qz][qy][qx][0];
-               const fptype grad21 = grad2[qz][qy][qx][1];
-               const fptype grad22 = grad2[qz][qy][qx][2];
+               const real_t grad20 = grad2[qz][qy][qx][0];
+               const real_t grad21 = grad2[qz][qy][qx][1];
+               const real_t grad22 = grad2[qz][qy][qx][2];
 
-               const fptype Dxu1 = grad00 * Q(q, 0, 0, e)
+               const real_t Dxu1 = grad00 * Q(q, 0, 0, e)
                                    + grad01 * Q(q, 1, 0, e)
                                    + grad02 * Q(q, 2, 0, e);
-               const fptype Dyu1 = grad00 * Q(q, 0, 1, e)
+               const real_t Dyu1 = grad00 * Q(q, 0, 1, e)
                                    + grad01 * Q(q, 1, 1, e)
                                    + grad02 * Q(q, 2, 1, e);
-               const fptype Dzu1 = grad00 * Q(q, 0, 2, e)
+               const real_t Dzu1 = grad00 * Q(q, 0, 2, e)
                                    + grad01 * Q(q, 1, 2, e)
                                    + grad02 * Q(q, 2, 2, e);
 
-               const fptype Dxu2 = grad10 * Q(q, 0, 0, e)
+               const real_t Dxu2 = grad10 * Q(q, 0, 0, e)
                                    + grad11 * Q(q, 1, 0, e)
                                    + grad12 * Q(q, 2, 0, e);
-               const fptype Dyu2 = grad10 * Q(q, 0, 1, e)
+               const real_t Dyu2 = grad10 * Q(q, 0, 1, e)
                                    + grad11 * Q(q, 1, 1, e)
                                    + grad12 * Q(q, 2, 1, e);
-               const fptype Dzu2 = grad10 * Q(q, 0, 2, e)
+               const real_t Dzu2 = grad10 * Q(q, 0, 2, e)
                                    + grad11 * Q(q, 1, 2, e)
                                    + grad12 * Q(q, 2, 2, e);
 
-               const fptype Dxu3 = grad20 * Q(q, 0, 0, e)
+               const real_t Dxu3 = grad20 * Q(q, 0, 0, e)
                                    + grad21 * Q(q, 1, 0, e)
                                    + grad22 * Q(q, 2, 0, e);
-               const fptype Dyu3 = grad20 * Q(q, 0, 1, e)
+               const real_t Dyu3 = grad20 * Q(q, 0, 1, e)
                                    + grad21 * Q(q, 1, 1, e)
                                    + grad22 * Q(q, 2, 1, e);
-               const fptype Dzu3 = grad20 * Q(q, 0, 2, e)
+               const real_t Dzu3 = grad20 * Q(q, 0, 2, e)
                                    + grad21 * Q(q, 1, 2, e)
                                    + grad22 * Q(q, 2, 2, e);
 
@@ -511,7 +511,7 @@ static void PAConvectionNLApply3D(const int NE,
       }
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         fptype opXY[max_D1D][max_D1D][VDIM];
+         real_t opXY[max_D1D][max_D1D][VDIM];
          for (int dy = 0; dy < D1D; ++dy)
          {
             for (int dx = 0; dx < D1D; ++dx)
@@ -523,7 +523,7 @@ static void PAConvectionNLApply3D(const int NE,
          }
          for (int qy = 0; qy < Q1D; ++qy)
          {
-            fptype opX[max_D1D][VDIM];
+            real_t opX[max_D1D][VDIM];
             for (int dx = 0; dx < D1D; ++dx)
             {
                opX[dx][0] = 0.0;
@@ -531,7 +531,7 @@ static void PAConvectionNLApply3D(const int NE,
                opX[dx][2] = 0.0;
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  const fptype Btx = Bt(dx, qx);
+                  const real_t Btx = Bt(dx, qx);
                   opX[dx][0] += Btx * Z[qz][qy][qx][0];
                   opX[dx][1] += Btx * Z[qz][qy][qx][1];
                   opX[dx][2] += Btx * Z[qz][qy][qx][2];
@@ -541,7 +541,7 @@ static void PAConvectionNLApply3D(const int NE,
             {
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const fptype Bty = Bt(dy, qy);
+                  const real_t Bty = Bt(dy, qy);
                   opXY[dy][dx][0] += Bty * opX[dx][0];
                   opXY[dy][dx][1] += Bty * opX[dx][1];
                   opXY[dy][dx][2] += Bty * opX[dx][2];
@@ -554,7 +554,7 @@ static void PAConvectionNLApply3D(const int NE,
             {
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  const fptype Btz = Bt(dz, qz);
+                  const real_t Btz = Bt(dz, qz);
                   y(dx, dy, dz, 0, e) += Btz * opXY[dy][dx][0];
                   y(dx, dy, dz, 1, e) += Btz * opXY[dy][dx][1];
                   y(dx, dy, dz, 2, e) += Btz * opXY[dy][dx][2];
@@ -567,8 +567,8 @@ static void PAConvectionNLApply3D(const int NE,
 
 template<int T_D1D = 0, int T_Q1D = 0, int T_MAX_D1D = 0, int T_MAX_Q1D = 0>
 static void SmemPAConvectionNLApply3D(const int NE,
-                                      const Array<fptype> &b_,
-                                      const Array<fptype> &g_,
+                                      const Array<real_t> &b_,
+                                      const Array<real_t> &g_,
                                       const Vector &d_,
                                       const Vector &x_,
                                       Vector &y_,
@@ -596,25 +596,25 @@ static void SmemPAConvectionNLApply3D(const int NE,
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : T_MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX_Q1D;
-      MFEM_SHARED fptype BG[2][MQ1 * MD1];
-      fptype(*B)[MD1] = (fptype(*)[MD1])(BG + 0);
-      fptype(*G)[MD1] = (fptype(*)[MD1])(BG + 1);
-      fptype(*Bt)[MQ1] = (fptype(*)[MQ1])(BG + 0);
-      MFEM_SHARED fptype U[2][MQ1][MQ1][MQ1];
-      MFEM_SHARED fptype sm0[3][MQ1 * MQ1 * MQ1];
-      MFEM_SHARED fptype sm1[3][MQ1 * MQ1 * MQ1];
-      fptype(*DDQ0)[MD1][MQ1] = (fptype(*)[MD1][MQ1])(sm0 + 0);
-      fptype(*DDQ1)[MD1][MQ1] = (fptype(*)[MD1][MQ1])(sm0 + 1);
-      fptype(*X)[MD1][MD1] = (fptype(*)[MD1][MD1])(sm0 + 2);
-      fptype(*DQQ0)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm1 + 0);
-      fptype(*DQQ1)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm1 + 1);
-      fptype(*DQQ2)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm1 + 2);
-      fptype(*QQQ0)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm0 + 0);
-      fptype(*QQQ1)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm0 + 1);
-      fptype(*QQQ2)[MQ1][MQ1] = (fptype(*)[MQ1][MQ1])(sm0 + 2);
-      fptype(*QQD0)[MQ1][MD1] = (fptype(*)[MQ1][MD1])(sm1 + 0);
-      fptype(*QDD0)[MD1][MD1] = (fptype(*)[MD1][MD1])(sm0 + 0);
-      MFEM_SHARED fptype Z[MQ1][MQ1][MQ1];
+      MFEM_SHARED real_t BG[2][MQ1 * MD1];
+      real_t(*B)[MD1] = (real_t(*)[MD1])(BG + 0);
+      real_t(*G)[MD1] = (real_t(*)[MD1])(BG + 1);
+      real_t(*Bt)[MQ1] = (real_t(*)[MQ1])(BG + 0);
+      MFEM_SHARED real_t U[2][MQ1][MQ1][MQ1];
+      MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
+      real_t(*DDQ0)[MD1][MQ1] = (real_t(*)[MD1][MQ1])(sm0 + 0);
+      real_t(*DDQ1)[MD1][MQ1] = (real_t(*)[MD1][MQ1])(sm0 + 1);
+      real_t(*X)[MD1][MD1] = (real_t(*)[MD1][MD1])(sm0 + 2);
+      real_t(*DQQ0)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm1 + 0);
+      real_t(*DQQ1)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm1 + 1);
+      real_t(*DQQ2)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm1 + 2);
+      real_t(*QQQ0)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm0 + 0);
+      real_t(*QQQ1)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm0 + 1);
+      real_t(*QQQ2)[MQ1][MQ1] = (real_t(*)[MQ1][MQ1])(sm0 + 2);
+      real_t(*QQD0)[MQ1][MD1] = (real_t(*)[MQ1][MD1])(sm1 + 0);
+      real_t(*QDD0)[MD1][MD1] = (real_t(*)[MD1][MD1])(sm0 + 0);
+      MFEM_SHARED real_t Z[MQ1][MQ1][MQ1];
 
       for (int cy = 0; cy < VDIM; ++cy)
       {
@@ -657,13 +657,13 @@ static void SmemPAConvectionNLApply3D(const int NE,
                {
                   MFEM_FOREACH_THREAD(qx, x, Q1D)
                   {
-                     fptype u = 0.0;
-                     fptype v = 0.0;
-                     fptype z = 0.0;
+                     real_t u = 0.0;
+                     real_t v = 0.0;
+                     real_t z = 0.0;
                      for (int dx = 0; dx < D1D; ++dx)
                      {
-                        const fptype coord = X[dz][dy][dx];
-                        const fptype value = U[0][dz][dy][dx];
+                        const real_t coord = X[dz][dy][dx];
+                        const real_t value = U[0][dz][dy][dx];
                         u += coord * B[qx][dx];
                         v += coord * G[qx][dx];
                         z += value * B[qx][dx];
@@ -681,10 +681,10 @@ static void SmemPAConvectionNLApply3D(const int NE,
                {
                   MFEM_FOREACH_THREAD(qx, x, Q1D)
                   {
-                     fptype u = 0.0;
-                     fptype v = 0.0;
-                     fptype w = 0.0;
-                     fptype z = 0.0;
+                     real_t u = 0.0;
+                     real_t v = 0.0;
+                     real_t w = 0.0;
+                     real_t z = 0.0;
                      for (int dy = 0; dy < D1D; ++dy)
                      {
                         u += DDQ1[dz][dy][qx] * B[qy][dy];
@@ -706,10 +706,10 @@ static void SmemPAConvectionNLApply3D(const int NE,
                {
                   MFEM_FOREACH_THREAD(qx, x, Q1D)
                   {
-                     fptype u = 0.0;
-                     fptype v = 0.0;
-                     fptype w = 0.0;
-                     fptype z = 0.0;
+                     real_t u = 0.0;
+                     real_t v = 0.0;
+                     real_t w = 0.0;
+                     real_t z = 0.0;
                      for (int dz = 0; dz < D1D; ++dz)
                      {
                         u += DQQ0[dz][qy][qx] * B[qz][dz];
@@ -732,11 +732,11 @@ static void SmemPAConvectionNLApply3D(const int NE,
                   MFEM_FOREACH_THREAD(qx, x, Q1D)
                   {
                      const int q = qx + (qy + qz * Q1D) * Q1D;
-                     const fptype z = U[1][qz][qy][qx];
-                     const fptype gX = QQQ0[qz][qy][qx];
-                     const fptype gY = QQQ1[qz][qy][qx];
-                     const fptype gZ = QQQ2[qz][qy][qx];
-                     const fptype d = gX * D(q, 0, c, e) + gY * D(q, 1, c, e)
+                     const real_t z = U[1][qz][qy][qx];
+                     const real_t gX = QQQ0[qz][qy][qx];
+                     const real_t gY = QQQ1[qz][qy][qx];
+                     const real_t gZ = QQQ2[qz][qy][qx];
+                     const real_t d = gX * D(q, 0, c, e) + gY * D(q, 1, c, e)
                                       + gZ * D(q, 2, c, e);
                      Z[qz][qy][qx] += z * d;
                   }
@@ -758,7 +758,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx, x, D1D)
                {
-                  fptype u = 0.0;
+                  real_t u = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      u += Z[qz][qy][qx] * Bt[dx][qx];
@@ -774,7 +774,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx, x, D1D)
                {
-                  fptype u = 0.0;
+                  real_t u = 0.0;
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      u += QQD0[qz][qy][dx] * Bt[dy][qy];
@@ -790,7 +790,7 @@ static void SmemPAConvectionNLApply3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx, x, D1D)
                {
-                  fptype u = 0.0;
+                  real_t u = 0.0;
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u += QDD0[qz][dy][dx] * Bt[dz][qz];
@@ -816,9 +816,9 @@ void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int D1D = maps->ndof;
       const int Q1D = maps->nqpt;
       const Vector &QV = pa_data;
-      const Array<fptype> &B = maps->B;
-      const Array<fptype> &G = maps->G;
-      const Array<fptype> &Bt = maps->Bt;
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
       if (dim == 2)
       {
          return PAConvectionNLApply2D(NE, B, G, Bt, QV, x, y, D1D, Q1D);

@@ -26,8 +26,8 @@ struct IterSolveParameters
 {
    int print_level = 0;
    int max_iter = 500;
-   fptype abs_tol = 1e-12;
-   fptype rel_tol = 1e-9;
+   real_t abs_tol = 1e-12;
+   real_t rel_tol = 1e-9;
 };
 
 /// Parameters for the divergence free solver

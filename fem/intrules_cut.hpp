@@ -364,9 +364,9 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
    shape.SetSize(nBasis, 3);
    shape = 0.;
 
-   fptype xi = X(0);
-   fptype eta = X(1);
-   fptype nu = X(2);
+   real_t xi = X(0);
+   real_t eta = X(1);
+   real_t nu = X(2);
 
    switch (Order)
    {

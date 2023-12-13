@@ -108,9 +108,9 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 #endif
 
 #ifdef MFEM_USE_FLOAT
-typedef float fptype;
+typedef float real_t;
 #else
-typedef double fptype;
+typedef double real_t;
 #endif
 
 } // namespace mfem

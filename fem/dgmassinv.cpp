@@ -45,7 +45,7 @@ DGMassInverse::DGMassInverse(FiniteElementSpace &fes_orig, Coefficient *coeff,
       d2q = &fes_orig.GetFE(0)->GetDofToQuad(fes.GetFE(0)->GetNodes(), mode);
 
       int n = d2q->ndof;
-      Array<fptype> B_inv = d2q->B; // deep copy
+      Array<real_t> B_inv = d2q->B; // deep copy
       Array<int> ipiv(n);
       // solver basis to original
       LUFactors lu(B_inv.HostReadWrite(), ipiv.HostWrite());
@@ -97,11 +97,11 @@ void DGMassInverse::SetOperator(const Operator &op)
    MFEM_ABORT("SetOperator not supported with DGMassInverse.")
 }
 
-void DGMassInverse::SetRelTol(const fptype rel_tol_) { rel_tol = rel_tol_; }
+void DGMassInverse::SetRelTol(const real_t rel_tol_) { rel_tol = rel_tol_; }
 
-void DGMassInverse::SetAbsTol(const fptype abs_tol_) { abs_tol = abs_tol_; }
+void DGMassInverse::SetAbsTol(const real_t abs_tol_) { abs_tol = abs_tol_; }
 
-void DGMassInverse::SetMaxIter(const fptype max_iter_) { max_iter = max_iter_; }
+void DGMassInverse::SetMaxIter(const real_t max_iter_) { max_iter = max_iter_; }
 
 void DGMassInverse::Update()
 {
@@ -135,22 +135,22 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
    auto z = z_.Write();
    auto u = u_.ReadWrite();
 
-   const fptype RELTOL = rel_tol;
-   const fptype ABSTOL = abs_tol;
-   const fptype MAXIT = max_iter;
+   const real_t RELTOL = rel_tol;
+   const real_t ABSTOL = abs_tol;
+   const real_t MAXIT = max_iter;
    const bool IT_MODE = iterative_mode;
    const bool CHANGE_BASIS = (d2q != nullptr);
 
    // b is the right-hand side (if no change of basis, this just points to the
    // incoming RHS vector, if we have to change basis, this points to the
    // internal b2 vector where we put the transformed RHS)
-   const fptype *b;
+   const real_t *b;
    // the following are non-null if we have to change basis
-   fptype *b2 = nullptr; // non-const access to b2
-   const fptype *b_orig = nullptr; // RHS vector in "original" basis
-   const fptype *d2q_B = nullptr; // matrix to transform initial guess
-   const fptype *q2d_B = nullptr; // matrix to transform solution
-   const fptype *q2d_Bt = nullptr; // matrix to transform RHS
+   real_t *b2 = nullptr; // non-const access to b2
+   const real_t *b_orig = nullptr; // RHS vector in "original" basis
+   const real_t *d2q_B = nullptr; // matrix to transform initial guess
+   const real_t *q2d_B = nullptr; // matrix to transform solution
+   const real_t *q2d_Bt = nullptr; // matrix to transform RHS
    if (CHANGE_BASIS)
    {
       d2q_B = d2q->B.Read();
@@ -210,13 +210,13 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       DGMassPreconditioner(e, NE, ND, dinv, r, z);
       DGMassAxpy(e, NE, ND, 1.0, z, 0.0, z, d); // d = z
 
-      fptype nom = DGMassDot<NB>(e, NE, ND, d, r);
+      real_t nom = DGMassDot<NB>(e, NE, ND, d, r);
       if (nom < 0.0) { return; /* Not positive definite */ }
-      fptype r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
+      real_t r0 = fmax(nom*RELTOL*RELTOL, ABSTOL*ABSTOL);
       if (nom <= r0) { return; /* Converged */ }
 
       DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d);
-      fptype den = DGMassDot<NB>(e, NE, ND, z, d);
+      real_t den = DGMassDot<NB>(e, NE, ND, z, d);
       if (den <= 0.0)
       {
          DGMassDot<NB>(e, NE, ND, d, d);
@@ -228,19 +228,19 @@ void DGMassInverse::DGMassCGIteration(const Vector &b_, Vector &u_) const
       int i = 1;
       while (true)
       {
-         const fptype alpha = nom/den;
+         const real_t alpha = nom/den;
          DGMassAxpy(e, NE, ND, 1.0, u, alpha, d, u); // u = u + alpha*d
          DGMassAxpy(e, NE, ND, 1.0, r, -alpha, z, r); // r = r - alpha*A*d
 
          DGMassPreconditioner(e, NE, ND, dinv, r, z);
 
-         fptype betanom = DGMassDot<NB>(e, NE, ND, r, z);
+         real_t betanom = DGMassDot<NB>(e, NE, ND, r, z);
          if (betanom < 0.0) { return; /* Not positive definite */ }
          if (betanom <= r0) { break; /* Converged */ }
 
          if (++i > MAXIT) { break; }
 
-         const fptype beta = betanom/nom;
+         const real_t beta = betanom/nom;
          DGMassAxpy(e, NE, ND, 1.0, z, beta, d, d); // d = z + beta*d
          DGMassApply<DIM,D1D,Q1D>(e, NE, B, Bt, pa_data, d, z, d1d, q1d); // z = A d
          den = DGMassDot<NB>(e, NE, ND, d, z);

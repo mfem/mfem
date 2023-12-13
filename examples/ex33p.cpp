@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int num_refs = 3;
-   fptype alpha = 0.5;
+   real_t alpha = 0.5;
    bool visualization = true;
    bool verification = false;
 
@@ -127,13 +127,13 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   Array<fptype> coeffs, poles;
+   Array<real_t> coeffs, poles;
    int progress_steps = 1;
 
    // 2. Compute the rational expansion coefficients that define the
    //    integer-order PDEs.
    const int power_of_laplace = floor(alpha);
-   fptype exponent_to_approximate = alpha - power_of_laplace;
+   real_t exponent_to_approximate = alpha - power_of_laplace;
    bool integer_order = false;
    // Check if alpha is an integer or not.
    if (abs(exponent_to_approximate) > 1e-12)
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
    // 7. Define diffusion coefficient, load, and solution GridFunction.
    auto func = [&alpha](const Vector &x)
    {
-      fptype val = 1.0;
+      real_t val = 1.0;
       for (int i=0; i<x.Size(); i++)
       {
          val *= sin(M_PI*x(i));
@@ -398,7 +398,7 @@ int main(int argc, char *argv[])
    {
       auto solution = [] (const Vector &x)
       {
-         fptype val = 1.0;
+         real_t val = 1.0;
          for (int i=0; i<x.Size(); i++)
          {
             val *= sin(M_PI*x(i));
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
          return val;
       };
       FunctionCoefficient sol(solution);
-      fptype l2_error = u.ComputeL2Error(sol);
+      real_t l2_error = u.ComputeL2Error(sol);
 
       if (Mpi::Root())
       {

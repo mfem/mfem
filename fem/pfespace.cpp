@@ -202,7 +202,7 @@ void ParFiniteElementSpace::PrintPartitionStats()
 
    if (MyRank == 0)
    {
-      fptype avg = fptype(sum_ltdofs) / NRanks;
+      real_t avg = real_t(sum_ltdofs) / NRanks;
       mfem::out << "True DOF partitioning: min " << min_ltdofs
                 << ", avg " << std::fixed << std::setprecision(1) << avg
                 << ", max " << max_ltdofs
@@ -864,12 +864,12 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 
       HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
       HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
-      fptype    *d_diag = new fptype[ltdof];
+      real_t    *d_diag = new real_t[ltdof];
       int diag_counter;
 
       HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
       HYPRE_Int *j_offd = new HYPRE_Int[nnz_offd];
-      fptype    *d_offd = new fptype[nnz_offd];
+      real_t    *d_offd = new real_t[nnz_offd];
       int offd_counter;
 
       HYPRE_BigInt *cmap   = new HYPRE_BigInt[ldof-ltdof];
@@ -940,7 +940,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
          }
          else if (i_offd[i+1] == i_offd[i] + 2)
          {
-            const fptype *T =
+            const real_t *T =
                ND_DofTransformation::GetFaceTransform(ltori[i]).GetData();
             j_offd[i_offd[i] + 1] = j_offd[i_offd[i]] + 1;
             d_offd[i_offd[i]] = T[0]; d_offd[i_offd[i] + 1] = T[2];
@@ -972,7 +972,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    return P_pc;
 }
 
-void ParFiniteElementSpace::DivideByGroupSize(fptype *vec)
+void ParFiniteElementSpace::DivideByGroupSize(real_t *vec)
 {
    GroupTopology &gt = GetGroupTopo();
    for (int i = 0; i < ldof_group.Size(); i++)
@@ -1924,9 +1924,9 @@ struct PMatrixElement
 {
    HYPRE_BigInt column;
    int stride;
-   fptype value;
+   real_t value;
 
-   PMatrixElement(HYPRE_BigInt col = 0, int str = 0, fptype val = 0)
+   PMatrixElement(HYPRE_BigInt col = 0, int str = 0, real_t val = 0)
       : column(col), stride(str), value(val) {}
 
    bool operator<(const PMatrixElement &other) const
@@ -1943,7 +1943,7 @@ struct PMatrixRow
    PMatrixElement::List elems;
 
    /// Add other row, times 'coef'.
-   void AddRow(const PMatrixRow &other, fptype coef)
+   void AddRow(const PMatrixRow &other, real_t coef)
    {
       elems.reserve(elems.size() + other.elems.size());
       for (const PMatrixElement &oei : other.elems)
@@ -1974,7 +1974,7 @@ struct PMatrixRow
       elems.resize(j+1);
    }
 
-   void write(std::ostream &os, fptype sign) const
+   void write(std::ostream &os, real_t sign) const
    {
       bin_io::write<int>(os, elems.size());
       for (unsigned i = 0; i < elems.size(); i++)
@@ -1982,11 +1982,11 @@ struct PMatrixRow
          const PMatrixElement &e = elems[i];
          bin_io::write<HYPRE_BigInt>(os, e.column);
          bin_io::write<int>(os, e.stride);
-         bin_io::write<fptype>(os, e.value * sign);
+         bin_io::write<real_t>(os, e.value * sign);
       }
    }
 
-   void read(std::istream &is, fptype sign)
+   void read(std::istream &is, real_t sign)
    {
       elems.resize(bin_io::read<int>(is));
       for (unsigned i = 0; i < elems.size(); i++)
@@ -1994,7 +1994,7 @@ struct PMatrixRow
          PMatrixElement &e = elems[i];
          e.column = bin_io::read<HYPRE_BigInt>(is);
          e.stride = bin_io::read<int>(is);
-         e.value = bin_io::read<fptype>(is) * sign;
+         e.value = bin_io::read<real_t>(is) * sign;
       }
    }
 };
@@ -2093,7 +2093,7 @@ void NeighborRowMessage::Encode(int rank)
 
          // handle orientation and sign change
          int edof = ri.edof;
-         fptype s = 1.0;
+         real_t s = 1.0;
          if (ent == 1)
          {
             int eo = pncmesh->GetEdgeNCOrientation(id);
@@ -2170,7 +2170,7 @@ void NeighborRowMessage::Decode(int rank)
 #endif
 
          // If edof arrived with a negative index, flip it, and the scaling.
-         fptype s = (edof < 0) ? -1.0 : 1.0;
+         real_t s = (edof < 0) ? -1.0 : 1.0;
          edof = (edof < 0) ? -1 - edof : edof;
          if (ind && (edof = ind[edof]) < 0)
          {
@@ -2235,7 +2235,7 @@ void NeighborRowMessage::Decode(int rank)
 
             // This is the second "fundamental unit" used in the transformation.
             const auto initial_second_row = second_row;
-            const fptype *T =
+            const real_t *T =
                ND_DofTransformation::GetFaceTransform(fo).GetData();
 
             first_row.AddRow(initial_first_row, T[0] - 1.0);
@@ -2668,7 +2668,7 @@ int ParFiniteElementSpace
                UnpackDof(dof, ent, idx, edof);
 
                const int* dep_col = deps.GetRowColumns(dof);
-               const fptype* dep_coef = deps.GetRowEntries(dof);
+               const real_t* dep_coef = deps.GetRowEntries(dof);
                int num_dep = deps.RowSize(dof);
 
                // form linear combination of rows
@@ -2749,12 +2749,12 @@ int ParFiniteElementSpace
    if (MyRank == 0)
    {
       mfem::out << "P matrix stats (avg per rank): "
-                << fptype(glob_rounds)/NRanks << " rounds, "
-                << fptype(glob_msgs_sent)/NRanks << " msgs sent, "
-                << fptype(glob_msgs_recv)/NRanks << " msgs recv, "
-                << fptype(glob_rows_sent)/NRanks << " rows sent, "
-                << fptype(glob_rows_recv)/NRanks << " rows recv, "
-                << fptype(glob_rows_fwd)/NRanks << " rows forwarded."
+                << real_t(glob_rounds)/NRanks << " rounds, "
+                << real_t(glob_msgs_sent)/NRanks << " msgs sent, "
+                << real_t(glob_msgs_recv)/NRanks << " msgs recv, "
+                << real_t(glob_rows_sent)/NRanks << " rows sent, "
+                << real_t(glob_rows_recv)/NRanks << " rows recv, "
+                << real_t(glob_rows_fwd)/NRanks << " rows forwarded."
                 << std::endl;
    }
 #endif
@@ -2815,8 +2815,8 @@ HypreParMatrix* ParFiniteElementSpace
    HYPRE_Int *J_diag = Memory<HYPRE_Int>(nnz_diag);
    HYPRE_Int *J_offd = Memory<HYPRE_Int>(nnz_offd);
 
-   fptype *A_diag = Memory<fptype>(nnz_diag);
-   fptype *A_offd = Memory<fptype>(nnz_offd);
+   real_t *A_diag = Memory<real_t>(nnz_diag);
+   real_t *A_offd = Memory<real_t>(nnz_offd);
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
@@ -3313,7 +3313,7 @@ void ParFiniteElementSpace::CopyProlongationAndRestriction(
       perm_mat = new SparseMatrix(n, fes.GetVSize());
       for (int i=0; i<n; ++i)
       {
-         fptype s;
+         real_t s;
          int j = DecodeDof((*perm)[i], s);
          perm_mat->Set(i, j, s);
       }
@@ -3569,8 +3569,8 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
-   const fptype *xdata = x.HostRead();
-   fptype *ydata = y.HostWrite();
+   const real_t *xdata = x.HostRead();
+   real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    const int in_layout = 2; // 2 - input is ltdofs array
@@ -3580,7 +3580,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      gc.BcastBegin(const_cast<fptype*>(xdata), in_layout);
+      gc.BcastBegin(const_cast<real_t*>(xdata), in_layout);
    }
 
    int j = 0;
@@ -3605,8 +3605,8 @@ void ConformingProlongationOperator::MultTranspose(
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
 
-   const fptype *xdata = x.HostRead();
-   fptype *ydata = y.HostWrite();
+   const real_t *xdata = x.HostRead();
+   real_t *ydata = y.HostWrite();
    const int m = external_ldofs.Size();
 
    if (!local)
@@ -3626,7 +3626,7 @@ void ConformingProlongationOperator::MultTranspose(
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    if (!local)
    {
-      gc.ReduceEnd<fptype>(ydata, out_layout, GroupCommunicator::Sum);
+      gc.ReduceEnd<real_t>(ydata, out_layout, GroupCommunicator::Sum);
    }
 }
 
@@ -3785,7 +3785,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          if (send_size > 0)
          {
             auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<fptype>::mpi_type,
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41822,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3794,7 +3794,7 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
          if (recv_size > 0)
          {
             auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<fptype>::mpi_type,
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41822,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3848,7 +3848,7 @@ static void AddSubVector(const Array<int> &unique_dst_indices,
    mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
    {
       const int dst_idx = DST_I[i];
-      fptype sum = y[dst_idx];
+      real_t sum = y[dst_idx];
       const int end = SRC_O[i+1];
       for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
       y[dst_idx] = sum;
@@ -3877,7 +3877,7 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
          if (send_size > 0)
          {
             auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<fptype>::mpi_type,
+            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }
@@ -3886,7 +3886,7 @@ void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
          if (recv_size > 0)
          {
             auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<fptype>::mpi_type,
+            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
                       gtopo.GetNeighborRank(nbr), 41823,
                       gtopo.GetComm(), &requests[req_counter++]);
          }

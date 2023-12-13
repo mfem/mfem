@@ -165,8 +165,8 @@ int main(int argc, char *argv[])
 
 void figure8_trans(const Vector &x, Vector &p)
 {
-   const fptype r = 2.5;
-   fptype a = r + cos(x(0)/2) * sin(x(1)) - sin(x(0)/2) * sin(2*x(1));
+   const real_t r = 2.5;
+   real_t a = r + cos(x(0)/2) * sin(x(1)) - sin(x(0)/2) * sin(2*x(1));
 
    p.SetSize(3);
    p(0) = a * cos(x(0));
@@ -176,11 +176,11 @@ void figure8_trans(const Vector &x, Vector &p)
 
 void bottle_trans(const Vector &x, Vector &p)
 {
-   fptype u = x(0);
-   fptype v = x(1) + M_PI_2;
-   fptype a = 6.*cos(u)*(1.+sin(u));
-   fptype b = 16.*sin(u);
-   fptype r = 4.*(1.-cos(u)/2.);
+   real_t u = x(0);
+   real_t v = x(1) + M_PI_2;
+   real_t a = 6.*cos(u)*(1.+sin(u));
+   real_t b = 16.*sin(u);
+   real_t r = 4.*(1.-cos(u)/2.);
 
    if (u <= M_PI)
    {
@@ -197,8 +197,8 @@ void bottle_trans(const Vector &x, Vector &p)
 
 void bottle2_trans(const Vector &x, Vector &p)
 {
-   fptype u = x(1)-M_PI_2, v = 2*x(0);
-   const fptype pi = M_PI;
+   real_t u = x(1)-M_PI_2, v = 2*x(0);
+   const real_t pi = M_PI;
 
    p(0) = (v<pi     ? (2.5-1.5*cos(v))*cos(u) :
            (v<2*pi  ? (2.5-1.5*cos(v))*cos(u) :

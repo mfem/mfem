@@ -37,8 +37,8 @@
 using namespace std;
 using namespace mfem;
 
-fptype spherical_obstacle(const Vector &pt);
-fptype exact_solution_obstacle(const Vector &pt);
+real_t spherical_obstacle(const Vector &pt);
+real_t exact_solution_obstacle(const Vector &pt);
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 
 class LogarithmGridFunctionCoefficient : public Coefficient
@@ -46,14 +46,14 @@ class LogarithmGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u; // grid function
    Coefficient *obstacle;
-   fptype min_val;
+   real_t min_val;
 
 public:
    LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                    fptype min_val_=-36)
+                                    real_t min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
-   virtual fptype Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 class ExponentialGridFunctionCoefficient : public Coefficient
@@ -61,15 +61,15 @@ class ExponentialGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u;
    Coefficient *obstacle;
-   fptype min_val;
-   fptype max_val;
+   real_t min_val;
+   real_t max_val;
 
 public:
    ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                      fptype min_val_=0.0, fptype max_val_=1e6)
+                                      real_t min_val_=0.0, real_t max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
-   virtual fptype Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
 };
 
 int main(int argc, char *argv[])
@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
    int order = 1;
    int max_it = 10;
    int ref_levels = 3;
-   fptype alpha = 1.0;
-   fptype tol = 1e-5;
+   real_t alpha = 1.0;
+   real_t tol = 1e-5;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 
    // 3C. Rescale the domain to a unit circle (radius = 1).
    GridFunction *nodes = mesh.GetNodes();
-   fptype scale = 2*sqrt(2);
+   real_t scale = 2*sqrt(2);
    *nodes /= scale;
 
    // 4. Define the necessary finite element spaces on the mesh.
@@ -159,8 +159,8 @@ int main(int argc, char *argv[])
    // 6. Define an initial guess for the solution.
    auto IC_func = [](const Vector &x)
    {
-      fptype r0 = 1.0;
-      fptype rr = 0.0;
+      real_t r0 = 1.0;
+      real_t rr = 0.0;
       for (int i=0; i<x.Size(); i++)
       {
          rr += x(i)*x(i);
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
    // 10. Iterate
    int k;
    int total_iterations = 0;
-   fptype increment_u = 0.1;
+   real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
       GridFunction u_tmp(&H1fes);
@@ -300,10 +300,10 @@ int main(int argc, char *argv[])
          delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
 
          u_tmp -= u_gf;
-         fptype Newton_update_size = u_tmp.ComputeL2Error(zero);
+         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         fptype gamma = 1.0;
+         real_t gamma = 1.0;
          delta_psi_gf *= gamma;
          psi_gf += delta_psi_gf;
 
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
          break;
       }
 
-      fptype H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
       mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
 
    }
@@ -362,13 +362,13 @@ int main(int argc, char *argv[])
    }
 
    {
-      fptype L2_error = u_gf.ComputeL2Error(exact_coef);
-      fptype H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      real_t L2_error = u_gf.ComputeL2Error(exact_coef);
+      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
 
       ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
       GridFunction u_alt_gf(&L2fes);
       u_alt_gf.ProjectCoefficient(u_alt_cf);
-      fptype L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
+      real_t L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
       mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error <<
                 endl;
@@ -380,35 +380,35 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-fptype LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
+real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
                                               const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   fptype val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
+   real_t val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
    return max(min_val, log(val));
 }
 
-fptype ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
+real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
                                                 const IntegrationPoint &ip)
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   fptype val = u->GetValue(T, ip);
+   real_t val = u->GetValue(T, ip);
    return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
 }
 
-fptype spherical_obstacle(const Vector &pt)
+real_t spherical_obstacle(const Vector &pt)
 {
-   fptype x = pt(0), y = pt(1);
-   fptype r = sqrt(x*x + y*y);
-   fptype r0 = 0.5;
-   fptype beta = 0.9;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t beta = 0.9;
 
-   fptype b = r0*beta;
-   fptype tmp = sqrt(r0*r0 - b*b);
-   fptype B = tmp + b*b/tmp;
-   fptype C = -b/tmp;
+   real_t b = r0*beta;
+   real_t tmp = sqrt(r0*r0 - b*b);
+   real_t B = tmp + b*b/tmp;
+   real_t C = -b/tmp;
 
    if (r > b)
    {
@@ -420,13 +420,13 @@ fptype spherical_obstacle(const Vector &pt)
    }
 }
 
-fptype exact_solution_obstacle(const Vector &pt)
+real_t exact_solution_obstacle(const Vector &pt)
 {
-   fptype x = pt(0), y = pt(1);
-   fptype r = sqrt(x*x + y*y);
-   fptype r0 = 0.5;
-   fptype a =  0.348982574111686;
-   fptype A = -0.340129705945858;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t a =  0.348982574111686;
+   real_t A = -0.340129705945858;
 
    if (r > a)
    {
@@ -440,11 +440,11 @@ fptype exact_solution_obstacle(const Vector &pt)
 
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad)
 {
-   fptype x = pt(0), y = pt(1);
-   fptype r = sqrt(x*x + y*y);
-   fptype r0 = 0.5;
-   fptype a =  0.348982574111686;
-   fptype A = -0.340129705945858;
+   real_t x = pt(0), y = pt(1);
+   real_t r = sqrt(x*x + y*y);
+   real_t r0 = 0.5;
+   real_t a =  0.348982574111686;
+   real_t A = -0.340129705945858;
 
    if (r > a)
    {

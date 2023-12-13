@@ -49,12 +49,12 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
    col_offsets.MakeRef(col_offsets_);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, fptype c)
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
 {
    SetBlock(iblock, iblock, opt, c);
 }
 
-void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, fptype c)
+void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
 {
    if (owns_blocks && op(iRow, iCol))
    {

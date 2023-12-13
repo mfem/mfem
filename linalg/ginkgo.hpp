@@ -69,16 +69,16 @@ public:
 * @ingroup Ginkgo
 */
 
-class VectorWrapper : public gko::matrix::Dense<fptype>
+class VectorWrapper : public gko::matrix::Dense<real_t>
 {
 public:
    VectorWrapper(std::shared_ptr<const gko::Executor> exec,
                  gko::size_type size, Vector *mfem_vec,
                  bool ownership = false)
-      : gko::matrix::Dense<fptype>(
+      : gko::matrix::Dense<real_t>(
            exec,
            gko::dim<2> {size, 1},
-   gko_array<fptype>::view(exec,
+   gko_array<real_t>::view(exec,
                            size,
                            mfem_vec->ReadWrite(
                               exec != exec->get_master() ? true : false)),
@@ -123,7 +123,7 @@ public:
 
    // Override base Dense class implementation for creating new vectors
    // with same executor and size as self
-   virtual std::unique_ptr<gko::matrix::Dense<fptype>>
+   virtual std::unique_ptr<gko::matrix::Dense<real_t>>
                                                     create_with_same_config() const override
    {
       Vector *mfem_vec = new Vector(
@@ -145,7 +145,7 @@ public:
    // with same executor and type as self, but with a different size.
    // This function will create "one large VectorWrapper" of size
    // size[0] * size[1], since MFEM Vectors only have one dimension.
-   virtual std::unique_ptr<gko::matrix::Dense<fptype>> create_with_type_of_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<real_t>> create_with_type_of_impl(
                                                        std::shared_ptr<const gko::Executor> exec,
                                                        const gko::dim<2> &size,
                                                        gko::size_type stride) const override
@@ -175,7 +175,7 @@ public:
 
    // Override base Dense class implementation for creating new sub-vectors
    // from a larger vector.
-   virtual std::unique_ptr<gko::matrix::Dense<fptype>> create_submatrix_impl(
+   virtual std::unique_ptr<gko::matrix::Dense<real_t>> create_submatrix_impl(
                                                        const gko::span &rows,
                                                        const gko::span &columns,
                                                        const gko::size_type stride) override
@@ -246,8 +246,8 @@ private:
 
 // Utility function which gets the scalar value of a Ginkgo gko::matrix::Dense
 // matrix representing the norm of a vector.
-template <typename ValueType=fptype>
-fptype get_norm(const gko::matrix::Dense<ValueType> *norm)
+template <typename ValueType=real_t>
+real_t get_norm(const gko::matrix::Dense<ValueType> *norm)
 {
    // Put the value on CPU thanks to the master executor
    auto cpu_norm = clone(norm->get_executor()->get_master(), norm);
@@ -257,8 +257,8 @@ fptype get_norm(const gko::matrix::Dense<ValueType> *norm)
 
 // Utility function which computes the norm of a Ginkgo gko::matrix::Dense
 // vector.
-template <typename ValueType=fptype>
-fptype compute_norm(const gko::matrix::Dense<ValueType> *b)
+template <typename ValueType=real_t>
+real_t compute_norm(const gko::matrix::Dense<ValueType> *b)
 {
    // Get the executor of the vector
    auto exec = b->get_executor();
@@ -285,7 +285,7 @@ fptype compute_norm(const gko::matrix::Dense<ValueType> *b)
  *
  * @ingroup Ginkgo
  */
-template <typename ValueType=fptype>
+template <typename ValueType=real_t>
 struct ResidualLogger : gko::log::Logger
 {
    // Output the logger's data in a table format
@@ -695,7 +695,7 @@ public:
 
    int GetNumIterations() const { return final_iter; }
    int GetConverged() const { return converged; }
-   fptype GetFinalNorm() const { return final_norm; }
+   real_t GetFinalNorm() const { return final_norm; }
 
    /**
     * If the Operator is a SparseMatrix, set up a Ginkgo Csr matrix
@@ -743,9 +743,9 @@ protected:
    bool use_implicit_res_norm;
    int print_level;
    int max_iter;
-   fptype rel_tol;
-   fptype abs_tol;
-   mutable fptype final_norm;
+   real_t rel_tol;
+   real_t abs_tol;
+   mutable real_t final_norm;
    mutable int final_iter;
    mutable int converged;
 
@@ -835,7 +835,7 @@ private:
     * event masks in Ginkgo's .../include/ginkgo/core/log/logger.hpp.
     */
    void
-   initialize_ginkgo_log(gko::matrix::Dense<fptype>* b) const;
+   initialize_ginkgo_log(gko::matrix::Dense<real_t>* b) const;
 
    /**
     * Pointer to either a Ginkgo CSR matrix or an OperatorWrapper wrapping
@@ -858,7 +858,7 @@ public:
    EnableGinkgoSolver(GinkgoExecutor &exec, bool use_implicit_res_norm) :
       GinkgoIterativeSolver(exec, use_implicit_res_norm) {}
 
-   void SetRelTol(fptype rtol)
+   void SetRelTol(real_t rtol)
    {
       rel_tol = rtol;
       this->update_stop_factory();
@@ -872,7 +872,7 @@ public:
       }
    }
 
-   void SetAbsTol(fptype atol)
+   void SetAbsTol(real_t atol)
    {
       abs_tol = atol;
       this->update_stop_factory();
@@ -907,7 +907,7 @@ public:
  *
  * @ingroup Ginkgo
  */
-class CGSolver : public EnableGinkgoSolver<gko::solver::Cg<fptype>>
+class CGSolver : public EnableGinkgoSolver<gko::solver::Cg<real_t>>
 {
 public:
    /**
@@ -933,7 +933,7 @@ public:
  *
  * @ingroup Ginkgo
  */
-class BICGSTABSolver : public EnableGinkgoSolver<gko::solver::Bicgstab<fptype>>
+class BICGSTABSolver : public EnableGinkgoSolver<gko::solver::Bicgstab<real_t>>
 {
 public:
    /**
@@ -962,7 +962,7 @@ public:
  *
  * @ingroup Ginkgo
  */
-class CGSSolver : public EnableGinkgoSolver<gko::solver::Cgs<fptype>>
+class CGSSolver : public EnableGinkgoSolver<gko::solver::Cgs<real_t>>
 {
 public:
    /**
@@ -998,7 +998,7 @@ public:
  *
  * @ingroup Ginkgo
  */
-class FCGSolver : public EnableGinkgoSolver<gko::solver::Fcg<fptype>>
+class FCGSolver : public EnableGinkgoSolver<gko::solver::Fcg<real_t>>
 {
 public:
    /**
@@ -1023,7 +1023,7 @@ public:
  *
  * @ingroup Ginkgo
  */
-class GMRESSolver : public EnableGinkgoSolver<gko::solver::Gmres<fptype>>
+class GMRESSolver : public EnableGinkgoSolver<gko::solver::Gmres<real_t>>
 {
 public:
    /**
@@ -1061,7 +1061,7 @@ using gko::solver::cb_gmres::storage_precision;
  * An implementation of the solver interface using the Ginkgo
  * Compressed Basis GMRES solver. With CB-GMRES, the Krylov basis
  * is "compressed" by storing in a lower precision. Currently, computations
- * are always performed in the MFEM-defined `fptype` precision, when using this
+ * are always performed in the MFEM-defined `real_t` precision, when using this
  * MFEM integration.
  * The Ginkgo storage precision options are accessed
  * through Ginkgo::storage_precision::*.  The default choice
@@ -1070,7 +1070,7 @@ using gko::solver::cb_gmres::storage_precision;
  *
  * @ingroup Ginkgo
  */
-class CBGMRESSolver : public EnableGinkgoSolver<gko::solver::CbGmres<fptype>>
+class CBGMRESSolver : public EnableGinkgoSolver<gko::solver::CbGmres<real_t>>
 {
 public:
    /**
@@ -1080,9 +1080,9 @@ public:
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
     * @param[in] prec  The storage precision used in the CB-GMRES. Options
-    *  are: keep (keep `fptype` precision), reduce1 (double -> float
+    *  are: keep (keep `real_t` precision), reduce1 (double -> float
     *  or float -> half), reduce2 (double -> half or float -> half),
-    *  integer (`fptype` -> int64), ireduce1 (double -> int32 or
+    *  integer (`real_t` -> int64), ireduce1 (double -> int32 or
     *  float -> int16), ireduce2 (double -> int16 or float -> int16).
     *  See Ginkgo documentation for more about CB-GMRES.
     */
@@ -1097,9 +1097,9 @@ public:
     * @param[in] dim  The Krylov dimension of the solver. Value of 0 will
     *  let Ginkgo use its own internal default value.
     * @param[in] prec  The storage precision used in the CB-GMRES. Options
-    *  are: keep (keep `fptype` precision), reduce1 (double -> float
+    *  are: keep (keep `real_t` precision), reduce1 (double -> float
     *  or float -> half), reduce2 (double -> half or float -> half),
-    *  integer (`fptype` -> int64), ireduce1 (double -> int32 or
+    *  integer (`real_t` -> int64), ireduce1 (double -> int32 or
     *  float -> int16), ireduce2 (double -> int16 or float -> int16).
     *  See Ginkgo documentation for more about CB-GMRES.
     */
@@ -1126,7 +1126,7 @@ protected:
  *
  * @ingroup Ginkgo
  */
-class IRSolver : public EnableGinkgoSolver<gko::solver::Ir<fptype>>
+class IRSolver : public EnableGinkgoSolver<gko::solver::Ir<real_t>>
 {
 public:
    /**
@@ -1168,7 +1168,7 @@ public:
    JacobiPreconditioner(
       GinkgoExecutor &exec,
       const std::string &storage_opt = "none",
-      const fptype accuracy = 1.e-1,
+      const real_t accuracy = 1.e-1,
       const int max_block_size = 32
    );
 };

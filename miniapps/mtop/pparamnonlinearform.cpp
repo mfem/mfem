@@ -122,7 +122,7 @@ void ParParametricBNLForm::SetParamEssentialBC(const
    }
 }
 
-fptype ParParametricBNLForm::GetEnergy(const Vector &x) const
+real_t ParParametricBNLForm::GetEnergy(const Vector &x) const
 {
    xs_true.Update(const_cast<Vector&>(x), block_trueOffsets);
    xs.Update(block_offsets);
@@ -132,10 +132,10 @@ fptype ParParametricBNLForm::GetEnergy(const Vector &x) const
       fes[s]->GetProlongationMatrix()->Mult(xs_true.GetBlock(s), xs.GetBlock(s));
    }
 
-   fptype enloc = ParametricBNLForm::GetEnergyBlocked(xs,xdv);
-   fptype englo = 0.0;
+   real_t enloc = ParametricBNLForm::GetEnergyBlocked(xs,xdv);
+   real_t englo = 0.0;
 
-   MPI_Allreduce(&enloc, &englo, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+   MPI_Allreduce(&enloc, &englo, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  ParFESpace(0)->GetComm());
 
    return englo;

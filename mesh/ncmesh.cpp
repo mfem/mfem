@@ -198,7 +198,7 @@ NCMesh::NCMesh(const Mesh *mesh)
       coordinates.SetSize(3*mesh->GetNV());
       for (int i = 0; i < mesh->GetNV(); i++)
       {
-         std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(fptype));
+         std::memcpy(&coordinates[3*i], mesh->GetVertex(i), 3*sizeof(real_t));
       }
    }
 
@@ -2407,7 +2407,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    return NULL;
 }
 
-const fptype* NCMesh::CalcVertexPos(int node) const
+const real_t* NCMesh::CalcVertexPos(int node) const
 {
    const Node &nd = nodes[node];
    if (nd.p1 == nd.p2) // top-level vertex
@@ -2421,8 +2421,8 @@ const fptype* NCMesh::CalcVertexPos(int node) const
    MFEM_VERIFY(tv.visited == false, "cyclic vertex dependencies.");
    tv.visited = true;
 
-   const fptype* pos1 = CalcVertexPos(nd.p1);
-   const fptype* pos2 = CalcVertexPos(nd.p2);
+   const real_t* pos1 = CalcVertexPos(nd.p1);
+   const real_t* pos2 = CalcVertexPos(nd.p2);
 
    for (int i = 0; i < 3; i++)
    {
@@ -2806,7 +2806,7 @@ struct PointMatrixHash
 {
    std::size_t operator()(const NCMesh::PointMatrix &pm) const
    {
-      MFEM_ASSERT(sizeof(fptype) == sizeof(std::uint64_t), "");
+      MFEM_ASSERT(sizeof(real_t) == sizeof(std::uint64_t), "");
 
       // This is a variation on "Hashing an array of floats" from here:
       // https://cs.stackexchange.com/questions/37952
@@ -2817,7 +2817,7 @@ struct PointMatrixHash
          {
             // mix the doubles by adding their binary representations
             // many times over (note: 31 is 11111 in binary)
-            fptype coord = pm.points[i].coord[j];
+            real_t coord = pm.points[i].coord[j];
             hash = 31*hash + *((std::uint64_t*) &coord);
          }
       }
@@ -3205,7 +3205,7 @@ void NCMesh::BuildFaceList()
    }
 }
 
-void NCMesh::TraverseEdge(int vn0, int vn1, fptype t0, fptype t1, int flags,
+void NCMesh::TraverseEdge(int vn0, int vn1, real_t t0, real_t t1, int flags,
                           int level, MatrixMap &matrix_map)
 {
    int mid = nodes.FindId(vn0, vn1);
@@ -3228,7 +3228,7 @@ void NCMesh::TraverseEdge(int vn0, int vn1, fptype t0, fptype t1, int flags,
    }
 
    // recurse deeper
-   fptype tmid = (t0 + t1) / 2;
+   real_t tmid = (t0 + t1) / 2;
    TraverseEdge(vn0, mid, t0, tmid, flags, level+1, matrix_map);
    TraverseEdge(mid, vn1, tmid, t1, flags, level+1, matrix_map);
 }
@@ -3290,7 +3290,7 @@ void NCMesh::BuildEdgeList()
          processed_edges[enode] = 1;
 
          // prepare edge interval for slave traversal, handle orientation
-         fptype t0 = 0.0, t1 = 1.0;
+         real_t t0 = 0.0, t1 = 1.0;
          int v0index = nodes[node[0]].vert_index;
          int v1index = nodes[node[1]].vert_index;
          int flags = (v0index > v1index) ? 1 : 0;
@@ -6318,7 +6318,7 @@ void NCMesh::DebugLeafOrder(std::ostream &os) const
       const Element* elem = &elements[leaf_elements[i]];
       for (int j = 0; j < Dim; j++)
       {
-         fptype sum = 0.0;
+         real_t sum = 0.0;
          int count = 0;
          for (int k = 0; k < MaxElemNodes; k++)
          {
@@ -6342,7 +6342,7 @@ void NCMesh::DebugDump(std::ostream &os) const
    os << nodes.Size() << "\n";
    for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
    {
-      const fptype *pos = CalcVertexPos(node.index());
+      const real_t *pos = CalcVertexPos(node.index());
       os << node.index() << " "
          << pos[0] << " " << pos[1] << " " << pos[2] << " "
          << node->p1 << " " << node->p2 << " "

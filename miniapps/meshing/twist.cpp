@@ -41,11 +41,11 @@ static Element::Type el_type_ = Element::WEDGE;
 static int    order_ = 3;
 static int    nz_    = 3;
 static int    nt_    = 2;
-static fptype a_     = 1.0;
-static fptype b_     = 1.0;
-static fptype c_     = 3.0;
+static real_t a_     = 1.0;
+static real_t b_     = 1.0;
+static real_t c_     = 3.0;
 
-void pts(int iphi, int t, fptype x[]);
+void pts(int iphi, int t, real_t x[]);
 void trans(const Vector &x, Vector &p);
 
 int main(int argc, char *argv[])
@@ -266,10 +266,10 @@ int main(int argc, char *argv[])
 
 void trans(const Vector &x, Vector &p)
 {
-   fptype z = x[2];
-   fptype phi = 0.5 * M_PI * nt_ * z / c_;
-   fptype cp = cos(phi);
-   fptype sp = sin(phi);
+   real_t z = x[2];
+   real_t phi = 0.5 * M_PI * nt_ * z / c_;
+   real_t cp = cos(phi);
+   real_t sp = sin(phi);
 
    p[0] = 0.5 * a_ + (x[0] - 0.5 * a_) * cp - (x[1] - 0.5 * b_) * sp;
    p[1] = 0.5 * b_ + (x[0] - 0.5 * a_) * sp + (x[1] - 0.5 * b_) * cp;

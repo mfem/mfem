@@ -26,7 +26,7 @@ protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
    DenseMatrix d2Fdx2, adjJT;
-   fptype Wght;
+   real_t Wght;
    int EvalState;
    enum StateMasks
    {
@@ -47,7 +47,7 @@ protected:
        store it in d2Fdx2. */
    virtual const DenseMatrix &EvalHessian() = 0;
 
-   fptype EvalWeight();
+   real_t EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
@@ -128,7 +128,7 @@ public:
    /** @brief Return the weight of the Jacobian matrix of the transformation
        at the currently set IntegrationPoint.
        The Weight evaluates to \f$ \sqrt{\lvert J^T J \rvert} \f$. */
-   fptype Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
+   real_t Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    /** @brief Return the adjugate of the Jacobian matrix of the transformation
         at the currently set IntegrationPoint. */
@@ -237,12 +237,12 @@ protected:
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
-   fptype ref_tol; // reference space tolerance
-   fptype phys_rtol; // physical space tolerance (relative)
-   fptype ip_tol; // tolerance for checking if a point is inside the ref. elem.
+   real_t ref_tol; // reference space tolerance
+   real_t phys_rtol; // physical space tolerance (relative)
+   real_t ip_tol; // tolerance for checking if a point is inside the ref. elem.
    int print_level;
 
-   void NewtonPrint(int mode, fptype val);
+   void NewtonPrint(int mode, real_t val);
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
                          const char *suffix);
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
@@ -317,15 +317,15 @@ public:
    void SetMaxIter(int max_it) { max_iter = max_it; }
 
    /// Set the reference-space convergence tolerance.
-   void SetReferenceTol(fptype ref_sp_tol) { ref_tol = ref_sp_tol; }
+   void SetReferenceTol(real_t ref_sp_tol) { ref_tol = ref_sp_tol; }
 
    /// Set the relative physical-space convergence tolerance.
-   void SetPhysicalRelTol(fptype phys_rel_tol) { phys_rtol = phys_rel_tol; }
+   void SetPhysicalRelTol(real_t phys_rel_tol) { phys_rtol = phys_rel_tol; }
 
    /** @brief Set the tolerance used to determine if a point lies inside or
        outside of the reference element. */
    /** This tolerance is used only with the pure #Newton solver. */
-   void SetElementTol(fptype el_tol) { ip_tol = el_tol; }
+   void SetElementTol(real_t el_tol) { ip_tol = el_tol; }
 
    /// Set the desired print level, useful for debugging.
    /** The valid options are: -1 - never print (default); 0 - print only errors;
@@ -612,7 +612,7 @@ public:
 
        @warning This check will generally fail on periodic boundary faces.
    */
-   fptype CheckConsistency(int print_level = 0,
+   real_t CheckConsistency(int print_level = 0,
                            std::ostream &out = mfem::out);
 };
 

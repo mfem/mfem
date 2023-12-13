@@ -62,8 +62,8 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    int ser_ref_levels = 1;
    int par_ref_levels = 1;
-   fptype newton_rel_tol = 1e-7;
-   fptype newton_abs_tol = 1e-12;
+   real_t newton_rel_tol = 1e-7;
+   real_t newton_abs_tol = 1e-12;
    int newton_iter = 10;
    int print_level = 1;
    bool visualization = false;
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
    gmres->Mult(resbv, solbv);
 
    // Compute the energy of the state system.
-   fptype energy = nf->GetEnergy(solbv);
+   real_t energy = nf->GetEnergy(solbv);
    if (myrank==0)
    {
       std::cout << "energy =" << energy << std::endl;
@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
    ob->AddDomainIntegrator(new mfem::DiffusionObjIntegrator());
 
    // Compute the objective.
-   fptype obj=ob->GetEnergy(solbv);
+   real_t obj=ob->GetEnergy(solbv);
    if (myrank==0)
    {
       std::cout << "Objective =" << obj << std::endl;
@@ -301,13 +301,13 @@ int main(int argc, char *argv[])
       tmpbv.Update(nf->ParamGetBlockTrueOffsets());
       prtbv.GetBlock(0).Randomize();
       prtbv*=1.0;
-      fptype lsc=1.0;
+      real_t lsc=1.0;
 
-      fptype gQoI=ob->GetEnergy(solbv);
-      fptype lQoI;
+      real_t gQoI=ob->GetEnergy(solbv);
+      real_t lQoI;
 
-      fptype nd=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,prtbv);
-      fptype td=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,grdbv);
+      real_t nd=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,prtbv);
+      real_t td=mfem::InnerProduct(MPI_COMM_WORLD,prtbv,grdbv);
       td=td/nd;
 
       for (int l = 0; l < 10; l++)
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
          gmres->Mult(resbv,solbv);
          // Compute the objective.
          lQoI=ob->GetEnergy(solbv);
-         fptype ld=(lQoI-gQoI)/lsc;
+         real_t ld=(lQoI-gQoI)/lsc;
          if (myrank==0)
          {
             std::cout << "dx=" << lsc <<" FD approximation=" << ld/nd

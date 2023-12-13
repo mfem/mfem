@@ -108,7 +108,7 @@ void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
    pfes = f;
 }
 
-void ParGridFunction::MakeRef(FiniteElementSpace *f, fptype *v)
+void ParGridFunction::MakeRef(FiniteElementSpace *f, real_t *v)
 {
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
@@ -116,7 +116,7 @@ void ParGridFunction::MakeRef(FiniteElementSpace *f, fptype *v)
    MFEM_ASSERT(pfes != NULL, "not a ParFiniteElementSpace");
 }
 
-void ParGridFunction::MakeRef(ParFiniteElementSpace *f, fptype *v)
+void ParGridFunction::MakeRef(ParFiniteElementSpace *f, real_t *v)
 {
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
@@ -144,7 +144,7 @@ void ParGridFunction::Distribute(const Vector *tv)
    prolong->Mult(*tv, *this);
 }
 
-void ParGridFunction::AddDistribute(fptype a, const Vector *tv)
+void ParGridFunction::AddDistribute(real_t a, const Vector *tv)
 {
    pfes->Dof_TrueDof_Matrix()->Mult(a, *tv, 1.0, *this);
 }
@@ -256,11 +256,11 @@ void ParGridFunction::ExchangeFaceNbrData()
 
       MPI_Isend(&send_data_ptr[send_offset[fn]],
                 send_offset[fn+1] - send_offset[fn],
-                MPITypeMap<fptype>::mpi_type, nbr_rank, tag, MyComm, &send_requests[fn]);
+                MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &send_requests[fn]);
 
       MPI_Irecv(&face_nbr_data_ptr[recv_offset[fn]],
                 recv_offset[fn+1] - recv_offset[fn],
-                MPITypeMap<fptype>::mpi_type, nbr_rank, tag, MyComm, &recv_requests[fn]);
+                MPITypeMap<real_t>::mpi_type, nbr_rank, tag, MyComm, &recv_requests[fn]);
    }
 
    MPI_Waitall(num_face_nbrs, send_requests, statuses);
@@ -270,7 +270,7 @@ void ParGridFunction::ExchangeFaceNbrData()
    delete [] requests;
 }
 
-fptype ParGridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
+real_t ParGridFunction::GetValue(int i, const IntegrationPoint &ip, int vdim)
 const
 {
    Array<int> dofs;
@@ -395,7 +395,7 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    }
 }
 
-fptype ParGridFunction::GetValue(ElementTransformation &T,
+real_t ParGridFunction::GetValue(ElementTransformation &T,
                                  const IntegrationPoint &ip,
                                  int comp, Vector *tr) const
 {
@@ -529,8 +529,8 @@ void ParGridFunction::GetDerivative(int comp, int der_comp,
    gcomm.Bcast(overlap);
 
    // Accumulate for all dofs.
-   gcomm.Reduce<fptype>(der.HostReadWrite(), GroupCommunicator::Sum);
-   gcomm.Bcast<fptype>(der.HostReadWrite());
+   gcomm.Reduce<real_t>(der.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(der.HostReadWrite());
 
    for (int i = 0; i < overlap.Size(); i++)
    {
@@ -567,11 +567,11 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
    else
    {
-      fptype loc_integral, glob_integral;
+      real_t loc_integral, glob_integral;
 
       ProjectDeltaCoefficient(*delta_c, loc_integral);
 
-      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPITypeMap<fptype>::mpi_type,
+      MPI_Allreduce(&loc_integral, &glob_integral, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_SUM,
                     pfes->GetComm());
 
@@ -638,8 +638,8 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<fptype>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<fptype>(data);
+   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -660,8 +660,8 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<fptype>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<fptype>(data);
+   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(data);
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -682,7 +682,7 @@ void ParGridFunction::ProjectBdrCoefficient(
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<fptype>(values.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -736,7 +736,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
-   gcomm.Reduce<fptype>(values.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
    // Only the values in the master are guaranteed to be correct!
    for (int i = 0; i < values.Size(); i++)
    {
@@ -758,7 +758,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 #endif
 }
 
-fptype ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
+real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
                                                Coefficient *ell_coeff,
                                                JumpScaling jump_scaling,
                                                const IntegrationRule *irs[]) const
@@ -770,7 +770,7 @@ fptype ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
    Vector shape, el_dofs, err_val, ell_coeff_val;
    Array<int> vdofs;
    IntegrationPoint eip;
-   fptype error = 0.0;
+   real_t error = 0.0;
 
    ParMesh *mesh = pfes->GetParMesh();
 
@@ -783,13 +783,13 @@ fptype ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
-      fptype shared_face_factor = 1.0;
+      real_t shared_face_factor = 1.0;
       bool shared_face = false;
       int iel1, iel2, info1, info2;
       mesh->GetFaceElements(i, &iel1, &iel2);
       mesh->GetFaceInfos(i, &info1, &info2);
 
-      fptype h = mesh->GetElementSize(iel1);
+      real_t h = mesh->GetElementSize(iel1);
       intorder = fes->GetFE(iel1)->GetOrder();
 
       FaceElementTransformations *face_elem_transf;
@@ -911,7 +911,7 @@ fptype ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          transf->SetIntPoint(&ip);
-         fptype nu = jump_scaling.Eval(h, p);
+         real_t nu = jump_scaling.Eval(h, p);
          error += shared_face_factor*(ip.weight * nu * ell_coeff_val(j) *
                                       transf->Weight() *
                                       err_val(j) * err_val(j));
@@ -924,7 +924,7 @@ fptype ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
 void ParGridFunction::Save(std::ostream &os) const
 {
-   fptype *data_  = const_cast<fptype*>(HostRead());
+   real_t *data_  = const_cast<real_t*>(HostRead());
    for (int i = 0; i < size; i++)
    {
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
@@ -989,7 +989,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
 
    GridFunction gf_serial(fespace_serial);
    gf_serial.MakeOwner(fec_serial);
-   Array<fptype> vals;
+   Array<real_t> vals;
    Array<int> dofs;
    MPI_Status status;
    int n_send_recv;
@@ -1017,7 +1017,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
          vals.SetSize(n_send_recv);
          if (n_send_recv)
          {
-            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<fptype>::mpi_type, p, 449, my_comm,
+            MPI_Recv(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, p, 449, my_comm,
                      &status);
          }
          for (int i = 0; i < n_send_recv; )
@@ -1050,7 +1050,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
       }
       if (n_send_recv)
       {
-         MPI_Send(&vals[0], n_send_recv, MPITypeMap<fptype>::mpi_type, save_rank, 449,
+         MPI_Send(&vals[0], n_send_recv, MPITypeMap<real_t>::mpi_type, save_rank, 449,
                   my_comm);
       }
    }
@@ -1064,7 +1064,7 @@ void ParGridFunction::Save(adios2stream &os,
                            const std::string& variable_name,
                            const adios2stream::data_type type) const
 {
-   fptype *data_  = const_cast<fptype*>(HostRead());
+   real_t *data_  = const_cast<real_t*>(HostRead());
    for (int i = 0; i < size; i++)
    {
       if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
@@ -1092,14 +1092,14 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   fptype **values = new fptype*[NRanks];
+   real_t **values = new real_t*[NRanks];
    int *nv = new int[NRanks];
    int *nvdofs = new int[NRanks];
    int *nedofs = new int[NRanks];
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
-   fptype * h_data = const_cast<fptype *>(this->HostRead());
+   real_t * h_data = const_cast<real_t *>(this->HostRead());
 
    values[0] = h_data;
    nv[0]     = pfes -> GetVSize();
@@ -1118,8 +1118,8 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
          MPI_Recv(&nvdofs[p], 1, MPI_INT, p, 456, MyComm, &status);
          MPI_Recv(&nedofs[p], 1, MPI_INT, p, 457, MyComm, &status);
          MPI_Recv(&nfdofs[p], 1, MPI_INT, p, 458, MyComm, &status);
-         values[p] = new fptype[nv[p]];
-         MPI_Recv(values[p], nv[p], MPITypeMap<fptype>::mpi_type, p, 460, MyComm,
+         values[p] = new real_t[nv[p]];
+         MPI_Recv(values[p], nv[p], MPITypeMap<real_t>::mpi_type, p, 460, MyComm,
                   &status);
       }
 
@@ -1203,7 +1203,7 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
       MPI_Send(&nvdofs[0], 1, MPI_INT, 0, 456, MyComm);
       MPI_Send(&nedofs[0], 1, MPI_INT, 0, 457, MyComm);
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
-      MPI_Send(h_data, nv[0], MPITypeMap<fptype>::mpi_type, 0, 460, MyComm);
+      MPI_Send(h_data, nv[0], MPITypeMap<real_t>::mpi_type, 0, 460, MyComm);
    }
 
    delete [] values;
@@ -1214,9 +1214,9 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    delete [] nrdofs;
 }
 
-fptype GlobalLpNorm(const fptype p, fptype loc_norm, MPI_Comm comm)
+real_t GlobalLpNorm(const real_t p, real_t loc_norm, MPI_Comm comm)
 {
-   fptype glob_norm;
+   real_t glob_norm;
 
    if (p < infinity())
    {
@@ -1230,7 +1230,7 @@ fptype GlobalLpNorm(const fptype p, fptype loc_norm, MPI_Comm comm)
          loc_norm = pow(loc_norm, p);
       }
 
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_SUM,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     comm);
 
       if (glob_norm < 0.0)
@@ -1244,7 +1244,7 @@ fptype GlobalLpNorm(const fptype p, fptype loc_norm, MPI_Comm comm)
    }
    else
    {
-      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<fptype>::mpi_type, MPI_MAX,
+      MPI_Allreduce(&loc_norm, &glob_norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                     comm);
    }
 
@@ -1263,8 +1263,8 @@ void ParGridFunction::ComputeFlux(
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
    // Accumulate flux and counts in parallel
-   ffes->GroupComm().Reduce<fptype>(flux.HostReadWrite(), GroupCommunicator::Sum);
-   ffes->GroupComm().Bcast<fptype>(flux.HostReadWrite());
+   ffes->GroupComm().Reduce<real_t>(flux.HostReadWrite(), GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<real_t>(flux.HostReadWrite());
 
    ffes->GroupComm().Reduce<int>(count.HostReadWrite(), GroupCommunicator::Sum);
    ffes->GroupComm().Bcast<int>(count.HostReadWrite());
@@ -1288,12 +1288,12 @@ void ParGridFunction::ComputeFlux(
 }
 
 
-fptype L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
+real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                           const ParGridFunction &x,
                           ParFiniteElementSpace &smooth_flux_fes,
                           ParFiniteElementSpace &flux_fes,
                           Vector &errors,
-                          int norm_p, fptype solver_tol, int solver_max_it)
+                          int norm_p, real_t solver_tol, int solver_max_it)
 {
    // Compute fluxes in discontinuous space
    GridFunction flux(&flux_fes);
@@ -1387,7 +1387,7 @@ fptype L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    // Proceed through the elements one by one, and find the Lp norm differences
    // between the flux as computed per element and the flux projected onto the
    // smooth_flux_fes space.
-   fptype total_error = 0.0;
+   real_t total_error = 0.0;
    errors.SetSize(xfes->GetNE());
    for (int i = 0; i < xfes->GetNE(); i++)
    {
@@ -1395,8 +1395,8 @@ fptype L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
       total_error += pow(errors(i), norm_p);
    }
 
-   fptype glob_error;
-   MPI_Allreduce(&total_error, &glob_error, 1, MPITypeMap<fptype>::mpi_type,
+   real_t glob_error;
+   MPI_Allreduce(&total_error, &glob_error, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM,
                  xfes->GetComm());
 

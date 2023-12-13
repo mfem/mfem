@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-fptype ParametricLinearDiffusion::GetElementEnergy(const
+real_t ParametricLinearDiffusion::GetElementEnergy(const
                                                    Array<const FiniteElement *> &el,
                                                    const Array<const FiniteElement *> &pel,
                                                    ElementTransformation &Tr,
@@ -39,12 +39,12 @@ fptype ParametricLinearDiffusion::GetElementEnergy(const
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   fptype w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
 
-   fptype energy =0.0;
+   real_t energy =0.0;
 
    const IntegrationRule *ir;
    {
@@ -108,7 +108,7 @@ void ParametricLinearDiffusion::AssembleElementVector(const
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   fptype w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -179,7 +179,7 @@ void ParametricLinearDiffusion::AssembleElementGrad(const
    DenseMatrix B(dof_u0, 4);
    DenseMatrix A(dof_u0, 4);
    B=0.0;
-   fptype w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -249,7 +249,7 @@ void ParametricLinearDiffusion::AssemblePrmElementVector(
    DenseMatrix B(dof_u0, 4);
    B=0.0;
 
-   fptype w;
+   real_t w;
 
    Vector param(1); param=0.0;
    Vector uu(4); uu=0.0;
@@ -295,7 +295,7 @@ void ParametricLinearDiffusion::AssemblePrmElementVector(
    }
 }
 
-fptype DiffusionObjIntegrator::GetElementEnergy(const
+real_t DiffusionObjIntegrator::GetElementEnergy(const
                                                 Array<const FiniteElement *> &el,
                                                 ElementTransformation &Tr,
                                                 const Array<const Vector *> &elfun)
@@ -312,10 +312,10 @@ fptype DiffusionObjIntegrator::GetElementEnergy(const
    // shape functions
    Vector shu0(dof_u0);
 
-   fptype w;
-   fptype val;
+   real_t w;
+   real_t val;
 
-   fptype energy = 0.0;
+   real_t energy = 0.0;
 
    const IntegrationRule *ir;
    {
@@ -361,8 +361,8 @@ void DiffusionObjIntegrator::AssembleElementVector(const
    // shape functions
    Vector shu0(dof_u0);
 
-   fptype w;
-   fptype val;
+   real_t w;
+   real_t val;
 
    const IntegrationRule *ir;
    {
