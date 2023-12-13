@@ -11192,7 +11192,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 }
 
 void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
-                     std::string const& comments) const
+                     const std::string &comments) const
 {
    int i;
    Array<int> vert;
