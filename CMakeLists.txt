@@ -139,10 +139,9 @@ if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
+   find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
-   set(CUSPARSE_LIBRARIES "cusparse")
-   set(CUBLAS_FOUND TRUE)
-   set(CUBLAS_LIBRARIES "cublas")
+   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -531,7 +530,7 @@ find_package(Threads REQUIRED)
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUBLAS CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
+    ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
     BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
@@ -641,16 +640,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   foreach(Header mfem.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
-    file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/${Header}.tmp"
 "// Auto-generated file.
 #define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+    )
+
     # This version will be installed in the top include directory:
-    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
 "// Auto-generated file.
 #include \"mfem/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+    )
+
   endforeach()
 endif()
 
