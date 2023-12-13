@@ -54,6 +54,8 @@ endif
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
 
+all: $(MINIAPPS)
+
 test_%: ./tests/test_%.cpp.o $(NAVIER_LIB)
 	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
 
@@ -66,8 +68,6 @@ navier_%: ./examples/navier_%.cpp.o $(NAVIER_LIB)
 $(NAVIER_LIB): $(NAVIER_LIB_OBJS)
 	ar ru $@ $^
 	ranlib $@
-
-all: $(MINIAPPS)
 
 PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
 MFEM_TESTS = TEST_EXECS
