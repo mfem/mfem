@@ -1650,7 +1650,7 @@ int Mesh::AddVertexAtMeanCenter(const int *vi, int nverts, int dim)
    vii = 0.0;
    for (int i = 0; i < nverts; i++)
    {
-      double *vp = vertices[vi[i]]();
+      real_t *vp = vertices[vi[i]]();
       for (int j = 0; j < dim; j++)
       {
          vii(j) += vp[j];
@@ -1857,14 +1857,14 @@ void Mesh::AddQuadAs5QuadsWithPoints(int *vi, int attr)
    Vector px(4), py(4);
    for (int i = 0; i < 4; i++)
    {
-      double *vp = vertices[vi[i]]();
+      real_t *vp = vertices[vi[i]]();
       px(i) = vp[0];
       py(i) = vp[1];
    }
 
    int vnew_index[4];
-   double vnew[2];
-   double r = 0.25, s = 0.25;
+   real_t vnew[2];
+   real_t r = 0.25, s = 0.25;
    vnew[0] = px(0)*(1-r)*(1-s) + px(1)*(r)*(1-s) + px(2)*r*s + px(3)*(1-r)*s;
    vnew[1] = py(0)*(1-r)*(1-s) + py(1)*(r)*(1-s) + py(2)*r*s + py(3)*(1-r)*s;
    AddVertex(vnew);
