@@ -1345,7 +1345,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if ((i-1) != aux->Column) { continue; }
 
             bool found = false;
-            double found_val;
+            double found_val = 0.0; // init to suppress gcc warning
             for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == (i-1))
@@ -1381,7 +1381,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if (i != aux->Column) { continue; }
 
             bool found = false;
-            double found_val;
+            double found_val = 0.0; // init to suppress gcc warning
             for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == i)

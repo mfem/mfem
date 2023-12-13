@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
-using namespace mfem;
-
 #include "unit_tests.hpp"
+
+using namespace mfem;
 
 #ifdef MFEM_USE_FMS
 TEST_CASE("Load FMS datacollection", "[FMS]")

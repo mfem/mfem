@@ -20,17 +20,6 @@
 namespace mfem
 {
 
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-#ifdef MFEM_USE_HIP
-constexpr int HCURL_MAX_Q1D = 5;
-#else
-constexpr int HCURL_MAX_Q1D = 6;
-#endif
-
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
-
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
@@ -61,6 +50,11 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Method defining partial assembly on NURBS patches.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the method AddMultNURBSPA(). */
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
@@ -81,6 +75,9 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled action on NURBS patches.
+   virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -147,6 +144,13 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   /** Given a particular NURBS patch, computes the patch matrix as a
+       SparseMatrix @a smat.
+    */
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -576,7 +580,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return std::max(space_dim, test_fe.GetVDim()); }
+   { return std::max(space_dim, test_fe.GetRangeDim()); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -584,7 +588,7 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return std::max(space_dim, trial_fe.GetVDim()); }
+   { return std::max(space_dim, trial_fe.GetRangeDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -674,7 +678,7 @@ protected:
 
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return std::max(space_dim, vector_fe.GetVDim()); }
+   { return std::max(space_dim, vector_fe.GetRangeDim()); }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -1101,7 +1105,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
@@ -1284,8 +1288,8 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetVDim() == 3 &&
-              test_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetRangeDim() == 3 &&
+              test_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1415,7 +1419,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
@@ -1485,7 +1489,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (test_fe.GetVDim() == 3 &&
+      return (test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1525,7 +1529,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1896,7 +1900,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
@@ -1955,7 +1959,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
@@ -2111,6 +2115,59 @@ private:
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
+   // Data for NURBS patch PA
+
+   // Type for a variable-row-length 2D array, used for data related to 1D
+   // quadrature rules in each dimension.
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
+
+   int numPatches = 0;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   // In the case integrationMode == Mode::PATCHWISE_REDUCED, an approximate
+   // integration rule with sparse nonzero weights is computed by NNLSSolver,
+   // for each 1D basis function on each patch, in each spatial dimension. For a
+   // fixed 1D basis function b_i with DOF index i, in the tensor product basis
+   // of patch p, the prescribed exact 1D rule is of the form
+   // \sum_k a_{i,j,k} w_k for some integration points indexed by k, with
+   // weights w_k and coefficients a_{i,j,k} depending on Q(x), an element
+   // transformation, b_i, and b_j, for all 1D basis functions b_j whose support
+   // overlaps that of b_i. Define the constraint matrix G = [g_{j,k}] with
+   // g_{j,k} = a_{i,j,k} and the vector of exact weights w = [w_k]. A reduced
+   // rule should have different weights w_r, many of them zero, and should
+   // approximately satisfy Gw_r = Gw. A sparse approximate solution to this
+   // underdetermined system is computed by NNLSSolver, and its data is stored
+   // in the following members.
+
+   // For each patch p, spatial dimension d (total dim), and rule type t (total
+   // numTypes), an std::vector<Vector> of reduced quadrature weights for all
+   // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
+   // reshaped as rw(t,d,p). Note that nd may vary with respect to the patch and
+   // spatial dimension. Array reducedIDs is treated similarly.
+   std::vector<std::vector<Vector>> reducedWeights;
+   std::vector<IntArrayVar2D> reducedIDs;
+   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<std::vector<Array2D<double>>> pB, pG;
+   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+
+   std::vector<Array<const IntegrationRule*>> pir1d;
+
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
+
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with full 1D quadrature rules. */
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           const FiniteElementSpace &fes,
+                                           SparseMatrix*& smat);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with reduced 1D quadrature rules. */
+   void AssemblePatchMatrix_reducedQuadrature(const int patch,
+                                              const FiniteElementSpace &fes,
+                                              SparseMatrix*& smat);
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator(const IntegrationRule *ir = nullptr)
@@ -2146,6 +2203,14 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
+
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
+
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -2179,6 +2244,10 @@ public:
    virtual void AddMultPA(const Vector&, Vector&) const;
 
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
+
+   virtual void AddMultNURBSPA(const Vector&, Vector&) const;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
@@ -3371,7 +3440,7 @@ private:
    void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
    {
       int dim = x.Size();
-      MFEM_VERIFY(Y.Width() == dim, "Size missmatch");
+      MFEM_VERIFY(Y.Width() == dim, "Size mismatch");
       int dimc = dim == 3 ? dim : 1;
       int h = Y.Height();
       Z.SetSize(h,dimc);
