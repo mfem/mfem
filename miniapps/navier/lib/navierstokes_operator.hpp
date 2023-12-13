@@ -42,9 +42,13 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override;
 
+   void MassMult(const Vector &x, Vector &y);
+
    void MultExplicit(const Vector &x, Vector &y) const;
 
    void MultImplicit(const Vector &x, Vector &y) const;
+
+   void Solve(Vector &b, Vector &x);
 
    void Step(BlockVector &X, double &t, const double dt);
 

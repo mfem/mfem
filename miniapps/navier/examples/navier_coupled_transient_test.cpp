@@ -1,5 +1,7 @@
 #include <mfem.hpp>
+#include <arkode/arkode_arkstep.h>
 #include <navierstokes_operator.hpp>
+#include <navierstokes_dae_integrator.hpp>
 #include <boundary_normal_stress_integrator.hpp>
 #include <caliper/cali.h>
 #include <fstream>
@@ -17,7 +19,7 @@ void vel_dfg(const Vector &x, double t, Vector &u)
    double xi = x(0);
    double yi = x(1);
 
-   const double U = 1.5 * sin(M_PI * t / 8.0);
+   const double U = 1.5;// * sin(M_PI * t / 8.0);
 
    if (xi == 0.0)
    {
@@ -178,8 +180,11 @@ int main(int argc, char *argv[])
 
    Array<int> vel_ess_bdr, pres_ess_bdr;
 
-   vel_ess_bdr.SetSize(mesh.bdr_attributes.Max());
-   pres_ess_bdr.SetSize(mesh.bdr_attributes.Max());
+   if (mesh.bdr_attributes.Size() > 0)
+   {
+      vel_ess_bdr.SetSize(mesh.bdr_attributes.Max());
+      pres_ess_bdr.SetSize(mesh.bdr_attributes.Max());
+   }
 
    if (problem_type == 1)
    {
@@ -204,9 +209,6 @@ int main(int argc, char *argv[])
       vel_ess_bdr = 1;
       pres_ess_bdr = 0;
    }
-
-   vel_ess_bdr.Print();
-   pres_ess_bdr.Print();
 
    VectorCoefficient *velocity_mms_coeff = nullptr;
    Coefficient *pressure_mms_coeff = nullptr;
@@ -260,21 +262,18 @@ int main(int argc, char *argv[])
    std::vector<VelDirichletBC> vel_dbcs;
    vel_dbcs.emplace_back(std::make_pair(velocity_mms_coeff, &vel_ess_bdr));
 
-   for (auto &bc : vel_dbcs)
-   {
-      bc.second->Print();
-   }
-
    std::vector<PresDirichletBC> pres_dbcs;
    pres_dbcs.emplace_back(std::make_pair(pressure_mms_coeff, &pres_ess_bdr));
 
    NavierStokesOperator navier(vel_fes, pres_fes, vel_dbcs, pres_dbcs, nu_gf,
                                true, true, true);
-
-   navier.SetForcing(forcing_coeff);
-
    BlockVector X(navier.GetOffsets());
    X = 0.0;
+   navier.SetForcing(forcing_coeff);
+   navier.Setup(dt);
+   navier.RebuildPC(X);
+
+   RKIMEX_BEFE rkimex(navier);
 
    // Set initial condition
    double t = 0.0;
@@ -322,7 +321,7 @@ int main(int argc, char *argv[])
    save_callback(num_steps, t);
 
    ParLinearForm lift_drag_form(&vel_fes);
-   Array<int> solid_interface_attr(mesh.bdr_attributes.Max());
+   Array<int> solid_interface_attr(vel_ess_bdr.Size());
    std::ofstream drag_lift_outfile;
    if (problem_type == 5)
    {
@@ -359,7 +358,9 @@ int main(int argc, char *argv[])
       // u_gf.ProjectBdrCoefficient(*velocity_mms_coeff, vel_ess_bdr);
       // u_gf.ParallelProject(X.GetBlock(0));
 
-      navier.Step(X, t, dt);
+      rkimex.Step(X, t, dt);
+      // navier.Step(X, t, dt);
+      // arkode.Step(X, t, dt);
 
       u_gf.Distribute(X.GetBlock(0));
       p_gf.Distribute(X.GetBlock(1));
@@ -373,15 +374,36 @@ int main(int argc, char *argv[])
       double pres_l2_err = p_gf.ComputeL2Error(*pressure_mms_coeff);
 
       // Compute incompressiblity error
-      // double div_u_l2 = 0.0;
-      // {
-      //    u_gf.GetDivergence()
-      //    div_u_l2 = div_u.Norml2();
-      // }
+      double div_u_l2 = 0.0;
+      {
+         double div_u_l2_local = 0.0;
+         Vector grad(2);
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            auto fe = vel_fes.GetFE(e);
+            auto T = vel_fes.GetElementTransformation(e);
+            int intorder = 2 * fe->GetOrder();
+            const IntegrationRule *ir = &IntRules.Get(fe->GetGeomType(), intorder);
+            for (int qp = 0; qp < ir->GetNPoints(); qp++)
+            {
+               const IntegrationPoint &ip = ir->IntPoint(qp);
+               T->SetIntPoint(&ip);
+               u_gf.GetGradient(*T, grad);
+               div_u_l2_local += ip.weight * (grad(0) + grad(1));
+            }
+         }
+         MPI_Allreduce(&div_u_l2_local,
+                       &div_u_l2,
+                       1,
+                       MPI_DOUBLE,
+                       MPI_SUM,
+                       MPI_COMM_WORLD);
+      }
 
       if (Mpi::Root())
       {
-         printf("u_l2err = %.5E\np_l2err = %.5E\n", vel_l2_err, pres_l2_err);
+         printf("u_l2err = %.5E\np_l2err = %.5E\ndiv(u) = %.5E\n", vel_l2_err,
+                pres_l2_err, div_u_l2);
       }
 
       if (problem_type == 5)
@@ -418,7 +440,7 @@ int main(int argc, char *argv[])
          }
       }
 
-      if (num_steps % 50 == 0)
+      if (num_steps % 100 == 0)
       {
          save_callback(num_steps, t);
       }
