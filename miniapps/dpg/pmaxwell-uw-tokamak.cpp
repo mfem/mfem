@@ -8,15 +8,15 @@
 // This example code demonstrates the use of MFEM to define and solve
 // the "ultraweak" (UW) DPG formulation for the Maxwell problem
 
-//      ∇×(1/μ ∇×E) - (ω^2 ϵ + i ω σ) E = Ĵ ,   in Ω
-//                E×n = E_0, on ∂Ω
+//      ∇×(1/μ ∇×E) - ω^2 ϵ E = Ĵ ,   in Ω
+//                        E×n = E_0, on ∂Ω
 
 // The DPG UW deals with the First Order System
 //        i ω μ H + ∇ × E = 0,   in Ω (Faraday's law)
 //            M E + ∇ × H = J,   in Ω (Ampere's law)
 //            E × n = E_0, on ∂Ω
 // Note: Ĵ = -iωJ
-// where M = -(i ω ϵI + σI)
+// where M = -iωϵ
 
 // The ultraweak-DPG formulation is obtained by integration by parts of both
 // equations and the introduction of trace unknowns on the mesh skeleton
@@ -196,16 +196,10 @@ int main(int argc, char *argv[])
 
    mesh.Clear();
 
-   // Matrix Coefficient (M = -i\omega \epsilon - \sigma I);
-   // M = -i * omega * (eps_r + i eps_i) - sigmaI
-   //  = omega eps_i - sigma I + i (-omega eps_r)
-   DenseMatrix Id(dim); Id = 0.0;
-   Id(0,0) = 1; Id(0,1) = 0.0; Id(0,2) = 0.0;
-   Id(1,0) = 0.0; Id(1,1) = 1; Id(1,2) = 0.0;
-   Id(2,0) = 0.0; Id(2,1) = 0.0; Id(2,2) = 1;
-   MatrixConstantCoefficient identity_cf(Id);
-
-   MatrixSumCoefficient Mr_cf(eps_i_cf,identity_cf,omega,-sigma);
+   // Matrix Coefficient (M = -i\omega \epsilon);
+   // M = -i * omega * (eps_r + i eps_i)
+   //  = omega eps_i + i (-omega eps_r)
+   ScalarMatrixProductCoefficient Mr_cf(omega,eps_i_cf);
    ScalarMatrixProductCoefficient Mi_cf(-omega,eps_r_cf);
 
    // Define spaces
@@ -256,7 +250,6 @@ int main(int argc, char *argv[])
    {
       std::cout << "Assembling matrix" << endl;
    }
-
 
    ParComplexDPGWeakForm * a = new ParComplexDPGWeakForm(trial_fes,test_fec);
 

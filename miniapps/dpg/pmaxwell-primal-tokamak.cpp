@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int delta_order = 1;
    bool visualization = false;
+   // double rnum=50.0;
    double rnum=50.0e6;
    int sr = 0;
    int pr = 0;
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
    double mu = 1.257e-6;
    double epsilon = 1.0;
    double epsilon_scale = 8.8541878128e-12;
-   bool graph_norm = true;
+   // double epsilon_scale = 8.8541878128;
    bool mumps_solver = false;
 
 
@@ -125,8 +126,6 @@ int main(int argc, char *argv[])
                   "Number of serial refinements.");
    args.AddOption(&pr, "-pref", "--parallel_ref",
                   "Number of parallel refinements.");
-   args.AddOption(&graph_norm, "-graph", "--graph-norm", "-no-gn",
-                  "--no-graph-norm", "Enable adjoint graph norm.");
 #ifdef MFEM_USE_MUMPS
    args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
                   "--no-mumps-solver", "Use the MUMPS Solver.");
@@ -168,7 +167,7 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
    FiniteElementCollection *E_fec = new ND_FECollection(order,dim);
-   ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec,dim);
+   ParFiniteElementSpace *E_fes = new ParFiniteElementSpace(&pmesh,E_fec);
 
    // H^-1/2 (curl) space for Ê
    int test_order = order+delta_order;
@@ -207,14 +206,27 @@ int main(int argc, char *argv[])
    // -(ω^2 ϵ, F)
    ScalarMatrixProductCoefficient m_cf_r(-omega*omega, eps_r_cf);
    ScalarMatrixProductCoefficient m_cf_i(-omega*omega, eps_i_cf);
-   a->AddTrialIntegrator(new VectorFEMassIntegrator(m_cf_r),
-                         new VectorFEMassIntegrator(m_cf_i),0,0);
+
+   const IntegrationRule *irs[Geometry::NumGeom];
+   int order_quad = 2*order + 2;
+   for (int i = 0; i < Geometry::NumGeom; ++i)
+   {
+      irs[i] = &(IntRules.Get(i, order_quad));
+   }
+   const IntegrationRule &ir = IntRules.Get(pmesh.GetElementGeometry(0),
+                                            2*test_order + 2);
+   VectorFEMassIntegrator * integ_r = new VectorFEMassIntegrator(m_cf_r);
+   VectorFEMassIntegrator * integ_i = new VectorFEMassIntegrator(m_cf_i);
+   integ_r->SetIntegrationRule(ir);
+   integ_i->SetIntegrationRule(ir);
+   a->AddTrialIntegrator(integ_r,integ_i,0,0);
 
    // < n×Ê,F>
    a->AddTrialIntegrator(new TangentTraceIntegrator,nullptr,1,0);
 
    // test integrators
    // (∇×F ,∇× δF)
+
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
 
    // (F,δF)
@@ -411,7 +423,7 @@ int main(int argc, char *argv[])
          }
          CGSolver cg(MPI_COMM_WORLD);
          cg.SetRelTol(1e-8);
-         cg.SetMaxIter(10);
+         cg.SetMaxIter(1000);
          cg.SetPrintLevel(1);
          cg.SetPreconditioner(M);
          cg.SetOperator(blockA);
