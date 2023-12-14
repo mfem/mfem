@@ -769,7 +769,7 @@ void BilinearForm::Assemble(int skip_zeros)
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         int face = mesh->GetBdrFace(i);
+         int face = mesh->GetBdrElementFaceIndex(i);
          ftr = mesh->GetBdrFaceTransformations(i); // the transformation of the face
 
          if (ftr != NULL)
