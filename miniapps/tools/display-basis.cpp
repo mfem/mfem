@@ -22,7 +22,7 @@
 // Compile with: make display-basis
 //
 // Sample runs:  display-basis
-//               display_basis -e 2 -b 3 -o 3
+//               display-basis -e 2 -b 3 -o 3
 //               display-basis -e 5 -b 1 -o 1
 //               display-basis -e 3 -b 7 -o 3
 //               display-basis -e 3 -b 7 -o 5 -only 16
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
       {
          cout << endl;
          cout << "Element Type:          " << elemTypeStr(eType) << endl;
-         cout << "Basis Type:            " << basisTypeStr(bType) << endl;;
+         cout << "Basis Type:            " << basisTypeStr(bType) << endl;
          cout << "Basis function order:  " << bOrder << endl;
          cout << "Map Type:              " << mapTypeStr(mType) << endl;
       }
