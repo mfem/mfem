@@ -401,7 +401,7 @@ public:
    virtual ~NURBSExtension();
 
    // Print functions
-   void Print(std::ostream &os, const std::string &comments) const;
+   void Print(std::ostream &os, const std::string &comments = "") const;
    void PrintCharacteristics(std::ostream &os) const;
    void PrintFunctions(const char *filename, int samples=11) const;
 
