@@ -434,7 +434,7 @@ protected:
    void UpdateNURBS();
 
    void PrintTopo(std::ostream &out, const Array<int> &e_to_k,
-                  const std::string &comments) const;
+                  const std::string &comments = "") const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &, int);
