@@ -756,10 +756,10 @@ public:
 
    /* HDG */
    virtual void Project (Coefficient &coeff,
-                         FaceElementTransformations &Trans, Vector &dofs) const;
+                         FaceElementTransformations &Trans, Vector &dofs) const override;
    /* HDG */
    virtual void Project (VectorCoefficient &vc,
-                         FaceElementTransformations &Trans, Vector &dofs) const;
+                         FaceElementTransformations &Trans, Vector &dofs) const override;
 
    // (mc.height x mc.width) @ DOFs -> (Dof x mc.width x mc.height) in dofs
    void ProjectMatrixCoefficient(
