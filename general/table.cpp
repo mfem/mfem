@@ -361,9 +361,7 @@ void Table::Copy(Table & copy) const
 
 void Table::Swap(Table & other)
 {
-   mfem::Swap(size, other.size);
-   mfem::Swap(I, other.I);
-   mfem::Swap(J, other.J);
+   mfem::Swap(*this, other);
 }
 
 std::size_t Table::MemoryUsage() const

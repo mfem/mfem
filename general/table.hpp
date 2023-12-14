@@ -189,12 +189,6 @@ public:
    std::size_t MemoryUsage() const;
 };
 
-/// Specialization of the template function Swap<> for class Table
-template <> inline void Swap<Table>(Table &a, Table &b)
-{
-   a.Swap(b);
-}
-
 ///  Transpose a Table
 void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
 Table * Transpose (const Table &A);
