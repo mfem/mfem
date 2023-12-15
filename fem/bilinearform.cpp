@@ -434,6 +434,9 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         // Set both doftrans (potentially needed to assemble the element
+         // matrix) and vdofs, which is also needed when the element matrices
+         // are pre-assembled.
          doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
