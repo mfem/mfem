@@ -59,7 +59,7 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
 
-   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+   Poly_1D::Basis &edgeNodalBasis = poly1d.GetBasis(p, BasisType::GaussLobatto);
    Vector nodalX(p+1);
    Vector nodalY(p+1);
 
@@ -113,10 +113,9 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
    {
       double *legX = new double[p-1];
       double *legY = new double[p-1];
-      Poly_1D *storeLegendre = new Poly_1D();
 
-      storeLegendre->CalcLegendre(p-2, x, legX);
-      storeLegendre->CalcLegendre(p-2, y, legY);
+      Poly_1D::CalcLegendre(p-2, x, legX);
+      Poly_1D::CalcLegendre(p-2, y, legY);
 
       int interior_total = 0;
       for (int j = 4; j < p + 1; j++)
@@ -131,7 +130,6 @@ void H1Ser_QuadrilateralElement::CalcShape(const IntegrationPoint &ip,
 
       delete[] legX;
       delete[] legY;
-      delete storeLegendre;
    }
 }
 
@@ -141,7 +139,7 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
    int p = (this)->GetOrder();
    double x = ip.x, y = ip.y;
 
-   Poly_1D::Basis edgeNodalBasis(poly1d.GetBasis(p, BasisType::GaussLobatto));
+   Poly_1D::Basis &edgeNodalBasis = poly1d.GetBasis(p, BasisType::GaussLobatto);
    Vector nodalX(p+1);
    Vector DnodalX(p+1);
    Vector nodalY(p+1);
@@ -203,10 +201,9 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       double *legY = new double[p-1];
       double *DlegX = new double[p-1];
       double *DlegY = new double[p-1];
-      Poly_1D *storeLegendre = new Poly_1D();
 
-      storeLegendre->CalcLegendre(p-2, x, legX, DlegX);
-      storeLegendre->CalcLegendre(p-2, y, legY, DlegY);
+      Poly_1D::CalcLegendre(p-2, x, legX, DlegX);
+      Poly_1D::CalcLegendre(p-2, y, legY, DlegY);
 
       int interior_total = 0;
       for (int j = 4; j < p + 1; j++)
@@ -224,7 +221,6 @@ void H1Ser_QuadrilateralElement::CalcDShape(const IntegrationPoint &ip,
       delete[] legY;
       delete[] DlegX;
       delete[] DlegY;
-      delete storeLegendre;
    }
 }
 
