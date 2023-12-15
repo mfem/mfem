@@ -95,6 +95,8 @@ else
    # Silence unused command line argument warnings when generating dependencies
    # with mpicxx and clang
    DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
+   # Silence "ignoring duplicate libraries" warnings
+   LDFLAGS = -Xlinker -no_warn_duplicate_libraries
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
