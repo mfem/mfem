@@ -515,7 +515,6 @@ void NURBS_HDiv2DFiniteElement::CalcDivShape(const IntegrationPoint &ip,
       for (int i = 0; i <= orders[0]; i++, o++)
       {
          divshape(o) = shape_x(i)*dsy1;
-
       }
    }
 
@@ -588,7 +587,7 @@ void NURBS_HDiv3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
    kv1[2]->CalcShape(shape1_z, ijk[2], ip.z);
 
    int o = 0;
-   for (int  k = 0; k <= orders[2]; k++)
+   for (int k = 0; k <= orders[2]; k++)
    {
       const double sz = shape_z(k);
       for (int j = 0; j <= orders[1]; j++)
