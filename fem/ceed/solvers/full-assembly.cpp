@@ -11,11 +11,11 @@
 
 #include "full-assembly.hpp"
 
+#ifdef MFEM_USE_CEED
+
 #include "../../../linalg/sparsemat.hpp"
 #include "../interface/util.hpp"
 #include "../interface/ceed.hpp"
-
-#ifdef MFEM_USE_CEED
 
 namespace mfem
 {
@@ -338,4 +338,4 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat)
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_USE_CEED
