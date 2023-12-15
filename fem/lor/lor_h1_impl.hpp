@@ -9,7 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_h1.hpp"
 #include "lor_util.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../general/forall.hpp"
@@ -17,7 +16,7 @@
 namespace mfem
 {
 
-template <int ORDER>
+template <int ORDER, int SDIM>
 void BatchedLOR_H1::Assemble2D()
 {
    const int nel_ho = fes_ho.GetNE();
@@ -74,31 +73,8 @@ void BatchedLOR_H1::Assemble2D()
 
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            double vx[4], vy[4];
-            LORVertexCoordinates2D<ORDER>(X, iel_ho, kx, ky, vx, vy);
+            SetupLORQuadData2D<ORDER,SDIM,false,false>(X, iel_ho, kx, ky, Q, false);
 
-            for (int iqy=0; iqy<2; ++iqy)
-            {
-               for (int iqx=0; iqx<2; ++iqx)
-               {
-                  const double x = iqx;
-                  const double y = iqy;
-                  const double w = 1.0/4.0;
-
-                  double J_[2*2];
-                  DeviceTensor<2> J(J_, 2, 2);
-
-                  Jacobian2D(x, y, vx, vy, J);
-
-                  const double detJ = Det2D(J);
-                  const double w_detJ = w/detJ;
-
-                  Q(0,iqy,iqx) = w_detJ * (J(0,1)*J(0,1) + J(1,1)*J(1,1)); // 1,1
-                  Q(1,iqy,iqx) = -w_detJ * (J(0,1)*J(0,0) + J(1,1)*J(1,0)); // 1,2
-                  Q(2,iqy,iqx) = w_detJ * (J(0,0)*J(0,0) + J(1,0)*J(1,0)); // 2,2
-                  Q(3,iqy,iqx) = w*detJ;
-               }
-            }
             for (int iqx=0; iqx<2; ++iqx)
             {
                for (int iqy=0; iqy<2; ++iqy)
@@ -517,36 +493,6 @@ void BatchedLOR_H1::Assemble3D()
          }
       }
    }
-}
-
-// Explicit template instantiations
-template void BatchedLOR_H1::Assemble2D<1>();
-template void BatchedLOR_H1::Assemble2D<2>();
-template void BatchedLOR_H1::Assemble2D<3>();
-template void BatchedLOR_H1::Assemble2D<4>();
-template void BatchedLOR_H1::Assemble2D<5>();
-template void BatchedLOR_H1::Assemble2D<6>();
-template void BatchedLOR_H1::Assemble2D<7>();
-template void BatchedLOR_H1::Assemble2D<8>();
-
-template void BatchedLOR_H1::Assemble3D<1>();
-template void BatchedLOR_H1::Assemble3D<2>();
-template void BatchedLOR_H1::Assemble3D<3>();
-template void BatchedLOR_H1::Assemble3D<4>();
-template void BatchedLOR_H1::Assemble3D<5>();
-template void BatchedLOR_H1::Assemble3D<6>();
-template void BatchedLOR_H1::Assemble3D<7>();
-template void BatchedLOR_H1::Assemble3D<8>();
-
-BatchedLOR_H1::BatchedLOR_H1(BilinearForm &a,
-                             FiniteElementSpace &fes_ho_,
-                             Vector &X_vert_,
-                             Vector &sparse_ij_,
-                             Array<int> &sparse_mapping_)
-   : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
-{
-   ProjectLORCoefficient<MassIntegrator>(a, c1);
-   ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
 }
 
 } // namespace mfem

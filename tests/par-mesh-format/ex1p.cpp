@@ -231,10 +231,10 @@ int main(int argc, char *argv[])
       }
       else
       {
-         ParGridFunction err(fespace);
-         subtract(x, *saved_x, err);
+         ParGridFunction error(fespace);
+         subtract(x, *saved_x, error);
          ConstantCoefficient zero(0.0);
-         double err_norm = err.ComputeL2Error(zero);
+         double err_norm = error.ComputeL2Error(zero);
          if (myid == 0)
          {
             cout << "\n|| x - x_saved ||_L2 = " << err_norm << '\n' << endl;
