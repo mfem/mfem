@@ -41,10 +41,6 @@ add_mfem_miniapp(nurbs_solenoidal
   MAIN nurbs_solenoidal.cpp
   LIBRARIES mfem)
 
-add_mfem_miniapp(nurbs_irrot
-  MAIN nurbs_irrot.cpp
-  LIBRARIES mfem)
-
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
@@ -186,7 +182,6 @@ if (MFEM_ENABLE_TESTING)
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/cube.ref)
 
-
   add_test(NAME nurbs_solenoidal_nurbs_solenoidal_2d
     COMMAND $<TARGET_FILE:nurbs_ex1>
     -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -o 2 -r 0)
@@ -200,6 +195,10 @@ endif()
 if (MFEM_USE_MPI)
   add_mfem_miniapp(nurbs_ex1p
     MAIN nurbs_ex1p.cpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(nurbs_ex11p
+    MAIN nurbs_ex11p.cpp
     LIBRARIES mfem)
 
   if (MFEM_ENABLE_TESTING)
@@ -236,13 +235,7 @@ if (MFEM_USE_MPI)
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS}  $<TARGET_FILE:nurbs_ex1p> -no-vis
         -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
-  endif()
 
-  add_mfem_miniapp(nurbs_ex11p
-    MAIN nurbs_ex11p.cpp
-    LIBRARIES mfem)
-
-  if (MFEM_ENABLE_TESTING)
     add_test(NAME nurbs_ex11p_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex11p> -no-vis
