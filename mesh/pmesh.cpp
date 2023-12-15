@@ -3989,8 +3989,6 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
                   != NULL, "internal error");
    }
 
-   ResetLazyData();
-
    DeleteFaceNbrData();
 
    pncmesh->Rebalance(partition);
