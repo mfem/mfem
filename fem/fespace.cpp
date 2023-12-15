@@ -2277,8 +2277,8 @@ void FiniteElementSpace::UpdateNURBS()
 
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   bool div = (dynamic_cast<const NURBS_HDivFECollection *>(fec) != NULL );
-   bool curl = (dynamic_cast<const NURBS_HCurlFECollection *>(fec) != NULL );
+   const bool div = (dynamic_cast<const NURBS_HDivFECollection *>(fec) != NULL );
+   const bool curl = (dynamic_cast<const NURBS_HCurlFECollection *>(fec) != NULL );
 
    if (div || curl)
    {
