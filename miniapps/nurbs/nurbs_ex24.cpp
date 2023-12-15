@@ -297,27 +297,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Compute the same field by applying a DiscreteInterpolator.
-   /* DicreteInterpolants are not implemented yet (NIY) for NURBS
-   GridFunction discreteInterpolant(&test_fes);
-   DiscreteLinearOperator dlo(&trial_fes, &test_fes);
-   if (prob == 0)
-   {
-      dlo.AddDomainInterpolator(new GradientInterpolator());
-   }
-   else if (prob == 1)
-   {
-      dlo.AddDomainInterpolator(new CurlInterpolator());
-   }
-   else
-   {
-      dlo.AddDomainInterpolator(new DivergenceInterpolator());
-   }
-
-   dlo.Assemble();
-   dlo.Mult(gftrial, discreteInterpolant);*/
-
-   // 11. Compute the projection of the exact field.
+   // 10. Compute the projection of the exact field.
    GridFunction exact_proj(&test_fes);
    if (prob == 0)
    {
@@ -335,30 +315,24 @@ int main(int argc, char *argv[])
    exact_proj.SetTrueVector();
    exact_proj.SetFromTrueVector();
 
-   // 12. Compute and print the L_2 norm of the error.
+   // 11. Compute and print the L_2 norm of the error.
    if (prob == 0)
    {
       double errSol = x.ComputeL2Error(gradp_coef);
-      // NIY double errInterp = discreteInterpolant.ComputeL2Error(gradp_coef);
       double errProj = exact_proj.ComputeL2Error(gradp_coef);
 
       cout << "\n Solution of (E_h,v) = (grad p_h,v) for E_h and v in H(curl): "
            "|| E_h - grad p ||_{L_2} = " << errSol << '\n' << endl;
-      // NIYcout << " Gradient interpolant E_h = grad p_h in H(curl): || E_h - grad p"
-      // NIY     " ||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact grad p in H(curl): || E_h - grad p "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
    else if (prob == 1)
    {
       double errSol = x.ComputeL2Error(curlv_coef);
-      // NIYdouble errInterp = discreteInterpolant.ComputeL2Error(curlv_coef);
       double errProj = exact_proj.ComputeL2Error(curlv_coef);
 
       cout << "\n Solution of (E_h,w) = (curl v_h,w) for E_h and w in H(div): "
            "|| E_h - curl v ||_{L_2} = " << errSol << '\n' << endl;
-      // NIYcout << " Curl interpolant E_h = curl v_h in H(div): || E_h - curl v "
-      // NIY     "||_{L_2} = " << errInterp << '\n' << endl;
       cout << " Projection E_h of exact curl v in H(div): || E_h - curl v "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
@@ -372,18 +346,16 @@ int main(int argc, char *argv[])
       }
 
       double errSol = x.ComputeL2Error(divgradp_coef, irs);
-      // NIYdouble errInterp = discreteInterpolant.ComputeL2Error(divgradp_coef, irs);
       double errProj = exact_proj.ComputeL2Error(divgradp_coef, irs);
 
       cout << "\n Solution of (f_h,q) = (div v_h,q) for f_h and q in L_2: "
            "|| f_h - div v ||_{L_2} = " << errSol << '\n' << endl;
-      // NIY cout << " Divergence interpolant f_h = div v_h in L_2: || f_h - div v "
-      // NIY      "||_{L_2} = " << errInterp << '\n' << endl;
+
       cout << " Projection f_h of exact div v in L_2: || f_h - div v "
            "||_{L_2} = " << errProj << '\n' << endl;
    }
 
-   // 13. Save the refined mesh and the solution. This output can be viewed
+   // 12. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -392,7 +364,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 14. Send the solution by socket to a GLVis server.
+   // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -402,7 +374,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 15. Free the used memory.
+   // 14. Free the used memory.
    delete trial_fec;
    delete test_fec;
    delete mesh;
