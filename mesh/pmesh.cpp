@@ -1755,7 +1755,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    Array<int> sedge_master_index(shared_edges.Size());
    for (int i = 0; i < group_sedge.Size(); i++)
    {
-      int rank = gtopo.GetGroupMasterRank(i+1);
+      const int rank = gtopo.GetGroupMasterRank(i+1);
       for (int j = 0; j < group_sedge.RowSize(i); j++)
       {
          sedge_master_rank[group_sedge.GetRow(i)[j]] = rank;
@@ -3182,7 +3182,7 @@ void ParMesh::ReorientTetMesh()
    Array<int> svert_master_index(svert_lvert);
    for (int i = 0; i < group_svert.Size(); i++)
    {
-      int rank = gtopo.GetGroupMasterRank(i+1);
+      const int rank = gtopo.GetGroupMasterRank(i+1);
       for (int j = 0; j < group_svert.RowSize(i); j++)
       {
          svert_master_rank[group_svert.GetRow(i)[j]] = rank;

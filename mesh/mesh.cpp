@@ -2558,16 +2558,16 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 
 void Mesh::GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const
 {
-   auto GetLength = [this](int i, int j)
+   auto GetLength2 = [this](int i, int j)
    {
-      double length = 0.;
+      double l = 0.;
       if (Nodes == NULL)
       {
          const double *vi = vertices[i]();
          const double *vj = vertices[j]();
          for (int k = 0; k < spaceDim; k++)
          {
-            length += (vi[k]-vj[k])*(vi[k]-vj[k]);
+            l += (vi[k]-vj[k])*(vi[k]-vj[k]);
          }
       }
       else
@@ -2577,11 +2577,11 @@ void Mesh::GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const
          Nodes->FESpace()->GetVertexVDofs(j, jvdofs);
          for (int k = 0; k < ivdofs.Size(); k++)
          {
-            length += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
-                      ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
+            l += ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]))*
+                 ((*Nodes)(ivdofs[k])-(*Nodes)(jvdofs[k]));
          }
       }
-      return length;
+      return l;
    };
 
    lengths.SetSize(NumOfEdges);
@@ -2590,7 +2590,7 @@ void Mesh::GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const
       for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
       {
          int j = it.Index();
-         lengths[j] = GetLength(i, it.Column());
+         lengths[j] = GetLength2(i, it.Column());
       }
    }
 };

@@ -332,7 +332,9 @@ protected:
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
+   /// Computes the squared edge lengths for all edges in the mesh.
    void GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const;
+
    void MarkForRefinement();
    void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
