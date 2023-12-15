@@ -19,6 +19,8 @@
 namespace mfem
 {
 
+class SparseMatrix;
+
 namespace ceed
 {
 
@@ -34,6 +36,6 @@ int CeedOperatorFullAssemble(CeedOperator op, SparseMatrix **mat);
 
 } // namespace mfem
 
-#endif
+#endif // MFEM_USE_CEED
 
-#endif
+#endif // MFEM_CEED_ASSEMBLE_HPP
