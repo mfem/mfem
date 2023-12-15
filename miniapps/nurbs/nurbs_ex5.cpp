@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext&& NURBS)
+   if (mesh->NURBSext)
    {
       hdiv_coll = new NURBS_HDivFECollection(order);
       l2_coll   = new NURBSFECollection(order);
@@ -129,7 +129,6 @@ int main(int argc, char *argv[])
    }
    else
    {
-      NURBS = false;
       hdiv_coll = new RT_FECollection(order, dim);
       l2_coll   = new L2_FECollection(order, dim);
       mfem::out<<"Create Normal fec"<<std::endl;
