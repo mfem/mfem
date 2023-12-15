@@ -3574,7 +3574,7 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
 NURBS_HDivFECollection::~NURBS_HDivFECollection()
 {
    delete QuadrilateralVFE;
-   if (ParallelepipedVFE) { delete ParallelepipedVFE; }
+   delete ParallelepipedVFE;
 }
 
 const FiniteElement *
