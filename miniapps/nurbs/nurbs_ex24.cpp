@@ -136,16 +136,16 @@ int main(int argc, char *argv[])
       if (prob == 0)
       {
          trial_fec  = new NURBSFECollection(order);
-         test_fec = new NURBS_HCurlFECollection(order);
+         test_fec = new NURBS_HCurlFECollection(order, dim);
       }
       else if (prob == 1)
       {
-         trial_fec = new NURBS_HCurlFECollection(order);
-         test_fec = new NURBS_HDivFECollection(order);
+         trial_fec = new NURBS_HCurlFECollection(order, dim);
+         test_fec = new NURBS_HDivFECollection(order, dim);
       }
       else
       {
-         trial_fec = new NURBS_HDivFECollection(order);
+         trial_fec = new NURBS_HDivFECollection(order, dim);
          test_fec  = new NURBSFECollection(order);
       }
    }

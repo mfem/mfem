@@ -3565,14 +3565,36 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
 
+   SegmentFE       = new NURBS1DFiniteElement(order);
+   QuadrilateralFE = new NURBS2DFiniteElement(order);
+
    QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
    ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
 
+   if (dim == 2)
+   {
+      sFE = SegmentFE;
+      qFE = QuadrilateralVFE;
+      hFE = nullptr;
+   }
+   else if (dim == 3)
+   {
+      sFE = nullptr;
+      qFE = QuadrilateralFE;
+      hFE = ParallelepipedVFE;
+   }
+   else
+   {
+      mfem::err<<"Dimension = "<<dim<<endl;
+      mfem_error ("NURBS_HDivFECollection: wrong dimension!");
+   }
    SetOrder(Order);
 }
 
 NURBS_HDivFECollection::~NURBS_HDivFECollection()
 {
+   delete SegmentFE;
+   delete QuadrilateralFE;
    delete QuadrilateralVFE;
    delete ParallelepipedVFE;
 }
@@ -3582,8 +3604,9 @@ NURBS_HDivFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
-      case Geometry::SQUARE:      return QuadrilateralVFE;
-      case Geometry::CUBE:        return ParallelepipedVFE;
+      case Geometry::SEGMENT:     return sFE;
+      case Geometry::SQUARE:      return qFE;
+      case Geometry::CUBE:        return hFE;
       default:
          if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("NURBS_HDivFECollection: unknown geometry type.");
