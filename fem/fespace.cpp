@@ -2287,72 +2287,63 @@ void FiniteElementSpace::UpdateNURBS()
    {
       if (mesh->Dimension() == 2)
       {
-         NURBSExtension* ext0, *ext1;
-         Table::Mode mode;
+         VNURBSext.SetSize(2);
+         Table::Mode mode = Table::MERGE;
          if (div)
          {
-            ext0 = NURBSext->GetDivExtension(0);
-            ext1 = NURBSext->GetDivExtension(1);
+            VNURBSext[0] = NURBSext->GetDivExtension(0);
+            VNURBSext[1] = NURBSext->GetDivExtension(1);
             mode = Table::H_DIV_BND;
          }
          else if (curl)
          {
-            ext0 = NURBSext->GetCurlExtension(0);
-            ext1 = NURBSext->GetCurlExtension(1);
+            VNURBSext[0] = NURBSext->GetCurlExtension(0);
+            VNURBSext[1] = NURBSext->GetCurlExtension(1);
             mode = Table::H_CURL_BND;
          }
 
-         component.SetSize(2);
-         component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
-         component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
-
-         int offset1 = ext0->GetNDof();
-         ndofs = ext0->GetNDof() + ext1->GetNDof();
+         int offset1 = VNURBSext[0]->GetNDof();
+         ndofs = VNURBSext[0]->GetNDof() + VNURBSext[1]->GetNDof();
 
          // Merge Tables
-         elem_dof = new Table(*ext0->GetElementDofTable(),
-                              *ext1->GetElementDofTable(),offset1 );
+         elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                              *VNURBSext[1]->GetElementDofTable(),offset1 );
 
-         bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
-                                  *ext1->GetBdrElementDofTable(),offset1,
+         bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                                  *VNURBSext[1]->GetBdrElementDofTable(),offset1,
                                   mode);
       }
       else if (mesh->Dimension() == 3)
       {
-         NURBSExtension* ext0, *ext1, *ext2;
-         Table::Mode mode;
+         VNURBSext.SetSize(3);
+         Table::Mode mode = Table::MERGE;
          if (div)
          {
-            ext0 = NURBSext->GetDivExtension(0);
-            ext1 = NURBSext->GetDivExtension(1);
-            ext2 = NURBSext->GetDivExtension(2);
+            VNURBSext[0] = NURBSext->GetDivExtension(0);
+            VNURBSext[1] = NURBSext->GetDivExtension(1);
+            VNURBSext[2] = NURBSext->GetDivExtension(2);
             mode = Table::H_DIV_BND;
          }
          else if (curl)
          {
-            ext0 = NURBSext->GetCurlExtension(0);
-            ext1 = NURBSext->GetCurlExtension(1);
-            ext2 = NURBSext->GetCurlExtension(2);
+            VNURBSext[0] = NURBSext->GetCurlExtension(0);
+            VNURBSext[1] = NURBSext->GetCurlExtension(1);
+            VNURBSext[2] = NURBSext->GetCurlExtension(2);
             mode = Table::H_CURL_BND;
          }
 
-         component.SetSize(3);
-         component[0] = new FiniteElementSpace(mesh, ext0, new NURBSFECollection());
-         component[1] = new FiniteElementSpace(mesh, ext1, new NURBSFECollection());
-         component[2] = new FiniteElementSpace(mesh, ext2, new NURBSFECollection());
-
-         int offset1 = ext0->GetNDof();
-         int offset2 = offset1 + ext1->GetNDof();
-         ndofs = offset2 + ext2->GetNDof();
+         int offset1 = VNURBSext[0]->GetNDof();
+         int offset2 = offset1 + VNURBSext[1]->GetNDof();
+         ndofs = offset2 + VNURBSext[2]->GetNDof();
 
          // Merge Tables
-         elem_dof = new Table(*ext0->GetElementDofTable(),
-                              *ext1->GetElementDofTable(),offset1,
-                              *ext2->GetElementDofTable(),offset2);
+         elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                              *VNURBSext[1]->GetElementDofTable(),offset1,
+                              *VNURBSext[2]->GetElementDofTable(),offset2);
 
-         bdr_elem_dof = new Table(*ext0->GetBdrElementDofTable(),
-                                  *ext1->GetBdrElementDofTable(),offset1,
-                                  *ext2->GetBdrElementDofTable(),offset2,
+         bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                                  *VNURBSext[1]->GetBdrElementDofTable(),offset1,
+                                  *VNURBSext[2]->GetBdrElementDofTable(),offset2,
                                   mode );
       }
       else
@@ -3367,20 +3358,20 @@ void FiniteElementSpace::Destroy()
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
 
+   for (int i = 0; i < VNURBSext.Size(); i++)
+   {
+      delete VNURBSext[i];
+   }
+
    if (NURBSext)
    {
       if (own_ext) { delete NURBSext; }
       delete face_dof;
       face_to_be.DeleteAll();
-      if (component.Size() > 0 )
+      if (VNURBSext.Size() > 0 )
       {
          delete elem_dof;
          delete bdr_elem_dof;
-      }
-      for (int i = 0; i < component.Size(); i++)
-      {
-         delete component[i]->FEColl();
-         delete component[i];
       }
    }
    else

@@ -91,7 +91,51 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_weak_patch_format_r1_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh -o 2 --weak-bc -r 1)
-    
+
+  add_test(NAME nurbs_ex3_2d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex3> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_ex3_3d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex3> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_ex5_2d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex5> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/square-nurbs.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_ex5_3d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex5> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_ex24_2d_r1_o2_p0_ser
+    COMMAND $<TARGET_FILE:nurbs_ex24> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 0)
+
+  add_test(NAME nurbs_ex24_2d_r1_o2_p2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex24> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -r 1 -o 2 -p 2)
+
+  add_test(NAME nurbs_ex24_3d_r1_o2_p0_ser
+    COMMAND $<TARGET_FILE:nurbs_ex24> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2 -p 0)
+
+  add_test(NAME nurbs_ex24_3d_r1_o2_p1_ser
+    COMMAND $<TARGET_FILE:nurbs_ex24> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2 -p 1)
+
+  add_test(NAME nurbs_ex24_3d_r1_o2_p2_ser
+    COMMAND $<TARGET_FILE:nurbs_ex24> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2 -p 2)
+
+  add_test(NAME nurbs_solenoidal_2d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_solenoidal> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/pipe-nurbs-2d.mesh -r 1 -o 2)
+
+  add_test(NAME nurbs_solenoidal_3d_r1_o2_ser
+    COMMAND $<TARGET_FILE:nurbs_solenoidal> -no-vis
+        -m ${PROJECT_SOURCE_DIR}/data/cube-nurbs.mesh -r 1 -o 2)
+
   add_test(NAME nurbs_printfunc
     COMMAND $<TARGET_FILE:nurbs_printfunc>)
 
