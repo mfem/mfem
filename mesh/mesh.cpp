@@ -471,7 +471,7 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       else // L2 Nodes (e.g., periodic mesh)
       {
          int elem_id, face_info;
-         GetBdrElementAdjacentElement2(i, elem_id, face_info);
+         GetBdrElementAdjacentElementWithInverseOrientation(i, elem_id, face_info);
 
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
@@ -7145,7 +7145,8 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    info = fi.Elem1Inf + ori;
 }
 
-void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
+void Mesh::GetBdrElementAdjacentElementWithInverseOrientation(
+   int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementFaceIndex(bdr_el);
 
@@ -7165,6 +7166,11 @@ void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
    }
    el   = fi.Elem1No;
    info = fi.Elem1Inf + ori;
+}
+
+void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
+{
+   GetBdrElementAdjacentElementWithInverseOrientation(bdr_el, el, info);
 }
 
 Element::Type Mesh::GetElementType(int i) const

@@ -1473,6 +1473,11 @@ public:
        boundary element.
 
        @sa GetBdrElementAdjacentElement() */
+   void GetBdrElementAdjacentElementWithInverseOrientation(
+      int bdr_el, int &el, int &info) const;
+
+   /// Deprecated in favor of GetBdrElementAdjacentElementWithInverseOrientation
+   MFEM_DEPRECATED
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
    /// @brief Return the local face (codimension-1) index for the given boundary
