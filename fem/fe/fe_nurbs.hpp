@@ -226,7 +226,7 @@ public:
 };
 
 
-/// An arbitrary order H(div)-conforming 3D NURBS element on a square
+/// An arbitrary order H(div)-conforming 3D NURBS element on a cube
 class NURBS_HDiv3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -384,7 +384,7 @@ public:
 };
 
 
-/// An arbitrary order H(curl)-conforming 3D NURBS element on a square
+/// An arbitrary order H(curl)-conforming 3D NURBS element on a cube
 class NURBS_HCurl3DFiniteElement : public VectorFiniteElement,
    public NURBSFiniteElement
 {
@@ -468,10 +468,6 @@ public:
 
    ~NURBS_HCurl3DFiniteElement();
 };
-
-
-
-
 
 } // namespace mfem
 
