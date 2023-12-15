@@ -796,7 +796,8 @@ public:
 
    /** @brief The parameter @a Order must be either a positive number, for fixed
       order, or VariableOrder (default). */
-   explicit NURBS_HCurlFECollection(int Order = VariableOrder, const int vdim = -1);
+   explicit NURBS_HCurlFECollection(int Order = VariableOrder,
+                                    const int vdim = -1);
 
    virtual void Reset() const override
    {
