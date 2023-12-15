@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 
    if (mesh->NURBSext)
    {
-      hdiv_coll = new NURBS_HDivFECollection(order);
+      hdiv_coll = new NURBS_HDivFECollection(order,dim);
       l2_coll   = new NURBSFECollection(order);
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;

@@ -739,17 +739,26 @@ class NURBS_HDivFECollection : public NURBSFECollection
 {
 private:
 
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
+
    NURBS_HDiv2DFiniteElement *QuadrilateralVFE;
    NURBS_HDiv3DFiniteElement *ParallelepipedVFE;
+
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
 
 public:
 
    /** @brief The parameter @a Order must be either a positive number, for fixed
       order, or VariableOrder (default). */
-   explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = 3);
+   explicit NURBS_HDivFECollection(int Order = VariableOrder, const int vdim = -1);
 
    virtual void Reset() const override
    {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
       QuadrilateralVFE->Reset();
       ParallelepipedVFE->Reset();
    }
@@ -787,7 +796,7 @@ public:
 
    /** @brief The parameter @a Order must be either a positive number, for fixed
       order, or VariableOrder (default). */
-   explicit NURBS_HCurlFECollection(int Order = VariableOrder, const int vdim = 3);
+   explicit NURBS_HCurlFECollection(int Order = VariableOrder, const int vdim = -1);
 
    virtual void Reset() const override
    {
