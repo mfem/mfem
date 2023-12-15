@@ -2179,10 +2179,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh_, NURBSExtension *NURBSext_,
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec_);
 
-   const NURBS_HDivFECollection *nurbs_hdiv_fec =
-      dynamic_cast<const NURBS_HDivFECollection *>(fec_);
-
-   if (nurbs_fec || nurbs_hdiv_fec)
+   if (nurbs_fec)
    {
       MFEM_VERIFY(mesh_->NURBSext, "NURBS FE space requires a NURBS mesh.");
 
