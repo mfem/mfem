@@ -402,7 +402,7 @@ int AlgebraicInterpolation::Initialize(
    ierr = CeedOperatorCreate(ceed, qf_restrict, CEED_QFUNCTION_NONE,
                              CEED_QFUNCTION_NONE, &op_restrict); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_restrict, "input", erestrictu_fine,
-                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
+                               CEED_BASIS_NONE, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_restrict, "output", erestrictu_coarse,
                                basisctof, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
 
@@ -413,7 +413,7 @@ int AlgebraicInterpolation::Initialize(
    ierr =  CeedOperatorSetField(op_interp, "input", erestrictu_coarse,
                                 basisctof, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
    ierr = CeedOperatorSetField(op_interp, "output", erestrictu_fine,
-                               CEED_BASIS_COLLOCATED, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
+                               CEED_BASIS_NONE, CEED_VECTOR_ACTIVE); PCeedChk(ierr);
 
    ierr = CeedElemRestrictionGetMultiplicity(erestrictu_fine,
                                              c_fine_multiplicity); PCeedChk(ierr);
