@@ -2891,8 +2891,8 @@ Table *ParMesh::GetFaceToAllElementTable() const
    return face_elem;
 }
 
-FaceElementTransformations *ParMesh::GetFaceElementTransformations(
-   int FaceNo, int mask)
+FaceElementTransformations *ParMesh::GetFaceElementTransformations(int FaceNo,
+                                                                   int mask)
 {
    GetFaceElementTransformations(FaceNo, &FaceElemTr, &Transformation,
                                  &Transformation2, mask);
@@ -2920,8 +2920,8 @@ void ParMesh::GetFaceElementTransformations(int FaceNo,
 FaceElementTransformations *ParMesh::GetSharedFaceTransformations(int sf,
                                                                   bool fill2)
 {
-   GetSharedFaceTransformations(sf, &FaceElemTr, &Transformation, &Transformation2,
-                                fill2);
+   GetSharedFaceTransformations(sf, &FaceElemTr, &Transformation,
+                                &Transformation2, fill2);
    return &FaceElemTr;
 }
 
@@ -2936,10 +2936,10 @@ void ParMesh::GetSharedFaceTransformations(int sf,
 }
 
 FaceElementTransformations *
-ParMesh:: GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
+ParMesh::GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
 {
-   GetSharedFaceTransformations(FaceNo, &FaceElemTr, &Transformation,
-                                &Transformation2, fill2);
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, &FaceElemTr, &Transformation,
+                                            &Transformation2, fill2);
    return &FaceElemTr;
 }
 
