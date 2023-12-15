@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/cube-nurbs.mesh";
    int ref_levels = -1;
    int order = 1;
+   bool NURBS = true;
    int prob = 0;
    bool static_cond = false;
    bool pa = false;
@@ -70,6 +71,8 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&NURBS, "-n", "--nurbs", "-nn","--no-nurbs",
+                  "NURBS.");
    args.AddOption(&prob, "-p", "--problem-type",
                   "Choose between 0: grad, 1: curl, 2: div");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -101,6 +104,10 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dim = mesh->Dimension();
+   if ((prob == 1) &&(dim != 3))
+   {
+      MFEM_ABORT("The curl problem is only defined in 3D.");
+   }
    int sdim = mesh->SpaceDimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -123,12 +130,12 @@ int main(int argc, char *argv[])
    FiniteElementCollection *trial_fec = nullptr;
    FiniteElementCollection *test_fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
-   if (mesh->NURBSext)
+   if (mesh->NURBSext && NURBS)
    {
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       if (prob == 0)
       {
-         trial_fec  = new NURBSFECollection(order+1);
+         trial_fec  = new NURBSFECollection(order);
          test_fec = new NURBS_HCurlFECollection(order);
       }
       else if (prob == 1)

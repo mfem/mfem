@@ -268,7 +268,7 @@ protected:
    Array<int> dof_elem_array, dof_ldof_array;
 
    NURBSExtension *NURBSext;
-   Array<FiniteElementSpace*> component; // FES for each component of a vector
+   Array<NURBSExtension*> VNURBSext;
    int own_ext;
    mutable Array<int> face_to_be; // NURBS FE space only
 
@@ -560,9 +560,6 @@ public:
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
-
-   const FiniteElementSpace *GetComponent(int i) const { return component[i]; }
-   FiniteElementSpace *GetComponent(int i) { return component[i]; }
 
    bool Conforming() const { return mesh->Conforming() && cP == NULL; }
    bool Nonconforming() const { return mesh->Nonconforming() || cP != NULL; }
