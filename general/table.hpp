@@ -68,13 +68,17 @@ public:
 
    /** Merge constructors
        This is used to combine 2 or 3 tables into 1.
-       The merge bool determines whether a full or reduced merge is performed
-        true  = new row is a concatenation of all input rows.
+       The merge enum determines whether a full or reduced merge is performed
+        Full  = new row is a concatenation of all input rows.
                 This mode is used when merging element-dof tables of individual
                 components into an element-dof table for the complete vector.
-        false = new row is only the smallest of the input rows.
+        Hdiv = new row is only the smallest of the input rows.
                 This mode is used when merging boundary-dof tables of individual
-                components into an boundary-dof table for the complete vector.*/
+                components into an boundary-dof table for the complete vector.
+        Hcurl = new row is a concatenation of all input rows bar the smallest.
+                This mode is used when merging boundary-dof tables of individual
+                components into an boundary-dof table for the complete vector.
+                */
    Table(const Table &table1,
          const Table &table2, int offset2,
          const Mode = MERGE);
