@@ -126,8 +126,8 @@ void CurlEvaluator::ComputeCurlPA(
    const FiniteElement &fe = *dom_fes.GetFE(0);
 
    // If the QuadratureInterpolator is not already constructed, create it.
-   auto quad_interp = perp_grad ? scalar_quad_interp : vector_quad_interp;
-   if (!quad_interp)
+   auto **quad_interp = perp_grad ? &scalar_quad_interp : &vector_quad_interp;
+   if (!(*quad_interp))
    {
       if (ir_lex.Size() == 0)
       {
@@ -142,13 +142,13 @@ void CurlEvaluator::ComputeCurlPA(
             ir_lex[i] = ir[lex[i]];
          }
       }
-      quad_interp = new QuadratureInterpolator(dom_fes, ir_lex);
+      *quad_interp = new QuadratureInterpolator(dom_fes, ir_lex);
       // This is the default layout, setting here explicitly for clarity.
-      quad_interp->SetOutputLayout(QVectorLayout::byNODES);
+      (*quad_interp)->SetOutputLayout(QVectorLayout::byNODES);
    }
 
    // Compute physical derivatives element-by-element
-   quad_interp->PhysDerivatives(u_evec, du_evec);
+   (*quad_interp)->PhysDerivatives(u_evec, du_evec);
 
    const int ne = fes.GetNE();
    const int ndof = fe.GetDof();

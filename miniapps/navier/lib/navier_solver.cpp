@@ -96,9 +96,10 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
    kv.SetSize(pfes_truevsize);
    grad_nu_sym_grad_uext.SetSize(vfes_truevsize);
 
+   // What does wgn_gf mean? Who should wg_coef?
    wgn_gf.SetSpace(pmesh->GetNodes()->FESpace());
    wgn_gf = 0.0;
-   wg_coef = new VectorGridFunctionCoefficient(&wgn_gf);
+   wg_coef = VectorGridFunctionCoefficient(&wgn_gf);
 
    hpfrt_tdofs.SetSize(vfes_truevsize);
    hpfrt_tdofs = 0.0;
@@ -124,7 +125,7 @@ void NavierSolver::Setup(double dt)
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
-   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff, wg_coef);
+   auto *nlc_nlfi = new VectorConvectionNLFIntegrator(nlcoeff, &wg_coef);
    nlc_nlfi->SetIntRule(&gll_ir_nl);
    N->AddDomainIntegrator(nlc_nlfi);
    // N->SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -278,11 +279,9 @@ void NavierSolver::UpdateForms()
    FText_bdr_form->Update();
    g_bdr_form->Update();
 
-   delete mean_evaluator;
-   mean_evaluator = new MeanEvaluator(*pfes, gll_ir);
+   mean_evaluator = std::make_unique<MeanEvaluator>(*pfes, gll_ir);
 
-   delete curl_evaluator;
-   curl_evaluator = new CurlEvaluator(*vfes);
+   curl_evaluator = std::make_unique<CurlEvaluator>(*vfes);
 
    delete stress_evaluator;
    stress_evaluator = new ShearStressEvaluator(*kin_vis_gf.ParFESpace(),
@@ -301,11 +300,9 @@ void NavierSolver::UpdateSolvers()
    Vector diag_pa(vfes->GetTrueVSize());
    Mv_form->AssembleDiagonal(diag_pa);
 
-   delete MvInvPC;
-   MvInvPC = new OperatorJacobiSmoother(diag_pa, empty);
+   MvInvPC = std::make_unique<OperatorJacobiSmoother>(diag_pa, empty);
 
-   delete MvInv;
-   MvInv = new CGSolver(vfes->GetComm());
+   MvInv = std::make_unique<CGSolver>(vfes->GetComm());
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);

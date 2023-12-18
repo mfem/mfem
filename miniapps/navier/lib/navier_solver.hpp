@@ -432,8 +432,8 @@ protected:
    Solver *HInvPC = nullptr;
    CGSolver *HInv = nullptr;
 
-   Solver *MvInvPC = nullptr;
-   CGSolver *MvInv = nullptr;
+   std::unique_ptr<Solver>MvInvPC;
+   std::unique_ptr<CGSolver> MvInv;
 
    Vector fn, un, un_next, unm1, unm2, Nun, Nunm1, Nunm2, u_ext, Fext, FText, Lext,
           resu;
@@ -509,13 +509,13 @@ protected:
    ParGridFunction u_filter_basis_gf, u_low_modes_gf, hpfrt_gf;
 
    ShearStressEvaluator *stress_evaluator = nullptr;
-   CurlEvaluator *curl_evaluator = nullptr;
-   MeanEvaluator *mean_evaluator = nullptr;
+   std::unique_ptr<CurlEvaluator> curl_evaluator;
+   std::unique_ptr<MeanEvaluator> mean_evaluator;
 
    Vector grad_nu_sym_grad_uext, kv;
 
    GridFunction wgn_gf;
-   VectorCoefficient *wg_coef;
+   VectorGridFunctionCoefficient wg_coef;
 };
 
 } // namespace navier
