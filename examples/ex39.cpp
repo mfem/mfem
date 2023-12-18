@@ -146,6 +146,78 @@ enum Problem
    Cantilever3
 };
 
+double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_volume)
+{
+   GridFunctionCoefficient psi_cf(&psi);
+   TransformedCoefficient rho_cf(&psi_cf, sigmoid);
+   GridFunctionCoefficient grad_cf(&grad);
+   ConstantCoefficient mu(0.0);
+   const double c = 1;
+   SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
+   double mu_l = -1.0 - c*grad.Normlinf();
+   double mu_r =  1.0 + c*grad.Normlinf();
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
+   {
+      return max(0.0, min(1.0, p - g));
+   });
+   GridFunction zero_gf(psi);
+   zero_gf = 0.0;
+   while (mu_r - mu_l > 1e-12)
+   {
+      mu.constant = 0.5*(mu_l + mu_r);
+      double volume = zero_gf.ComputeL1Error(projectedDensity);
+      // out << "Volume / target = " << volume / target_volume << std::endl;
+      if (volume < target_volume)
+      {
+         mu_r = mu.constant;
+      }
+      else
+      {
+         mu_l = mu.constant;
+      }
+   }
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
+   {
+      return x - y;
+   });
+   return zero_gf.ComputeL2Error(rho_diff);
+}
+
+double checkNormalConeBregman(GridFunction &psi, GridFunction &grad, double target_volume)
+{
+   GridFunctionCoefficient psi_cf(&psi);
+   GridFunctionCoefficient grad_cf(&grad);
+   ConstantCoefficient mu(0.0);
+   const double c = 1;
+   SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
+   double mu_l = -1.0 - c*grad.Normlinf();
+   double mu_r =  1.0 + c*grad.Normlinf();
+   TransformedCoefficient projectedDensity(&psi_cf, &grad_cf_minus_mu, [](double p, double g)
+   {
+      return sigmoid(p - g);
+   });
+   GridFunction zero_gf(psi);
+   zero_gf = 0.0;
+   while (mu_r - mu_l > 1e-12)
+   {
+      mu.constant = 0.5*(mu_l + mu_r);
+      double volume = zero_gf.ComputeL1Error(projectedDensity);
+      if (volume < target_volume)
+      {
+         mu_r = mu.constant;
+      }
+      else
+      {
+         mu_l = mu.constant;
+      }
+   }
+   TransformedCoefficient rho_diff(&psi_cf, &projectedDensity, [](double x, double y)
+   {
+      return sigmoid(x) - y;
+   });
+   return zero_gf.ComputeL2Error(rho_diff);
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -437,12 +509,11 @@ int main(int argc, char *argv[])
       d.Neg();
       double compliance = lineSearch->Step(psi, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
+      double normal_cone_L2 = checkNormalConeL2(psi, *obj.Gradient(), target_volume);
+      double normal_cone_BD = checkNormalConeBregman(psi, *obj.Gradient(), target_volume);
       psi_old = psi;
-
-      // mfem::out << "volume fraction = " <<  obj.GetVolume() / domain_volume <<
-      //           std::endl;
       mfem::out <<  ", " << compliance << ", ";
-      mfem::out << norm_increment << std::endl;
+      mfem::out << norm_increment << ", " << normal_cone_L2 << ", " << normal_cone_BD << std::endl;
 
       if (glvis_visualization)
       {
@@ -453,7 +524,7 @@ int main(int argc, char *argv[])
          sout_r << "solution\n" << mesh << rho_gf
                 << flush;
       }
-      if (norm_increment < itol)
+      if (normal_cone_L2 < 5*1e-06)
       {
          break;
       }

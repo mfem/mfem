@@ -131,6 +131,43 @@ using namespace mfem;
  *
  */
 
+double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_volume)
+{
+   GridFunctionCoefficient rho_cf(&rho);
+   GridFunctionCoefficient grad_cf(&grad);
+   ConstantCoefficient mu(0.0);
+   const double c = 1;
+   SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
+   double mu_l = -1.0 - c*grad.Normlinf();
+   double mu_r =  1.0 + c*grad.Normlinf();
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
+   {
+      return max(0.0, min(1.0, p - g));
+   });
+   GridFunction zero_gf(rho);
+   zero_gf = 0.0;
+   while (mu_r - mu_l > 1e-12)
+   {
+      mu.constant = 0.5*(mu_l + mu_r);
+      double volume = zero_gf.ComputeL1Error(projectedDensity);
+      // out << "Volume / target = " << volume / target_volume << std::endl;
+      if (volume < target_volume)
+      {
+         mu_r = mu.constant;
+      }
+      else
+      {
+         mu_l = mu.constant;
+      }
+   }
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
+   {
+      return x - y;
+   });
+   return zero_gf.ComputeL2Error(rho_diff);
+}
+
+
 enum Problem
 {
    Cantilever,
@@ -475,7 +512,10 @@ int main(int argc, char *argv[])
       rho_old -= rho;
       double norm_increment = rho_old.ComputeL1Error(zero);
 
-      mfem::out << norm_increment << endl;
+      mfem::out << norm_increment << ", ";
+
+      double coneCondition = checkNormalConeL2(rho, gradL2, target_volume);
+      mfem::out << coneCondition << endl;
 
       if (glvis_visualization)
       {
@@ -495,7 +535,7 @@ int main(int argc, char *argv[])
          sol_ofs2 << frho;
       }
 
-      if (norm_increment < itol)
+      if (coneCondition < 5e-06)
       {
          break;
       }

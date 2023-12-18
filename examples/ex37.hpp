@@ -866,7 +866,7 @@ public:
       M = new GSSmoother((SparseMatrix&)(*A));
       cg = new CGSolver;
 #endif
-      cg->SetRelTol(1e-12);
+      cg->SetRelTol(1e-14);
       cg->SetMaxIter(10000);
       cg->SetPrintLevel(0);
       cg->SetPreconditioner(*M);
@@ -924,7 +924,7 @@ public:
                          FiniteElementSpace *filter_space, double exponent, double rho_min):
       SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
       eps2(epsilon*epsilon), ess_bdr(1, ess_bdr_list.Size()),
-      target_volume(target_volume),
+      target_volume(target_volume), isGradientUpdated(false),
       u(nullptr), frho(nullptr),
       rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent)
    {
@@ -1021,6 +1021,7 @@ public:
 
    virtual double Eval()
    {
+      isGradientUpdated = false;
       BilinearForm *elasticity, *filter;
       LinearForm *load, *filterRHS;
       FiniteElementSpace * fes;
@@ -1122,6 +1123,10 @@ public:
 
    virtual GridFunction *Gradient()
    {
+      if (isGradientUpdated)
+      {
+         return gradF_gf;
+      }
       BilinearForm *filter, *invmass;
       LinearForm *filterRHS, *gradH1form;
       FiniteElementSpace * fes;
@@ -1200,6 +1205,7 @@ public:
       delete filterRHS;
       delete gradH1form;
       delete gradH1;
+      isGradientUpdated = true;
       return gradF_gf;
    }
    double GetVolume() {return current_volume;}
@@ -1234,7 +1240,7 @@ public:
    }
 
 protected:
-
+   bool isGradientUpdated;
 
    /**
     * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
@@ -1391,7 +1397,7 @@ public:
                 const double alpha=1.0, const double growthRate=2.0, const double c1 = 1e-04,
                 const int maxit = 10, const double max_step_size=infinity()):
       LineSearchAlgorithm(F, max_step_size), growthRate(growthRate), c1(c1),
-      maxit(maxit) {step_size = alpha;}
+      maxit(maxit), isConverged(false) {step_size = alpha;}
 
    double Step(GridFunction &x, const GridFunction &d)
    {
@@ -1419,14 +1425,35 @@ public:
 #endif
       *x0 = x;
 
-      DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
+      // DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
+      GridFunctionCoefficient x_cf(&x), x0_cf(x0);
+      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y){return der_sigmoid(y)*(x - y); });
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(d_cf));
 
       double val = F.GetValue();
       GridFunction *grad = F.GetGradient();
       double d2 = 0;
 
-      double new_val = val + c1*d2 + 1;
+      double new_val;
+      if (test_convergence)
+      {
+         x = *x0;
+         x.Add(1.0, d);
+         new_val = F.Eval();
+         TransformedCoefficient diff_in_rho(&x_cf, &x0_cf, [](double x, double y){return sigmoid(x)-sigmoid(y); });
+         GridFunction zero(x); zero = 0.0;
+         double error = zero.ComputeL2Error(diff_in_rho);
+         out << error << std::endl;
+         if (error < conv_tol)
+         {
+            isConverged = true;
+            delete directionalDer;
+            delete x0;
+            delete d0;
+            return val;
+         }
+      }
+      new_val = val + c1*d2 + 1;
       step_size *= 2;
       int i=-1;
       while (new_val > val + c1*d2)
@@ -1451,8 +1478,20 @@ public:
       delete d0;
       return new_val;
    }
+   void ConvTestBeforeStep(bool flag, double conv_tol_=1e-06)
+   {
+      test_convergence = flag;
+      conv_tol = conv_tol_;
+   }
+   bool IsConverged()
+   {
+      return isConverged;
+   }
 protected:
    double growthRate, c1;
+   bool test_convergence;
+   double conv_tol;
+   bool isConverged;
    int maxit;
 private:
 };
@@ -1513,15 +1552,32 @@ public:
                              max_step_size), backTrackingLineSearch(F, 1.0, 1.0, c1) {}
    virtual double Step(GridFunction &x, const GridFunction &d)
    {
-      GridFunction xold(x);
       LipschitzBregmanMirror::EstimateStepSize();
       backTrackingLineSearch.SetStepSize(step_size);
       double value = backTrackingLineSearch.Step(x, d);
       diff_primal.Assemble();
+      if (conv_test_flag)
+      {
+         bool isConverged = backTrackingLineSearch.IsConverged();
+         if (isConverged)
+         {
+            return 0;
+         }
+      }
       return value;
+   }
+   void ConvTestBeforeStep(bool flag, double conv_tol_=1e-06)
+   {
+      conv_test_flag = flag;
+      backTrackingLineSearch.ConvTestBeforeStep(flag, conv_tol_);
+   }
+   bool IsConverged()
+   {
+      return backTrackingLineSearch.IsConverged();
    }
 protected:
    BackTracking backTrackingLineSearch;
+   bool conv_test_flag;
 };
 
 
