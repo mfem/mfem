@@ -104,7 +104,7 @@ public:
 };
 
 
-/// Class for domain integration L(v) := (f, v)
+/// Class for domain integration \f$ L(v) := (f, v) \f$
 class DomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
@@ -141,7 +141,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// Class for domain integrator L(v) := (f, grad v)
+/// Class for domain integrator \f$ L(v) := (f, \nabla v) \f$
 class DomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -150,7 +150,7 @@ private:
    DenseMatrix dshape;
 
 public:
-   /// Constructs the domain integrator (Q, grad v)
+   /// Constructs the domain integrator \f$ (Q, \nabla v) \f$
    DomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
@@ -175,7 +175,7 @@ public:
 };
 
 
-/// Class for boundary integration L(v) := (g, v)
+/// Class for boundary integration \f$ L(v) := (g, v) \f$
 class BoundaryLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
@@ -249,8 +249,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for domain integration of L(v) := (f, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). */
+/** Class for domain integration of \f$ L(v) := (f, v) \f$, where
+    \f$ f = (f_1,\dots,f_n)\f$ and \f$ v = (v_1,\dots,v_n) \f$. */
 class VectorDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -282,8 +282,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for domain integrator L(v) := (f, grad v), where
-    f=(f1x,f1y,f1z,...,fnx,fny,fnz) and v=(v1,...,vn). */
+/** Class for domain integrator \f$ L(v) := (f, \nabla v) \f$, where
+    \f$ f = (f_{1x},f_{1y},f_{1z},\dots,f_{nx},f_{ny},f_{nz})\f$ and \f$v=(v_1,\dots,v_n)\f$. */
 class VectorDomainLFGradIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -316,8 +316,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of L(v) := (g, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). */
+/** Class for boundary integration of \f$ L(v) := (g, v) \f$, where
+    \f$f=(f_1,\dots,f_n)\f$ and \f$v=(v_1,\dots,v_n)\f$. */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
 {
 private:
@@ -371,7 +371,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// \f$ (Q, curl v)_{\Omega} \f$ for Nedelec Elements)
+/// \f$ (Q, \mathrm{curl}(v))_{\Omega} \f$ for Nedelec Elements
 class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
 {
 private:
@@ -380,7 +380,7 @@ private:
    Vector vec;
 
 public:
-   /// Constructs the domain integrator (Q, curl v)
+   /// Constructs the domain integrator \f$(Q, \mathrm{curl}(v))  \f$
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
 
@@ -395,14 +395,14 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/// \f$ (Q, div v)_{\Omega} \f$ for RT Elements)
+/// \f$ (Q, \mathrm{div}(v))_{\Omega} \f$ for RT Elements
 class VectorFEDomainLFDivIntegrator : public DeltaLFIntegrator
 {
 private:
    Vector divshape;
    Coefficient &Q;
 public:
-   /// Constructs the domain integrator (Q, div v)
+   /// Constructs the domain integrator \f$ (Q, \mathrm{div}(v)) \f$
    VectorFEDomainLFDivIntegrator(Coefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
@@ -420,7 +420,7 @@ public:
 };
 
 /** \f$ (f, v \cdot n)_{\partial\Omega} \f$ for vector test function
-    v=(v1,...,vn) where all vi are in the same scalar FE space and f is a
+    \f$v=(v_1,\dots,v_n)\f$ where all vi are in the same scalar FE space and \f$f\f$ is a
     scalar function. */
 class VectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
@@ -441,8 +441,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration of (f, v.n) for scalar coefficient f and
-    RT vector test function v. This integrator works with RT spaces defined
+/** Class for boundary integration of \f$ (f, v \cdot n)\f$ for scalar coefficient \f$f\f$ and
+    RT vector test function \f$v\f$. This integrator works with RT spaces defined
     using the RT_FECollection class. */
 class VectorFEBoundaryFluxLFIntegrator : public LinearFormIntegrator
 {
@@ -491,9 +491,9 @@ public:
 
 
 /** Class for boundary integration of the linear form:
-    (alpha/2) < (u.n) f, w > - beta < |u.n| f, w >,
-    where f and u are given scalar and vector coefficients, respectively,
-    and w is the scalar test function. */
+    \f$ \frac{\alpha}{2} \langle (u \cdot n) f, w \rangle - \beta \langle |u \cdot n| f, w \rangle \f$
+    where \f$f\f$ and \f$u\f$ are given scalar and vector coefficients, respectively,
+    and \f$w\f$ is the scalar test function. */
 class BoundaryFlowIntegrator : public LinearFormIntegrator
 {
 private:
@@ -525,13 +525,13 @@ public:
 
 /** Boundary linear integrator for imposing non-zero Dirichlet boundary
     conditions, to be used in conjunction with DGDiffusionIntegrator.
-    Specifically, given the Dirichlet data u_D, the linear form assembles the
+    Specifically, given the Dirichlet data \f$u_D\f$, the linear form assembles the
     following integrals on the boundary:
-
-    sigma < u_D, (Q grad(v)).n > + kappa < {h^{-1} Q} u_D, v >,
-
+   \f[
+    \sigma \langle u_D, (Q \nabla v)) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+   \f]
     where Q is a scalar or matrix diffusion coefficient and v is the test
-    function. The parameters sigma and kappa should be the same as the ones
+    function. The parameters \f$\sigma\f$ and \f$\kappa\f$ should be the same as the ones
     used in the DGDiffusionIntegrator. */
 class DGDirichletLFIntegrator : public LinearFormIntegrator
 {
@@ -568,12 +568,12 @@ public:
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
     given by
-
-    alpha < u_D, (lambda div(v) I + mu (grad(v) + grad(v)^T)) . n > +
-      + kappa < h^{-1} (lambda + 2 mu) u_D, v >,
-
-    where u_D is the given Dirichlet data. The parameters alpha, kappa, lambda
-    and mu, should match the parameters with the same names used in the bilinear
+   \f[
+    \alpha \langle u_D, (\lambda \mathrm{div}(v) I + \mu (\nabla v + \nabla v^{\mathrm{T}})) \cdot n \rangle +
+      + \kappa \langle h^{-1} (\lambda + 2 \mu) u_D, v \rangle,
+   \f]
+    where u_D is the given Dirichlet data. The parameters \f$\alpha\f$, \f$\kappa\f$, \f$\lambda\f$
+    and \f$\mu\f$, should match the parameters with the same names used in the bilinear
     form integrator, DGElasticityIntegrator. */
 class DGElasticityDirichletLFIntegrator : public LinearFormIntegrator
 {
@@ -612,18 +612,18 @@ public:
 
 /** Class for spatial white Gaussian noise integration.
 
-    The target problem is the linear SPDE a(u,v) = F(v) with F(v) := <Ẇ,v>,
-    where Ẇ is spatial white Gaussian noise. When the Galerkin method is used to
-    discretize this problem into a linear system of equations Ax = b, the RHS is
-    a Gaussian random vector b~N(0,M) whose covariance matrix is the same as the
-    mass matrix M_ij = (v_i,v_j). This property can be ensured if b = H w, where
-    HHᵀ = M and each component w_i~N(0,1).
+    The target problem is the linear SPDE \f$ a(u,v) = F(v)\f$ with \f$F(v) := <\dot{W},v> \f$,
+    where \f$\dot{W}\f$ is spatial white Gaussian noise. When the Galerkin method is used to
+    discretize this problem into a linear system of equations \f$Ax = b\f$, the RHS is
+    a Gaussian random vector \f$b \sim N(0,M)\f$ whose covariance matrix is the same as the
+    mass matrix \f$M_{ij} = (v_i,v_j)\f$. This property can be ensured if \f$b = H w\f$, where
+    \f$HH^{\mathrm{T}} = M\f$ and each component \f$w_i\sim N(0,1)\f$.
 
-    There is much flexibility in how we may wish to define H. In this PR, we
-    define H = Pᵀ diag(L_e), where P is the local-to-global dof assembly matrix
-    and diag(L_e) is a block-diagonal matrix with L_e L_eᵀ = M_e, where M_e is
-    the element mass matrix for element e. A straightforward computation shows
-    that HHᵀ = Pᵀ diag(M_e) P = M, as necessary. */
+    There is much flexibility in how we may wish to define \f$H\f$. In this PR, we
+    define \f$H = P^{\mathrm{T}} diag(L_e)\f$, where \f$P\f$ is the local-to-global dof assembly matrix
+    and \f$\mathrm{diag}(L_e)\f$ is a block-diagonal matrix with \f$L_e L_e^{\mathrm{T}} = M_e\f$, where \f$M_e\f$ is
+    the element mass matrix for element \f$e\f$. A straightforward computation shows
+    that \f$HH^{\mathrm{T}} = P^{\mathrm{T}} diag(M_e) P = M\f$, as necessary. */
 class WhiteGaussianNoiseDomainLFIntegrator : public LinearFormIntegrator
 {
 #ifdef MFEM_USE_MPI
@@ -718,8 +718,8 @@ public:
 };
 
 
-/** Class for domain integration of L(v) := (f, v), where
-    f=(f1,...,fn) and v=(v1,...,vn). that makes use of
+/** Class for domain integration of \f$ L(v) := (f, v) \f$, where
+    \f$ f=(f_1,\dots,f_n)\f$ and \f$v=(v_1,\dots,v_n)\f$. that makes use of
     VectorQuadratureFunctionCoefficient*/
 class VectorQuadratureLFIntegrator : public LinearFormIntegrator
 {
@@ -751,7 +751,7 @@ public:
 };
 
 
-/** Class for domain integration L(v) := (f, v) that makes use
+/** Class for domain integration \f$ L(v) := (f, v) \f$ that makes use
     of QuadratureFunctionCoefficient. */
 class QuadratureLFIntegrator : public LinearFormIntegrator
 {
