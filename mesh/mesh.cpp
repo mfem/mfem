@@ -2556,7 +2556,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 }
 
 
-void Mesh::GetEdgeLengths(const DSTable &v_to_v, Array<double> &lengths) const
+void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<double> &lengths) const
 {
    auto GetLength2 = [this](int i, int j)
    {
@@ -2616,9 +2616,11 @@ void Mesh::MarkForRefinement()
 void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
 {
    // Mark the longest triangle edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the triangle.
+   // vertex 0 - vertex 1 is the longest edge in the triangle. In the case of
+   // ties in the edge length, the edge index is used for a consistent ordering
+   // between elements.
    Array<double> lengths;
-   GetEdgeLengths(v_to_v, lengths);
+   GetEdgeLengths2(v_to_v, lengths);
 
    Array<int> idx(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }
@@ -2637,9 +2639,11 @@ void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
 void Mesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    // Mark the longest tetrahedral edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the element.
+   // vertex 0 - vertex 1 is the longest edge in the element. In the case of
+   // ties in the edge length, the edge index is used for a consistent ordering
+   // between elements.
    Array<double> lengths;
-   GetEdgeLengths(v_to_v, lengths);
+   GetEdgeLengths2(v_to_v, lengths);
 
    Array<int> idx(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++) { idx[i] = i; }

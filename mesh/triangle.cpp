@@ -69,7 +69,10 @@ void Triangle::MarkEdge(int indices[3], const DSTable &v_to_v,
       return (l > L * (1.0 + rtol) || (l > L * (1.0 - rtol) && l2 > L2));
    };
 
-   e = v_to_v(indices[0], indices[1]); L = length[e]; L2 = length2[e]; j = 0;
+   // Find j as the index of the longest edge, using the pair of metrics
+   e = v_to_v(indices[0], indices[1]);
+   L = length[e]; L2 = length2[e];
+   j = 0;
    if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
    if (Compare(v_to_v(indices[2], indices[0]))) { j = 2; }
 

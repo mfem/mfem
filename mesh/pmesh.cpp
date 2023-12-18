@@ -1742,14 +1742,18 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
 
 void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
+   // Mark the longest tetrahedral edge by rotating the indices so that
+   // vertex 0 - vertex 1 is the longest edge in the element. In the case of
+   // ties in the edge length, the global edge index is used for a consistent
+   // ordering between elements.
    Array<double> lengths;
-   GetEdgeLengths(v_to_v, lengths);
+   GetEdgeLengths2(v_to_v, lengths);
 
-   // create a GroupCommunicator over shared edges
+   // Create a GroupCommunicator over shared edges
    GroupCommunicator sedge_comm(gtopo);
    GetSharedEdgeCommunicator(0, sedge_comm);
 
-   // communicate the local index of each shared edge from the group master to
+   // Communicate the local index of each shared edge from the group master to
    // other ranks in the group
    Array<int> sedge_master_rank(shared_edges.Size());
    Array<int> sedge_master_index(shared_edges.Size());
@@ -1770,7 +1774,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    }
    sedge_comm.Bcast(sedge_master_index);
 
-   // the pairs (master rank, master local index) define a globally consistent
+   // The pairs (master rank, master local index) define a globally consistent
    // edge ordering
    Array<std::int64_t> glob_edge_order(NumOfEdges);
    for (int i = 0; i < NumOfEdges; i++)
@@ -1785,7 +1789,7 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
          (std::int64_t(sedge_master_rank[i]) << 32) + sedge_master_index[i];
    }
 
-   // use the lengths to mark the tets, the boundary triangles, and the shared
+   // Use the lengths to mark the tets, the boundary triangles, and the shared
    // triangle faces
    for (int i = 0; i < NumOfElements; i++)
    {

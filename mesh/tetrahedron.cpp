@@ -202,7 +202,10 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
       return (l > L * (1.0 + rtol) || (l > L * (1.0 - rtol) && l2 > L2));
    };
 
-   e = v_to_v(indices[0], indices[1]); L = length[e]; L2 = length2[e]; j = 0;
+   // Find j as the index of the longest edge, using the pair of metrics
+   e = v_to_v(indices[0], indices[1]);
+   L = length[e]; L2 = length2[e];
+   j = 0;
    if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
    if (Compare(v_to_v(indices[2], indices[0]))) { L = l; L2 = l2; j = 2; }
    if (Compare(v_to_v(indices[0], indices[3]))) { L = l; L2 = l2; j = 3; }
@@ -238,8 +241,8 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
          break;
    }
 
-   // Determine the two longest edges for the other two faces and
-   // store them in ind[0] and ind[1]
+   // Determine the two longest edges for the other two faces and store them in
+   // ind[0] and ind[1]
    ind[0] = 2; ind[1] = 1;
 
    e = v_to_v(indices[0], indices[2]); L = length[e]; L2 = length2[e];
