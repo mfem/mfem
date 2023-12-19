@@ -10,12 +10,12 @@
 //               nurbs_ex1 -m ../../data/disc-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/pipe-nurbs.mesh -o -1
 //               nurbs_ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
-//               nurbs_ex1 -m ../../data/two-squares-nurbs.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-rot.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-squares-nurbs-autoedge.mesh -o 1 -rf ../../data/two-squares.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
-//               nurbs_ex1 -m ../../data/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf ../../data/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-rot.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-squares-nurbs-autoedge.mesh -o 1 -rf meshes/two-squares.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
+//               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
@@ -49,8 +49,8 @@ public:
    Data(double x_, double val_) {x=x_; val=val_;};
 };
 
-inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); };
-inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); };
+inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }
+inline bool operator <(const Data& d1,const Data& d2) { return (d1.x  < d2.x); }
 
 /** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
     can be a scalar coefficient. */
