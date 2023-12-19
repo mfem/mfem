@@ -53,7 +53,9 @@
 //
 // The one-sided coupling between the two domains is via transfer of the
 // advection velocity (u) from fluid domain to thermal domain at each time step.
-// mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
+//
+// Sample run:
+//   mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
 
 #include "mfem.hpp"
 #include "navier_solver.hpp"
