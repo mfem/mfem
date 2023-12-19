@@ -20,8 +20,8 @@ namespace blocksolvers
 {
 /// Bramble-Pasciak Solver
 BramblePasciakSolver::BramblePasciakSolver(
-   const std::shared_ptr<ParBilinearForm> &mVarf,
-   const std::shared_ptr<ParMixedBilinearForm> &bVarf,
+   ParBilinearForm *mVarf,
+   ParMixedBilinearForm *bVarf,
    const BPSParameters &param)
    : DarcySolver(mVarf->ParFESpace()->GetTrueVSize(),
                  bVarf->TestFESpace()->GetTrueVSize())
