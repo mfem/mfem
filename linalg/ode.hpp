@@ -176,13 +176,15 @@ public:
    static MFEM_EXPORT std::string Types;
 
    /// Function for selecting the desired ODESolver (Explicit and Implicit)
-   static MFEM_EXPORT ODESolver *Select(const int ode_solver_type);
+   static MFEM_EXPORT std::unique_ptr<ODESolver> Select(const int ode_solver_type);
 
    /// Function for selecting the desired Explicit ODESolver
-   static MFEM_EXPORT ODESolver *SelectExplicit(const int ode_solver_type);
+   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectExplicit(
+      const int ode_solver_type);
 
    /// Function for selecting the desired Implicit ODESolver
-   static MFEM_EXPORT ODESolver *SelectImplicit(const int ode_solver_type);
+   static MFEM_EXPORT std::unique_ptr<ODESolver> SelectImplicit(
+      const int ode_solver_type);
 
    virtual ~ODESolver() { }
 };

@@ -31,9 +31,9 @@ std::string ODESolver::Types = ODESolver::ExplicitTypes +
 
 /// Return a ODESolver pointer based on an type
 /// Caller gets ownership of the object and is responsible for its deletion
-ODESolver* ODESolver::Select(int ode_solver_type)
+std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
 {
-   if (ode_solver_type< 20)
+   if (ode_solver_type < 20)
    {
       return SelectExplicit(ode_solver_type);
    }
@@ -45,70 +45,68 @@ ODESolver* ODESolver::Select(int ode_solver_type)
 
 /// Return a ODESolver pointer based on an type
 /// Caller gets ownership of the object and is responsible for its deletion
-ODESolver* ODESolver::SelectExplicit(int ode_solver_type)
+std::unique_ptr<ODESolver> ODESolver::SelectExplicit(int ode_solver_type)
 {
-   ODESolver*  ode_solver = NULL;
+   using ode_ptr = std::unique_ptr<ODESolver>;
    switch (ode_solver_type)
    {
       // Explicit RK methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
+      case 1: return ode_ptr(new ForwardEulerSolver);
+      case 2: return ode_ptr(new RK2Solver(0.5)); // midpoint method
+      case 3: return ode_ptr(new RK3SSPSolver);
+      case 4: return ode_ptr(new RK4Solver);
 
       // Explicit AB methods
-      case 11: ode_solver = new AB1Solver; break;
-      case 12: ode_solver = new AB2Solver; break;
-      case 13: ode_solver = new AB3Solver; break;
-      case 14: ode_solver = new AB4Solver; break;
-      case 15: ode_solver = new AB5Solver; break;
+      case 11: return ode_ptr(new AB1Solver);
+      case 12: return ode_ptr(new AB2Solver);
+      case 13: return ode_ptr(new AB3Solver);
+      case 14: return ode_ptr(new AB4Solver);
+      case 15: return ode_ptr(new AB5Solver);
 
       default:
          MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type);
    }
-   return ode_solver;
 }
 
 /// Return a ODESolver pointer based on an type
 /// Caller gets ownership of the object and is responsible for its deletion
-ODESolver* ODESolver::SelectImplicit(int ode_solver_type)
+std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
 {
-   ODESolver*  ode_solver = NULL;
+   using ode_ptr = std::unique_ptr<ODESolver>;
    switch (ode_solver_type)
    {
       // Implicit L-stable methods
-      case 21: ode_solver = new BackwardEulerSolver; break;
-      case 22: ode_solver = new SDIRK23Solver(2); break;
-      case 23: ode_solver = new SDIRK33Solver; break;
+      case 21: return ode_ptr(new BackwardEulerSolver);
+      case 22: return ode_ptr(new SDIRK23Solver(2));
+      case 23: return ode_ptr(new SDIRK33Solver);
 
       // Implicit A-stable methods (not L-stable)
-      case 32: ode_solver = new ImplicitMidpointSolver; break;
-      case 33: ode_solver = new SDIRK23Solver; break;
-      case 34: ode_solver = new SDIRK34Solver; break;
+      case 32: return ode_ptr(new ImplicitMidpointSolver);
+      case 33: return ode_ptr(new SDIRK23Solver);
+      case 34: return ode_ptr(new SDIRK34Solver);
 
       // Implicit generalized alpha
-      case 40:  ode_solver = new GeneralizedAlphaSolver(0.0); break;
-      case 41:  ode_solver = new GeneralizedAlphaSolver(0.1); break;
-      case 42:  ode_solver = new GeneralizedAlphaSolver(0.2); break;
-      case 43:  ode_solver = new GeneralizedAlphaSolver(0.3); break;
-      case 44:  ode_solver = new GeneralizedAlphaSolver(0.4); break;
-      case 45:  ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      case 46:  ode_solver = new GeneralizedAlphaSolver(0.6); break;
-      case 47:  ode_solver = new GeneralizedAlphaSolver(0.7); break;
-      case 48:  ode_solver = new GeneralizedAlphaSolver(0.8); break;
-      case 49:  ode_solver = new GeneralizedAlphaSolver(0.9); break;
-      case 50:  ode_solver = new GeneralizedAlphaSolver(1.0); break;
+      case 40:  return ode_ptr(new GeneralizedAlphaSolver(0.0));
+      case 41:  return ode_ptr(new GeneralizedAlphaSolver(0.1));
+      case 42:  return ode_ptr(new GeneralizedAlphaSolver(0.2));
+      case 43:  return ode_ptr(new GeneralizedAlphaSolver(0.3));
+      case 44:  return ode_ptr(new GeneralizedAlphaSolver(0.4));
+      case 45:  return ode_ptr(new GeneralizedAlphaSolver(0.5));
+      case 46:  return ode_ptr(new GeneralizedAlphaSolver(0.6));
+      case 47:  return ode_ptr(new GeneralizedAlphaSolver(0.7));
+      case 48:  return ode_ptr(new GeneralizedAlphaSolver(0.8));
+      case 49:  return ode_ptr(new GeneralizedAlphaSolver(0.9));
+      case 50:  return ode_ptr(new GeneralizedAlphaSolver(1.0));
 
       // Implicit AM methods
-      case 51: ode_solver = new AM1Solver; break;
-      case 52: ode_solver = new AM2Solver; break;
-      case 53: ode_solver = new AM3Solver; break;
-      case 54: ode_solver = new AM4Solver; break;
+      case 51: return ode_ptr(new AM1Solver);
+      case 52: return ode_ptr(new AM2Solver);
+      case 53: return ode_ptr(new AM3Solver);
+      case 54: return ode_ptr(new AM4Solver);
 
       default:
          MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
    }
-   return ode_solver;
 }
 
 
