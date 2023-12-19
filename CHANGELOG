@@ -107,15 +107,6 @@ New and updated examples and miniapps
   The new solver is based on a Bramble-Pasciak preconditioning. User can
   use and implement their own preconditioner for the mass matrix.
 
-- Added a new miniapp, Mesh Quality, for evaluating mesh quality using size,
-  skewness, and aspect-ratio computed from the Jacobian of the transformation.
-
-- Added a new miniapp for interface and boundary fitting to implicit domains
-  defined using level-set functions. See miniapps/meshing/pmesh-fitting.cpp.
-
-- Added a new miniapp for fitting of selected mesh nodes to specified positions,
-  while maintaining mesh quality. See miniapps/meshing/fit-node-position.cpp.
-
 - Added a new H(div) solver miniapp demonstrating the use of a matrix-free
   saddle-point solver methodology, suitable for high-order discretizations and
   for GPU acceleration. Examples illustrating the solution of Darcy and grad-div
