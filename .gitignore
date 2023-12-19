@@ -271,7 +271,7 @@ miniapps/navier/tgv_out*.txt
 miniapps/navier/*_output
 
 miniapps/nurbs/nurbs_ex1
-miniapps/nurbs/nurbs_ex1p3
+miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex3
 miniapps/nurbs/nurbs_ex5
 miniapps/nurbs/nurbs_ex11p
