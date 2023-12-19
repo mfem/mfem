@@ -426,7 +426,7 @@ public:
                             (px + 1)*(py + 2)*(pz + 2) +
                             (px + 2)*(py + 1)*(pz + 2) +
                             (px + 2)*(py + 2)*(pz + 1),
-                            std::max(px, py), H_CURL, FunctionSpace::Qk),
+                            std::max(std::max(px, py), pz), H_CURL, FunctionSpace::Qk),
         NURBSFiniteElement(3),
         shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
