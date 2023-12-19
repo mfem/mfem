@@ -926,7 +926,8 @@ void ParMesh::FinalizeParTopo()
    }
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine, int generate_edges,
+                 bool fix_orientation)
    : glob_elem_offset(-1)
    , glob_offset_sequence(-1)
    , gtopo(comm)
@@ -938,9 +939,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    have_face_nbr_data = false;
    pncmesh = NULL;
 
-   const int gen_edges = 1;
-
-   Load(input, gen_edges, refine, true);
+   Load(input, generate_edges, refine, fix_orientation);
 }
 
 void ParMesh::Load(istream &input, int generate_edges, int refine,
@@ -1734,7 +1733,7 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
-void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
+void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    Array<int> order;
    GetEdgeOrdering(v_to_v, order); // local edge ordering
@@ -2059,6 +2058,7 @@ void ParMesh::DeleteFaceNbrData()
 
 void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
@@ -2079,6 +2079,7 @@ void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 
 void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
+   DeleteFaceNbrData();
    ParFiniteElementSpace *npfes = dynamic_cast<ParFiniteElementSpace*>(nfes);
    if (npfes)
    {
@@ -2092,6 +2093,7 @@ void ParMesh::SetNodalFESpace(FiniteElementSpace *nfes)
 
 void ParMesh::SetNodalFESpace(ParFiniteElementSpace *npfes)
 {
+   DeleteFaceNbrData();
    ParGridFunction *nodes = new ParGridFunction(npfes);
    SetNodalGridFunction(nodes, true);
 }
@@ -2100,19 +2102,17 @@ void ParMesh::EnsureParNodes()
 {
    if (Nodes && dynamic_cast<ParFiniteElementSpace*>(Nodes->FESpace()) == NULL)
    {
+      DeleteFaceNbrData();
       ParFiniteElementSpace *pfes =
          new ParFiniteElementSpace(*Nodes->FESpace(), *this);
       ParGridFunction *new_nodes = new ParGridFunction(pfes);
-
       *new_nodes = *Nodes;
-
       if (Nodes->OwnFEC())
       {
          new_nodes->MakeOwner(Nodes->OwnFEC());
          Nodes->MakeOwner(NULL); // takes away ownership of 'fec' and 'fes'
          delete Nodes->FESpace();
       }
-
       delete Nodes;
       Nodes = new_nodes;
    }
@@ -3208,17 +3208,15 @@ void ParMesh::ReorientTetMesh()
    // other ranks in the group
    Array<int> svert_master_rank(svert_lvert.Size());
    Array<int> svert_master_index(svert_lvert);
+   for (int i = 0; i < group_svert.Size(); i++)
    {
-      for (int i = 0; i < group_svert.Size(); i++)
+      int rank = gtopo.GetGroupMasterRank(i+1);
+      for (int j = 0; j < group_svert.RowSize(i); j++)
       {
-         int rank = gtopo.GetGroupMasterRank(i+1);
-         for (int j = 0; j < group_svert.RowSize(i); j++)
-         {
-            svert_master_rank[group_svert.GetRow(i)[j]] = rank;
-         }
+         svert_master_rank[group_svert.GetRow(i)[j]] = rank;
       }
-      svert_comm.Bcast(svert_master_index);
    }
+   svert_comm.Bcast(svert_master_index);
 
    // the pairs (master rank, master local index) define a globally consistent
    // vertex ordering
