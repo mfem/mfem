@@ -201,8 +201,8 @@ void DarcyProblem::ShowError(const Vector& sol, bool verbose)
    double norm_p = ComputeGlobalLpNorm(2, pcoeff_, mesh_, irs_);
 
    if (!verbose) { return; }
-   cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-   cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+   mfem::out << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
+   mfem::out << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
 }
 
 void DarcyProblem::VisualizeSolution(const Vector& sol, string tag)
@@ -238,8 +238,8 @@ bool IsAllNeumannBoundary(const Array<int>& ess_bdr_attr)
 int main(int argc, char *argv[])
 {
 #ifdef HYPRE_USING_GPU
-   cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
-        << "is NOT supported with the GPU version of hypre.\n\n";
+   mfem::out << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
+             << "is NOT supported with the GPU version of hypre.\n\n";
    return 242;
 #endif
 
@@ -260,9 +260,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    DFSParameters param;
-#ifdef MFEM_USE_LAPACK
    BPSParameters bps_param;
-#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -288,7 +286,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root() && par_ref_levels == 0)
    {
-      std::cout << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
+      mfem::out << "WARNING: DivFree solver is equivalent to BDPMinresSolver "
                 << "when par_ref_levels == 0.\n";
    }
 
@@ -299,8 +297,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << "Number of serial refinements:   " << ser_ref_levels << "\n"
-           << "Number of parallel refinements: " << par_ref_levels << "\n";
+      mfem::out << "Number of serial refinements:   " << ser_ref_levels << "\n"
+                << "Number of parallel refinements: " << par_ref_levels << "\n";
    }
 
    for (int i = 0; i < ser_ref_levels; ++i)
@@ -310,10 +308,10 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root() && Mpi::WorldSize() > mesh->GetNE())
    {
-      cout << "\nWARNING: Number of processors is greater than the number of "
-           << "elements in the mesh.\n"
-           << "Number of processors: " << Mpi::WorldSize() << "\n"
-           << "Number of elements:   " << mesh->GetNE() << "\n\n";
+      mfem::out << "\nWARNING: Number of processors is greater than the number of "
+                << "elements in the mesh.\n"
+                << "Number of processors: " << Mpi::WorldSize() << "\n"
+                << "Number of elements:   " << mesh->GetNE() << "\n\n";
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
@@ -327,9 +325,9 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root())
       {
-         cout << "\nSolution is not unique when Neumann boundary condition is "
-              << "imposed on the entire boundary. \nPlease provide a different "
-              << "boundary condition.\n";
+         mfem::out << "\nSolution is not unique when Neumann boundary condition is "
+                   << "imposed on the entire boundary. \nPlease provide a different "
+                   << "boundary condition.\n";
       }
       delete mesh;
       return 0;
@@ -348,13 +346,13 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      cout << line << "System assembled in " << chrono.RealTime() << "s.\n";
-      cout << "Dimension of the physical space: " << dim << "\n";
-      cout << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
+      mfem::out << line << "System assembled in " << chrono.RealTime() << "s.\n";
+      mfem::out << "Dimension of the physical space: " << dim << "\n";
+      mfem::out << "Size of the discrete Darcy system: " << M.M() + B.M() << "\n";
       if (par_ref_levels > 0)
       {
-         cout << "Dimension of the divergence free subspace: "
-              << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
+         mfem::out << "Dimension of the divergence free subspace: "
+                   << DFS_data.C.back().Ptr()->NumCols() << "\n\n";
       }
    }
 
@@ -373,7 +371,6 @@ int main(int argc, char *argv[])
    DivFreeSolver dfs_cm(M, B, DFS_data);
    setup_time[&dfs_cm] = chrono.RealTime();
 
-#ifdef MFEM_USE_LAPACK
    chrono.Restart();
    BramblePasciakSolver bp_bpcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_bpcg] = chrono.RealTime();
@@ -382,18 +379,13 @@ int main(int argc, char *argv[])
    bps_param.use_bpcg = false;
    BramblePasciakSolver bp_pcg(darcy.GetMform(), darcy.GetBform(), bps_param);
    setup_time[&bp_pcg] = chrono.RealTime();
-#else
-   MFEM_WARNING("BramblePasciakSolver class unavailable: Compiled without LAPACK");
-#endif
 
    std::map<const DarcySolver*, std::string> solver_to_name;
    solver_to_name[&bdp] = "Block-diagonal-preconditioned MINRES";
    solver_to_name[&dfs_dm] = "Divergence free (decoupled mode)";
    solver_to_name[&dfs_cm] = "Divergence free (coupled mode)";
-#ifdef MFEM_USE_LAPACK
    solver_to_name[&bp_bpcg] = "Bramble Pasciak CG (using BPCG)";
    solver_to_name[&bp_pcg] = "Bramble Pasciak CG (using regular PCG)";
-#endif
 
    // Solve the problem using all solvers
    for (const auto& solver_pair : solver_to_name)
@@ -409,11 +401,11 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         cout << line << name << " solver:\n   Setup time: "
-              << setup_time[solver] << "s.\n   Solve time: "
-              << chrono.RealTime() << "s.\n   Total time: "
-              << setup_time[solver] + chrono.RealTime() << "s.\n"
-              << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
+         mfem::out << line << name << " solver:\n   Setup time: "
+                   << setup_time[solver] << "s.\n   Solve time: "
+                   << chrono.RealTime() << "s.\n   Total time: "
+                   << setup_time[solver] + chrono.RealTime() << "s.\n"
+                   << "   Iteration count: " << solver->GetNumIterations() <<"\n\n";
       }
       if (show_error && std::strcmp(coef_file, "") == 0)
       {
@@ -421,8 +413,8 @@ int main(int argc, char *argv[])
       }
       else if (show_error && Mpi::Root())
       {
-         cout << "Exact solution is unknown for coefficient '" << coef_file
-              << "'.\nApproximation error is computed in this case!\n\n";
+         mfem::out << "Exact solution is unknown for coefficient '" << coef_file
+                   << "'.\nApproximation error is computed in this case!\n\n";
       }
 
       if (visualization) { darcy.VisualizeSolution(sol, name); }
