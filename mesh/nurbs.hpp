@@ -206,6 +206,16 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
+   enum Mode
+   {
+      HP,
+      H_DIV,
+      H_CURL,
+   };
+
+   Mode mode = Mode::HP;
+
+
    int mOrder; // see GetOrder() for description
    Array<int> mOrders;
    int NumOfKnotVectors;
@@ -381,7 +391,8 @@ public:
        1) as given by the array @a newOrders. */
    /** If a knot vector in @a parent already has order greater than or equal to
        the corresponding entry in @a newOrder, it will be used unmodified. */
-   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
+   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
+                  Mode mode = Mode::HP);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
