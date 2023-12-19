@@ -14,8 +14,8 @@
 
 #ifdef MFEM_USE_CEED
 #include <ceed.h>
-#if !CEED_VERSION_GE(0,10,0)
-#error MFEM requires a libCEED version >= 0.10.0
+#if !CEED_VERSION_GE(0,12,0)
+#error MFEM requires a libCEED version >= 0.12.0
 #endif
 
 namespace mfem
