@@ -138,6 +138,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
                "Invalid Q-scaling factor: q_scaling = " << q_scaling );
    ParBilinearForm qVarf(mVarf.ParFESpace());
+   qVarf.AllocateMatrix();
 #ifndef MFEM_USE_LAPACK
    if (Mpi::Root())
    {
