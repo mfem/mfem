@@ -708,6 +708,8 @@ public:
       ParallelepipedFE->Reset();
    }
 
+   virtual void SetDim(const int dim) {};
+
    /** @brief Get the order of the NURBS collection: either a positive number,
        when using fixed order, or VariableOrder. */
    /** @note Not to be confused with FiniteElementCollection::GetOrder(). */
@@ -763,6 +765,8 @@ public:
       ParallelepipedVFE->Reset();
    }
 
+   virtual void SetDim(const int dim) override;
+
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */
    virtual void SetOrder(int Order) const override;
@@ -788,10 +792,15 @@ public:
 class NURBS_HCurlFECollection : public NURBSFECollection
 {
 private:
+   NURBS1DFiniteElement *SegmentFE;
+   NURBS2DFiniteElement *QuadrilateralFE;
 
    NURBS_HCurl2DFiniteElement *QuadrilateralVFE;
    NURBS_HCurl3DFiniteElement *ParallelepipedVFE;
 
+   FiniteElement *sFE;
+   FiniteElement *qFE;
+   FiniteElement *hFE;
 public:
 
    /** @brief The parameter @a Order must be either a positive number, for fixed
@@ -801,9 +810,13 @@ public:
 
    virtual void Reset() const override
    {
+      SegmentFE->Reset();
+      QuadrilateralFE->Reset();
       QuadrilateralVFE->Reset();
       ParallelepipedVFE->Reset();
    }
+
+   virtual void SetDim(const int dim) override;
 
    /** @brief Set the order and the name, based on the given @a Order: either a
        positive number for fixed order, or VariableOrder. */

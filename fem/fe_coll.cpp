@@ -3571,6 +3571,12 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
    QuadrilateralVFE  = new NURBS_HDiv2DFiniteElement(order,dim);
    ParallelepipedVFE = new NURBS_HDiv3DFiniteElement(order,dim);
 
+   if (dim != -1) { SetDim(dim); }
+   SetOrder(Order);
+}
+
+void NURBS_HDivFECollection::SetDim(int dim)
+{
    if (dim == 2)
    {
       sFE = SegmentFE;
@@ -3588,7 +3594,6 @@ NURBS_HDivFECollection::NURBS_HDivFECollection(int Order, const int dim)
       mfem::err<<"Dimension = "<<dim<<endl;
       mfem_error ("NURBS_HDivFECollection: wrong dimension!");
    }
-   SetOrder(Order);
 }
 
 NURBS_HDivFECollection::~NURBS_HDivFECollection()
@@ -3647,24 +3652,49 @@ FiniteElementCollection *NURBS_HDivFECollection::GetTraceCollection() const
    return NULL;
 }
 
-
-
-
 NURBS_HCurlFECollection::NURBS_HCurlFECollection(int Order, const int dim)
    : NURBSFECollection((Order == VariableOrder) ? 1 : Order)
 {
    const int order = (Order == VariableOrder) ? 1 : Order;
 
+   SegmentFE       = new NURBS1DFiniteElement(order+1);
+   QuadrilateralFE = new NURBS2DFiniteElement(order+1);
+
    QuadrilateralVFE  = new NURBS_HCurl2DFiniteElement(order,dim);
    ParallelepipedVFE = new NURBS_HCurl3DFiniteElement(order,dim);
-
+   if (dim != -1) { SetDim(dim); }
    SetOrder(Order);
 }
 
+void NURBS_HCurlFECollection::SetDim(int dim)
+{
+   if (dim == 2)
+   {
+      sFE = SegmentFE;
+      qFE = QuadrilateralVFE;
+      hFE = nullptr;
+   }
+   else if (dim == 3)
+   {
+      sFE = nullptr;
+      qFE = QuadrilateralFE;
+      hFE = ParallelepipedVFE;
+   }
+   else
+   {
+      mfem::err<<"Dimension = "<<dim<<endl;
+      mfem_error ("NURBS_HCurlFECollection: wrong dimension!");
+   }
+}
+
+
+
 NURBS_HCurlFECollection::~NURBS_HCurlFECollection()
 {
+   delete SegmentFE;
+   delete QuadrilateralFE;
    delete QuadrilateralVFE;
-   if (ParallelepipedVFE) { delete ParallelepipedVFE; }
+   delete ParallelepipedVFE;
 }
 
 const FiniteElement *
@@ -3672,8 +3702,9 @@ NURBS_HCurlFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
-      case Geometry::SQUARE:      return QuadrilateralVFE;
-      case Geometry::CUBE:        return ParallelepipedVFE;
+      case Geometry::SEGMENT:     return sFE;
+      case Geometry::SQUARE:      return qFE;
+      case Geometry::CUBE:        return hFE;
       default:
          if (error_mode == RETURN_NULL) { return nullptr; }
          mfem_error ("NURBS_HCurlFECollection: unknown geometry type.");
