@@ -17,6 +17,10 @@ namespace mfem
 
 static double exact_sln(const Vector &p);
 static void TestSolve(FiniteElementSpace &fespace);
+#ifdef MFEM_USE_MPI
+static void TestSolvePar(ParFiniteElementSpace &fespace);
+#endif
+
 
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
@@ -246,6 +250,75 @@ TEST_CASE("Variable Order FiniteElementSpace",
    }
 }
 
+#ifdef MFEM_USE_MPI
+TEST_CASE("Parallel Variable Order FiniteElementSpace",
+          "[FiniteElementCollection], [FiniteElementSpace], [NCMesh]"
+          "[Parallel]")
+{
+   SECTION("Quad mesh")
+   {
+      // 2-by-2 element quad mesh
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+      mesh.EnsureNCMesh();
+
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
+
+      // Standard H1 space with order 1 elements
+      H1_FECollection fe_coll(1, pmesh.Dimension());
+      ParFiniteElementSpace fespace(&pmesh, &fe_coll);
+
+      REQUIRE(fespace.GlobalTrueVSize() == 9);
+
+      // Convert to variable order space by p-refinement
+      // Increase order on all elements
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+      }
+      fespace.Update(false);
+
+      // DOFs for vertices + edges + elements = 9 + 12 + 4 = 25
+      REQUIRE(fespace.GlobalTrueVSize() == 25);
+
+      TestSolvePar(fespace);
+   }
+
+   SECTION("Hex mesh")
+   {
+      // 2^3 element hex mesh
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+      mesh.EnsureNCMesh();
+
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
+
+      // Standard H1 space with order 1 elements
+      H1_FECollection fe_coll(1, pmesh.Dimension());
+      ParFiniteElementSpace fespace(&pmesh, &fe_coll);
+
+      REQUIRE(fespace.GlobalTrueVSize() == 27);
+
+      // Convert to variable order space by p-refinement
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+      }
+      fespace.Update(false);
+
+      // DOFs for vertices + edges + faces + elements = 27 + 54 + 36 + 8 = 125
+      REQUIRE(fespace.GlobalTrueVSize() == 125);
+
+      TestSolvePar(fespace);
+   }
+}
+#endif  // MFEM_USE_MPI
 
 // Exact solution: x^2 + y^2 + z^2
 static double exact_sln(const Vector &p)
@@ -322,5 +395,58 @@ static void TestSolve(FiniteElementSpace &fespace)
    delete vis_x;
 #endif
 }
+
+#ifdef MFEM_USE_MPI
+static void TestSolvePar(ParFiniteElementSpace &fespace)
+{
+   ParMesh *pmesh = fespace.GetParMesh();
+
+   // exact solution and RHS for the problem -\Delta u = 1
+   FunctionCoefficient exsol(exact_sln);
+   FunctionCoefficient rhs(exact_rhs);
+
+   // set up Dirichlet BC on the boundary
+   Array<int> ess_attr(pmesh->bdr_attributes.Max());
+   ess_attr = 1;
+
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+   ParGridFunction x(&fespace);
+   x = 0.0;
+   x.ProjectBdrCoefficient(exsol, ess_attr);
+
+   // assemble the linear form
+   ParLinearForm lf(&fespace);
+   lf.AddDomainIntegrator(new DomainLFIntegrator(rhs));
+   lf.Assemble();
+
+   // assemble the bilinear form.
+   ParBilinearForm bf(&fespace);
+   bf.AddDomainIntegrator(new DiffusionIntegrator());
+   bf.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+   // solve
+   HypreBoomerAMG prec;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-30);
+   cg.SetMaxIter(100);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+
+   bf.RecoverFEMSolution(X, lf, x);
+
+   // compute L2 error from the exact solution
+   double error = x.ComputeL2Error(exsol);
+
+   REQUIRE(error == MFEM_Approx(0.0));
+}
+#endif  // MFEM_USE_MPI
 
 }

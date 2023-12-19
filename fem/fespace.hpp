@@ -19,6 +19,7 @@
 #include "doftrans.hpp"
 #include "restriction.hpp"
 #include <iostream>
+#include <set>
 #include <unordered_map>
 
 namespace mfem
@@ -222,6 +223,7 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
+   friend class NeighborRowMessage;  // TODO: better way?
 
 protected:
    /// The mesh that FE space lives on (not owned).
@@ -241,9 +243,13 @@ protected:
    /// Number of degrees of freedom. Number of unknowns is #ndofs * #vdim.
    int ndofs;
 
+   bool variableOrder = false;
+
    /** Polynomial order for each element. If empty, all elements are assumed
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
+
+   std::set<int> elems_pref;
 
    int nvdofs, nedofs, nfdofs, nbdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
@@ -325,7 +331,7 @@ protected:
 
    void UpdateNURBS();
 
-   void Construct();
+   void Construct(const Array<int> * prefdata=nullptr);
    void Destroy();
 
    void ConstructDoFTransArray();
@@ -354,10 +360,19 @@ protected:
    /** In a variable order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
-                              Array<VarOrderBits> &face_orders) const;
+                              Array<VarOrderBits> &face_orders,
+                              const Array<int> * prefdata=nullptr) const;
+
+   virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
+                                                       &edge_orders,
+                                                       Array<VarOrderBits> &face_orders,
+                                                       const Array<int> * prefdata=nullptr) const { }
+
+   virtual int NumGhostEdges() const { return 0; }
+   virtual int NumGhostFaces() const { return 0; }
 
    /** Build the table var_edge_dofs (or var_face_dofs) in a variable order
-       space; return total edge/face DOFs. */
+        space; return total edge/face DOFs. */
    int MakeDofTable(int ent_dim, const Array<int> &entity_orders,
                     Table &entity_dofs, Array<char> *var_ent_order);
 
@@ -570,11 +585,11 @@ public:
    int GetElementOrder(int i) const;
 
    /// Return the maximum polynomial order.
-   int GetMaxElementOrder() const
+   virtual int GetMaxElementOrder() const
    { return IsVariableOrder() ? elem_order.Max() : fec->GetOrder(); }
 
    /// Returns true if the space contains elements of varying polynomial orders.
-   bool IsVariableOrder() const { return elem_order.Size(); }
+   bool IsVariableOrder() const { return variableOrder; }
 
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingProlongation() const;
