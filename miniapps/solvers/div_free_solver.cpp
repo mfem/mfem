@@ -47,9 +47,12 @@ DFSSpaces::DFSSpaces(int order, int num_refine, ParMesh *mesh,
    : hdiv_fec_(order, mesh->Dimension()), l2_fec_(order, mesh->Dimension()),
      l2_0_fec_(0, mesh->Dimension()), ess_bdr_attr_(ess_attr), level_(0)
 {
-   if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+   if (mesh->GetNE() > 0)
    {
-      mfem_error("DFSDataCollector: High order spaces on tetrahedra are not supported");
+      if (mesh->GetElement(0)->GetType() == Element::TETRAHEDRON && order)
+      {
+         MFEM_ABORT("DFSDataCollector: High order spaces on tetrahedra are not supported");
+      }
    }
 
    data_.param = param;
