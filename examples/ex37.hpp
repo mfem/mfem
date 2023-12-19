@@ -12,7 +12,7 @@ namespace mfem
 real_t inv_sigmoid(real_t x)
 {
    real_t tol = 1e-12;
-   x = std::min(std::max(tol,x),1.0-tol);
+   x = std::min(std::max(tol,x), real_t(1.0)-tol);
    return std::log(x/(1.0-x));
 }
 
