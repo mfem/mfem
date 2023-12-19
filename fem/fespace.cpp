@@ -2277,76 +2277,50 @@ void FiniteElementSpace::UpdateNURBS()
 
    dynamic_cast<const NURBSFECollection *>(fec)->Reset();
 
-   const bool div = (dynamic_cast<const NURBS_HDivFECollection *>(fec) != NULL );
-   const bool curl = (dynamic_cast<const NURBS_HCurlFECollection *>(fec) != NULL );
-
-   if (div || curl)
+   if (dynamic_cast<const NURBS_HDivFECollection *>(fec))
    {
-      if (mesh->Dimension() == 2)
+      VNURBSext.SetSize(mesh->Dimension());
+      for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext.SetSize(2);
-         Table::Mode mode = Table::MERGE;
-         if (div)
-         {
-            VNURBSext[0] = NURBSext->GetDivExtension(0);
-            VNURBSext[1] = NURBSext->GetDivExtension(1);
-            mode = Table::H_DIV_BND;
-         }
-         else if (curl)
-         {
-            VNURBSext[0] = NURBSext->GetCurlExtension(0);
-            VNURBSext[1] = NURBSext->GetCurlExtension(1);
-            mode = Table::H_CURL_BND;
-         }
-
-         int offset1 = VNURBSext[0]->GetNDof();
-         ndofs = VNURBSext[0]->GetNDof() + VNURBSext[1]->GetNDof();
-
-         // Merge Tables
-         elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
-                              *VNURBSext[1]->GetElementDofTable(),offset1 );
-
-         bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
-                                  *VNURBSext[1]->GetBdrElementDofTable(),offset1,
-                                  mode);
+         VNURBSext[d] = NURBSext->GetDivExtension(d);
       }
-      else if (mesh->Dimension() == 3)
+   }
+
+   if (dynamic_cast<const NURBS_HCurlFECollection *>(fec))
+   {
+      VNURBSext.SetSize(mesh->Dimension());
+      for (int d = 0; d < mesh->Dimension(); d++)
       {
-         VNURBSext.SetSize(3);
-         Table::Mode mode = Table::MERGE;
-         if (div)
-         {
-            VNURBSext[0] = NURBSext->GetDivExtension(0);
-            VNURBSext[1] = NURBSext->GetDivExtension(1);
-            VNURBSext[2] = NURBSext->GetDivExtension(2);
-            mode = Table::H_DIV_BND;
-         }
-         else if (curl)
-         {
-            VNURBSext[0] = NURBSext->GetCurlExtension(0);
-            VNURBSext[1] = NURBSext->GetCurlExtension(1);
-            VNURBSext[2] = NURBSext->GetCurlExtension(2);
-            mode = Table::H_CURL_BND;
-         }
-
-         int offset1 = VNURBSext[0]->GetNDof();
-         int offset2 = offset1 + VNURBSext[1]->GetNDof();
-         ndofs = offset2 + VNURBSext[2]->GetNDof();
-
-         // Merge Tables
-         elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
-                              *VNURBSext[1]->GetElementDofTable(),offset1,
-                              *VNURBSext[2]->GetElementDofTable(),offset2);
-
-         bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
-                                  *VNURBSext[1]->GetBdrElementDofTable(),offset1,
-                                  *VNURBSext[2]->GetBdrElementDofTable(),offset2,
-                                  mode );
+         VNURBSext[d] = NURBSext->GetCurlExtension(d);
       }
-      else
-      {
-         mfem_error("FESpace implementation for  vector dimensions other then 2D/3D");
-      }
+   }
+
+   if (VNURBSext.Size() == 2)
+   {
+      int offset1 = VNURBSext[0]->GetNDof();
+      ndofs = VNURBSext[0]->GetNDof() + VNURBSext[1]->GetNDof();
+
+      // Merge Tables
+      elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                           *VNURBSext[1]->GetElementDofTable(),offset1 );
+
+      bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                               *VNURBSext[1]->GetBdrElementDofTable(),offset1);
+   }
+   else if (VNURBSext.Size() == 3)
+   {
+      int offset1 = VNURBSext[0]->GetNDof();
+      int offset2 = offset1 + VNURBSext[1]->GetNDof();
+      ndofs = offset2 + VNURBSext[2]->GetNDof();
+
+      // Merge Tables
+      elem_dof = new Table(*VNURBSext[0]->GetElementDofTable(),
+                           *VNURBSext[1]->GetElementDofTable(),offset1,
+                           *VNURBSext[2]->GetElementDofTable(),offset2);
+
+      bdr_elem_dof = new Table(*VNURBSext[0]->GetBdrElementDofTable(),
+                               *VNURBSext[1]->GetBdrElementDofTable(),offset1,
+                               *VNURBSext[2]->GetBdrElementDofTable(),offset2);
    }
    else
    {
@@ -3688,6 +3662,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    input >> ord;
 
    NURBSFECollection *nurbs_fec = dynamic_cast<NURBSFECollection*>(r_fec);
+   if (nurbs_fec) { nurbs_fec->SetDim(m->Dimension()); }
    NURBSExtension *nurbs_ext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
