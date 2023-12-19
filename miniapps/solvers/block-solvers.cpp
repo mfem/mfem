@@ -90,8 +90,8 @@ class DarcyProblem
    ParGridFunction u_;
    ParGridFunction p_;
    ParMesh mesh_;
-   std::shared_ptr<ParBilinearForm> mVarf_;
-   std::shared_ptr<ParMixedBilinearForm> bVarf_;
+   ParBilinearForm *mVarf_;
+   ParMixedBilinearForm *bVarf_;
    VectorFunctionCoefficient ucoeff_;
    FunctionCoefficient pcoeff_;
    DFSSpaces dfs_spaces_;
@@ -108,8 +108,8 @@ public:
    const DFSData& GetDFSData() const { return dfs_spaces_.GetDFSData(); }
    void ShowError(const Vector &sol, bool verbose);
    void VisualizeSolution(const Vector &sol, std::string tag);
-   std::shared_ptr<ParBilinearForm> GetMform() const { return mVarf_; }
-   std::shared_ptr<ParMixedBilinearForm> GetBform() const { return bVarf_; }
+   ParBilinearForm* GetMform() const { return mVarf_; }
+   ParMixedBilinearForm* GetBform() const { return bVarf_; }
 };
 
 DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
@@ -153,12 +153,9 @@ DarcyProblem::DarcyProblem(Mesh &mesh, int num_refs, int order,
    gform.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform.Assemble();
 
-   // ParBilinearForm mVarf_(dfs_spaces_.GetHdivFES());
-   // ParMixedBilinearForm bVarf_(dfs_spaces_.GetHdivFES(), dfs_spaces_.GetL2FES());
-
-   mVarf_ = make_shared<ParBilinearForm>(dfs_spaces_.GetHdivFES());
-   bVarf_ = make_shared<ParMixedBilinearForm>(dfs_spaces_.GetHdivFES(),
-                                              dfs_spaces_.GetL2FES());
+   mVarf_ = new ParBilinearForm(dfs_spaces_.GetHdivFES());
+   bVarf_ = new ParMixedBilinearForm(dfs_spaces_.GetHdivFES(),
+                                     dfs_spaces_.GetL2FES());
 
    mVarf_->AddDomainIntegrator(new VectorFEMassIntegrator(mass_coeff));
    mVarf_->ComputeElementMatrices();
@@ -311,12 +308,12 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (Mpi::Root())
+   if (Mpi::Root() && Mpi::WorldSize() > mesh->GetNE())
    {
-      MFEM_ASSERT(Mpi::WorldSize() < mesh->GetNE(),
-                  "Not enough elements in the mesh to be distributed:\n"
-                  << "Number of processors: " << Mpi::WorldSize() << "\n"
-                  << "Number of elements:   " << mesh->GetNE());
+      cout << "\nWARNING: Number of processors is greater than the number of "
+           << "elements in the mesh.\n"
+           << "Number of processors: " << Mpi::WorldSize() << "\n"
+           << "Number of elements:   " << mesh->GetNE() << "\n\n";
    }
 
    Array<int> ess_bdr(mesh->bdr_attributes.Max());

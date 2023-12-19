@@ -137,8 +137,8 @@ class BramblePasciakSolver : public DarcySolver
 public:
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
-      const std::shared_ptr<ParBilinearForm> &mVarf,
-      const std::shared_ptr<ParMixedBilinearForm> &bVarf,
+      ParBilinearForm *mVarf,
+      ParMixedBilinearForm *bVarf,
       const BPSParameters &param);
 
    /// System and mass preconditioner are user-provided
