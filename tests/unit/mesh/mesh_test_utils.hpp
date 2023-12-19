@@ -42,7 +42,7 @@ int CheckPoisson(Mesh &mesh, int order, int disabled_boundary_attribute = -1);
  * a mesh.
  *
  * @tparam FECollection FiniteElementCollection to define the space.
- * @tparam TDOF Whether or not to counter true degrees of freedom (TDOF) or
+ * @tparam TDOF Whether or not to count true degrees of freedom (TDOF) or
  * local (vector) degrees of freedom (VDOF).
  * @param mesh The mesh to perform the test upon.
  * @param order The polynomial order of the basis.
@@ -55,7 +55,7 @@ int CountEssentialDof(Mesh &mesh, int order, int attribute);
 
 /**
  * @brief Build a mesh with a central tetrahedron surrounded by four
- * tetrahedron, one sharing each face with the central tetrahedron.
+ * tetrahedra, one sharing each face with the central tetrahedron.
  *
  * @return Mesh
  */
@@ -173,7 +173,7 @@ std::array<double, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
  * within a parallel mesh.
  *
  * @tparam FECollection FiniteElementCollection to define the space.
- * @tparam TDOF Whether or not to counter true degrees of freedom (TDOF) or
+ * @tparam TDOF Whether or not to count true degrees of freedom (TDOF) or
  * local (vector) degrees of freedom (VDOF).
  * @param mesh The mesh to perform the test upon.
  * @param order The polynomial order of the basis.
@@ -189,7 +189,7 @@ int CountEssentialDof(ParMesh &mesh, int order, int attribute);
  * a parallel mesh, and summing over all processors.
  *
  * @tparam FECollection FiniteElementCollection to define the space.
- * @tparam TDOF Whether or not to counter true degrees of freedom (TDOF) or
+ * @tparam TDOF Whether or not to count true degrees of freedom (TDOF) or
  * local (vector) degrees of freedom (VDOF).
  * @param mesh The mesh to perform the test upon.
  * @param order The polynomial order of the basis.
