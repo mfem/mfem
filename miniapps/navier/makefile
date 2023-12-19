@@ -76,7 +76,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
 navier_mms-test-par: navier_mms
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
+	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr -rs 1)
 
 navier_kovasznay-test-par: navier_kovasznay
 	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)

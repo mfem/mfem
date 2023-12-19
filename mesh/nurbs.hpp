@@ -71,7 +71,7 @@ public:
    /** Gives the locations of the maxima of the knotvector in reference space. The
       function gives the knotspan @a ks, the coordinate in the knotspan @a xi
       and the coordinate of the maximum in parameter space @a u */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u);
+   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
    /** Global curve interpolation through the points @a x. @a x is an array with the
       length of the spatial dimension containing vectors with spatial coordinates. The
       controlpoints of the interpolated curve are given in @a x in the same form.*/
@@ -88,6 +88,10 @@ public:
 
    void Print(std::ostream &out) const;
 
+   /** Prints the non-zero shape functions and their first and second
+       derivatives associated with the KnotVector per element. Use GetElements()
+       to count the elements before using this function. @a samples is the
+       number of samples of the shape functions per element.*/
    void PrintFunctions(std::ostream &out, int samples=11) const;
 
    /// Destroys KnotVector
