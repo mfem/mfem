@@ -1786,7 +1786,8 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
-                               const Array<int> &newOrders)
+                               const Array<int> &newOrders, Mode mode)
+   : mode(mode)
 {
    newOrders.Copy(mOrders);
    SetOrderFromOrders();
@@ -3482,6 +3483,12 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       // Load dofs
       const int nks0 = kv[0]->GetNKS();
       const int ord0 = kv[0]->GetOrder();
+
+      bool add_dofs = true;
+      if ((mode == Mode::H_DIV)  && (ord0 == mOrders.Max())) { add_dofs = false; }
+      if ((mode == Mode::H_CURL) && (ord0 == mOrders.Min())) { add_dofs = false; }
+
+
       for (int i = 0; i < nks0; i++)
       {
          if (kv[0]->isElement(i))
@@ -3489,10 +3496,13 @@ void NURBSExtension::Generate2DBdrElementDofTable()
             if (activeBdrElem[gbe])
             {
                Connection conn(lbe,0);
-               for (int ii = 0; ii <= ord0; ii++)
+               if (add_dofs)
                {
-                  conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
-                  bel_dof_list.Append(conn);
+                  for (int ii = 0; ii <= ord0; ii++)
+                  {
+                     conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
+                     bel_dof_list.Append(conn);
+                  }
                }
                bel_to_patch[lbe] = b;
                bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
@@ -3529,6 +3539,12 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       const int ord0 = kv[0]->GetOrder();
       const int nks1 = kv[1]->GetNKS();
       const int ord1 = kv[1]->GetOrder();
+
+      // Check if dofs are actually defined on boundary
+      bool add_dofs = true;
+      if ((mode == Mode::H_DIV)  && (ord0 != ord1)) { add_dofs = false; }
+      if ((mode == Mode::H_CURL) && (ord0 == ord1)) { add_dofs = false; }
+
       for (int j = 0; j < nks1; j++)
       {
          if (kv[1]->isElement(j))
@@ -3540,14 +3556,17 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                   if (activeBdrElem[gbe])
                   {
                      Connection conn(lbe,0);
-                     for (int jj = 0; jj <= ord1; jj++)
+                     if (add_dofs)
                      {
-                        const int jj_ = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
-                        for (int ii = 0; ii <= ord0; ii++)
+                        for (int jj = 0; jj <= ord1; jj++)
                         {
-                           const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
-                           conn.to = DofMap(p2g(ii_, jj_));
-                           bel_dof_list.Append(conn);
+                           const int jj_ = (okv[1] >= 0) ? (j+jj) : (ny-j-jj);
+                           for (int ii = 0; ii <= ord0; ii++)
+                           {
+                              const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
+                              conn.to = DofMap(p2g(ii_, jj_));
+                              bel_dof_list.Append(conn);
+                           }
                         }
                      }
                      bel_to_patch[lbe] = b;
@@ -3793,7 +3812,7 @@ NURBSExtension* NURBSExtension::GetDivExtension(int component)
    Array<int> newOrders  = GetOrders();
    newOrders[component] += 1;
 
-   return new NURBSExtension(this, newOrders);
+   return new NURBSExtension(this, newOrders, Mode::H_DIV);
 }
 
 NURBSExtension* NURBSExtension::GetCurlExtension(int component)
@@ -3810,7 +3829,7 @@ NURBSExtension* NURBSExtension::GetCurlExtension(int component)
    for (int c = 0; c < newOrders.Size(); c++) { newOrders[c]++; }
    newOrders[component] -= 1;
 
-   return new NURBSExtension(this, newOrders);
+   return new NURBSExtension(this, newOrders, Mode::H_CURL);
 }
 
 void NURBSExtension::UniformRefinement()
