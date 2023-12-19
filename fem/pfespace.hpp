@@ -32,7 +32,7 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh; #mesh points to this object as well. Not owned.
+   /// Parallel mesh; @a mesh points to this object as well. Not owned.
    ParMesh *pmesh;
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
@@ -46,6 +46,10 @@ private:
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
    int ngvdofs, ngedofs, ngfdofs, ngdofs;
+
+   mutable int ngelem = 0;
+
+   mutable Array<char> ghost_elem_order;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -101,6 +105,8 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
+   void CommunicateGhostOrder(Array<int> & prefdata);
+
    void Construct();
    void Destroy();
 
@@ -128,9 +134,13 @@ private:
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
+   void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
 
-   int  PackDof(int entity, int index, int edof) const;
+   int  PackDof(int entity, int index, int edof, int var = 0) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
+
+   int  PackDofVar(int entity, int index, int edof, int var = 0) const;
+   void UnpackDofVar(int dof, int &entity, int &index, int &edof) const;
 
 #ifdef MFEM_PMATRIX_STATS
    mutable int n_msgs_sent, n_msgs_recv;
@@ -424,12 +434,22 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
+   int GetMaxElementOrder() const override;
+
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    void PrintPartitionStats();
 
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
+
+protected:
+   void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
+                                               Array<VarOrderBits> &face_orders,
+                                               const Array<int> * prefdata=nullptr) const override;
+
+   int NumGhostEdges() const override { return pncmesh->GetNGhostEdges(); }
+   int NumGhostFaces() const override { return pncmesh->GetNGhostFaces(); }
 };
 
 

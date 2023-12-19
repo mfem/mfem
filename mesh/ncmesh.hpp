@@ -438,6 +438,10 @@ public:
 
    int PrintMemoryDetail() const;
 
+   // TODO: is this necessary? It is used in this function which may change:
+   // ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces
+   int TotalNumElements() const { return elements.Size(); }
+
    typedef std::int64_t RefCoord;
 
 
@@ -1041,7 +1045,6 @@ protected: // implementation
    void CopyElements(int elem, const BlockArray<Element> &tmp_elements);
    /// Load the deprecated MFEM mesh v1.1 format for backward compatibility.
    void LoadLegacyFormat(std::istream &input, int &curved, int &is_nc);
-
 
    // geometry
 

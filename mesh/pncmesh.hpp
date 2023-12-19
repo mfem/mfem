@@ -122,6 +122,10 @@ public:
    const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
    const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
 
+   /* Gets the array of global serial indices in NCMesh::elements of all ghost
+      elements for this processor. */
+   void GetGhostElements(Array<int> & gelem);
+
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
    const NCList& GetSharedList(int entity)
    {
@@ -245,6 +249,16 @@ public:
    /** Extract a debugging Mesh containing all leaf elements, including ghosts.
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
+
+   void CommunicateGhostData(const Array<int> & elems,
+                             const Array<int> & orders,
+                             Array<int> & prefdata);
+
+   /** @a elem is a global element index, required to be for a ghost element of
+       this processor. The indices of this ghost element's edges are returned. */
+   void FindEdgesOfGhostElement(int elem, Array<int> & edges);
+
+   void FindFacesOfGhostElement(int elem, Array<int> & faces);
 
 protected: // interface for ParMesh
 
@@ -515,6 +529,16 @@ protected: // implementation
       void Decode(int) override;
    };
 
+   // TODO: tag 291 seems unique? Is there any logic behind the tag choices?
+   /** Used by CommunicateGhostData to send p-refined element indices and
+       their order. */
+   class NeighborPRefinementMessage : public ElementValueMessage<int, false, 291>
+   {
+   public:
+      void AddRefinement(int elem, int order) { Add(elem, order); }
+      typedef std::map<int, NeighborPRefinementMessage> Map;
+   };
+
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and
        Derefine(). 'target_elements' is the number of elements this rank
@@ -539,6 +563,8 @@ protected: // implementation
    void ClearAuxPM();
 
    std::size_t GroupsMemoryUsage() const;
+
+   int FindGhostElement(int elem);
 
    friend class NeighborRowMessage;
 };

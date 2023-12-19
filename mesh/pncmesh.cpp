@@ -246,6 +246,53 @@ void ParNCMesh::BuildEdgeList()
    // NOTE: entity_index_rank[1] is not deleted until CalculatePMatrixGroups
 }
 
+void ParNCMesh::FindEdgesOfGhostElement(int elem, Array<int> & edges)
+{
+   NCMesh::Element &el = elements[elem]; // ghost element
+   MFEM_ASSERT(el.rank != MyRank, "");
+
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   GeomInfo& gi = GI[el.Geom()];
+   edges.SetSize(gi.ne);
+
+   for (int j = 0; j < gi.ne; j++)
+   {
+      // get node for this edge
+      const int* ev = gi.edges[j];
+      int node[2] = { el.node[ev[0]], el.node[ev[1]] };
+
+      int enode = nodes.FindId(node[0], node[1]);
+      MFEM_ASSERT(enode >= 0, "edge node not found!");
+
+      Node &nd = nodes[enode];
+      MFEM_ASSERT(nd.HasEdge(), "edge not found!");
+
+      edges[j] = nd.edge_index;
+   }
+}
+
+void ParNCMesh::FindFacesOfGhostElement(int elem, Array<int> & ge_faces)
+{
+   NCMesh::Element &el = elements[elem]; // ghost element
+   MFEM_ASSERT(el.rank != MyRank, "");
+
+   MFEM_ASSERT(!el.ref_type, "not a leaf element.");
+
+   GeomInfo& gi = GI[el.Geom()];
+   ge_faces.SetSize(gi.nf);
+
+   for (int j = 0; j < gi.nf; j++)
+   {
+      // get node for this edge
+      const int* fv = gi.faces[j];
+      const Face *face = faces.Find(el.node[fv[0]], el.node[fv[1]],
+                                    el.node[fv[2]], el.node[fv[3]]);
+      MFEM_ASSERT(face, "face not found");
+      ge_faces[j] = face->index;
+   }
+}
+
 void ParNCMesh::ElementSharesVertex(int elem, int local, int vnode)
 {
    // Analogous to ElementSharesEdge.
@@ -3005,6 +3052,83 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
              << sizeof(ParNCMesh) - sizeof(NCMesh) << " ParNCMesh" << std::endl;
 
    return leaf_elements.Size();
+}
+
+void ParNCMesh::GetGhostElements(Array<int> & gelem)
+{
+   gelem.SetSize(NGhostElements);
+
+   for (int g=0; g<NGhostElements; ++g)
+   {
+      // This is an index in NCMesh::elements, an array of all elements, cf.
+      // NCMesh::OnMeshUpdated.
+      gelem[g] = leaf_elements[NElements + g];
+   }
+}
+
+// Note that this function is modeled after Refine().
+// TODO: not const function?
+void ParNCMesh::CommunicateGhostData(const Array<int> & elems,
+                                     const Array<int> & orders,
+                                     Array<int> & prefdata)
+{
+   prefdata.SetSize(0);
+
+   if (NRanks == 1) { return; }
+
+   // TODO: one array for elems and orders? Use even and odd, or a struct?
+   MFEM_VERIFY(elems.Size() == orders.Size(), "");
+
+   NeighborPRefinementMessage::Map send_ref;
+
+   // create refinement messages to all neighbors (NOTE: some may be empty)
+   Array<int> neighbors;
+   NeighborProcessors(neighbors);
+   for (int i = 0; i < neighbors.Size(); i++)
+   {
+      send_ref[neighbors[i]].SetNCMesh(this);
+   }
+
+   // populate messages: all refinements that occur next to the processor
+   // boundary need to be sent to the adjoining neighbors so they can keep
+   // their ghost layer up to date
+   Array<int> ranks;
+   ranks.Reserve(64);
+   for (int i = 0; i < elems.Size(); i++)
+   {
+      MFEM_ASSERT(elems[i] < NElements, "");
+      int elem = leaf_elements[elems[i]];
+      ElementNeighborProcessors(elem, ranks);
+      for (int j = 0; j < ranks.Size(); j++)
+      {
+         send_ref[ranks[j]].AddRefinement(elem, orders[i]);
+      }
+   }
+
+   // send the messages (overlap with local refinements)
+   NeighborPRefinementMessage::IsendAll(send_ref, MyComm);
+
+   // receive (ghost layer) refinements from all neighbors
+   for (int j = 0; j < neighbors.Size(); j++)
+   {
+      int rank, size;
+      NeighborPRefinementMessage::Probe(rank, size, MyComm);
+
+      NeighborPRefinementMessage msg;
+      msg.SetNCMesh(this);
+      msg.Recv(rank, size, MyComm);
+
+      // Get the ghost refinement data
+      for (int i = 0; i < msg.Size(); i++)
+      {
+         // TODO: more efficient way?
+         prefdata.Append(msg.elements[i]);
+         prefdata.Append(msg.values[i]);
+      }
+   }
+
+   // make sure we can delete the send buffers
+   NeighborPRefinementMessage::WaitAllSent(send_ref);
 }
 
 } // namespace mfem

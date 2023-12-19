@@ -210,7 +210,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          }
       }
 
-      ListOfIntegerSets  groups;
+      ListOfIntegerSets groups;
       {
          // the first group is the local one
          IntegerSet group;
