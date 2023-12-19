@@ -862,8 +862,10 @@ public:
    {
       rel_tol = rtol;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
@@ -874,8 +876,10 @@ public:
    {
       abs_tol = atol;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
@@ -886,8 +890,10 @@ public:
    {
       max_iter = max_it;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);

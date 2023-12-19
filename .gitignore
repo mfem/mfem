@@ -128,6 +128,13 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
+examples/caliper/ex1
+examples/caliper/ex1p
+examples/caliper/refined.mesh
+examples/caliper/sol.gf
+examples/caliper/mesh.*
+examples/caliper/sol.*
+
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
@@ -276,6 +283,10 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 miniapps/nurbs/sin-fit.mesh
 miniapps/nurbs/CurveInt
+miniapps/nurbs/nurbs_naca_cmesh
+miniapps/nurbs/naca-cmesh.mesh
+miniapps/nurbs/glvis_naca-cmesh.mesh
+miniapps/nurbs/Naca_cmesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -300,7 +311,7 @@ miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
 miniapps/tools/get-values
-miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
 miniapps/tools/nodal-transfer
 miniapps/tools/ParaView
