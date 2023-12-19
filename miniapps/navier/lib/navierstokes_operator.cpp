@@ -66,10 +66,10 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
 
    trans_newton_residual.reset(new TransientNewtonResidual(*this));
 
-   vel_bc_gf = std::make_unique<ParGridFunction>(&vel_fes);
+   vel_bc_gf.reset(new ParGridFunction(&vel_fes));
    *vel_bc_gf = 0.0;
 
-   pres_bc_gf = std::make_unique<ParGridFunction>(&pres_fes);
+   pres_bc_gf.reset(new ParGridFunction(&pres_fes));
    *pres_bc_gf = 0.0;
 
    // The nonlinear convective integrators use over-integration (dealiasing) as

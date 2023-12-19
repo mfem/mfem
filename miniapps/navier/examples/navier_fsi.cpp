@@ -223,7 +223,7 @@ public:
       Kform.FormSystemMatrix(empty, K);
       Kform.FormSystemMatrix(ess_tdof_list, K0);
 
-      MinvPC = std::make_unique<HypreSmoother>();
+      MinvPC.reset(new HypreSmoother);
       Minv.iterative_mode = false;
       Minv.SetRelTol(1e-12);
       Minv.SetMaxIter(500);
@@ -270,9 +270,9 @@ public:
 
    void SetBoundaryTraction(const ParGridFunction &traction_gf)
    {
-      fcoeff = std::make_unique<VectorGridFunctionCoefficient>(&traction_gf);
-      scaled_fcoeff = std::make_unique<ScalarVectorProductCoefficient>(density, *fcoeff);
-      Fform = std::make_unique<ParLinearForm>(&fes);
+      fcoeff.reset(new VectorGridFunctionCoefficient(&traction_gf));
+      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(density, *fcoeff));
+      Fform.reset(new ParLinearForm(&fes));
       Fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*scaled_fcoeff));
       Fform->Assemble();
       Fform->ParallelAssemble(F);
