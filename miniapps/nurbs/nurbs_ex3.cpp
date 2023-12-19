@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 
    if (mesh->NURBSext && NURBS)
    {
-      fec = new NURBS_HCurlFECollection(order);
+      fec = new NURBS_HCurlFECollection(order,dim);
       NURBSext  = new NURBSExtension(mesh->NURBSext, order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
@@ -136,6 +136,8 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   cout << "Number of knowns in essential BCs: "
+        << ess_tdof_list.Size() << endl;
 
    // 7. Set up the linear form b(.) which corresponds to the right-hand side
    //    of the FEM linear system, which in this case is (f,phi_i) where f is
