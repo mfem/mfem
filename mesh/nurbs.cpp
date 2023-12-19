@@ -352,9 +352,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
 
 }
 
-void KnotVector::FindMaxima(Array<int> &ks,
-                            Vector &xi,
-                            Vector &u)
+void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
 {
    Vector shape(Order+1);
    Vector maxima(GetNCP());

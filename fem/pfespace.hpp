@@ -248,7 +248,11 @@ public:
        If the FiniteElementCollection, @a f, is NULL (default), the FE
        collection used by @a global_fes will be reused. If @a f is not NULL, it
        must be the same as, or a copy of, the FE collection used by
-       @a global_fes. */
+       @a global_fes.
+
+       @note Currently the @a partitioning array is not used by this
+       constructor, it is required for general parallel variable-order support.
+   */
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
                          const int *partitioning,
                          const FiniteElementCollection *f = NULL);

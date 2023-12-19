@@ -67,7 +67,6 @@ struct NeoHookeanMaterial
     * @param[in] self
     * @param[in] dudx
     * @param[in] sigma
-    * @return stress
     */
    MFEM_HOST_DEVICE static void
    stress_wrapper(NeoHookeanMaterial<dim, gradient_type> *self,
