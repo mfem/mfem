@@ -42,14 +42,6 @@ struct Connection
     connectivity table, etc. */
 class Table
 {
-public:
-   enum Mode
-   {
-      MERGE,
-      H_DIV_BND,
-      H_CURL_BND,
-   };
-
 protected:
    /// size is the number of TYPE I elements.
    int size;
@@ -67,25 +59,12 @@ public:
    Table(const Table &);
 
    /** Merge constructors
-       This is used to combine 2 or 3 tables into 1.
-       The merge enum determines whether a full or reduced merge is performed
-        Full  = new row is a concatenation of all input rows.
-                This mode is used when merging element-dof tables of individual
-                components into an element-dof table for the complete vector.
-        Hdiv = new row is only the smallest of the input rows.
-                This mode is used when merging boundary-dof tables of individual
-                components into an boundary-dof table for the complete vector.
-        Hcurl = new row is a concatenation of all input rows bar the smallest.
-                This mode is used when merging boundary-dof tables of individual
-                components into an boundary-dof table for the complete vector.
-                */
+       This is used to combine two or three tables into one table.*/
+   Table(const Table &table1,
+         const Table &table2, int offset2);
    Table(const Table &table1,
          const Table &table2, int offset2,
-         const Mode = MERGE);
-   Table(const Table &table1,
-         const Table &table2, int offset2,
-         const Table &table3, int offset3,
-         const Mode = MERGE);
+         const Table &table3, int offset3);
 
    /// Assignment operator: deep copy
    Table& operator=(const Table &rhs);

@@ -37,8 +37,8 @@ Table::Table(const Table &table)
    }
 }
 
-Table::Table(const Table &table1, const Table &table2, int offset,
-             const Mode mode)
+Table::Table(const Table &table1,
+             const Table &table2, int offset)
 {
    MFEM_ASSERT(table1.size == table2.size,
                "Tables have different sizes can not merge.");
@@ -53,26 +53,17 @@ Table::Table(const Table &table1, const Table &table2, int offset,
    for (int i = 0; i < size; i++)
    {
       I[i+1] = I[i];
-      if ( (mode == MERGE) ||
-           (mode == H_DIV_BND && (table1.RowSize(i) < table2.RowSize(i)) ) ||
-           (mode == H_CURL_BND && (table1.RowSize(i) > table2.RowSize(i)) ))
+
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         table1.GetRow(i, row);
-         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
-         {
-            J[ I[i+1] ] = row[r];
-         }
+         J[ I[i+1] ] = row[r];
       }
 
-      if ( (mode == MERGE) ||
-           (mode == H_DIV_BND && (table2.RowSize(i) < table1.RowSize(i)) ) ||
-           (mode == H_CURL_BND && (table2.RowSize(i) > table1.RowSize(i)) ))
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         table2.GetRow(i, row);
-         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
-         {
-            J[ I[i+1] ] = row[r] + offset;
-         }
+         J[ I[i+1] ] = row[r] + offset;
       }
 
    }
@@ -80,8 +71,7 @@ Table::Table(const Table &table1, const Table &table2, int offset,
 
 Table::Table(const Table &table1,
              const Table &table2, int offset2,
-             const Table &table3, int offset3,
-             const Mode mode)
+             const Table &table3, int offset3)
 {
    MFEM_ASSERT(table1.size == table2.size,
                "Tables have different sizes can not merge.");
@@ -98,43 +88,24 @@ Table::Table(const Table &table1,
    for (int i = 0; i < size; i++)
    {
       I[i+1] = I[i];
-      int s1 = table1.RowSize(i);
-      int s2 = table2.RowSize(i);
-      int s3 = table3.RowSize(i);
 
-      if ( (mode == MERGE) ||
-           (mode == H_DIV_BND && (s1 < min(s2,s3)) ) ||
-           (mode == H_CURL_BND && (s1 > min(s2,s3)) ) )
+      table1.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         table1.GetRow(i, row);
-         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
-         {
-            J[ I[i+1] ] = row[r];
-         }
+         J[ I[i+1] ] = row[r];
       }
 
-      if ((mode == MERGE) ||
-          (mode == H_DIV_BND && (s2 < min(s1,s3)) ) ||
-          (mode == H_CURL_BND && (s2 > min(s1,s3)) ) )
+      table2.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         table2.GetRow(i, row);
-         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
-         {
-            J[ I[i+1] ] = row[r] + offset2;
-         }
+         J[ I[i+1] ] = row[r] + offset2;
       }
 
-      if ((mode == MERGE) ||
-          (mode == H_DIV_BND && (s3 < min(s1,s2)) ) ||
-          (mode == H_CURL_BND && (s3 > min(s1,s2)) ) )
+      table3.GetRow(i, row);
+      for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         table3.GetRow(i, row);
-         for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
-         {
-            J[ I[i+1] ] = row[r] + offset3;
-         }
+         J[ I[i+1] ] = row[r] + offset3;
       }
-
    }
 }
 
