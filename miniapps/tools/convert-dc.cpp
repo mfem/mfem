@@ -30,12 +30,11 @@
 //
 // Compile with: make convert-dc
 //
-// Serial sample runs:
-//    convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
+// Serial sample run (requires MFEM_USE_CONDUIT=YES):
+//  > convert-dc -s ../../examples/Example5 -st visit -o Example5_Conduit -ot json
 //
-// Parallel sample runs:
-//    mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit
-//                            -o Example5-Parallel_Conduit -ot json
+// Parallel sample run (requires MFEM_USE_CONDUIT=YES):
+//  > mpirun -np 4 convert-dc -s ../../examples/Example5-Parallel -st visit -o Example5-Parallel_Conduit -ot json
 
 #include "mfem.hpp"
 
