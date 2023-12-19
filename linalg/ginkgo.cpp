@@ -937,11 +937,14 @@ GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
 void GMRESSolver::SetKDim(int dim)
 {
    m = dim;
-   using gmres_type = gko::solver::Gmres<double>;
-   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   using gmres = gko::solver::Gmres<double>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
    if (solver)
    {
-      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
    }
 }
 
@@ -1036,11 +1039,14 @@ CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec,
 void CBGMRESSolver::SetKDim(int dim)
 {
    m = dim;
-   using gmres_type = gko::solver::CbGmres<double>;
-   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   using gmres = gko::solver::CbGmres<double>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
    if (solver)
    {
-      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
    }
 }
 
@@ -1205,7 +1211,11 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
    else
@@ -1217,7 +1227,11 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
 
@@ -1255,9 +1269,15 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
       .with_factorization_factory(fact_factory)
       .with_l_solver_factory(l_solver_factory)
       .with_u_solver_factory(u_solver_factory)
+#else
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+#endif
       .on(executor);
 
    }
@@ -1271,9 +1291,15 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
       .with_factorization_factory(fact_factory)
       .with_l_solver_factory(l_solver_factory)
       .with_u_solver_factory(u_solver_factory)
+#else
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+#endif
       .on(executor);
    }
 }
@@ -1298,7 +1324,11 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
    else
@@ -1311,7 +1341,11 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
 }
@@ -1340,8 +1374,13 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
+#else
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+#endif
                     .on(executor);
    }
    else
@@ -1354,8 +1393,13 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
+#else
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+#endif
                     .on(executor);
    }
 }
