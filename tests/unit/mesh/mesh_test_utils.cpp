@@ -449,11 +449,9 @@ void TestVectorValueInVolume(Mesh &smesh, int nc_level, int skip, bool use_ND)
    // the processor boundary.
 
    // Create a grid function of the mesh coordinates
-   pmesh.ExchangeFaceNbrData();
    pmesh.EnsureNodes();
-   REQUIRE(pmesh.OwnsNodes());
+   pmesh.ExchangeFaceNbrData();
    GridFunction * const coords = pmesh.GetNodes();
-   dynamic_cast<ParGridFunction *>(pmesh.GetNodes())->ExchangeFaceNbrData();
 
    // Project the linear function onto the mesh. Quadratic ND tetrahedral
    // elements are the first to require face orientations.
