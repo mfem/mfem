@@ -135,36 +135,58 @@ void BramblePasciakSolver::Init(
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    ParBilinearForm &mVarf, double q_scaling)
 {
-#ifdef MFEM_USE_LAPACK
    MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
                "Invalid Q-scaling factor: q_scaling = " << q_scaling );
    ParBilinearForm qVarf(mVarf.ParFESpace());
+#ifndef MFEM_USE_LAPACK
+   if (Mpi::Root())
+   {
+      mfem::out << "Warning: Using inverse power method to compute the minimum "
+                << "eigenvalue of the small eigenvalue problem.\n";
+      mfem::out << "         Consider compiling MFEM with LAPACK support.\n";
+   }
+#endif
    for (int i = 0; i < mVarf.ParFESpace()->GetNE(); ++i)
    {
-      DenseMatrix M_i, Q_i, evec;
-      Vector eval, diag_i;
-      double scaling = 0.0;
-
+      DenseMatrix M_i, Q_i;
+      Vector diag_i;
+      double scaling = 0.0, eval_i = 0.0;
       mVarf.ComputeElementMatrix(i, M_i);
       M_i.GetDiag(diag_i);
       // M_i <- D^{-1/2} M_i D^{-1/2}, where D = diag(M_i)
       M_i.InvSymmetricScaling(diag_i);
       // M_i x = ev diag(M_i) x
+#ifdef MFEM_USE_LAPACK
+      DenseMatrix evec;
+      Vector eval;
       M_i.Eigenvalues(eval, evec);
-
-      scaling = q_scaling*eval.Min();
+      eval_i = eval.Min();
+#else
+      // Inverse power method
+      Vector x(M_i.Height()), Mx(M_i.Height()), diff(M_i.Height());
+      double eval_prev = 0.0;
+      int iter = 0;
+      x.Randomize();
+      do
+      {
+         eval_prev = eval_i;
+         M_i.Inverse()->Mult(x, Mx);
+         eval_i = Mx.Norml2();
+         x.Set(1.0/eval_i, Mx);
+         ++iter;
+      }
+      while ((iter < 1000) && (fabs(eval_i - eval_prev)/fabs(eval_i) > 1e-12));
+      MFEM_VERIFY((iter <= 1000) && (fabs(eval_i - eval_prev)/fabs(eval_i) <= 1e-12),
+                  "Inverse power method did not converge.");
+      eval_i = 1.0/eval_i;
+#endif
+      scaling = q_scaling*eval_i;
       diag_i.Set(scaling, diag_i);
       Q_i.Diag(diag_i.GetData(), diag_i.Size());
       qVarf.AssembleElementMatrix(i, Q_i, 1);
    }
    qVarf.Finalize();
    return qVarf.ParallelAssemble();
-#else
-   MFEM_CONTRACT_VAR(mVarf);
-   MFEM_CONTRACT_VAR(q_scaling);
-   mfem_error("BramblePasciakSolver::ConstructMassPreconditioner: Compiled without LAPACK");
-   return nullptr;
-#endif
 }
 
 void BramblePasciakSolver::Mult(const Vector & x, Vector & y) const
