@@ -84,14 +84,13 @@ int main(int argc, char *argv[])
 {
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/beam-tri.mesh";
    int order = 1;
    bool pa = false;
-   bool paraview = false;
+   bool visualization = false;
    bool amg_elast = 0;
    bool reorder_space = true;
    const char *device_config = "cpu";
@@ -122,27 +121,15 @@ int main(int argc, char *argv[])
    args.AddOption(&componentwise_action, "-ca", "--component-action", "-no-ca",
                   "--no-component-action",
                   "Uses partial assembly with a block operator of components instead of the monolithic vector integrator.");
-   args.AddOption(&paraview, "-vis", "--visualization", "-no-vis",
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable Paraview output.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+                  "Enable or disable ParaView and GLVis output.");
+   args.ParseCheck();
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
+   if (Mpi::Root()) { device.Print(); }
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -151,19 +138,19 @@ int main(int argc, char *argv[])
 
    if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
-      if (myid == 0)
+      if (Mpi::Root())
+      {
          cerr << "\nInput mesh should have at least two materials and "
               << "two boundary attributes! (See schematic in ex2.cpp)\n"
               << endl;
+      }
       return 3;
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution.
+   for (int l = 0; l < ref_levels; l++)
    {
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh.UniformRefinement();
-      }
+      mesh.UniformRefinement();
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh.
@@ -183,7 +170,7 @@ int main(int argc, char *argv[])
       LOR_disc->GetParFESpace();
    }
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
-   if (myid == 0)
+   if (Mpi::Root())
    {
       cout << "Number of finite element unknowns: " << size << endl
            << "Assembling: " << flush;
@@ -220,7 +207,7 @@ int main(int argc, char *argv[])
 
    ParLinearForm b(&fespace);
    b.AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
-   if (myid == 0)
+   if (Mpi::Root())
    {
       cout << "r.h.s. ... " << flush;
    }
@@ -258,9 +245,9 @@ int main(int argc, char *argv[])
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
-   if (myid == 0) { cout << "matrix ... " << flush; }
-   StopWatch total_timer{};
-   StopWatch assembly_timer{};
+   if (Mpi::Root()) { cout << "matrix ... " << flush; }
+   StopWatch total_timer;
+   StopWatch assembly_timer;
    assembly_timer.Start();
    total_timer.Start();
    a.Assemble();
@@ -271,7 +258,7 @@ int main(int argc, char *argv[])
    {
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    }
-   if (myid == 0)
+   if (Mpi::Root())
    {
       cout << "done." << endl;
       cout << "Size of linear system: " << fespace.GlobalTrueVSize() << endl;
@@ -287,27 +274,19 @@ int main(int argc, char *argv[])
    //     on the LOR space. If additionally "-ss" is enabled, create the
    //     block CG solvers and the high order, partially assembled components.
    vector<unique_ptr<ParBilinearForm>> bilinear_forms;
-   bilinear_forms.reserve(dim);
    vector<unique_ptr<HypreParMatrix>> lor_block;
-   lor_block.reserve(dim);
    //amg_blocks stores preconditioners of lor_block.
-   vector<HypreBoomerAMG> amg_blocks;
-   amg_blocks.reserve(dim);
+   vector<unique_ptr<HypreBoomerAMG>> amg_blocks;
    //cg_blocks only gets used if -ss is enabled.
    vector<unique_ptr<CGSolver>> cg_blocks;
-   cg_blocks.reserve(dim);
    //diag_ho only used if -hoa enabled. The high order partial assembled operators
    //with the essential dofs eliminated and constrained to one.
    vector<unique_ptr<ParBilinearForm>> ho_bilinear_form_blocks;
-   ho_bilinear_form_blocks.reserve(dim);
    vector<unique_ptr<ConstrainedOperator>> diag_ho;
-   diag_ho.reserve(dim);
    //If -ca is used, component bilinear forms are stored in pa_components, and
    //pointers to fespaces.
    vector<unique_ptr<ParBilinearForm>> pa_components;
-   pa_components.reserve(dim*dim);
    vector<const FiniteElementSpace*> fespaces;
-   fespaces.reserve(dim);
    //get block essential boundary info.
    //need to allocate here since constrained operator will not own essential dofs.
    Array<int> ess_tdof_list_block_ho, ess_bdr_block_ho(pmesh.bdr_attributes.Max());
@@ -340,11 +319,11 @@ int main(int argc, char *argv[])
          lor_block.emplace_back(bilinear_forms[j]->ParallelAssemble());
          lor_block[j]->EliminateBC(ess_tdof_list_block,
                                    Operator::DiagonalPolicy::DIAG_ONE);//not sure which diagonal policy to use
-         amg_blocks.emplace_back();
-         amg_blocks[j].SetStrengthThresh(0.25);
-         amg_blocks[j].SetRelaxType(16);  //Chebyshev
-         amg_blocks[j].SetOperator(*lor_block[j]);
-         block_offsets[j+1] = amg_blocks[j].Height();
+         amg_blocks.emplace_back(new HypreBoomerAMG);
+         amg_blocks[j]->SetStrengthThresh(0.25);
+         amg_blocks[j]->SetRelaxType(16);  //Chebyshev
+         amg_blocks[j]->SetOperator(*lor_block[j]);
+         block_offsets[j+1] = amg_blocks[j]->Height();
          // 13(b) If needed, create the block components for operator action.
          if (componentwise_action)
          {
@@ -395,7 +374,7 @@ int main(int argc, char *argv[])
             cg_blocks.emplace_back(new CGSolver(MPI_COMM_WORLD));
             cg_blocks[i]->iterative_mode = false;
             cg_blocks[i]->SetOperator(*diag_ho[i]);
-            cg_blocks[i]->SetPreconditioner(amg_blocks[i]);
+            cg_blocks[i]->SetPreconditioner(*amg_blocks[i]);
             cg_blocks[i]->SetMaxIter(30);
             cg_blocks[i]->SetRelTol(1e-8);
          }
@@ -409,7 +388,7 @@ int main(int argc, char *argv[])
          }
          else
          {
-            blockDiag->SetDiagonalBlock(i, &amg_blocks[i]);
+            blockDiag->SetDiagonalBlock(i, amg_blocks[i].get());
          }
       }
       prec.reset(blockDiag);
@@ -455,13 +434,23 @@ int main(int argc, char *argv[])
    solver.SetPrintLevel(1);
    if (prec) { solver.SetPreconditioner(*prec); }
    solver.SetOperator(A_components ? *A_components : *A);
-   StopWatch linear_solve_timer{};
+
+   StopWatch linear_solve_timer;
    linear_solve_timer.Start();
    solver.Mult(B, X);
    linear_solve_timer.Stop();
 
    a_lhs->RecoverFEMSolution(X, b, x);
    total_timer.Stop();
+
+   // Print run times
+   if (Mpi::Root())
+   {
+      cout << "Elapsed Times\n";
+      cout << "Assembly (s) = " << assembly_timer.RealTime() << endl;
+      cout << "Linear Solve (s) = " << linear_solve_timer.RealTime() << endl;
+      cout << "Total Solve (s) " << total_timer.RealTime() << endl;
+   }
 
    // 15. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
@@ -472,17 +461,21 @@ int main(int argc, char *argv[])
    //     space.
    pmesh.SetNodalFESpace(&fespace);
 
-   // 16. Save in parallel the displaced mesh and the inverted solution (which
-   //     gives the backward displacements to the original grid). This output
-   //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 16. If visualization is enabled, Save in parallel the displaced mesh and
+   //     the inverted solution (which gives the backward displacements to the
+   //     original grid). This output can be viewed later using GLVis: "glvis
+   //     -np <np> -m mesh -g sol".
+   //
+   //     Also, save the displacement, with dispaced mesh, to VTK.
+   if (visualization)
    {
       GridFunction *nodes = pmesh.GetNodes();
       *nodes += x;
       x *= -1;
 
       ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
+      mesh_name << "mesh." << setfill('0') << setw(6) << Mpi::WorldRank();
+      sol_name << "sol." << setfill('0') << setw(6) << Mpi::WorldRank();
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
@@ -491,13 +484,9 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-   }
 
-   // 17. Save the displacement, with dispaced mesh, to VTK.
-
-   if (paraview)
-   {
-      ParaViewDataCollection pd("lor_elast_vtk", &pmesh);
+      ParaViewDataCollection pd("LOR_Elasticity", &pmesh);
+      pd.SetPrefixPath("ParaView");
       pd.RegisterField("displacement", &x);
       pd.SetLevelsOfDetail(order);
       pd.SetDataFormat(VTKFormat::BINARY);
@@ -505,15 +494,6 @@ int main(int argc, char *argv[])
       pd.SetCycle(0);
       pd.SetTime(0.0);
       pd.Save();
-   }
-
-   //Print times
-   if (myid == 0)
-   {
-      cout << "Elapsed Times\n";
-      cout << "Assembly (s) = " << assembly_timer.RealTime()<< endl;
-      cout << "Linear Solve (s) = " << linear_solve_timer.RealTime() << endl;
-      cout << "Total Solve (s) " << total_timer.RealTime() << endl;
    }
 
    return 0;
