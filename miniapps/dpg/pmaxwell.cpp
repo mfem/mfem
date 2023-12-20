@@ -1303,11 +1303,11 @@ void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E)
 
             // Bessel functions
             complex<real_t> Ho, Ho_r, Ho_rr;
-            Ho = jn(0, beta) + zi * yn(0, beta);
-            Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            Ho_rr = -k * k * (1.0 / beta *
-                              (jn(1, beta) + zi * yn(1, beta)) -
-                              (jn(2, beta) + zi * yn(2, beta)));
+            Ho = jn(0, beta) + (complex<double>) zi * yn(0, beta);
+            Ho_r = -k * complex<real_t>(jn(1, beta) + (complex<double>) zi * yn(1, beta));
+            Ho_rr = -k * k * complex<real_t>(1.0 / beta *
+                                             (jn(1, beta) + (complex<double>) zi * yn(1, beta)) -
+                                             (jn(2, beta) + (complex<double>) zi * yn(2, beta)));
 
             // First derivatives
             real_t r_x = x0 / r;
@@ -1316,9 +1316,9 @@ void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E)
             real_t r_xx = (1.0 / r) * (1.0 - r_x * r_x);
 
             complex<real_t> val, val_xx, val_xy;
-            val = 0.25 * zi * Ho;
-            val_xx = 0.25 * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
-            val_xy = 0.25 * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
+            val = real_t(0.25) * zi * Ho;
+            val_xx = real_t(0.25) * zi * (r_xx * Ho_r + r_x * r_x * Ho_rr);
+            val_xy = real_t(0.25) * zi * (r_xy * Ho_r + r_x * r_y * Ho_rr);
             E[0] = zi / k * (k * k * val + val_xx);
             E[1] = zi / k * val_xy;
          }
@@ -1338,15 +1338,15 @@ void maxwell_solution(const Vector & X, std::vector<complex<real_t>> &E)
 
             complex<real_t> val, val_r, val_rr;
             val = exp(zi * k * r) / r;
-            val_r = val / r * (zi * k * r - 1.0);
+            val_r = val / r * (zi * k * r - real_t(1.0));
             val_rr = val / (r * r) * (-k * k * r * r
-                                      - 2.0 * zi * k * r + 2.0);
+                                      - real_t(2) * zi * k * r + real_t(2));
 
             complex<real_t> val_xx, val_yx, val_zx;
             val_xx = val_rr * r_x * r_x + val_r * r_xx;
             val_yx = val_rr * r_x * r_y + val_r * r_yx;
             val_zx = val_rr * r_x * r_z + val_r * r_zx;
-            complex<real_t> alpha = zi * k / 4.0 / M_PI / k / k;
+            complex<real_t> alpha = zi * k / real_t(4.0) / real_t(M_PI) / k / k;
             E[0] = alpha * (k * k * val + val_xx);
             E[1] = alpha * val_yx;
             E[2] = alpha * val_zx;
@@ -1414,7 +1414,7 @@ void maxwell_solution_curlcurl(const Vector & X,
          std::complex<real_t> pw = exp(zi * omega * (X.Sum()));
          if (dim == 3)
          {
-            curlcurlE[0] = 2.0 * omega * omega * pw;
+            curlcurlE[0] = real_t(2) * omega * omega * pw;
             curlcurlE[1] = - omega * omega * pw;
             curlcurlE[2] = - omega * omega * pw;
          }

@@ -667,36 +667,38 @@ cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
       case 1:
          for (int n=0; delta > EPS; n+=1)
          {
-            const cdouble j(pow(-1,n)*pow(q,n*(n+1.0))*sin((2.0*n+1.0)*u));
+            const cdouble j(pow(-real_t(1),real_t(n))*pow(q,
+                                                          real_t(n*(n+1)))*sin(real_t(2*n+1)*u));
             delta = abs(j);
             J += j;
          }
-         return cdouble(2.0*pow(q,0.25)*J);
+         return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
 
       case 2:
          for (int n=0; delta > EPS; n+=1)
          {
-            const cdouble j(pow(q,n*(n+1))*cos((2.0*n+1.0)*u));
+            const cdouble j(pow(q,real_t(n*(n+1)))*cos(real_t(2*n+1)*u));
             delta = abs(j);
             J += j;
          }
-         return cdouble(2.0*pow(q,0.25)*J);
+         return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
       case 3:
          for (int n=1; delta > EPS; n+=1)
          {
-            const cdouble j(pow(q,n*n)*cos(2.0*n*u));
+            const cdouble j(pow(q,real_t(n*n))*cos(real_t(2*n)*u));
             delta = abs(j);
             J += j;
          }
-         return cdouble(1.0 + 2.0*J);
+         return cdouble(real_t(1) + real_t(2)*J);
       case 4:
          for (int n=1; delta > EPS; n+=1)
          {
-            const cdouble j(pow(-1,n)*pow(q,n*n)*cos(2.0*n*u));
+            const cdouble j(pow(-real_t(1),real_t(n))*pow(q,
+                                                          real_t(n*n))*cos(real_t(2*n)*u));
             delta = abs(j);
             J += j;
          }
-         return cdouble(1.0 + 2.0*J);
+         return cdouble(real_t(1) + real_t(2)*J);
    }
    return J;
 }
@@ -704,16 +706,16 @@ cdouble EllipticTheta(const int a, const cdouble u, const cdouble q)
 // https://dlmf.nist.gov/23.6#E5
 cdouble WeierstrassP(const cdouble z,
                      const cdouble w1 = 0.5,
-                     const cdouble w3 = 0.5*I)
+                     const cdouble w3 = real_t(0.5)*I)
 {
    const cdouble tau = w3/w1;
-   const cdouble q = exp(I*M_PI*tau);
-   const cdouble e1 = M_PI*M_PI/(12.0*w1*w1)*
-                      (1.0*pow(EllipticTheta(2,0,q),4) +
-                       2.0*pow(EllipticTheta(4,0,q),4));
-   const cdouble u = M_PI*z / (2.0*w1);
-   const cdouble P = M_PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
-                     EllipticTheta(2,u,q)/(2.0*w1*EllipticTheta(1,u,q));
+   const cdouble q = exp(I*PI*tau);
+   const cdouble e1 = PI*PI/(real_t(12)*w1*w1)*
+                      (pow(EllipticTheta(2,0,q),real_t(4)) +
+                       real_t(2)*pow(EllipticTheta(4,0,q),real_t(4)));
+   const cdouble u = PI*z / (real_t(2)*w1);
+   const cdouble P = PI * EllipticTheta(3,0,q)*EllipticTheta(4,0,q) *
+                     EllipticTheta(2,u,q)/(real_t(2)*w1*EllipticTheta(1,u,q));
    return P*P + e1;
 }
 
@@ -724,12 +726,12 @@ cdouble EllipticTheta1Prime(const int k, const cdouble u, const cdouble q)
    for (int n=0; delta > EPS; n+=1)
    {
       const real_t alpha = 2.0*n+1.0;
-      const cdouble Dcosine = pow(alpha,k)*sin(k*M_PI/2.0 + alpha*u);
-      const cdouble j(pow(-1,n)*pow(q,n*(n+1.0))*Dcosine);
+      const cdouble Dcosine = pow(alpha,real_t(k))*sin(k*PI/real_t(2) + alpha*u);
+      const cdouble j(pow(-real_t(1),real_t(n))*pow(q,real_t(n*(n+1)))*Dcosine);
       delta = abs(j);
       J += j;
    }
-   return cdouble(2.0*pow(q,0.25)*J);
+   return cdouble(real_t(2)*pow(q,real_t(0.25))*J);
 }
 
 // Logarithmic Derivative of Theta Function 1
@@ -739,27 +741,27 @@ cdouble LogEllipticTheta1Prime(const cdouble u, const cdouble q)
    real_t delta = std::numeric_limits<real_t>::max();
    for (int n=1; delta > EPS; n+=1)
    {
-      cdouble q2n = pow(q, 2*n);
+      cdouble q2n = pow(q, real_t(2*n));
       if (abs(q2n) < EPS) { q2n = 0.0; }
-      const cdouble j = q2n/(1.0-q2n)*sin(2.0*n*u);
+      const cdouble j = q2n/(real_t(1)-q2n)*sin(real_t(2*n)*u);
       delta = abs(j);
       J += j;
    }
-   return 1.0/tan(u) + 4.0*J;
+   return real_t(1)/tan(u) + real_t(4)*J;
 }
 
 // https://dlmf.nist.gov/23.6#E13
 cdouble WeierstrassZeta(const cdouble z,
                         const cdouble w1 = 0.5,
-                        const cdouble w3 = 0.5*I)
+                        const cdouble w3 = real_t(0.5)*I)
 {
    const cdouble tau = w3/w1;
-   const cdouble q = exp(I*M_PI*tau);
-   const cdouble n1 = -M_PI*M_PI/(12.0*w1) *
+   const cdouble q = exp(I*PI*tau);
+   const cdouble n1 = -PI*PI/(real_t(12)*w1) *
                       (EllipticTheta1Prime(3,0,q)/
                        EllipticTheta1Prime(1,0,q));
-   const cdouble u = M_PI*z / (2.0*w1);
-   return z*n1/w1 + M_PI/(2.0*w1)*LogEllipticTheta1Prime(u,q);
+   const cdouble u = PI*z / (real_t(2)*w1);
+   return z*n1/w1 + PI/(real_t(2)*w1)*LogEllipticTheta1Prime(u,q);
 }
 
 // https://www.mathcurve.com/surfaces.gb/costa/costa.shtml
@@ -832,14 +834,14 @@ struct Costa: public Surface
       if (y_top) { v = 1.0 - x[1]; }
       if (x_top) { u = 1.0 - x[0]; }
       const cdouble w = u + I*v;
-      const cdouble w3 = I/2.;
+      const cdouble w3 = I/real_t(2);
       const cdouble w1 = 1./2.;
       const cdouble pw = WeierstrassP(w);
       const cdouble e1 = WeierstrassP(0.5);
       const cdouble zw = WeierstrassZeta(w);
       const cdouble dw = WeierstrassZeta(w-w1) - WeierstrassZeta(w-w3);
-      p[0] = real(PI*(u+PI/(4.*e1))- zw +PI/(2.*e1)*(dw));
-      p[1] = real(PI*(v+PI/(4.*e1))-I*zw-PI*I/(2.*e1)*(dw));
+      p[0] = real(PI*(u+PI/(real_t(4)*e1))- zw +PI/(real_t(2)*e1)*(dw));
+      p[1] = real(PI*(v+PI/(real_t(4)*e1))-I*zw-PI*I/(real_t(2)*e1)*(dw));
       p[2] = sqrt(PI/2.)*log(abs((pw-e1)/(pw+e1)));
       if (y_top) { p[1] *= -1.0; }
       if (x_top) { p[0] *= -1.0; }
