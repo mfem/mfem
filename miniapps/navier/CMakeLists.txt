@@ -10,20 +10,10 @@
 # CONTRIBUTING.md for details.
 
 if (MFEM_USE_MPI)
-  list(APPEND NAVIER_COMMON_SOURCES
-      navier_solver.cpp)
-  list(APPEND NAVIER_COMMON_HEADERS
-      navier_solver.hpp)
-
-  convert_filenames_to_full_paths(NAVIER_COMMON_SOURCES)
-  convert_filenames_to_full_paths(NAVIER_COMMON_HEADERS)
-
-  set(NAVIER_COMMON_FILES
-      EXTRA_SOURCES ${NAVIER_COMMON_SOURCES}
-      EXTRA_HEADERS ${NAVIER_COMMON_HEADERS})
+add_subdirectory(lib)
 
   add_mfem_miniapp(navier_mms
-    MAIN navier_mms.cpp
+    MAIN examples/navier_mms.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
@@ -84,4 +74,4 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_POSTFLAGS})
     endforeach()
 endif()
-endif ()
+endif () #MFEM_USE_MPI
