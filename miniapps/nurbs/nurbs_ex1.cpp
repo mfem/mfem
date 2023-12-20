@@ -269,8 +269,6 @@ int main(int argc, char *argv[])
          slave.Load(in, psize);
          in.close();
       }
-      master.Print();
-      slave.Print();
       NURBSext->ConnectBoundaries(master,slave);
    }
    else if (order[0] == -1) // Isoparametric
@@ -328,36 +326,64 @@ int main(int argc, char *argv[])
    //    converting them to a list of true dofs.
    Array<int> ess_bdr(0);
    Array<int> neu_bdr(0);
+   Array<int> per_bdr(0);
    if (mesh->bdr_attributes.Size())
    {
       ess_bdr.SetSize(mesh->bdr_attributes.Max());
       neu_bdr.SetSize(mesh->bdr_attributes.Max());
-   }
-   ess_bdr = 1;
-   neu_bdr = 0;
+      per_bdr.SetSize(mesh->bdr_attributes.Max());
 
-   // Apply periodic BCs
-   for (int i = 0; i < master.Size(); i++)
-   {
-      ess_bdr[master[i]-1] = 0;
-      ess_bdr[slave[i]-1] = 0;
-   }
+      ess_bdr = 1;
+      neu_bdr = 0;
+      per_bdr = 0;
 
-   // Apply Neumann BCs
-   for (int i = 0; i < neu.Size(); i++)
-   {
-      if ( neu[i]-1 >= 0 &&
-           neu[i]-1 < mesh->bdr_attributes.Max())
+      // Apply Neumann BCs
+      for (int i = 0; i < neu.Size(); i++)
       {
-         ess_bdr[neu[i]-1] = 0;
-         neu_bdr[neu[i]-1] = 1;
+         if ( neu[i]-1 >= 0 &&
+              neu[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[neu[i]-1] = 0;
+            neu_bdr[neu[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
+         }
       }
-      else
+
+      // Correct for periodic BCs
+      for (int i = 0; i < master.Size(); i++)
       {
-         cout <<"Neumann boundary "<<neu[i]<<" out of range -- discarded"<< endl;
+         if ( master[i]-1 >= 0 &&
+              master[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[master[i]-1] = 0;
+            neu_bdr[master[i]-1] = 0;
+            per_bdr[master[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Master boundary "<<master[i]<<" out of range -- discarded"<< endl;
+         }
+      }
+      for (int i = 0; i < slave.Size(); i++)
+      {
+         if ( slave[i]-1 >= 0 &&
+              slave[i]-1 < mesh->bdr_attributes.Max())
+         {
+            ess_bdr[slave[i]-1] = 0;
+            neu_bdr[slave[i]-1] = 0;
+            per_bdr[slave[i]-1] = 1;
+         }
+         else
+         {
+            cout <<"Slave boundary "<<slave[i]<<" out of range -- discarded"<< endl;
+         }
       }
    }
    cout <<"Boundary conditions:"<< endl;
+   cout <<" - Periodic  : "; per_bdr.Print();
    cout <<" - Essential : "; ess_bdr.Print();
    cout <<" - Neumann   : "; neu_bdr.Print();
 
@@ -366,11 +392,12 @@ int main(int argc, char *argv[])
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
 
    LinearForm *b = new LinearForm(fespace);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one));
+   b->AddBoundaryIntegrator( new BoundaryLFIntegrator(one),neu_bdr);
    if (!strongBC)
       b->AddBdrFaceIntegrator(
          new DGDirichletLFIntegrator(zero, one, -1.0, kappa), ess_bdr);
@@ -394,11 +421,12 @@ int main(int argc, char *argv[])
    else
    {
       a->AddDomainIntegrator(new Diffusion2Integrator(one));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(mone, 0.0, 0.0), neu_bdr);
    }
 
    if (!strongBC)
    {
-      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa));
+      a->AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, kappa), ess_bdr);
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -410,7 +438,7 @@ int main(int argc, char *argv[])
 
    SparseMatrix A;
    Vector B, X;
-   Array<int> ess_tdof_list;
+   Array<int> ess_tdof_list(0);
    if (strongBC)
    {
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
