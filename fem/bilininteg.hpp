@@ -3065,6 +3065,9 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 };
 
+/// @brief Integrator that computes the PA action of one of the blocks in an
+/// ElasticityIntegrator, considering the elasticity operator as a dim x dim
+/// block operator.
 class ElasticityComponentIntegrator : public BilinearFormIntegrator
 {
    ElasticityIntegrator &parent;
