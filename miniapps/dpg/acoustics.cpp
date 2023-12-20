@@ -609,8 +609,8 @@ complex<real_t> acoustics_solution(const Vector & X)
          real_t r = y + 1./y/(fact*fact);
 
          // pressure
-         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * real_t(M_PI) * x * x/rl/r +
+                              zi*phi0/real_t(2);
 
          real_t pf = pow(2.0/M_PI/(w*w),0.25);
          return pf*exp(ze);
@@ -670,13 +670,16 @@ void acoustics_solution_grad(const Vector & X, vector<complex<real_t>> & dp)
          real_t r = y + 1./y/(fact*fact);
          real_t drdy = 1. - 1./(y*y)/(fact*fact);
 
-         // pressure
-         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
+         constexpr real_t r2 = 2.0;
+         const real_t rPI = M_PI;
 
-         complex<real_t> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<real_t> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
-                                 (r*r)*drdy + zi*dphi0dy/2.;
+         // pressure
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * rPI * x * x/rl/r +
+                              zi*phi0/r2;
+
+         complex<real_t> zdedx = -r2*x/(w*w) - r2*zi*rPI*x/rl/r;
+         complex<real_t> zdedy = r2*x*x/(w*w*w)*dwdy - zi*rk + zi*rPI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/r2;
 
          real_t pf = pow(2.0/M_PI/(w*w),0.25);
          real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;
@@ -743,19 +746,22 @@ complex<real_t> acoustics_solution_laplacian(const Vector & X)
          real_t drdy = 1. - 1./(y*y)/(fact*fact);
          real_t d2rdydy = 2./(y*y*y)/(fact*fact);
 
-         // pressure
-         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * M_PI * x * x/rl/r +
-                              zi*phi0/2.;
+         constexpr real_t r2 = 2.0;
+         const real_t rPI = M_PI;
 
-         complex<real_t> zdedx = -2.*x/(w*w) - 2.*zi*M_PI*x/rl/r;
-         complex<real_t> zdedy = 2.*x*x/(w*w*w)*dwdy - zi*rk + zi*M_PI*x*x/rl/
-                                 (r*r)*drdy + zi*dphi0dy/2.;
-         complex<real_t> zd2edxdx = -2./(w*w) - 2.*zi*M_PI/rl/r;
-         complex<real_t> zd2edxdy = 4.*x/(w*w*w)*dwdy + 2.*zi*M_PI*x/rl/(r*r)*drdy;
+         // pressure
+         complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * rPI * x * x/rl/r +
+                              zi*phi0/r2;
+
+         complex<real_t> zdedx = -r2*x/(w*w) - r2*zi*rPI*x/rl/r;
+         complex<real_t> zdedy = r2*x*x/(w*w*w)*dwdy - zi*rk + zi*rPI*x*x/rl/
+                                 (r*r)*drdy + zi*dphi0dy/r2;
+         complex<real_t> zd2edxdx = -r2/(w*w) - r2*zi*rPI/rl/r;
+         complex<real_t> zd2edxdy = real_t(4)*x/(w*w*w)*dwdy + r2*zi*rPI*x/rl/(r*r)*drdy;
          complex<real_t> zd2edydx = zd2edxdy;
-         complex<real_t> zd2edydy = -6.*x*x/(w*w*w*w)*dwdy*dwdy + 2.*x*x/
-                                    (w*w*w)*d2wdydy - 2.*zi*M_PI*x*x/rl/(r*r*r)*drdy*drdy
-                                    + zi*M_PI*x*x/rl/(r*r)*d2rdydy + zi/2.*d2phi0dydy;
+         complex<real_t> zd2edydy = -real_t(6)*x*x/(w*w*w*w)*dwdy*dwdy + r2*x*x/
+                                    complex<real_t>(w*w*w)*d2wdydy - r2*zi*rPI*x*x/rl/(r*r*r)*drdy*drdy
+                                    + zi*rPI*x*x/rl/(r*r)*d2rdydy + zi/r2*d2phi0dydy;
 
          real_t pf = pow(2.0/M_PI/(w*w),0.25);
          real_t dpfdy = -pow(2./M_PI/(w*w),-0.75)/M_PI/(w*w*w)*dwdy;

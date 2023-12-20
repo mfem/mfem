@@ -143,12 +143,14 @@ void CartesianPML::StretchFunction(const Vector &x,
       if (x(i) >= comp_dom_bdr(i, 1))
       {
          coeff = n * c / k / pow(length(i, 1), n);
-         dxs[i] = 1.0 + zi * coeff * std::abs(pow(x(i) - comp_dom_bdr(i, 1), n - 1.0));
+         dxs[i] = real_t(1.0) + zi * real_t(coeff * std::abs(pow(x(i) - comp_dom_bdr(i,
+                                                                                     1), n - 1.0)));
       }
       if (x(i) <= comp_dom_bdr(i, 0))
       {
          coeff = n * c / k / pow(length(i, 0), n);
-         dxs[i] = 1.0 + zi * coeff * std::abs(pow(x(i) - comp_dom_bdr(i, 0), n - 1.0));
+         dxs[i] = real_t(1.0) + zi * real_t(coeff * std::abs(pow(x(i) - comp_dom_bdr(i,
+                                                                                     0), n - 1.0)));
       }
    }
 }
@@ -198,7 +200,7 @@ void Jt_J_detJinv_r_function(const Vector & x, CartesianPML * pml,
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      M(i,i) = (pow(dxs[i], 2)/det).real();
+      M(i,i) = (pow(dxs[i], real_t(2))/det).real();
    }
 }
 
@@ -214,7 +216,7 @@ void Jt_J_detJinv_i_function(const Vector & x, CartesianPML * pml,
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      M(i,i) = (pow(dxs[i], 2)/det).imag();
+      M(i,i) = (pow(dxs[i], real_t(2))/det).imag();
    }
 }
 
@@ -230,7 +232,7 @@ void abs_Jt_J_detJinv_2_function(const Vector & x, CartesianPML * pml,
    M=0.0;
    for (int i = 0; i<dim; ++i)
    {
-      std::complex<real_t> a = pow(dxs[i], 2)/det;
+      std::complex<real_t> a = pow(dxs[i], real_t(2))/det;
       M(i,i) = a.imag() * a.imag() + a.real() * a.real();
    }
 }
@@ -250,7 +252,7 @@ void detJ_Jt_J_inv_r_function(const Vector &x, CartesianPML * pml,
    M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).real();
+      M(i, i) = (det / pow(dxs[i], real_t(2))).real();
    }
 }
 
@@ -267,7 +269,7 @@ void detJ_Jt_J_inv_i_function(const Vector &x, CartesianPML * pml,
    M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      M(i, i) = (det / pow(dxs[i], 2)).imag();
+      M(i, i) = (det / pow(dxs[i], real_t(2))).imag();
    }
 }
 
@@ -284,7 +286,7 @@ void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
    M = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      std::complex<real_t> a = det / pow(dxs[i], 2);
+      std::complex<real_t> a = det / pow(dxs[i], real_t(2));
       M(i, i) = a.real()*a.real() + a.imag()*a.imag();
    }
 }

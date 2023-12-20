@@ -762,11 +762,11 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
 
             // Bessel functions
             complex<real_t> Ho, Ho_r, Ho_rr;
-            Ho = jn(0, beta) + zi * yn(0, beta);
-            Ho_r = -k * (jn(1, beta) + zi * yn(1, beta));
-            Ho_rr = -k * k * ((real_t) 1.0 / beta *
-                              (jn(1, beta) + zi * yn(1, beta)) -
-                              (jn(2, beta) + zi * yn(2, beta)));
+            Ho = jn(0, beta) + (complex<double>) zi * yn(0, beta);
+            Ho_r = -k * complex<real_t>(jn(1, beta) + (complex<double>) zi * yn(1, beta));
+            Ho_rr = -k * k * complex<real_t>(1.0 / beta *
+                                             (jn(1, beta) + (complex<double>) zi * yn(1, beta)) -
+                                             (jn(2, beta) + (complex<double>) zi * yn(2, beta)));
 
             // First derivatives
             real_t r_x = x0 / r;
@@ -918,7 +918,7 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).real();
+      D(i) = (det / pow(dxs[i], real_t(2))).real();
    }
 }
 
@@ -935,7 +935,7 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], 2)).imag();
+      D(i) = (det / pow(dxs[i], real_t(2))).imag();
    }
 }
 
@@ -952,7 +952,7 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = abs(det / pow(dxs[i], 2));
+      D(i) = abs(det / pow(dxs[i], real_t(2)));
    }
 }
 
@@ -976,7 +976,7 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).real();
+         D(i) = (pow(dxs[i], real_t(2)) / det).real();
       }
    }
 }
@@ -1000,7 +1000,7 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], 2) / det).imag();
+         D(i) = (pow(dxs[i], real_t(2)) / det).imag();
       }
    }
 }
@@ -1024,7 +1024,7 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = abs(pow(dxs[i], 2) / det);
+         D(i) = abs(pow(dxs[i], real_t(2)) / det);
       }
    }
 }
