@@ -1,6 +1,6 @@
 #include "navierstokes_operator.hpp"
 #include "util.hpp"
-#include <caliper/cali.h>
+#include "navier_annotation.hpp"
 
 using namespace mfem;
 
@@ -88,7 +88,7 @@ NavierStokesOperator::NavierStokesOperator(ParFiniteElementSpace &vel_fes,
 
 void NavierStokesOperator::MultImplicit(const Vector &xb, Vector &yb) const
 {
-   CALI_MARK_BEGIN("MultImplicit");
+   NAVIER_PERF_BEGIN("MultImplicit");
 
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
@@ -104,12 +104,12 @@ void NavierStokesOperator::MultImplicit(const Vector &xb, Vector &yb) const
    yp = 0.0;
    yu.SetSubVector(vel_ess_tdofs, 0.0);
 
-   CALI_MARK_END("MultImplicit");
+   NAVIER_PERF_END("MultImplicit");
 }
 
 void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
 {
-   CALI_MARK_BEGIN("NavierStokesOperator::MultExplicit");
+   NAVIER_PERF_BEGIN("NavierStokesOperator::MultExplicit");
 
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
@@ -127,7 +127,7 @@ void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
    yp = 0.0;
    yu.SetSubVector(vel_ess_tdofs, 0.0);
 
-   CALI_MARK_END("NavierStokesOperator::MultExplicit");
+   NAVIER_PERF_END("NavierStokesOperator::MultExplicit");
 }
 
 void NavierStokesOperator::Mult(const Vector &xb, Vector &yb) const
@@ -177,9 +177,9 @@ void NavierStokesOperator::Solve(Vector &b, Vector &x)
    ProjectVelocityDirichletBC(xu);
    ProjectPressureDirichletBC(xp);
 
-   CALI_MARK_BEGIN("Newton");
+   NAVIER_PERF_BEGIN("Newton");
    newton.Mult(b, x);
-   CALI_MARK_END("Newton");
+   NAVIER_PERF_END("Newton");
 }
 
 int NavierStokesOperator::SUNImplicitSetup(const Vector &x, const Vector &fx,
@@ -238,7 +238,7 @@ int NavierStokesOperator::SUNMassSolve(const Vector &bb, Vector &xb, double tol)
 
 void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
 {
-   CALI_MARK_BEGIN("NavierStokesOperator::Step");
+   NAVIER_PERF_BEGIN("NavierStokesOperator::Step");
 
    FGMRESSolver krylov(MPI_COMM_WORLD);
    krylov.SetRelTol(1e-4);
@@ -292,9 +292,9 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          ProjectPressureDirichletBC(Y.GetBlock(1));
 
          // Orthogonalize(Y.GetBlock(1));
-         CALI_MARK_BEGIN("Newton");
+         NAVIER_PERF_BEGIN("Newton");
          newton.Mult(z, Y);
-         CALI_MARK_END("Newton");
+         NAVIER_PERF_END("Newton");
          X = Y;
       }
    }
@@ -424,9 +424,9 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          ProjectPressureDirichletBC(Y.GetBlock(1));
 
          // Orthogonalize(Y.GetBlock(1));
-         CALI_MARK_BEGIN("Newton");
+         NAVIER_PERF_BEGIN("Newton");
          newton.Mult(z, Y);
-         CALI_MARK_END("Newton");
+         NAVIER_PERF_END("Newton");
 
          MultImplicit(Y, FI2);
          MultExplicit(Y, FE2);
@@ -455,15 +455,15 @@ void NavierStokesOperator::Step(BlockVector &X, double &t, const double dt)
          ProjectPressureDirichletBC(Y.GetBlock(1));
 
          // Orthogonalize(Y.GetBlock(1));
-         CALI_MARK_BEGIN("Newton");
+         NAVIER_PERF_BEGIN("Newton");
          newton.Mult(z, Y);
-         CALI_MARK_END("Newton");
+         NAVIER_PERF_END("Newton");
          X = Y;
       }
    }
 
    t += dt;
-   CALI_MARK_END("NavierStokesOperator::Step");
+   NAVIER_PERF_END("NavierStokesOperator::Step");
 }
 
 void NavierStokesOperator::ProjectVelocityDirichletBC(Vector &v)
@@ -636,7 +636,7 @@ void NavierStokesOperator::SetForcing(VectorCoefficient *f)
 /// @brief Assemble all forms and matrices
 void NavierStokesOperator::Assemble()
 {
-   CALI_MARK_BEGIN("NavierStokesOperator::Assemble");
+   NAVIER_PERF_BEGIN("NavierStokesOperator::Assemble");
    if (k_form == nullptr)
    {
       MFEM_ABORT("use SetParameters() first")
@@ -683,12 +683,12 @@ void NavierStokesOperator::Assemble()
       forcing_form->Assemble();
       forcing_form->ParallelAssemble(fu_rhs);
    }
-   CALI_MARK_END("NavierStokesOperator::Assemble");
+   NAVIER_PERF_END("NavierStokesOperator::Assemble");
 }
 
 void NavierStokesOperator::RebuildPC(const Vector &x)
 {
-   CALI_MARK_BEGIN("NavierStokesOperator::RebuildPC");
+   NAVIER_PERF_BEGIN("NavierStokesOperator::RebuildPC");
 
    Array<int> empty;
    BilinearFormIntegrator *integrator = nullptr;
@@ -826,7 +826,7 @@ void NavierStokesOperator::RebuildPC(const Vector &x)
    block_pc->SetBlock(1, 0, D.Ptr());
    block_pc->SetBlock(1, 1, Sinv);
 
-   CALI_MARK_END("NavierStokesOperator::RebuildPC");
+   NAVIER_PERF_END("NavierStokesOperator::RebuildPC");
 }
 
 const Array<int>& NavierStokesOperator::GetOffsets() const

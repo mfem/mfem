@@ -1,7 +1,7 @@
 #include "transient_newton_residual.hpp"
 #include "navierstokes_operator.hpp"
 #include "util.hpp"
-#include <caliper/cali.h>
+#include "navier_annotation.hpp"
 
 using namespace mfem;
 
@@ -12,7 +12,7 @@ TransientNewtonResidual::TransientNewtonResidual(NavierStokesOperator &nav) :
 
 void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
 {
-   CALI_MARK_BEGIN("TransientNewtonResidual::Mult");
+   NAVIER_PERF_BEGIN("TransientNewtonResidual::Mult");
    const BlockVector x(xb.GetData(), nav.offsets);
    BlockVector y(yb.GetData(), nav.offsets);
 
@@ -37,7 +37,7 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
 
    yu.SetSubVector(nav.vel_ess_tdofs, 0.0);
    yp.SetSubVector(nav.pres_ess_tdofs, 0.0);
-   CALI_MARK_BEGIN("TransientNewtonResidual::Mult");
+   NAVIER_PERF_BEGIN("TransientNewtonResidual::Mult");
 }
 
 Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
