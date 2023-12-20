@@ -167,6 +167,7 @@ MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_TRIBOL        = NO
+MFEM_USE_AXOM          = $(MFEM_USE_TRIBOL)
 MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
@@ -572,9 +573,18 @@ PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 
 # Tribol library configuration
-TRIBOL_DIR = @MFEM_DIR@/../../tribol/repo/install-mfem-miniapp-debug/
-TRIBOL_OPT = -I$(PARELAG_DIR)/include
-TRIBOL_LIB = -L$(PARELAG_DIR)/lib -ltribol -lredecomp
+TRIBOL_DIR = @MFEM_DIR@/../tribol
+TRIBOL_OPT = -I$(TRIBOL_DIR)/include
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp
+
+# Axom library configuration
+AXOM_DIR = @MFEM_DIR@/../axom
+AXOM_OPT = -I$(AXOM_DIR)/include
+AXOM_LIB = -Wl,-rpath,$(AXOM_DIR)/lib $(AXOM_DIR)/lib/libaxom_quest.so\
+   $(AXOM_DIR)/lib/libaxom_slam.so $(AXOM_DIR)/lib/libaxom_quest.so\
+   $(AXOM_DIR)/lib/libaxom_mint.so $(AXOM_DIR)/lib/libaxom_sidre.so\
+   $(AXOM_DIR)/lib/libaxom_slic.so $(AXOM_DIR)/lib/libaxom_lumberjack.so\
+   $(AXOM_DIR)/lib/libaxom_core.so
 
 # Enzyme configuration
 

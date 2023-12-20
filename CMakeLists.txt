@@ -488,7 +488,12 @@ endif()
 
 # Tribol
 if (MFEM_USE_TRIBOL)
-   find_package(Tribol REQUIRED)
+   find_package(tribol REQUIRED)
+endif()
+
+# Axom
+if (MFEM_USE_AXOM)
+   find_package(axom REQUIRED)
 endif()
 
 # Enzyme
