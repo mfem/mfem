@@ -107,7 +107,7 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
 typedef float real_t;
 #else
 typedef double real_t;

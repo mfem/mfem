@@ -73,14 +73,14 @@ MFEM_DEVICE inline real_t atomicAdd(real_t *add, real_t val)
    {
       reg = old;
       old = atomicCAS(ptr, reg,
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
                       __float_as_int(val + __int_as_float(reg)));
 #else
                       __double_as_longlong(val + __longlong_as_double(reg)));
 #endif
    }
    while (reg != old);
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    return __int_as_float(old);
 #else
    return __longlong_as_double(old);

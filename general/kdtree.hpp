@@ -619,7 +619,7 @@ private:
    }
 };
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
 /// Defines KDTree in 3D
 typedef KDTree<int,float,3> KDTree3D;
 

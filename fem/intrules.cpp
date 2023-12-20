@@ -469,7 +469,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          if (done) { break; }
 
          dz = p1/pp;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
          if (std::abs(dz) < 1e-7)
 #else
          if (std::abs(dz) < 1e-16)
@@ -588,7 +588,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 
             // compute dx = resid/deriv
             real_t dx = (x_i*p_l - p_lm1) / (np*p_l);
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
             if (std::abs(dx) < 1e-7)
 #else
             if (std::abs(dx) < 1e-16)

@@ -33,7 +33,7 @@
 
 
 #ifdef MFEM_USE_LAPACK
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
 extern "C" void
 sgemm_(char *, char *, int *, int *, int *, float *, float *,
        int *, float *, int *, float *, float *, int *);
@@ -738,7 +738,7 @@ void DenseMatrix::Invert()
    real_t qwork, *work;
    int    info;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgetrf_(&width, &width, data, &width, ipiv, &info);
 #else
    dgetrf_(&width, &width, data, &width, ipiv, &info);
@@ -749,7 +749,7 @@ void DenseMatrix::Invert()
       mfem_error("DenseMatrix::Invert() : Error in DGETRF");
    }
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
@@ -999,7 +999,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
 #else
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
@@ -1013,7 +1013,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    WORK  = new real_t[LWORK];
    IWORK = new int[LIWORK];
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
 #else
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
@@ -1159,7 +1159,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
       A[i] = data[i];
    }
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
 #else
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
@@ -1168,7 +1168,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
    LWORK = (int) QWORK;
    WORK = new real_t[LWORK];
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
 #else
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
@@ -1247,7 +1247,7 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
       B[i] = b_data[i];
    }
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
 #else
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
@@ -1256,7 +1256,7 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    LWORK = (int) QWORK;
    WORK = new real_t[LWORK];
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
 #else
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
@@ -1312,7 +1312,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    int         info;
    real_t      qwork;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
 #else
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
@@ -1322,7 +1322,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
    lwork = (int) qwork;
    work = new real_t[lwork];
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
 #else
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
@@ -2490,7 +2490,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static real_t alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
@@ -2518,7 +2518,7 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
    static real_t beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
@@ -2554,7 +2554,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static real_t alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
@@ -2878,7 +2878,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
@@ -2987,7 +2987,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static real_t alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
@@ -3086,7 +3086,7 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
    static real_t beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
@@ -3147,7 +3147,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
 #else
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
@@ -3371,7 +3371,7 @@ bool LUFactors::Factor(int m, real_t TOL)
 {
 #ifdef MFEM_USE_LAPACK
    int info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m) { sgetrf_(&m, &m, data, &m, ipiv, &info); }
 #else
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
@@ -3527,7 +3527,7 @@ void LUFactors::Solve(int m, int n, real_t *X) const
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
    int  info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m > 0 && n > 0) { sgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
 #else
    if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
@@ -3548,7 +3548,7 @@ void LUFactors::RightSolve(int m, int n, real_t *X) const
    real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
       strsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       strsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
 #else
@@ -3731,7 +3731,7 @@ bool CholeskyFactors::Factor(int m, real_t TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m) {spotrf_(&uplo, &m, data, &m, &info);}
 #else
    if (m) {dpotrf_(&uplo, &m, data, &m, &info);}
@@ -3827,7 +3827,7 @@ void CholeskyFactors::LSolve(int m, int n, real_t * X) const
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
 #else
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
@@ -3861,7 +3861,7 @@ void CholeskyFactors::USolve(int m, int n, real_t * X) const
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
 #else
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
@@ -3891,7 +3891,7 @@ void CholeskyFactors::Solve(int m, int n, real_t * X) const
 #ifdef MFEM_USE_LAPACK
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    spotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
 #else
    dpotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
@@ -3916,7 +3916,7 @@ void CholeskyFactors::RightSolve(int m, int n, real_t * X) const
    real_t alpha = 1.0;
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
       strsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
       strsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
 #else
@@ -3970,7 +3970,7 @@ void CholeskyFactors::GetInverseMatrix(int m, real_t * X) const
    }
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    spotri_(&uplo, &m, X, &m, &info);
 #else
    dpotri_(&uplo, &m, X, &m, &info);
@@ -4158,7 +4158,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    uplo = 'U';
    lwork = -1;
    real_t qwork;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
 #else
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
@@ -4191,7 +4191,7 @@ void DenseMatrixEigensystem::Eval()
 #endif
 
    EVect = mat;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
 #else
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
@@ -4248,7 +4248,7 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
    int nl = max(1,Vl.Height());
    int nr = max(1,Vr.Height());
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
 #else
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
@@ -4267,7 +4267,7 @@ void DenseMatrixGeneralizedEigensystem::Eval()
 
    A_copy = A;
    B_copy = B;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
 #else
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
@@ -4354,7 +4354,7 @@ void DenseMatrixSVD::Init()
    sv.SetSize(min(m, n));
    real_t qwork;
    lwork = -1;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
 #else
    dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
@@ -4395,7 +4395,7 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
       datavt = Vt.Data();
    }
    Mc = M;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
 #else
    dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,

@@ -202,6 +202,6 @@
 #cmakedefine MFEM_USE_ENZYME
 
 // Use single-precision floating point type
-#cmakedefine MFEM_USE_FLOAT
+#cmakedefine MFEM_USE_SINGLE
 
 #endif // MFEM_CONFIG_HEADER

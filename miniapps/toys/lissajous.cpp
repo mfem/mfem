@@ -176,7 +176,7 @@ void lissajous_trans(const Vector &x, Vector &p,
       // real_t tangent[3] = { -b_*B*sin(b_*t), b_*B*cos(b_*t), A*a_*cos(a_*t+delta_) };
 
       // normalized cross product of tangent and normal at p(t)
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
       real_t cn = 1e-32;
 #else
       real_t cn = 1e-128;

@@ -202,6 +202,6 @@
 // #define MFEM_USE_ENZYME
 
 // Use single-precision floating point type
-// #define MFEM_USE_FLOAT
+// #define MFEM_USE_SINGLE
 
 #endif // MFEM_CONFIG_HEADER
