@@ -161,13 +161,17 @@ int main(int argc, char *argv[])
    //    space. If using partial assembly, also assemble the low order refined
    //    (LOR) fespace.
    H1_FECollection fec(order, dim);
-   ParFiniteElementSpace fespace(&pmesh, &fec, dim,
-                                 reorder_space ? Ordering::byNODES : Ordering::byVDIM);
+   const Ordering::Type fes_ordering =
+      reorder_space ? Ordering::byNODES : Ordering::byVDIM;
+   ParFiniteElementSpace fespace(&pmesh, &fec, dim, fes_ordering);
+   ParFiniteElementSpace scalar_fespace(&pmesh, &fec, 1, fes_ordering);
    unique_ptr<ParLORDiscretization> LOR_disc;
+   unique_ptr<ParFiniteElementSpace> scalar_lor_fespace;
    if (pa || componentwise_action)
    {
       LOR_disc.reset(new ParLORDiscretization(fespace));
-      LOR_disc->GetParFESpace();
+      scalar_lor_fespace.reset(new ParFiniteElementSpace(
+                                  LOR_disc->GetParFESpace().GetParMesh(), &fec, 1, fes_ordering));
    }
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (Mpi::Root())
@@ -299,13 +303,10 @@ int main(int argc, char *argv[])
       lor_integrator.AssemblePA(LOR_disc->GetParFESpace());
       for (int j = 0; j < dim; j++)
       {
+         ElasticityComponentIntegrator *block = new ElasticityComponentIntegrator(
+            lor_integrator, j, j);
          //create the LOR matrix and corresponding AMG preconditioners.
-         auto *block = static_cast<decltype(integrator)*>
-                       (lor_integrator.ComponentIntegrator(j,j));
-         auto *fes_block = dynamic_cast<ParFiniteElementSpace*>
-                           (const_cast<FiniteElementSpace*>
-                            (block->GetFESpace()));//If get fespace was part of bilinear form, wouldn't need static_cast above.
-         bilinear_forms.emplace_back(new ParBilinearForm(fes_block));
+         bilinear_forms.emplace_back(new ParBilinearForm(scalar_lor_fespace.get()));
          bilinear_forms[j]->SetAssemblyLevel(AssemblyLevel::FULL);
          bilinear_forms[j]->EnableSparseMatrixSorting(Device::IsEnabled());
          bilinear_forms[j]->AddDomainIntegrator(block);
@@ -315,7 +316,7 @@ int main(int argc, char *argv[])
          Array<int> ess_tdof_list_block, ess_bdr_block(pmesh.bdr_attributes.Max());
          ess_bdr_block = 0;
          ess_bdr_block[0] = 1;
-         fes_block->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
+         scalar_lor_fespace->GetEssentialTrueDofs(ess_bdr_block, ess_tdof_list_block);
          lor_block.emplace_back(bilinear_forms[j]->ParallelAssemble());
          lor_block[j]->EliminateBC(ess_tdof_list_block,
                                    Operator::DiagonalPolicy::DIAG_ONE);//not sure which diagonal policy to use
@@ -329,16 +330,13 @@ int main(int argc, char *argv[])
          {
             for (int i = 0; i < dim; i++)
             {
-               auto *action_block = static_cast<decltype(integrator)*>
-                                    (integrator.ComponentIntegrator(
-                                        i,j));
-               auto *action_fes_block = dynamic_cast<ParFiniteElementSpace*>
-                                        (const_cast<FiniteElementSpace*>(action_block->GetFESpace()));
+               ElasticityComponentIntegrator *action_block = new ElasticityComponentIntegrator(
+                  integrator, i, j);
                if (i == j)
                {
-                  fespaces.emplace_back(action_fes_block);
+                  fespaces.emplace_back(&scalar_fespace);
                }
-               pa_components.emplace_back(new ParBilinearForm(action_fes_block));
+               pa_components.emplace_back(new ParBilinearForm(&scalar_fespace));
                pa_components[i + dim*j]->SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL :
                                                           AssemblyLevel::FULL);
                pa_components[i + dim*j]->EnableSparseMatrixSorting(Device::IsEnabled());
@@ -354,16 +352,14 @@ int main(int argc, char *argv[])
          //Create diagonal high order partial assembly operators.
          for (int i = 0; i < dim; i++)
          {
-            auto *block = static_cast<decltype(integrator)*>(integrator.ComponentIntegrator(
-                                                                i,i));
-            auto *fes_block = dynamic_cast<ParFiniteElementSpace*>
-                              (const_cast<FiniteElementSpace*>(block->GetFESpace()));
-            fes_block->GetEssentialTrueDofs(ess_bdr_block_ho, ess_tdof_list_block_ho);
-            ho_bilinear_form_blocks.emplace_back(new ParBilinearForm(fes_block));
+            ElasticityComponentIntegrator *block = new ElasticityComponentIntegrator(
+               integrator, i, i);
+            scalar_fespace.GetEssentialTrueDofs(ess_bdr_block_ho, ess_tdof_list_block_ho);
+            ho_bilinear_form_blocks.emplace_back(new ParBilinearForm(&scalar_fespace));
             ho_bilinear_form_blocks[i]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
             ho_bilinear_form_blocks[i]->AddDomainIntegrator(block);
             ho_bilinear_form_blocks[i]->Assemble();
-            const auto *prolong = fes_block->GetProlongationMatrix();
+            const auto *prolong = scalar_fespace.GetProlongationMatrix();
             auto *rap = new RAPOperator(*prolong, *ho_bilinear_form_blocks[i], *prolong);
             diag_ho.emplace_back(new ConstrainedOperator(rap, ess_tdof_list_block_ho, true,
                                                          Operator::DiagonalPolicy::DIAG_ONE));

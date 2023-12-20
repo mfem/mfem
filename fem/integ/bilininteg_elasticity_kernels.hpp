@@ -46,45 +46,55 @@ namespace mfem
 
 namespace internal
 {
-/// @brief Assert that the CoefficientStorage type is supported by the kernel.
-/// For now, CoefficientStorage is inferred from the size of the cv, ir, and fespace.
-/// The kernels currently only support CoefficientVectors created with CoefficientStorage::FULL.
-void ElastAssertCompressionSupported(const CoefficientVector &cv,
-                                     const IntegrationRule &ir, const FiniteElementSpace &fespace);
 
 /// @brief Elasticity kernel for AddMultPA.
 ///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not
-/// use tensor basis, so it should work for any H1 element. IBlock and JBlock
-/// are the dimensional component that is integrated. They must both be
-/// either non-negative or both be negative. Negative values imply that the
-/// whole dimensional system is evaluated. Otherwise, only one block of the
-/// system is evaluated.
+/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
+/// tensor basis, so it should work for any H1 element.
 ///
-/// Example: In 2D, A = [A_00  A_01],  x = [x_0],  y = [y_0]
-///                     [A_10  A_11]       [x_1]       [y_1].
-/// So IBlock = 0, JBlock = 1 implies only y_0 += A_01*x_1 is evaluated.
-///
-/// The sizes of x, y, and Q depend on whether or not a single component is
-/// evaluated. Also, fespace is either a vector or scalar space depending on if
-/// a single component is used.
 /// @param[in] dim 2 or 3
 /// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] fespace Vector (IBlock, JBlock<0) or scalar FE space.
+/// @param[in] fespace Vector-valued finite element space.
 /// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for first Lame param.
+/// @param[in] mu Quadrature function for second Lame param.
 /// @param[in] geom Geometric factors corresponding to fespace.
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param[in] x Input vector. nDofs x dim x numEls or nDofs x numEls.
-/// @param Q Scratch Q-Vector. nQuad x dim x dim x numEls or nQuad x dim x numEls.
-/// @param[in,out] y Ax gets added to this. nDofs x dim x numEls or nDofs x numEls.
-/// @param[in] IBlock The row dimensional component. <= dim - 1
-/// @param[in] JBlock The column dimensional component. <= dim -1
+/// @param[in] x Input vector. nDofs x dim x numEls.
+/// @param Q Scratch Q-Vector. nQuad x dim x dim x numEls.
+/// @param[in,out] y Ax gets added to this. nDofs x dim x numEls.
 void ElasticityAddMultPA(const int dim, const int nDofs,
                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
                          const CoefficientVector &mu, const GeometricFactors &geom,
-                         const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y,
-                         const int IBlock = -1, const int JBlock = -1);
+                         const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y);
+
+/// @brief Elasticity component kernel for AddMultPA.
+///
+/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
+/// tensor basis, so it should work for any H1 element. i_block and j_block are
+/// the dimensional component that is integrated. They must both be
+/// non-negative.
+///
+/// Example: In 2D, A = [A_00  A_01],  x = [x_0],  y = [y_0]
+///                     [A_10  A_11]       [x_1]       [y_1].
+/// So i_block = 0, j_block = 1 implies only y_0 += A_01*x_1 is evaluated.
+///
+/// @param[in] dim 2 or 3
+/// @param[in] nDofs Number of scalar dofs per element.
+/// @param[in] fespace Scalar-valued finite element space.
+/// @param[in] lambda Quadrature function for first Lame param.
+/// @param[in] mu Quadrature function for second Lame param.
+/// @param[in] geom Geometric factors corresponding to fespace.
+/// @param[in] maps DofToQuad maps for one element (assume elements all same).
+/// @param[in] x Input vector. nDofs x numEls.
+/// @param Q Scratch Q-Vector. nQuad x dim x numEls.
+/// @param[in,out] y Ax gets added to this. nDofs x numEls.
+/// @param[in] i_block The row dimensional component. <= dim - 1
+/// @param[in] j_block The column dimensional component. <= dim -1
+void ElasticityComponentAddMultPA(
+   const int dim, const int nDofs, const FiniteElementSpace &fespace,
+   const CoefficientVector &lambda, const CoefficientVector &mu,
+   const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
+   QuadratureFunction &QVec, Vector &y, const int i_block, const int j_block);
 
 /// @brief Elasticity kernel for AssembleEA.
 ///
@@ -93,72 +103,67 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 ///
 /// Example: In 2D, A = [A_00  A_01]
 ///                     [A_10  A_11].
-/// So IBlock = 0, JBlock = 1 implies only A_01 is assembled.
+/// So i_block = 0, j_block = 1 implies only A_01 is assembled.
 ///
 /// Mainly intended to be used for order 1 elements on gpus to enable
 /// preconditioning with a LOR-AMG operator. It's expected behavior that higher
-/// orders may request too many resources and crash.
+/// orders may request too many resources.
+///
 /// @param[in] dim 2 or 3
-/// @param[in] IBlock The row dimensional component. 0 <= IBlock <= dim - 1
-/// @param[in] JBlock The column dimensional component. 0 <= JBlock<= dim -1
+/// @param[in] i_block The row dimensional component. 0 <= i_block <= dim - 1
+/// @param[in] j_block The column dimensional component. 0 <= j_block<= dim -1
 /// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] fespace Scalar FE space.
 /// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for first Lame param.
+/// @param[in] mu Quadrature function for second Lame param.
 /// @param[in] geom Geometric factors corresponding to fespace.
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
 /// @param[out] emat Resulting E-Matrix Vector. nDofs x nDofs x numEls.
-void ElasticityAssembleEA(const int dim, const int IBlock, const int JBlock,
+void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
                           const int nDofs, const IntegrationRule &ir,
-                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                          const CoefficientVector &lambda,
                           const CoefficientVector &mu, const GeometricFactors &geom,
                           const DofToQuad &maps, Vector &emat);
 
-/// @brief Elasticity kernel for AssembleDiagonalPA. Whole system only.
+/// @brief Elasticity kernel for AssembleDiagonalPA.
 ///
 /// @param[in] dim 2 or 3
 /// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] fespace Vector (IBlock, JBlock<0) or scalar FE space.
 /// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for first Lame param.
+/// @param[in] mu Quadrature function for second Lame param.
 /// @param[in] geom Geometric factors corresponding to fespace.
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
 /// @param QVec Scratch Q-Vector. nQuad x dim x dim x dim x dim x numEls.
 /// @param[out] diag diagonal of A. nDofs x dim x numEls.
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
-                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
+                                  const CoefficientVector &lambda,
                                   const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag);
 
 /// Templated implementation of ElasticityAddMultPA.
-template<int dim, int IBlock = -1, int JBlock = -1>
-void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
-                         const CoefficientVector &lambda, const CoefficientVector &mu,
-                         const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
-                         QuadratureFunction &QVec, Vector &y)
+template<int dim, int i_block = -1, int j_block = -1>
+void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
+                          const CoefficientVector &lambda, const CoefficientVector &mu,
+                          const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
+                          QuadratureFunction &QVec, Vector &y)
 {
-   static_assert((IBlock < 0) == (JBlock < 0),
-                 "IBlock and JBlock must both be non-negative or strictly negative.");
+   static_assert((i_block < 0) == (j_block < 0),
+                 "i_block and j_block must both be non-negative or strictly negative.");
    static constexpr int d = dim;
-   static constexpr int qLower = (IBlock < 0) ? 0 : IBlock;
-   static constexpr int qUpper = (IBlock < 0) ? d : IBlock+1;
+   static constexpr int qLower = (i_block < 0) ? 0 : i_block;
+   static constexpr int qUpper = (i_block < 0) ? d : i_block+1;
    static constexpr int qSize = qUpper-qLower;
-   static constexpr int aLower = (JBlock < 0) ? 0 : JBlock;
-   static constexpr int aUpper = (JBlock < 0) ? d : JBlock+1;
+   static constexpr int aLower = (j_block < 0) ? 0 : j_block;
+   static constexpr int aUpper = (j_block < 0) ? d : j_block+1;
    static constexpr int aSize = aUpper-aLower;
-   static constexpr bool isComponent = (IBlock >= 0);
+   static constexpr bool isComponent = (i_block >= 0);
 
    //Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
-   ElastAssertCompressionSupported(lambda, ir,fespace);
-   ElastAssertCompressionSupported(mu, ir,fespace);
    const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
                                                  ir);
    E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
-   //interpolate physical derivatives to quadrature points.
-   Vector junk;
-   E_To_Q_Map->Mult(x,QuadratureInterpolator::PHYSICAL_DERIVATIVES, junk,
-                    QVec, junk);
+   // interpolate physical derivatives to quadrature points.
+   E_To_Q_Map->PhysDerivatives(x, QVec);
 
    const int numPoints = ir.GetNPoints();
    const int numEls = lambda.Size()/numPoints;
@@ -215,7 +220,8 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
                {
                   for (int a = 0; a < d; a++)
                   {
-                     contraction += 2*((a == q)*invJ(m,JBlock) + (JBlock==q)*invJ(m,a))*(gradx(0,a));
+                     contraction += 2*((a == q)*invJ(m,j_block) + (j_block==q)*invJ(m,a))*(gradx(0,
+                                                                                                 a));
                   }
                }
                else
@@ -238,7 +244,7 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
       }
    });
 
-   //Reduce quadrature function to an E-Vector
+   // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(QVec.Read(), numPoints, d, qSize, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, numEls);
    auto yDev = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
@@ -265,15 +271,13 @@ void ElasticityAddMultPA(const int nDofs, const FiniteElementSpace &fespace,
 
 /// Templated implementation of ElasticityAssembleDiagonalPA.
 template<int dim>
-void ElasticityAssembleDiagonalPA(const int nDofs,
-                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
-                                  const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
+void ElasticityAssembleDiagonalPA_(const int nDofs,
+                                   const CoefficientVector &lambda,
+                                   const CoefficientVector &mu, const GeometricFactors &geom,
+                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
 {
    //Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
-   ElastAssertCompressionSupported(lambda, ir,fespace);
-   ElastAssertCompressionSupported(mu, ir,fespace);
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
    const int numEls = lambda.Size()/numPoints;
@@ -346,17 +350,19 @@ void ElasticityAssembleDiagonalPA(const int nDofs,
 
 //Templated implementation of ElasticityAssembleEA.
 template<int dim>
-void ElasticityAssembleEA(const int IBlock, const int JBlock, const int nDofs,
-                          const IntegrationRule &ir,
-                          const FiniteElementSpace &fespace, const CoefficientVector &lambda,
-                          const CoefficientVector &mu, const GeometricFactors &geom,
-                          const DofToQuad &maps, Vector &emat)
+void ElasticityAssembleEA_(const int i_block,
+                           const int j_block,
+                           const int nDofs,
+                           const IntegrationRule &ir,
+                           const CoefficientVector &lambda,
+                           const CoefficientVector &mu,
+                           const GeometricFactors &geom,
+                           const DofToQuad &maps,
+                           Vector &emat)
 {
    //Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
-   ElastAssertCompressionSupported(lambda, ir,fespace);
-   ElastAssertCompressionSupported(mu, ir,fespace);
    const int numEls = lambda.Size()/numPoints;
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
@@ -386,14 +392,14 @@ void ElasticityAssembleEA(const int IBlock, const int JBlock, const int nDofs,
                      {
                         for (int b = 0; b < d; b++)
                         {
-                           contraction += ((a == IBlock)*invJ(m,b) + (b==IBlock)*invJ(m,
-                                                                                      a))*((a == JBlock)*invJ(n,
-                                                                                            b) + (b==JBlock)*invJ(n,a));
+                           contraction += ((a == i_block)*invJ(m,b) + (b==i_block)*invJ(m,
+                                                                                        a))*((a == j_block)*invJ(n,
+                                                                                              b) + (b==j_block)*invJ(n,a));
                         }
                      }
                      // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                      // contraction = 4*sym(grad(u))sym(grad(v))
-                     sum += w*(lamDev(p, e)*invJ(m,IBlock)*invJ(n,JBlock)
+                     sum += w*(lamDev(p, e)*invJ(m,i_block)*invJ(n,j_block)
                                + 0.5*muDev(p, e)*contraction)*G(p,m,IDof)*G(p,n,JDof);
                   }
                }
