@@ -17,45 +17,60 @@ add_subdirectory(lib)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(navier_mms2
+    MAIN examples/navier_mms2.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   add_mfem_miniapp(navier_kovasznay
-    MAIN navier_kovasznay.cpp
+    MAIN examples/navier_kovasznay.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_kovasznay_vs
-    MAIN navier_kovasznay_vs.cpp
+    MAIN examples/navier_kovasznay_vs.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_tgv
-    MAIN navier_tgv.cpp
+    MAIN examples/navier_tgv.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_shear
-    MAIN navier_shear.cpp
+    MAIN examples/navier_shear.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_3dfoc
-    MAIN navier_3dfoc.cpp
+    MAIN examples/navier_3dfoc.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   add_mfem_miniapp(navier_turbchan
-    MAIN navier_turbchan.cpp
+    MAIN examples/navier_turbchan.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(navier_tgv2d
+    MAIN examples/navier_tgv2d.cpp
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
   if (MFEM_USE_GSLIB)
     add_mfem_miniapp(navier_cht
-      MAIN navier_cht.cpp
+      MAIN examples/navier_cht.cpp
+      ${NAVIER_COMMON_FILES}
+      LIBRARIES mfem)
+
+    add_mfem_miniapp(navier_fsi
+      MAIN examples/navier_fsi.cpp
       ${NAVIER_COMMON_FILES}
       LIBRARIES mfem)
 
     LIST(APPEND NAVIER_MESH_FILES
-        fluid-cht.mesh
-        solid-cht.mesh)
+        examples/fluid-cht.mesh
+        examples/solid-cht.mesh)
     foreach(MESH_FILE ${NAVIER_MESH_FILES})
         add_custom_command(
           TARGET navier_cht POST_BUILD #OUTPUT ${MESH_FILE}
