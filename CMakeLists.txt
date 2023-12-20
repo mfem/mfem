@@ -486,6 +486,11 @@ if (MFEM_USE_PARELAG)
    find_package(PARELAG REQUIRED)
 endif()
 
+# Tribol
+if (MFEM_USE_TRIBOL)
+   find_package(Tribol REQUIRED)
+endif()
+
 # Enzyme
 if (MFEM_USE_ENZYME)
    find_package(ENZYME REQUIRED)

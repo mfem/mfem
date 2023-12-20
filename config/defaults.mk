@@ -166,6 +166,7 @@ MFEM_USE_ADFORWARD     = NO
 MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
@@ -569,6 +570,11 @@ MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Tribol library configuration
+TRIBOL_DIR = @MFEM_DIR@/../../tribol/repo/install-mfem-miniapp-debug/
+TRIBOL_OPT = -I$(PARELAG_DIR)/include
+TRIBOL_LIB = -L$(PARELAG_DIR)/lib -ltribol -lredecomp
 
 # Enzyme configuration
 
