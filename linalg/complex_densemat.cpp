@@ -13,7 +13,7 @@
 #include <complex>
 
 #ifdef MFEM_USE_LAPACK
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
 extern "C" void
 cgetrf_(int *, int *, std::complex<float> *, int *, int *, int *);
 extern "C" void
@@ -175,7 +175,7 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
    std::complex<real_t> qwork, *work;
    int    info;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    cgetrf_(&w, &w, data, &w, ipiv, &info);
 #else
    zgetrf_(&w, &w, data, &w, ipiv, &info);
@@ -185,7 +185,7 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
       mfem_error("DenseMatrix::Invert() : Error in ZGETRF");
    }
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    cgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
 #else
    zgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
@@ -193,7 +193,7 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
    lwork = (int) qwork.real();
    work = new std::complex<real_t>[lwork];
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    cgetri_(&w, data, &w, ipiv, work, &lwork, &info);
 #else
    zgetri_(&w, data, &w, ipiv, work, &lwork, &info);
@@ -487,7 +487,7 @@ bool ComplexLUFactors::Factor(int m, real_t TOL)
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m) { cgetrf_(&m, &m, data, &m, ipiv, &info); }
 #else
    if (m) { zgetrf_(&m, &m, data, &m, ipiv, &info); }
@@ -653,7 +653,7 @@ void ComplexLUFactors::Solve(int m, int n, real_t *X_r, real_t * X_i) const
    std::complex<real_t> * x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
    char trans = 'N';
    int  info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m > 0 && n > 0) { cgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
 #else
    if (m > 0 && n > 0) { zgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
@@ -677,7 +677,7 @@ void ComplexLUFactors::RightSolve(int m, int n, real_t *X_r, real_t * X_i) const
    if (m > 0 && n > 0)
    {
       std::complex<real_t> alpha(1.0,0.0);
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
       ctrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       ctrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
 #else
@@ -805,7 +805,7 @@ bool ComplexCholeskyFactors::Factor(int m, real_t TOL)
    int info = 0;
    char uplo = 'L';
    MFEM_VERIFY(data, "Matrix data not set");
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    if (m) {cpotrf_(&uplo, &m, data, &m, &info);}
 #else
    if (m) {zpotrf_(&uplo, &m, data, &m, &info);}
@@ -909,7 +909,7 @@ void ComplexCholeskyFactors::LSolve(int m, int n, real_t * X_r,
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
 #else
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
@@ -946,7 +946,7 @@ void ComplexCholeskyFactors::USolve(int m, int n, real_t * X_r,
    char diag = 'N';
    int info = 0;
 
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
 #else
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
@@ -978,7 +978,7 @@ void ComplexCholeskyFactors::Solve(int m, int n, real_t * X_r,
    char uplo = 'L';
    int info = 0;
    std::complex<real_t> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    cpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
 #else
    zpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
@@ -1008,7 +1008,7 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, real_t * X_r,
    std::complex<real_t> alpha(1.0,0.0);
    if (m > 0 && n > 0)
    {
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
       ctrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
       ctrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
 #else
@@ -1065,7 +1065,7 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, real_t * X_r,
    }
    char uplo = 'L';
    int info = 0;
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    cpotri_(&uplo, &m, X, &m, &info);
 #else
    zpotri_(&uplo, &m, X, &m, &info);

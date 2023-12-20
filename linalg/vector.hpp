@@ -698,7 +698,7 @@ inline real_t InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
    // TODO: ifdef for float/double?
    // TODO: including communication.hpp not working for MPITypeMap<real_t>::mpi_type
    //MPI_Allreduce(&loc_prod, &glb_prod, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-#ifdef MFEM_USE_FLOAT
+#ifdef MFEM_USE_SINGLE
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_FLOAT, MPI_SUM, comm);
 #else
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
