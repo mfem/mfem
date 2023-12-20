@@ -182,7 +182,7 @@ public:
 
    /// Builds the KDTree. If the point cloud is modified the tree
    /// needs to be rebuild by a new call to Sort().
-   virtual void Sort() override
+   void Sort() override
    {
       SortInPlace(data.begin(),data.end(),0);
    }
@@ -194,7 +194,7 @@ public:
    }
 
    /// Adds a new node by coordinates and an associated index
-   virtual void AddPoint(const Tfloat *xx,Tindex ii) override
+   void AddPoint(const Tfloat *xx,Tindex ii) override
    {
       data.emplace_back(xx, ii);
    }
@@ -212,7 +212,7 @@ public:
       return data[best_candidate.pos].ind;
    }
 
-   virtual Tindex FindClosestPoint(const Tfloat *xx) const override
+   Tindex FindClosestPoint(const Tfloat *xx) const override
    {
       return FindClosestPoint(PointND(xx));
    }
