@@ -274,7 +274,7 @@ miniapps/navier/navier_fsi
 miniapps/navier/test_filter
 miniapps/navier/navier_tgv2d
 miniapps/navier/navier_cht
-miniapps/navier/tgv_out*.txt
+miniapps/navier/tgv_out/*
 miniapps/navier/output/*
 
 
