@@ -5,7 +5,7 @@
 
 #include "mfem.hpp"
 
-#include "redecomp/redecomp.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
 
 int main(int argc, char *argv[])
 {

@@ -9,16 +9,12 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
+# Defines the following variables:
+#   - TRIBOL_FOUND
+#   - TRIBOL_LIBRARIES
+#   - TRIBOL_INCLUDE_DIRS
 
-  add_mfem_miniapp(ContactPatchTest
-    MAIN ContactPatchTest.cpp
-    LIBRARIES mfem)
-
-# The way the libraries are included, by default, in the command line is based
-# on the idea that MFEM depends on the other libraries. Here, the setting is
-# such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
-# Tribol. This addresses that issue.
-  target_link_libraries(ContactPatchTest PUBLIC ${TPL_LIBRARIES} mfem)
-
-endif()
+include(MfemCmakeUtilities)
+# Note: components are enabled based on the find_package() parameters.
+mfem_find_package(Tribol TRIBOL TRIBOL_DIR "include" tribol/config.hpp "lib" "tribol;redecomp"
+  "Paths to headers required by Tribol." "Libraries required by Tribol.")
