@@ -16,6 +16,7 @@
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
+#include "qfunction.hpp"
 #include <memory>
 
 namespace mfem
@@ -2978,10 +2979,6 @@ public:
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
 };
 
-// Forward declarations
-class CoefficientVector;
-class QuadratureFunction;
-
 /** Integrator for the linear elasticity form:
     a(u,v) = (lambda div(u), div(v)) + (2 mu e(u), e(v)),
     where e(v) = (1/2) (grad(v) + grad(v)^T).
@@ -2989,6 +2986,8 @@ class QuadratureFunction;
     using multiple copies of a scalar FE space. */
 class ElasticityIntegrator : public BilinearFormIntegrator
 {
+   friend class ElasticityComponentIntegrator;
+
 protected:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
@@ -3001,22 +3000,20 @@ private:
 #endif
 
    // PA extension
-   std::shared_ptr<CoefficientVector> lambda_quad, mu_quad;
-   std::shared_ptr<QuadratureFunction> q_vec;
-   std::shared_ptr<QuadratureSpace> quad_space;
 
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
    int vdim, ndofs;
    const FiniteElementSpace *fespace;   ///< Not owned.
 
-   //Component integrator
-   int IBlock = -1;
-   int JBlock = -1;
-   /// @brief Pointer to an integrator from which a component integrator is
-   /// derived. Should be nullptr for the original integrator. Not owned.
-   ElasticityIntegrator *parent = nullptr;
-   std::shared_ptr<const FiniteElementSpace> componentFESpace = nullptr;
+   std::unique_ptr<QuadratureSpace> q_space;
+   /// Coefficients projected onto q_space
+   std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
+   /// Workspace vector
+   std::unique_ptr<QuadratureFunction> q_vec;
+
+   /// Set up the quadrature space and project lambda and mu coefficients
+   void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
@@ -3026,19 +3023,11 @@ public:
    ElasticityIntegrator(Coefficient &m, double q_l, double q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
-   virtual void AssembleElementMatrix(const FiniteElement &,
-                                      ElementTransformation &,
-                                      DenseMatrix &);
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      DenseMatrix &elmat);
 
-   /** \brief Interpolate the coefficient onto a QuadratureFunction. This is
-    * performed on host for now, since coefficients do not run on device.
-    */
    virtual void AssemblePA(const FiniteElementSpace &fes);
-
-   /** \brief Only valid for a component version of ElasticityIntegrator.
-    */
-   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
-                           const bool add = true);
 
    virtual void AssembleDiagonalPA(Vector &diag);
 
@@ -3046,19 +3035,6 @@ public:
 
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
-   /** @brief Get a scalar component of a vector integrator.
-
-       For BilinearFormIntegrators which are written for finite element spaces
-       that are copies of scalar elements, this creates a new integrator for
-       the \f$(I,J)\f$th component block where \f$0 \leq I,J \leq \text{dim} - 1\f$. The caller
-       assumes ownership of the returned BilinearFormIntegrator.
-
-       @param[in] I  Row component block index.
-       @param[in] J  Column component block index.
-       @returns Integrator of \f$(I,J)\f$th component block.
-    */
-   BilinearFormIntegrator* ComponentIntegrator(const int I,
-                                               const int J);
    /** Compute the stress corresponding to the local displacement @a u and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
        part of the stress is stored, so that the size of @a flux is equal to
@@ -3087,10 +3063,37 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+};
 
-   //This would be generally useful for these "component integrators". Starting
-   //to look like this should be a child class.
-   const FiniteElementSpace* GetFESpace() const;
+/// @brief Integrator that computes the PA action of one of the blocks in an
+/// ElasticityIntegrator, considering the elasticity operator as a dim x dim
+/// block operator.
+class ElasticityComponentIntegrator : public BilinearFormIntegrator
+{
+   ElasticityIntegrator &parent;
+   const int i_block;
+   const int j_block;
+
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   const FiniteElementSpace *fespace;   ///< Not owned.
+
+public:
+   /// @brief Given an ElasticityIntegrator, create an integrator that
+   /// represents the \f$(i,j)\f$th component block.
+   ///
+   /// @note The parent ElasticityIntegrator must remain valid throughout the
+   /// lifetime of this integrator.
+   ElasticityComponentIntegrator(ElasticityIntegrator &parent_, int i_, int j_);
+
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add = true);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the DG form:

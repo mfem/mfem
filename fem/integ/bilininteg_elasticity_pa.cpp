@@ -17,86 +17,102 @@
 namespace mfem
 {
 
+void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
+   const FiniteElementSpace &fes)
+{
+   if (IntRule == nullptr)
+   {
+      // This is where it's assumed that all elements are the same.
+      const auto &T = *fes.GetElementTransformation(0);
+      int quad_order = 2 * T.OrderGrad(fes.GetFE(0));
+      IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
+   }
+
+   Mesh &mesh = *fespace->GetMesh();
+
+   q_space.reset(new QuadratureSpace(mesh, *IntRule));
+   lambda_quad.reset(new CoefficientVector(lambda, *q_space,
+                                           CoefficientStorage::FULL));
+   mu_quad.reset(new CoefficientVector(mu, *q_space, CoefficientStorage::FULL));
+   q_vec.reset(new QuadratureFunction(*q_space, vdim*vdim));
+}
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   if (parent)
-   {
-      // This is a component integrator, so just make sure monolithic operator
-      // is assembled.
-      parent->AssemblePA(fes);
-      return;
-   }
-   const bool alreadyAssembled = bool(lambda_quad);
-   if (alreadyAssembled)
-   {
-      // Don't reassemble vectors.
-      return;
-   }
    MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
                "Elasticity PA only implemented for byNODES ordering.");
 
    fespace = &fes;
-   const auto el = fespace->GetFE(0);
-   ndofs = el->GetDof();
-   const auto mesh = fespace->GetMesh();
+   Mesh &mesh = *fespace->GetMesh();
+   MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
    vdim = fespace->GetVDim();
-   const IntegrationRule *ir = IntRule;
-   if (ir == nullptr)
-   {
-      //This is where it's assumed that all elements are the same.
-      const auto Trans = fespace->GetElementTransformation(0);
-      int order = 2 * Trans->OrderGrad(el);
-      IntRule = &IntRules.Get(el->GetGeomType(), order);
-   }
-   geom = mesh->GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
-   quad_space = std::make_shared<QuadratureSpace>(*mesh, *IntRule);
-   lambda_quad = std::make_shared<CoefficientVector>(lambda, *quad_space,
-                                                     CoefficientStorage::FULL);
-   mu_quad = std::make_shared<CoefficientVector>(mu, *quad_space,
-                                                 CoefficientStorage::FULL);
-   q_vec = std::make_shared<QuadratureFunction>(*quad_space, vdim*vdim);
+   ndofs = fespace->GetFE(0)->GetDof();
+
+   SetUpQuadratureSpaceAndCoefficients(fes);
+
    auto ordering = GetEVectorOrdering(*fespace);
    auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
                DofToQuad::LEXICOGRAPHIC_FULL;
    maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+   geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
 }
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    q_vec->SetVDim(vdim*vdim*vdim*vdim);
-   internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *fespace, *lambda_quad,
-                                          *mu_quad, *geom, *maps, *q_vec, diag);
+   internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
+                                          *geom, *maps, *q_vec, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (!parent)
-   {
-      q_vec->SetVDim(vdim*vdim);
-   }
-   else
-   {
-      //If it has a parent, it is a component integrator.
-      q_vec->SetVDim(vdim);
-   }
-
    internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
-                                 *geom, *maps, x, *q_vec, y, IBlock, JBlock);
+                                 *geom, *maps, x, *q_vec, y);
 }
 
 void ElasticityIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   if (!parent)
+   AddMultPA(x, y); // Operator is symmetric
+}
+
+void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   fespace = &fes;
+
+   // Avoid projecting the coefficients more than once. If the coefficients
+   // change, the parent ElasticityIntegrator must be reassembled.
+   if (!parent.q_space)
    {
-      AddMultPA(x, y);
+      parent.SetUpQuadratureSpaceAndCoefficients(fes);
    }
    else
    {
-      //This block operator is symmetric, so simply switch IBlock and JBlock.
-      internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
-                                    *geom, *maps, x, *q_vec, y, JBlock, IBlock);
+      IntRule = parent.IntRule;
    }
+
+   auto ordering = GetEVectorOrdering(*fespace);
+   auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
+               DofToQuad::LEXICOGRAPHIC_FULL;
+   geom = fes.GetMesh()->GetGeometricFactors(*IntRule,
+                                             GeometricFactors::JACOBIANS);
+   maps = &fespace->GetFE(0)->GetDofToQuad(*IntRule, mode);
+}
+
+void ElasticityComponentIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   internal::ElasticityComponentAddMultPA(
+      parent.vdim, parent.ndofs, *fespace, *parent.lambda_quad, *parent.mu_quad,
+      *geom, *maps, x, *parent.q_vec, y, i_block, j_block);
+}
+
+void ElasticityComponentIntegrator::AddMultTransposePA(const Vector &x,
+                                                       Vector &y) const
+{
+   // Each block in the operator is symmetric, so we can just switch the roles
+   // of i_block and j_block
+   internal::ElasticityComponentAddMultPA(
+      parent.vdim, parent.ndofs, *fespace, *parent.lambda_quad, *parent.mu_quad,
+      *geom, *maps, x, *parent.q_vec, y, j_block, i_block);
 }
 
 } // namespace mfem
