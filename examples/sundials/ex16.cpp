@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   std::unique_ptr<Mesh> mesh(new Mesh(mesh_file, 1, 1));
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
    // 4. Define the vector finite element space representing the current and the
    //    initial temperature, u_ref.
    H1_FECollection fe_coll(order, dim);
-   FiniteElementSpace fespace(mesh, &fe_coll);
+   FiniteElementSpace fespace(mesh.get(), &fe_coll);
 
    int fe_size = fespace.GetTrueVSize();
    cout << "Number of temperature unknowns: " << fe_size << endl;
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
       u_gf.Save(osol);
    }
 
-   VisItDataCollection visit_dc("Example16", mesh);
+   VisItDataCollection visit_dc("Example16", mesh.get());
    visit_dc.RegisterField("temperature", &u_gf);
    if (visit)
    {
@@ -259,37 +259,42 @@ int main(int argc, char *argv[])
 
    // 7. Define the ODE solver used for time integration.
    double t = 0.0;
-   ODESolver *ode_solver = NULL;
-   CVODESolver *cvode = NULL;
-   ARKStepSolver *arkode = NULL;
+   std::unique_ptr<ODESolver> ode_solver;
    switch (ode_solver_type)
    {
       // MFEM explicit methods
-      case 1: ode_solver = new ForwardEulerSolver; break;
-      case 2: ode_solver = new RK2Solver(0.5); break; // midpoint method
-      case 3: ode_solver = new RK3SSPSolver; break;
-      case 4: ode_solver = new RK4Solver; break;
+      case 1: ode_solver = std::make_unique<ForwardEulerSolver>(); break;
+      case 2: ode_solver = std::make_unique<RK2Solver>(0.5); break; // midpoint method
+      case 3: ode_solver = std::make_unique<RK3SSPSolver>(); break;
+      case 4: ode_solver = std::make_unique<RK4Solver>(); break;
       // MFEM implicit L-stable methods
-      case 5: ode_solver = new BackwardEulerSolver; break;
-      case 6: ode_solver = new SDIRK23Solver(2); break;
-      case 7: ode_solver = new SDIRK33Solver; break;
+      case 5: ode_solver = std::make_unique<BackwardEulerSolver>(); break;
+      case 6: ode_solver = std::make_unique<SDIRK23Solver>(2); break;
+      case 7: ode_solver = std::make_unique<SDIRK33Solver>(); break;
       // CVODE
       case 8:
-         cvode = new CVODESolver(CV_ADAMS);
+      {
+         std::unique_ptr<CVODESolver> cvode(new CVODESolver(CV_ADAMS));
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
+         ode_solver = std::move(cvode);
+         break;
+      }
       case 9:
-         cvode = new CVODESolver(CV_BDF);
+      {
+         std::unique_ptr<CVODESolver> cvode(new CVODESolver(CV_BDF));
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
-         ode_solver = cvode; break;
+         ode_solver = std::move(cvode);
+         break;
+      }
       // ARKODE
       case 10:
       case 11:
-         arkode = new ARKStepSolver(ARKStepSolver::EXPLICIT);
+      {
+         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(ARKStepSolver::EXPLICIT));
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
@@ -297,13 +302,18 @@ int main(int argc, char *argv[])
          {
             arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
          }
-         ode_solver = arkode; break;
+         ode_solver = std::move(arkode);
+         break;
+      }
       case 12:
-         arkode = new ARKStepSolver(ARKStepSolver::IMPLICIT);
+      {
+         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(ARKStepSolver::IMPLICIT));
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         ode_solver = arkode; break;
+         ode_solver = std::move(arkode);
+         break;
+      }
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
@@ -311,8 +321,14 @@ int main(int argc, char *argv[])
 
    // Since we want to update the diffusion coefficient after every time step,
    // we need to use the "one-step" mode of the SUNDIALS solvers.
-   if (cvode) { cvode->SetStepMode(CV_ONE_STEP); }
-   if (arkode) { arkode->SetStepMode(ARK_ONE_STEP); }
+   if (CVODESolver* cvode = dynamic_cast<CVODESolver*>(ode_solver.get()))
+   {
+      cvode->SetStepMode(CV_ONE_STEP);
+   }
+   else if (ARKStepSolver* arkode = dynamic_cast<ARKStepSolver*>(ode_solver.get()))
+   {
+      arkode->SetStepMode(ARK_ONE_STEP);
+   }
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -337,8 +353,14 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
          cout << "step " << ti << ", t = " << t << endl;
-         if (cvode) { cvode->PrintInfo(); }
-         if (arkode) { arkode->PrintInfo(); }
+         if (CVODESolver* cvode = dynamic_cast<CVODESolver*>(ode_solver.get()))
+         {
+            cvode->PrintInfo();
+         }
+         else if (ARKStepSolver* arkode = dynamic_cast<ARKStepSolver*>(ode_solver.get()))
+         {
+            arkode->PrintInfo();
+         }
 
          u_gf.SetFromTrueDofs(u);
          if (visualization)
@@ -365,10 +387,6 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u_gf.Save(osol);
    }
-
-   // 10. Free the used memory.
-   delete ode_solver;
-   delete mesh;
 
    return 0;
 }
