@@ -3576,7 +3576,6 @@ void NURBSExtension::Generate3DBdrElementDofTable()
          if (fn == 4) { s = -1; }
          if (fn == 1) { s = -1; }
          if (fn == 0) { s = -1; }
-         if (add_dofs) { cout<<fn<<endl; }
       }
       else if (mode == Mode::H_CURL)
       {
@@ -3614,8 +3613,8 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                         }
                      }
                      bel_to_patch[lbe] = b;
-                     bel_to_IJK(lbe,0) = i;//(okv[0] >= 0) ? i : (-1-i);
-                     bel_to_IJK(lbe,1) = j;//(okv[1] >= 0) ? j : (-1-j);
+                     bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
+                     bel_to_IJK(lbe,1) = (okv[1] >= 0) ? j : (-1-j);
                      lbe++;
                   }
                   gbe++;
