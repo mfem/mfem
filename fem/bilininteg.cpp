@@ -3016,6 +3016,12 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 }
 
+ElasticityComponentIntegrator::ElasticityComponentIntegrator(
+   ElasticityIntegrator &parent_, int i_, int j_)
+   : parent(parent_),
+     i_block(i_),
+     j_block(j_)
+{ }
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
@@ -3097,46 +3103,6 @@ void ElasticityIntegrator::AssembleElementMatrix(
             }
       }
    }
-}
-
-BilinearFormIntegrator* ElasticityIntegrator::ComponentIntegrator(const int I,
-                                                                  const int J)
-{
-   //Make sure this isn't already a component integrator.
-   MFEM_VERIFY(!parent,
-               "Cannot get component. This integrator is already a component.");
-   auto compIntegrator = new ElasticityIntegrator(*this);
-   compIntegrator->IBlock = I;
-   compIntegrator->JBlock = J;
-   compIntegrator->parent = this;
-   //There only needs to be one instance of componentFESpace, but need to check
-   //if it exists yet.
-   if (!componentFESpace)
-   {
-#ifdef MFEM_USE_MPI
-      const auto *parfespace = dynamic_cast<const ParFiniteElementSpace*>(fespace);
-      auto isParallelFES = static_cast<bool>(parfespace);
-#else
-      constexpr bool isParallelFES = false;
-#endif
-      const int dim = 1;
-      if (isParallelFES)
-      {
-#ifdef MFEM_USE_MPI
-         componentFESpace = std::make_shared<const ParFiniteElementSpace>
-                            (parfespace->GetParMesh(), parfespace->FEColl(), dim,
-                             parfespace->GetOrdering());
-#endif
-      }
-      else
-      {
-         componentFESpace = std::make_shared<const FiniteElementSpace>
-                            (fespace->GetMesh(), fespace->FEColl(), dim, fespace->GetOrdering());
-      }
-   }
-   compIntegrator->fespace = componentFESpace.get();
-   compIntegrator->componentFESpace = nullptr;
-   return compIntegrator;
 }
 
 void ElasticityIntegrator::ComputeElementFlux(
@@ -3309,11 +3275,6 @@ double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
    }
 
    return energy;
-}
-
-const FiniteElementSpace* ElasticityIntegrator::GetFESpace() const
-{
-   return fespace;
 }
 
 void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,

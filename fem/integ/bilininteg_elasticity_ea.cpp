@@ -15,16 +15,14 @@
 
 namespace mfem
 {
-void ElasticityIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                      Vector &emat,
-                                      const bool add)
+void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                               Vector &emat,
+                                               const bool add)
 {
-   MFEM_VERIFY(parent, "Element level assembly for component version only");
-   MFEM_VERIFY(fespace, "Need initialized FiniteElementSpace.");
-   MFEM_VERIFY(!add, "AssembleEA not implemented for add yet.");
-   AssemblePA(*fespace);
-   const auto &ir = q_vec->GetIntRule(0);
-   internal::ElasticityAssembleEA(vdim, IBlock, JBlock, ndofs, ir, *fespace,
-                                  *lambda_quad, *mu_quad, *geom, *maps, emat);
+   AssemblePA(fes);
+   const auto &ir = parent.q_space->GetIntRule(0);
+   internal::ElasticityAssembleEA(parent.vdim, i_block, j_block, parent.ndofs, ir,
+                                  *parent.lambda_quad, *parent.mu_quad,
+                                  *geom, *maps, emat);
 }
 }

@@ -644,82 +644,46 @@ const
    auto *d2q_new = new DofToQuad(d2q);
    d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
    const int nqpt = ir.GetNPoints();
-   if (range_type == SCALAR)
+
+   const int b_dim = (range_type == VECTOR) ? dim : 1;
+
+   for (int i = 0; i < nqpt; i++)
    {
-      for (int i = 0; i < nqpt; i++)
+      for (int d = 0; d < b_dim; d++)
       {
          for (int j = 0; j < dof; j++)
          {
-            d2q_new->B[i+nqpt*j] = d2q_new->Bt[j+dof*i] = d2q.B[i+nqpt*lex_ordering[j]];
+            const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
+            d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
+            d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
          }
       }
    }
-   else if (range_type == VECTOR)
+
+   const int g_dim = [this]()
    {
-      for (int i = 0; i < nqpt; i++)
+      switch (deriv_type)
       {
-         for (int d = 0; d < dim; d++)
-         {
-            for (int j = 0; j < dof; j++)
-            {
-               d2q_new->B[i+nqpt*(d+dim*j)] = d2q_new->Bt[j+dof*(i+nqpt*d)] = d2q.B[i+nqpt*
-                                                                                    (d+dim*lex_ordering[j])];
-            }
-         }
+         case GRAD: return dim;
+         case DIV: return 1;
+         case CURL: return cdim;
+         default: return 0;
       }
-   }
-   else
+   }();
+
+   for (int i = 0; i < nqpt; i++)
    {
-      // Skip B and Bt for unknown range type
+      for (int d = 0; d < g_dim; d++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
+            d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
+            d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+         }
+      }
    }
-   switch (deriv_type)
-   {
-      case GRAD:
-      {
-         for (int i = 0; i < nqpt; i++)
-         {
-            for (int d = 0; d < dim; d++)
-            {
-               for (int j = 0; j < dof; j++)
-               {
-                  d2q_new->G[i+nqpt*(d+dim*j)] = d2q_new->Gt[j+dof*(i+nqpt*d)] = d2q.G[i+nqpt*
-                                                                                       (d+dim*lex_ordering[j])];
-               }
-            }
-         }
-         break;
-      }
-      case DIV:
-      {
-         for (int i = 0; i < nqpt; i++)
-         {
-            for (int j = 0; j < dof; j++)
-            {
-               d2q_new->G[i+nqpt*j] = d2q_new->Gt[j+dof*i] = d2q.G[i+nqpt*lex_ordering[j]];
-            }
-         }
-         break;
-      }
-      case CURL:
-      {
-         for (int i = 0; i < nqpt; i++)
-         {
-            for (int d = 0; d < cdim; d++)
-            {
-               for (int j = 0; j < dof; j++)
-               {
-                  d2q_new->G[i+nqpt*(d+cdim*j)] = d2q_new->Gt[j+dof*(i+nqpt*d)] = d2q.G[i+nqpt*
-                                                                                        (d+cdim*lex_ordering[j])];
-               }
-            }
-         }
-         break;
-      }
-      case NONE:
-      default:
-         // Skip G and Gt for unknown derivative type
-         break;
-   }
+
    dof2quad_array.Append(d2q_new);
 }
 
