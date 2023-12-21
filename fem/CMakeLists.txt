@@ -74,8 +74,6 @@ set(SRCS
   fe_coll.cpp
   fespace.cpp
   geom.cpp
-  HDGBilinearForm.cpp
-  hdg_integrators.cpp
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
