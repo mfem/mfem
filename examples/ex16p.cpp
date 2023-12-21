@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
    // 4. Define the ODE solver used for time integration. Several implicit
    //    singly diagonal implicit Runge-Kutta (SDIRK) methods, as well as
    //    explicit Runge-Kutta methods are available.
-   ODESolver *ode_solver = ODESolver::Select(ode_solver_type);
+   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
 
    // 5. Refine the mesh in serial to increase the resolution. In this example
    //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
@@ -354,7 +354,6 @@ int main(int argc, char *argv[])
    }
 
    // 12. Free the used memory.
-   delete ode_solver;
    delete pmesh;
 
    return 0;

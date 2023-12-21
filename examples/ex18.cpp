@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
-   ODESolver *ode_solver = ODESolver::SelectExplicit(ode_solver_type);
+   unique_ptr<ODESolver> ode_solver = ODESolver::SelectExplicit(ode_solver_type);
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
@@ -289,9 +289,6 @@ int main(int argc, char *argv[])
       const double error = sol.ComputeLpError(2, u0);
       cout << "Solution error: " << error << endl;
    }
-
-   // Free the used memory.
-   delete ode_solver;
 
    return 0;
 }
