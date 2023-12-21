@@ -434,6 +434,10 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         // Set both doftrans (potentially needed to assemble the element
+         // matrix) and vdofs, which is also needed when the element matrices
+         // are pre-assembled.
+         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -441,7 +445,6 @@ void BilinearForm::Assemble(int skip_zeros)
          else
          {
             const int elem_attr = fes->GetMesh()->GetAttribute(i);
-            doftrans = fes->GetElementVDofs(i, vdofs);
             eltrans = fes->GetElementTransformation(i);
 
             elmat.SetSize(0);
