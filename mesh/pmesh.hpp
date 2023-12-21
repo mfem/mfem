@@ -623,8 +623,10 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
+   /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
+       will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
    // for visualization purposes)
@@ -632,8 +634,11 @@ public:
 
    /** Print the part of the mesh in the calling processor using the mfem v1.0
        format. Depending on SetPrintShared(), the parallel interface can be
-       added as boundary for visualization (true by default) . */
-   void Print(std::ostream &out = mfem::out) const override;
+       added as boundary for visualization (true by default). If @a comments is
+       non-empty, it will be printed after the first line of the file, and each
+       line should begin with '#'. */
+   void Print(std::ostream &out = mfem::out,
+              const std::string &comments = "") const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
@@ -654,13 +659,18 @@ public:
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
-       attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out) const;
+       attributes are set to the processor number. If @a comments is non-empty,
+       it will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void PrintAsOne(std::ostream &out = mfem::out,
+                   const std::string &comments = "") const;
 
    /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
-       output mesh does not have any duplication of vertices/nodes at
-       processor boundaries. */
-   void PrintAsSerial(std::ostream &out = mfem::out) const;
+       output mesh does not have any duplication of vertices/nodes at processor
+       boundaries. If @a comments is non-empty, it will be printed after the
+       first line of the file, and each line should begin with '#'. */
+   void PrintAsSerial(std::ostream &out = mfem::out,
+                      const std::string &comments = "") const;
 
    /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
        duplication of vertices/nodes at processor boundaries. */
