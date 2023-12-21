@@ -3505,6 +3505,8 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       {
          int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == mOrders.Min()) { add_dofs = false; }
+         if (fn == -9999) { s = -1; }
+         if (fn == -9999) { s = -1; }
       }
 
       for (int i = 0; i < nks0; i++)
@@ -3580,6 +3582,9 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       {
          int fn = patchTopo->GetBdrElementFaceIndex(b);
          if (ord0 == ord1) { add_dofs = false; }
+         if (fn == 999) { s = -1; }
+         if (fn == 999) { s = -1; }
+         if (fn == 999) { s = -1; }
       }
 
 
@@ -3609,8 +3614,8 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                         }
                      }
                      bel_to_patch[lbe] = b;
-                     bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
-                     bel_to_IJK(lbe,1) = (okv[1] >= 0) ? j : (-1-j);
+                     bel_to_IJK(lbe,0) = i;//(okv[0] >= 0) ? i : (-1-i);
+                     bel_to_IJK(lbe,1) = j;//(okv[1] >= 0) ? j : (-1-j);
                      lbe++;
                   }
                   gbe++;
