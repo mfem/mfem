@@ -376,7 +376,7 @@ void test_pa_convection(const std::string &meshname, int order, int prob,
 {
    INFO("mesh=" << meshname << ", order=" << order << ", prob=" << prob
         << ", refinement=" << refinement );
-   Mesh mesh(meshname.c_str(), 1, 1);
+   Mesh mesh(meshname, 1, 1);
    mesh.EnsureNodes();
    mesh.SetCurvature(mesh.GetNodalFESpace()->GetElementOrder(0));
    for (int r = 0; r < refinement; r++)

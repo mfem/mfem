@@ -31,7 +31,7 @@ TEST_CASE("VTU XML Reader", "[Mesh][VTU][XML]")
 #endif
    for (const std::string &fname : mesh_filenames)
    {
-      Mesh mesh = Mesh::LoadFromFile(("data/" + fname).c_str());
+      Mesh mesh = Mesh::LoadFromFile("data/" + fname);
       REQUIRE(mesh.Dimension() == 2);
       REQUIRE(mesh.GetNE() == 9);
       REQUIRE(mesh.GetNV() == 16);
@@ -53,7 +53,7 @@ TEST_CASE("VTU XML Compressed Blocks", "[VTU][XML][MFEMData]")
                    );
 
    std::string mesh_path = mfem_data_dir + "/vtk/" + filename;
-   Mesh mesh = Mesh::LoadFromFile(mesh_path.c_str());
+   Mesh mesh = Mesh::LoadFromFile(mesh_path);
 
    REQUIRE(mesh.Dimension() == 3);
    REQUIRE(mesh.GetNE() == 206208);

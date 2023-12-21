@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
    {
       ostringstream oss;
       oss << "snake-init.mesh";
-      ofstream ofs(oss.str().c_str());
+      ofstream ofs(oss.str());
       ofs.precision(8);
       mesh.Print(ofs);
       ofs.close();
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
       {
          oss << "snake-joined.mesh";
       }
-      ofstream ofs(oss.str().c_str());
+      ofstream ofs(oss.str());
       ofs.precision(8);
       mesh.Print(ofs);
       ofs.close();

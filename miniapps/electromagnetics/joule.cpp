@@ -619,37 +619,37 @@ int main(int argc, char *argv[])
          mesh_name << basename << "_" << setfill('0') << setw(6) << t << "_"
                    << "mesh." << setfill('0') << setw(6) << myid;
 
-         ofstream mesh_ofs(mesh_name.str().c_str());
+         ofstream mesh_ofs(mesh_name.str());
          mesh_ofs.precision(8);
          pmesh->Print(mesh_ofs);
          mesh_ofs.close();
 
-         ofstream T_ofs(T_name.str().c_str());
+         ofstream T_ofs(T_name.str());
          T_ofs.precision(8);
          T_gf.Save(T_ofs);
          T_ofs.close();
 
-         ofstream E_ofs(E_name.str().c_str());
+         ofstream E_ofs(E_name.str());
          E_ofs.precision(8);
          E_gf.Save(E_ofs);
          E_ofs.close();
 
-         ofstream B_ofs(B_name.str().c_str());
+         ofstream B_ofs(B_name.str());
          B_ofs.precision(8);
          B_gf.Save(B_ofs);
          B_ofs.close();
 
-         ofstream F_ofs(F_name.str().c_str());
+         ofstream F_ofs(F_name.str());
          F_ofs.precision(8);
          F_gf.Save(B_ofs);
          F_ofs.close();
 
-         ofstream P_ofs(P_name.str().c_str());
+         ofstream P_ofs(P_name.str());
          P_ofs.precision(8);
          P_gf.Save(P_ofs);
          P_ofs.close();
 
-         ofstream w_ofs(w_name.str().c_str());
+         ofstream w_ofs(w_name.str());
          w_ofs.precision(8);
          w_gf.Save(w_ofs);
          w_ofs.close();

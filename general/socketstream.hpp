@@ -47,7 +47,7 @@ public:
       setp(obuf, obuf + buflen);
    }
 
-   socketbuf(const char hostname[], int port)
+   socketbuf(const std::string &hostname, int port)
    {
       socket_descriptor = -1;
       open(hostname, port);
@@ -62,7 +62,7 @@ public:
 
    /** @brief Open a socket on the 'port' at 'hostname' and store the socket
        descriptor. Returns 0 if there is no error, otherwise returns -1. */
-   virtual int open(const char hostname[], int port);
+   virtual int open(const std::string &hostname, int port);
 
    /// Close the current socket descriptor.
    virtual int close();
@@ -188,7 +188,7 @@ public:
        descriptor which is NOT closed. */
    virtual int attach(int sd);
 
-   virtual int open(const char hostname[], int port);
+   virtual int open(const std::string &hostname, int port);
 
    virtual int close();
 
@@ -252,7 +252,8 @@ public:
    /** @brief Create a socket stream and connect to the given host and port.
        The treatment of the 'secure' flag is similar to that in the default
        constructor. */
-   socketstream(const char hostname[], int port, bool secure = secure_default)
+   socketstream(const std::string &hostname, int port,
+                bool secure = secure_default)
       : std::iostream(0) { set_socket(secure); open(hostname, port); }
 
 #ifdef MFEM_USE_GNUTLS
@@ -263,7 +264,7 @@ public:
    socketbuf *rdbuf() { return buf__; }
 
    /// Open the socket stream on 'port' at 'hostname'.
-   int open(const char hostname[], int port);
+   int open(const std::string &hostname, int port);
 
    /// Close the socketstream.
    int close() { return buf__->close(); }

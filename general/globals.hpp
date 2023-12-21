@@ -77,7 +77,7 @@ extern MFEM_EXPORT OutStream err;
 /** This is a convenience function, e.g. to redirect mfem::out to individual
     files for each rank, one can use:
     \code
-       std::ofstream out_file(MakeParFilename("app_out.", myid).c_str());
+       std::ofstream out_file(MakeParFilename("app_out.", myid));
        mfem::out.SetStream(out_file);
     \endcode
 */

@@ -559,14 +559,14 @@ int main(int argc, char *argv[])
       velo_name << "velocity." << setfill('0') << setw(6) << myid;
       ee_name << "elastic_energy." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
       pmesh->SwapNodes(nodes, owns_nodes);
-      ofstream velo_ofs(velo_name.str().c_str());
+      ofstream velo_ofs(velo_name.str());
       velo_ofs.precision(8);
       v_gf.Save(velo_ofs);
-      ofstream ee_ofs(ee_name.str().c_str());
+      ofstream ee_ofs(ee_name.str());
       ee_ofs.precision(8);
       oper.GetElasticEnergyDensity(x_gf, w_gf);
       w_gf.Save(ee_ofs);

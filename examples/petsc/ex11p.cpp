@@ -341,7 +341,7 @@ int main(int argc, char *argv[])
       ostringstream mesh_name, mode_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
 
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
 
-         ofstream mode_ofs(mode_name.str().c_str());
+         ofstream mode_ofs(mode_name.str());
          mode_ofs.precision(8);
          x.Save(mode_ofs);
          mode_name.str("");

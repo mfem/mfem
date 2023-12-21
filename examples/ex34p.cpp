@@ -281,11 +281,11 @@ int main(int argc, char *argv[])
       mesh_name << "cond_mesh." << setfill('0') << setw(6) << myid;
       cond_name << "cond_j." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh_cond.Print(mesh_ofs);
 
-      ofstream cond_ofs(cond_name.str().c_str());
+      ofstream cond_ofs(cond_name.str());
       cond_ofs.precision(8);
       j_cond.Save(cond_ofs);
    }
@@ -438,11 +438,11 @@ int main(int argc, char *argv[])
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;
       sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs(mesh_name.str());
       mesh_ofs.precision(8);
       pmesh.Print(mesh_ofs);
 
-      ofstream sol_ofs(sol_name.str().c_str());
+      ofstream sol_ofs(sol_name.str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
@@ -475,7 +475,7 @@ int main(int argc, char *argv[])
       ostringstream dsol_name;
       dsol_name << "dsol." << setfill('0') << setw(6) << myid;
 
-      ofstream dsol_ofs(dsol_name.str().c_str());
+      ofstream dsol_ofs(dsol_name.str());
       dsol_ofs.precision(8);
       dx.Save(dsol_ofs);
    }
