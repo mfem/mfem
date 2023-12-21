@@ -182,8 +182,6 @@ set(HDRS
   fespace.hpp
   geom.hpp
   gridfunc.hpp
-  HDGBilinearForm.hpp
-  hdg_integrators.hpp
   hybridization.hpp
   intrules.hpp
   intrules_cut.hpp
