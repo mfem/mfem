@@ -63,7 +63,7 @@ Table::Table(const Table &table1,
       table2.GetRow(i, row);
       for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         J[ I[i+1] ] = row[r] + offset;
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset : row[r] + offset;
       }
 
    }
@@ -98,13 +98,13 @@ Table::Table(const Table &table1,
       table2.GetRow(i, row);
       for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         J[ I[i+1] ] = row[r] + offset2;
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset2 : row[r] + offset2;
       }
 
       table3.GetRow(i, row);
       for (int r = 0; r < row.Size(); r++,  I[i+1] ++)
       {
-         J[ I[i+1] ] = row[r] + offset3;
+         J[ I[i+1] ] = (row[r] < 0) ? row[r] - offset3 : row[r] + offset3;
       }
    }
 }
