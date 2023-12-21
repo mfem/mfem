@@ -49,15 +49,14 @@ using namespace mfem;
  */
 class ConductionOperator : public TimeDependentOperator
 {
-protected:
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
-   BilinearForm *M;
-   BilinearForm *K;
+   std::unique_ptr<BilinearForm> M;
+   std::unique_ptr<BilinearForm> K;
 
    SparseMatrix Mmat, Kmat;
-   SparseMatrix *T; // T = M + dt K
+   std::unique_ptr<SparseMatrix> T; // T = M + dt K
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
@@ -101,8 +100,6 @@ public:
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
-
-   ~ConductionOperator();
 };
 
 double InitialTemperature(const Vector &x);
@@ -393,12 +390,11 @@ int main(int argc, char *argv[])
 
 ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
                                        double kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
-     T(NULL), z(height)
+   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), z(height)
 {
    const double rel_tol = 1e-8;
 
-   M = new BilinearForm(&fespace);
+   M = std::make_unique<BilinearForm>(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
@@ -440,8 +436,7 @@ void ConductionOperator::ImplicitSolve(const double dt,
    // Solve the equation:
    //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
    // for du_dt
-   if (T) { delete T; }
-   T = Add(1.0, Mmat, dt, Kmat);
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, dt, Kmat));
    T_solver.SetOperator(*T);
    Kmat.Mult(u, z);
    z.Neg();
@@ -457,8 +452,7 @@ void ConductionOperator::SetParameters(const Vector &u)
       u_alpha_gf(i) = kappa + alpha*u_alpha_gf(i);
    }
 
-   delete K;
-   K = new BilinearForm(&fespace);
+   K = std::make_unique<BilinearForm>(&fespace);
 
    GridFunctionCoefficient u_coeff(&u_alpha_gf);
 
@@ -472,8 +466,7 @@ int ConductionOperator::SUNImplicitSetup(const Vector &x,
                                          double gamma)
 {
    // Setup the ODE Jacobian T = M + gamma K.
-   if (T) { delete T; }
-   T = Add(1.0, Mmat, gamma, Kmat);
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
    T_solver.SetOperator(*T);
    *jcur = 1;
    return (0);
@@ -485,13 +478,6 @@ int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
    Mmat.Mult(b, z);
    T_solver.Mult(z, x);
    return (0);
-}
-
-ConductionOperator::~ConductionOperator()
-{
-   delete T;
-   delete M;
-   delete K;
 }
 
 double InitialTemperature(const Vector &x)
