@@ -38,16 +38,14 @@ public:
    //! columns.
    /**
     *  offsets: offsets that mark the start of each row/column block (size
-    *  nRowBlocks+1).  Note: BlockOperator will not own/copy the data contained
-    *  in offsets.
+    *  nRowBlocks+1).
     */
    BlockOperator(const Array<int> & offsets);
    //! Constructor for general BlockOperators.
    /**
     *  row_offsets: offsets that mark the start of each row block (size
     *  nRowBlocks+1).  col_offsets: offsets that mark the start of each column
-    *  block (size nColBlocks+1).  Note: BlockOperator will not own/copy the
-    *  data contained in offsets.
+    *  block (size nColBlocks+1).
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
 
