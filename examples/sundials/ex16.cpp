@@ -73,11 +73,11 @@ public:
    ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
                       const Vector &u);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
+   void Mult(const Vector &u, Vector &du_dt) const override;
 
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   void ImplicitSolve(const double dt, const Vector &u, Vector &k) override;
 
    /// Custom Jacobian system solver for the SUNDIALS time integrators.
    /** For the ODE system represented by ConductionOperator
@@ -92,17 +92,17 @@ public:
 
    /** Setup the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSetup(const Vector &x, const Vector &fx,
-                                int jok, int *jcur, double gamma);
+   int SUNImplicitSetup(const Vector &x, const Vector &fx, int jok, int *jcur,
+                        double gamma) override;
 
    /** Solve the system (M + dt K) x = M b. This method is used by the implicit
        SUNDIALS solvers. */
-   virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
+   int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
 
    /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
    void SetParameters(const Vector &u);
 
-   virtual ~ConductionOperator();
+   ~ConductionOperator();
 };
 
 double InitialTemperature(const Vector &x);
