@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext)
+   if (mesh->NURBSext && !pa)
    {
       hdiv_coll = new NURBS_HDivFECollection(order,dim);
       l2_coll   = new NURBSFECollection(order);
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
       l2_coll   = new L2_FECollection(order, dim);
       mfem::out<<"Create Normal fec"<<std::endl;
    }
-
+   pa = false;
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, NURBSext, l2_coll);
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh,
                                                         W_space->StealNURBSext(),
@@ -153,6 +153,29 @@ int main(int argc, char *argv[])
    std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
    std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
+   {
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         R_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      cout << "Number boundary dofs in H(div): "
+           << ess_tdof_list.Size() << endl;
+   }
+
+   {
+      Array<int> ess_tdof_list;
+      if (mesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(mesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         W_space->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+      cout << "Number boundary dofs in H1: "
+           << ess_tdof_list.Size() << endl;
+   }
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient k(1.0);
