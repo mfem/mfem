@@ -66,7 +66,6 @@ option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" 
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
-option(MFEM_USE_AXOM "Enable axom" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
@@ -249,6 +248,11 @@ set(PARELAG_INCLUDE_DIRS "${PARELAG_DIR}/src;${PARELAG_DIR}/build/src" CACHE
     STRING "Path to ParELAG headers.")
 set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
+
+set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
+set(TRIBOL_INCLUDE_DIRS "${TRIBOL_DIR}/include" CACHE STRING "Path to Tribol headers.")
+set(TRIBOL_LIBRARIES "${TRIBOL_DIR}/lib/libtribol.a;${TRIBOL_DIR}/lib/libredecomp.a" CACHE STRING
+    "The Tribol library.")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
