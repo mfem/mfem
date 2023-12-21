@@ -1542,6 +1542,9 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      e_spaceOffsets(orig.e_spaceOffsets),
      f_spaceOffsets(orig.f_spaceOffsets),
      p_spaceOffsets(orig.p_spaceOffsets),
+     aux_e_meshOffsets(orig.aux_e_meshOffsets),
+     aux_e_spaceOffsets(orig.aux_e_spaceOffsets),
+     auxEdges(orig.auxEdges),
      el_dof(orig.el_dof ? new Table(*orig.el_dof) : NULL),
      bel_dof(orig.bel_dof ? new Table(*orig.bel_dof) : NULL),
      el_to_patch(orig.el_to_patch),
@@ -1564,11 +1567,20 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    }
 }
 
-NURBSExtension::NURBSExtension(std::istream &input)
+NURBSExtension::NURBSExtension(std::istream &input, bool nc)
 {
    // Read topology
    patchTopo = new Mesh;
-   patchTopo->LoadPatchTopo(input, edge_to_knot);
+   if (nc)
+   {
+      patchTopo->LoadNonconformingPatchTopo(input, edge_to_knot);
+      nonconforming = true;
+   }
+   else
+   {
+      patchTopo->LoadPatchTopo(input, edge_to_knot);
+   }
+
    own_topo = 1;
 
    CheckPatches();
@@ -1694,6 +1706,46 @@ NURBSExtension::NURBSExtension(std::istream &input)
       NumOfActiveElems = NumOfElements;
       activeElem.SetSize(NumOfElements);
       activeElem = true;
+   }
+
+   if (nc && patchTopo->ncmesh && patchTopo->ncmesh->GetVertexToKnot().Size() > 0)
+   {
+      // Set map from patchTopo edges to patchTopo->ncmesh edges
+      std::map<std::pair<int, int>, int> v2e;
+      int vert_index[2];
+      const NCMesh::NCList& EL = patchTopo->ncmesh->GetEdgeList();
+      for (auto edgeID : EL.conforming)
+      {
+         patchTopo->ncmesh->GetEdgeVertices(edgeID, vert_index);
+
+         MFEM_VERIFY(vert_index[0] < vert_index[1], "TODO: remove this");
+         const std::pair<int, int> vpair(vert_index[0], vert_index[1]);
+         v2e[vpair] = edgeID.index;
+      }
+
+      Array<int> vert;
+      for (int i=0; i<patchTopo->GetNEdges(); ++i)
+      {
+         patchTopo->GetEdgeVertices(i, vert);
+         MFEM_VERIFY(vert[0] < vert[1], ""); // TODO: remove this?
+
+         const std::pair<int, int> vpair(vert[0], vert[1]);
+
+         auto search = v2e.find(vpair);
+         if (search == v2e.end())
+         {
+            MFEM_ABORT("Vertex pair not found");
+         }
+
+         const int ncedge = v2e[vpair];
+
+         e2nce[i] = ncedge;
+
+         // TODO: if this is always true, we don't need e2nce or v2e.
+         // Of course, this is only for the vertex_to_knot case, not the vertex_parents
+         // case, assuming those 2 cases are mutually exclusive.
+         MFEM_VERIFY(i == ncedge, "");
+      }
    }
 
    GenerateActiveVertices();
@@ -1914,7 +1966,16 @@ NURBSExtension::~NURBSExtension()
 
 void NURBSExtension::Print(std::ostream &os) const
 {
-   patchTopo->PrintTopo(os, edge_to_knot);
+   if (patchTopo->ncmesh)
+   {
+      patchTopo->ncmesh->Print(os, true);
+      patchTopo->PrintTopoEdges(os, edge_to_knot, true);
+   }
+   else
+   {
+      patchTopo->PrintTopo(os, edge_to_knot);
+   }
+
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
@@ -2786,6 +2847,139 @@ void NURBSExtension::SetOrdersFromKnotVectors()
    SetOrderFromOrders();
 }
 
+// TODO: better code design.
+// TODO: can v2e be const?
+void ProcessVertexToKnot(Array<int> const& v2k,
+                         std::map<std::pair<int, int>, int> & v2e,
+                         std::vector<int> & auxEdges,
+                         std::set<int> & reversedParents,
+                         std::set<int> & masterEdges,
+                         std::vector<int> & edgePairs)
+{
+   auxEdges.clear();
+
+   std::map<std::pair<int, int>, int> auxv2e;
+
+   const int nv2k = v2k.Size() / 4;
+   MFEM_VERIFY(4 * nv2k == v2k.Size(), "");
+
+   int prevParent = -1;
+   int prevV = -1;
+   for (int i=0; i<nv2k; ++i)
+   {
+      const int tv = v2k[4*i];
+      const int knotIndex = v2k[(4*i) + 1];
+      const int pv0 = v2k[(4*i) + 2];
+      const int pv1 = v2k[(4*i) + 3];
+
+      // Given that the parent Mesh is not yet constructed, and all we have at
+      // this point is patchTopo->ncmesh, we should only define master/slave
+      // edges by indices in patchTopo->ncmesh, as done in the case of nonempty
+      // nce.masters. Now find the edge in patchTopo->ncmesh with vertices
+      // (pv0, pv1), and define it as a master edge.
+
+      const std::pair<int, int> parentPair(pv0 < pv1 ? pv0 : pv1,
+                                           pv0 < pv1 ? pv1 : pv0);
+
+      auto search = v2e.find(parentPair);
+      if (search == v2e.end())
+      {
+         MFEM_ABORT("Vertex pair not found");
+      }
+
+      const int parentEdge = v2e[parentPair];
+      masterEdges.insert(parentEdge);
+
+      if (pv1 < pv0)
+      {
+         reversedParents.insert(parentEdge);
+      }
+
+      // Note that the logic here assumes that the "vertex_to_knot" data in the
+      // mesh file has vertices in order of ascending knotIndex.
+
+      const bool newParentEdge = (prevParent != parentEdge);
+      const int v0 = newParentEdge ? pv0 : prevV;
+
+      if (knotIndex == 1)
+      {
+         MFEM_VERIFY(newParentEdge, "");
+      }
+
+      // Find the edge in patchTopo->ncmesh with vertices (v0, tv), and define
+      // it as a slave edge.
+
+      const std::pair<int, int> childPair(v0 < tv ? v0 : tv, v0 < tv ? tv : v0);
+      search = v2e.find(childPair);
+
+      const bool childPairTopo = (search != v2e.end());
+      if (!childPairTopo)
+      {
+         // Check whether childPair is in auxEdges.
+         search = auxv2e.find(childPair);
+         if (search == auxv2e.end())
+         {
+            // Create new auxiliary edge
+            // TODO: make a struct for auxEdges
+            auxv2e[childPair] = auxEdges.size() / 4;
+            auxEdges.push_back(childPair.first);
+            auxEdges.push_back(childPair.second);
+            auxEdges.push_back(pv0 < pv1 ? parentEdge : -1 - parentEdge);
+            auxEdges.push_back(knotIndex);
+         }
+      }
+
+      const int childEdge = childPairTopo ? v2e[childPair] : -1 - auxv2e[childPair];
+
+      // Check whether this is the final vertex in this parent edge.
+      // TODO: this logic for comparing (pv0,pv1) to the next parents assumes
+      // the ordering won't change. If the next v2k entry has (pv1,pv0), this
+      // would cause a bug. An improvement in the implementation should avoid
+      // this issue.
+      const bool finalVertex = (i == nv2k-1) || (v2k[(4*(i+1)) + 2] != pv0) ||
+                               (v2k[(4*(i+1)) + 3] != pv1);
+
+      edgePairs.push_back(tv);
+      edgePairs.push_back(childEdge);
+      edgePairs.push_back(parentEdge);
+
+      if (finalVertex)
+      {
+         // Also find the edge with vertices (tv, pv1), and define it as a slave
+         // edge.
+         const std::pair<int, int> finalChildPair(tv < pv1 ? tv : pv1,
+                                                  tv < pv1 ? pv1 : tv);
+         search = v2e.find(finalChildPair);
+
+         const bool finalChildPairTopo = (search != v2e.end());
+         if (!finalChildPairTopo)
+         {
+            // Check whether finalChildPair is in auxEdges.
+            search = auxv2e.find(finalChildPair);
+            if (search == auxv2e.end())
+            {
+               // Create new auxiliary edge
+               auxv2e[finalChildPair] = auxEdges.size() / 4;
+               auxEdges.push_back(finalChildPair.first);
+               auxEdges.push_back(finalChildPair.second);
+               auxEdges.push_back(pv0 < pv1 ? -1 - parentEdge : parentEdge);
+               auxEdges.push_back(knotIndex);
+            }
+         }
+
+         const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair]: -1 -
+                                    auxv2e[finalChildPair];
+
+         edgePairs.push_back(-1);
+         edgePairs.push_back(finalChildEdge);
+         edgePairs.push_back(parentEdge);
+      }
+
+      prevV = tv;
+      prevParent = parentEdge;
+   }  // loop over vertices in vertex_to_knot
+}
+
 void NURBSExtension::GenerateOffsets()
 {
    int nv = patchTopo->GetNV();
@@ -2793,6 +2987,175 @@ void NURBSExtension::GenerateOffsets()
    int nf = patchTopo->GetNFaces();
    int np = patchTopo->GetNE();
    int meshCounter, spaceCounter, dim = Dimension();
+
+   std::set<int> reversedParents;
+   if (patchTopo->ncmesh)
+   {
+      // Note that master or slave entities exist only for a mesh with
+      // vertex_parents, not for the vertex_to_knot case. Currently, a mesh is
+      // not allowed to have both cases, see the MFEM_VERIFY below.
+
+      // TODO: for simplicity, should we only support vertex_to_knot in NC-NURBS,
+      // not vertex_parents? Or should we allow either-or, but not both in the same mesh?
+
+      const NCMesh::NCList& ncv = patchTopo->ncmesh->GetNCList(0);
+      const NCMesh::NCList& nce = patchTopo->ncmesh->GetNCList(1);
+      const NCMesh::NCList& ncf = patchTopo->ncmesh->GetNCList(2);
+
+      const Array<Mesh::NCFaceInfo>& ncfi = patchTopo->nc_faces_info;
+
+      masterEdges.clear();
+      slaveEdges.clear();
+      masterEdgeToId.clear();
+
+      MFEM_VERIFY(nce.masters.Size() > 0 ||
+                  patchTopo->ncmesh->GetVertexToKnot().Size() > 0, "");
+      MFEM_VERIFY(!(nce.masters.Size() > 0 &&
+                    patchTopo->ncmesh->GetVertexToKnot().Size() > 0), "");
+
+      // TODO: make a struct for edgePairs type?
+      std::vector<int> edgePairs;
+
+      if (patchTopo->ncmesh->GetVertexToKnot().Size() > 0)
+      {
+         std::map<std::pair<int, int>, int> v2e;
+
+         // Intersections of master edges may not be edges in patchTopo->ncmesh,
+         // so we represent them in auxEdges, to account for their vertices and
+         // DOFs.
+         {
+            int vert_index[2];
+            const NCMesh::NCList& EL = patchTopo->ncmesh->GetEdgeList();
+            for (auto edgeID : EL.conforming)
+            {
+               patchTopo->ncmesh->GetEdgeVertices(edgeID, vert_index);
+               MFEM_VERIFY(vert_index[0] < vert_index[1], "TODO: remove this");
+               v2e[std::pair<int, int> (vert_index[0], vert_index[1])] = edgeID.index;
+            }
+         }
+
+         Array<int> const& v2k = patchTopo->ncmesh->GetVertexToKnot();
+
+         ProcessVertexToKnot(v2k, v2e, auxEdges, reversedParents,
+                             masterEdges, edgePairs);
+      } // if using vertex_to_knot
+
+      const int numMasters = nce.masters.Size();
+
+      // TODO: generalize: in 3D, we must use faces, not edges
+      for (auto master : nce.masters)
+      {
+         masterEdges.insert(master.index);
+      }
+
+      Array<int> masterEdgeIndex(masterEdges.size());
+      int cnt = 0;
+      for (auto medge : masterEdges)
+      {
+         masterEdgeIndex[cnt] = medge;
+         masterEdgeToId[medge] = cnt;
+         cnt++;
+      }
+      MFEM_VERIFY(cnt == masterEdgeIndex.Size(), "");
+
+      masterEdgeSlaves.clear();
+      masterEdgeVerts.clear();
+
+      masterEdgeSlaves.resize(masterEdgeIndex.Size());
+      masterEdgeVerts.resize(masterEdgeIndex.Size());
+
+      if (patchTopo->ncmesh->GetVertexToKnot().Size() > 0)
+      {
+         const int np = edgePairs.size() / 3;
+         MFEM_VERIFY(np > 0 && 3 * np == edgePairs.size(), "");
+         for (int i=0; i<np; ++i)
+         {
+            const int v = edgePairs[3*i];
+            const int s = edgePairs[(3*i) + 1];
+            const int m = edgePairs[(3*i) + 2];
+
+            slaveEdges.push_back(s);
+
+            const int mid = masterEdgeToId[m];
+            const int si = slaveEdges.size() - 1;
+            masterEdgeSlaves[mid].push_back(si);
+            if (v >= 0)
+            {
+               masterEdgeVerts[mid].push_back(v);
+            }
+         }
+      }
+
+      for (int i=0; i<nce.slaves.Size(); ++i)
+      {
+         const NCMesh::Slave& slave = nce.slaves[i];
+         int vert_index[2];
+         patchTopo->ncmesh->GetEdgeVertices(slave, vert_index);
+         slaveEdges.push_back(slave.index);
+
+         const int mid = masterEdgeToId[slave.master];
+         masterEdgeSlaves[mid].push_back(i);
+      }
+
+      for (int m=0; m<numMasters; ++m)
+      {
+         // Order the slaves of each master edge, from the first to second
+         // vertex of the master edge.
+         const int numSlaves = masterEdgeSlaves[m].size();
+         MFEM_VERIFY(numSlaves > 0, "");
+         const int medge = masterEdgeIndex[m];
+         int mvert[2];
+         int svert[2];
+         patchTopo->ncmesh->GetEdgeVertices(nce.masters[m], mvert);
+
+         Array<int> orderedSlaves(numSlaves);
+
+         int vi = mvert[0];
+         for (int s=0; s<numSlaves; ++s)
+         {
+            // Find the slave edge containing vertex vi
+
+            // TODO: This is quadratic complexity. Can it be improved? Does it
+            // matter, since the number of slave edges should always be small?
+            orderedSlaves[s] = -1;
+            for (int t=0; t<numSlaves; ++t)
+            {
+               const int sid = masterEdgeSlaves[m][t];
+               patchTopo->ncmesh->GetEdgeVertices(nce.slaves[sid], svert);
+               if (svert[0] == vi || svert[1] == vi)
+               {
+                  orderedSlaves[s] = sid;
+                  break;
+               }
+            }
+
+            MFEM_VERIFY(orderedSlaves[s] >= 0, "");
+
+            // Update vi to the next vertex
+            vi = (svert[0] == vi) ? svert[1] : svert[0];
+
+            if (s < numSlaves - 1)
+            {
+               masterEdgeVerts[m].push_back(vi);
+            }
+         }
+
+         for (int i=0; i<numSlaves; ++i)
+         {
+            masterEdgeSlaves[m][i] = orderedSlaves[i];  // TODO: just assign the vectors?
+         }
+
+         MFEM_VERIFY(masterEdgeSlaves[m].size() == masterEdgeVerts[m].size() + 1, "");
+         MFEM_VERIFY(masterEdgeVerts[m].size() > 0, "");
+      } // m
+   }
+
+   for (auto rp : reversedParents)
+   {
+      const int mid = masterEdgeToId[rp];
+      std::reverse(masterEdgeSlaves[mid].begin(), masterEdgeSlaves[mid].end());
+      std::reverse(masterEdgeVerts[mid].begin(), masterEdgeVerts[mid].end());
+   }
 
    Array<int> edges;
    Array<int> orient;
@@ -2820,9 +3183,46 @@ void NURBSExtension::GenerateOffsets()
    {
       e_meshOffsets[e]  = meshCounter;
       e_spaceOffsets[e] = spaceCounter;
-      meshCounter  += KnotVec(e)->GetNE() - 1;
-      spaceCounter += KnotVec(e)->GetNCP() - 2;
+
+      auto search = masterEdges.find(e);
+      if (search == masterEdges.end())  // If not a master edge
+      {
+         meshCounter  += KnotVec(e)->GetNE() - 1;
+         spaceCounter += KnotVec(e)->GetNCP() - 2;
+      }
    }
+
+   const int nauxe = auxEdges.size() / 4;
+   aux_e_meshOffsets.SetSize(nauxe+1);
+   aux_e_spaceOffsets.SetSize(nauxe+1);
+   for (int e = 0; e < nauxe; e++)
+   {
+      aux_e_meshOffsets[e] = meshCounter;
+      aux_e_spaceOffsets[e] = spaceCounter;
+
+      // Find the number of elements and CP in this auxiliary edge, which is
+      // defined only on part of the master edge knotvector.
+
+      const int signedParentEdge = auxEdges[(4*e) + 2];
+      const int ki = auxEdges[(4*e) + 3];
+      const bool rev = signedParentEdge < 0;
+      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+
+      const int masterNE = KnotVec(parentEdge)->GetNE();
+
+      // Total number of CP on master edge, excluding vertex CP.
+      const int totalEdgeCP = KnotVec(e)->GetNCP() - 2 - masterNE + 1;
+      const int perEdgeCP = totalEdgeCP / masterNE;
+
+      MFEM_VERIFY(perEdgeCP * masterNE == totalEdgeCP, "");
+
+      const int auxne = rev ? ki : masterNE - ki;
+      meshCounter += auxne - 1;
+      spaceCounter += (auxne * perEdgeCP) + auxne - 1;
+   }
+
+   aux_e_meshOffsets[nauxe] = meshCounter;
+   aux_e_spaceOffsets[nauxe] = spaceCounter;
 
    // Get face offsets
    for (int f = 0; f < nf; f++)
@@ -2845,8 +3245,6 @@ void NURBSExtension::GenerateOffsets()
    {
       p_meshOffsets[p]  = meshCounter;
       p_spaceOffsets[p] = spaceCounter;
-
-
 
       if (dim == 1)
       {
@@ -2878,6 +3276,15 @@ void NURBSExtension::GenerateOffsets()
    }
    NumOfVertices = meshCounter;
    NumOfDofs     = spaceCounter;
+}
+
+void NURBSExtension::GetAuxEdgeVertices(int auxEdge, Array<int> &verts) const
+{
+   verts.SetSize(2);
+   for (int i=0; i<2; ++i)
+   {
+      verts[i] = auxEdges[(4*auxEdge) + i];
+   }
 }
 
 void NURBSExtension::CountElements()
@@ -4142,6 +4549,75 @@ const Array<int>& NURBSExtension::GetPatchBdrElements(int patch)
    return patch_to_bel[patch];
 }
 
+void NURBSExtension::GetVertexDofs(int index, Array<int> &dofs) const
+{
+   MFEM_ASSERT(index < v_spaceOffsets.Size(), "");
+
+   const int os = v_spaceOffsets[index];
+   const int os1 = index + 1 == v_spaceOffsets.Size() ? e_spaceOffsets[0] :
+                   v_spaceOffsets[index + 1];
+
+   dofs.SetSize(0);
+   dofs.Reserve(os1 - os);
+
+   for (int i=os; i<os1; ++i)
+   {
+      dofs.Append(i);
+   }
+}
+
+int NURBSExtension::GetEdgeDofs(int index, Array<int> &dofs) const
+{
+   MFEM_ASSERT(index < e_spaceOffsets.Size(), "");
+
+   const int os = e_spaceOffsets[index];
+   const int os_upper = f_spaceOffsets.Size() > 0 ? f_spaceOffsets[0] :
+                        p_spaceOffsets[0];
+   const int os1 = index + 1 == e_spaceOffsets.Size() ? os_upper :
+                   v_spaceOffsets[index + 1];
+
+   dofs.SetSize(0);
+   // Reserve 2 for the two vertices and os1 - os for the interior edge DOFs.
+   dofs.Reserve(2 + os1 - os);
+
+   // First get the DOFs for the vertices of the edge.
+
+   Array<int> vert;
+   patchTopo->GetEdgeVertices(index, vert);
+   MFEM_ASSERT(vert.Size() == 2, "TODO: remove this");
+
+   for (auto v : vert)
+   {
+      Array<int> vdofs;
+      GetVertexDofs(v, vdofs);
+      dofs.Append(vdofs);
+   }
+
+   // Now get the interior edge DOFs.
+
+   for (int i=os; i<os1; ++i)
+   {
+      dofs.Append(i);
+   }
+
+   return GetOrder();
+}
+
+int NURBSExtension::GetEntityDofs(int entity, int index, Array<int> &dofs) const
+{
+   switch (entity)
+   {
+      case 0:
+         GetVertexDofs(index, dofs);
+         return 0;
+      case 1:
+         return GetEdgeDofs(index, dofs);
+      default:
+         MFEM_ABORT("TODO: entity type not yet supported in GetEntityDofs");
+         return 0;
+   }
+}
+
 #ifdef MFEM_USE_MPI
 ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
    : NURBSExtension(orig),
@@ -4261,6 +4737,10 @@ ParNURBSExtension::ParNURBSExtension(NURBSExtension *parent,
    Swap(e_spaceOffsets, parent->e_spaceOffsets);
    Swap(f_spaceOffsets, parent->f_spaceOffsets);
    Swap(p_spaceOffsets, parent->p_spaceOffsets);
+
+   Swap(aux_e_meshOffsets, parent->aux_e_meshOffsets);
+   Swap(aux_e_spaceOffsets, parent->aux_e_spaceOffsets);
+   Swap(auxEdges, parent->auxEdges);
 
    Swap(d_to_d, parent->d_to_d);
    Swap(master, parent->master);
@@ -4593,6 +5073,109 @@ void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
 
 }
 
+void NURBSPatchMap::SetMasterEdges2D(bool dof)
+{
+   const Array<int>& e_offsets = dof ? Ext->e_spaceOffsets : Ext->e_meshOffsets;
+   const Array<int>& p_offsets = dof ? Ext->p_spaceOffsets : Ext->p_meshOffsets;
+   const Array<int>& v_offsets = dof ? Ext->v_spaceOffsets : Ext->v_meshOffsets;
+
+   const Array<int>& aux_e_offsets = dof ? Ext->aux_e_spaceOffsets :
+                                     Ext->aux_e_meshOffsets;
+
+   edgeMaster.SetSize(edges.Size());
+   edgeMasterOffset.SetSize(edges.Size());
+   masterDofs.SetSize(0);
+
+   int mos = 0;
+   for (int i=0; i<edges.Size(); ++i)
+   {
+      auto search = Ext->masterEdges.find(edges[i]);
+      edgeMaster[i] = (search != Ext->masterEdges.end());
+      edgeMasterOffset[i] = mos;
+
+      if (edgeMaster[i])
+      {
+         const int edge_i = edges[i];
+         int mid = -1;
+         auto s = Ext->masterEdgeToId.find(edges[i]);
+         if (s != Ext->masterEdgeToId.end())
+         {
+            mid = s->second;
+         }
+
+         MFEM_ASSERT(mid >= 0, "ID not found");
+
+         for (int s=0; s<Ext->masterEdgeSlaves[mid].size(); ++s)
+         {
+            const int slave = Ext->slaveEdges[Ext->masterEdgeSlaves[mid][s]];
+
+            Array<int> svert;
+            if (slave >= 0)
+            {
+               Ext->patchTopo->GetEdgeVertices(slave, svert);
+            }
+            else
+            {
+               // Auxiliary edge
+               Ext->GetAuxEdgeVertices(-1 - slave, svert);
+            }
+
+            const int mev = Ext->masterEdgeVerts[mid][std::max(s-1,0)];
+            MFEM_VERIFY(mev == svert[0] || mev == svert[1], "");
+            bool reverse = false;
+            if (s == 0)
+            {
+               // In this case, mev is the second vertex of the edge.
+               if (svert[0] == mev) { reverse = true; }
+            }
+            else
+            {
+               // In this case, mev is the first vertex of the edge.
+               if (svert[1] == mev) { reverse = true; }
+            }
+
+            const int eos = slave >= 0 ? e_offsets[slave] : aux_e_offsets[-1 - slave];
+
+            // TODO: in 3D, the next offset would be f_offsets[0], not
+            // p_offsets[0]. This needs to be generalized in an elegant way.
+            // How about appending the next offset to the end of e_offsets?
+            // Would increasing the size of e_offsets by 1 break something?
+
+            const int eos1 = slave >= 0 ? (slave + 1 < e_offsets.Size() ?
+                                           e_offsets[slave + 1] : aux_e_offsets[0]) :
+                             aux_e_offsets[-slave];
+
+            const int nvs = eos1 - eos;
+
+            // Add all slave edge vertices/DOFs
+
+            Array<int> sdofs(nvs);
+            for (int j=0; j<nvs; ++j)
+            {
+               sdofs[j] = reverse ? eos1 - 1 - j : eos + j;
+            }
+
+            masterDofs.Append(sdofs);
+
+            mos += nvs;
+
+            if (s < Ext->masterEdgeSlaves[mid].size() - 1)
+            {
+               // Add interior vertex DOF
+               masterDofs.Append(v_offsets[Ext->masterEdgeVerts[mid][s]]);
+               mos += 1;
+            }
+         }
+      }
+   }
+}
+
+int NURBSPatchMap::GetMasterEdgeDof(const int e, const int i) const
+{
+   const int os = edgeMasterOffset[e];
+   return masterDofs[os + i];
+}
+
 void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
 {
    GetPatchKnotVectors(p, kv);
@@ -4607,6 +5190,7 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNE() - 1;
+      SetMasterEdges2D(false);
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = Ext->e_meshOffsets[edges[i]];
@@ -4638,9 +5222,34 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNCP() - 2;
-      for (int i = 0; i < edges.Size(); i++)
+      SetMasterEdges2D(true);
+
+      if (Ext->nonconforming && Ext->patchTopo->ncmesh
+          && Ext->patchTopo->ncmesh->GetVertexToKnot().Size() > 0)
       {
-         edges[i] = Ext->e_spaceOffsets[edges[i]];
+         // Use e2nce to map from patchTopo edges to patchTopo->ncmesh edges.
+         for (int i = 0; i < edges.Size(); i++)
+         {
+            int nce = -1;
+            auto s = Ext->e2nce.find(edges[i]);
+            if (s != Ext->e2nce.end())
+            {
+               nce = s->second;
+            }
+            else
+            {
+               MFEM_ABORT("TODO");
+            }
+
+            edges[i] = Ext->e_spaceOffsets[nce];
+         }
+      }
+      else
+      {
+         for (int i = 0; i < edges.Size(); i++)
+         {
+            edges[i] = Ext->e_spaceOffsets[edges[i]];
+         }
       }
    }
    if (Ext->Dimension() == 3)
