@@ -3429,7 +3429,16 @@ void NURBSExtension::GenerateBdrElementDofTable()
    int ndof = bel_dof->Size_of_connections();
    for (int i = 0; i < ndof; i++)
    {
-      dof[i] = activeDof[dof[i]] - 1;
+      int idx = dof[i];
+      if (idx < 0)
+      {
+          dof[i] = -1 - (activeDof[-1-idx] - 1);
+          dof[i] = -activeDof[-1-idx];
+      }
+      else
+      {
+          dof[i] = activeDof[idx] - 1;
+      }
    }
 }
 
@@ -3483,9 +3492,20 @@ void NURBSExtension::Generate2DBdrElementDofTable()
       const int ord0 = kv[0]->GetOrder();
 
       bool add_dofs = true;
-      if ((mode == Mode::H_DIV)  && (ord0 == mOrders.Max())) { add_dofs = false; }
-      if ((mode == Mode::H_CURL) && (ord0 == mOrders.Min())) { add_dofs = false; }
+      int  s = 1;
 
+      if (mode == Mode::H_DIV)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if (ord0 == mOrders.Max()) { add_dofs = false; }
+         if (fn == 0) { s = -1; }
+         if (fn == 2) { s = -1; }
+      }
+      else if (mode == Mode::H_CURL)
+      {
+         int fn = patchTopo->GetBdrElementFaceIndex(b);
+         if ((mode == Mode::H_CURL) && (ord0 == mOrders.Min())) { add_dofs = false; }
+      }
 
       for (int i = 0; i < nks0; i++)
       {
@@ -3499,6 +3519,7 @@ void NURBSExtension::Generate2DBdrElementDofTable()
                   for (int ii = 0; ii <= ord0; ii++)
                   {
                      conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
+                     if (s == -1) conn.to = -1 -conn.to;
                      bel_dof_list.Append(conn);
                   }
                }
@@ -3531,7 +3552,7 @@ void NURBSExtension::Generate3DBdrElementDofTable()
       p2g.SetBdrPatchDofMap(b, kv, okv);
       const int nx = p2g.nx(); // NCP0-1
       const int ny = p2g.ny(); // NCP1-1
-
+     // int bdr_patch_attr = patchTopo->GetBdrAttribute(b);
       // Load dofs
       const int nks0 = kv[0]->GetNKS();
       const int ord0 = kv[0]->GetOrder();
