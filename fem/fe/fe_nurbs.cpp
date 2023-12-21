@@ -809,7 +809,7 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
       const double dsy1 = dshape1_y(j);
       for (int i = 0; i <= orders[0]; i++, o++)
       {
-         curl_shape(o,0) = -shape_x(i)*dsy1;
+         curl_shape(o,0) = shape_x(i)*dsy1;
       }
    }
 
@@ -818,7 +818,7 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
       const double sy = shape_y(j);
       for (int i = 0; i <= orders[0]+1; i++, o++)
       {
-         curl_shape(o,0) = dshape1_x(i)*sy;
+         curl_shape(o,0) = -dshape1_x(i)*sy;
       }
    }
 }
