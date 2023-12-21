@@ -165,13 +165,16 @@ int main(int argc, char *argv[])
       reorder_space ? Ordering::byNODES : Ordering::byVDIM;
    ParFiniteElementSpace fespace(&pmesh, &fec, dim, fes_ordering);
    ParFiniteElementSpace scalar_fespace(&pmesh, &fec, 1, fes_ordering);
-   unique_ptr<ParLORDiscretization> LOR_disc;
+   unique_ptr<ParLORDiscretization> lor_disc;
    unique_ptr<ParFiniteElementSpace> scalar_lor_fespace;
    if (pa || componentwise_action)
    {
-      LOR_disc.reset(new ParLORDiscretization(fespace));
-      scalar_lor_fespace.reset(new ParFiniteElementSpace(
-                                  LOR_disc->GetParFESpace().GetParMesh(), &fec, 1, fes_ordering));
+      lor_disc.reset(new ParLORDiscretization(fespace));
+      ParFiniteElementSpace &lor_space = lor_disc->GetParFESpace();
+      const FiniteElementCollection &lor_fec = *lor_space.FEColl();
+      ParMesh &lor_mesh = *lor_space.GetParMesh();
+      scalar_lor_fespace.reset(
+         new ParFiniteElementSpace(&lor_mesh, &lor_fec, 1, fes_ordering));
    }
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
    if (Mpi::Root())
@@ -300,7 +303,7 @@ int main(int argc, char *argv[])
    if (pa || componentwise_action)
    {
       // 13(a) Create the diagonal LOR matrices and corresponding AMG preconditioners.
-      lor_integrator.AssemblePA(LOR_disc->GetParFESpace());
+      lor_integrator.AssemblePA(lor_disc->GetParFESpace());
       for (int j = 0; j < dim; j++)
       {
          ElasticityComponentIntegrator *block = new ElasticityComponentIntegrator(
