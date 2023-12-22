@@ -211,7 +211,7 @@ set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(Axom_REQUIRED_PACKAGES "Conduit/relay/blueprint" CACHE STRING
+set(Axom_REQUIRED_PACKAGES "Conduit/blueprint/blueprint_mpi/relay/relay_mpi" CACHE STRING
     "Additional packages required by Axom.")
 
 set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
@@ -250,9 +250,8 @@ set(PARELAG_LIBRARIES "${PARELAG_DIR}/build/src/libParELAG.a" CACHE STRING
     "The ParELAG library.")
 
 set(TRIBOL_DIR "${MFEM_DIR}/../tribol" CACHE PATH "Path to Tribol")
-set(TRIBOL_INCLUDE_DIRS "${TRIBOL_DIR}/include" CACHE STRING "Path to Tribol headers.")
-set(TRIBOL_LIBRARIES "${TRIBOL_DIR}/lib/libtribol.a;${TRIBOL_DIR}/lib/libredecomp.a" CACHE STRING
-    "The Tribol library.")
+set(Tribol_REQUIRED_PACKAGES "Axom/core/mint/sidre/slam/slic" CACHE STRING 
+    "Additional packages required by Tribol")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

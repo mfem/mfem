@@ -86,10 +86,11 @@ if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+# SUNDIALS, STRUMPACK, Ginkgo, Tribol, RAJA and Umpire require C++14:
 if ((MFEM_USE_SUNDIALS OR
      MFEM_USE_STRUMPACK OR
      MFEM_USE_GINKGO OR
+     MFEM_USE_TRIBOL OR
      MFEM_USE_RAJA OR
      MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
@@ -488,8 +489,7 @@ endif()
 
 # Tribol
 if (MFEM_USE_TRIBOL)
-   find_package(Axom REQUIRED)
-   find_package(Tribol REQUIRED)
+   find_package(Tribol REQUIRED tribol redecomp)
 endif()
 
 # Enzyme
