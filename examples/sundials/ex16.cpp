@@ -73,7 +73,7 @@ public:
    FactoredFormOperator(FiniteElementSpace &f, double alpha, double kappa,
                       const Vector &u);
 
-   /** Computes -M^{-1} K(u) u. This is used by both the MFEM and the SUNDIALS
+   /** Computes -M^{-1} K(u_n) u. This is used by both the MFEM and the SUNDIALS
        time integrators.*/
    void Mult(const Vector &u, Vector &result) const override;
 
@@ -134,7 +134,7 @@ public:
    MassFormOperator(FiniteElementSpace &f, double alpha, double kappa,
                       const Vector &u);
 
-   /** Computes K(u) u. This is used by the SUNDIALS time integrators. */
+   /** Computes K(u_n) u. This is used by the SUNDIALS time integrators. */
    void Mult(const Vector &u, Vector &result) const override;
 
    /** Setup to solve for dk in [M - gamma Jf(u)] dk = M r, where r is a given
@@ -447,7 +447,7 @@ int main(int argc, char *argv[])
       }
       if (FactoredFormOperator* tmp = dynamic_cast<FactoredFormOperator*>(oper.get()))
          tmp->SetParameters(u);
-      if (MassFormOperator* tmp = dynamic_cast<MassFormOperator*>(oper.get()))
+      else if (MassFormOperator* tmp = dynamic_cast<MassFormOperator*>(oper.get()))
          tmp->SetParameters(u);
 
    }
@@ -582,8 +582,7 @@ MassFormOperator::MassFormOperator(FiniteElementSpace &f, double al, double kap,
 
 void MassFormOperator::Mult(const Vector &u, Vector &result) const
 {
-   // Compute -K(u) u
-   // SetParameters(u);
+   // Compute -K(u_n) u
    Kmat.Mult(u, result);
    result.Neg();
 }
