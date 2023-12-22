@@ -373,7 +373,7 @@ void LinearForm::Assemble()
 
       for (int i = 0; i < nbdrfaces; i++)
       {
-         int face = mesh->GetBdrFace(i);
+         int face = mesh->GetBdrElementFaceIndex(i);
          ftr = mesh->GetBdrFaceTransformations(
                   i); // the transformation of the face
          //          fes->GetBdrElementVDofs(i, vdofs);   // the degrees of freedom related to the face
