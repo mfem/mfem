@@ -16,5 +16,7 @@
 
 include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.
-mfem_find_package(Tribol TRIBOL TRIBOL_DIR "include" tribol/config.hpp "lib" "tribol;redecomp"
-  "Paths to headers required by Tribol." "Libraries required by Tribol.")
+mfem_find_package(Tribol TRIBOL TRIBOL_DIR "include" tribol/config.hpp "lib" tribol
+  "Paths to headers required by Tribol." "Libraries required by Tribol."
+  ADD_COMPONENT redecomp
+    "include" redecomp/redecomp.hpp "lib" redecomp)
