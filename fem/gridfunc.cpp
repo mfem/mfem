@@ -2430,14 +2430,8 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
-   bool hdg_space, edg_space;
-
-   const FiniteElementCollection *fe_coll = fes->FEColl();
-   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
-   edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
-
    // check if the GridFunction belongs to a skeletal FEColl
-   MFEM_ASSERT((hdg_space | edg_space),
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>(fes->FEColl())) | bool (dynamic_cast<const H1_Trace_FECollection*>(fes->FEColl())),
                "Incorrect FEColl");
 
    if (delta_c == NULL)
@@ -2474,14 +2468,8 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
    Array<int> vdofs;
    Vector vals;
 
-   bool hdg_space, edg_space;
-
-   const FiniteElementCollection *fe_coll = fes->FEColl();
-   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
-   edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
-
    // check if the GridFunction belongs to a skeletal FEColl
-   MFEM_ASSERT((hdg_space | edg_space),
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>(fes->FEColl())) | bool (dynamic_cast<const H1_Trace_FECollection*>(fes->FEColl())),
                "Incorrect FEColl");
 
    for (int i = 0; i < nfaces; i++)
@@ -2498,14 +2486,8 @@ void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
-   bool hdg_space, edg_space;
-
-   const FiniteElementCollection *fe_coll = fes->FEColl();
-   hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
-   edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
-
    // check if the GridFunction belongs to a skeletal FEColl
-   MFEM_ASSERT((hdg_space | edg_space),
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>(fes->FEColl())) | bool (dynamic_cast<const H1_Trace_FECollection*>(fes->FEColl())),
                "Incorrect FEColl");
 
    if (delta_c == NULL)
@@ -2543,12 +2525,8 @@ void GridFunction::ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff)
    Array<int> vdofs;
    Vector vals;
 
-   bool hdg_space, edg_space;
-   hdg_space = dynamic_cast<DG_Interface_FECollection*>(fec);
-   edg_space = dynamic_cast<H1_Trace_FECollection*>(fec);
-
    // check if the GridFunction belongs to a skeletal FEColl
-   MFEM_ASSERT((hdg_space | edg_space),
+   MFEM_ASSERT(bool(dynamic_cast<const DG_Interface_FECollection*>(fes->FEColl())) | bool (dynamic_cast<const H1_Trace_FECollection*>(fes->FEColl())),
                "Incorrect FEColl");
 
    for (int i = 0; i < nbdrfaces; i++)
