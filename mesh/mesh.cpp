@@ -1581,6 +1581,120 @@ void Mesh::SetAttributes()
    }
 }
 
+void Mesh::GetAttributeSetNames(std::set<std::string> &names) const
+{
+   names.clear();
+
+   std::map<std::string,Array<int> >::const_iterator it;
+   for (it = attr_sets.cbegin();
+        it != attr_sets.cend(); it++)
+   {
+      names.insert(it->first);
+   }
+}
+
+void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
+{
+   names.clear();
+
+   std::map<std::string,Array<int> >::const_iterator it;
+   for (it = bdr_attr_sets.cbegin();
+        it != bdr_attr_sets.cend(); it++)
+   {
+      names.insert(it->first);
+   }
+}
+
+
+void Mesh::SetAttributeSet(const std::string &set_name, const Array<int> &attr)
+{
+   attr_sets[set_name] = attr;
+}
+
+void Mesh::SetBdrAttributeSet(const std::string &set_name,
+                              const Array<int> &attr)
+{
+   bdr_attr_sets[set_name] = attr;
+}
+
+void Mesh::ClearAttributeSet(const std::string &set_name)
+{
+   attr_sets.erase(set_name);
+}
+
+void Mesh::ClearBdrAttributeSet(const std::string &set_name)
+{
+   bdr_attr_sets.erase(set_name);
+}
+
+void Mesh::AddToAttributeSet(const std::string &set_name, int attr)
+{
+   attr_sets[set_name].Append(attr);
+   attr_sets[set_name].Sort();
+   attr_sets[set_name].Unique();
+}
+
+void Mesh::AddToAttributeSet(const std::string &set_name,
+                             const Array<int> &attr)
+{
+   attr_sets[set_name].Append(attr);
+   attr_sets[set_name].Sort();
+   attr_sets[set_name].Unique();
+}
+
+void Mesh::AddToBdrAttributeSet(const std::string &set_name, int attr)
+{
+   bdr_attr_sets[set_name].Append(attr);
+   bdr_attr_sets[set_name].Sort();
+   bdr_attr_sets[set_name].Unique();
+}
+
+void Mesh::AddToBdrAttributeSet(const std::string &set_name,
+                                const Array<int> &attr)
+{
+   bdr_attr_sets[set_name].Append(attr);
+   bdr_attr_sets[set_name].Sort();
+   bdr_attr_sets[set_name].Unique();
+}
+
+void Mesh::RemoveFromAttributeSet(const std::string &set_name, int attr)
+{
+   const Array<int> & old_attr = attr_sets[set_name];
+   Array<int> new_attr;
+   for (int i=0; i<old_attr.Size(); i++)
+   {
+      if (old_attr[i] != attr)
+      {
+         new_attr.Append(old_attr[i]);
+      }
+   }
+   attr_sets[set_name] = new_attr;
+}
+
+void Mesh::RemoveFromBdrAttributeSet(const std::string &set_name, int attr)
+{
+   const Array<int> & old_attr = bdr_attr_sets[set_name];
+   Array<int> new_attr;
+   for (int i=0; i<old_attr.Size(); i++)
+   {
+      if (old_attr[i] != attr)
+      {
+         new_attr.Append(old_attr[i]);
+      }
+   }
+   bdr_attr_sets[set_name] = new_attr;
+}
+
+Array<int> & Mesh::GetAttributeSet(const std::string & set_name)
+{
+   return attr_sets[set_name];
+}
+
+Array<int> & Mesh::GetBdrAttributeSet(const std::string & set_name)
+{
+   return bdr_attr_sets[set_name];
+}
+
 void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
    SetEmpty();
@@ -4104,6 +4218,23 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
+   {
+     // Copy attribute and bdr_attribute names
+     map<string, Array<int> >::const_iterator it;
+
+     for (it = mesh.attr_sets.cbegin();
+	  it != mesh.attr_sets.cend(); it++)
+     {
+       it->second.Copy(attr_sets[it->first]);
+     }
+
+     for (it = mesh.bdr_attr_sets.cbegin();
+	  it != mesh.bdr_attr_sets.cend(); it++)
+     {
+       it->second.Copy(bdr_attr_sets[it->first]);
+     }
+   }
+
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI
    ParNURBSExtension *pNURBSext =
@@ -4483,6 +4614,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_version = 0;
    if (mesh_type == "MFEM mesh v1.0") { mfem_version = 10; } // serial
    else if (mesh_type == "MFEM mesh v1.2") { mfem_version = 12; } // parallel
+   else if (mesh_type == "MFEM mesh v1.3") { mfem_version = 13; } // attr sets
 
    // MFEM nonconforming mesh format
    // (NOTE: previous v1.1 is now under this branch for backward compatibility)
@@ -4496,7 +4628,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       // section in the stream. A user provided parse tag can also be provided
       // via the arguments. For example, if this is called from parallel mesh
       // object, it can indicate to read until parallel mesh section begins.
-      if (mfem_version == 12 && parse_tag.empty())
+      if (mfem_version >= 12 && parse_tag.empty())
       {
          parse_tag = "mfem_mesh_end";
       }
@@ -4650,7 +4782,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 
    // If a parse tag was supplied, keep reading the stream until the tag is
    // encountered.
-   if (mfem_version == 12)
+   if (mfem_version >= 12)
    {
       string line;
       do
@@ -11131,8 +11263,15 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    }
 
    // serial/parallel conforming mesh format
-   os << (section_delimiter.empty()
-          ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
+   bool set_names = !attr_sets.empty() || !bdr_attr_sets.empty();
+   os << (!set_names && section_delimiter.empty()
+          ? "MFEM mesh v1.0\n" :
+	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
+
+   if (set_names && section_delimiter.empty())
+     {
+       section_delimiter = "mfem_mesh_end";
+     }
 
    // optional
    os <<
@@ -11155,10 +11294,44 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
       PrintElement(elements[i], os);
    }
 
+   if (set_names)
+   {
+     std::map<std::string,Array<int> >::const_iterator it;
+
+     os << "\nattribute_sets\n";
+     os << attr_sets.size() << '\n';
+     for (it = attr_sets.cbegin(); it!=attr_sets.cend(); it++)
+     {
+       os << '"' << it->first << '"' << ' ' << it->second.Size();
+       for (int i=0; i<it->second.Size(); i++)
+	 {
+	   os << ' ' << it->second[i];
+	 }
+       os << '\n';
+     }
+   }
+
    os << "\nboundary\n" << NumOfBdrElements << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
    {
       PrintElement(boundary[i], os);
+   }
+
+   if (set_names)
+   {
+     std::map<std::string,Array<int> >::const_iterator it;
+
+     os << "\nbdr_attribute_sets\n";
+     os << bdr_attr_sets.size() << '\n';
+     for (it = bdr_attr_sets.cbegin(); it!=bdr_attr_sets.cend(); it++)
+     {
+       os << '"' << it->first << '"' << ' ' << it->second.Size();
+       for (int i=0; i<it->second.Size(); i++)
+	 {
+	   os << ' ' << it->second[i];
+	 }
+       os << '\n';
+     }
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';
@@ -11184,7 +11357,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 
    if (!section_delimiter.empty())
    {
-      os << section_delimiter << endl; // only with format v1.2
+      os << section_delimiter << endl; // only with formats v1.2 and above
    }
 }
 

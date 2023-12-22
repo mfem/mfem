@@ -28,6 +28,9 @@
 #endif
 #include <iostream>
 #include <array>
+#include <map>
+#include <set>
+#include <string>
 
 namespace mfem
 {
@@ -274,6 +277,11 @@ public:
    Array<int> attributes;
    /// A list of all unique boundary attributes used by the Mesh.
    Array<int> bdr_attributes;
+
+   /// Named sets of element attributes
+   std::map<std::string,Array<int> > attr_sets;
+   /// Named sets of boundary attributes
+   std::map<std::string,Array<int> > bdr_attr_sets;
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
@@ -1013,6 +1021,28 @@ public:
    /// sorted sets of the element attribute values present in the mesh and
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
    virtual void SetAttributes();
+
+   void GetAttributeSetNames(std::set<std::string> &names) const;
+   void GetBdrAttributeSetNames(std::set<std::string> &names) const;
+
+   void SetAttributeSet(const std::string &set_name, const Array<int> &attr);
+   void SetBdrAttributeSet(const std::string &set_name, const Array<int> &attr);
+
+   void ClearAttributeSet(const std::string &set_name);
+   void ClearBdrAttributeSet(const std::string &set_name);
+
+   void AddToAttributeSet(const std::string &set_name, int attr);
+   void AddToAttributeSet(const std::string &set_name,
+                          const Array<int> &attr);
+   void AddToBdrAttributeSet(const std::string &set_name, int attr);
+   void AddToBdrAttributeSet(const std::string &set_name,
+                             const Array<int> &attr);
+
+   void RemoveFromAttributeSet(const std::string &set_name, int attr);
+   void RemoveFromBdrAttributeSet(const std::string &set_name, int attr);
+
+   Array<int> & GetAttributeSet(const std::string & set_name);
+   Array<int> & GetBdrAttributeSet(const std::string & set_name);
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
