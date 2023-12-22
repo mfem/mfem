@@ -2444,7 +2444,6 @@ void GridFunction::ProjectCoefficientSkeleton(Coefficient &coeff)
    {
       Mesh *mesh = fes->GetMesh();
       int nfaces = mesh->GetNumFaces();
-      int nbdrfaces = mesh->GetNBE();
 
       Array<int> vdofs;
       Vector vals;
@@ -2472,7 +2471,6 @@ void GridFunction::ProjectCoefficientSkeleton(VectorCoefficient &vcoeff)
 {
    Mesh *mesh = fes->GetMesh();
    int nfaces = mesh->GetNumFaces();
-   int nbdrfaces = mesh->GetNBE();
    Array<int> vdofs;
    Vector vals;
 
@@ -2506,8 +2504,9 @@ void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
    hdg_space = dynamic_cast<const DG_Interface_FECollection*>(fe_coll);
    edg_space = dynamic_cast<const H1_Trace_FECollection*>(fe_coll);
 
-   bool hdg_space_no_const = dynamic_cast<DG_Interface_FECollection*>(fec);
-   bool edg_space_no_const = dynamic_cast<H1_Trace_FECollection*>(fec);
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT((hdg_space | edg_space),
+               "Incorrect FEColl");
 
    if (delta_c == NULL)
    {
@@ -2518,7 +2517,7 @@ void GridFunction::ProjectCoefficientSkeletonBdr(Coefficient &coeff)
 
       for (int i = 0; i < nbdrfaces; i++)
       {
-         int face = mesh->GetBdrFace(i);
+         int face = mesh->GetBdrElementFaceIndex(i);
          fes->GetFaceVDofs(face, vdofs);
          vals.SetSize(vdofs.Size());
          fes->GetFaceElement(face)->Project(coeff,
@@ -2548,9 +2547,13 @@ void GridFunction::ProjectCoefficientSkeletonBdr(VectorCoefficient &vcoeff)
    hdg_space = dynamic_cast<DG_Interface_FECollection*>(fec);
    edg_space = dynamic_cast<H1_Trace_FECollection*>(fec);
 
+   // check if the GridFunction belongs to a skeletal FEColl
+   MFEM_ASSERT((hdg_space | edg_space),
+               "Incorrect FEColl");
+
    for (int i = 0; i < nbdrfaces; i++)
    {
-      int face = mesh->GetBdrFace(i);
+      int face = mesh->GetBdrElementFaceIndex(i);
       fes->GetFaceVDofs(face, vdofs);
       vals.SetSize(vdofs.Size());
       fes->GetFaceElement(face)->Project(vcoeff,
@@ -3519,7 +3522,7 @@ double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
                                         const IntegrationRule *irs[]) const
 {
    double error = 0.0;
-   double err, local_error, local_size ;
+   double aux, local_error, local_size ;
    const FiniteElement *fe;
    ElementTransformation *T;
    Vector vals;
@@ -3544,20 +3547,20 @@ double GridFunction::ComputeMeanLpError(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         err = (vals(j) - exsol.Eval(*T, ip));
-         local_error += ip.weight * T->Weight() * err;
+         aux = (vals(j) - exsol.Eval(*T, ip));
+         local_error += ip.weight * T->Weight() * aux;
          local_size += ip.weight * T->Weight();
       }
 
       if (p < numeric_limits<double>::infinity())
       {
-         err = pow(fabs(local_error), p) / pow(local_size, p-1.);
-         error += err;
+         aux = pow(fabs(local_error), p) / pow(local_size, p-1.);
+         error += aux;
       }
       else
       {
-         err = fabs(local_error) / fabs(local_size);
-         error = std::max(error, err);
+         aux = fabs(local_error) / fabs(local_size);
+         error = std::max(error, aux);
       }
    }
 
@@ -3925,23 +3928,23 @@ double GridFunction::ComputeLpErrorMinusMean(const double p,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - mean - exsol.Eval(*T, ip));
+         double aux = fabs(vals(j) - mean - exsol.Eval(*T, ip));
          if (p < numeric_limits<double>::infinity())
          {
-            err = pow(err, p);
+            aux = pow(aux, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               aux *= weight->Eval(*T, ip);
             }
-            error += ip.weight * T->Weight() * err;
+            error += ip.weight * T->Weight() * aux;
          }
          else
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               aux *= weight->Eval(*T, ip);
             }
-            error = std::max(error, err);
+            error = std::max(error, aux);
          }
       }
    }
