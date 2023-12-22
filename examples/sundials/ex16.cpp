@@ -101,17 +101,17 @@ public:
        SUNDIALS solvers. */
    int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
 
-   /** Setup the system M x = b. This method is used by the SUNDIALS solvers
-       when the option to have MFEM solve the mass system is enabled. */
+   /** Setup the system M x = b. This method is used by the SUNDIALS ARKODE
+       solvers when the option to have MFEM solve the mass system is enabled. */
    int SUNMassSetup() override;
 
    /** Solve the system M x = b to the given (preferably relative) tolerance.
-       This method is used by the SUNDIALS solvers when the option to have MFEM
-       solve the mass system is enabled. */
+       This method is used by the SUNDIALS ARKODE solvers when the option to
+       have MFEM solve the mass system is enabled. */
    int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
 
-   /** Compute v = M x.  This method is used by the SUNDIALS solvers when the
-       option to have MFEM solve the mass system is enabled. */
+   /** Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers
+       when the option to have MFEM solve the mass system is enabled. */
    int SUNMassMult(const Vector &x, Vector &v) override;
 
 private:
