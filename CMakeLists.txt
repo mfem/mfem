@@ -489,7 +489,11 @@ endif()
 
 # Tribol
 if (MFEM_USE_TRIBOL)
-   find_package(Tribol REQUIRED tribol redecomp)
+  if (MFEM_USE_MPI)
+    find_package(Tribol REQUIRED tribol redecomp)
+  else()
+    message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
+  endif()
 endif()
 
 # Enzyme
