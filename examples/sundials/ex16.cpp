@@ -37,18 +37,22 @@
 using namespace std;
 using namespace mfem;
 
-/** After spatial discretization, the conduction model can be written as:
+/** After spatial discretization, the conduction model can be written either as:
  *
- *     du/dt = M^{-1}(-Ku)
+ *     M du/dt = -K(u) u  (mass form)
+ *
+ *     du/dt = -M^{-1} K(u) u (factored form)
  *
  *  where u is the vector representing the temperature, M is the mass matrix,
- *  and K is the diffusion operator with diffusivity depending on u:
+ *  and K(u) is the diffusion operator with diffusivity depending on u:
  *  (\kappa + \alpha u).
  *
- *  Class ConductionOperator represents the right-hand side of the above ODE.
+ *  Class ConductionOperator represents the above ODE operator.
  */
 class ConductionOperator : public TimeDependentOperator
 {
+   bool use_mass_form; // flag to use mass form or factored form
+
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
@@ -56,12 +60,12 @@ class ConductionOperator : public TimeDependentOperator
    std::unique_ptr<BilinearForm> K;
 
    SparseMatrix Mmat, Kmat;
-   std::unique_ptr<SparseMatrix> T; // T = M + dt K
+   std::unique_ptr<SparseMatrix> T; // T = M + gam K(u)
 
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   CGSolver T_solver; // Implicit solver for T = M + dt K
+   CGSolver T_solver; // Implicit solver for T = M + gam K(u)
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
    double alpha, kappa;
@@ -69,55 +73,61 @@ class ConductionOperator : public TimeDependentOperator
    mutable Vector z; // auxiliary vector
 
 public:
+
    ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
                       const Vector &u);
 
-   void Mult(const Vector &u, Vector &du_dt) const override;
+   void UseMassForm() {use_mass_form = true;}
 
-   /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
-       This is the only requirement for high-order SDIRK implicit integration.*/
-   void ImplicitSolve(const double dt, const Vector &u, Vector &k) override;
+   /** Computes the right-hand side of the ODE. This is used by the MFEM, where
+       the ODE is in factored form, and by the SUNDIALS time integrators, where
+       the ODE can be in either form. */
+   void Mult(const Vector &u, Vector &result) const override;
 
-   /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
+   /** Solve for k in either of the equivalent systems
+       - M k = f(u + gam*k), where f(w) is the right-hand side of the ODE in
+         mass form, i.e., f(w) = -K(w) w,
+       - k = g(u + gam*k), where g(w) is the right-hand side of the ODE in
+         factored form, i.e., g(w) = -M^{-1} K(w) w
+       Note that instead of K(u + gam*k) (u + gam*k), the approximation
+       K(u) (u + gam*k) will be used. This function is used by the implicit MFEM
+       time integrators.*/
+   void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
+
+   /** Update the diffusion BilinearForm K(u) using given true-dof vector `u`
+       for use in the approximation in ImplicitSolve. */
    void SetParameters(const Vector &u);
 
-   /// Custom Jacobian system solver for the SUNDIALS time integrators.
-   /** For the ODE system represented by ConductionOperator
-
-           M du/dt = -K(u),
-
-       this class facilitates the solution of linear systems of the form
-
-           (M + γK) y = M b,
-
-       for given b, u (not used), and γ = GetTimeStep(). */
-
-   /** Setup the system (M + dt K) x = M b. This method is used by the implicit
-       SUNDIALS solvers. */
-   int SUNImplicitSetup(const Vector &x, const Vector &fx, int jok, int *jcur,
+   /** Setup to solve for dk in [M - gamma Jf(u)] dk = r, where Jf is an
+       approximation of the Jacobian of the right-hand side of the ODE in mass
+       form and r is a residual with respect to ODE in the mass form. Here, the
+       approximation is Jf(u) = -K(u). This method is used by the implicit SUNDIALS solvers. */
+   int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
                         double gamma) override;
 
-   /** Solve the system (M + dt K) x = M b. This method is used by the implicit
-       SUNDIALS solvers. */
-   int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
+   /** Solve for dk in the system in SUNImplicitSetup to the given tolerance.
+       This method is used by the implicit SUNDIALS solvers. */
+   int SUNImplicitSolve(const Vector &r, Vector &k, double tol) override;
 
-   /** Setup the system M x = b. This method is used by the SUNDIALS ARKODE
-       solvers when the option to have MFEM solve the mass system is enabled. */
+   /** Setup to solve for x in M x = b. This method is used by the SUNDIALS
+       ARKODE solvers when the option to have MFEM solve the mass system is enabled (requires the ODE to be in mass form). */
    int SUNMassSetup() override;
 
-   /** Solve the system M x = b to the given (preferably relative) tolerance.
-       This method is used by the SUNDIALS ARKODE solvers when the option to
-       have MFEM solve the mass system is enabled. */
+   /** Solve for x in the system in SUNMassSetup to the given tolerance. This
+       method is used by the SUNDIALS ARKODE solvers when the option to
+       have MFEM solve the mass system is enabled (requires the ODE to be in
+       mass form). */
    int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
 
    /** Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers
-       when the option to have MFEM solve the mass system is enabled. */
-   int SUNMassMult(const Vector &x, Vector &v) override;
-
-private:
-
-   /// Set T = M + cK
-   void SetT(double c);
+       when the option to have MFEM solve the mass system is enabled (requires
+       the ODE to be in mass form). */
+   int SUNMassMult(const Vector &x, Vector &v) override
+   {
+      MFEM_VERIFY(use_mass_form, "SUNMassMult requires ODE to be in mass form.");
+      Mult(x, v);
+      return SUNLS_SUCCESS;
+   }
 };
 
 double InitialTemperature(const Vector &x);
@@ -166,7 +176,10 @@ int main(int argc, char *argv[])
                   "9  - CVODE (implicit BDF),\n\t"
                   "10 - ARKODE (default explicit),\n\t"
                   "11 - ARKODE (explicit Fehlberg-6-4-5),\n\t"
-                  "12 - ARKODE (default impicit).");
+                  "12 - ARKODE (default implicit),\n\t"
+                  "13 - ARKODE (default explicit with MFEM mass solve),\n\t"
+                  "14 - ARKODE (explicit Fehlberg-6-4-5 with MFEM mass solve),\n\t"
+                  "15 - ARKODE (default implicit with MFEM mass solve).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -188,11 +201,6 @@ int main(int argc, char *argv[])
    {
       args.PrintUsage(cout);
       return 1;
-   }
-   if (ode_solver_type < 1 || ode_solver_type > 12)
-   {
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 3;
    }
    args.PrintOptions(cout);
 
@@ -288,17 +296,14 @@ int main(int argc, char *argv[])
       case 7: ode_solver = std::make_unique<SDIRK33Solver>(); break;
       // CVODE
       case 8:
-      {
-         std::unique_ptr<CVODESolver> cvode(new CVODESolver(CV_ADAMS));
-         cvode->Init(oper);
-         cvode->SetSStolerances(reltol, abstol);
-         cvode->SetMaxStep(dt);
-         ode_solver = std::move(cvode);
-         break;
-      }
       case 9:
       {
-         std::unique_ptr<CVODESolver> cvode(new CVODESolver(CV_BDF));
+         int cvode_solver_type;
+         if (ode_solver_type == 8)
+            cvode_solver_type = CV_ADAMS;
+         else
+            cvode_solver_type = CV_BDF;
+         std::unique_ptr<CVODESolver> cvode(new CVODESolver(cvode_solver_type));
          cvode->Init(oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
@@ -308,27 +313,33 @@ int main(int argc, char *argv[])
       // ARKODE
       case 10:
       case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
       {
-         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(ARKStepSolver::EXPLICIT));
+         ARKStepSolver::Type arkode_solver_type;
+         if (ode_solver_type == 12 || ode_solver_type == 15)
+            arkode_solver_type = ARKStepSolver::IMPLICIT;
+         else
+            arkode_solver_type = ARKStepSolver::EXPLICIT;
+         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(arkode_solver_type));
          arkode->Init(oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
-         if (ode_solver_type == 11)
-         {
+         if (ode_solver_type == 11 || ode_solver_type == 14)
             arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
+         if (ode_solver_type == 13 || ode_solver_type == 14 || ode_solver_type == 15)
+         {
+            oper.UseMassForm();
+            arkode->UseMFEMMassLinearSolver(SUNFALSE);
          }
          ode_solver = std::move(arkode);
          break;
       }
-      case 12:
-      {
-         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(ARKStepSolver::IMPLICIT));
-         arkode->Init(oper);
-         arkode->SetSStolerances(reltol, abstol);
-         arkode->SetMaxStep(dt);
-         ode_solver = std::move(arkode);
-         break;
-      }
+      default:
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         return 3;
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
@@ -411,6 +422,7 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), z(height)
 {
    const double rel_tol = 1e-8;
+   use_mass_form = false;
 
    M = std::make_unique<BilinearForm>(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
@@ -438,32 +450,35 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    SetParameters(u);
 }
 
-void ConductionOperator::SetT(double c)
+void ConductionOperator::Mult(const Vector &u, Vector &result) const
 {
-   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, c, Kmat));
-   T_solver.SetOperator(*T);
+   // Compute either -K(u) u (mass form) or -M^{-1} K(u) u (factored form)
+   // SetParameters(u);
+   if (use_mass_form) // compute -K(u) u
+   {
+      Kmat.Mult(u, result);
+      result.Neg();
+   }
+   else // compute -M^{-1} K(u) u
+   {
+      Kmat.Mult(u, z);
+      z.Neg();
+      M_solver.Mult(z, result);
+   }
 }
 
-void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
-{
-   // Compute:
-   //    du_dt = M^{-1}*-K*u
-   // for du_dt
-   Kmat.Mult(u, z);
-   z.Neg(); // z = -z
-   M_solver.Mult(z, du_dt);
-}
-
-void ConductionOperator::ImplicitSolve(const double dt,
-                                       const Vector &u, Vector &du_dt)
+void ConductionOperator::ImplicitSolve(const double gam,
+                                       const Vector &u, Vector &k)
 {
    // Solve the equation:
-   //    du_dt = M^{-1}*[-K*(u + dt*du_dt)]
-   // for du_dt
-   SetT(dt);
+   //    k = M^{-1}*[-K(u)*(u + gam*k)]  <==>   [M + gam*K(u)] k = -K(u) u
+   // for k
+   // SetParameters(u);
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, Kmat));
+   T_solver.SetOperator(*T);
    Kmat.Mult(u, z);
    z.Neg();
-   T_solver.Mult(z, du_dt);
+   T_solver.Mult(z, k);
 }
 
 void ConductionOperator::SetParameters(const Vector &u)
@@ -484,22 +499,31 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-int ConductionOperator::SUNImplicitSetup(const Vector &x,
-                                         const Vector &fx, int jok, int *jcur,
+int ConductionOperator::SUNImplicitSetup(const Vector &u,
+                                         const Vector &fu, int jok, int *jcur,
                                          double gamma)
 {
-   // Setup the ODE Jacobian T = M + gamma K.
-   SetT(gamma);
+   // Setup the Jacobian approximation T = M + gamma K(u).
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
+   T_solver.SetOperator(*T);
    *jcur = 1;
    return SUNLS_SUCCESS;
 }
 
-int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
+int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk, double tol)
 {
-   // Solve the system A x = z => (M - gamma K) x = M b.
+   // Solve the system [M + gamma K(u)]A dk = r.
    T_solver.SetRelTol(tol);
-   Mmat.Mult(b, z);
-   T_solver.Mult(z, x);
+   if (use_mass_form)
+   {
+      T_solver.Mult(r, dk);
+   }
+   else
+   {
+      // need to first adjust the factored form r to a mass form residual
+      Mmat.Mult(r, z);
+      T_solver.Mult(z, dk);
+   }
    if (T_solver.GetConverged())
       return SUNLS_SUCCESS;
    else
@@ -508,16 +532,18 @@ int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 
 int ConductionOperator::SUNMassSetup()
 {
-   // Because this function is called before every mass solve, it is generally
-   // reserved for problems with a time-dependent mass matrix. Thus, the static
-   // mass matrix in this problem is assembled once elsewhere so nothing is to
-   // be done here.
+   MFEM_VERIFY(use_mass_form, "SUNMassSetup requires ODE to be in mass form.");
+   // Because the mass solver is setup in the constructor to avoid issues with
+   // ConductionOperator::Mult being const, there is nothing to be done here.
    return SUNLS_SUCCESS;
 }
 
 int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
 {
-   M_solver.SetRelTol(tol);
+   MFEM_VERIFY(use_mass_form, "SUNMassSolve requires ODE to be in mass form.");
+
+   //M_solver.SetRelTol(0.0);
+   //M_solver.SetAbsTol(tol);
    M_solver.Mult(b, x);
    if (M_solver.GetConverged())
       return SUNLS_SUCCESS;
@@ -525,11 +551,6 @@ int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
       return SUNLS_CONV_FAIL;
 }
 
-int ConductionOperator::SUNMassMult(const Vector &x, Vector &v)
-{
-   Mmat.Mult(x, v);
-   return SUNLS_SUCCESS;
-}
 
 double InitialTemperature(const Vector &x)
 {
