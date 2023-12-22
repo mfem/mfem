@@ -78,6 +78,9 @@ public:
        This is the only requirement for high-order SDIRK implicit integration.*/
    void ImplicitSolve(const double dt, const Vector &u, Vector &k) override;
 
+   /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
+   void SetParameters(const Vector &u);
+
    /// Custom Jacobian system solver for the SUNDIALS time integrators.
    /** For the ODE system represented by ConductionOperator
 
@@ -98,8 +101,23 @@ public:
        SUNDIALS solvers. */
    int SUNImplicitSolve(const Vector &b, Vector &x, double tol) override;
 
-   /// Update the diffusion BilinearForm K using the given true-dof vector `u`.
-   void SetParameters(const Vector &u);
+   /** Setup the system M x = b. This method is used by the SUNDIALS solvers
+       when the option to have MFEM solve the mass system is enabled. */
+   int SUNMassSetup() override;
+
+   /** Solve the system M x = b to the given (preferably relative) tolerance.
+       This method is used by the SUNDIALS solvers when the option to have MFEM
+       solve the mass system is enabled. */
+   int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
+
+   /** Compute v = M x.  This method is used by the SUNDIALS solvers when the
+       option to have MFEM solve the mass system is enabled. */
+   int SUNMassMult(const Vector &x, Vector &v) override;
+
+private:
+
+   /// Set T = M + cK
+   void SetT(double c);
 };
 
 double InitialTemperature(const Vector &x);
@@ -420,10 +438,16 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    SetParameters(u);
 }
 
+void ConductionOperator::SetT(double c)
+{
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, c, Kmat));
+   T_solver.SetOperator(*T);
+}
+
 void ConductionOperator::Mult(const Vector &u, Vector &du_dt) const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
+   //    du_dt = M^{-1}*-K*u
    // for du_dt
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
@@ -434,10 +458,9 @@ void ConductionOperator::ImplicitSolve(const double dt,
                                        const Vector &u, Vector &du_dt)
 {
    // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
+   //    du_dt = M^{-1}*[-K*(u + dt*du_dt)]
    // for du_dt
-   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, dt, Kmat));
-   T_solver.SetOperator(*T);
+   SetT(dt);
    Kmat.Mult(u, z);
    z.Neg();
    T_solver.Mult(z, du_dt);
@@ -466,18 +489,46 @@ int ConductionOperator::SUNImplicitSetup(const Vector &x,
                                          double gamma)
 {
    // Setup the ODE Jacobian T = M + gamma K.
-   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
-   T_solver.SetOperator(*T);
+   SetT(gamma);
    *jcur = 1;
-   return (0);
+   return SUNLS_SUCCESS;
 }
 
 int ConductionOperator::SUNImplicitSolve(const Vector &b, Vector &x, double tol)
 {
    // Solve the system A x = z => (M - gamma K) x = M b.
+   T_solver.SetRelTol(tol);
    Mmat.Mult(b, z);
    T_solver.Mult(z, x);
-   return (0);
+   if (T_solver.GetConverged())
+      return SUNLS_SUCCESS;
+   else
+      return SUNLS_CONV_FAIL;
+}
+
+int ConductionOperator::SUNMassSetup()
+{
+   // Because this function is called before every mass solve, it is generally
+   // reserved for problems with a time-dependent mass matrix. Thus, the static
+   // mass matrix in this problem is assembled once elsewhere so nothing is to
+   // be done here.
+   return SUNLS_SUCCESS;
+}
+
+int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
+{
+   M_solver.SetRelTol(tol);
+   M_solver.Mult(b, x);
+   if (M_solver.GetConverged())
+      return SUNLS_SUCCESS;
+   else
+      return SUNLS_CONV_FAIL;
+}
+
+int ConductionOperator::SUNMassMult(const Vector &x, Vector &v)
+{
+   Mmat.Mult(x, v);
+   return SUNLS_SUCCESS;
 }
 
 double InitialTemperature(const Vector &x)
