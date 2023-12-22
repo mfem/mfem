@@ -11300,10 +11300,10 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 
      os << "\nattribute_sets\n";
      os << attr_sets.size() << '\n';
-     for (it = attr_sets.cbegin(); it!=attr_sets.cend(); it++)
+     for (it = attr_sets.cbegin(); it != attr_sets.cend(); it++)
      {
        os << '"' << it->first << '"' << ' ' << it->second.Size();
-       for (int i=0; i<it->second.Size(); i++)
+       for (i = 0; i < it->second.Size(); i++)
 	 {
 	   os << ' ' << it->second[i];
 	 }
@@ -11323,10 +11323,10 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 
      os << "\nbdr_attribute_sets\n";
      os << bdr_attr_sets.size() << '\n';
-     for (it = bdr_attr_sets.cbegin(); it!=bdr_attr_sets.cend(); it++)
+     for (it = bdr_attr_sets.cbegin(); it != bdr_attr_sets.cend(); it++)
      {
        os << '"' << it->first << '"' << ' ' << it->second.Size();
-       for (int i=0; i<it->second.Size(); i++)
+       for (i = 0; i < it->second.Size(); i++)
 	 {
 	   os << ' ' << it->second[i];
 	 }

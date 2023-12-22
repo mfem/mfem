@@ -100,9 +100,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
          int NumAttr;
          istr >> NumAttr;
          attr_sets[SetName].SetSize(NumAttr);
-         for (int i=0; i<NumAttr; i++)
+         for (int j=0; j<NumAttr; j++)
          {
-            istr >> attr_sets[SetName][i];
+            istr >> attr_sets[SetName][j];
          }
          attr_sets[SetName].Sort();
          attr_sets[SetName].Unique();
@@ -159,9 +159,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
          int NumAttr;
          istr >> NumAttr;
          bdr_attr_sets[SetName].SetSize(NumAttr);
-         for (int i=0; i<NumAttr; i++)
+         for (int j=0; j<NumAttr; j++)
          {
-            istr >> bdr_attr_sets[SetName][i];
+            istr >> bdr_attr_sets[SetName][j];
          }
          bdr_attr_sets[SetName].Sort();
          bdr_attr_sets[SetName].Unique();
