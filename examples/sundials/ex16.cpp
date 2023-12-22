@@ -37,9 +37,7 @@
 using namespace std;
 using namespace mfem;
 
-/** After spatial discretization, the conduction model can be written either as:
- *
- *     M du/dt = -K(u) u  (mass form)
+/** After spatial discretization, the conduction model can be expressed as
  *
  *     du/dt = -M^{-1} K(u) u (factored form)
  *
@@ -47,12 +45,71 @@ using namespace mfem;
  *  and K(u) is the diffusion operator with diffusivity depending on u:
  *  (\kappa + \alpha u).
  *
- *  Class ConductionOperator represents the above ODE operator.
+ *  Class FactoredFormOperator represents the above ODE operator.
  */
-class ConductionOperator : public TimeDependentOperator
+class FactoredFormOperator : public TimeDependentOperator
 {
-   bool use_mass_form; // flag to use mass form or factored form
+   FiniteElementSpace &fespace;
+   Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
+   BilinearForm M;
+   std::unique_ptr<BilinearForm> K;
+
+   SparseMatrix Mmat, Kmat;
+   std::unique_ptr<SparseMatrix> T; // T = M + gam K(u)
+
+   CGSolver M_solver; // Krylov solver for inverting the mass matrix M
+   DSmoother M_prec;  // Preconditioner for the mass matrix M
+
+   CGSolver T_solver; // Implicit solver for T = M + gam K(u)
+   DSmoother T_prec;  // Preconditioner for the implicit solver
+
+   double alpha, kappa;
+
+   mutable Vector z; // auxiliary vector
+
+public:
+
+   FactoredFormOperator(FiniteElementSpace &f, double alpha, double kappa,
+                      const Vector &u);
+
+   /** Computes -M^{-1} K(u) u. This is used by both the MFEM and the SUNDIALS
+       time integrators.*/
+   void Mult(const Vector &u, Vector &result) const override;
+
+   /** Solve for k in k = g(u + gam*k), where g(w) is the right-hand side of the
+       ODE, i.e., g(w) = -M^{-1} K(w) w. Note that instead of
+       K(u + gam*k) (u + gam*k), the approximation K(u_n) (u + gam*k) will be
+       used. This function is used by the implicit MFEM time integrators.*/
+   void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
+
+   /** Setup to solve for dk in [M - gamma Jf(u)] dk = M r, where Jf is an
+       approximation of the Jacobian of f(w) = -K(w) w and r is a given
+       residual. Here, the approximation is Jf(u) = -K(u_n). This method is used
+       by the implicit SUNDIALS solvers. */
+   int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
+                        double gamma) override;
+
+   /** Solve for dk in the system in SUNImplicitSetup to the given tolerance.
+       This method is used by the implicit SUNDIALS solvers. */
+   int SUNImplicitSolve(const Vector &r, Vector &k, double tol) override;
+
+   //// Update the diffusion BilinearForm K(u_n) using given true-dof vector `u`.
+   void SetParameters(const Vector &u);
+};
+
+/** After spatial discretization, the conduction model can be expressed as
+ *
+ *     M du/dt = -K(u) u  (mass form)
+ *
+ *  where u is the vector representing the temperature, M is the mass matrix,
+ *  and K(u) is the diffusion operator with diffusivity depending on u:
+ *  (\kappa + \alpha u).
+ *
+ *  Class MassFormOperator represents the above ODE operator.
+ */
+class MassFormOperator : public TimeDependentOperator
+{
    FiniteElementSpace &fespace;
    Array<int> ess_tdof_list; // this list remains empty for pure Neumann b.c.
 
@@ -74,34 +131,16 @@ class ConductionOperator : public TimeDependentOperator
 
 public:
 
-   ConductionOperator(FiniteElementSpace &f, double alpha, double kappa,
+   MassFormOperator(FiniteElementSpace &f, double alpha, double kappa,
                       const Vector &u);
 
-   void UseMassForm() {use_mass_form = true;}
-
-   /** Computes the right-hand side of the ODE. This is used by the MFEM, where
-       the ODE is in factored form, and by the SUNDIALS time integrators, where
-       the ODE can be in either form. */
+   /** Computes K(u) u. This is used by the SUNDIALS time integrators. */
    void Mult(const Vector &u, Vector &result) const override;
 
-   /** Solve for k in either of the equivalent systems
-       - M k = f(u + gam*k), where f(w) is the right-hand side of the ODE in
-         mass form, i.e., f(w) = -K(w) w,
-       - k = g(u + gam*k), where g(w) is the right-hand side of the ODE in
-         factored form, i.e., g(w) = -M^{-1} K(w) w
-       Note that instead of K(u + gam*k) (u + gam*k), the approximation
-       K(u) (u + gam*k) will be used. This function is used by the implicit MFEM
-       time integrators.*/
-   void ImplicitSolve(const double gam, const Vector &u, Vector &k) override;
-
-   /** Update the diffusion BilinearForm K(u) using given true-dof vector `u`
-       for use in the approximation in ImplicitSolve. */
-   void SetParameters(const Vector &u);
-
-   /** Setup to solve for dk in [M - gamma Jf(u)] dk = r, where Jf is an
-       approximation of the Jacobian of the right-hand side of the ODE in mass
-       form and r is a residual with respect to ODE in the mass form. Here, the
-       approximation is Jf(u) = -K(u). This method is used by the implicit SUNDIALS solvers. */
+   /** Setup to solve for dk in [M - gamma Jf(u)] dk = M r, where r is a given
+       residual and Jf is an approximation of the Jacobian of the right-hand
+       side of the ODE, i.e., f(w) = -K(w) w. Here, the approximation is
+       Jf(u) = -K(u_n). This method is used by the implicit SUNDIALS solvers. */
    int SUNImplicitSetup(const Vector &u, const Vector &fu, int jok, int *jcur,
                         double gamma) override;
 
@@ -109,28 +148,34 @@ public:
        This method is used by the implicit SUNDIALS solvers. */
    int SUNImplicitSolve(const Vector &r, Vector &k, double tol) override;
 
+   //// Update the diffusion BilinearForm K(u_n) using given true-dof vector `u`.
+   void SetParameters(const Vector &u);
+
    /** Setup to solve for x in M x = b. This method is used by the SUNDIALS
-       ARKODE solvers when the option to have MFEM solve the mass system is enabled (requires the ODE to be in mass form). */
+       ARKODE solvers. */
    int SUNMassSetup() override;
 
    /** Solve for x in the system in SUNMassSetup to the given tolerance. This
-       method is used by the SUNDIALS ARKODE solvers when the option to
-       have MFEM solve the mass system is enabled (requires the ODE to be in
-       mass form). */
+       method is used by the SUNDIALS ARKODE solvers. */
    int SUNMassSolve(const Vector &b, Vector &x, double tol) override;
 
-   /** Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers
-       when the option to have MFEM solve the mass system is enabled (requires
-       the ODE to be in mass form). */
-   int SUNMassMult(const Vector &x, Vector &v) override
-   {
-      MFEM_VERIFY(use_mass_form, "SUNMassMult requires ODE to be in mass form.");
-      Mult(x, v);
-      return SUNLS_SUCCESS;
-   }
+   /// Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers.
+   int SUNMassMult(const Vector &x, Vector &v) override;
 };
 
-double InitialTemperature(const Vector &x);
+
+double InitialTemperature(const Vector &x)
+{
+   if (x.Norml2() < 0.5)
+   {
+      return 2.0;
+   }
+   else
+   {
+      return 1.0;
+   }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -235,7 +280,8 @@ int main(int argc, char *argv[])
    u_gf.GetTrueDofs(u);
 
    // 6. Initialize the conduction operator and the visualization.
-   ConductionOperator oper(fespace, alpha, kappa, u);
+   std::unique_ptr<TimeDependentOperator> oper =
+      std::make_unique<FactoredFormOperator>(fespace, alpha, kappa, u);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -304,19 +350,20 @@ int main(int argc, char *argv[])
          else
             cvode_solver_type = CV_BDF;
          std::unique_ptr<CVODESolver> cvode(new CVODESolver(cvode_solver_type));
-         cvode->Init(oper);
+         cvode->Init(*oper);
          cvode->SetSStolerances(reltol, abstol);
          cvode->SetMaxStep(dt);
          ode_solver = std::move(cvode);
          break;
       }
       // ARKODE
-      case 10:
-      case 11:
-      case 12:
       case 13:
       case 14:
       case 15:
+        oper = std::make_unique<MassFormOperator>(fespace, alpha, kappa, u);
+      case 10:
+      case 11:
+      case 12:
       {
          ARKStepSolver::Type arkode_solver_type;
          if (ode_solver_type == 12 || ode_solver_type == 15)
@@ -324,16 +371,13 @@ int main(int argc, char *argv[])
          else
             arkode_solver_type = ARKStepSolver::EXPLICIT;
          std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(arkode_solver_type));
-         arkode->Init(oper);
+         arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 11 || ode_solver_type == 14)
             arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
          if (ode_solver_type == 13 || ode_solver_type == 14 || ode_solver_type == 15)
-         {
-            oper.UseMassForm();
             arkode->UseMFEMMassLinearSolver(SUNFALSE);
-         }
          ode_solver = std::move(arkode);
          break;
       }
@@ -343,7 +387,7 @@ int main(int argc, char *argv[])
    }
 
    // Initialize MFEM integrators, SUNDIALS integrators are initialized above
-   if (ode_solver_type < 8) { ode_solver->Init(oper); }
+   if (ode_solver_type < 8) { ode_solver->Init(*oper); }
 
    // Since we want to update the diffusion coefficient after every time step,
    // we need to use the "one-step" mode of the SUNDIALS solvers.
@@ -401,7 +445,11 @@ int main(int argc, char *argv[])
             visit_dc.Save();
          }
       }
-      oper.SetParameters(u);
+      if (FactoredFormOperator* tmp = dynamic_cast<FactoredFormOperator*>(oper.get()))
+         tmp->SetParameters(u);
+      if (MassFormOperator* tmp = dynamic_cast<MassFormOperator*>(oper.get()))
+         tmp->SetParameters(u);
+
    }
    tic_toc.Stop();
    cout << "Done, " << tic_toc.RealTime() << "s." << endl;
@@ -417,17 +465,16 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
+FactoredFormOperator::FactoredFormOperator(FiniteElementSpace &f, double al,
                                        double kap, const Vector &u)
-   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), z(height)
+   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), z(height),
+   M(&fespace)
 {
    const double rel_tol = 1e-8;
-   use_mass_form = false;
 
-   M = std::make_unique<BilinearForm>(&fespace);
-   M->AddDomainIntegrator(new MassIntegrator());
-   M->Assemble();
-   M->FormSystemMatrix(ess_tdof_list, Mmat);
+   M.AddDomainIntegrator(new MassIntegrator());
+   M.Assemble();
+   M.FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
@@ -450,29 +497,20 @@ ConductionOperator::ConductionOperator(FiniteElementSpace &f, double al,
    SetParameters(u);
 }
 
-void ConductionOperator::Mult(const Vector &u, Vector &result) const
+void FactoredFormOperator::Mult(const Vector &u, Vector &result) const
 {
-   // Compute either -K(u) u (mass form) or -M^{-1} K(u) u (factored form)
-   // SetParameters(u);
-   if (use_mass_form) // compute -K(u) u
-   {
-      Kmat.Mult(u, result);
-      result.Neg();
-   }
-   else // compute -M^{-1} K(u) u
-   {
-      Kmat.Mult(u, z);
-      z.Neg();
-      M_solver.Mult(z, result);
-   }
+   // Compute -M^{-1} K(u_n) u
+   Kmat.Mult(u, z);
+   z.Neg();
+   M_solver.Mult(z, result);
 }
 
-void ConductionOperator::ImplicitSolve(const double gam,
+void FactoredFormOperator::ImplicitSolve(const double gam,
                                        const Vector &u, Vector &k)
 {
-   // Solve the equation:
-   //    k = M^{-1}*[-K(u)*(u + gam*k)]  <==>   [M + gam*K(u)] k = -K(u) u
-   // for k
+   // Solve the equation for k:
+   //    k = M^{-1}*[-K(u_n)*(u + gam*k)]
+   //                         <==>   [M + gam*K(u_n)] k = -K(u_n) u
    // SetParameters(u);
    T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, Kmat));
    T_solver.SetOperator(*T);
@@ -481,7 +519,31 @@ void ConductionOperator::ImplicitSolve(const double gam,
    T_solver.Mult(z, k);
 }
 
-void ConductionOperator::SetParameters(const Vector &u)
+int FactoredFormOperator::SUNImplicitSetup(const Vector &u,
+                                           const Vector &fu, int jok, int *jcur,
+                                           double gamma)
+{
+   // Setup the Jacobian approximation T = M + gamma K(u_n).
+   T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
+   T_solver.SetOperator(*T);
+   *jcur = 1;
+   return SUNLS_SUCCESS;
+}
+
+int FactoredFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
+                                           double tol)
+{
+   // Solve the system [M + gamma K(u_n)] dk = M r.
+   T_solver.SetRelTol(tol);
+   Mmat.Mult(r, z);
+   T_solver.Mult(z, dk);
+   if (T_solver.GetConverged())
+      return SUNLS_SUCCESS;
+   else
+      return SUNLS_CONV_FAIL;
+}
+
+void FactoredFormOperator::SetParameters(const Vector &u)
 {
    GridFunction u_alpha_gf(&fespace);
    u_alpha_gf.SetFromTrueDofs(u);
@@ -499,51 +561,94 @@ void ConductionOperator::SetParameters(const Vector &u)
    K->FormSystemMatrix(ess_tdof_list, Kmat);
 }
 
-int ConductionOperator::SUNImplicitSetup(const Vector &u,
-                                         const Vector &fu, int jok, int *jcur,
-                                         double gamma)
+MassFormOperator::MassFormOperator(FiniteElementSpace &f, double al, double kap,
+                                   const Vector &u)
+   : TimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), z(height)
 {
-   // Setup the Jacobian approximation T = M + gamma K(u).
+   const double rel_tol = 1e-8;
+
+   alpha = al;
+   kappa = kap;
+
+   T_solver.iterative_mode = false;
+   T_solver.SetRelTol(rel_tol);
+   T_solver.SetAbsTol(0.0);
+   T_solver.SetMaxIter(100);
+   T_solver.SetPrintLevel(0);
+   T_solver.SetPreconditioner(T_prec);
+
+   SetParameters(u);
+}
+
+void MassFormOperator::Mult(const Vector &u, Vector &result) const
+{
+   // Compute -K(u) u
+   // SetParameters(u);
+   Kmat.Mult(u, result);
+   result.Neg();
+}
+
+int MassFormOperator::SUNImplicitSetup(const Vector &u,
+                                       const Vector &fu, int jok, int *jcur,
+                                       double gamma)
+{
+   // Setup the Jacobian approximation T = M + gamma K(u_n).
    T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gamma, Kmat));
    T_solver.SetOperator(*T);
    *jcur = 1;
    return SUNLS_SUCCESS;
 }
 
-int ConductionOperator::SUNImplicitSolve(const Vector &r, Vector &dk, double tol)
+int MassFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
+                                               double tol)
 {
-   // Solve the system [M + gamma K(u)]A dk = r.
+   // Solve the system [M + gamma K(u_n)] dk = r.
    T_solver.SetRelTol(tol);
-   if (use_mass_form)
-   {
-      T_solver.Mult(r, dk);
-   }
-   else
-   {
-      // need to first adjust the factored form r to a mass form residual
-      Mmat.Mult(r, z);
-      T_solver.Mult(z, dk);
-   }
+   T_solver.Mult(r, dk);
    if (T_solver.GetConverged())
       return SUNLS_SUCCESS;
    else
       return SUNLS_CONV_FAIL;
 }
 
-int ConductionOperator::SUNMassSetup()
+void MassFormOperator::SetParameters(const Vector &u)
 {
-   MFEM_VERIFY(use_mass_form, "SUNMassSetup requires ODE to be in mass form.");
-   // Because the mass solver is setup in the constructor to avoid issues with
-   // ConductionOperator::Mult being const, there is nothing to be done here.
+   GridFunction u_alpha_gf(&fespace);
+   u_alpha_gf.SetFromTrueDofs(u);
+   for (int i = 0; i < u_alpha_gf.Size(); i++)
+   {
+      u_alpha_gf(i) = kappa + alpha*u_alpha_gf(i);
+   }
+
+   K = std::make_unique<BilinearForm>(&fespace);
+
+   GridFunctionCoefficient u_coeff(&u_alpha_gf);
+
+   K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
+   K->Assemble();
+   K->FormSystemMatrix(ess_tdof_list, Kmat);
+}
+
+int MassFormOperator::SUNMassSetup()
+{
+   M = std::make_unique<BilinearForm>(&fespace);
+   M->AddDomainIntegrator(new MassIntegrator());
+   M->Assemble();
+   M->FormSystemMatrix(ess_tdof_list, Mmat);
+
+   M_solver.iterative_mode = false;
+   M_solver.SetAbsTol(0.0);
+   M_solver.SetMaxIter(50);
+   M_solver.SetPrintLevel(0);
+   M_solver.SetPreconditioner(M_prec);
+   M_solver.SetOperator(Mmat);
+
    return SUNLS_SUCCESS;
 }
 
-int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
+int MassFormOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
 {
-   MFEM_VERIFY(use_mass_form, "SUNMassSolve requires ODE to be in mass form.");
-
-   //M_solver.SetRelTol(0.0);
-   //M_solver.SetAbsTol(tol);
+   M_solver.SetRelTol(tol);
    M_solver.Mult(b, x);
    if (M_solver.GetConverged())
       return SUNLS_SUCCESS;
@@ -551,15 +656,9 @@ int ConductionOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
       return SUNLS_CONV_FAIL;
 }
 
-
-double InitialTemperature(const Vector &x)
+int MassFormOperator::SUNMassMult(const Vector &x, Vector &v)
 {
-   if (x.Norml2() < 0.5)
-   {
-      return 2.0;
-   }
-   else
-   {
-      return 1.0;
-   }
+   Mmat.Mult(x, v);
+   return SUNLS_SUCCESS;
 }
+
