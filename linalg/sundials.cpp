@@ -1666,7 +1666,7 @@ void ARKStepSolver::UseMFEMMassLinearSolver(int tdep)
    LSM->content      = this;
    LSM->ops->gettype = LSGetType;
    LSM->ops->solve   = ARKStepSolver::MassSysSolve;
-   LSA->ops->free    = LSFree;
+   LSM->ops->free    = LSFree;
 
    M = SUNMatNewEmpty(Sundials::GetContext());
    MFEM_VERIFY(M, "error in SUNMatNewEmpty()");
