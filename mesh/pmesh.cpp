@@ -145,6 +145,23 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      {
+         // Copy attribute and bdr_attribute names
+         map<string, Array<int> >::const_iterator it;
+
+         for (it = mesh.attr_sets.cbegin();
+              it != mesh.attr_sets.cend(); it++)
+         {
+            it->second.Copy(attr_sets[it->first]);
+         }
+
+         for (it = mesh.bdr_attr_sets.cbegin();
+              it != mesh.bdr_attr_sets.cend(); it++)
+         {
+            it->second.Copy(bdr_attr_sets[it->first]);
+         }
+      }
+
       GenerateNCFaceInfo();
    }
    else // mesh.Conforming()
@@ -180,6 +197,23 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
+
+      {
+         // Copy attribute and bdr_attribute names
+         map<string, Array<int> >::const_iterator it;
+
+         for (it = mesh.attr_sets.cbegin();
+              it != mesh.attr_sets.cend(); it++)
+         {
+            it->second.Copy(attr_sets[it->first]);
+         }
+
+         for (it = mesh.bdr_attr_sets.cbegin();
+              it != mesh.bdr_attr_sets.cend(); it++)
+         {
+            it->second.Copy(bdr_attr_sets[it->first]);
+         }
+      }
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -3890,6 +3924,23 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   {
+      // Copy attribute and bdr_attribute names
+      map<string, Array<int> >::const_iterator it;
+
+      for (it = attr_sets.cbegin();
+           it != attr_sets.cend(); it++)
+      {
+         it->second.Copy(pmesh2->attr_sets[it->first]);
+      }
+
+      for (it = bdr_attr_sets.cbegin();
+           it != bdr_attr_sets.cend(); it++)
+      {
+         it->second.Copy(pmesh2->bdr_attr_sets[it->first]);
+      }
+   }
+
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
    Mesh::Swap(*pmesh2, false);
@@ -3948,6 +3999,23 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
 
+   {
+      // Copy attribute and bdr_attribute names
+      map<string, Array<int> >::const_iterator it;
+
+      for (it = attr_sets.cbegin();
+           it != attr_sets.cend(); it++)
+      {
+         it->second.Copy(mesh2->attr_sets[it->first]);
+      }
+
+      for (it = bdr_attr_sets.cbegin();
+           it != bdr_attr_sets.cend(); it++)
+      {
+         it->second.Copy(mesh2->bdr_attr_sets[it->first]);
+      }
+   }
+
    Mesh::Swap(*mesh2, false);
    delete mesh2;
 
@@ -3998,6 +4066,23 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
+
+   {
+      // Copy attribute and bdr_attribute names
+      map<string, Array<int> >::const_iterator it;
+
+      for (it = attr_sets.cbegin();
+           it != attr_sets.cend(); it++)
+      {
+         it->second.Copy(pmesh2->attr_sets[it->first]);
+      }
+
+      for (it = bdr_attr_sets.cbegin();
+           it != bdr_attr_sets.cend(); it++)
+      {
+         it->second.Copy(pmesh2->bdr_attr_sets[it->first]);
+      }
+   }
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4789,7 +4874,9 @@ void ParMesh::Print(std::ostream &os) const
       }
    }
 
-   os << "MFEM mesh v1.0\n";
+   bool set_names = !attr_sets.empty() || !bdr_attr_sets.empty();
+
+   os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
    // optional
    os <<
@@ -4808,6 +4895,23 @@ void ParMesh::Print(std::ostream &os) const
    for (int i = 0; i < NumOfElements; i++)
    {
       PrintElement(elements[i], os);
+   }
+
+   if (set_names)
+   {
+      std::map<std::string,Array<int> >::const_iterator it;
+
+      os << "\nattribute_sets\n";
+      os << attr_sets.size() << '\n';
+      for (it = attr_sets.cbegin(); it!=attr_sets.cend(); it++)
+      {
+         os << '"' << it->first << '"' << ' ' << it->second.Size();
+         for (int i=0; i<it->second.Size(); i++)
+         {
+            os << ' ' << it->second[i];
+         }
+         os << '\n';
+      }
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4838,6 +4942,24 @@ void ParMesh::Print(std::ostream &os) const
          PrintElement(faces[(*s2l_face)[i]], os);
       }
    }
+
+   if (set_names)
+   {
+      std::map<std::string,Array<int> >::const_iterator it;
+
+      os << "\nbdr_attribute_sets\n";
+      os << bdr_attr_sets.size() << '\n';
+      for (it = bdr_attr_sets.cbegin(); it!=bdr_attr_sets.cend(); it++)
+      {
+         os << '"' << it->first << '"' << ' ' << it->second.Size();
+         for (int i=0; i<it->second.Size(); i++)
+         {
+            os << ' ' << it->second[i];
+         }
+         os << '\n';
+      }
+   }
+
    os << "\nvertices\n" << NumOfVertices << '\n';
    if (Nodes == NULL)
    {
@@ -4857,6 +4979,11 @@ void ParMesh::Print(std::ostream &os) const
    {
       os << "\nnodes\n";
       Nodes->Save(os);
+   }
+
+   if (set_names)
+   {
+      os << "mfem_mesh_end\n";
    }
 }
 
