@@ -30,9 +30,11 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
 
-# Remove built-in rule
+# Remove built-in rules
 %: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
 # The way the libraries are included, by default, in the command line is based
@@ -40,8 +42,8 @@ endif
 #  such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
 #  Tribol. Thus, linking MFEM is repeated in the end of the command.
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) \
-		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(MFEM_LIBS)
 
 all: $(MINIAPPS)
 

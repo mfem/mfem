@@ -2,7 +2,6 @@
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 
-
 #include "mfem.hpp"
 
 #include "axom/slic.hpp"
@@ -14,8 +13,6 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI
    mfem::Mpi::Init();
-   int num_ranks = mfem::Mpi::WorldSize();
-   int my_rank = mfem::Mpi::WorldRank();
 
    // Initialize logging with axom::slic
    axom::slic::SimpleLogger logger;
@@ -71,7 +68,7 @@ int main(int argc, char *argv[])
 
    // Create an H1 finite element space on the mesh for displacements/forces
    mfem::H1_FECollection fec(order, 3);
-   mfem::ParFiniteElementSpace fespace(&mesh, &fec);
+   mfem::ParFiniteElementSpace fespace(&mesh, &fec, 3);
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of displacement unknowns: " << fespace.GlobalTrueVSize() << std::endl;
@@ -116,7 +113,7 @@ int main(int argc, char *argv[])
 
    // Compute elasticity contribution to tangent stiffness matrix
    a.Assemble();
-   std::unique_ptr<mfem::HypreParMatrix> A;
+   std::unique_ptr<mfem::HypreParMatrix> A(new mfem::HypreParMatrix);
    a.FormSystemMatrix(ess_tdof_list, *A);
 
    // Initialize Tribol contact library
@@ -136,6 +133,14 @@ int main(int argc, char *argv[])
       tribol::LAGRANGE_MULTIPLIER,
       tribol::BINNING_GRID
    );
+
+   // Access Tribol's pressure grid function (on the contact surface)
+   auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
+   if (mfem::Mpi::Root())
+   {
+      std::cout << "Number of pressure unknowns: " << 
+         pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
+   }
 
    // Set Tribol options for Lagrange multiplier enforcement
    tribol::setLagrangeMultiplierOptions(
@@ -182,26 +187,80 @@ int main(int argc, char *argv[])
 
    // Fill with initial nodal gaps.
    // Note forces from contact are currently zero since pressure is currently zero.
-   mfem::Vector g;
-   tribol::getMfemGap(coupling_scheme_id, g); // gap on ldofs
-   {
-      auto& G = B_blk.GetBlock(1); // gap tdof vector
-      auto& P_submesh = *tribol::getMfemPressure(coupling_scheme_id).ParFESpace()->GetProlongationMatrix();
-      P_submesh.MultTranspose(g, G); // gap is a dual vector, so
-                                     // gap tdof vector = P^T * (gap ldof vector)
-   }
+   mfem::Vector gap;
+   tribol::getMfemGap(coupling_scheme_id, gap); // gap on ldofs
+   auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
+   auto& gap_true = B_blk.GetBlock(1); // gap tdof vectorParFESpace()
+   P_submesh.MultTranspose(gap, gap_true); // gap is a dual vector, so 
+                                           // gap tdof vector = P^T * (gap ldof vector)
 
    // Create block solution vector holding displacements and pressures at tdofs
    mfem::BlockVector X_blk(A_blk->ColOffsets());
    X_blk = 0.0;
 
    // Solve for displacements and pressures
-   mfem::CGSolver solver(MPI_COMM_WORLD);
+   mfem::MINRESSolver solver(MPI_COMM_WORLD);
    solver.SetRelTol(1.0e-12);
    solver.SetMaxIter(2000);
-   solver.SetPrintLevel(1);
+   solver.SetPrintLevel(3);
    solver.SetOperator(*A_merged);
+   mfem::HypreDiagScale prec(*A_merged);
+   solver.SetPreconditioner(prec);
    solver.Mult(B_blk, X_blk);
+
+   // Update displacement and coords grid functions
+   auto& displacement_true = X_blk.GetBlock(0);
+   fespace.GetProlongationMatrix()->Mult(displacement_true, displacement);
+   displacement.Neg();
+   coords += displacement;
+
+   // Update the pressure grid function
+   auto& pressure_true = X_blk.GetBlock(1);
+   P_submesh.Mult(pressure_true, pressure);
+
+   // Verify the forces are in equilibrium, i.e. f_int = A*u = -f_contact = -B^T*p
+   // This should be true if the solver converges.
+   mfem::Vector f_int_true(fespace.GetTrueVSize());
+   f_int_true = 0.0;
+   mfem::Vector f_contact_true(f_int_true);
+   A_blk->GetBlock(0, 0).Mult(displacement_true, f_int_true);
+   A_blk->GetBlock(0, 1).Mult(pressure_true, f_contact_true);
+   mfem::Vector resid_true(f_int_true);
+   resid_true += f_contact_true;
+   for (int i{0}; i < ess_tdof_list.Size(); ++i)
+   {
+      resid_true[ess_tdof_list[i]] = 0.0;
+   }
+   auto resid_linf = resid_true.Normlinf();
+   if (mfem::Mpi::Root())
+   {
+      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      std::cout << "|| force residual ||_(infty) = " << resid_linf << std::endl;
+   }
+   else
+   {
+      MPI_Reduce(&resid_linf, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+   }
+
+   // Verify the gap is closed by the displacements, i.e. B*u = gap
+   // This should be true if the solver converges.
+   mfem::Vector gap_resid_true(gap_true.Size());
+   gap_resid_true = 0.0;
+   A_blk->GetBlock(1, 0).Mult(displacement_true, gap_resid_true);
+   gap_resid_true -= gap_true;
+   auto gap_resid_linf = gap_resid_true.Normlinf();
+   if (mfem::Mpi::Root())
+   {
+      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      std::cout << "|| gap residual ||_(infty) = " << gap_resid_linf << std::endl;
+   }
+   else
+   {
+      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+   }
+
+   // Tribol cleanup: deletes coupling schemes and clears associated memory
+   tribol::finalize();
 
    return 0;
 }
