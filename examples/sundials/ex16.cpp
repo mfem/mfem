@@ -164,9 +164,6 @@ class MassFormOperator : public TimeDependentOperator
 
    ConductionTensor &K;
 
-   mutable Vector z; // auxiliary vector
-
-
 public:
 
    MassFormOperator(FiniteElementSpace &f, ConductionTensor &K);
@@ -576,8 +573,7 @@ int FactoredFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
 }
 
 MassFormOperator::MassFormOperator(FiniteElementSpace &fes, ConductionTensor &K)
-   : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), z(height),
-     K(K)
+   : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), K(K)
 {
    T_solver.iterative_mode = false;
    T_solver.SetAbsTol(0.0);
