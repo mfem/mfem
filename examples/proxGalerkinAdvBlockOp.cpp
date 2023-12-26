@@ -743,9 +743,10 @@ std::function<double(const Vector &)> getInitialCondition(int problem)
       case 1:
          return [](const Vector &x)
          {
+            double offset = 1e-04; // away from zero
             double y = 1.0;
             for (auto v:x) {y *= sin(M_PI*v); }
-            y += 1.0;
+            y += 1.0 + offset;
             return y;
          };
       default:
