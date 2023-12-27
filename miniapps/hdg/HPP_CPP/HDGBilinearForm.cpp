@@ -333,7 +333,7 @@ void HDGBilinearForm::compute_face_integrals(const int elem, const int edge,
         DenseMatrix *C_local,
         DenseMatrix *D_local)
 {
-    FaceElementTransformations *tr;
+    FaceElementTransformations *tr = NULL;
 
     if (isshared == -1)
     {
