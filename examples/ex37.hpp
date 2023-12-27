@@ -1437,7 +1437,7 @@ public:
 
       // DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
       GridFunctionCoefficient x_cf(&x), x0_cf(x0);
-      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y){return der_sigmoid(y)*(x - y); });
+      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return der_sigmoid(y)*(x - y); });
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(d_cf));
 
       double val = F.GetValue();
@@ -1450,7 +1450,7 @@ public:
          x = *x0;
          x.Add(1.0, d);
          new_val = F.Eval();
-         TransformedCoefficient diff_in_rho(&x_cf, &x0_cf, [](double x, double y){return sigmoid(x)-sigmoid(y); });
+         TransformedCoefficient diff_in_rho(&x_cf, &x0_cf, [](double x, double y) {return sigmoid(x)-sigmoid(y); });
          GridFunction zero(x); zero = 0.0;
          double error = zero.ComputeL2Error(diff_in_rho);
          out << error << std::endl;
