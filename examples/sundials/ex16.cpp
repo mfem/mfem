@@ -498,6 +498,7 @@ FactoredFormOperator::FactoredFormOperator(FiniteElementSpace &fes,
    : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), M(&fespace),
      z(height), K(K)
 {
+   // specify a relative tolerance for all solves with MFEM integrators
    const double rel_tol = 1e-8;
 
    M.AddDomainIntegrator(new MassIntegrator());
@@ -505,7 +506,7 @@ FactoredFormOperator::FactoredFormOperator(FiniteElementSpace &fes,
    M.FormSystemMatrix(ess_tdof_list, Mmat);
 
    M_solver.iterative_mode = false;
-   M_solver.SetRelTol(rel_tol);
+   M_solver.SetRelTol(rel_tol); // will be overwritten with SUNDIALS integrators
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(50);
    M_solver.SetPrintLevel(0);
@@ -513,7 +514,7 @@ FactoredFormOperator::FactoredFormOperator(FiniteElementSpace &fes,
    M_solver.SetOperator(Mmat);
 
    T_solver.iterative_mode = false;
-   T_solver.SetRelTol(rel_tol);
+   T_solver.SetRelTol(rel_tol); // will be overwritten with SUNDIALS integrators
    T_solver.SetAbsTol(0.0);
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
@@ -555,7 +556,7 @@ int FactoredFormOperator::SUNImplicitSetup(const Vector &u,
 int FactoredFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
                                            double tol)
 {
-   // Solve the system [M + gamma K(u_n)] dk = M r.
+   // Solve the system [M + gamma K(u_n)] dk = M r to the specified tolerance.
    T_solver.SetRelTol(tol);
    Mmat.Mult(r, z);
    T_solver.Mult(z, dk);
@@ -569,7 +570,7 @@ MassFormOperator::MassFormOperator(FiniteElementSpace &fes, ConductionTensor &K)
    : TimeDependentOperator(fes.GetTrueVSize(), 0.0), fespace(fes), K(K)
 {
    T_solver.iterative_mode = false;
-   T_solver.SetAbsTol(0.0);
+   T_solver.SetAbsTol(0.0); // relative tolerance to be specified for each solve
    T_solver.SetMaxIter(100);
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
@@ -596,7 +597,7 @@ int MassFormOperator::SUNImplicitSetup(const Vector &u,
 int MassFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
                                                double tol)
 {
-   // Solve the system [M + gamma K(u_n)] dk = r.
+   // Solve the system [M + gamma K(u_n)] dk = r to the given tolerance.
    T_solver.SetRelTol(tol);
    T_solver.Mult(r, dk);
    if (T_solver.GetConverged())
@@ -607,13 +608,13 @@ int MassFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
 
 int MassFormOperator::SUNMassSetup()
 {
+   // Setup the mass system
    M = std::make_unique<BilinearForm>(&fespace);
    M->AddDomainIntegrator(new MassIntegrator());
    M->Assemble();
    M->FormSystemMatrix(ess_tdof_list, Mmat);
-
    M_solver.iterative_mode = false;
-   M_solver.SetAbsTol(0.0);
+   M_solver.SetAbsTol(0.0); // relative tolerance to be specified for each solve
    M_solver.SetMaxIter(50);
    M_solver.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
@@ -624,6 +625,7 @@ int MassFormOperator::SUNMassSetup()
 
 int MassFormOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
 {
+   // Solve the system M x = b to the given tolerance
    M_solver.SetRelTol(tol);
    M_solver.Mult(b, x);
    if (M_solver.GetConverged())
@@ -634,6 +636,7 @@ int MassFormOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
 
 int MassFormOperator::SUNMassMult(const Vector &x, Vector &v)
 {
+   // Compute M x
    Mmat.Mult(x, v);
    return SUNLS_SUCCESS;
 }
