@@ -848,6 +848,14 @@ public:
 
       a->FormLinearSystem(ess_tdof_list, *x, *b, A, X, B, true);
 
+#ifdef MFEM_USE_SUITESPARSE
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_CHOLMOD;
+      umf_solver.SetOperator(*A);
+      umf_solver.Mult(B, X);
+      a->RecoverFEMSolution(X, *b, *x);
+      bool converged = true;
+#else
       CGSolver * cg = nullptr;
       Solver * M = nullptr;
 #ifdef MFEM_USE_MPI
@@ -875,9 +883,10 @@ public:
       cg->Mult(B, X);
       a->RecoverFEMSolution(X, *b, *x);
       bool converged = cg->GetConverged();
-
       delete M;
       delete cg;
+#endif
+
       return converged;
    };
 protected:
