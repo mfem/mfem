@@ -186,9 +186,6 @@ public:
        This method is used by the implicit SUNDIALS solvers. */
    int SUNImplicitSolve(const Vector &r, Vector &dk, double tol) override;
 
-   //// Update the diffusion BilinearForm K(u_n) using given true-dof vector `u`.
-   void SetParameters(const Vector &u);
-
    /** Setup to solve for x in M x = b. This method is used by the SUNDIALS
        ARKODE solvers. */
    int SUNMassSetup() override;
@@ -544,7 +541,6 @@ void FactoredFormOperator::ImplicitSolve(const double gam,
    // Solve the equation for k:
    //    k = M^{-1}*[-K(u_n)*(u + gam*k)]
    //                         <==>   [M + gam*K(u_n)] k = -K(u_n) u
-   // SetParameters(u);
    T = std::unique_ptr<SparseMatrix>(Add(1.0, Mmat, gam, K.GetMatrix()));
    T_solver.SetOperator(*T);
    K.GetMatrix().Mult(u, z);
