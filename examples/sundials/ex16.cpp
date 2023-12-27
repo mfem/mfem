@@ -68,11 +68,9 @@ public:
       {
          u_alpha_gf(i) = kappa + alpha*u_alpha_gf(i);
       }
-
-      K = std::make_unique<BilinearForm>(&fespace);
-
       GridFunctionCoefficient u_coeff(&u_alpha_gf);
 
+      K = std::make_unique<BilinearForm>(&fespace);
       K->AddDomainIntegrator(new DiffusionIntegrator(u_coeff));
       K->Assemble();
       K->FormSystemMatrix(ess_tdof_list, Kmat);
@@ -197,7 +195,6 @@ public:
    /// Compute v = M x.  This method is used by the SUNDIALS ARKODE solvers.
    int SUNMassMult(const Vector &x, Vector &v) override;
 };
-
 
 double InitialTemperature(const Vector &x)
 {
@@ -363,7 +360,6 @@ int main(int argc, char *argv[])
    // 7. Define the ODE solver used for time integration.
    double t = 0.0;
    std::unique_ptr<ODESolver> ode_solver;
-   // Set
    std::unique_ptr<TimeDependentOperator> oper;
    if (ode_solver_type < 13)
       oper = std::make_unique<FactoredFormOperator>(fespace, K);
@@ -409,7 +405,8 @@ int main(int argc, char *argv[])
             arkode_solver_type = ARKStepSolver::IMPLICIT;
          else
             arkode_solver_type = ARKStepSolver::EXPLICIT;
-         std::unique_ptr<ARKStepSolver> arkode(new ARKStepSolver(arkode_solver_type));
+         std::unique_ptr<ARKStepSolver> arkode(
+            new ARKStepSolver(arkode_solver_type));
          arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
