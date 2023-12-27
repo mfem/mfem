@@ -30,7 +30,8 @@ double inv_sigmoid(const double x)
 /// @brief Sigmoid function
 double sigmoid(const double x)
 {
-   return (std::tanh(x*0.5) + 1.0) * 0.5;
+   return x>=0 ? 1 / (1 + exp(-x)) : exp(x) / (1 + exp(x));
+   // return (std::tanh(x*0.5) + 1.0) * 0.5;
 }
 
 /**
