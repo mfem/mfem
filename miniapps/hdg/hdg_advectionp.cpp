@@ -376,7 +376,6 @@ int main(int argc, char *argv[])
          itsolver->SetMaxIter(maxIter);
          itsolver->SetPrintLevel(PrintLevel);
          itsolver->SetPreconditioner(*pdiag);
-         itsolver->SetZeroInintialIterate();
          chrono.Clear();
          chrono.Start();
          itsolver->Mult(*rhs_SC, *UBAR);

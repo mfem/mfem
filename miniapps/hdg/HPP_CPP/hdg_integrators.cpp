@@ -431,7 +431,6 @@ void HDGDomainIntegratorDiffusion::AssembleElementMatrix2FES(
     local_A12.Transpose(local_A21);
 
     int block_size1 = dim*ndof_q;
-    int block_size2 = ndof_u;
 
     elmat.CopyMN(local_A11, 0, 0);
     elmat.CopyMN(local_A12, 0, block_size1);

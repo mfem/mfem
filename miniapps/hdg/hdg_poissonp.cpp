@@ -343,8 +343,6 @@ int main(int argc, char *argv[])
       int maxIter = 1000;
       int PrintLevel = -1;
 
-      PetscParMatrix *SC_petsc = new PetscParMatrix(SC);
-
       if (petsc)
       {
 #ifdef MFEM_USE_PETSC
@@ -390,7 +388,6 @@ int main(int argc, char *argv[])
          amg->SetPrintLevel(PrintLevel);
          pcg->SetPrintLevel(PrintLevel);
          pcg->SetPreconditioner(*amg);
-         pcg->SetZeroInintialIterate();
          chrono.Clear();
          chrono.Start();
          pcg->Mult(*rhs_SC, *Lambda);
