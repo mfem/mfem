@@ -9,7 +9,9 @@
 //               sundials_ex16 -s 12 -a 0.0 -k 1.0
 //               sundials_ex16 -s 15 -a 0.0 -k 1.0
 //               sundials_ex16 -s 8 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
+//               sundials_ex16 -s 11 -a 1.0 -k 0.0 -dt 1e-4 -tf 5e-2 -vs 25
 //               sundials_ex16 -s 9 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
+//               sundials_ex16 -s 12 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
 //               sundials_ex16 -s 10 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               sundials_ex16 -s 13 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               sundials_ex16 -m ../../data/fichera-q2.mesh
