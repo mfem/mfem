@@ -864,15 +864,15 @@ HypreParMatrix *HDGBilinearForm::ParallelAssembleSC(int i, SparseMatrix *m)
 
         Array<HYPRE_Int> glob_J(m->NumNonZeroElems());
         int *J = m->GetJ();
-        for (int i = 0; i < glob_J.Size(); i++)
+        for (int ii = 0; ii < glob_J.Size(); ii++)
         {
-            if (J[i] < lvsize)
+            if (J[ii] < lvsize)
             {
-                glob_J[i] = J[i] + ldof_offset;
+                glob_J[ii] = J[ii] + ldof_offset;
             }
             else
             {
-                glob_J[i] = face_nbr_glob_ldof[J[i] - lvsize];
+                glob_J[ii] = face_nbr_glob_ldof[J[ii] - lvsize];
             }
         }
 
