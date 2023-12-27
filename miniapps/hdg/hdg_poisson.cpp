@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/inline-tri.mesh";
+   const char *mesh_file = "../../data/inline-tri.mesh";
    int order = 1;
    int initial_ref_levels = 0;
    int total_ref_levels = 1;

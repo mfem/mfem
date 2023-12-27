@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
    double GassemblyTime, GsolveTime, GreconstructTime, GpprocessTime;
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/inline-tri.mesh";
+   const char *mesh_file = "../../data/inline-tri.mesh";
    int order = 1;
    int initial_ref_levels = 0;
    int total_ref_levels = 1;
