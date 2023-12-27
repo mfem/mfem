@@ -54,7 +54,7 @@ class ConductionTensor
 public:
 
    ConductionTensor(FiniteElementSpace &fespace, double alpha, double kappa,
-                      const Vector &u)
+                    const Vector &u)
       : fespace(fespace), alpha(alpha), kappa(kappa)
    {
       Update(u);
@@ -362,9 +362,13 @@ int main(int argc, char *argv[])
    std::unique_ptr<ODESolver> ode_solver;
    std::unique_ptr<TimeDependentOperator> oper;
    if (ode_solver_type < 13)
+   {
       oper = std::make_unique<FactoredFormOperator>(fespace, K);
+   }
    else
+   {
       oper = std::make_unique<MassFormOperator>(fespace, K);
+   }
    switch (ode_solver_type)
    {
       // MFEM explicit methods
@@ -382,9 +386,13 @@ int main(int argc, char *argv[])
       {
          int cvode_solver_type;
          if (ode_solver_type == 8)
+         {
             cvode_solver_type = CV_ADAMS;
+         }
          else
+         {
             cvode_solver_type = CV_BDF;
+         }
          std::unique_ptr<CVODESolver> cvode(new CVODESolver(cvode_solver_type));
          cvode->Init(*oper);
          cvode->SetSStolerances(reltol, abstol);
@@ -402,18 +410,26 @@ int main(int argc, char *argv[])
       {
          ARKStepSolver::Type arkode_solver_type;
          if (ode_solver_type == 12 || ode_solver_type == 15)
+         {
             arkode_solver_type = ARKStepSolver::IMPLICIT;
+         }
          else
+         {
             arkode_solver_type = ARKStepSolver::EXPLICIT;
+         }
          std::unique_ptr<ARKStepSolver> arkode(
             new ARKStepSolver(arkode_solver_type));
          arkode->Init(*oper);
          arkode->SetSStolerances(reltol, abstol);
          arkode->SetMaxStep(dt);
          if (ode_solver_type == 11 || ode_solver_type == 14)
+         {
             arkode->SetERKTableNum(ARKODE_FEHLBERG_13_7_8);
+         }
          if (dynamic_cast<MassFormOperator*>(oper.get()))
+         {
             arkode->UseMFEMMassLinearSolver(SUNFALSE);
+         }
          ode_solver = std::move(arkode);
          break;
       }
@@ -530,7 +546,7 @@ void FactoredFormOperator::Mult(const Vector &u, Vector &result) const
 }
 
 void FactoredFormOperator::ImplicitSolve(const double gam,
-                                       const Vector &u, Vector &k)
+                                         const Vector &u, Vector &k)
 {
    // Solve the equation for k:
    //    k = M^{-1}*[-K(u_n)*(u + gam*k)]
@@ -561,9 +577,13 @@ int FactoredFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
    Mmat.Mult(r, z);
    T_solver.Mult(z, dk);
    if (T_solver.GetConverged())
+   {
       return SUNLS_SUCCESS;
+   }
    else
+   {
       return SUNLS_CONV_FAIL;
+   }
 }
 
 MassFormOperator::MassFormOperator(FiniteElementSpace &fes, ConductionTensor &K)
@@ -595,15 +615,19 @@ int MassFormOperator::SUNImplicitSetup(const Vector &u,
 }
 
 int MassFormOperator::SUNImplicitSolve(const Vector &r, Vector &dk,
-                                               double tol)
+                                       double tol)
 {
    // Solve the system [M + gamma K(u_n)] dk = r to the given tolerance.
    T_solver.SetRelTol(tol);
    T_solver.Mult(r, dk);
    if (T_solver.GetConverged())
+   {
       return SUNLS_SUCCESS;
+   }
    else
+   {
       return SUNLS_CONV_FAIL;
+   }
 }
 
 int MassFormOperator::SUNMassSetup()
@@ -629,9 +653,13 @@ int MassFormOperator::SUNMassSolve(const Vector &b, Vector &x, double tol)
    M_solver.SetRelTol(tol);
    M_solver.Mult(b, x);
    if (M_solver.GetConverged())
+   {
       return SUNLS_SUCCESS;
+   }
    else
+   {
       return SUNLS_CONV_FAIL;
+   }
 }
 
 int MassFormOperator::SUNMassMult(const Vector &x, Vector &v)
