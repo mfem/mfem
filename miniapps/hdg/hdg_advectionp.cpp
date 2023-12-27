@@ -494,13 +494,13 @@ int main(int argc, char *argv[])
          }
          else
          {
-            const double order = log(l2errors(ref_levels)/l2errors(ref_levels-1))
+            const double conv_order = log(l2errors(ref_levels)/l2errors(ref_levels-1))
                                  /log(0.5);
             std::cout << "  " << ref_levels << "   "
                       << std::setprecision(2) << std::scientific
                       << l2errors(ref_levels)
                       << "  " << std::setprecision(4) << std::fixed
-                      << order << "   "
+                      << conv_order << "   "
                       << iterativeMethodIts[ref_levels] << std::endl;
          }
       }
