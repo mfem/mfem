@@ -488,11 +488,7 @@ int main(int argc, char *argv[])
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex16.mesh -g ex16-final.gf".
-   {
-      ofstream osol("ex16-final.gf");
-      osol.precision(precision);
-      u_gf.Save(osol);
-   }
+   u_gf.Save("ex16-final.gf");
 
    return 0;
 }
