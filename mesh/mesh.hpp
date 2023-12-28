@@ -1464,19 +1464,24 @@ public:
        @sa GetBdrElementAdjacentElement2() */
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
-   /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
+   /** @brief Deprecated.
+
+       For the given boundary element, bdr_el, return its adjacent element and
+       its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
 
        The returned inverse_bdr_orientation is the inverse of the orientation of
        the boundary element relative to the respective face element. In other
        words this is the orientation of the face element relative to the
        boundary element.
 
-       @sa GetBdrElementAdjacentElement() */
-   void GetBdrElementAdjacentElementWithInverseOrientation(
-      int bdr_el, int &el, int &info) const;
+       @warning This only differs from GetBdrElementAdjacentElement by returning
+       the face info with inverted orientation. It does @b not return
+       information corresponding to a second adjacent face. This function is
+       deprecated, use Geometry::GetInverseOrientation, Mesh::EncodeFaceInfo,
+       Mesh::DecodeFaceInfoOrientaiton, and Mesh::DecodeFaceInfoLocalIndex
+       instead.
 
-   /// Deprecated in favor of GetBdrElementAdjacentElementWithInverseOrientation
+       @sa GetBdrElementAdjacentElement() */
    MFEM_DEPRECATED
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
@@ -1890,6 +1895,16 @@ public:
       /// @brief cast operator from FaceInformation to FaceInfo.
       operator Mesh::FaceInfo() const;
    };
+
+   /// Given a "face info int", return the face orientation. @sa FaceInfo.
+   static int DecodeFaceInfoOrientaiton(int info) { return info%64; }
+
+   /// Given a "face info int", return the local face index. @sa FaceInfo.
+   static int DecodeFaceInfoLocalIndex(int info) { return info/64; }
+
+   /// @brief Given @a local_face_index and @a orientation, return the
+   /// corresponding encoded "face info int". @sa FaceInfo.
+   static int EncodeFaceInfo(int local_face_index, int orientation) { return orientation + local_face_index*64; }
 
    /// @name More advanced entity information access methods
    /// @{
