@@ -1184,4 +1184,11 @@ void HDGBilinearForm::AssembleReconstruct(Array<GridFunction*> Vol_GF,
         delete [] C_local;
         delete [] D_local;
     }
+    
+    if (!assemble)
+    {
+        delete el_to_face;
+        delete [] A_data;
+        delete [] B_data;
+    }
 }

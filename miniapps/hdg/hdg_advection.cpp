@@ -347,6 +347,7 @@ int main(int argc, char *argv[])
       u.Update();
       ubar.Update();
 
+      delete F;
    }
 
    // 15. Print the results and compute the rates

@@ -474,6 +474,8 @@ int main(int argc, char *argv[])
          printf("\t Solve time      = %.2f\n",GsolveTime);
          printf("\t Reconstruct time = %.2f\n",GreconstructTime);
       }
+      
+      delete F;
    }
 
    // 17. Print the results

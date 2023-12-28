@@ -307,10 +307,7 @@ int main(int argc, char *argv[])
       lambda.ProjectCoefficientSkeleton(ucoeff);
 
       HypreParVector *Lambda =  new HypreParVector(M_space);
-
-      *Lambda = 0.0;
-
-      Lambda->Add(1.0, lambda);
+      lambda.ParallelProject(*Lambda);
 
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
@@ -551,7 +548,10 @@ int main(int argc, char *argv[])
             u_star_sock << "solution\n" << *pmesh << u_post << "window_title 'U_star'"
                         << endl;
          }
-
+         
+         delete hdgpost;
+         delete Vstar_space;
+         delete dg_coll_pstar;
       }
 
       // 17. Refine the mesh to increase the resolution and update the spaces and the forms. Print the runtimes
@@ -578,6 +578,9 @@ int main(int argc, char *argv[])
          printf("\t Reconstruct time = %.2f\n",GreconstructTime);
          printf("\t Postprocess time = %.2f\n",GpprocessTime);
       }
+      
+      delete R;
+      delete F;
    }
 
    // 18. Print the results

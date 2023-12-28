@@ -408,6 +408,10 @@ int main(int argc, char *argv[])
             u_star_sock << "solution\n" << *mesh << u_post <<
                         "window_title 'Solution u_star'" << endl;
          }
+         
+         delete hdgpost;
+         delete Vstar_space;
+         delete dg_coll_pstar;
       }
 
       // 16. Refine the mesh to increase the resolution and update the spaces and the forms.
@@ -421,6 +425,9 @@ int main(int argc, char *argv[])
       q_variable.Update();
       u_variable.Update();
       lambda_variable.Update();
+      
+      delete R;
+      delete F;
    }
 
    // 17. Print the results
