@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/inline-tri.mesh";
    int order = 1;
-   int total_ref_levels = 4;
+   int total_ref_levels = 2;
    int initial_ref_levels = 0;
    bool visualization = true;
    bool save = true;

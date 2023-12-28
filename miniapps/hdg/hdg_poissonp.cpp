@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/inline-tri.mesh";
    int order = 1;
    int initial_ref_levels = 0;
-   int total_ref_levels = 1;
+   int total_ref_levels = 2;
    bool visualization = true;
    bool verbose = (myid == 0);
    bool post = true;
