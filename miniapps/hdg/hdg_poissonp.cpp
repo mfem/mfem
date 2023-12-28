@@ -548,7 +548,7 @@ int main(int argc, char *argv[])
             u_star_sock << "solution\n" << *pmesh << u_post << "window_title 'U_star'"
                         << endl;
          }
-         
+
          delete hdgpost;
          delete Vstar_space;
          delete dg_coll_pstar;
@@ -578,7 +578,7 @@ int main(int argc, char *argv[])
          printf("\t Reconstruct time = %.2f\n",GreconstructTime);
          printf("\t Postprocess time = %.2f\n",GpprocessTime);
       }
-      
+
       delete R;
       delete F;
    }
