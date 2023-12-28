@@ -517,7 +517,6 @@ int main(int argc, char *argv[])
          pprocessTime = chrono.RealTime();
 
          order_quad = max(2, 2*order+5);
-         const IntegrationRule *irs[Geometry::NumGeom];
          for (int i=0; i < Geometry::NumGeom; ++i)
          {
             irs[i] = &(IntRules.Get(i, order_quad));
