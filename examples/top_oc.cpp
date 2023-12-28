@@ -146,11 +146,11 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_vo
    });
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
-   while (mu_r - mu_l > 1e-12)
+   double volume = 0;
+   while (fabs(volume - target_volume) > 1e-09 / target_volume)
    {
       mu.constant = 0.5*(mu_l + mu_r);
-      double volume = zero_gf.ComputeL1Error(projectedDensity);
-      // out << "Volume / target = " << volume / target_volume << std::endl;
+      volume = zero_gf.ComputeL1Error(projectedDensity);
       if (volume < target_volume)
       {
          mu_r = mu.constant;
@@ -160,6 +160,8 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_vo
          mu_l = mu.constant;
       }
    }
+   out << zero_gf.ComputeL1Error(projectedDensity) << ", " << flush;
+
    TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
    {
       return x - y;
@@ -182,9 +184,9 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 1e-2;
+   double epsilon = 5e-2;
    double vol_fraction = 0.5;
-   int max_it = 1e3;
+   int max_it = 2e2;
    double itol = 1e-3;
    double ntol = 1e-6;
    double rho_min = 1e-6;
@@ -294,7 +296,7 @@ int main(int argc, char *argv[])
          ess_bdr(3, 4) = 1;
          center.SetSize(3); force.SetSize(3);
          center(0) = 1.9; center(1) = 0.125; center(2) = 0.25;
-         force(0) = 0.0; force(1) = 0.0; force(1) = -1.0;
+         force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
          vforce_cf.UpdateSize();
          solfile << "Cantilever3-";
          solfile2 << "Cantilever3-";
@@ -315,7 +317,6 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
       h *= 0.5;
    }
-   epsilon = 4 * h;
 
    if (problem == Problem::MBB)
    {
@@ -535,7 +536,7 @@ int main(int argc, char *argv[])
          sol_ofs2 << frho;
       }
 
-      if (coneCondition < 5e-06)
+      if (coneCondition < 5e-05)
       {
          break;
       }

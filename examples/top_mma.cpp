@@ -132,8 +132,8 @@ using namespace mfem;
  *
  */
 
-double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
-                         double target_volume)
+
+double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_volume)
 {
    GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient grad_cf(&grad);
@@ -142,18 +142,17 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
    SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
    double mu_l = -1.0 - c*grad.Normlinf();
    double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p,
-                                                                          double g)
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
    {
       return max(0.0, min(1.0, p - g));
    });
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
-   while (mu_r - mu_l > 1e-12)
+   double volume = 0;
+   while (fabs(volume - target_volume) > 1e-09 / target_volume)
    {
       mu.constant = 0.5*(mu_l + mu_r);
-      double volume = zero_gf.ComputeL1Error(projectedDensity);
-      // out << "Volume / target = " << volume / target_volume << std::endl;
+      volume = zero_gf.ComputeL1Error(projectedDensity);
       if (volume < target_volume)
       {
          mu_r = mu.constant;
@@ -163,8 +162,9 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
          mu_l = mu.constant;
       }
    }
-   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x,
-                                                                  double y)
+   out << zero_gf.ComputeL1Error(projectedDensity) << ", " << flush;
+
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
    {
       return x - y;
    });
@@ -186,9 +186,9 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 1e-2;
+   double epsilon = 5e-2;
    double vol_fraction = 0.5;
-   int max_it = 1e3;
+   int max_it = 2e2;
    double itol = 1e-3;
    double ntol = 1e-6;
    double rho_min = 1e-6;
@@ -319,7 +319,6 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
       h *= 0.5;
    }
-   epsilon = 4 * h;
 
    if (problem == Problem::MBB)
    {
@@ -354,8 +353,8 @@ int main(int argc, char *argv[])
       }
    }
    meshfile << ".mesh";
-   solfile << "OC-0.gf";
-   solfile2 << "OC-f.gf";
+   solfile << "MMA-0.gf";
+   solfile2 << "MMA-f.gf";
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -411,13 +410,13 @@ int main(int argc, char *argv[])
       sout_SIMP.open(vishost, visport);
       sout_SIMP.precision(8);
       sout_SIMP << "solution\n" << mesh << designDensity_gf
-                << "window_title 'Design density r(ρ̃) - OC'\n"
+                << "window_title 'Design density r(ρ̃) - MMA'\n"
                 << "keys Rjl***************\n"
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << designDensity_gf
-             << "window_title 'Raw density ρ - OC'\n"
+             << "window_title 'Raw density ρ - MMA'\n"
              << "keys Rjl***************\n"
              << flush;
    }
@@ -523,7 +522,7 @@ int main(int argc, char *argv[])
          sol_ofs2 << frho;
       }
 
-      if (coneCondition < 5e-06)
+      if (coneCondition < 5e-05)
       {
          break;
       }
