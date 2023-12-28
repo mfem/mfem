@@ -471,14 +471,17 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
       else // L2 Nodes (e.g., periodic mesh)
       {
          int elem_id, face_info;
-         GetBdrElementAdjacentElementWithInverseOrientation(i, elem_id, face_info);
+         GetBdrElementAdjacentElement(i, elem_id, face_info);
+         Geometry::Type face_geom = GetBdrElementGeometry(i);
+         face_info = EncodeFaceInfo(
+                        DecodeFaceInfoLocalIndex(face_info),
+                        Geometry::GetInverseOrientation(face_geom, DecodeFaceInfoOrientaiton(face_info))
+                     );
 
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
                                     FaceElemTr.Loc1.Transf, face_info);
          // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
-
-         Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
             Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
          MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
@@ -7145,7 +7148,7 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    info = fi.Elem1Inf + ori;
 }
 
-void Mesh::GetBdrElementAdjacentElementWithInverseOrientation(
+void Mesh::GetBdrElementAdjacentElement2(
    int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementFaceIndex(bdr_el);
@@ -7166,11 +7169,6 @@ void Mesh::GetBdrElementAdjacentElementWithInverseOrientation(
    }
    el   = fi.Elem1No;
    info = fi.Elem1Inf + ori;
-}
-
-void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
-{
-   GetBdrElementAdjacentElementWithInverseOrientation(bdr_el, el, info);
 }
 
 Element::Type Mesh::GetElementType(int i) const
