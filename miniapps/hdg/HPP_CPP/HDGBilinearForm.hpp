@@ -59,7 +59,7 @@ protected:
 
     /// Dense matrices to be used for computing the integrals
     DenseMatrix elemmat1, elemmat2, elemmat3, elemmat4;
-    
+
     /// Vectors to store A and B, the corresponding offsets and the number
     /// of elements on which A and B will be stored
     Array<int> A_offsets, B_offsets;
@@ -89,7 +89,8 @@ protected:
         skeletal_fes = NULL;
         parallel = false;
         el_to_face = NULL;
-        A_data = NULL; B_data = NULL;
+        A_data = NULL;
+        B_data = NULL;
         elements_A = elements_B = 0;
     }
 
@@ -153,7 +154,7 @@ public:
         return mat[m];
     }
 
-    /// Returns the 
+    /// Returns the
     // For block systems: the matrices are counted row-wise
     SparseMatrix *SpMatSC(int m = 0)
     {
@@ -182,7 +183,7 @@ public:
 
     /// Allocates the vectors for the part of A and B that will be stored
     void Allocate(const Array<int> &bdr_attr_is_ess,
-        const double memA = 0.0, const double memB = 0.0);
+                  const double memA = 0.0, const double memB = 0.0);
 
     /// Assembles the Schur complement - general approach, with FES arrays.
     // rhs_F is the volume right hand side gf array
@@ -265,7 +266,7 @@ public:
       - Vol_GF is the array of the volume equations right hand side grid functions (might be all zero)
       - Skel_GF is the array of the skeletal solutions
       - bdr_sol_sol_GF is the array of the volume unknowns (to be recontructed)
-     
+
      */
     void AssembleReconstruct(Array<GridFunction*> Vol_GF,
                              Array<GridFunction*> Skel_GF,
