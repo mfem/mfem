@@ -196,12 +196,12 @@ public:
     * AssembleElementVector. Used only when ir is not provided
     *
     * @param[in] el given finite element space
-    * @return const IntegrationRule& with order 2*p + IntOrderOffset
+    * @param[in] Tr Element transformation for Jacobian order
+    * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
     */
-   const IntegrationRule &GetRule(const FiniteElement &el)
+   const IntegrationRule &GetRule(const FiniteElement &el, const ElementTransformation &Tr)
    {
-      int order;
-      order = 2 * el.GetOrder() + IntOrderOffset;
+      const int order = 2 * el.GetOrder() * Tr.OrderJ() + IntOrderOffset;
       return IntRules.Get(el.GetGeomType(), order);
    }
 
@@ -211,13 +211,14 @@ public:
     *
     * @param[in] trial_fe trial finite element space
     * @param[in] test_fe test finite element space
-    * @return const IntegrationRule& with order 2*p + IntOrderOffset
+    * @param[in] Tr Face element trasnformation for Jacobian order
+    * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() + IntOrderOffset
     */
    const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                  const FiniteElement &test_fe)
+                                  const FiniteElement &test_fe,
+                                  const FaceElementTransformations &Tr)
    {
-      int order;
-      order = std::max(trial_fe.GetOrder(), test_fe.GetOrder()) * 2 + IntOrderOffset;
+      const int order = (trial_fe.GetOrder() + test_fe.GetOrder()) * Tr.OrderJ() + IntOrderOffset;
       return IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
