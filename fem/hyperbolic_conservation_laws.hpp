@@ -281,7 +281,7 @@ private:
    HyperbolicFormIntegrator *formIntegrator;
    HyperbolicFormIntegrator *faceFormIntegrator;
    // Base Nonlinear Form
-   NonlinearForm *nonlinearForm;
+   std::unique_ptr<NonlinearForm> nonlinearForm;
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> Me_inv;
    // global maximum characteristic speed. Updated by form integrators
@@ -322,17 +322,12 @@ public:
     * @param x current solution vector
     * @param y resulting dual vector to be used in an EXPLICIT solver
     */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
    // get global maximum characteristic speed to be used in CFL condition
    // where max_char_speed is updated during Mult.
    inline double getMaxCharSpeed()
    {
       return max_char_speed;
-   }
-
-   virtual ~DGHyperbolicConservationLaws()
-   {
-      delete nonlinearForm;
    }
 };
 
