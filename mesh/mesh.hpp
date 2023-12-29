@@ -28,6 +28,7 @@
 #endif
 #include <iostream>
 #include <array>
+#include <map>
 
 namespace mfem
 {
