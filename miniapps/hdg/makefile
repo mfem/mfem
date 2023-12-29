@@ -67,6 +67,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
+	rm -rf mesh* sol*
 
 clean-exec:
 	@rm -rf *.mesh *.gf
