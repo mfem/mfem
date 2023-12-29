@@ -133,12 +133,7 @@ public:
     * @return double maximum characteristic velocity
     */
    virtual double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                                  ElementTransformation &Tr, Vector &FUdotN)
-   {
-      double val = ComputeFlux(U, Tr, flux);
-      flux.Mult(normal, FUdotN);
-      return val;
-   }
+                                  ElementTransformation &Tr, Vector &FUdotN);
 
    /**
     * @brief Construct a new Hyperbolic Form Integrator object

@@ -235,8 +235,10 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
-      const double speed1 = ComputeFluxDotN(state1, nor, Tr.GetElement1Transformation(), fluxN1);
-      const double speed2 = ComputeFluxDotN(state2, nor, Tr.GetElement2Transformation(), fluxN2);
+      const double speed1 = ComputeFluxDotN(state1, nor,
+                                            Tr.GetElement1Transformation(), fluxN1);
+      const double speed2 = ComputeFluxDotN(state2, nor,
+                                            Tr.GetElement2Transformation(), fluxN2);
       // Compute hat(F) using evaluated quantities
       rsolver.Eval(state1, state2, fluxN1, fluxN2, speed1, speed2, nor, fluxN);
 
@@ -258,6 +260,15 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
          }
       }
    }
+}
+
+double HyperbolicFormIntegrator::ComputeFluxDotN(const Vector &U,
+                                                         const Vector &normal,
+                                                         ElementTransformation &Tr, Vector &FUdotN)
+{
+   double val = ComputeFlux(U, Tr, flux);
+   flux.Mult(normal, FUdotN);
+   return val;
 }
 
 }
