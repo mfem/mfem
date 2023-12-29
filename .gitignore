@@ -359,13 +359,6 @@ miniapps/solvers/sol.*
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div
 
-miniapps/hdg/hdg_advection
-miniapps/hdg/hdg_advectionp
-miniapps/hdg/hdg_poisson
-miniapps/hdg/hdg_poissonp
-miniapps/hdg/mesh*
-miniapps/hdg/sol*
-
 miniapps/parelag/MultilevelHcurlHdivSolver
 miniapps/parelag/*.mesh
 
@@ -385,6 +378,12 @@ miniapps/dpg/ParaView
 miniapps/spde/generate_random_field
 miniapps/spde/ParaView
 
+miniapps/hdg/hdg_advection
+miniapps/hdg/hdg_advectionp
+miniapps/hdg/hdg_poisson
+miniapps/hdg/hdg_poissonp
+miniapps/hdg/mesh*
+miniapps/hdg/sol*
 miniapps/hdg/*.mesh
 miniapps/hdg/*.gf
 
