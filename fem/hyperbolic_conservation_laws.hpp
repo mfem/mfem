@@ -47,33 +47,34 @@ namespace mfem
 //
 
 /**
- * @brief Abstract class for numerical flux for an hyperbolic conservation laws
+ * @brief Abstract class for numerical flux for a system of hyperbolic conservation laws
  * on a face with states, fluxes and characteristic speed
  *
  */
 class RiemannSolver
 {
 public:
-   RiemannSolver() {}
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
     *
     * @param[in] state1 state value at a point from the first element
-    * (num_equations x 1)
+    * (num_equations)
     * @param[in] state2 state value at a point from the second element
-    * (num_equations x 1)
+    * (num_equations)
     * @param[in] fluxN1 normal flux value at a point from the first element
     * (num_equations x dim)
     * @param[in] fluxN2 normal flux value at a point from the second element
     * (num_equations x dim)
-    * @param[in] maxE maximum characteristic speed (eigenvalue of flux jacobian)
-    * @param[in] nor normal vector (not a unit vector) (dim x 1)
+    * @param[in] speed1 characteristic speed from the first element
+    * @param[in] speed2 characteristic speed from the second element
+    * @param[in] nor scaled normal vector, @see mfem::CalcOrtho (dim)
     * @param[out] flux numerical flux (num_equations)
     */
    virtual void Eval(const Vector &state1, const Vector &state2,
                      const Vector &fluxN1, const Vector &fluxN2,
-                     const double maxE, const Vector &nor, Vector &flux) = 0;
+                     const double speed1, const double speed2,
+                     const Vector &nor, Vector &flux) const = 0;
    virtual ~RiemannSolver() = default;
 };
 
@@ -88,7 +89,7 @@ private:
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
    const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
-   RiemannSolver *rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
+   const RiemannSolver &rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
 #ifndef MFEM_THREAD_SAFE
    // Local storages for element integration
    Vector shape;              // shape function value at an integration point
@@ -148,7 +149,7 @@ public:
     * @param[in] IntOrderOffset_ 2*p+IntOrderOffset order Gaussian quadrature
     * will be used
     */
-   HyperbolicFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                             const int num_equations_,
                             const int IntOrderOffset_ = 3)
       : NonlinearFormIntegrator(),
@@ -175,7 +176,7 @@ public:
     * @param[in] num_equations_ the number of equations
     * @param[in] ir integration rule to be used
     */
-   HyperbolicFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                             const int num_equations_,
                             const IntegrationRule *ir)
       : NonlinearFormIntegrator(ir),
@@ -379,11 +380,11 @@ public:
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
    void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
-             const Vector &fluxN2, const double maxE, const Vector &nor,
-             Vector &flux)
+             const Vector &fluxN2, const double speed1, const double speed2, const Vector &nor,
+             Vector &flux) const
    {
       // NOTE: nor in general is not a unit normal
-
+      const double maxE = std::max(speed1, speed2);
       flux = state1;
       flux -= state2;
       // here, sqrt(nor*nor) is multiplied to match the scale with fluxN
@@ -391,20 +392,6 @@ public:
       flux += fluxN1;
       flux += fluxN2;
       flux *= 0.5;
-   }
-};
-
-// Upwind Flux, Not Yet Implemented
-class UpwindFlux : public RiemannSolver
-{
-public:
-   // Upwind Flux, Not Yet Implemented
-   void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
-             const Vector &fluxN2, const double maxE, const Vector &nor,
-             Vector &flux)
-   {
-      // NOTE: nor in general is not a unit normal
-      mfem_error("Not Implemented");
    }
 };
 
@@ -458,7 +445,7 @@ public:
     * @param b_ velocity coefficient, possibly depends on space
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   AdvectionFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                            VectorCoefficient &b_,
                            const int IntOrderOffset_ = 3)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_), b(b_),
@@ -472,7 +459,7 @@ public:
     * @param b_ velocity coefficient, possibly depends on space
     * @param ir this integral rule will be used for the Gauss quadrature
     */
-   AdvectionFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                            VectorCoefficient &b_,
                            const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim) {}
@@ -518,7 +505,7 @@ public:
     * @param dim spatial dimension
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   BurgersFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                          const int IntOrderOffset_ = 3)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_) {}
    /**
@@ -529,7 +516,7 @@ public:
     * @param dim spatial dimension
     * @param ir this integral rule will be used for the Gauss quadrature
     */
-   BurgersFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   BurgersFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                          const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, ir) {}
 };
@@ -615,7 +602,7 @@ public:
     * @param g_ gravity constant
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   ShallowWaterFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                               const double g_,
                               const int IntOrderOffset_ = 3)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_), g(g_) {}
@@ -628,7 +615,7 @@ public:
     * @param g_ gravity constant
     * @param ir this integral rule will be used for the Gauss quadrature
     */
-   ShallowWaterFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   ShallowWaterFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                               const double g_,
                               const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_) {}
@@ -754,7 +741,7 @@ public:
     * @param specific_heat_ratio_ specific heat ratio, γ
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   EulerFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                        const double specific_heat_ratio_,
                        const int IntOrderOffset_)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
@@ -769,7 +756,7 @@ public:
     * @param specific_heat_ratio_ specific heat ratio, γ
     * @param ir this integral rule will be used for the Gauss quadrature
     */
-   EulerFormIntegrator(RiemannSolver *rsolver_, const int dim,
+   EulerFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                        const double specific_heat_ratio_,
                        const IntegrationRule *ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, ir),

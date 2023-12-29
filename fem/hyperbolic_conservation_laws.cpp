@@ -235,14 +235,13 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
-      const double mcs = std::max(
-                            ComputeFluxDotN(state1, nor, Tr.GetElement1Transformation(), fluxN1),
-                            ComputeFluxDotN(state2, nor, Tr.GetElement2Transformation(), fluxN2));
+      const double speed1 = ComputeFluxDotN(state1, nor, Tr.GetElement1Transformation(), fluxN1);
+      const double speed2 = ComputeFluxDotN(state2, nor, Tr.GetElement2Transformation(), fluxN2);
       // Compute hat(F) using evaluated quantities
-      rsolver->Eval(state1, state2, fluxN1, fluxN2, mcs, nor, fluxN);
+      rsolver.Eval(state1, state2, fluxN1, fluxN2, speed1, speed2, nor, fluxN);
 
       // Update the global max char speed
-      max_char_speed = std::max(mcs, max_char_speed);
+      max_char_speed = std::max(std::max(speed1, speed2), max_char_speed);
 
       // pre-multiply integration weight to flux
       fluxN *= ip.weight;
