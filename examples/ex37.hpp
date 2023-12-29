@@ -1076,13 +1076,6 @@ public:
 #endif
       // Step 1. Projection
       proj(1e-12, 500);
-      // for (auto val : *x_gf)
-      // {
-      //    if (!IsFinite(val))
-      //    {
-      //       mfem_warning("latent variable is not finite.");
-      //    }
-      // }
 
       // Step 2. Filter equation
       filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
@@ -1096,13 +1089,6 @@ public:
       }
       EllipticSolver filterSolver(filter, filterRHS, ess_bdr_filter);
       filterSolver.Solve(frho);
-      // for (auto val : *frho)
-      // {
-      //    if (!IsFinite(val))
-      //    {
-      //       mfem_warning("filter is not finite.");
-      //    }
-      // }
 
       // Step 3. Linear Elasticity
       elasticity->AddDomainIntegrator(new ElasticityIntegrator(SIMPlambda, SIMPmu));
@@ -1110,18 +1096,6 @@ public:
       EllipticSolver elasticitySolver(elasticity, load, ess_bdr);
       elasticitySolver.Solve(u);
       current_val = (*load)(*u);
-      // for (auto val : *u)
-      // {
-      //    if (!IsFinite(val))
-      //    {
-      //       mfem_warning("displacement is not finite.");
-      //    }
-      // }
-
-      // if (!IsFinite(current_val))
-      // {
-      //    mfem_warning("current value is not finite.");
-      // }
 
       delete elasticity;
       delete load;
@@ -1437,7 +1411,8 @@ public:
 
       // DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
       GridFunctionCoefficient x_cf(&x), x0_cf(x0);
-      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return der_sigmoid(y)*(x - y); });
+      // TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return der_sigmoid(y)*(x - y); });
+      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return sigmoid(x) - sigmoid(y); });
       directionalDer->AddDomainIntegrator(new DomainLFIntegrator(d_cf));
 
       double val = F.GetValue();
@@ -1466,7 +1441,7 @@ public:
       new_val = val + c1*d2 + 1;
       step_size *= 2;
       int i=-1;
-      while (new_val > val + c1*d2)
+      while (new_val > val + c1*d2 | d2 > 0)
       {
          i++;
          step_size *= 0.5;
@@ -1476,6 +1451,7 @@ public:
          new_val = F.Eval();
          directionalDer->Assemble();
          d2 = (*directionalDer)(*grad);
+         if (d2 > 0) { out << "," << std::flush; }
       }
       out << std::endl;
       out << i << ", " << step_size;
