@@ -201,8 +201,6 @@ int main(int argc, char *argv[])
    RiemannSolver *numericalFlux = new RusanovFlux();
    auto euler = DGHyperbolicConservationLaws(&vfes,
                                              new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
-                                                                     IntOrderOffset),
-                                             new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
                                                                      IntOrderOffset), num_equations);
    // DGHyperbolicConservationLaws euler = getEulerSystem(
    //                                         &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);

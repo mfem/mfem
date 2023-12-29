@@ -25,14 +25,12 @@ namespace mfem
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    FiniteElementSpace *vfes_, HyperbolicFormIntegrator *formIntegrator_,
-   HyperbolicFormIntegrator *faceFormIntegrator_,
    const int num_equations_)
    : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
      dim(vfes_->GetFE(0)->GetDim()),
      num_equations(num_equations_),
      vfes(vfes_),
      formIntegrator(formIntegrator_),
-     faceFormIntegrator(faceFormIntegrator_),
      Me_inv(0),
      z(vfes_->GetNDofs() * num_equations_)
 {
@@ -52,10 +50,9 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    }
 #endif
    formIntegrator->resetMaxCharSpeed();
-   faceFormIntegrator->resetMaxCharSpeed();
 
    nonlinearForm->AddDomainIntegrator(formIntegrator);
-   nonlinearForm->AddInteriorFaceIntegrator(faceFormIntegrator);
+   nonlinearForm->AddInteriorFaceIntegrator(formIntegrator);
 
    height = z.Size();
    width = z.Size();
@@ -82,11 +79,9 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
    formIntegrator->resetMaxCharSpeed();
-   faceFormIntegrator->resetMaxCharSpeed();
    // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
    nonlinearForm->Mult(x, z);
-   max_char_speed = std::max(formIntegrator->getMaxCharSpeed(),
-                             faceFormIntegrator->getMaxCharSpeed());
+   max_char_speed = formIntegrator->getMaxCharSpeed();
 
    // 2. Multiply element-wise by the inverse mass matrices.
    Vector zval;             // local dual vector storage

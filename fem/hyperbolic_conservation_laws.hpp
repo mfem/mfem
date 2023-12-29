@@ -279,7 +279,6 @@ private:
    FiniteElementSpace *vfes;
    // Element integration form. Should contain ComputeFlux
    HyperbolicFormIntegrator *formIntegrator;
-   HyperbolicFormIntegrator *faceFormIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
    // element-wise inverse mass matrix
@@ -308,13 +307,11 @@ public:
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
     * @param formIntegrator_ integrator (F(u,x), grad v)
-    * @param faceFormIntegrator_ integrator (F̂(u±, x, n), [[v]])
     * @param num_equations_ the number of equations
     */
    DGHyperbolicConservationLaws(
       FiniteElementSpace *vfes_,
       HyperbolicFormIntegrator *formIntegrator_,
-      HyperbolicFormIntegrator *faceFormIntegrator_,
       const int num_equations_);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
@@ -328,6 +325,22 @@ public:
    inline double getMaxCharSpeed()
    {
       return max_char_speed;
+   }
+
+   ~DGHyperbolicConservationLaws()
+   {
+      // NonlinearForm deletes all integrators when it is destroyed.
+      // Since we add our form integrator for both domain and interior,
+      // we need to replace our form integrator to null to avoid double deletion.
+      Array<NonlinearFormIntegrator*> &dnfi = *nonlinearForm->GetDNFI();
+      for(int i=0; i<dnfi.Size(); i++)
+      {
+         if (dnfi[i] == formIntegrator)
+         {
+            dnfi[i] = NULL;
+            break;
+         }
+      }
    }
 };
 
