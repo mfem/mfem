@@ -199,10 +199,11 @@ public:
     * @param[in] Tr Element transformation for Jacobian order
     * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
     */
-   const IntegrationRule &GetRule(const FiniteElement &el,
-                                  const ElementTransformation &Tr)
+   static const IntegrationRule &GetRule(const FiniteElement &el,
+                                  const ElementTransformation &Tr,
+                                  const int IntOrderOffset_)
    {
-      const int order = 2 * el.GetOrder() * Tr.OrderJ() + IntOrderOffset;
+      const int order = 2 * el.GetOrder() * Tr.OrderJ() + IntOrderOffset_;
       return IntRules.Get(el.GetGeomType(), order);
    }
 
@@ -215,12 +216,13 @@ public:
     * @param[in] Tr Face element trasnformation for Jacobian order
     * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() + IntOrderOffset
     */
-   const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                   const FiniteElement &test_fe,
-                                  const FaceElementTransformations &Tr)
+                                  const FaceElementTransformations &Tr,
+                                  const int IntOrderOffset_)
    {
       const int order = (trial_fe.GetOrder() + test_fe.GetOrder()) * Tr.OrderJ() +
-                        IntOrderOffset;
+                        IntOrderOffset_;
       return IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
