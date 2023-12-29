@@ -692,7 +692,7 @@ EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
    : PABilinearFormExtension(form),
      factorize_face_terms(false)
 {
-   if (form->FESpace()->IsDGSpace() && form->FESpace()->Conforming())
+   if ( form->FESpace()->IsDGSpace() )
    {
       factorize_face_terms = true;
    }
@@ -1103,9 +1103,6 @@ void FABilinearFormExtension::Assemble()
             static_cast<const L2ElementRestriction*>(elem_restrict);
          const L2FaceRestriction *restF =
             static_cast<const L2FaceRestriction*>(int_face_restrict_lex);
-         MFEM_VERIFY(
-            fes.Conforming(),
-            "Full Assembly not yet supported on NCMesh.");
          // 1. Fill I
          mat->GetMemoryI().New(height+1, mat->GetMemoryI().GetMemoryType());
          //  1.1 Increment with restE
