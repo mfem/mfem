@@ -234,9 +234,9 @@ int main(int argc, char *argv[])
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
    auto euler = DGHyperbolicConservationLaws(&vfes,
-                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                             new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
                                                                      IntOrderOffset),
-                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                             new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
                                                                      IntOrderOffset), num_equations);
 
    // Visualize the density

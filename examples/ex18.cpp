@@ -1,6 +1,6 @@
 //                                MFEM Example 18
 //
-// Compile with: make ex18p
+// Compile with: make ex18
 //
 // Sample runs:
 //
@@ -200,9 +200,9 @@ int main(int argc, char *argv[])
    //    flux divergence, and assemble the corresponding mass matrix.
    RiemannSolver *numericalFlux = new RusanovFlux();
    auto euler = DGHyperbolicConservationLaws(&vfes,
-                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                             new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
                                                                      IntOrderOffset),
-                                             new EulerFormIntegrator(numericalFlux, dim, specific_heat_ratio,
+                                             new EulerFormIntegrator(*numericalFlux, dim, specific_heat_ratio,
                                                                      IntOrderOffset), num_equations);
    // DGHyperbolicConservationLaws euler = getEulerSystem(
    //                                         &vfes, numericalFlux, specific_heat_ratio, IntOrderOffset);
