@@ -237,18 +237,6 @@ public:
    }
 
    /**
-    * @brief Compute element flux F(u,x) to be used in ZZ error estimator
-    */
-   virtual void ComputeElementFlux(const FiniteElement &el,
-                                   ElementTransformation &Trans, Vector &u,
-                                   const FiniteElement &fluxelem, Vector &FU,
-                                   bool with_coef = true,
-                                   const IntegrationRule *ir = NULL)
-   {
-      mfem_error("NOT IMPLEMENTED");
-   }
-
-   /**
     * @brief implement (F(u), grad v) with abstract F computed by ComputeFlux
     *
     * @param[in] el local finite element
