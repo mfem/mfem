@@ -199,7 +199,8 @@ public:
     * @param[in] Tr Element transformation for Jacobian order
     * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
     */
-   const IntegrationRule &GetRule(const FiniteElement &el, const ElementTransformation &Tr)
+   const IntegrationRule &GetRule(const FiniteElement &el,
+                                  const ElementTransformation &Tr)
    {
       const int order = 2 * el.GetOrder() * Tr.OrderJ() + IntOrderOffset;
       return IntRules.Get(el.GetGeomType(), order);
@@ -218,7 +219,8 @@ public:
                                   const FiniteElement &test_fe,
                                   const FaceElementTransformations &Tr)
    {
-      const int order = (trial_fe.GetOrder() + test_fe.GetOrder()) * Tr.OrderJ() + IntOrderOffset;
+      const int order = (trial_fe.GetOrder() + test_fe.GetOrder()) * Tr.OrderJ() +
+                        IntOrderOffset;
       return IntRules.Get(trial_fe.GetGeomType(), order);
    }
 
@@ -363,7 +365,8 @@ public:
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
    void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
-             const Vector &fluxN2, const double speed1, const double speed2, const Vector &nor,
+             const Vector &fluxN2, const double speed1, const double speed2,
+             const Vector &nor,
              Vector &flux) const
    {
       // NOTE: nor in general is not a unit normal
@@ -443,7 +446,8 @@ public:
    AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                            VectorCoefficient &b_,
                            const IntegrationRule *ir)
-      : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, ir), b(b_), bval(b_.GetVDim()) {}
+      : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, ir), b(b_),
+        bval(b_.GetVDim()) {}
 };
 class BurgersFormIntegrator : public HyperbolicFormIntegrator
 {
