@@ -244,9 +244,9 @@ public:
     * @param[in] elfun local coefficient of basis
     * @param[out] elvect evaluated dual vector
     */
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Tr,
-                                      const Vector &elfun, Vector &elvect);
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override;
 
    /**
     * @brief implement <-hat(F)(u,x) n, [[v]]> with abstract hat(F) computed by
@@ -258,12 +258,11 @@ public:
     * @param[in] elfun local coefficient of basis from both elements
     * @param[out] elvect evaluated dual vector <-hat(F)(u,x) n, [[v]]>
     */
-   virtual void AssembleFaceVector(const FiniteElement &el1,
-                                   const FiniteElement &el2,
-                                   FaceElementTransformations &Tr,
-                                   const Vector &elfun, Vector &elvect);
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun, Vector &elvect) override;
 
-   virtual ~HyperbolicFormIntegrator() {}
 };
 
 
