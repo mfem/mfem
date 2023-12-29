@@ -200,10 +200,10 @@ public:
     * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &el,
-                                  const ElementTransformation &Tr,
-                                  const int IntOrderOffset_)
+                                         const ElementTransformation &Tr,
+                                         const int IntOrderOffset_)
    {
-      const int order = 2 * el.GetOrder() * Tr.OrderJ() + IntOrderOffset_;
+      const int order = 2 * el.GetOrder() + Tr.OrderJ() + IntOrderOffset_;
       return IntRules.Get(el.GetGeomType(), order);
    }
 
@@ -217,11 +217,11 @@ public:
     * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() + IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                  const FiniteElement &test_fe,
-                                  const FaceElementTransformations &Tr,
-                                  const int IntOrderOffset_)
+                                         const FiniteElement &test_fe,
+                                         const FaceElementTransformations &Tr,
+                                         const int IntOrderOffset_)
    {
-      const int order = (trial_fe.GetOrder() + test_fe.GetOrder()) * Tr.OrderJ() +
+      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderJ() +
                         IntOrderOffset_;
       return IntRules.Get(trial_fe.GetGeomType(), order);
    }
@@ -335,7 +335,7 @@ public:
       // Since we add our form integrator for both domain and interior,
       // we need to replace our form integrator to null to avoid double deletion.
       Array<NonlinearFormIntegrator*> &dnfi = *nonlinearForm->GetDNFI();
-      for(int i=0; i<dnfi.Size(); i++)
+      for (int i=0; i<dnfi.Size(); i++)
       {
          if (dnfi[i] == formIntegrator)
          {
