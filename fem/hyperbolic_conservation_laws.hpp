@@ -436,28 +436,26 @@ public:
     * integral order offset
     *
     * @param[in] rsolver_ numerical flux
-    * @param dim spatial dimension
     * @param b_ velocity coefficient, possibly depends on space
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
+   AdvectionFormIntegrator(const RiemannSolver &rsolver_,
                            VectorCoefficient &b_,
                            const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_), b(b_),
-        bval(dim) {}
+      : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, IntOrderOffset_), b(b_),
+        bval(b_.GetVDim()) {}
    /**
     * @brief Construct a new Advection Element Form Integrator object with given
     * integral rule
     *
     * @param[in] rsolver_ numerical flux
-    * @param dim spatial dimension
     * @param b_ velocity coefficient, possibly depends on space
     * @param ir this integral rule will be used for the Gauss quadrature
     */
    AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                            VectorCoefficient &b_,
                            const IntegrationRule *ir)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, ir), b(b_), bval(dim) {}
+      : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, ir), b(b_), bval(b_.GetVDim()) {}
 };
 class BurgersFormIntegrator : public HyperbolicFormIntegrator
 {
