@@ -390,19 +390,19 @@ void EulerMesh(const int problem, const char **mesh_file)
    switch (problem)
    {
       case 1:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
+         *mesh_file = "../data/periodic-square.mesh";
          break;
       case 2:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
+         *mesh_file = "../data/periodic-square.mesh";
          break;
       case 3:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
+         *mesh_file = "../data/periodic-square.mesh";
          break;
       case 4:
          *mesh_file = "../data/periodic-segment.mesh";
          break;
       case 5:
-         *mesh_file = "../data/periodic-square-4x4.mesh";
+         *mesh_file = "../data/periodic-square.mesh";
          break;
       default:
          throw invalid_argument("Default mesh is undefined");
