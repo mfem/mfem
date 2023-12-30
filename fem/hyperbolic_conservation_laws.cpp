@@ -296,28 +296,6 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(const RiemannSolver
 #endif
 }
 
-
-HyperbolicFormIntegrator::HyperbolicFormIntegrator(const RiemannSolver
-                                                   &rsolver_, const int dim,
-                                                   const int num_equations_,
-                                                   const IntegrationRule &ir)
-   : NonlinearFormIntegrator(&ir),
-     num_equations(num_equations_),
-     IntOrderOffset(0),
-     rsolver(rsolver_)
-{
-#ifndef MFEM_THREAD_SAFE
-   state.SetSize(num_equations);
-   flux.SetSize(num_equations, dim);
-   state1.SetSize(num_equations);
-   state2.SetSize(num_equations);
-   fluxN1.SetSize(num_equations);
-   fluxN2.SetSize(num_equations);
-   fluxN.SetSize(num_equations);
-   nor.SetSize(dim);
-#endif
-}
-
 double HyperbolicFormIntegrator::ComputeFluxDotN(const Vector &U,
                                                  const Vector &normal,
                                                  ElementTransformation &Tr, Vector &FUdotN)
