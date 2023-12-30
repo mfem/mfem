@@ -217,6 +217,7 @@ public:
     * @param[in] trial_fe trial finite element space
     * @param[in] test_fe test finite element space
     * @param[in] Tr Face element trasnformation for Jacobian order
+    * @param[in] IntOrderOffset_ integration order offset
     * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() + IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
