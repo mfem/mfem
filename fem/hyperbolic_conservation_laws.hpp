@@ -185,8 +185,8 @@ public:
     * @brief Construct a new Hyperbolic Form Integrator object
     *
     * @param[in] fluxFunction governing equation
-    * @param[in] rsolver_ numerical flux
-    * @param[in] IntOrderOffset_ 2*p+IntOrderOffset order Gaussian quadrature
+    * @param[in] rsolver numerical flux
+    * @param[in] IntOrderOffset 2*p+IntOrderOffset order Gaussian quadrature
     * will be used
     */
    HyperbolicFormIntegrator(
@@ -199,6 +199,7 @@ public:
     *
     * @param[in] el given finite element space
     * @param[in] Tr Element transformation for Jacobian order
+    * @param[in] IntOrderOffset_ integration order offset
     * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &el,
@@ -303,7 +304,6 @@ public:
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
     * @param formIntegrator_ integrator (F(u,x), grad v)
-    * @param num_equations_ the number of equations
     */
    DGHyperbolicConservationLaws(
       FiniteElementSpace &vfes_,
@@ -369,9 +369,7 @@ public:
     * @brief Construct a new Advection Flux Function with given
     * spatial dimension
     *
-    * @param[in] rsolver_ numerical flux
-    * @param b_ velocity coefficient, possibly depends on space
-    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    * @param b velocity coefficient, possibly depends on space
     */
    AdvectionFlux(VectorCoefficient &b)
       : FluxFunction(1, b.GetVDim()), b(b)
@@ -398,9 +396,7 @@ public:
     * @brief Construct a new Burgers Flux Function with given
     * spatial dimension
     *
-    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
-    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
    BurgersFlux(const int dim)
       : FluxFunction(1, dim) {}
