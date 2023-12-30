@@ -316,7 +316,8 @@ public:
     * (num_equations x dim)
     * @param[in] fluxN2 normal flux value at a point from the second element
     * (num_equations x dim)
-    * @param[in] maxE maximum characteristic speed (eigenvalue of flux jacobian)
+    * @param[in] speed1 characteristic speed from the first element
+    * @param[in] speed2 characteristic speed from the second element
     * @param[in] nor normal vector (not a unit vector) (dim x 1)
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
