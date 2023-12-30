@@ -53,6 +53,7 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
 
    nonlinearForm->AddDomainIntegrator(formIntegrator);
    nonlinearForm->AddInteriorFaceIntegrator(formIntegrator);
+   nonlinearForm->UseExternalIntegrators();
 
    height = z.Size();
    width = z.Size();
@@ -105,18 +106,9 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 
 DGHyperbolicConservationLaws::~DGHyperbolicConservationLaws()
 {
-   // NonlinearForm deletes all integrators when it is destroyed.
-   // Since we add our form integrator for both domain and interior,
-   // we need to replace our form integrator to null to avoid double deletion.
-   Array<NonlinearFormIntegrator*> &dnfi = *nonlinearForm->GetDNFI();
-   for (int i=0; i<dnfi.Size(); i++)
-   {
-      if (dnfi[i] == formIntegrator)
-      {
-         dnfi[i] = NULL;
-         break;
-      }
-   }
+   // Since we marked NonlinearForm uses external data,
+   // we need to delete it manually.
+   delete formIntegrator;
 }
 
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,

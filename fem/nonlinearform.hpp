@@ -35,6 +35,11 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
+   /** @brief Indicates the NonlinearForm%s stored in #domain_integs,
+       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs
+       are owned by another NonlinearForm. */
+   int extern_bfs;
+
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
    Array<Array<int>*>              dnfi_marker; // not owned
@@ -73,7 +78,7 @@ public:
        number of true degrees of freedom, i.e. f->GetTrueVSize(). */
    NonlinearForm(FiniteElementSpace *f)
       : Operator(f->GetTrueVSize()), assembly(AssemblyLevel::LEGACY),
-        ext(NULL), fes(f), Grad(NULL), cGrad(NULL),
+        ext(NULL), fes(f), extern_bfs(0), Grad(NULL), cGrad(NULL),
         sequence(f->GetSequence()), P(f->GetProlongationMatrix()),
         cP(dynamic_cast<const SparseMatrix*>(P))
    { }
@@ -216,6 +221,9 @@ public:
    /// Get the finite element space restriction matrix
    virtual const Operator *GetRestriction() const
    { return fes->GetRestrictionMatrix(); }
+
+   /// Indicate that integrators are not owned by the NonlinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /** @brief Destroy the NonlinearForm including the owned
        NonlinearFormIntegrator%s and gradient Operator. */
