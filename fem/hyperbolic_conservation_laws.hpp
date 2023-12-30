@@ -157,7 +157,7 @@ public:
     */
    HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                             const int num_equations_,
-                            const IntegrationRule *ir);
+                            const IntegrationRule &ir);
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
@@ -272,7 +272,7 @@ public:
     * @param num_equations_ the number of equations
     */
    DGHyperbolicConservationLaws(
-      FiniteElementSpace *vfes_,
+      FiniteElementSpace &vfes_,
       HyperbolicFormIntegrator *formIntegrator_,
       const int num_equations_);
    /**
@@ -367,7 +367,7 @@ public:
     */
    AdvectionFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                            VectorCoefficient &b_,
-                           const IntegrationRule *ir)
+                           const IntegrationRule &ir)
       : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, ir), b(b_),
         bval(b_.GetVDim()) {}
 };
@@ -405,7 +405,7 @@ public:
     * @param ir this integral rule will be used for the Gauss quadrature
     */
    BurgersFormIntegrator(const RiemannSolver &rsolver_, const int dim,
-                         const IntegrationRule *ir)
+                         const IntegrationRule &ir)
       : HyperbolicFormIntegrator(rsolver_, dim, 1, ir) {}
 };
 
@@ -461,7 +461,7 @@ public:
     */
    ShallowWaterFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                               const double g_,
-                              const IntegrationRule *ir)
+                              const IntegrationRule &ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, ir), g(g_) {}
 };
 class EulerFormIntegrator : public HyperbolicFormIntegrator
@@ -520,7 +520,7 @@ public:
     */
    EulerFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                        const double specific_heat_ratio_,
-                       const IntegrationRule *ir)
+                       const IntegrationRule &ir)
       : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, ir),
         specific_heat_ratio(specific_heat_ratio_) {}
 };

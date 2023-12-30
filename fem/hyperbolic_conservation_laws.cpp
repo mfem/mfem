@@ -24,15 +24,15 @@ namespace mfem
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-   FiniteElementSpace *vfes_, HyperbolicFormIntegrator *formIntegrator_,
+   FiniteElementSpace &vfes_, HyperbolicFormIntegrator *formIntegrator_,
    const int num_equations_)
-   : TimeDependentOperator(vfes_->GetNDofs() * num_equations_),
-     dim(vfes_->GetFE(0)->GetDim()),
+   : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
+     dim(vfes_.GetFE(0)->GetDim()),
      num_equations(num_equations_),
-     vfes(vfes_),
+     vfes(&vfes_),
      formIntegrator(formIntegrator_),
      Me_inv(0),
-     z(vfes_->GetNDofs() * num_equations_)
+     z(vfes_.GetNDofs() * num_equations_)
 {
    // Standard local assembly and inversion for energy mass matrices.
    ComputeInvMass();
@@ -300,8 +300,8 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(const RiemannSolver
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(const RiemannSolver
                                                    &rsolver_, const int dim,
                                                    const int num_equations_,
-                                                   const IntegrationRule *ir)
-   : NonlinearFormIntegrator(ir),
+                                                   const IntegrationRule &ir)
+   : NonlinearFormIntegrator(&ir),
      num_equations(num_equations_),
      IntOrderOffset(0),
      rsolver(rsolver_)
