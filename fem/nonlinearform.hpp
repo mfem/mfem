@@ -35,9 +35,8 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes; // not owned
 
-   /** @brief Indicates the NonlinearForm%s stored in #domain_integs,
-       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs
-       are owned by another NonlinearForm. */
+   /** @brief Indicates the NonlinearForm%s stored in #dnfi,
+       #fnfi, #bfnfi and #bfnfi are owned by another NonlinearForm. */
    int extern_bfs;
 
    /// Set of Domain Integrators to be assembled (added).
