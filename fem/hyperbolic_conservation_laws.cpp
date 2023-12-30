@@ -267,8 +267,8 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    const int IntOrderOffset)
    : NonlinearFormIntegrator(),
      fluxFunction(fluxFunction),
-     num_equations(fluxFunction.num_equations),
      IntOrderOffset(IntOrderOffset),
+     num_equations(fluxFunction.num_equations),
      rsolver(rsolver)
 {
 #ifndef MFEM_THREAD_SAFE
