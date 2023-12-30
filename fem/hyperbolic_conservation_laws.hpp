@@ -146,23 +146,7 @@ public:
     */
    HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                             const int num_equations_,
-                            const int IntOrderOffset_ = 3)
-      : NonlinearFormIntegrator(),
-        num_equations(num_equations_),
-        IntOrderOffset(IntOrderOffset_),
-        rsolver(rsolver_)
-   {
-#ifndef MFEM_THREAD_SAFE
-      state.SetSize(num_equations);
-      flux.SetSize(num_equations, dim);
-      state1.SetSize(num_equations);
-      state2.SetSize(num_equations);
-      fluxN1.SetSize(num_equations);
-      fluxN2.SetSize(num_equations);
-      fluxN.SetSize(num_equations);
-      nor.SetSize(dim);
-#endif
-   }
+                            const int IntOrderOffset_ = 3);
    /**
     * @brief Construct an object with a fixed integration rule
     *
@@ -173,23 +157,7 @@ public:
     */
    HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
                             const int num_equations_,
-                            const IntegrationRule *ir)
-      : NonlinearFormIntegrator(ir),
-        num_equations(num_equations_),
-        IntOrderOffset(0),
-        rsolver(rsolver_)
-   {
-#ifndef MFEM_THREAD_SAFE
-      state.SetSize(num_equations);
-      flux.SetSize(num_equations, dim);
-      state1.SetSize(num_equations);
-      state2.SetSize(num_equations);
-      fluxN1.SetSize(num_equations);
-      fluxN2.SetSize(num_equations);
-      fluxN.SetSize(num_equations);
-      nor.SetSize(dim);
-#endif
-   }
+                            const IntegrationRule *ir);
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
@@ -293,15 +261,7 @@ private:
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
 
-   void Update()
-   {
-      nonlinearForm->Update();
-      height = nonlinearForm->Height();
-      width = height;
-      z.SetSize(height);
-
-      ComputeInvMass();
-   }
+   void Update();
 
 public:
    /**
@@ -329,21 +289,7 @@ public:
       return max_char_speed;
    }
 
-   ~DGHyperbolicConservationLaws()
-   {
-      // NonlinearForm deletes all integrators when it is destroyed.
-      // Since we add our form integrator for both domain and interior,
-      // we need to replace our form integrator to null to avoid double deletion.
-      Array<NonlinearFormIntegrator*> &dnfi = *nonlinearForm->GetDNFI();
-      for (int i=0; i<dnfi.Size(); i++)
-      {
-         if (dnfi[i] == formIntegrator)
-         {
-            dnfi[i] = NULL;
-            break;
-         }
-      }
-   }
+   ~DGHyperbolicConservationLaws();
 };
 
 
@@ -377,18 +323,7 @@ public:
    void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
              const Vector &fluxN2, const double speed1, const double speed2,
              const Vector &nor,
-             Vector &flux) const
-   {
-      // NOTE: nor in general is not a unit normal
-      const double maxE = std::max(speed1, speed2);
-      flux = state1;
-      flux -= state2;
-      // here, sqrt(nor*nor) is multiplied to match the scale with fluxN
-      flux *= maxE * sqrt(nor * nor);
-      flux += fluxN1;
-      flux += fluxN2;
-      flux *= 0.5;
-   }
+             Vector &flux) const;
 };
 
 class AdvectionFormIntegrator : public HyperbolicFormIntegrator
@@ -407,30 +342,7 @@ public:
     * @return double maximum characteristic speed, |b|
     */
    double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU)
-   {
-      b.Eval(bval, Tr, Tr.GetIntPoint());
-      MultVWt(U, bval, FU);
-      return bval.Norml2();
-   }
-   /**
-    * @brief Compute normal flux, F(u)n
-    *
-    * @param U U (u) at current integration point
-    * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
-    * @param FUdotN F(u)n = u(b⋅n)
-    * @return double maximum characteristic speed, |b|
-    */
-   double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN)
-   {
-      b.Eval(bval, Tr, Tr.GetIntPoint());
-      const double bN = bval * normal;
-      FUdotN = U;
-      FUdotN *= bN;
-      return bval.Norml2();
-   }
+                      DenseMatrix &FU);
 
    /**
     * @brief Construct a new Advection Element Form Integrator object with given
@@ -471,26 +383,7 @@ public:
     * @return double maximum characteristic speed, |u|
     */
    double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU)
-   {
-      FU = U * U * 0.5;
-      return abs(U(0));
-   }
-   /**
-    * @brief Compute normal flux, F(u)n
-    *
-    * @param U U (u) at current integration point
-    * @param normal normal vector, usually not a unit vector
-    * @param Tr current element transformation with integration point
-    * @param FUdotN F(u)n = ½u² 1⋅n
-    * @return double maximum characteristic speed, |u| + √(γp/ρ)
-    */
-   double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN)
-   {
-      FUdotN = normal.Sum() * (U * U) * 0.5;
-      return abs(U(0));
-   }
+                      DenseMatrix &FU);
 
    /**
     * @brief Construct a new Burgers Element Form Integrator object with given
@@ -531,31 +424,7 @@ public:
     * @return double maximum characteristic speed, |u| + √(gh)
     */
    double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU)
-   {
-      const int dim = U.Size() - 1;
-      const double height = U(0);
-      const Vector h_vel(U.GetData() + 1, dim);
-
-      const double energy = 0.5 * g * (height * height);
-
-      MFEM_ASSERT(height >= 0, "Negative Height");
-
-      for (int d = 0; d < dim; d++)
-      {
-         FU(0, d) = h_vel(d);
-         for (int i = 0; i < dim; i++)
-         {
-            FU(1 + i, d) = h_vel(i) * h_vel(d) / height;
-         }
-         FU(1 + d, d) += energy;
-      }
-
-      const double sound = sqrt(g * height);
-      const double vel = sqrt(h_vel * h_vel) / height;
-
-      return vel + sound;
-   }
+                      DenseMatrix &FU);
    /**
     * @brief Compute normal flux, F(h, hu)
     *
@@ -566,27 +435,7 @@ public:
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN)
-   {
-      const int dim = normal.Size();
-      const double height = U(0);
-      const Vector h_vel(U.GetData() + 1, dim);
-
-      const double energy = 0.5 * g * (height * height);
-
-      MFEM_ASSERT(height >= 0, "Negative Height");
-      FUdotN(0) = h_vel * normal;
-      const double normal_vel = FUdotN(0) / height;
-      for (int i = 0; i < dim; i++)
-      {
-         FUdotN(1 + i) = normal_vel * h_vel(i) + energy * normal(i);
-      }
-
-      const double sound = sqrt(g * height);
-      const double vel = sqrt(h_vel * h_vel) / height;
-
-      return vel + sound;
-   }
+                          ElementTransformation &Tr, Vector &FUdotN);
 
    /**
     * @brief Construct a new Shallow Water Element Form Integrator object with
@@ -631,52 +480,8 @@ public:
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU)
-   {
-      const int dim = U.Size() - 2;
+                      DenseMatrix &FU);
 
-      // 1. Get states
-      const double density = U(0);                  // ρ
-      const Vector momentum(U.GetData() + 1, dim);  // ρu
-      const double energy = U(1 + dim);             // E, internal energy ρe
-      // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
-      const double pressure = (specific_heat_ratio - 1.0) *
-                              (energy - 0.5 * (momentum * momentum) / density);
-
-      // Check whether the solution is physical only in debug mode
-      MFEM_ASSERT(density >= 0, "Negative Density");
-      MFEM_ASSERT(pressure >= 0, "Negative Pressure");
-      MFEM_ASSERT(energy >= 0, "Negative Energy");
-
-      // 2. Compute Flux
-      for (int d = 0; d < dim; d++)
-      {
-         FU(0, d) = momentum(d);  // ρu
-         for (int i = 0; i < dim; i++)
-         {
-            // ρuuᵀ
-            FU(1 + i, d) = momentum(i) * momentum(d) / density;
-         }
-         // (ρuuᵀ) + p
-         FU(1 + d, d) += pressure;
-      }
-      // enthalpy H = e + p/ρ = (E + p)/ρ
-      const double H = (energy + pressure) / density;
-      for (int d = 0; d < dim; d++)
-      {
-         // u(E+p) = ρu*(E + p)/ρ = ρu*H
-         FU(1 + dim, d) = momentum(d) * H;
-      }
-
-      // 3. Compute maximum characteristic speed
-
-      // sound speed, √(γ p / ρ)
-      const double sound = sqrt(specific_heat_ratio * pressure / density);
-      // fluid speed |u|
-      const double speed = sqrt(momentum * momentum) / density;
-      // max characteristic speed = fluid speed + sound speed
-      return speed + sound;
-   }
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
     *
@@ -687,45 +492,7 @@ public:
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFluxDotN(const Vector &x, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN)
-   {
-      const int dim = normal.Size();
-
-      // 1. Get states
-      const double density = x(0);                  // ρ
-      const Vector momentum(x.GetData() + 1, dim);  // ρu
-      const double energy = x(1 + dim);             // E, internal energy ρe
-      // pressure, p = (γ-1)*(E - ½ρ|u|^2)
-      const double pressure = (specific_heat_ratio - 1.0) *
-                              (energy - 0.5 * (momentum * momentum) / density);
-
-      // Check whether the solution is physical only in debug mode
-      MFEM_ASSERT(density >= 0, "Negative Density");
-      MFEM_ASSERT(pressure >= 0, "Negative Pressure");
-      MFEM_ASSERT(energy >= 0, "Negative Energy");
-
-      // 2. Compute normal flux
-
-      FUdotN(0) = momentum * normal;  // ρu⋅n
-      // u⋅n
-      const double normal_velocity = FUdotN(0) / density;
-      for (int d = 0; d < dim; d++)
-      {
-         // (ρuuᵀ + pI)n = ρu*(u⋅n) + pn
-         FUdotN(1 + d) = normal_velocity * momentum(d) + pressure * normal(d);
-      }
-      // (u⋅n)(E + p)
-      FUdotN(1 + dim) = normal_velocity * (energy + pressure);
-
-      // 3. Compute maximum characteristic speed
-
-      // sound speed, √(γ p / ρ)
-      const double sound = sqrt(specific_heat_ratio * pressure / density);
-      // fluid speed |u|
-      const double speed = sqrt(momentum * momentum) / density;
-      // max characteristic speed = fluid speed + sound speed
-      return speed + sound;
-   }
+                          ElementTransformation &Tr, Vector &FUdotN);
 
    /**
     * @brief Construct a new Euler Element Form Integrator object with given
