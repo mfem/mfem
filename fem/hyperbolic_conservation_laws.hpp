@@ -46,6 +46,72 @@ namespace mfem
 //               characteristic speed from all processes using MPI_Allreduce.
 //
 
+
+
+/**
+ * @brief Abstract class for hyperbolic flux for a system of hyperbolic conservation laws
+ *
+ */
+class FluxFunction
+{
+public:
+   const int num_equations;
+   const int dim;
+
+   FluxFunction(const int num_equations,
+                const int dim):num_equations(num_equations), dim(dim)
+   {
+#ifndef MFEM_THREAD_SAFE
+      flux.SetSize(num_equations, dim);
+#endif
+   };
+
+   /**
+    * @brief Compute flux F(u, x) for given state u and physical point x
+    *
+    * @param[in] state value of state at the current integration point
+    * @param[in] Tr element information
+    * @param[out] flux F(u, x)
+    * @return double maximum characteristic speed
+    *
+    * @note One can put assertion in here to detect non-physical solution
+    */
+   virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                              DenseMatrix &flux) const = 0;
+   /**
+    * @brief Compute normal flux. Optionally overloadded in the
+    * derived class to avoid creating full dense matrix for flux.
+    *
+    * @param[in] state state at the current integration point
+    * @param[in] normal normal vector, @see CalcOrtho
+    * @param[in] Tr face information
+    * @param[out] fluxDotN normal flux from the given element at the current
+    * integration point
+    * @return double maximum characteristic velocity
+    */
+   virtual double ComputeFluxDotN(const Vector &state, const Vector &normal,
+                                  FaceElementTransformations &Tr, Vector &fluxDotN) const;
+
+   /**
+    * @brief Compute flux Jacobian. Optionally overloaded in the derived class
+    * when Jacobian is necessary (e.g. Newton iteration, flux limiter)
+    *
+    * @param state state at the current integration point
+    * @param Tr element information
+    * @param J flux Jacobian, J(i,j,d) = dF_{id} / u_j
+    */
+   virtual void ComputeFluxJacobian(const Vector &state, ElementTransformation &Tr,
+                                    DenseTensor &J) const
+   {
+      mfem_error("Not Implemented.");
+   }
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable DenseMatrix flux;
+#endif
+};
+
+
 /**
  * @brief Abstract class for numerical flux for a system of hyperbolic conservation laws
  * on a face with states, fluxes and characteristic speed
@@ -54,6 +120,13 @@ namespace mfem
 class RiemannSolver
 {
 public:
+   RiemannSolver(const FluxFunction &fluxFunction):fluxFunction(fluxFunction)
+   {
+#ifndef MFEM_THREAD_SAFE
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   }
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
@@ -62,20 +135,19 @@ public:
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
     * (num_equations)
-    * @param[in] fluxN1 normal flux value at a point from the first element
-    * (num_equations x dim)
-    * @param[in] fluxN2 normal flux value at a point from the second element
-    * (num_equations x dim)
-    * @param[in] speed1 characteristic speed from the first element
-    * @param[in] speed2 characteristic speed from the second element
     * @param[in] nor scaled normal vector, @see mfem::CalcOrtho (dim)
+    * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
     */
-   virtual void Eval(const Vector &state1, const Vector &state2,
-                     const Vector &fluxN1, const Vector &fluxN2,
-                     const double speed1, const double speed2,
-                     const Vector &nor, Vector &flux) const = 0;
+   virtual double Eval(const Vector &state1, const Vector &state2,
+                       const Vector &nor, FaceElementTransformations &Tr,
+                       Vector &flux) const = 0;
    virtual ~RiemannSolver() = default;
+protected:
+   const FluxFunction &fluxFunction;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector fluxN1, fluxN2;
+#endif
 };
 
 /**
@@ -85,9 +157,9 @@ public:
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
 private:
-   const int num_equations;  // the number of equations
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
+   const FluxFunction &fluxFunction;
    const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
    const RiemannSolver &rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
 #ifndef MFEM_THREAD_SAFE
@@ -103,50 +175,23 @@ private:
    Vector state2;  // state value at an integration point - second elem
    Vector fluxN1;  // flux dot n value at an integration point - first elem
    Vector fluxN2;  // flux dot n value at an integration point - second elem
-   Vector nor;     // normal vector (usually not a unit vector)
+   Vector nor;     // normal vector, @see CalcOrtho
    Vector fluxN;   // hat(F)(u,x)
 #endif
 
 public:
-   /**
-    * @brief Compute flux F(u, x) for given state u and physical point x
-    *
-    * @param[in] state value of state at the current integration point
-    * @param[in] Tr Transformation to find physical location x of the current
-    * integration point
-    * @param[out] flux F(u, x)
-    * @return double maximum characteristic speed
-    *
-    * @note One can put assertion in here to detect non-physical solution
-    */
-   virtual double ComputeFlux(const Vector &state, ElementTransformation &Tr,
-                              DenseMatrix &flux) = 0;
-   /**
-    * @brief Compute normal flux. Optionally overloadded in the
-    * derived class to avoid creating full dense matrix for flux.
-    *
-    * @param[in] U U value at the current integration point
-    * @param[in] normal normal vector (usually not a unit vector)
-    * @param[in] Tr element transformation
-    * @param[out] FUdotN normal flux from the given element at the current
-    * integration point
-    * @return double maximum characteristic velocity
-    */
-   virtual double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                                  ElementTransformation &Tr, Vector &FUdotN);
-
+   const int num_equations;  // the number of equations
    /**
     * @brief Construct a new Hyperbolic Form Integrator object
     *
+    * @param[in] fluxFunction governing equation
     * @param[in] rsolver_ numerical flux
-    * @param[in] dim physical dimension
-    * @param[in] num_equations_ the number of equations
     * @param[in] IntOrderOffset_ 2*p+IntOrderOffset order Gaussian quadrature
     * will be used
     */
-   HyperbolicFormIntegrator(const RiemannSolver &rsolver_, const int dim,
-                            const int num_equations_,
-                            const int IntOrderOffset_ = 3);
+   HyperbolicFormIntegrator(
+      const FluxFunction &fluxFunction, const RiemannSolver &rsolver,
+      const int IntOrderOffset=0);
 
    /**
     * @brief Get the element integration rule based on IntOrderOffset, @see
@@ -262,8 +307,7 @@ public:
     */
    DGHyperbolicConservationLaws(
       FiniteElementSpace &vfes_,
-      HyperbolicFormIntegrator *formIntegrator_,
-      const int num_equations_);
+      HyperbolicFormIntegrator *formIntegrator_);
    /**
     * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
     *
@@ -294,131 +338,124 @@ public:
 class RusanovFlux : public RiemannSolver
 {
 public:
+   RusanovFlux(const FluxFunction &fluxFunction):RiemannSolver(fluxFunction) {}
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
     * @param[in] state1 state value at a point from the first element
-    * (num_equations x 1)
+    * (num_equations)
     * @param[in] state2 state value at a point from the second element
-    * (num_equations x 1)
-    * @param[in] fluxN1 normal flux value at a point from the first element
-    * (num_equations x dim)
-    * @param[in] fluxN2 normal flux value at a point from the second element
-    * (num_equations x dim)
-    * @param[in] speed1 characteristic speed from the first element
-    * @param[in] speed2 characteristic speed from the second element
-    * @param[in] nor normal vector (not a unit vector) (dim x 1)
+    * (num_equations)
+    * @param[in] nor normal vector (not a unit vector) (dim)
+    * @param[in] Tr face element transformation
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
-   void Eval(const Vector &state1, const Vector &state2, const Vector &fluxN1,
-             const Vector &fluxN2, const double speed1, const double speed2,
-             const Vector &nor,
-             Vector &flux) const;
+   double Eval(const Vector &state1, const Vector &state2,
+               const Vector &nor, FaceElementTransformations &Tr,
+               Vector &flux) const override;
 };
 
-class AdvectionFormIntegrator : public HyperbolicFormIntegrator
+class AdvectionFlux : public FluxFunction
 {
 private:
    VectorCoefficient &b;  // velocity coefficient
-   Vector bval;           // velocity value storage
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector bval;           // velocity value storage
+#endif
 
 public:
 
    /**
-    * @brief Construct a new Advection Element Form Integrator object with given
-    * integral order offset
+    * @brief Construct a new Advection Flux Function with given
+    * spatial dimension
     *
     * @param[in] rsolver_ numerical flux
     * @param b_ velocity coefficient, possibly depends on space
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   AdvectionFormIntegrator(const RiemannSolver &rsolver_,
-                           VectorCoefficient &b_,
-                           const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, b_.GetVDim(), 1, IntOrderOffset_), b(b_),
-        bval(b_.GetVDim()) {}
+   AdvectionFlux(VectorCoefficient &b)
+      : FluxFunction(1, b.GetVDim()), b(b)
+   {
+#ifndef MFEM_THREAD_SAFE
+      bval.SetSize(b.GetVDim());
+#endif
+   }
    /**
     * @brief Compute F(u)
     *
-    * @param U U (u) at current integration point
+    * @param state state (u) at current integration point
     * @param Tr current element transformation with integration point
-    * @param FU F(u) = ubᵀ
+    * @param flux F(u) = ubᵀ
     * @return double maximum characteristic speed, |b|
     */
-   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU);
+   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
 };
-class BurgersFormIntegrator : public HyperbolicFormIntegrator
+class BurgersFlux : public FluxFunction
 {
 public:
-
    /**
-    * @brief Construct a new Burgers Element Form Integrator object with given
-    * integral order offset
+    * @brief Construct a new Burgers Flux Function with given
+    * spatial dimension
     *
     * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
     * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
     */
-   BurgersFormIntegrator(const RiemannSolver &rsolver_, const int dim,
-                         const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, dim, 1, IntOrderOffset_) {}
+   BurgersFlux(const int dim)
+      : FluxFunction(1, dim) {}
 
    /**
     * @brief Compute F(u)
     *
-    * @param U U (u) at current integration point
+    * @param state state (u) at current integration point
     * @param Tr current element transformation with integration point
-    * @param FU F(u) = ½u²*1ᵀ where 1 is (dim x 1) vector
+    * @param flux F(u) = ½u²*1ᵀ where 1 is (dim) vector
     * @return double maximum characteristic speed, |u|
     */
-   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU);
+   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
 };
 
-class ShallowWaterFormIntegrator : public HyperbolicFormIntegrator
+class ShallowWaterFlux : public FluxFunction
 {
 private:
    const double g;  // gravity constant
 
 public:
    /**
-    * @brief Construct a new Shallow Water Element Form Integrator object with
-    * given integral order offset
+    * @brief Construct a new Shallow Water Flux Function with
+    * given spatial dimension
     *
-    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
-    * @param g_ gravity constant
-    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    * @param g gravity constant
     */
-   ShallowWaterFormIntegrator(const RiemannSolver &rsolver_, const int dim,
-                              const double g_,
-                              const int IntOrderOffset_ = 3)
-      : HyperbolicFormIntegrator(rsolver_, dim, dim + 1, IntOrderOffset_), g(g_) {}
+   ShallowWaterFlux(const int dim, const double g=9.8)
+      : FluxFunction(dim + 1, dim), g(g) {}
 
    /**
     * @brief Compute F(h, hu)
     *
-    * @param U U (h, hu) at current integration point
+    * @param state state (h, hu) at current integration point
     * @param Tr current element transformation with integration point
-    * @param FU F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
+    * @param flux F(h, hu) = [huᵀ; huuᵀ + ½gh²I]
     * @return double maximum characteristic speed, |u| + √(gh)
     */
-   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU);
+   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
    /**
     * @brief Compute normal flux, F(h, hu)
     *
-    * @param U U (h, hu) at current integration point
+    * @param state state (h, hu) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFluxDotN(const Vector &U, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN);
+   double ComputeFluxDotN(const Vector &state, const Vector &normal,
+                          FaceElementTransformations &Tr, Vector &fluxN) const override;
 };
-class EulerFormIntegrator : public HyperbolicFormIntegrator
+class EulerFlux : public FluxFunction
 {
 private:
    const double specific_heat_ratio;  // specific heat ratio, γ
@@ -426,30 +463,26 @@ private:
 
 public:
    /**
-    * @brief Construct a new Euler Element Form Integrator object with given
-    * integral order offset
+    * @brief Construct a new Euler Flux Function with given
+    * spatial dimension
     *
-    * @param[in] rsolver_ numerical flux
     * @param dim spatial dimension
-    * @param specific_heat_ratio_ specific heat ratio, γ
-    * @param IntOrderOffset_ 2*p + IntOrderOffset will be used for quadrature
+    * @param specific_heat_ratio specific heat ratio, γ
     */
-   EulerFormIntegrator(const RiemannSolver &rsolver_, const int dim,
-                       const double specific_heat_ratio_,
-                       const int IntOrderOffset_)
-      : HyperbolicFormIntegrator(rsolver_, dim, dim + 2, IntOrderOffset_),
-        specific_heat_ratio(specific_heat_ratio_) {}
+   EulerFlux(const int dim, const double specific_heat_ratio)
+      : FluxFunction(dim + 2, dim),
+        specific_heat_ratio(specific_heat_ratio) {}
 
    /**
     * @brief Compute F(ρ, ρu, E)
     *
-    * @param U U (ρ, ρu, E) at current integration point
+    * @param state state (ρ, ρu, E) at current integration point
     * @param Tr current element transformation with integration point
-    * @param FU F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
+    * @param flux F(ρ, ρu, E) = [ρuᵀ; ρuuᵀ + pI; uᵀ(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
-   double ComputeFlux(const Vector &U, ElementTransformation &Tr,
-                      DenseMatrix &FU);
+   double ComputeFlux(const Vector &state, ElementTransformation &Tr,
+                      DenseMatrix &flux) const override;
 
    /**
     * @brief Compute normal flux, F(ρ, ρu, E)n
@@ -457,11 +490,11 @@ public:
     * @param x x (ρ, ρu, E) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with integration point
-    * @param FUdotN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
+    * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFluxDotN(const Vector &x, const Vector &normal,
-                          ElementTransformation &Tr, Vector &FUdotN);
+                          FaceElementTransformations &Tr, Vector &fluxN) const override;
 };
 }
 

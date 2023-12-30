@@ -24,15 +24,14 @@ namespace mfem
 
 // Implementation of class DGHyperbolicConservationLaws
 DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-   FiniteElementSpace &vfes_, HyperbolicFormIntegrator *formIntegrator_,
-   const int num_equations_)
-   : TimeDependentOperator(vfes_.GetNDofs() * num_equations_),
+   FiniteElementSpace &vfes_, HyperbolicFormIntegrator *formIntegrator_)
+   : TimeDependentOperator(vfes_.GetNDofs() * formIntegrator_->num_equations),
      dim(vfes_.GetFE(0)->GetDim()),
-     num_equations(num_equations_),
+     num_equations(formIntegrator_->num_equations),
      vfes(&vfes_),
      formIntegrator(formIntegrator_),
      Me_inv(0),
-     z(vfes_.GetNDofs() * num_equations_)
+     z(vfes_.GetNDofs() * formIntegrator_->num_equations)
 {
    // Standard local assembly and inversion for energy mass matrices.
    ComputeInvMass();
@@ -159,7 +158,7 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
       elfun_mat.MultTranspose(shape, state);
       // compute F(u,x) and point maximum characteristic speed
 
-      const double mcs = ComputeFlux(state, Tr, flux);
+      const double mcs = fluxFunction.ComputeFlux(state, Tr, flux);
       // update maximum characteristic speed
       max_char_speed = std::max(mcs, max_char_speed);
       // integrate (F(u,x), grad v)
@@ -240,15 +239,11 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
-      const double speed1 = ComputeFluxDotN(state1, nor,
-                                            Tr.GetElement1Transformation(), fluxN1);
-      const double speed2 = ComputeFluxDotN(state2, nor,
-                                            Tr.GetElement2Transformation(), fluxN2);
       // Compute hat(F) using evaluated quantities
-      rsolver.Eval(state1, state2, fluxN1, fluxN2, speed1, speed2, nor, fluxN);
+      const double speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
-      max_char_speed = std::max(std::max(speed1, speed2), max_char_speed);
+      max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
       fluxN *= ip.weight;
@@ -267,30 +262,30 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    }
 }
 
-HyperbolicFormIntegrator::HyperbolicFormIntegrator(const RiemannSolver
-                                                   &rsolver_, const int dim,
-                                                   const int num_equations_,
-                                                   const int IntOrderOffset_)
+HyperbolicFormIntegrator::HyperbolicFormIntegrator(
+   const FluxFunction &fluxFunction, const RiemannSolver &rsolver,
+   const int IntOrderOffset)
    : NonlinearFormIntegrator(),
-     num_equations(num_equations_),
-     IntOrderOffset(IntOrderOffset_),
-     rsolver(rsolver_)
+     fluxFunction(fluxFunction),
+     num_equations(fluxFunction.num_equations),
+     IntOrderOffset(IntOrderOffset),
+     rsolver(rsolver)
 {
 #ifndef MFEM_THREAD_SAFE
    state.SetSize(num_equations);
-   flux.SetSize(num_equations, dim);
+   flux.SetSize(num_equations, fluxFunction.dim);
    state1.SetSize(num_equations);
    state2.SetSize(num_equations);
    fluxN1.SetSize(num_equations);
    fluxN2.SetSize(num_equations);
    fluxN.SetSize(num_equations);
-   nor.SetSize(dim);
+   nor.SetSize(fluxFunction.dim);
 #endif
 }
 
-double HyperbolicFormIntegrator::ComputeFluxDotN(const Vector &U,
-                                                 const Vector &normal,
-                                                 ElementTransformation &Tr, Vector &FUdotN)
+double FluxFunction::ComputeFluxDotN(const Vector &U,
+                                     const Vector &normal,
+                                     FaceElementTransformations &Tr, Vector &FUdotN) const
 {
    double val = ComputeFlux(U, Tr, flux);
    flux.Mult(normal, FUdotN);
@@ -308,12 +303,15 @@ void DGHyperbolicConservationLaws::Update()
 
    ComputeInvMass();
 }
-void RusanovFlux::Eval(const Vector &state1, const Vector &state2,
-                       const Vector &fluxN1,
-                       const Vector &fluxN2, const double speed1, const double speed2,
-                       const Vector &nor,
-                       Vector &flux) const
+double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
+                         const Vector &nor, FaceElementTransformations &Tr,
+                         Vector &flux) const
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#endif
+   const double speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
+   const double speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
    // NOTE: nor in general is not a unit normal
    const double maxE = std::max(speed1, speed2);
    flux = state1;
@@ -323,12 +321,13 @@ void RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    flux += fluxN1;
    flux += fluxN2;
    flux *= 0.5;
+   return std::max(speed1, speed2);
 }
 
 
-double AdvectionFormIntegrator::ComputeFlux(const Vector &U,
-                                            ElementTransformation &Tr,
-                                            DenseMatrix &FU)
+double AdvectionFlux::ComputeFlux(const Vector &U,
+                                  ElementTransformation &Tr,
+                                  DenseMatrix &FU) const
 {
    b.Eval(bval, Tr, Tr.GetIntPoint());
    MultVWt(U, bval, FU);
@@ -336,18 +335,18 @@ double AdvectionFormIntegrator::ComputeFlux(const Vector &U,
 }
 
 
-double BurgersFormIntegrator::ComputeFlux(const Vector &U,
-                                          ElementTransformation &Tr,
-                                          DenseMatrix &FU)
+double BurgersFlux::ComputeFlux(const Vector &U,
+                                ElementTransformation &Tr,
+                                DenseMatrix &FU) const
 {
    FU = U * U * 0.5;
    return abs(U(0));
 }
 
 
-double ShallowWaterFormIntegrator::ComputeFlux(const Vector &U,
-                                               ElementTransformation &Tr,
-                                               DenseMatrix &FU)
+double ShallowWaterFlux::ComputeFlux(const Vector &U,
+                                     ElementTransformation &Tr,
+                                     DenseMatrix &FU) const
 {
    const int dim = U.Size() - 1;
    const double height = U(0);
@@ -374,9 +373,9 @@ double ShallowWaterFormIntegrator::ComputeFlux(const Vector &U,
 }
 
 
-double ShallowWaterFormIntegrator::ComputeFluxDotN(const Vector &U,
-                                                   const Vector &normal,
-                                                   ElementTransformation &Tr, Vector &FUdotN)
+double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
+                                         const Vector &normal,
+                                         FaceElementTransformations &Tr, Vector &FUdotN) const
 {
    const int dim = normal.Size();
    const double height = U(0);
@@ -399,9 +398,9 @@ double ShallowWaterFormIntegrator::ComputeFluxDotN(const Vector &U,
 }
 
 
-double EulerFormIntegrator::ComputeFlux(const Vector &U,
-                                        ElementTransformation &Tr,
-                                        DenseMatrix &FU)
+double EulerFlux::ComputeFlux(const Vector &U,
+                              ElementTransformation &Tr,
+                              DenseMatrix &FU) const
 {
    const int dim = U.Size() - 2;
 
@@ -449,9 +448,9 @@ double EulerFormIntegrator::ComputeFlux(const Vector &U,
 }
 
 
-double EulerFormIntegrator::ComputeFluxDotN(const Vector &x,
-                                            const Vector &normal,
-                                            ElementTransformation &Tr, Vector &FUdotN)
+double EulerFlux::ComputeFluxDotN(const Vector &x,
+                                  const Vector &normal,
+                                  FaceElementTransformations &Tr, Vector &FUdotN) const
 {
    const int dim = normal.Size();
 
