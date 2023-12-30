@@ -268,8 +268,8 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    : NonlinearFormIntegrator(),
      fluxFunction(fluxFunction),
      IntOrderOffset(IntOrderOffset),
-     num_equations(fluxFunction.num_equations),
-     rsolver(rsolver)
+     rsolver(rsolver),
+     num_equations(fluxFunction.num_equations)
 {
 #ifndef MFEM_THREAD_SAFE
    state.SetSize(num_equations);
