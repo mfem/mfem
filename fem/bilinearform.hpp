@@ -337,7 +337,7 @@ public:
    /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$ (currently returns NULL)
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is LEGACY.
+   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is AssemblyLevel::LEGACY.
     *
        THe matrix that gets finalized is different if you are using static condensation
        or hybridization.*/
