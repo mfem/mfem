@@ -934,7 +934,7 @@ public:
                          FiniteElementSpace *filter_space, double exponent, double rho_min):
       SIMPlambda(*lambda, design_density), SIMPmu(*mu, design_density),
       eps2(epsilon*epsilon), ess_bdr(1, ess_bdr_list.Size()),
-      target_volume(target_volume), isGradientUpdated(false),
+      target_volume(target_volume), isGradientUpdated(false), isPrimalBased(false),
       u(nullptr), frho(nullptr),
       rho(rho), force(force), strainEnergy(lambda, mu, u, frho, rho_min, exponent)
    {
@@ -1204,8 +1204,9 @@ public:
       delete frho;
    }
 
-   void SetGridFunction(GridFunction* x)
+   void SetGridFunction(GridFunction* x, bool isPrimal=false)
    {
+      isPrimalBased = isPrimal;
       ObjectiveFunction::SetGridFunction(x);
       FiniteElementSpace *fes = x->FESpace();
 #ifdef MFEM_USE_MPI
@@ -1225,6 +1226,7 @@ public:
 
 protected:
    bool isGradientUpdated;
+   bool isPrimalBased;
 
    /**
     * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
@@ -1241,6 +1243,33 @@ protected:
     * @return double Final volume, ∫_Ω sigmoid(ψ)
     */
    double proj(double tol=1e-12, int max_its=10)
+   {
+      if (isPrimalBased)
+      {
+         return proj_primal();
+      }
+      else
+      {
+         return proj_latent();
+      }
+      return current_volume;
+   }
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   double proj_latent(double tol=1e-12, int max_its=10)
    {
       double c = 0;
       MappedGridFunctionCoefficient rho(x_gf, [&c](const double x) {return sigmoid(x + c);});
@@ -1304,6 +1333,91 @@ protected:
          c = 0;
       }
       current_volume = zero_gf->ComputeL1Error(rho);
+
+      delete zero_gf;
+      return current_volume;
+   }
+
+   /**
+    * @brief Bregman projection of ρ = sigmoid(ψ) onto the subspace
+    *        ∫_Ω ρ dx = θ vol(Ω) as follows:
+    *
+    *        1. Compute the root of the R → R function
+    *            f(c) = ∫_Ω sigmoid(ψ + c) dx - θ vol(Ω)
+    *        2. Set ψ ← ψ + c.
+    *
+    * @param psi a GridFunction to be updated
+    * @param target_volume θ vol(Ω)
+    * @param tol Newton iteration tolerance
+    * @param max_its Newton maximum iteration number
+    * @return double Final volume, ∫_Ω sigmoid(ψ)
+    */
+   double proj_primal(double tol=1e-12, int max_its=10)
+   {
+      double c = 0;
+      MappedGridFunctionCoefficient rho(x_gf, [&c](const double x)
+      {
+         return std::max(0.0, std::min(1.0, x + c));
+      });
+      // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
+      GridFunction *zero_gf;
+      FiniteElementSpace * fes = x_gf->FESpace();
+#ifdef MFEM_USE_MPI
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+      if (pfes)
+      {
+         zero_gf = new ParGridFunction(pfes);
+      }
+      else
+      {
+         zero_gf = new GridFunction(fes);
+      }
+#else
+      zero_gf = new GridFunction(fes);
+#endif
+      *zero_gf = 0.0;
+
+      double Vc = zero_gf->ComputeL1Error(rho);
+      double dVc = Vc - std::pow(zero_gf->ComputeL2Error(rho), 2);
+      if (fabs(Vc - target_volume) > tol)
+      {
+         double dc;
+         if (dVc > tol) // if derivative is sufficiently large,
+         {
+            dc = -(Vc - target_volume) / dVc;
+         }
+         else
+         {
+            dc = -(Vc > target_volume ? x_gf->Max() : x_gf->Min());
+         }
+         c = dc;
+         int k;
+         // Find an interval (c, c+dc) that contains c⋆.
+         for (k=0; k < max_its; k++)
+         {
+            double Vc_old = Vc;
+            Vc = zero_gf->ComputeL1Error(rho);
+            if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
+            {
+               break;
+            }
+            c += dc;
+         }
+         if (k == max_its) // if failed to find the search interval
+         {
+            return infinity();
+         }
+         // Bisection
+         dc = fabs(dc);
+         while (fabs(dc) > 1e-08)
+         {
+            dc /= 2.0;
+            c = Vc > target_volume ? c - dc : c + dc;
+            Vc = zero_gf->ComputeL1Error(rho);
+         }
+      }
+      current_volume = zero_gf->ComputeL1Error(rho);
+      x_gf->ProjectCoefficient(rho);
 
       delete zero_gf;
       return current_volume;
@@ -1378,66 +1492,25 @@ class BackTracking : public LineSearchAlgorithm
 {
 public:
    BackTracking(ObjectiveFunction &F,
+                LinearForm &distanceForm,
                 const double alpha=1.0, const double growthRate=2.0, const double c1 = 1e-04,
                 const int maxit = 10, const double max_step_size=infinity()):
       LineSearchAlgorithm(F, max_step_size), growthRate(growthRate), c1(c1),
-      maxit(maxit), isConverged(false) {step_size = alpha;}
-
+      distanceForm(distanceForm),
+      maxit(maxit) {step_size = alpha;}
+   void SetOldGF(const GridFunction &x_old)
+   {
+      x0 = &x_old;
+   }
    double Step(GridFunction &x, const GridFunction &d)
    {
       FiniteElementSpace *fes = x.FESpace();
-      LinearForm *directionalDer;
-      GridFunction *x0, *d0;
-#ifdef MFEM_USE_MPI
-      auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
-      if (pfes)
-      {
-         directionalDer = new ParLinearForm(pfes);
-         x0 = new ParGridFunction(pfes);
-         d0 = new ParGridFunction(pfes);
-      }
-      else
-      {
-         directionalDer = new LinearForm(fes);
-         x0 = new GridFunction(fes);
-         d0 = new GridFunction(fes);
-      }
-#else
-      directionalDer = new LinearForm(fes);
-      x0 = new GridFunction(fes);
-      d0 = new GridFunction(fes);
-#endif
-      *x0 = x;
-
-      // DiffMappedGridFunctionCoefficient d_cf(&x, x0, sigmoid);
-      GridFunctionCoefficient x_cf(&x), x0_cf(x0);
-      // TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return der_sigmoid(y)*(x - y); });
-      TransformedCoefficient d_cf(&x_cf, &x0_cf, [](double x, double y) {return sigmoid(x) - sigmoid(y); });
-      directionalDer->AddDomainIntegrator(new DomainLFIntegrator(d_cf));
 
       double val = F.GetValue();
       GridFunction *grad = F.GetGradient();
       double d2 = 0;
 
       double new_val;
-      if (test_convergence)
-      {
-         x = *x0;
-         x.Add(1.0, d);
-         new_val = F.Eval();
-         TransformedCoefficient diff_in_rho(&x_cf, &x0_cf, [](double x, double y) {return sigmoid(x)-sigmoid(y); });
-         GridFunction zero(x); zero = 0.0;
-         double error = zero.ComputeL2Error(diff_in_rho);
-         out << error << std::endl;
-         if (error < conv_tol)
-         {
-            isConverged = true;
-            delete directionalDer;
-            delete x0;
-            delete d0;
-            return val;
-         }
-      }
       new_val = val + c1*d2 + 1;
       step_size *= 2;
       int i=-1;
@@ -1445,12 +1518,21 @@ public:
       {
          i++;
          step_size *= 0.5;
+         if (new_val > val)
+         {
+            out << "+" << std::flush;
+         }
+         else
+         {
+            out << "-" << std::flush;
+         }
+         out << step_size << "," << std::flush;
 
          x = *x0;
          x.Add(step_size, d);
          new_val = F.Eval();
-         directionalDer->Assemble();
-         d2 = (*directionalDer)(*grad);
+         distanceForm.Assemble();
+         d2 = distanceForm(*grad);
          if (d2 > 0) { out << "," << std::flush; }
       }
       out << std::endl;
@@ -1459,25 +1541,17 @@ public:
 
       step_size *= growthRate;
       step_size = std::min(step_size, max_step_size);
-      delete directionalDer;
-      delete x0;
-      delete d0;
       return new_val;
    }
-   void ConvTestBeforeStep(bool flag, double conv_tol_=1e-06)
+   void SetDistanceFunction(double(*new_distfun)(double, double))
    {
-      test_convergence = flag;
-      conv_tol = conv_tol_;
-   }
-   bool IsConverged()
-   {
-      return isConverged;
+      distfun = new_distfun;
    }
 protected:
    double growthRate, c1;
-   bool test_convergence;
-   double conv_tol;
-   bool isConverged;
+   double(*distfun)(double, double);
+   const GridFunction *x0;
+   LinearForm &distanceForm;
    int maxit;
 private:
 };
@@ -1489,7 +1563,7 @@ public:
                           GridFunction &grad, GridFunction &latent, double weight=1.0, double eps=1e-10,
                           double max_step_size=1e06):
       LineSearchAlgorithm(F, max_step_size), diff_primal(diff_primal),
-      grad(grad), old_grad(grad), latent(latent), old_latent(latent), L(0), k(0),
+      grad(grad), old_grad(grad), latent(latent), old_latent(latent), Linv(0), k(0),
       weight(weight), eps(eps) {}
    virtual double Step(GridFunction &x, const GridFunction &d)
    {
@@ -1510,8 +1584,8 @@ public:
       {
          double diff_grad = diff_primal(grad) - diff_primal(old_grad);
          double diff_latent = diff_primal(latent) - diff_primal(old_latent);
-         L = std::abs(diff_grad / (diff_latent + eps));
-         step_size = std::min(weight / L, max_step_size);
+         Linv = std::abs(diff_latent / (diff_grad + eps));
+         step_size = std::min(weight * Linv, max_step_size);
          old_grad = grad;
          old_latent = latent;
       }
@@ -1522,7 +1596,7 @@ protected:
    GridFunction old_grad;
    GridFunction &latent;
    GridFunction old_latent;
-   double L; int k;
+   double Linv; int k;
    double weight,  eps;
 };
 
@@ -1532,38 +1606,24 @@ class BackTrackingLipschitzBregmanMirror : public LipschitzBregmanMirror
 public:
    BackTrackingLipschitzBregmanMirror(ObjectiveFunction &F,
                                       LinearForm &diff_primal,
-                                      GridFunction &grad, GridFunction &latent, double c1, double weight=1.0,
+                                      GridFunction &grad, GridFunction &latent, GridFunction &latent_old, double c1,
+                                      double weight=1.0,
                                       double eps=1e-10, double max_step_size=1e06):
       LipschitzBregmanMirror(F, diff_primal, grad, latent, weight, eps,
-                             max_step_size), backTrackingLineSearch(F, 1.0, 1.0, c1) {}
+                             max_step_size), backTrackingLineSearch(F, diff_primal, 1.0, 1.0, c1)
+   {
+      backTrackingLineSearch.SetOldGF(latent_old);
+   }
    virtual double Step(GridFunction &x, const GridFunction &d)
    {
       LipschitzBregmanMirror::EstimateStepSize();
       backTrackingLineSearch.SetStepSize(step_size);
       double value = backTrackingLineSearch.Step(x, d);
       diff_primal.Assemble();
-      if (conv_test_flag)
-      {
-         bool isConverged = backTrackingLineSearch.IsConverged();
-         if (isConverged)
-         {
-            return 0;
-         }
-      }
       return value;
-   }
-   void ConvTestBeforeStep(bool flag, double conv_tol_=1e-06)
-   {
-      conv_test_flag = flag;
-      backTrackingLineSearch.ConvTestBeforeStep(flag, conv_tol_);
-   }
-   bool IsConverged()
-   {
-      return backTrackingLineSearch.IsConverged();
    }
 protected:
    BackTracking backTrackingLineSearch;
-   bool conv_test_flag;
 };
 
 } // end of namespace mfem

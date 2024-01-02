@@ -146,7 +146,8 @@ enum Problem
    Cantilever3
 };
 
-double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_volume)
+double checkNormalConeL2(GridFunction &psi, GridFunction &grad,
+                         double target_volume)
 {
    MappedGridFunctionCoefficient rho_cf(&psi, sigmoid);
    GridFunctionCoefficient grad_cf(&grad);
@@ -155,7 +156,8 @@ double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_vo
    SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
    double mu_l = -1.0 - c*grad.Normlinf();
    double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p,
+                                                                          double g)
    {
       return max(0.0, min(1.0, p - g));
    });
@@ -177,14 +179,16 @@ double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_vo
    }
    out << ", " << zero_gf.ComputeL1Error(projectedDensity) << flush;
 
-   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x,
+                                                                  double y)
    {
       return x - y;
    });
    return zero_gf.ComputeL2Error(rho_diff);
 }
 
-double checkNormalConeBregman(GridFunction &psi, GridFunction &grad, double target_volume)
+double checkNormalConeBregman(GridFunction &psi, GridFunction &grad,
+                              double target_volume)
 {
    GridFunctionCoefficient psi_cf(&psi);
    GridFunctionCoefficient grad_cf(&grad);
@@ -193,7 +197,8 @@ double checkNormalConeBregman(GridFunction &psi, GridFunction &grad, double targ
    SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
    double mu_l = -1.0 - c*grad.Normlinf();
    double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&psi_cf, &grad_cf_minus_mu, [](double p, double g)
+   TransformedCoefficient projectedDensity(&psi_cf, &grad_cf_minus_mu, [](double p,
+                                                                          double g)
    {
       return sigmoid(p - g);
    });
@@ -212,7 +217,8 @@ double checkNormalConeBregman(GridFunction &psi, GridFunction &grad, double targ
          mu_l = mu.constant;
       }
    }
-   TransformedCoefficient rho_diff(&psi_cf, &projectedDensity, [](double x, double y)
+   TransformedCoefficient rho_diff(&psi_cf, &projectedDensity, [](double x,
+                                                                  double y)
    {
       return sigmoid(x) - y;
    });
@@ -446,13 +452,15 @@ int main(int argc, char *argv[])
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, alpha, 2.0, c1, 10, infinity());
+         lineSearch = new BackTracking(obj, succ_diff_rho_form, alpha, 2.0, c1, 10,
+                                       infinity());
          solfile << "EXP-";
          solfile2 << "EXP-";
          break;
       case LineSearchMethod::BregmanBBBackTracking:
          lineSearch = new BackTrackingLipschitzBregmanMirror(
-            obj, succ_diff_rho_form, *(obj.Gradient()), psi, c1, 1.0, 1e-10, infinity());
+            obj, succ_diff_rho_form, *(obj.Gradient()), psi, psi_old, c1, 1.0, 1e-10,
+            infinity());
          solfile << "BB-";
          solfile2 << "BB-";
          break;
@@ -510,10 +518,12 @@ int main(int argc, char *argv[])
       double compliance = lineSearch->Step(psi, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
       double normal_cone_L2 = checkNormalConeL2(psi, *obj.Gradient(), target_volume);
-      double normal_cone_BD = checkNormalConeBregman(psi, *obj.Gradient(), target_volume);
+      double normal_cone_BD = checkNormalConeBregman(psi, *obj.Gradient(),
+                                                     target_volume);
       psi_old = psi;
       mfem::out <<  ", " << compliance << ", ";
-      mfem::out << norm_increment << ", " << normal_cone_L2 << ", " << normal_cone_BD << std::endl;
+      mfem::out << norm_increment << ", " << normal_cone_L2 << ", " << normal_cone_BD
+                << std::endl;
 
       if (glvis_visualization)
       {

@@ -146,20 +146,23 @@ enum Problem
    Cantilever3
 };
 
-double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_volume)
+double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
+                         double target_volume)
 {
-   MappedGridFunctionCoefficient rho_cf(&psi, sigmoid);
+   // MappedGridFunctionCoefficient rho_cf(&rho, sigmoid);
+   GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient grad_cf(&grad);
    ConstantCoefficient mu(0.0);
    const double c = 1;
    SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
    double mu_l = -1.0 - c*grad.Normlinf();
    double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p,
+                                                                          double g)
    {
       return max(0.0, min(1.0, p - g));
    });
-   GridFunction zero_gf(psi);
+   GridFunction zero_gf(rho);
    zero_gf = 0.0;
    double volume = 0;
    while (fabs(volume - target_volume) > 1e-09 / target_volume)
@@ -177,45 +180,7 @@ double checkNormalConeL2(GridFunction &psi, GridFunction &grad, double target_vo
    }
    out << ", " << zero_gf.ComputeL1Error(projectedDensity) << flush;
 
-   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
-   {
-      return x - y;
-   });
-   return zero_gf.ComputeL2Error(rho_diff);
-}
-
-double checkNormalConeBregman(GridFunction &psi, GridFunction &grad, double target_volume)
-{
-   GridFunctionCoefficient psi_cf(&psi);
-   GridFunctionCoefficient grad_cf(&grad);
-   ConstantCoefficient mu(0.0);
-   const double c = 1;
-   SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
-   double mu_l = -1.0 - c*grad.Normlinf();
-   double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&psi_cf, &grad_cf_minus_mu, [](double p, double g)
-   {
-      return sigmoid(p - g);
-   });
-   GridFunction zero_gf(psi);
-   zero_gf = 0.0;
-   while (mu_r - mu_l > 1e-12)
-   {
-      mu.constant = 0.5*(mu_l + mu_r);
-      double volume = zero_gf.ComputeL1Error(projectedDensity);
-      if (volume < target_volume)
-      {
-         mu_r = mu.constant;
-      }
-      else
-      {
-         mu_l = mu.constant;
-      }
-   }
-   TransformedCoefficient rho_diff(&psi_cf, &projectedDensity, [](double x, double y)
-   {
-      return sigmoid(x) - y;
-   });
+   SumCoefficient rho_diff(rho_cf, projectedDensity, 1.0, -1.0);
    return zero_gf.ComputeL2Error(rho_diff);
 }
 
@@ -412,17 +377,19 @@ int main(int argc, char *argv[])
    mfem::out << "Number of control unknowns: " << control_size << std::endl;
 
    // 5. Set the initial guess for ρ.
-   GridFunction psi(&control_fes);
-   GridFunction psi_old(&control_fes);
-   psi = inv_sigmoid(vol_fraction);
-   psi_old = inv_sigmoid(vol_fraction);
+   GridFunction rho(&control_fes);
+   GridFunction rho_old(&control_fes);
+   rho = inv_sigmoid(vol_fraction);
+   rho_old = inv_sigmoid(vol_fraction);
 
    // ρ = sigmoid(ψ)
-   MappedGridFunctionCoefficient rho(&psi, sigmoid);
+   // MappedGridFunctionCoefficient rho_cf(&rho, sigmoid);
+   GridFunctionCoefficient rho_cf(&rho);
    // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
    GridFunction rho_gf(&control_fes);
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
-   DiffMappedGridFunctionCoefficient succ_diff_rho(&psi, &psi_old, sigmoid);
+   DiffMappedGridFunctionCoefficient succ_diff_rho(&rho,
+   &rho_old, [](double x) {return x;});
    LinearForm succ_diff_rho_form(&control_fes);
    succ_diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(succ_diff_rho));
 
@@ -437,22 +404,22 @@ int main(int argc, char *argv[])
    const double target_volume = domain_volume * vol_fraction;
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    SIMPElasticCompliance obj(&lambda_cf, &mu_cf, epsilon,
-                             &rho, &vforce_cf, target_volume,
+                             &rho_cf, &vforce_cf, target_volume,
                              ess_bdr,
                              &state_fes,
                              &filter_fes, exponent, rho_min);
-   obj.SetGridFunction(&psi);
+   obj.SetGridFunction(&rho, true);
    LineSearchAlgorithm *lineSearch;
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, alpha, 2.0, c1, 10, infinity());
+         lineSearch = new BackTracking(obj, succ_diff_rho_form, alpha, 2.0, c1, 10, infinity());
          solfile << "EXP-";
          solfile2 << "EXP-";
          break;
       case LineSearchMethod::BregmanBBBackTracking:
          lineSearch = new BackTrackingLipschitzBregmanMirror(
-            obj, succ_diff_rho_form, *(obj.Gradient()), psi, c1, 1.0, 1e-10, infinity());
+            obj, succ_diff_rho_form, *(obj.Gradient()), rho, rho_old, c1, 1.0, 1e-10, infinity());
          solfile << "BB-";
          solfile2 << "BB-";
          break;
@@ -503,25 +470,24 @@ int main(int argc, char *argv[])
    int k;
    for (k = 1; k <= max_it; k++)
    {
-      // mfem::out << "\nStep = " << k << std::endl;
+      mfem::out << "\nStep = " << k << std::endl;
 
       d = *obj.Gradient();
       d.Neg();
-      double compliance = lineSearch->Step(psi, d);
+      double compliance = lineSearch->Step(rho, d);
       double norm_increment = zero_gf.ComputeLpError(1, succ_diff_rho);
-      double normal_cone_L2 = checkNormalConeL2(psi, *obj.Gradient(), target_volume);
-      double normal_cone_BD = checkNormalConeBregman(psi, *obj.Gradient(), target_volume);
-      psi_old = psi;
+      double normal_cone_L2 = checkNormalConeL2(rho, *obj.Gradient(), target_volume);
+      rho_old = rho;
       mfem::out <<  ", " << compliance << ", ";
-      mfem::out << norm_increment << ", " << normal_cone_L2 << ", " << normal_cone_BD << std::endl;
+      mfem::out << norm_increment << ", " << normal_cone_L2
+                << std::endl;
 
       if (glvis_visualization)
       {
          designDensity_gf.ProjectCoefficient(designDensity);
          sout_SIMP << "solution\n" << mesh << designDensity_gf
                    << flush;
-         rho_gf.ProjectCoefficient(rho);
-         sout_r << "solution\n" << mesh << rho_gf
+         sout_r << "solution\n" << mesh << rho
                 << flush;
       }
       if (normal_cone_L2 < 5e-05)
@@ -533,7 +499,7 @@ int main(int argc, char *argv[])
    {
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);
