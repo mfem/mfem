@@ -4742,14 +4742,14 @@ bool ParMesh::WantSkipSharedMaster(const NCMesh::Master &master) const
    return false;
 }
 
-void ParMesh::Print(std::ostream &os) const
+void ParMesh::Print(std::ostream &os, const std::string &comments) const
 {
    int shared_bdr_attr;
    Array<int> nc_shared_faces;
 
    if (NURBSext)
    {
-      Printer(os); // does not print shared boundary
+      Printer(os, comments); // does not print shared boundary
       return;
    }
 
@@ -4788,6 +4788,8 @@ void ParMesh::Print(std::ostream &os) const
    }
 
    os << "MFEM mesh v1.0\n";
+
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
    // optional
    os <<
@@ -4886,7 +4888,7 @@ static void dump_element(const Element* elem, Array<int> &data)
    }
 }
 
-void ParMesh::PrintAsOne(std::ostream &os) const
+void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 {
    int i, j, k, p, nv_ne[2], &nv = nv_ne[0], &ne = nv_ne[1], vc;
    const int *v;
@@ -4897,6 +4899,8 @@ void ParMesh::PrintAsOne(std::ostream &os) const
    if (MyRank == 0)
    {
       os << "MFEM mesh v1.0\n";
+
+      if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
       // optional
       os <<
@@ -5195,13 +5199,13 @@ void ParMesh::PrintAsOne(std::ostream &os) const
    }
 }
 
-void ParMesh::PrintAsSerial(std::ostream &os) const
+void ParMesh::PrintAsSerial(std::ostream &os, const std::string &comments) const
 {
    int save_rank = 0;
    Mesh serialmesh = GetSerialMesh(save_rank);
    if (MyRank == save_rank)
    {
-      serialmesh.Printer(os);
+      serialmesh.Printer(os, comments);
    }
    MPI_Barrier(MyComm);
 }
@@ -6212,26 +6216,26 @@ long long ParMesh::ReduceInt(int value) const
    return global;
 }
 
-void ParMesh::ParPrint(ostream &os) const
+void ParMesh::ParPrint(ostream &os, const std::string &comments) const
 {
    if (NURBSext)
    {
       // TODO: NURBS meshes.
-      Print(os); // use the serial MFEM v1.0 format for now
+      Print(os, comments); // use the serial MFEM v1.0 format for now
       return;
    }
 
    if (Nonconforming())
    {
       // the NC mesh format works both in serial and in parallel
-      Printer(os);
+      Printer(os, comments);
       return;
    }
 
    // Write out serial mesh.  Tell serial mesh to deliniate the end of it's
    // output with 'mfem_serial_mesh_end' instead of 'mfem_mesh_end', as we will
    // be adding additional parallel mesh information.
-   Printer(os, "mfem_serial_mesh_end");
+   Printer(os, "mfem_serial_mesh_end", comments);
 
    // write out group topology info.
    gtopo.Save(os);
