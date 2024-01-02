@@ -159,6 +159,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const bool normals,
                             Vector &y)
 {
+   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
    const FiniteElement &el = *fes.GetBE(0);
@@ -214,6 +215,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
@@ -229,6 +231,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
