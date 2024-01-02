@@ -79,7 +79,7 @@ strtrs_(char *, char*, char *, int *, int *, float *, int *, float *, int *,
         int *);
 extern "C" void
 spotri_(char *, int *, float *, int*, int *);
-#else // Double-precision
+#elif defined MFEM_USE_DOUBLE
 extern "C" void
 dgemm_(char *, char *, int *, int *, int *, double *, double *,
        int *, double *, int *, double *, double *, int *);
@@ -740,8 +740,10 @@ void DenseMatrix::Invert()
 
 #ifdef MFEM_USE_SINGLE
    sgetrf_(&width, &width, data, &width, ipiv, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dgetrf_(&width, &width, data, &width, ipiv, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    if (info)
@@ -756,13 +758,15 @@ void DenseMatrix::Invert()
    work = new float[lwork];
 
    sgetri_(&width, data, &width, ipiv, work, &lwork, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dgetri_(&width, data, &width, ipiv, &qwork, &lwork, &info);
 
    lwork = (int) qwork;
    work = new double[lwork];
 
    dgetri_(&width, data, &width, ipiv, work, &lwork, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    if (info)
@@ -1001,8 +1005,10 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 #ifdef MFEM_USE_SINGLE
    ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
             &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, &QWORK, &LWORK,
             &QIWORK, &LIWORK, &INFO );
@@ -1015,8 +1021,10 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 #ifdef MFEM_USE_SINGLE
    ssyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyevr_( &JOBZ, &RANGE, &UPLO, &N, A, &LDA, &VL, &VU, &IL, &IU,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
             &ABSTOL, &M, W, Z, &LDZ, ISUPPZ, WORK, &LWORK,
             IWORK, &LIWORK, &INFO );
@@ -1161,8 +1169,10 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 #ifdef MFEM_USE_SINGLE
    ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, &QWORK, &LWORK, &INFO);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    LWORK = (int) QWORK;
@@ -1170,8 +1180,10 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 #ifdef MFEM_USE_SINGLE
    ssyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyev_(&JOBZ, &UPLO, &N, A, &LDA, W, WORK, &LWORK, &INFO);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    if (INFO != 0)
@@ -1249,8 +1261,10 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
 
 #ifdef MFEM_USE_SINGLE
    ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
-#else
+#elif defined MFEM_USE_DOUBLE
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    LWORK = (int) QWORK;
@@ -1258,8 +1272,10 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
 
 #ifdef MFEM_USE_SINGLE
    ssygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
-#else
+#elif defined MFEM_USE_DOUBLE
    dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
 
    if (INFO != 0)
@@ -1314,8 +1330,10 @@ void DenseMatrix::SingularValues(Vector &sv) const
 
 #ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
            s, u, &m, vt, &n, &qwork, &lwork, &info);
 
@@ -1324,8 +1342,10 @@ void DenseMatrix::SingularValues(Vector &sv) const
 
 #ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, a, &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgesvd_(&jobu, &jobvt, &m, &n, a, &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
            s, u, &m, vt, &n, work, &lwork, &info);
 
@@ -2492,8 +2512,10 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           c.Data(), &k, &beta, a.Data(), &m);
 #else
@@ -2520,8 +2542,10 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           c.Data(), &k, &beta, a.Data(), &m);
 #else
@@ -2556,7 +2580,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
 #endif
           c.Data(), &k, &beta, a.Data(), &m);
@@ -2880,7 +2904,7 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #endif
           B.Data(), &n, &beta, ABt.Data(), &m);
@@ -2989,7 +3013,7 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #endif
           B.Data(), &n, &beta, ABt.Data(), &m);
@@ -3088,7 +3112,7 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
 #endif
           B.Data(), &n, &beta, ABt.Data(), &m);
@@ -3149,7 +3173,7 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
 
 #ifdef MFEM_USE_SINGLE
    sgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
 #endif
           B.Data(), &k, &beta, AtB.Data(), &m);
@@ -3373,8 +3397,10 @@ bool LUFactors::Factor(int m, real_t TOL)
    int info = 0;
 #ifdef MFEM_USE_SINGLE
    if (m) { sgetrf_(&m, &m, data, &m, ipiv, &info); }
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    return info == 0;
 #else
@@ -3529,8 +3555,10 @@ void LUFactors::Solve(int m, int n, real_t *X) const
    int  info = 0;
 #ifdef MFEM_USE_SINGLE
    if (m > 0 && n > 0) { sgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m > 0 && n > 0) { dgetrs_(&trans, &m, &n, data, &m, ipiv, X, &m, &info); }
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "LAPACK: error in DGETRS");
 #else
@@ -3551,9 +3579,11 @@ void LUFactors::RightSolve(int m, int n, real_t *X) const
 #ifdef MFEM_USE_SINGLE
       strsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       strsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#else
+#elif defined MFEM_USE_DOUBLE
       dtrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       dtrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
    }
 #else
@@ -3733,8 +3763,10 @@ bool CholeskyFactors::Factor(int m, real_t TOL)
    MFEM_VERIFY(data, "Matrix data not set");
 #ifdef MFEM_USE_SINGLE
    if (m) {spotrf_(&uplo, &m, data, &m, &info);}
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m) {dpotrf_(&uplo, &m, data, &m, &info);}
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    return info == 0;
 #else
@@ -3829,8 +3861,10 @@ void CholeskyFactors::LSolve(int m, int n, real_t * X) const
 
 #ifdef MFEM_USE_SINGLE
    strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "CholeskyFactors:LSolve:: info");
 
@@ -3863,8 +3897,10 @@ void CholeskyFactors::USolve(int m, int n, real_t * X) const
 
 #ifdef MFEM_USE_SINGLE
    strtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dtrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, X, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "CholeskyFactors:USolve:: info");
 
@@ -3893,8 +3929,10 @@ void CholeskyFactors::Solve(int m, int n, real_t * X) const
    int info = 0;
 #ifdef MFEM_USE_SINGLE
    spotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dpotrs_(&uplo, &m, &n, data, &m, X, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "CholeskyFactors:Solve:: info");
 
@@ -3919,9 +3957,11 @@ void CholeskyFactors::RightSolve(int m, int n, real_t * X) const
 #ifdef MFEM_USE_SINGLE
       strsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
       strsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
-#else
+#elif defined MFEM_USE_DOUBLE
       dtrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,X,&n);
       dtrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,X,&n);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
    }
 #else
@@ -3972,8 +4012,10 @@ void CholeskyFactors::GetInverseMatrix(int m, real_t * X) const
    int info = 0;
 #ifdef MFEM_USE_SINGLE
    spotri_(&uplo, &m, X, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    dpotri_(&uplo, &m, X, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "CholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
@@ -4160,8 +4202,10 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    real_t qwork;
 #ifdef MFEM_USE_SINGLE
    ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           &qwork, &lwork, &info);
 
@@ -4193,8 +4237,10 @@ void DenseMatrixEigensystem::Eval()
    EVect = mat;
 #ifdef MFEM_USE_SINGLE
    ssyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
-#else
+#elif defined MFEM_USE_DOUBLE
    dsyev_(&jobz, &uplo, &n, EVect.Data(), &n, EVal.GetData(),
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           work, &lwork, &info);
 
@@ -4250,8 +4296,10 @@ DenseMatrixGeneralizedEigensystem::DenseMatrixGeneralizedEigensystem(
 
 #ifdef MFEM_USE_SINGLE
    sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#else
+#elif defined MFEM_USE_DOUBLE
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
           &qwork, &lwork, &info);
@@ -4269,8 +4317,10 @@ void DenseMatrixGeneralizedEigensystem::Eval()
    B_copy = B;
 #ifdef MFEM_USE_SINGLE
    sggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
-#else
+#elif defined MFEM_USE_DOUBLE
    dggev_(&jobvl,&jobvr,&n,A_copy.Data(),&n,B_copy.Data(),&n,alphar,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
           alphai, beta, Vl.Data(), &nl, Vr.Data(), &nr,
           work, &lwork, &info);
@@ -4356,8 +4406,10 @@ void DenseMatrixSVD::Init()
    lwork = -1;
 #ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgesvd_(&jobu, &jobvt, &m, &n, NULL, &m, sv.GetData(), NULL, &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
            NULL, &n, &qwork, &lwork, &info);
    lwork = (int) qwork;
@@ -4397,8 +4449,10 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
    Mc = M;
 #ifdef MFEM_USE_SINGLE
    sgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
-#else
+#elif defined MFEM_USE_DOUBLE
    dgesvd_(&jobu, &jobvt, &m, &n, Mc.Data(), &m, sv.GetData(), datau, &m,
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
            datavt, &n, work, &lwork, &info);
 

@@ -3557,7 +3557,7 @@ sgemv_(char *, int *, int *, float *, float *, int *, float *, int *,
 extern "C" void
 strsm_(char *side, char *uplo, char *transa, char *diag, int *m, int *n,
        float *alpha, float *a, int *lda, float *b, int *ldb);
-#else // Double-precision
+#elif defined MFEM_USE_DOUBLE
 extern "C" void
 dormqr_(char *, char *, int *, int *, int *, double *, int*, double *,
         double *, int *, double *, int*, int*);
@@ -3938,7 +3938,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -3949,7 +3949,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m, &n_update, &i_qr_start,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -3977,7 +3977,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
 #ifdef MFEM_USE_SINGLE
             sgeqrf_(&m_update, &n_update,
-#else
+#elif defined MFEM_USE_DOUBLE
             dgeqrf_(&m_update, &n_update,
 #endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
@@ -3988,7 +3988,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
             sgeqrf_(&m_update, &n_update,
-#else
+#elif defined MFEM_USE_DOUBLE
             dgeqrf_(&m_update, &n_update,
 #endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
@@ -4023,7 +4023,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(10);
 #ifdef MFEM_USE_SINGLE
             sgeqrf_(&m, &n_glob,
-#else
+#elif defined MFEM_USE_DOUBLE
             dgeqrf_(&m, &n_glob,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -4033,7 +4033,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
             sgeqrf_(&m, &n_glob,
-#else
+#elif defined MFEM_USE_DOUBLE
             dgeqrf_(&m, &n_glob,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -4067,7 +4067,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m_update, &ione, &ione,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m_update, &ione, &ione,
 #endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
@@ -4078,7 +4078,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m_update, &ione, &ione,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m_update, &ione, &ione,
 #endif
                     submat_data.GetData(), &m_update, sub_tau.GetData(),
@@ -4099,7 +4099,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(10);
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m, &ione, &n_glob,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m, &ione, &n_glob,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -4110,7 +4110,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
             work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
             sormqr_(&lside, &trans, &m, &ione, &n_glob,
-#else
+#elif defined MFEM_USE_DOUBLE
             dormqr_(&lside, &trans, &m, &ione, &n_glob,
 #endif
                     mat_qr_data.GetData(), &m, tau.GetData(),
@@ -4130,7 +4130,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          vec1 = qt_rhs_glob;
 #ifdef MFEM_USE_SINGLE
          strsm_(&lside, &upper, &notrans, &nounit,
-#else
+#elif defined MFEM_USE_DOUBLE
          dtrsm_(&lside, &upper, &notrans, &nounit,
 #endif
                 &n_glob, &ione, &fone,
@@ -4360,7 +4360,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          real_t fmone = -1.0;
 #ifdef MFEM_USE_SINGLE
          sgemv_(&notrans, &m, &n_glob, &fmone,
-#else
+#elif defined MFEM_USE_DOUBLE
          dgemv_(&notrans, &m, &n_glob, &fmone,
 #endif
                 mat_0_data.GetData(), &m,
@@ -4381,7 +4381,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
 
 #ifdef MFEM_USE_SINGLE
          sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
          dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
 #endif
                  tau.GetData(), qqt_rhs_glob.GetData(), &m,
@@ -4392,7 +4392,7 @@ void NNLSSolver::Solve(const Vector& rhs_lb, const Vector& rhs_ub,
          work.resize(lwork);
 #ifdef MFEM_USE_SINGLE
          sormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
-#else
+#elif defined MFEM_USE_DOUBLE
          dormqr_(&lside, &notrans, &m, &ione, &n_glob, mat_qr_data.GetData(), &m,
 #endif
                  tau.GetData(), qqt_rhs_glob.GetData(), &m,

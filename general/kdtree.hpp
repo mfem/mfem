@@ -628,7 +628,7 @@ typedef KDTree<int,float,2> KDTree2D;
 
 /// Defines KDTree in 1D
 typedef KDTree<int,float,1> KDTree1D;
-#else
+#elif defined MFEM_USE_DOUBLE
 /// Defines KDTree in 3D
 typedef KDTree<int,double,3> KDTree3D;
 

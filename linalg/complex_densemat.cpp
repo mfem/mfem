@@ -37,7 +37,7 @@ cpotri_(char *, int *, std::complex<float> *, int*, int *);
 extern "C" void
 cpotrs_(char *, int *, int *, std::complex<float> *, int *,
         std::complex<float> *, int *, int *);
-#else // Double-precision
+#elif defined MFEM_USE_DOUBLE
 extern "C" void
 zgetrf_(int *, int *, std::complex<double> *, int *, int *, int *);
 extern "C" void
@@ -177,8 +177,10 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
 
 #ifdef MFEM_USE_SINGLE
    cgetrf_(&w, &w, data, &w, ipiv, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    zgetrf_(&w, &w, data, &w, ipiv, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    if (info)
    {
@@ -187,16 +189,20 @@ ComplexDenseMatrix * ComplexDenseMatrix::ComputeInverse()
 
 #ifdef MFEM_USE_SINGLE
    cgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    zgetri_(&w, data, &w, ipiv, &qwork, &lwork, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    lwork = (int) qwork.real();
    work = new std::complex<real_t>[lwork];
 
 #ifdef MFEM_USE_SINGLE
    cgetri_(&w, data, &w, ipiv, work, &lwork, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    zgetri_(&w, data, &w, ipiv, work, &lwork, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    if (info)
    {
@@ -489,7 +495,7 @@ bool ComplexLUFactors::Factor(int m, real_t TOL)
    MFEM_VERIFY(data, "Matrix data not set");
 #ifdef MFEM_USE_SINGLE
    if (m) { cgetrf_(&m, &m, data, &m, ipiv, &info); }
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m) { zgetrf_(&m, &m, data, &m, ipiv, &info); }
 #endif
    return info == 0;
@@ -655,8 +661,10 @@ void ComplexLUFactors::Solve(int m, int n, real_t *X_r, real_t * X_i) const
    int  info = 0;
 #ifdef MFEM_USE_SINGLE
    if (m > 0 && n > 0) { cgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m > 0 && n > 0) { zgetrs_(&trans, &m, &n, data, &m, ipiv, x, &m, &info); }
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "LAPACK: error in ZGETRS");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
@@ -680,9 +688,11 @@ void ComplexLUFactors::RightSolve(int m, int n, real_t *X_r, real_t * X_i) const
 #ifdef MFEM_USE_SINGLE
       ctrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       ctrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
-#else
+#elif defined MFEM_USE_DOUBLE
       ztrsm_(&side,&u_ch,&n_ch,&n_ch,&n,&m,&alpha,data,&m,X,&n);
       ztrsm_(&side,&l_ch,&n_ch,&u_ch,&n,&m,&alpha,data,&m,X,&n);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
    }
 #else
@@ -807,8 +817,10 @@ bool ComplexCholeskyFactors::Factor(int m, real_t TOL)
    MFEM_VERIFY(data, "Matrix data not set");
 #ifdef MFEM_USE_SINGLE
    if (m) {cpotrf_(&uplo, &m, data, &m, &info);}
-#else
+#elif defined MFEM_USE_DOUBLE
    if (m) {zpotrf_(&uplo, &m, data, &m, &info);}
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    return info == 0;
 #else
@@ -911,8 +923,10 @@ void ComplexCholeskyFactors::LSolve(int m, int n, real_t * X_r,
 
 #ifdef MFEM_USE_SINGLE
    ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:LSolve:: info");
 #else
@@ -948,8 +962,10 @@ void ComplexCholeskyFactors::USolve(int m, int n, real_t * X_r,
 
 #ifdef MFEM_USE_SINGLE
    ctrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    ztrtrs_(&uplo, &trans, &diag, &m, &n, data, &m, x, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:USolve:: info");
 #else
@@ -980,8 +996,10 @@ void ComplexCholeskyFactors::Solve(int m, int n, real_t * X_r,
    std::complex<real_t> *x = ComplexFactors::RealToComplex(m*n,X_r,X_i);
 #ifdef MFEM_USE_SINGLE
    cpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    zpotrs_(&uplo, &m, &n, data, &m, x, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:Solve:: info");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
@@ -1011,9 +1029,11 @@ void ComplexCholeskyFactors::RightSolve(int m, int n, real_t * X_r,
 #ifdef MFEM_USE_SINGLE
       ctrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
       ctrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
-#else
+#elif defined MFEM_USE_DOUBLE
       ztrsm_(&side,&uplo,&transt,&diag,&n,&m,&alpha,data,&m,x,&n);
       ztrsm_(&side,&uplo,&trans,&diag,&n,&m,&alpha,data,&m,x,&n);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
    }
 #else
@@ -1067,8 +1087,10 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, real_t * X_r,
    int info = 0;
 #ifdef MFEM_USE_SINGLE
    cpotri_(&uplo, &m, X, &m, &info);
-#else
+#elif defined MFEM_USE_DOUBLE
    zpotri_(&uplo, &m, X, &m, &info);
+#else
+   MFEM_ABORT("Floating point type undefined");
 #endif
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:GetInverseMatrix:: info");
    // fill in the upper triangular part
