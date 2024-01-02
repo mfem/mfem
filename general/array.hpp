@@ -98,8 +98,11 @@ public:
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
 
-   /// Assignment operator: deep copy from 'src'.
+   /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
+
+   /// Move assignment operator
+   Array<T> &operator=(Array<T> &&src) { Swap(src, *this); return *this; }
 
    /// Assignment operator (deep copy) from @a src, an Array of convertible type.
    template <typename CT>
