@@ -921,7 +921,7 @@ public:
    { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing A := P2^t A P1 where A is the internal
+       assembly process by performing \f$ A := P2^t A P1 \f$ where A is the internal
        sparse matrix; P1 and P2 are the conforming prolongation matrices of the
        trial and test FE spaces, respectively. After this call the
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
