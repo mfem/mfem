@@ -178,8 +178,11 @@ void lissajous_trans(const Vector &x, Vector &p,
       // normalized cross product of tangent and normal at p(t)
 #ifdef MFEM_USE_SINGLE
       real_t cn = 1e-32;
-#else
+#elif defined MFEM_USE_DOUBLE
       real_t cn = 1e-128;
+#else
+      real_t cn = 0;
+      MFEM_ABORT("Floating point type undefined");
 #endif
       real_t cross[3] = { A*a_*sin(b_*t)*cos(a_*t+delta_), -A*a_*cos(b_*t)*cos(a_*t+delta_), b_*B };
       for (int i = 0; i < 3; i++) { cn += cross[i]*cross[i]; }

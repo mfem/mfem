@@ -489,10 +489,12 @@ void SparseMatrix::SortColumnIndices()
       cusparseScsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
                                        d_ja_sorted, sortInfoA,
                                        &pBufferSizeInBytes);
-#else
+#elif defined MFEM_USE_DOUBLE
       cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
                                        d_ja_sorted, sortInfoA,
                                        &pBufferSizeInBytes);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
 
       CuMemAlloc( &pBuffer, pBufferSizeInBytes );
@@ -500,9 +502,11 @@ void SparseMatrix::SortColumnIndices()
 #ifdef MFEM_USE_SINGLE
       cusparseScsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
-#else
+#elif defined MFEM_USE_DOUBLE
       cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
                          d_ja_sorted, sortInfoA, pBuffer);
+#else
+      MFEM_ABORT("Floating point type undefined");
 #endif
 
       // The above call is (at least in some cases) asynchronous, so we need to

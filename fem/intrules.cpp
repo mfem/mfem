@@ -471,7 +471,10 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          dz = p1/pp;
 #ifdef MFEM_USE_SINGLE
          if (std::abs(dz) < 1e-7)
+#elif defined MFEM_USE_DOUBLE
+         if (std::abs(dz) < 1e-16)
 #else
+         MFEM_ABORT("Floating point type undefined");
          if (std::abs(dz) < 1e-16)
 #endif
          {
@@ -590,7 +593,10 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
             real_t dx = (x_i*p_l - p_lm1) / (np*p_l);
 #ifdef MFEM_USE_SINGLE
             if (std::abs(dx) < 1e-7)
+#elif defined MFEM_USE_DOUBLE
+            if (std::abs(dx) < 1e-16)
 #else
+            MFEM_ABORT("Floating point type undefined");
             if (std::abs(dx) < 1e-16)
 #endif
             {
