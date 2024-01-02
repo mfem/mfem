@@ -2532,12 +2532,12 @@ void NCMesh::GetMeshComponents(Mesh &mesh) const
 
             // Add in all boundary faces that are actual boundaries or not
             // masters of another face. The fv[2] in the edge split is on
-            // purpose.
+            // purpose. A point cannot have a split level, thus do not check for
+            // master/slave relation.
             if ((nfv == 4 &&
                  !QuadFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]))
                 || (nfv == 3 && !TriFaceIsMaster(node[fv[0]], node[fv[1]], node[fv[2]]))
-                || (nfv == 2 &&
-                    EdgeSplitLevel(node[fv[0]], node[fv[2]] /* [2] not an error */) == 0))
+                || (nfv == 2 && EdgeSplitLevel(node[fv[0]], node[fv[2]]) == 0) || (nfv == 1))
             {
                // This face has no split faces below, it is conformal or a
                // slave.
