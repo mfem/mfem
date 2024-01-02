@@ -28,6 +28,7 @@
 #endif
 #include <iostream>
 #include <array>
+#include <map>
 
 namespace mfem
 {
@@ -433,7 +434,8 @@ protected:
 
    void UpdateNURBS();
 
-   void PrintTopo(std::ostream &out, const Array<int> &e_to_k) const;
+   void PrintTopo(std::ostream &out, const Array<int> &e_to_k,
+                  const std::string &comments = "") const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &, int);
@@ -539,11 +541,14 @@ protected:
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
-   // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
-   // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
-   // mfem v1.2 format with the given section_delimiter at the end.
+   /** If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
+       If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
+       mfem v1.2 format with the given section_delimiter at the end.
+       If @a comments is non-empty, it will be printed after the first line of
+       the file, and each line should begin with '#'. */
    void Printer(std::ostream &out = mfem::out,
-                std::string section_delimiter = "") const;
+                std::string section_delimiter = "",
+                const std::string &comments = "") const;
 
    /// @brief Creates a mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz],
    /// divided into nx*ny*nz hexahedra if @a type = HEXAHEDRON or into
@@ -2143,8 +2148,12 @@ public:
    virtual void PrintXG(std::ostream &os = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
-   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &os = mfem::out) const { Printer(os); }
+   /// \see mfem::ofgzstream() for on-the-fly compression of ascii outputs. If
+   /// @a comments is non-empty, it will be printed after the first line of the
+   /// file, and each line should begin with '#'.
+   virtual void Print(std::ostream &os = mfem::out,
+                      const std::string &comments = "") const
+   { Printer(os, "", comments); }
 
    /// Save the mesh to a file using Mesh::Print. The given @a precision will be
    /// used for ASCII output.
