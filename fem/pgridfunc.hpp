@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -212,7 +212,7 @@ public:
    virtual double GetValue(int i, const IntegrationPoint &ip,
                            int vdim = 1) const;
    double GetValue(ElementTransformation &T)
-   { return GetValue(T.ElementNo, T.GetIntPoint()); }
+   { return GetValue(T, T.GetIntPoint()); }
 
    // Redefine to handle the case when T describes a face-neighbor element
    virtual double GetValue(ElementTransformation &T, const IntegrationPoint &ip,
@@ -225,6 +225,10 @@ public:
    virtual void GetVectorValue(ElementTransformation &T,
                                const IntegrationPoint &ip,
                                Vector &val, Vector *tr = NULL) const;
+
+   /** @brief For each vdof, counts how many elements contain the vdof,
+       as containment is determined by FiniteElementSpace::GetElementVDofs(). */
+   virtual void CountElementsPerVDof(Array<int> &elem_per_vdof) const;
 
    /// Parallel version of GridFunction::GetDerivative(); see its documentation.
    void GetDerivative(int comp, int der_comp, ParGridFunction &der);
@@ -432,6 +436,17 @@ public:
    /// be given suffixes according to the MPI rank. The given @a precision will
    /// be used for ASCII output.
    virtual void Save(const char *fname, int precision=16) const;
+
+   /// Returns a GridFunction on MPI rank @a save_rank that does not have any
+   /// duplication of vertices/nodes at processor boundaries.
+   /// serial_mesh is obtained using ParMesh::GetSerialMesh(save_rank).
+   /// Note that the @ save_rank argument must match for the
+   /// ParMesh::GetSerialMesh and GetSerialGridFunction method.
+   GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
+
+   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// The given @a precision will be used for ASCII output.
+   void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
 
 #ifdef MFEM_USE_ADIOS2
    /** Save the local portion of the ParGridFunction. This differs from the

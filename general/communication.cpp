@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,10 @@
 #include "sort_pairs.hpp"
 #include "globals.hpp"
 
+#ifdef MFEM_USE_STRUMPACK
+#include <StrumpackConfig.hpp> // STRUMPACK_USE_PTSCOTCH, etc.
+#endif
+
 #include <iostream>
 #include <map>
 
@@ -33,6 +37,14 @@ using namespace std;
 
 namespace mfem
 {
+
+#if defined(MFEM_USE_STRUMPACK) && \
+    (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
+int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
+#else
+int Mpi::default_thread_required = MPI_THREAD_SINGLE;
+#endif
+
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),

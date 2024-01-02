@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,37 +132,43 @@ TEST_CASE("First order ODE methods", "[ODE]")
             dt_order *= 0.5;
             u = u0;
             ode_solver->Init(*oper);
-            if (init_hist_) { init_hist(ode_solver,dt_order); }
+            if (init_hist_)
+            {
+               init_hist(ode_solver,dt_order);
 
-            // Instead of single run command:
-            // ode_solver->Run(u, t, dt_order, t_final - 1e-12);
-            // Chop-up sequence with Get/Set in between
-            // in order to test these routines
-            for (int ti = 0; ti < steps; ti++)
-            {
-               ode_solver->Step(u, t, dt_order);
-            }
-            int nstate = ode_solver->GetStateSize();
-            for (int s = 0; s < nstate; s++)
-            {
-               ode_solver->GetStateVector(s,uh[s]);
-            }
-
-            for (int ll = 1; ll < lvl; ll++)
-            {
-               for (int s = 0; s < nstate; s++)
-               {
-                  ode_solver->SetStateVector(s,uh[s]);
-               }
+               // Instead of single run command
+               // Chop-up sequence with Get/Set in between
+               // in order to test these routines
                for (int ti = 0; ti < steps; ti++)
                {
                   ode_solver->Step(u, t, dt_order);
                }
-               nstate = ode_solver->GetStateSize();
-               for (int s = 0; s< nstate; s++)
+               int nstate = ode_solver->GetStateSize();
+               for (int s = 0; s < nstate; s++)
                {
-                  uh[s] = ode_solver->GetStateVector(s);
+                  ode_solver->GetStateVector(s,uh[s]);
                }
+
+               for (int ll = 1; ll < lvl; ll++)
+               {
+                  for (int s = 0; s < nstate; s++)
+                  {
+                     ode_solver->SetStateVector(s,uh[s]);
+                  }
+                  for (int ti = 0; ti < steps; ti++)
+                  {
+                     ode_solver->Step(u, t, dt_order);
+                  }
+                  nstate = ode_solver->GetStateSize();
+                  for (int s = 0; s< nstate; s++)
+                  {
+                     uh[s] = ode_solver->GetStateVector(s);
+                  }
+               }
+            }
+            else
+            {
+               ode_solver->Run(u, t, dt_order, t_final-1e-12);
             }
 
             u += u0;

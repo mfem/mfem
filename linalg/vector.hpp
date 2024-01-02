@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,9 +19,7 @@
 #include "../general/globals.hpp"
 #include "../general/mem_manager.hpp"
 #include "../general/device.hpp"
-#ifdef MFEM_USE_SUNDIALS
-#include <nvector/nvector_serial.h>
-#endif
+
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -63,7 +61,6 @@ protected:
 
    Memory<double> data;
    int size;
-   bool global_seed_set = false;
 
 public:
 
@@ -143,7 +140,7 @@ public:
    void SetSize(int s, MemoryType mt);
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
-   void SetSize(int s, Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+   void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
@@ -209,15 +206,11 @@ public:
    inline double *GetData() const
    { return const_cast<double*>((const double*)data); }
 
-   /// Conversion to `double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator double *() { return data; }
+   /// Conversion to `double *`. Deprecated.
+   MFEM_DEPRECATED inline operator double *() { return data; }
 
-   /// Conversion to `const double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
-   inline operator const double *() const { return data; }
+   /// Conversion to `const double *`. Deprecated.
+   MFEM_DEPRECATED inline operator const double *() const { return data; }
 
    /// STL-like begin.
    inline double *begin() { return data; }
@@ -269,6 +262,14 @@ public:
    /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
    inline const double &operator()(int i) const;
 
+   /// Access Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline double &operator[](int i) { return (*this)(i); }
+
+   /// Read only access to Vector entries using [] for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   inline const double &operator[](int i) const { return (*this)(i); }
+
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
 
@@ -307,12 +308,6 @@ public:
 
    Vector &operator+=(const Vector &v);
 
-   /// operator- is not supported. Use @ref subtract or @ref Add.
-   Vector &operator-(const Vector &v) = delete;
-
-   /// operator+ is not supported. Use @ref Add.
-   Vector &operator+(const Vector &v) = delete;
-
    /// (*this) += a * Va
    Vector &Add(const double a, const Vector &Va);
 
@@ -325,6 +320,9 @@ public:
 
    /// (*this) = -(*this)
    void Neg();
+
+   /// (*this)(i) = 1.0 / (*this)(i)
+   void Reciprocal();
 
    /// Swap the contents of two Vectors
    inline void Swap(Vector &other);
@@ -348,6 +346,10 @@ public:
    /// z = a * (x - y)
    friend void subtract(const double a, const Vector &x,
                         const Vector &y, Vector &z);
+
+   /// Computes cross product of this vector with another 3D vector.
+   /// vout = this x vin.
+   void cross3D(const Vector &vin, Vector &vout) const;
 
    /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.
    void median(const Vector &lo, const Vector &hi);
@@ -417,8 +419,6 @@ public:
 
    /// Set random values in the vector.
    void Randomize(int seed = 0);
-   /// Set global seed for random values in sequential calls to Randomize().
-   void SetGlobalSeed(int gseed);
    /// Returns the l2 norm of the vector.
    double Norml2() const;
    /// Returns the l_infinity norm of the vector.
@@ -435,8 +435,12 @@ public:
    double Sum() const;
    /// Compute the square of the Euclidean distance to another vector.
    inline double DistanceSquaredTo(const double *p) const;
+   /// Compute the square of the Euclidean distance to another vector.
+   inline double DistanceSquaredTo(const Vector &p) const;
    /// Compute the Euclidean distance to another vector.
    inline double DistanceTo(const double *p) const;
+   /// Compute the Euclidean distance to another vector.
+   inline double DistanceTo(const Vector &p) const;
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
@@ -646,14 +650,31 @@ inline double Distance(const double *x, const double *y, const int n)
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
+inline double Distance(const Vector &x, const Vector &y)
+{
+   return x.DistanceTo(y);
+}
+
 inline double Vector::DistanceSquaredTo(const double *p) const
 {
    return DistanceSquared(data, p, size);
 }
 
+inline double Vector::DistanceSquaredTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return DistanceSquared(data, p.data, size);
+}
+
 inline double Vector::DistanceTo(const double *p) const
 {
    return Distance(data, p, size);
+}
+
+inline double Vector::DistanceTo(const Vector &p) const
+{
+   MFEM_ASSERT(p.Size() == Size(), "Incompatible vector sizes.");
+   return Distance(data, p.data, size);
 }
 
 /// Returns the inner product of x and y
