@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -72,7 +72,7 @@
 //     mpirun -np 4 distance -m ./corners.mesh -p 0 -rs 3 -t 200.0
 //
 //   Problem 1: zero level set: ball at the center of the domain - the exact
-//   distance is known, the code computes global and local errors.
+// + distance is known, the code computes global and local errors.
 //     mpirun -np 4 distance -m ../../data/inline-segment.mesh -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/inline-quad.mesh   -rs 3 -o 2 -t 1.0 -p 1
 //     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 1 -o 2 -p 1 -s 1
@@ -82,20 +82,20 @@
 //     mpirun -np 4 distance -m ../../data/amr-quad.mesh    -rs 3 -o 2 -t 1.0 -p 2
 //
 //   Problem 3: level set: Gyroid
-//      mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
-//      mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3 -s 2
+//     mpirun -np 4 distance -m ../../data/periodic-square.mesh -rs 5 -o 2 -t 1.0 -p 3
+//     mpirun -np 4 distance -m ../../data/periodic-cube.mesh   -rs 3 -o 2 -t 1.0 -p 3 -s 2
 //
 //   Problem 4: level set: Union of doughnut and swiss cheese shapes
-//      mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
+//     mpirun -np 4 distance -m ../../data/inline-hex.mesh -rs 3 -o 2 -t 1.0 -p 4
 
 #include <fstream>
 #include <iostream>
 #include "../common/mfem-common.hpp"
-#include "dist_solver.hpp"
 #include "sbm_aux.hpp"
 
 using namespace std;
 using namespace mfem;
+using namespace common;
 
 double sine_ls(const Vector &x)
 {

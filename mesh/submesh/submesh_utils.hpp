@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,21 +111,15 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
  * @tparam T The type of the input object which has to fulfill the
  * SubMesh::GetParent() interface.
  */
-template <class T, class RT>
-const RT* GetRootParent(const T &m)
+template <class T, class RT = decltype(std::declval<T>().GetParent())>
+RT GetRootParent(const T &m)
 {
-   const RT* parent = m.GetParent();
+   RT parent = m.GetParent();
    while (true)
    {
       const T* next = dynamic_cast<const T*>(parent);
-      if (next == nullptr)
-      {
-         return static_cast<const RT *>(parent);
-      }
-      else
-      {
-         parent = next->GetParent();
-      }
+      if (next == nullptr) { return parent; }
+      else { parent = next->GetParent(); }
    }
 }
 

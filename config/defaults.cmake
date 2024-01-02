@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,6 +19,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
+option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
@@ -30,7 +31,6 @@ option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
 option(MFEM_USE_MEMALLOC "Enable the internal MEMALLOC option." ON)
 option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
-option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
@@ -60,6 +60,7 @@ option(MFEM_USE_ADIOS2 "Enable ADIOS2" OFF)
 option(MFEM_USE_CALIPER "Enable Caliper support" OFF)
 option(MFEM_USE_ALGOIM "Enable Algoim support" OFF)
 option(MFEM_USE_MKL_CPARDISO "Enable MKL CPardiso" OFF)
+option(MFEM_USE_MKL_PARDISO "Enable MKL Pardiso" OFF)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
@@ -105,12 +106,7 @@ set(HYPRE_DIR "${MFEM_DIR}/../hypre/src/hypre" CACHE PATH
 # If hypre was compiled to depend on BLAS and LAPACK:
 # set(HYPRE_REQUIRED_PACKAGES "BLAS" "LAPACK" CACHE STRING
 #     "Packages that HYPRE depends on.")
-if (MFEM_USE_CUDA)
-   # This is only necessary when hypre is built with cuda:
-   set(HYPRE_REQUIRED_LIBRARIES "-lcusparse" "-lcurand" CACHE STRING
-       "Libraries that HYPRE depends on.")
-endif()
-# HIP dependency for HYPRE is handled in FindHYPRE.cmake.
+# CUDA and HIP dependencies for HYPRE are handled in FindHYPRE.cmake.
 
 set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library.")
 
@@ -124,9 +120,6 @@ set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-5.0.0/instdir" CACHE PATH
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
 #     CACHE STRING "Additional packages required by SUNDIALS.")
 
-set(MESQUITE_DIR "${MFEM_DIR}/../mesquite-2.99" CACHE PATH
-    "Path to the Mesquite library.")
-
 set(SuiteSparse_DIR "${MFEM_DIR}/../SuiteSparse" CACHE PATH
     "Path to the SuiteSparse library.")
 set(SuiteSparse_REQUIRED_PACKAGES "BLAS" "METIS"
@@ -137,16 +130,18 @@ set(ParMETIS_DIR "${MFEM_DIR}/../parmetis-4.0.3" CACHE PATH
 set(ParMETIS_REQUIRED_PACKAGES "METIS" CACHE STRING
     "Additional packages required by ParMETIS.")
 
-set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_6.3.1" CACHE PATH
+set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_8.1.2" CACHE PATH
     "Path to the SuperLU_DIST library.")
 # SuperLU_DIST may also depend on "OpenMP", depending on how it was compiled.
-set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
+set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
+    "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
 
-set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.2.0" CACHE PATH
+set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
-# Packages required by MUMPS, depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "BLAS" "METIS" "ScaLAPACK" CACHE STRING
+# MUMPS may also depend on "OpenMP", depending on how it was compiled.
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+    "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
 # set(MUMPS_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
@@ -157,7 +152,8 @@ set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
 # STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
 # Starting with v2.2.0 of STRUMPACK, ParMETIS and Scotch are optional.
 set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
-    "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Scotch/ptscotch/ptscotcherr/scotch/scotcherr"
+    "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by STRUMPACK.")
 # If the MPI package does not find all required Fortran libraries:
 # set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
@@ -188,6 +184,7 @@ set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
 
 set(GSLIB_DIR "" CACHE PATH "Path to the GSLIB library.")
 
+set(HDF5_DIR "/usr" CACHE PATH "Path to the HDF5 library.")
 set(NETCDF_DIR "" CACHE PATH "Path to the NetCDF library.")
 set(NetCDF_REQUIRED_PACKAGES "HDF5/C/HL" CACHE STRING
     "Additional packages required by NetCDF.")
@@ -228,19 +225,16 @@ set(MKL_CPARDISO_DIR "" CACHE STRING "MKL installation path.")
 set(MKL_MPI_WRAPPER_LIB "mkl_blacs_mpich_lp64" CACHE STRING "MKL MPI wrapper library")
 set(MKL_LIBRARY_DIR "" CACHE STRING "Custom library subdirectory")
 
+set(MKL_PARDISO_DIR "" CACHE STRING "MKL installation path.")
+
 set(OCCA_DIR "${MFEM_DIR}/../occa" CACHE PATH "Path to OCCA")
 set(RAJA_DIR "${MFEM_DIR}/../raja" CACHE PATH "Path to RAJA")
-# If RAJA is built with external CAMP:
-# set(RAJA_REQUIRED_PACKAGES "camp"
-#     CACHE STRING "Packages that RAJA depends on.")
-# set(camp_DIR "${MFEM_DIR}/../camp/lib/cmake/camp"
-#     CACHE PATH "Path to CAMP CMake files.")
 set(CEED_DIR "${MFEM_DIR}/../libCEED" CACHE PATH "Path to libCEED")
 set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
 set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(ALGOIM_REQUIRED_PACKAGES "BLITZ" CACHE STRING
+set(Algoim_REQUIRED_PACKAGES "Blitz" CACHE STRING
     "Packages that ALGOIM depends on.")
 
 set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH

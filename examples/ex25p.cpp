@@ -44,7 +44,7 @@ using namespace std;
 using namespace mfem;
 
 // Class for setting up a simple Cartesian PML region
-class CartesianPML
+class PML
 {
 private:
    Mesh *mesh;
@@ -69,7 +69,7 @@ private:
 
 public:
    // Constructor
-   CartesianPML(Mesh *mesh_,Array2D<double> length_);
+   PML(Mesh *mesh_,Array2D<double> length_);
 
    // Return Computational Domain Boundary
    Array2D<double> GetCompDomainBdr() {return comp_dom_bdr;}
@@ -91,12 +91,12 @@ public:
 class PMLDiagMatrixCoefficient : public VectorCoefficient
 {
 private:
-   CartesianPML * pml = nullptr;
-   void (*Function)(const Vector &, CartesianPML *, Vector &);
+   PML * pml = nullptr;
+   void (*Function)(const Vector &, PML *, Vector &);
 public:
-   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, CartesianPML *,
+   PMLDiagMatrixCoefficient(int dim, void(*F)(const Vector &, PML *,
                                               Vector &),
-                            CartesianPML * pml_)
+                            PML * pml_)
       : VectorCoefficient(dim), pml(pml_), Function(F)
    {}
 
@@ -125,13 +125,13 @@ void source(const Vector &x, Vector & f);
 
 // Functions for computing the necessary coefficients after PML stretching.
 // J is the Jacobian matrix of the stretching function
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector & D);
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector & D);
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D);
+void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D);
+void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D);
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector & D);
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector & D);
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector & D);
+void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D);
+void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D);
+void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D);
 
 Array2D<double> comp_domain_bdr;
 Array2D<double> domain_bdr;
@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
    bool herm_conv = true;
    bool slu_solver  = false;
    bool mumps_solver = false;
+   bool strumpack_solver = false;
    bool visualization = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -201,6 +202,11 @@ int main(int argc, char *argv[])
    args.AddOption(&mumps_solver, "-mumps", "--mumps-solver", "-no-mumps",
                   "--no-mumps-solver", "Use the MUMPS Solver.");
 #endif
+#ifdef MFEM_USE_STRUMPACK
+   args.AddOption(&strumpack_solver, "-strumpack", "--strumpack-solver",
+                  "-no-strumpack", "--no-strumpack-solver",
+                  "Use the STRUMPACK Solver.");
+#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -209,13 +215,14 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.Parse();
-   if (slu_solver && mumps_solver)
+   if (slu_solver + mumps_solver + strumpack_solver > 1)
    {
       if (myid == 0)
-         cout << "WARNING: Both SuperLU and MUMPS have been selected,"
-              << " please choose either one." << endl
+         cout << "WARNING: More than one of SuperLU, MUMPS, and STRUMPACK have"
+              << " been selected, please choose only one." << endl
               << "         Defaulting to SuperLU." << endl;
       mumps_solver = false;
+      strumpack_solver = false;
    }
 
    if (iprob > 4) { iprob = 4; }
@@ -295,7 +302,7 @@ int main(int argc, char *argv[])
          length = 0.25;
          break;
    }
-   CartesianPML * pml = new CartesianPML(mesh,length);
+   PML * pml = new PML(mesh,length);
    comp_domain_bdr = pml->GetCompDomainBdr();
    domain_bdr = pml->GetDomainBdr();
 
@@ -474,15 +481,33 @@ int main(int argc, char *argv[])
       delete A;
    }
 #endif
+#ifdef MFEM_USE_STRUMPACK
+   if (!pa && strumpack_solver)
+   {
+      HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
+      STRUMPACKRowLocMatrix SA(*A);
+      STRUMPACKSolver strumpack(MPI_COMM_WORLD, argc, argv);
+      strumpack.SetPrintFactorStatistics(false);
+      strumpack.SetPrintSolveStatistics(false);
+      strumpack.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+      strumpack.SetMatching(strumpack::MatchingJob::NONE);
+      strumpack.SetCompression(strumpack::CompressionType::NONE);
+      strumpack.SetFromCommandLine();
+      strumpack.SetOperator(SA);
+      strumpack.Mult(B, X);
+      delete A;
+   }
+#endif
 #ifdef MFEM_USE_MUMPS
    if (!pa && mumps_solver)
    {
       HypreParMatrix *A = Ah.As<ComplexHypreParMatrix>()->GetSystemMatrix();
-      MUMPSSolver mumps;
+      MUMPSSolver mumps(A->GetComm());
       mumps.SetPrintLevel(0);
       mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
       mumps.SetOperator(*A);
-      mumps.Mult(B,X);
+      mumps.Mult(B, X);
       delete A;
    }
 #endif
@@ -493,7 +518,7 @@ int main(int argc, char *argv[])
    //
    //    In PML:   1/mu (abs(1/det(J) J^T J) Curl E, Curl F)
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
-   if (pa || (!slu_solver && !mumps_solver))
+   if (pa || (!slu_solver && !mumps_solver && !strumpack_solver))
    {
       ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
@@ -524,16 +549,14 @@ int main(int argc, char *argv[])
       offsets[2] = fespace->GetTrueVSize();
       offsets.PartialSum();
 
-      Operator *pc_r = nullptr;
-      Operator *pc_i = nullptr;
+      std::unique_ptr<Operator> pc_r;
+      std::unique_ptr<Operator> pc_i;
       int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
       if (pa)
       {
          // Jacobi Smoother
-         OperatorJacobiSmoother *d00 = new OperatorJacobiSmoother(prec, ess_tdof_list);
-         ScaledOperator *d11 = new ScaledOperator(d00, s);
-         pc_r = d00;
-         pc_i = d11;
+         pc_r.reset(new OperatorJacobiSmoother(prec, ess_tdof_list));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
       else
       {
@@ -541,15 +564,13 @@ int main(int argc, char *argv[])
          prec.FormSystemMatrix(ess_tdof_list, PCOpAh);
 
          // Hypre AMS
-         HypreAMS *ams00 = new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace);
-         ScaledOperator *ams11 = new ScaledOperator(ams00, s);
-         pc_r = ams00;
-         pc_i = ams11;
+         pc_r.reset(new HypreAMS(*PCOpAh.As<HypreParMatrix>(), fespace));
+         pc_i.reset(new ScaledOperator(pc_r.get(), s));
       }
 
       BlockDiagonalPreconditioner BlockDP(offsets);
-      BlockDP.SetDiagonalBlock(0, pc_r);
-      BlockDP.SetDiagonalBlock(1, pc_i);
+      BlockDP.SetDiagonalBlock(0, pc_r.get());
+      BlockDP.SetDiagonalBlock(1, pc_i.get());
 
       GMRESSolver gmres(MPI_COMM_WORLD);
       gmres.SetPrintLevel(1);
@@ -884,7 +905,7 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    }
 }
 
-void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -901,7 +922,7 @@ void detJ_JT_J_inv_Re(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -918,7 +939,7 @@ void detJ_JT_J_inv_Im(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -935,7 +956,7 @@ void detJ_JT_J_inv_abs(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det(1.0, 0.0);
@@ -960,7 +981,7 @@ void detJ_inv_JT_J_Re(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -984,7 +1005,7 @@ void detJ_inv_JT_J_Im(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector & D)
+void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
 {
    vector<complex<double>> dxs(dim);
    complex<double> det = 1.0;
@@ -1008,14 +1029,14 @@ void detJ_inv_JT_J_abs(const Vector &x, CartesianPML * pml, Vector & D)
    }
 }
 
-CartesianPML::CartesianPML(Mesh *mesh_, Array2D<double> length_)
+PML::PML(Mesh *mesh_, Array2D<double> length_)
    : mesh(mesh_), length(length_)
 {
    dim = mesh->Dimension();
    SetBoundaries();
 }
 
-void CartesianPML::SetBoundaries()
+void PML::SetBoundaries()
 {
    comp_dom_bdr.SetSize(dim, 2);
    dom_bdr.SetSize(dim, 2);
@@ -1030,7 +1051,7 @@ void CartesianPML::SetBoundaries()
    }
 }
 
-void CartesianPML::SetAttributes(ParMesh *pmesh)
+void PML::SetAttributes(ParMesh *pmesh)
 {
    // Initialize bdr attributes
    for (int i = 0; i < pmesh->GetNBE(); ++i)
@@ -1080,8 +1101,8 @@ void CartesianPML::SetAttributes(ParMesh *pmesh)
    pmesh->SetAttributes();
 }
 
-void CartesianPML::StretchFunction(const Vector &x,
-                                   vector<complex<double>> &dxs)
+void PML::StretchFunction(const Vector &x,
+                          vector<complex<double>> &dxs)
 {
    complex<double> zi = complex<double>(0., 1.);
 

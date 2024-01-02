@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,6 +31,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
                            const Vector &x1_,
                            const Vector &ones,
                            Vector &energy,
+                           const bool exp_lim,
                            const int d1d,
                            const int q1d)
 {
@@ -55,7 +56,7 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -107,9 +108,20 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_C0_2D,
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ0,p0);
             kernels::internal::PullEval<MQ1,NBZ>(Q1D,qx,qy,QQ1,p1);
             const double dist = ld; // GetValues, default comp set to 0
-            const double id2 = 0.5 / (dist*dist);
-            const double dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
-            E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            double id2 = 0.0;
+            double dsq = 0.0;
+            if (!exp_lim)
+            {
+               id2 = 0.5 / (dist*dist);
+               dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+               E(qx,qy,e) = weight * lim_normal * dsq * coeff0;
+            }
+            else
+            {
+               id2 = 1.0 / (dist*dist);
+               dsq = kernels::DistanceSquared<2>(p1,p0) * id2;
+               E(qx,qy,e) = weight * lim_normal * exp(10.0*(dsq-1.0)) * coeff0;
+            }
          }
       }
    });
@@ -135,7 +147,11 @@ double TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E);
+   auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
+   const bool exp_lim = (el) ? true : false;
+
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_C0_2D,id,ln,LD,C0,N,J,W,B,BLD,X0,X,O,E,
+                           exp_lim);
 }
 
 } // namespace mfem

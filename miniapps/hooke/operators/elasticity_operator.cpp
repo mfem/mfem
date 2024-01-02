@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,8 +138,10 @@ void ElasticityOperator::GradientMult(const Vector &dX, Vector &Y) const
       const auto d_dX = dX.Read();
       auto d_Y = Y.ReadWrite();
       const auto d_ess_tdof_list = ess_tdof_list_.Read();
-      MFEM_FORALL(i, ess_tdof_list_.Size(),
-                  d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];);
+      mfem::forall(ess_tdof_list_.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_Y[d_ess_tdof_list[i]] = d_dX[d_ess_tdof_list[i]];
+      });
    }
 
    recompute_cache_ = false;

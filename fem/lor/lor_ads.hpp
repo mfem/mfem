@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,7 +60,7 @@ public:
    /// Return the associated BatchedLOR_AMS object.
    BatchedLOR_AMS &GetAMS() { return ams; }
 
-   // The following should be protected, but contain MFEM_FORALL kernels
+   // The following should be protected, but contain mfem::forall kernels
 
    /// Form the discrete curl matrix (not part of the public API).
    void FormCurlMatrix();

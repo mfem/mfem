@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,11 +56,15 @@ void mfem_backtrace(int mode = 0, int depth = -1);
 
 /** @brief Function called when an error is encountered. Used by the macros
     MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
-void mfem_error(const char *msg = NULL);
+[[noreturn]] void mfem_error(const char *msg = NULL);
 
 /// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
 
+#ifdef MFEM_USE_ENZYME
+static void* __enzyme_inactive_global_err = (void*)mfem_error;
+static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
+#endif
 }
 
 #ifndef _MFEM_FUNC_NAME

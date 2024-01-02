@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -95,6 +95,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
    auto *m = subfes.GetMesh();
    vdof_to_vdof_map.SetSize(subfes.GetVSize());
 
+   const int vdim = parentfes.GetVDim();
+
    IntegrationPointTransformation Tr;
    DenseMatrix T;
    Array<int> z1;
@@ -125,7 +127,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                Tr.Transf,
                face_info);
 
-            Geometry::Type face_geom = pm->GetBdrElementBaseGeometry(i);
+            Geometry::Type face_geom =
+               pm->GetBdrElementBaseGeometry(parent_element_ids[i]);
             const FiniteElement *face_el =
                parentfes.GetTraceElement(parent_element_ids[i], face_geom);
             MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
@@ -137,14 +140,20 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
 
             parentfes.GetElementVDofs(parent_volel_id, z1);
 
-            parent_vdofs.SetSize(parentfes.GetVDim() * T.Height());
+            parent_vdofs.SetSize(vdim * T.Height());
             for (int j = 0; j < T.Height(); j++)
             {
-               for (int k = 0; k < parentfes.GetVDim() * T.Width(); k++)
+               for (int k = 0; k < T.Width(); k++)
                {
                   if (T(j, k) != 0.0)
                   {
-                     parent_vdofs[j] = z1[static_cast<int>(k)];
+                     for (int vd=0; vd<vdim; vd++)
+                     {
+                        int sub_vdof = j + T.Height() * vd;
+                        int parent_vdof = k + T.Width() * vd;
+                        parent_vdofs[sub_vdof] =
+                           z1[static_cast<int>(parent_vdof)];
+                     }
                   }
                }
             }
@@ -161,10 +170,18 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
 
       Array<int> sub_vdofs;
       subfes.GetElementVDofs(i, sub_vdofs);
+
       MFEM_ASSERT(parent_vdofs.Size() == sub_vdofs.Size(), "internal error");
       for (int j = 0; j < parent_vdofs.Size(); j++)
       {
-         vdof_to_vdof_map[sub_vdofs[j]] = parent_vdofs[j];
+         double sub_sign = 1.0;
+         int sub_vdof = subfes.DecodeDof(sub_vdofs[j], sub_sign);
+
+         double parent_sign = 1.0;
+         int parent_vdof = parentfes.DecodeDof(parent_vdofs[j], parent_sign);
+
+         vdof_to_vdof_map[sub_vdof] =
+            (sub_sign * parent_sign > 0.0) ? parent_vdof : (-1-parent_vdof);
       }
    }
 }
@@ -174,15 +191,23 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
 {
    // TODO: Check if parent is really a parent of mesh
 
-   Array<int> pfids(sm.GetNFaces());
+   Array<int> pfids(sm.GetNumFaces());
    pfids = -1;
    for (int i = 0; i < sm.GetNE(); i++)
    {
       int peid = parent_element_ids[i];
 
       Array<int> sel_faces, pel_faces, o;
-      sm.GetElementFaces(i, sel_faces, o);
-      pm.GetElementFaces(peid, pel_faces, o);
+      if (pm.Dimension() == 2)
+      {
+         sm.GetElementEdges(i, sel_faces, o);
+         pm.GetElementEdges(peid, pel_faces, o);
+      }
+      else
+      {
+         sm.GetElementFaces(i, sel_faces, o);
+         pm.GetElementFaces(peid, pel_faces, o);
+      }
 
       MFEM_ASSERT(sel_faces.Size() == pel_faces.Size(), "internal error");
 

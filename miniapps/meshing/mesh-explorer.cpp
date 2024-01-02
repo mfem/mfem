@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -384,6 +384,7 @@ int main (int argc, char *argv[])
            "o) Reorder elements\n"
            "S) Save in MFEM format\n"
            "V) Save in VTK format (only linear and quadratic meshes)\n"
+           "D) Save as a DataCollection\n"
            "q) Quit\n"
 #ifdef MFEM_USE_ZLIB
            "Z) Save in MFEM format with compression\n"
@@ -407,6 +408,7 @@ int main (int argc, char *argv[])
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "l) refine locally using the region() function\n"
+              "r) random refinement with a probability\n"
               "--> " << flush;
          char sk;
          cin >> sk;
@@ -452,6 +454,17 @@ int main (int argc, char *argv[])
                   }
                }
                mesh->GeneralRefinement(marked_elements);
+               break;
+            }
+            case 'r':
+            {
+               bool nc_simplices = true;
+               mesh->EnsureNCMesh(nc_simplices);
+               cout << "enter probability --> " << flush;
+               double probability;
+               cin >> probability;
+               if (probability < 0.0 || probability > 1.0) { break; }
+               mesh->RandomRefinement(probability);
                break;
             }
          }
@@ -958,7 +971,9 @@ int main (int argc, char *argv[])
                      cin >> nxyz[2]; np *= nxyz[2];
                   }
                }
-               partitioning = Array<int>(mesh->CartesianPartitioning(nxyz), mesh->GetNE());
+               int *part = mesh->CartesianPartitioning(nxyz);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             else if (pk == 's')
@@ -982,8 +997,9 @@ int main (int argc, char *argv[])
                }
                cout << "Enter number of processors: " << flush;
                cin >> np;
-               partitioning = Array<int>(mesh->GeneratePartitioning(np, part_method),
-                                         mesh->GetNE());
+               int *part = mesh->GeneratePartitioning(np, part_method);
+               partitioning = Array<int>(part, mesh->GetNE());
+               delete [] part;
                recover_bdr_partitioning(mesh, partitioning, bdr_partitioning);
             }
             if (partitioning)
@@ -1188,6 +1204,46 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->PrintVTK(omesh);
          cout << "New VTK mesh file: " << omesh_file << endl;
+      }
+
+      if (mk == 'D')
+      {
+         cout << "What type of DataCollection?\n"
+              "p) ParaView Data Collection\n"
+              "v) VisIt Data Collection\n"
+              "--> " << flush;
+         char dk;
+         cin >> dk;
+         if (dk == 'p' || dk == 'P')
+         {
+            const char omesh_file[] = "mesh-explorer-paraview";
+            ParaViewDataCollection dc(omesh_file, mesh);
+            if (mesh->GetNodes())
+            {
+               int order = mesh->GetNodes()->FESpace()->GetMaxElementOrder();
+               if (order > 1)
+               {
+                  dc.SetHighOrderOutput(true);
+                  dc.SetLevelsOfDetail(order);
+               }
+            }
+            dc.Save();
+            cout << "New ParaView mesh file: " << omesh_file << endl;
+         }
+         else if (dk == 'v' || dk == 'V')
+         {
+            const char omesh_file[] = "mesh-explorer-visit";
+            VisItDataCollection dc(omesh_file, mesh);
+            dc.SetPrecision(14);
+            dc.Save();
+            cout << "New VisIt mesh file: " << omesh_file << "_000000.mfem_root"
+                 << endl;
+         }
+         else
+         {
+            cout << "Unrecognized DataCollection type: \"" << dk << "\""
+                 << endl;
+         }
       }
 
 #ifdef MFEM_USE_ZLIB

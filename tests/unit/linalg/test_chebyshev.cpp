@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,5 +61,6 @@ TEST_CASE("OperatorChebyshevSmoother", "[Chebyshev symmetry]")
       REQUIRE(error < 1.e-13);
 
       delete smoother;
+      delete fec;
    }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -355,15 +355,11 @@ int InverseElementTransformation::Transform(const Vector &pt,
          }
          else
          {
-            const int old_type = GlobGeometryRefiner.GetType();
-            GlobGeometryRefiner.SetType(qpts_type);
-            RefinedGeometry &RefG =
-               *GlobGeometryRefiner.Refine(T->GetGeometryType(), order);
+            RefinedGeometry &RefG = *refiner.Refine(T->GetGeometryType(), order);
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
             ip0 = &RefG.RefPts.IntPoint(closest_idx);
-            GlobGeometryRefiner.SetType(old_type);
          }
          break;
       }
@@ -492,6 +488,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
+   MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
 

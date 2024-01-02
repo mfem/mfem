@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -40,7 +40,16 @@ list(APPEND ALL_EXE_SRCS
   ex30.cpp
   ex31.cpp
   ex33.cpp
+  ex34.cpp
+  ex36.cpp
+  ex37.cpp
   )
+
+if(MFEM_USE_LAPACK)
+list(APPEND ALL_EXE_SRCS
+  ex38.cpp
+  )
+endif()
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
@@ -77,6 +86,10 @@ if (MFEM_USE_MPI)
     ex31p.cpp
     ex32p.cpp
     ex33p.cpp
+    ex34p.cpp
+    ex35p.cpp
+    ex36p.cpp
+    ex37p.cpp
     )
 endif()
 
@@ -102,6 +115,8 @@ if (MFEM_ENABLE_TESTING)
       list(APPEND THIS_TEST_OPTIONS "-e" "1")
     elseif(${TEST_NAME} MATCHES "ex27p*")
       list(APPEND THIS_TEST_OPTIONS "-dg")
+    elseif(${TEST_NAME} MATCHES "ex37p*")
+      list(APPEND THIS_TEST_OPTIONS "-mi" "3")
     endif()
 
     if (NOT (${TEST_NAME} MATCHES ".*p$"))
@@ -119,9 +134,10 @@ if (MFEM_ENABLE_TESTING)
   # Add CUDA/HIP tests.
   set(DEVICE_EXAMPLES
       # serial examples with device support:
-      ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26
+      ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
       # parallel examples with device support:
-      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p)
+      ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p
+      ex34p ex35p)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")
@@ -159,6 +175,15 @@ if (MFEM_ENABLE_TESTING)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:ex11p> "-no-vis" "--superlu"
+      ${MPIEXEC_POSTFLAGS})
+  endif()
+
+  # If MUMPS is enabled, add a test run that uses it.
+  if (MFEM_USE_MUMPS)
+    add_test(NAME ex25p_mumps_np=${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:ex25p> "-no-vis" "--mumps-solver"
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

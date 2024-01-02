@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,16 @@
 #ifndef MFEM_GINKGO
 #define MFEM_GINKGO
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_GINKGO
+
+#include "operator.hpp"
+#include "sparsemat.hpp"
+#include "solvers.hpp"
+
+#include <ginkgo/ginkgo.hpp>
+
 #include <iomanip>
 #include <ios>
 #include <string>
@@ -19,20 +29,22 @@
 #include <fstream>
 #include <iostream>
 
-
-#include "../config/config.hpp"
-#include "operator.hpp"
-#include "sparsemat.hpp"
-#include "solvers.hpp"
-
-#ifdef MFEM_USE_GINKGO
-#include <ginkgo/ginkgo.hpp>
-#endif
+#define MFEM_GINKGO_VERSION \
+   ((GKO_VERSION_MAJOR*100 + GKO_VERSION_MINOR)*100 + GKO_VERSION_PATCH)
 
 namespace mfem
 {
 namespace Ginkgo
 {
+
+/// The alias 'gko_array' refers to 'gko::Array' (Ginkgo < 1.5.0) or
+/// 'gko::array' (Ginkgo >= 1.5.0).
+#if MFEM_GINKGO_VERSION < 10500
+template <typename T> using gko_array = gko::Array<T>;
+#else
+template <typename T> using gko_array = gko::array<T>;
+#endif
+
 /**
 * Helper class for a case where a wrapped MFEM Vector
 * should be owned by Ginkgo, and deleted when the wrapper
@@ -66,10 +78,10 @@ public:
       : gko::matrix::Dense<double>(
            exec,
            gko::dim<2> {size, 1},
-   gko::Array<double>::view(exec,
-                            size,
-                            mfem_vec->ReadWrite(
-                               exec != exec->get_master() ? true : false)),
+   gko_array<double>::view(exec,
+                           size,
+                           mfem_vec->ReadWrite(
+                              exec != exec->get_master() ? true : false)),
    1)
    {
       // This controls whether or not we want Ginkgo to own its MFEM Vector.
@@ -253,9 +265,13 @@ double compute_norm(const gko::matrix::Dense<ValueType> *b)
    // Initialize a result scalar containing the value 0.0.
    auto b_norm = gko::initialize<gko::matrix::Dense<ValueType>>({0.0}, exec);
    // Use the dense `compute_norm2` function to compute the norm.
-   b->compute_norm2(lend(b_norm));
+#if MFEM_GINKGO_VERSION < 10600
+   b->compute_norm2(gko::lend(b_norm));
+#else
+   b->compute_norm2(b_norm);
+#endif
    // Use the other utility function to return the norm contained in `b_norm``
-   return std::pow(get_norm(lend(b_norm)),2);
+   return std::pow(get_norm(b_norm.get()),2);
 }
 
 /**
@@ -307,14 +323,81 @@ struct ResidualLogger : gko::log::Logger
 
    using gko_dense = gko::matrix::Dense<ValueType>;
 
-   // Customize the logging hook which is called every time an iteration is
-   // completed
-   void on_iteration_complete(const gko::LinOp *,
+   // Ginkgo 1.5 and older: version for solver that doesn't log implicit res norm
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *solution,
+                              const gko::LinOp *residual_norm) const override
+   {
+      iteration_complete_core(iteration, residual, solution, residual_norm,
+                              nullptr);
+   }
+   // Ginkgo 1.5 and older: version with implicit residual norm
+   void on_iteration_complete(const gko::LinOp *op,
                               const gko::size_type &iteration,
                               const gko::LinOp *residual,
                               const gko::LinOp *solution,
                               const gko::LinOp *residual_norm,
                               const gko::LinOp *implicit_sq_residual_norm) const override
+   {
+      iteration_complete_core(iteration, residual, solution, residual_norm,
+                              implicit_sq_residual_norm);
+   }
+#if MFEM_GINKGO_VERSION > 10500
+   // Ginkgo 1.6 and newer
+   void on_iteration_complete(const gko::LinOp *op,
+                              const gko::LinOp *rhs,
+                              const gko::LinOp *solution,
+                              const gko::size_type &iteration,
+                              const gko::LinOp *residual,
+                              const gko::LinOp *residual_norm,
+                              const gko::LinOp *implicit_sq_residual_norm,
+                              const gko::array<gko::stopping_status>* status,
+                              bool stopped) const override
+   {
+      iteration_complete_core(iteration, residual, solution, residual_norm,
+                              implicit_sq_residual_norm);
+   }
+#endif
+
+   // Construct the logger and store the system matrix and b vectors
+   ResidualLogger(std::shared_ptr<const gko::Executor> exec,
+                  const gko::LinOp *matrix, const gko_dense *b,
+                  bool compute_real_residual=false)
+      :
+#if MFEM_GINKGO_VERSION < 10500
+      gko::log::Logger(exec,
+                       gko::log::Logger::iteration_complete_mask),
+#else
+      gko::log::Logger(gko::log::Logger::iteration_complete_mask),
+#endif
+      matrix {matrix},
+      b{b},
+      compute_real_residual{compute_real_residual}
+   {
+      if (compute_real_residual == true)
+      {
+         if (dynamic_cast<const VectorWrapper*>(b))
+         {
+            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
+            res = std::move(gko_dense::create_with_config_of(b_cast).release());
+         }
+         else
+         {
+            res = std::move(gko::clone(b).release());
+         }
+      }
+   }
+
+private:
+   // Customize the logging hook which is called every time an iteration is
+   // completed.
+   void iteration_complete_core(const gko::size_type &iteration,
+                                const gko::LinOp *residual,
+                                const gko::LinOp *solution,
+                                const gko::LinOp *residual_norm,
+                                const gko::LinOp *implicit_sq_residual_norm) const
    {
       // If the solver shares the current solution vector and we want to
       // compute the residual from that
@@ -324,7 +407,11 @@ struct ResidualLogger : gko::log::Logger
          auto exec = matrix->get_executor();
          // Compute the real residual vector by calling apply on the system
          // First, compute res = A * x
+#if MFEM_GINKGO_VERSION < 10600
          matrix->apply(gko::lend(solution), gko::lend(res));
+#else
+         matrix->apply(solution, res);
+#endif
          // Now do res = res - b, depending on which vector/oper type
          // Check if b is a Ginkgo vector or wrapped MFEM Vector
          if (dynamic_cast<const VectorWrapper*>(b))
@@ -338,12 +425,20 @@ struct ResidualLogger : gko::log::Logger
          {
             // Create a scalar containing the value -1.0
             auto neg_one = gko::initialize<gko_dense>({-1.0}, exec);
+#if MFEM_GINKGO_VERSION < 10600
             res->add_scaled(gko::lend(neg_one), gko::lend(b));
+#else
+            res->add_scaled(neg_one, b);
+#endif
          }
 
          // Compute the norm of the residual vector and add it to the
          // `residual_norms` vector
+#if MFEM_GINKGO_VERSION < 10600
          residual_norms.push_back(compute_norm(gko::lend(res)));
+#else
+         residual_norms.push_back(compute_norm(res));
+#endif
       }
       else
       {
@@ -366,7 +461,11 @@ struct ResidualLogger : gko::log::Logger
          {
             auto dense_residual = gko::as<gko_dense>(residual);
             // Compute the residual vector's norm
+#if MFEM_GINKGO_VERSION < 10600
             auto norm = compute_norm(gko::lend(dense_residual));
+#else
+            auto norm = compute_norm(dense_residual);
+#endif
             // Add the computed norm to the `residual_norms` vector
             residual_norms.push_back(norm);
          }
@@ -375,42 +474,6 @@ struct ResidualLogger : gko::log::Logger
       iterations.push_back(iteration);
    }
 
-   // Version for solver that doesn't log implicit res norm
-   void on_iteration_complete(const gko::LinOp *op,
-                              const gko::size_type &iteration,
-                              const gko::LinOp *residual,
-                              const gko::LinOp *solution,
-                              const gko::LinOp *residual_norm) const override
-   {
-      on_iteration_complete(op, iteration, residual, solution, residual_norm,
-                            nullptr);
-   }
-
-   // Construct the logger and store the system matrix and b vectors
-   ResidualLogger(std::shared_ptr<const gko::Executor> exec,
-                  const gko::LinOp *matrix, const gko_dense *b,
-                  bool compute_real_residual=false)
-      : gko::log::Logger(exec,
-                         gko::log::Logger::iteration_complete_mask),
-        matrix{matrix},
-        b{b},
-        compute_real_residual{compute_real_residual}
-   {
-      if (compute_real_residual == true)
-      {
-         if (dynamic_cast<const VectorWrapper*>(b))
-         {
-            const VectorWrapper *b_cast = gko::as<const VectorWrapper>(b);
-            res = std::move(gko_dense::create_with_config_of(b_cast).release());
-         }
-         else
-         {
-            res = std::move(gko::clone(b).release());
-         }
-      }
-   }
-
-private:
    // Pointer to the system matrix
    const gko::LinOp *matrix;
    // Pointer to the right hand sides
@@ -452,17 +515,39 @@ public:
    /**
     * Constructor.
     * Takes an @p GinkgoExecType argument and creates an Executor.
+    * In Ginkgo, GPU Executors must have an associated host Executor.
+    * This routine will select a CPU Executor based on the OpenMP support
+    * for Ginkgo.
     */
    GinkgoExecutor(ExecType exec_type);
 
    /**
     * Constructor.
+    * Takes an @p GinkgoExecType argument and creates an Executor.
+    * In Ginkgo, GPU Executors must have an associated host Executor.
+    * This routine allows for explicite setting of the CPU Executor
+    * for GPU backends.
+    */
+   GinkgoExecutor(ExecType exec_type, ExecType host_exec_type);
+
+   /**
+    * Constructor.
     * Takes an MFEM @p Device object and creates an Executor
     * that "matches" (e.g., if MFEM is using the CPU, Ginkgo
-    * will choose the OmpExecutor; if MFEM is using CUDA,
-    * Ginkgo will choose the CudaExecutor).
+    * will choose the Reference or OmpExecutor based on MFEM's
+    * configuration and Ginkgo's capabilities; if MFEM is using
+    * CUDA, Ginkgo will choose the CudaExecutor with a default
+    * CPU Executor based on Ginkgo's OpenMP support).
     */
    GinkgoExecutor(Device &mfem_device);
+
+   /**
+    * Constructor.
+    * Takes an MFEM @p Device object and creates an Executor
+    * that "matches", but allows the user to specify the host
+    * Executor for GPU backends.
+    */
+   GinkgoExecutor(Device &mfem_device, ExecType host_exec_type);
 
    /**
     * Destructor.
@@ -777,8 +862,10 @@ public:
    {
       rel_tol = rtol;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
@@ -789,8 +876,10 @@ public:
    {
       abs_tol = atol;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
@@ -801,8 +890,10 @@ public:
    {
       max_iter = max_it;
       this->update_stop_factory();
-      gko::as<typename SolverType::Factory>(solver_gen)->get_parameters().criteria =
-      { combined_factory };
+      auto current_params = gko::as<typename SolverType::Factory>
+                            (solver_gen)->get_parameters();
+      this->solver_gen = current_params.with_criteria(this->combined_factory)
+                         .on(this->executor);
       if (solver)
       {
          gko::as<SolverType>(solver)->set_stop_criterion_factory(combined_factory);
@@ -1268,6 +1359,8 @@ public:
 };
 } // namespace Ginkgo
 
-}
+} // namespace mfem
+
+#endif // MFEM_USE_GINKGO
 
 #endif // MFEM_GINKGO

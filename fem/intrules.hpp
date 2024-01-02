@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,9 +14,18 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+#include <omp.h>
+#endif
+
+#include <vector>
+#include <map>
 
 namespace mfem
 {
+
+class KnotVector;
+class Mesh;
 
 /* Classes for IntegrationPoint, IntegrationRule, and container class
    IntegrationRules.  Declares the global variable IntRules */
@@ -91,7 +100,7 @@ class IntegrationRule : public Array<IntegrationPoint>
 {
 private:
    friend class IntegrationRules;
-   int Order;
+   int Order = 0;
    /** @brief The quadrature weights gathered as a contiguous array. Created
        by request with the method GetWeights(). */
    mutable Array<double> weights;
@@ -212,11 +221,11 @@ private:
 
 public:
    IntegrationRule() :
-      Array<IntegrationPoint>(), Order(0) { }
+      Array<IntegrationPoint>() { }
 
    /// Construct an integration rule with given number of points
    explicit IntegrationRule(int NP) :
-      Array<IntegrationPoint>(NP), Order(0)
+      Array<IntegrationPoint>(NP)
    {
       for (int i = 0; i < this->Size(); i++)
       {
@@ -257,8 +266,103 @@ public:
        a call like this: `IntPoint(i).weight`. */
    const Array<double> &GetWeights() const;
 
+   /// @brief Return an integration rule for KnotVector @a kv, defined by
+   /// applying this rule on each knot interval.
+   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }
+};
+
+/// Class for defining different integration rules on each NURBS patch.
+class NURBSMeshRules
+{
+public:
+   /// Construct a rule for each patch, using SetPatchRules1D.
+   NURBSMeshRules(const int numPatches, const int dim_) :
+      patchRules1D(numPatches, dim_),
+      npatches(numPatches), dim(dim_) { }
+
+   /// Returns a rule for the element.
+   IntegrationRule &GetElementRule(const int elem, const int patch,
+                                   const int *ijk,
+                                   Array<const KnotVector*> const& kv,
+                                   bool & deleteRule) const;
+
+   /// Add a rule to be used for individual elements. Returns the rule index.
+   std::size_t AddElementRule(IntegrationRule *ir_element)
+   {
+      elementRule.push_back(ir_element);
+      return elementRule.size() - 1;
+   }
+
+   /// @brief Set the integration rule for the element of the given index. This
+   /// rule is used instead of the rule for the patch containing the element.
+   void SetElementRule(const std::size_t element,
+                       const std::size_t elementRuleIndex)
+   {
+      elementToRule[element] = elementRuleIndex;
+   }
+
+   /// @brief Set 1D integration rules to be used as a tensor product rule on
+   /// the patch with index @a patch. This class takes ownership of these rules.
+   void SetPatchRules1D(const int patch,
+                        std::vector<const IntegrationRule*> & ir1D);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return a pointer to the 1D rule in the specified
+   /// @a dimension.
+   const IntegrationRule* GetPatchRule1D(const int patch,
+                                         const int dimension) const
+   {
+      return patchRules1D(patch, dimension);
+   }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return the integration point with index (i,j,k).
+   void GetIntegrationPointFrom1D(const int patch, int i, int j, int k,
+                                  IntegrationPoint & ip);
+
+   /// @brief Finalize() must be called before this class can be used for
+   /// assembly. In particular, it defines data used by GetPointElement().
+   void Finalize(Mesh const& mesh);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns the index of the element containing
+   /// integration point (i,j,k) for patch index @a patch. Finalize() must be
+   /// called first.
+   int GetPointElement(int patch, int i, int j, int k) const
+   {
+      return pointToElem[patch](i,j,k);
+   }
+
+   int GetDim() const { return dim; }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns an array of knot span indices for each
+   /// integration point in the specified @a dimension.
+   const Array<int>& GetPatchRule1D_KnotSpan(const int patch,
+                                             const int dimension) const
+   {
+      return patchRules1D_KnotSpan[patch][dimension];
+   }
+
+   ~NURBSMeshRules();
+
+private:
+   /// Tensor-product rules defined on all patches independently.
+   Array2D<const IntegrationRule*> patchRules1D;
+
+   /// Integration rules defined on elements.
+   std::vector<IntegrationRule*> elementRule;
+
+   std::map<std::size_t, std::size_t> elementToRule;
+
+   std::vector<Array3D<int>> pointToElem;
+   std::vector<std::vector<Array<int>>> patchRules1D_KnotSpan;
+
+   const int npatches;
+   const int dim;
 };
 
 /// A Class that defines 1-D numerical quadrature rules on [0,1].
@@ -327,14 +431,18 @@ private:
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
 
-   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order)
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   Array<omp_lock_t> IntRuleLocks;
+#endif
+
+   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order) const
    {
       if (ir_array.Size() <= Order)
       {
          ir_array.SetSize(Order + 1, NULL);
       }
    }
-   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order)
+   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order) const
    {
       return (ir_array.Size() > Order && ir_array[Order] != NULL);
    }
@@ -342,6 +450,7 @@ private:
    {
       return Order | 1; // valid for all quad_type's
    }
+   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array) const;
 
    /// The following methods allocate new IntegrationRule objects without
    /// checking if they already exist.  To avoid memory leaks use
@@ -356,12 +465,10 @@ private:
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
 
-   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array);
-
 public:
    /// Sets initial sizes for the integration rule arrays, but rules
    /// are defined the first time they are requested with the Get method.
-   explicit IntegrationRules(int Ref = 0,
+   explicit IntegrationRules(int ref = 0,
                              int type = Quadrature1D::GaussLegendre);
 
    /// Returns an integration rule for given GeomType and Order.
@@ -376,10 +483,10 @@ public:
 };
 
 /// A global object with all integration rules (defined in intrules.cpp)
-extern IntegrationRules IntRules;
+extern MFEM_EXPORT IntegrationRules IntRules;
 
 /// A global object with all refined integration rules
-extern IntegrationRules RefinedIntRules;
+extern MFEM_EXPORT IntegrationRules RefinedIntRules;
 
 }
 
