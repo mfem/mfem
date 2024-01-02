@@ -19,6 +19,7 @@
 #include "../general/device.hpp"
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
+#include "../general/kdtree.hpp"
 #include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
@@ -29,9 +30,8 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
-#include <map>
-#include <set>
-#include <array>
+#include <unordered_map>
+#include <unordered_set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -5423,14 +5423,14 @@ Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
 std::vector<int> Mesh::CreatePeriodicVertexMapping(
    const std::vector<Vector> &translations, double tol) const
 {
-   int sdim = SpaceDimension();
+   const int sdim = SpaceDimension();
 
    Vector coord(sdim), at(sdim), dx(sdim);
    Vector xMax(sdim), xMin(sdim), xDiff(sdim);
    xMax = xMin = xDiff = 0.0;
 
    // Get a list of all vertices on the boundary
-   set<int> bdr_v;
+   unordered_set<int> bdr_v;
    for (int be = 0; be < GetNBE(); be++)
    {
       Array<int> dofs;
@@ -5457,13 +5457,26 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    // vertices will be considered as "replicas".
 
    // replica2primary[v] is the index of the primary vertex of replica `v`
-   map<int, int> replica2primary;
+   unordered_map<int, int> replica2primary;
    // primary2replicas[v] is a set of indices of replicas of primary vertex `v`
-   map<int, set<int>> primary2replicas;
+   unordered_map<int, unordered_set<int>> primary2replicas;
+
+   // Create a KD-tree containing all the boundary vertices
+   std::unique_ptr<KDTreeBase<int,double>> kdtree;
+   if (sdim == 1) { kdtree.reset(new KDTree1D); }
+   else if (sdim == 2) { kdtree.reset(new KDTree2D); }
+   else if (sdim == 3) { kdtree.reset(new KDTree3D); }
+   else { MFEM_ABORT("Invalid space dimension."); }
 
    // We begin with the assumption that all vertices are primary, and that there
    // are no replicas.
-   for (int v : bdr_v) { primary2replicas[v]; }
+   for (const int v : bdr_v)
+   {
+      primary2replicas[v];
+      kdtree->AddPoint(GetVertex(v), v);
+   }
+
+   kdtree->Sort();
 
    // Make `r` and all of `r`'s replicas be replicas of `p`. Delete `r` from the
    // list of primary vertices.
@@ -5472,7 +5485,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
       if (r == p) { return; }
       primary2replicas[p].insert(r);
       replica2primary[r] = p;
-      for (int s : primary2replicas[r])
+      for (const int s : primary2replicas[r])
       {
          primary2replicas[p].insert(s);
          replica2primary[s] = p;
@@ -5487,48 +5500,46 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
          coord = GetVertex(vi);
          add(coord, translations[i], at);
 
-         for (int vj : bdr_v)
+         const int vj = kdtree->FindClosestPoint(at.GetData());
+         coord = GetVertex(vj);
+         add(at, -1.0, coord, dx);
+
+         if (dx.Norml2() > dia*tol) { continue; }
+
+         // The two vertices vi and vj are coincident.
+
+         // Are vertices `vi` and `vj` already primary?
+         const bool pi = primary2replicas.find(vi) != primary2replicas.end();
+         const bool pj = primary2replicas.find(vj) != primary2replicas.end();
+
+         if (pi && pj)
          {
-            coord = GetVertex(vj);
-            add(at, -1.0, coord, dx);
-            if (dx.Norml2() > dia*tol) { continue; }
-
-            // The two vertices vi and vj are coincident.
-
-            // Are vertices `vi` and `vj` already primary?
-            bool pi = primary2replicas.find(vi) != primary2replicas.end();
-            bool pj = primary2replicas.find(vj) != primary2replicas.end();
-
-            if (pi && pj)
-            {
-               // Both vertices are currently primary
-               // Demote `vj` to be a replica of `vi`
-               make_replica(vj, vi);
-            }
-            else if (pi && !pj)
-            {
-               // `vi` is primary and `vj` is a replica
-               int owner_of_vj = replica2primary[vj];
-               // Make `vi` and its replicas be replicas of `vj`'s owner
-               make_replica(vi, owner_of_vj);
-            }
-            else if (!pi && pj)
-            {
-               // `vi` is currently a replica and `vj` is currently primary
-               // Make `vj` and its replicas be replicas of `vi`'s owner
-               int owner_of_vi = replica2primary[vi];
-               make_replica(vj, owner_of_vi);
-            }
-            else
-            {
-               // Both vertices are currently replicas
-               // Make `vj`'s owner and all of its owner's replicas be replicas
-               // of `vi`'s owner
-               int owner_of_vi = replica2primary[vi];
-               int owner_of_vj = replica2primary[vj];
-               make_replica(owner_of_vj, owner_of_vi);
-            }
-            break;
+            // Both vertices are currently primary
+            // Demote `vj` to be a replica of `vi`
+            make_replica(vj, vi);
+         }
+         else if (pi && !pj)
+         {
+            // `vi` is primary and `vj` is a replica
+            const int owner_of_vj = replica2primary[vj];
+            // Make `vi` and its replicas be replicas of `vj`'s owner
+            make_replica(vi, owner_of_vj);
+         }
+         else if (!pi && pj)
+         {
+            // `vi` is currently a replica and `vj` is currently primary
+            // Make `vj` and its replicas be replicas of `vi`'s owner
+            const int owner_of_vi = replica2primary[vi];
+            make_replica(vj, owner_of_vi);
+         }
+         else
+         {
+            // Both vertices are currently replicas
+            // Make `vj`'s owner and all of its owner's replicas be replicas
+            // of `vi`'s owner
+            const int owner_of_vi = replica2primary[vi];
+            const int owner_of_vj = replica2primary[vj];
+            make_replica(owner_of_vj, owner_of_vi);
          }
       }
    }
@@ -5538,7 +5549,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    {
       v2v[i] = i;
    }
-   for (auto &&r2p : replica2primary)
+   for (const auto &r2p : replica2primary)
    {
       v2v[r2p.first] = r2p.second;
    }
@@ -11099,14 +11110,15 @@ void Mesh::PrintXG(std::ostream &os) const
    os << flush;
 }
 
-void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
+void Mesh::Printer(std::ostream &os, std::string section_delimiter,
+                   const std::string &comments) const
 {
    int i, j;
 
    if (NURBSext)
    {
       // general format
-      NURBSext->Print(os);
+      NURBSext->Print(os, comments);
       os << '\n';
       Nodes->Save(os);
 
@@ -11120,7 +11132,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    if (Nonconforming())
    {
       // nonconforming mesh format
-      ncmesh->Print(os);
+      ncmesh->Print(os, comments);
 
       if (Nodes)
       {
@@ -11138,6 +11150,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
           ? "MFEM mesh v1.0\n" : "MFEM mesh v1.2\n");
 
    // optional
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
    os <<
       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
       "# POINT       = 0\n"
@@ -11191,7 +11205,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    }
 }
 
-void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
+void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
+                     const std::string &comments) const
 {
    int i;
    Array<int> vert;
@@ -11199,6 +11214,8 @@ void Mesh::PrintTopo(std::ostream &os,const Array<int> &e_to_k) const
    os << "MFEM NURBS mesh v1.0\n";
 
    // optional
+   if (!comments.empty()) { os << '\n' << comments << '\n'; }
+
    os <<
       "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
       "# SEGMENT     = 1\n"
