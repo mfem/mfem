@@ -24,7 +24,7 @@ void KDTreeNodalProjection<2>::Project(const Vector& coords,const Vector& src,
    int ind;
    real_t dist;
    bool pt_inside_bbox;
-   KDTree2D::PointND pnd;
+   KDTree<int,real_t,2>::PointND pnd;
    for (int i=0; i<np; i++)
    {
       pnd.xx[0]=coords(i*dim+0);
@@ -91,7 +91,7 @@ void KDTreeNodalProjection<3>::Project(const Vector& coords,const Vector& src,
    int ind;
    real_t dist;
    bool pt_inside_bbox;
-   KDTree3D::PointND pnd;
+   KDTree<int,real_t,3>::PointND pnd;
    for (int i=0; i<np; i++)
    {
       pnd.xx[0]=coords(i*dim+0);
@@ -226,7 +226,7 @@ void KDTreeNodalProjection<2>::Project(const GridFunction& gf, real_t lerr)
    }
 
    {
-      KDTree2D::PointND pnd;
+      KDTree<int,real_t,2>::PointND pnd;
       for (int i=0; i<np; i++)
       {
          pnd.xx[0]=coo(i*2+0);
@@ -352,7 +352,7 @@ void KDTreeNodalProjection<3>::Project(const GridFunction& gf, real_t lerr)
    }
 
    {
-      KDTree3D::PointND pnd;
+      KDTree<int,real_t,3>::PointND pnd;
       for (int i=0; i<np; i++)
       {
          pnd.xx[0]=coo(i*dim+0);
