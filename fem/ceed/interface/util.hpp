@@ -13,12 +13,15 @@
 #define MFEM_LIBCEED_UTIL
 
 #include "../../../config/config.hpp"
+#include "../../../general/error.hpp"
+
 #include <functional>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 
 #include "ceed.hpp"
+
 #ifdef MFEM_USE_CEED
 #include <ceed/backend.h>  // for CeedOperatorField
 #endif
@@ -170,10 +173,12 @@ namespace internal
 {
 
 #ifdef MFEM_USE_CEED
+
 /** @warning These maps have a tendency to create bugs when adding new "types"
     of CeedBasis and CeedElemRestriction. */
 extern ceed::BasisMap ceed_basis_map;
 extern ceed::RestrMap ceed_restr_map;
+
 #endif
 
 } // namespace internal
