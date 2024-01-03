@@ -644,6 +644,7 @@ NonlinearForm::~NonlinearForm()
    delete cGrad;
    delete Grad;
    for (int i = 0; i <  dnfi.Size(); i++) { delete  dnfi[i]; }
+   for (int i = 0; i <  bnfi.Size(); i++) { delete  bnfi[i]; }
    for (int i = 0; i <  fnfi.Size(); i++) { delete  fnfi[i]; }
    for (int i = 0; i < bfnfi.Size(); i++) { delete bfnfi[i]; }
    delete ext;
@@ -1476,6 +1477,11 @@ BlockNonlinearForm::~BlockNonlinearForm()
    for (int i = 0; i < dnfi.Size(); ++i)
    {
       delete dnfi[i];
+   }
+
+   for (int i = 0; i < bnfi.Size(); ++i)
+   {
+      delete bnfi[i];
    }
 
    for (int i = 0; i < fnfi.Size(); ++i)
