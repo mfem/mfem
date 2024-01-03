@@ -17,9 +17,9 @@ int main(int argc, char *argv[])
    // Initialize logging with axom::slic
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
-   
+
    // Define command line options
-   int ref_levels = 2;   // number of times to uniformly refine the serial mesh before constructing the parallel mesh
+   int ref_levels = 2;   // number of times to uniformly refine the serial mesh
    double lambda = 50.0; // Lame parameter lambda
    double mu = 50.0;     // Lame parameter mu (shear modulus)
 
@@ -46,13 +46,16 @@ int main(int argc, char *argv[])
    }
 
    // Fixed options
-   std::string mesh_file = "two-hex.mesh"; // two block mesh; bottom block = [0,1]^3 and
-                                           // top block = [0,1]x[0,1]x[0.99,1.99]
-   int order = 1; // FE polynomial degree (NOTE: only 1 works for now)
-   std::set<int> mortar_attrs({4}); // z=1 plane of bottom block
-   std::set<int> nonmortar_attrs({5}); // z=0.99 plane of top block
-   std::vector<std::set<int>> fixed_attrs(3); // per-dimension sets of boundary attributes with
-                                              // homogeneous Dirichlet BCs
+   // two block mesh; bottom block = [0,1]^3 and top block = [0,1]x[0,1]x[0.99,1.99]
+   std::string mesh_file = "two-hex.mesh";
+   // FE polynomial degree (NOTE: only 1 works for now)
+   int order = 1;
+   // z=1 plane of bottom block
+   std::set<int> mortar_attrs({4});
+   // z=0.99 plane of top block
+   std::set<int> nonmortar_attrs({5});
+   // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs
+   std::vector<std::set<int>> fixed_attrs(3);
    fixed_attrs[0] = {1}; // x=0 plane of both blocks
    fixed_attrs[1] = {2}; // y=0 plane of both blocks
    fixed_attrs[2] = {3, 6}; // 3: z=0 plane of bottom block; 6: z=1.99 plane of top block
@@ -71,7 +74,8 @@ int main(int argc, char *argv[])
    mfem::ParFiniteElementSpace fespace(&mesh, &fec, 3);
    if (mfem::Mpi::Root())
    {
-      std::cout << "Number of displacement unknowns: " << fespace.GlobalTrueVSize() << std::endl;
+      std::cout << "Number of displacement unknowns: " << fespace.GlobalTrueVSize() <<
+                std::endl;
    }
 
    // Create coordinate and displacement grid functions
@@ -138,8 +142,8 @@ int main(int argc, char *argv[])
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
    if (mfem::Mpi::Root())
    {
-      std::cout << "Number of pressure unknowns: " << 
-         pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
+      std::cout << "Number of pressure unknowns: " <<
+                pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
    }
 
    // Set Tribol options for Lagrange multiplier enforcement
@@ -159,7 +163,8 @@ int main(int argc, char *argv[])
 
    // Return contact contribution to the tangent stiffness matrix
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
-   A_blk->SetBlock(0, 0, A.release());  // add elasticity contribution to the block operator
+   A_blk->SetBlock(0, 0,
+                   A.release());  // add elasticity contribution to the block operator
 
    // Convert block tangent stiffness to a single HypreParMatrix
    mfem::Array2D<mfem::HypreParMatrix*> hypre_blocks(2, 2);
@@ -169,17 +174,18 @@ int main(int argc, char *argv[])
       {
          if (A_blk->GetBlock(i, j).Height() != 0 && A_blk->GetBlock(i, j).Width() != 0)
          {
-         hypre_blocks(i, j) = dynamic_cast<mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j));
+            hypre_blocks(i, j) =
+               dynamic_cast<mfem::HypreParMatrix*>(&A_blk->GetBlock(i, j));
          }
          else
          {
-         hypre_blocks(i, j) = nullptr;
+            hypre_blocks(i, j) = nullptr;
          }
       }
    }
    auto A_merged = std::unique_ptr<mfem::HypreParMatrix>(
-      mfem::HypreParMatrixFromBlocks(hypre_blocks)
-   );
+                      mfem::HypreParMatrixFromBlocks(hypre_blocks)
+                   );
 
    // Create block RHS vector holding forces and gaps at tdofs
    mfem::BlockVector B_blk(A_blk->RowOffsets());
@@ -191,8 +197,8 @@ int main(int argc, char *argv[])
    tribol::getMfemGap(coupling_scheme_id, gap); // gap on ldofs
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    auto& gap_true = B_blk.GetBlock(1); // gap tdof vectorParFESpace()
-   P_submesh.MultTranspose(gap, gap_true); // gap is a dual vector, so 
-                                           // gap tdof vector = P^T * (gap ldof vector)
+   // gap is a dual vector, so (gap tdof vector) = P^T * (gap ldof vector)
+   P_submesh.MultTranspose(gap, gap_true);
 
    // Create block solution vector holding displacements and pressures at tdofs
    mfem::BlockVector X_blk(A_blk->ColOffsets());
@@ -234,7 +240,8 @@ int main(int argc, char *argv[])
    auto resid_linf = resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      MPI_Reduce(MPI_IN_PLACE, &resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+                 MPI_COMM_WORLD);
       std::cout << "|| force residual ||_(infty) = " << resid_linf << std::endl;
    }
    else
@@ -251,12 +258,14 @@ int main(int argc, char *argv[])
    auto gap_resid_linf = gap_resid_true.Normlinf();
    if (mfem::Mpi::Root())
    {
-      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      MPI_Reduce(MPI_IN_PLACE, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+                 MPI_COMM_WORLD);
       std::cout << "|| gap residual ||_(infty) = " << gap_resid_linf << std::endl;
    }
    else
    {
-      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0,
+                 MPI_COMM_WORLD);
    }
 
    // Update the Tribol mesh based on deformed configuration
@@ -267,7 +276,8 @@ int main(int argc, char *argv[])
    visit_vol_dc.RegisterField("coordinates", &coords);
    visit_vol_dc.RegisterField("displacement", &displacement);
    visit_vol_dc.Save();
-   mfem::VisItDataCollection visit_surf_dc("ContactPatchTestSurface", pressure.ParFESpace()->GetMesh());
+   mfem::VisItDataCollection visit_surf_dc("ContactPatchTestSurface",
+                                           pressure.ParFESpace()->GetMesh());
    visit_surf_dc.RegisterField("pressure", &pressure);
    visit_surf_dc.Save();
 
