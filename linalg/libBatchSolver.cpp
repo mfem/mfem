@@ -57,7 +57,7 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
 #else
       MFEM_SUB_cu_or_hip(blasStatus_t)
       status = MFEM_SUB_cu_or_hip(blasDgemmStridedBatched)(MFEM_SUB_Cuda_or_Hip(
-                                                              BLAS::Handle)(),
+                                                           BLAS::Handle)(),
                                                            MFEM_SUB_CU_or_HIP(BLAS_OP_N),
                                                            MFEM_SUB_CU_or_HIP(BLAS_OP_N),
                                                            mat_size,
@@ -93,7 +93,6 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
 
       for (int e=0; e<N; ++e)
       {
-
          //matvec
          for (int c=0; c<cols; ++c)
          {
@@ -109,6 +108,4 @@ void LibBatchMult::Mult(const Vector &b, Vector &x)
       }
    }
 }
-
-
 } //mfem namespace
