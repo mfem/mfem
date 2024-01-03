@@ -5461,7 +5461,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    unordered_map<int, unordered_set<int>> primary2replicas;
 
    // Create a KD-tree containing all the boundary vertices
-   std::unique_ptr<KDTreeBase<int,double>> kdtree;
+   std::unique_ptr<KDTreeBase<int,real_t>> kdtree;
    if (sdim == 1) { kdtree.reset(new KDTree1D); }
    else if (sdim == 2) { kdtree.reset(new KDTree2D); }
    else if (sdim == 3) { kdtree.reset(new KDTree3D); }
