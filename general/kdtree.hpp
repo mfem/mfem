@@ -13,6 +13,7 @@
 #define MFEM_KDTREE_HPP
 
 #include "../config/config.hpp"
+#include "globals.hpp"
 
 #include <vector>
 #include <algorithm>
@@ -637,25 +638,14 @@ private:
    }
 };
 
-#ifdef MFEM_USE_SINGLE
 /// Defines KDTree in 3D
-typedef KDTree<int,float,3> KDTree3D;
+typedef KDTree<int,real_t,3> KDTree3D;
 
 /// Defines KDTree in 2D
-typedef KDTree<int,float,2> KDTree2D;
+typedef KDTree<int,real_t,2> KDTree2D;
 
 /// Defines KDTree in 1D
-typedef KDTree<int,float,1> KDTree1D;
-#elif defined MFEM_USE_DOUBLE
-/// Defines KDTree in 3D
-typedef KDTree<int,double,3> KDTree3D;
-
-/// Defines KDTree in 2D
-typedef KDTree<int,double,2> KDTree2D;
-
-/// Defines KDTree in 1D
-typedef KDTree<int,double,1> KDTree1D;
-#endif
+typedef KDTree<int,real_t,1> KDTree1D;
 
 } // namespace mfem
 
