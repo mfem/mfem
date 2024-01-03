@@ -19,8 +19,8 @@
 
 #include "kernel_dispatch.hpp"
 
-#include "bilininteg_diffusion_pa.hpp"
-#include "bilininteg_mass_pa.hpp"
+#include "integ/bilininteg_diffusion_pa.hpp"
+#include "integ/bilininteg_mass_pa.hpp"
 
 namespace mfem
 {
