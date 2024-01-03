@@ -1493,10 +1493,11 @@ class BackTracking : public LineSearchAlgorithm
 public:
    BackTracking(ObjectiveFunction &F,
                 LinearForm &distanceForm,
+                const GridFunction &x_old,
                 const double alpha=1.0, const double growthRate=2.0, const double c1 = 1e-04,
                 const int maxit = 10, const double max_step_size=infinity()):
       LineSearchAlgorithm(F, max_step_size), growthRate(growthRate), c1(c1),
-      distanceForm(distanceForm),
+      distanceForm(distanceForm), x0(&x_old),
       maxit(maxit) {step_size = alpha;}
    void SetOldGF(const GridFunction &x_old)
    {
@@ -1610,7 +1611,7 @@ public:
                                       double weight=1.0,
                                       double eps=1e-10, double max_step_size=1e06):
       LipschitzBregmanMirror(F, diff_primal, grad, latent, weight, eps,
-                             max_step_size), backTrackingLineSearch(F, diff_primal, 1.0, 1.0, c1)
+                             max_step_size), backTrackingLineSearch(F, diff_primal, latent_old, 1.0, 1.0, c1)
    {
       backTrackingLineSearch.SetOldGF(latent_old);
    }

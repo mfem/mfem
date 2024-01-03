@@ -452,8 +452,8 @@ int main(int argc, char *argv[])
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, succ_diff_rho_form, alpha, 2.0, c1, 10,
-                                       infinity());
+         lineSearch = new BackTracking(obj, succ_diff_rho_form, psi_old,
+                                       alpha, 2.0, c1, 10, infinity());
          solfile << "EXP-";
          solfile2 << "EXP-";
          break;

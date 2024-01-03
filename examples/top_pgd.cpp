@@ -149,7 +149,6 @@ enum Problem
 double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
                          double target_volume)
 {
-   // MappedGridFunctionCoefficient rho_cf(&rho, sigmoid);
    GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient grad_cf(&grad);
    ConstantCoefficient mu(0.0);
@@ -180,7 +179,11 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
    }
    out << ", " << zero_gf.ComputeL1Error(projectedDensity) << flush;
 
-   SumCoefficient rho_diff(rho_cf, projectedDensity, 1.0, -1.0);
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x,
+                                                                  double y)
+   {
+      return x - y;
+   });
    return zero_gf.ComputeL2Error(rho_diff);
 }
 
@@ -234,7 +237,7 @@ int main(int argc, char *argv[])
                   "Lamé constant λ.");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lamé constant μ.");
-   args.AddOption(&rho_min, "-rmin", "--psi-min",
+   args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -379,14 +382,11 @@ int main(int argc, char *argv[])
    // 5. Set the initial guess for ρ.
    GridFunction rho(&control_fes);
    GridFunction rho_old(&control_fes);
-   rho = inv_sigmoid(vol_fraction);
-   rho_old = inv_sigmoid(vol_fraction);
+   rho = vol_fraction;
+   rho_old = vol_fraction;
 
    // ρ = sigmoid(ψ)
-   // MappedGridFunctionCoefficient rho_cf(&rho, sigmoid);
    GridFunctionCoefficient rho_cf(&rho);
-   // Interpolation of ρ = sigmoid(ψ) in control fes (for ParaView output)
-   GridFunction rho_gf(&control_fes);
    // ρ - ρ_old = sigmoid(ψ) - sigmoid(ψ_old)
    DiffMappedGridFunctionCoefficient succ_diff_rho(&rho,
    &rho_old, [](double x) {return x;});
@@ -413,13 +413,15 @@ int main(int argc, char *argv[])
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, succ_diff_rho_form, alpha, 2.0, c1, 10, infinity());
+         lineSearch = new BackTracking(obj, succ_diff_rho_form, rho_old,
+                                       alpha, 2.0, c1, 10, infinity());
          solfile << "EXP-";
          solfile2 << "EXP-";
          break;
       case LineSearchMethod::BregmanBBBackTracking:
          lineSearch = new BackTrackingLipschitzBregmanMirror(
-            obj, succ_diff_rho_form, *(obj.Gradient()), rho, rho_old, c1, 1.0, 1e-10, infinity());
+            obj, succ_diff_rho_form, *(obj.Gradient()), rho, rho_old, c1, 1.0, 1e-10,
+            infinity());
          solfile << "BB-";
          solfile2 << "BB-";
          break;
@@ -453,7 +455,7 @@ int main(int argc, char *argv[])
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      sout_r << "solution\n" << mesh << rho_gf
+      sout_r << "solution\n" << mesh << rho
              << "window_title 'Raw density ρ - MD "
              << problem << " " << lineSearchMethod << "'\n"
              << "keys Rjl***************\n"
@@ -470,7 +472,7 @@ int main(int argc, char *argv[])
    int k;
    for (k = 1; k <= max_it; k++)
    {
-      mfem::out << "\nStep = " << k << std::endl;
+      // mfem::out << "\nStep = " << k << std::endl;
 
       d = *obj.Gradient();
       d.Neg();
