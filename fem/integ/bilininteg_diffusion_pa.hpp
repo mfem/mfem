@@ -12,10 +12,10 @@
 #ifndef MFEM_BILININTEG_DIFFUSION_PA_HPP
 #define MFEM_BILININTEG_DIFFUSION_PA_HPP
 
-#include "../general/array.hpp"
-#include "../linalg/vector.hpp"
-#include "../general/forall.hpp"
-#include "kernel_dispatch.hpp"
+#include "../../general/array.hpp"
+#include "../../linalg/vector.hpp"
+#include "../../general/forall.hpp"
+#include "../kernel_dispatch.hpp"
 
 namespace mfem
 {

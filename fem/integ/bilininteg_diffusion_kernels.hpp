@@ -10,11 +10,11 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_pa.hpp"
-#include "gridfunc.hpp"
-#include "qfunction.hpp"
+#include "../gridfunc.hpp"
+#include "../qfunction.hpp"
 #include "ceed/integrators/diffusion/diffusion.hpp"
-#include "bilininteg.hpp"
-#include "kernel_dispatch.hpp"
+#include "../bilininteg.hpp"
+#include "../kernel_dispatch.hpp"
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
