@@ -392,7 +392,7 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
    }
 
    const double sound = sqrt(g * height);
-   const double vel = sqrt(h_vel * h_vel) / height;
+   const double vel = fabs(h_vel * normal / normal.Norml2()) / height;
 
    return vel + sound;
 }
@@ -485,7 +485,7 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
    // sound speed, √(γ p / ρ)
    const double sound = sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = sqrt(momentum * momentum) / density;
+   const double speed = fabs(momentum * normal / normal.Norml2()) / density;
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }

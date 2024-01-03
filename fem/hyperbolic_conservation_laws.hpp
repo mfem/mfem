@@ -87,7 +87,7 @@ public:
     * @param[in] Tr face information
     * @param[out] fluxDotN normal flux from the given element at the current
     * integration point
-    * @return double maximum characteristic velocity
+    * @return double maximum (normal) characteristic velocity
     */
    virtual double ComputeFluxDotN(const Vector &state, const Vector &normal,
                                   FaceElementTransformations &Tr, Vector &fluxDotN) const;
