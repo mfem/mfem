@@ -259,6 +259,18 @@ int main(int argc, char *argv[])
       MPI_Reduce(&gap_resid_linf, &gap_resid_linf, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
    }
 
+   // Update the Tribol mesh based on deformed configuration
+   tribol::updateMfemParallelDecomposition();
+
+   // Save data in VisIt format
+   mfem::VisItDataCollection visit_vol_dc("ContactPatchTestVolume", &mesh);
+   visit_vol_dc.RegisterField("coordinates", &coords);
+   visit_vol_dc.RegisterField("displacement", &displacement);
+   visit_vol_dc.Save();
+   mfem::VisItDataCollection visit_surf_dc("ContactPatchTestSurface", pressure.ParFESpace()->GetMesh());
+   visit_surf_dc.RegisterField("pressure", &pressure);
+   visit_surf_dc.Save();
+
    // Tribol cleanup: deletes coupling schemes and clears associated memory
    tribol::finalize();
 
