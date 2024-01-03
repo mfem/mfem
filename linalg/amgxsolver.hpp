@@ -102,14 +102,14 @@ public:
 
    /** @brief
       Configures AmgX with a default configuration based on the AmgX mode, and
-      verbosity. Assumes no MPI parallism.
+      verbosity. Assumes no MPI parallelism.
    */
    AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose);
 
    /** @brief Initilize the AmgX library for serial execution once
       the solver configuration has been established through either the
-      ReadParameters method or the constructor.  The constructor will make this
-      call.
+      AmgXSolver::ReadParameters method or the constructor.  The constructor 
+      will make this call.
    */
    void InitSerial();
 
@@ -127,31 +127,31 @@ public:
       (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER) 
       and verbosity. Creates MPI teams around GPUs to support more ranks than 
       GPUs. Consolidates linear solver data to avoid multiple ranks sharing
-      GPUs. Requires specifying number the of devices in each compute node as
+      GPUs. Requires specifying the number  of devices in each compute node as
       @a nDevs.
    */
    AmgXSolver(const MPI_Comm &comm, const int nDevs,
               const AMGX_MODE amgx_Mode_, const bool verbose);
 
    /** @brief Initilize the AmgX library in parallel mode with exactly one
-      GPU per rank once the solver configuration has been established, 
+      GPU per rank after the solver configuration has been established, 
       either through the constructor or the AmgXSolver::ReadParameters 
-      method.  If configuring with constructor, the constructor will make 
+      method.  If configuring with a constructor, the constructor will make 
       this call.
    */
    void InitExclusiveGPU(const MPI_Comm &comm);
 
-   /** @brief Initilize the AmgX library and create MPI teams based on the number
-      of devices on each node @a nDevs.  If configuring with constructor, the 
+   /** @brief Initialize the AmgX library and create MPI teams based on the number
+      of devices on each node @a nDevs.  If configuring with a constructor, the 
       constructor will make this call, otherwise this will need to be called 
-      after solver configuration  been established through the 
+      after the solver configuration has been established through the 
       AmgXSolver::ReadParameters call.  
    */
    void InitMPITeams(const MPI_Comm &comm,
                      const int nDevs);
 #endif
 
-   /** @brief  Sets Operator that is going to be solved via AmgX.  
+   /** @brief  Sets the Operator that is going to be solved via AmgX.  
       Supports operators based on either an MFEM SparseMatrix or 
       HypreParMatrix.
    */
@@ -194,8 +194,9 @@ public:
       two iterations of an AMG V cycle with AmgX's default smoother (block
       Jacobi).
 
-      As a solver the preconditioned conjugate gradient method is used. The AMG
-      V-cycle with a block Jacobi smoother is used as a preconditioner.
+      When configured as a solver the preconditioned conjugate gradient method 
+      is used with the AMG V-cycle with a block Jacobi smoother is used as a 
+      preconditioner.
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
 
