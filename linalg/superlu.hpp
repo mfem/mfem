@@ -27,7 +27,6 @@ namespace mfem
 namespace superlu
 {
 
-/** @file */
 // Copy selected enumerations from SuperLU (from superlu_enum_consts.h)
 #ifdef MFEM_USE_SUPERLU5
 typedef enum 

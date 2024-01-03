@@ -34,7 +34,7 @@ public:
    /** @brief Creates a general parallel matrix from a local CSR matrix on each
        processor.
 
-       The CSR matrix described by the I, J and data arrays. The local matrix should
+       The CSR matrix is described by the I, J and data arrays. The local matrix should
        be of size (local) nrows by (global) glob_ncols. The new parallel matrix
        contains copies of all input arrays (so they can be deleted). */
    STRUMPACKRowLocMatrix(MPI_Comm comm,
@@ -52,7 +52,7 @@ public:
 
    ~STRUMPACKRowLocMatrix();
 
-   /// Matrix vector products are not supported on for this try of matrix.
+   /// Matrix vector products are not supported on for this type of matrix.
    void Mult(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("STRUMPACKRowLocMatrix::Mult: Matrix vector products are not "
@@ -82,15 +82,15 @@ class STRUMPACKSolverBase : public Solver
 protected:
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
       
-      SetFromCommandLine must be called for the command line arguments
-      to be used. 
+      STRUMPACKSolverBase::SetFromCommandLine must be called for the command 
+      line arguments to be used. 
    */
    STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[]);
 
    /** @brief Constructor with STRUMPACK matrix object and command line arguments.
       
-      SetFromCommandLine must be called for the command line arguments
-      to be used. 
+      STRUMPACKSolverBase::SetFromCommandLine must be called for the command 
+      line arguments to be used. 
    */
    STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
 
@@ -98,13 +98,14 @@ public:
    /// Default destructor.
    virtual ~STRUMPACKSolverBase();
 
-   /// Factor and solve the linear system y = Op^{-1} x.
+   /// Factor and solve the linear system \f$y = Op^{-1} x \f$.
    void Mult(const Vector &x, Vector &y) const;
 
-   /// Factor and solve the linear systems Y[i] = Op^{-1} X[i] across the array of vectors.
+   /// Factor and solve the linear systems \f$ Y_i = Op^{-1} X_i \f$ across the array of vectors.
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
-   /// Set the operator.
+   /** @brief Set the operator/matrix.  
+       \note  @a A must be a STRUMPACKRowLocMatrix. */
    void SetOperator(const Operator &op);
 
    /** @brief Set options that were captured from the command line.
@@ -114,7 +115,7 @@ public:
    */
    void SetFromCommandLine();
 
-   /// Setup verbose printing during the factor step
+   /// Set up verbose printing during the factor step
    void SetPrintFactorStatistics(bool print_stat);
 
    /// Set up verbose printing during the solve step
@@ -237,28 +238,28 @@ public:
 
    /** @brief Set the relative tolerance for low rank compression methods
     * 
-    * This currently affects BLR, HSS, and HODLR.  Use SetCompression to set the
-    * proper compression type.
+    * This currently affects BLR, HSS, and HODLR.  Use 
+    * STRUMPACKSolverBase::SetCompression to set the proper compression type.
     */
    void SetCompressionRelTol(double rtol);
 
    /** @brief Set the absolute tolerance for low rank compression methods
     * 
-    * This currently affects BLR, HSS, and HODLR.  Use SetCompression to set the
-    * proper compression type.
+    * This currently affects BLR, HSS, and HODLR.  Use 
+    * STRUMPACKSolverBase::SetCompression to set the proper compression type.
     */   
    void SetCompressionAbsTol(double atol);
 
 #if STRUMPACK_VERSION_MAJOR >= 5
    /** @brief Set the precision for the lossy compression option
     * 
-    * Use SetCompression to set the proper compression type.
+    * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
     */   
    void SetCompressionLossyPrecision(int precision);
 
    /** @brief Set the number of butterflylevels for the HODLR compression option
     * 
-    * Use SetCompression to set the proper compression type.
+    * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
     */    
    void SetCompressionButterflyLevels(int levels);
 #endif

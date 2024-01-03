@@ -86,21 +86,35 @@ public:
    void SetOperator(const Operator &op);
 
    /**
-    * @brief Solve y = Op^{-1} x.
+    * @brief Solve \f$ y = Op^{-1} x \f$
     *
     * @param x RHS vector
     * @param y Solution vector
     */
    void Mult(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Solve \f$ Y_i = Op^{-T} X_i \f$
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */   
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /**
-    * @brief Transpose Solve y = Op^{-T} x.
+    * @brief Transpose Solve \f$ y = Op^{-T} x \f$
     *
     * @param x RHS vector
     * @param y Solution vector
     */
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Transpose Solve \f$ Y_i = Op^{-T} X_i \f$
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */   
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
 
