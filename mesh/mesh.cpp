@@ -5462,9 +5462,9 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
 
    // Create a KD-tree containing all the boundary vertices
    std::unique_ptr<KDTreeBase<int,real_t>> kdtree;
-   if (sdim == 1) { kdtree.reset(new KDTree<int,real_t,1>); }
-   else if (sdim == 2) { kdtree.reset(new KDTree<int,real_t,2>); }
-   else if (sdim == 3) { kdtree.reset(new KDTree<int,real_t,3>); }
+   if (sdim == 1) { kdtree.reset(new KDTree1D); }
+   else if (sdim == 2) { kdtree.reset(new KDTree2D); }
+   else if (sdim == 3) { kdtree.reset(new KDTree3D); }
    else { MFEM_ABORT("Invalid space dimension."); }
 
    // We begin with the assumption that all vertices are primary, and that there
