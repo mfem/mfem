@@ -35,7 +35,7 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    // Standard local assembly and inversion for energy mass matrices.
    ComputeInvMass();
 #ifndef MFEM_USE_MPI
-   nonlinearForm.reset(new NonlinearForm(vfes));
+   nonlinearForm.reset(new NonlinearForm(&vfes));
 #else
    ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
    if (pvfes)
