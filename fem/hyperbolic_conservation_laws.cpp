@@ -307,7 +307,7 @@ double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    const double speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
    // NOTE: nor in general is not a unit normal
    const double maxE = std::max(speed1, speed2);
-   // here, sqrt(nor*nor) is multiplied to match the scale with fluxN
+   // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
    const double scaledMaxE = maxE*sqrt(nor*nor);
    for (int i=0; i<state1.Size(); i++)
    {
@@ -332,7 +332,7 @@ double BurgersFlux::ComputeFlux(const Vector &U,
                                 DenseMatrix &FU) const
 {
    FU = U * U * 0.5;
-   return abs(U(0));
+   return std::fabs(U(0));
 }
 
 
@@ -358,8 +358,8 @@ double ShallowWaterFlux::ComputeFlux(const Vector &U,
       FU(1 + d, d) += energy;
    }
 
-   const double sound = sqrt(g * height);
-   const double vel = sqrt(h_vel * h_vel) / height;
+   const double sound = std::sqrt(g * height);
+   const double vel = std::sqrt(h_vel * h_vel) / height;
 
    return vel + sound;
 }
@@ -383,8 +383,8 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
       FUdotN(1 + i) = normal_vel * h_vel(i) + energy * normal(i);
    }
 
-   const double sound = sqrt(g * height);
-   const double vel = fabs(h_vel * normal / normal.Norml2()) / height;
+   const double sound = std::sqrt(g * height);
+   const double vel = std::fabs(h_vel * normal / normal.Norml2()) / height;
 
    return vel + sound;
 }
@@ -432,9 +432,9 @@ double EulerFlux::ComputeFlux(const Vector &U,
    // 3. Compute maximum characteristic speed
 
    // sound speed, √(γ p / ρ)
-   const double sound = sqrt(specific_heat_ratio * pressure / density);
+   const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = sqrt(momentum * momentum) / density;
+   const double speed = std::sqrt(momentum * momentum) / density;
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }
@@ -475,9 +475,9 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
    // 3. Compute maximum characteristic speed
 
    // sound speed, √(γ p / ρ)
-   const double sound = sqrt(specific_heat_ratio * pressure / density);
+   const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = fabs(momentum * normal / normal.Norml2()) / density;
+   const double speed = std::fabs(momentum * normal / normal.Norml2()) / density;
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }
