@@ -28,7 +28,7 @@
 namespace mfem
 {
 
-/** @brief 
+/** @brief
    MFEM wrapper for Nvidia's multigrid library, AmgX (github.com/NVIDIA/AMGX)
 
    AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
@@ -71,14 +71,14 @@ class AmgXSolver : public Solver
 public:
 
    /// Flags to configure AmgXSolver as a solver or preconditioner
-   enum AMGX_MODE 
+   enum AMGX_MODE
    {
       /// Use the preconditioned conjugate gradient method with the AMG
-      /// V-cycle used as a proconditioner.  With the default configuration 
+      /// V-cycle used as a proconditioner.  With the default configuration
       /// a block Jacobi smoother is used.
       SOLVER,
-      /// Directly apply iterations of the AMG V cycle to the matrix 
-      /// With the default configuration this will be 2 iterations 
+      /// Directly apply iterations of the AMG V cycle to the matrix
+      /// With the default configuration this will be 2 iterations
       /// with block Jacobi smoother.
       PRECONDITIONER
    };
@@ -90,13 +90,14 @@ public:
       Flags to determine whether user solver settings are defined internally in
       the source code or will be read through an external JSON file.
    */
-   enum CONFIG_SRC 
+   enum CONFIG_SRC
    {
-      /// Configuration with be read directly from a string 
+      /// Configuration with be read directly from a string
       INTERNAL,
       /// Configure will be read from a specified file
-      EXTERNAL, 
-      UNDEFINED};
+      EXTERNAL,
+      UNDEFINED
+   };
 
    AmgXSolver();
 
@@ -108,7 +109,7 @@ public:
 
    /** @brief Initilize the AmgX library for serial execution once
       the solver configuration has been established through either the
-      AmgXSolver::ReadParameters method or the constructor.  The constructor 
+      AmgXSolver::ReadParameters method or the constructor.  The constructor
       will make this call.
    */
    void InitSerial();
@@ -117,15 +118,15 @@ public:
 
    /** @brief
       Configures AmgX with a default configuration based on the AMGX_MODE
-      (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER) 
+      (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER)
       and verbosity. Pairs each MPI rank with one GPU.
    */
    AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_, const bool verbose);
 
    /** @brief
       Configures AmgX with a default configuration based on the AMGX_MODE
-      (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER) 
-      and verbosity. Creates MPI teams around GPUs to support more ranks than 
+      (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER)
+      and verbosity. Creates MPI teams around GPUs to support more ranks than
       GPUs. Consolidates linear solver data to avoid multiple ranks sharing
       GPUs. Requires specifying the number  of devices in each compute node as
       @a nDevs.
@@ -134,40 +135,40 @@ public:
               const AMGX_MODE amgx_Mode_, const bool verbose);
 
    /** @brief Initilize the AmgX library in parallel mode with exactly one
-      GPU per rank after the solver configuration has been established, 
-      either through the constructor or the AmgXSolver::ReadParameters 
-      method.  If configuring with a constructor, the constructor will make 
+      GPU per rank after the solver configuration has been established,
+      either through the constructor or the AmgXSolver::ReadParameters
+      method.  If configuring with a constructor, the constructor will make
       this call.
    */
    void InitExclusiveGPU(const MPI_Comm &comm);
 
    /** @brief Initialize the AmgX library and create MPI teams based on the number
-      of devices on each node @a nDevs.  If configuring with a constructor, the 
-      constructor will make this call, otherwise this will need to be called 
-      after the solver configuration has been established through the 
-      AmgXSolver::ReadParameters call.  
+      of devices on each node @a nDevs.  If configuring with a constructor, the
+      constructor will make this call, otherwise this will need to be called
+      after the solver configuration has been established through the
+      AmgXSolver::ReadParameters call.
    */
    void InitMPITeams(const MPI_Comm &comm,
                      const int nDevs);
 #endif
 
-   /** @brief  Sets the Operator that is going to be solved via AmgX.  
-      Supports operators based on either an MFEM SparseMatrix or 
+   /** @brief  Sets the Operator that is going to be solved via AmgX.
+      Supports operators based on either an MFEM SparseMatrix or
       HypreParMatrix.
    */
    virtual void SetOperator(const Operator &op);
 
    /** @brief Change the input operator that is being solved via AmgX.
-      Supports operators based on either an MFEM SparseMatrix or 
+      Supports operators based on either an MFEM SparseMatrix or
       HypreParMatrix.
    */
    void UpdateOperator(const Operator &op);
 
    /** @brief Untilize the AmgX library to solve the linear system
        where the "matrix" is the AMG approximation to the operator set
-       by AmgXSolver::SetOperator.  If the mode is set to 
-       AmgXSolver::PRECONDITIONER the initial guess for the 
-       @a x vector will be set to zero, otherwise the value of @a x passed 
+       by AmgXSolver::SetOperator.  If the mode is set to
+       AmgXSolver::PRECONDITIONER the initial guess for the
+       @a x vector will be set to zero, otherwise the value of @a x passed
        in will be used.
    */
    virtual void Mult(const Vector& b, Vector& x) const;
@@ -175,10 +176,10 @@ public:
    /// Return the number of iterations that were executed during the last solve phase.
    int GetNumIterations();
 
-   /** @brief Read in the AMGx parameters either through a file or directly through a 
-       properly formated string.  If @a source is set to AmgXSolver::EXTERNAL 
-       the parameters are loaded from a filename set by @a config.  If If @a source is set  
-       to AmgXSolver::INTERNAL the parameters are set directly by the string 
+   /** @brief Read in the AMGx parameters either through a file or directly through a
+       properly formated string.  If @a source is set to AmgXSolver::EXTERNAL
+       the parameters are loaded from a filename set by @a config.  If If @a source is set
+       to AmgXSolver::INTERNAL the parameters are set directly by the string
        defined by @a config.
    */
    void ReadParameters(const std::string config, CONFIG_SRC source);
@@ -194,8 +195,8 @@ public:
       two iterations of an AMG V cycle with AmgX's default smoother (block
       Jacobi).
 
-      When configured as a solver the preconditioned conjugate gradient method 
-      is used with the AMG V-cycle with a block Jacobi smoother is used as a 
+      When configured as a solver the preconditioned conjugate gradient method
+      is used with the AMG V-cycle with a block Jacobi smoother is used as a
       preconditioner.
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
@@ -218,7 +219,7 @@ private:
    CONFIG_SRC configSrc = UNDEFINED;
 
 #ifdef MFEM_USE_MPI
-   /** @brief  Consolidates matrix diagonal and off diagonal data and uploads 
+   /** @brief  Consolidates matrix diagonal and off diagonal data and uploads
      matrix to AmgX.
    */
    void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,

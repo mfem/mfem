@@ -82,7 +82,7 @@ public:
       @param[in] i The index for the eigenvalue you want ordered by SlepcEigenSolver::SetWhichEigenpairs
       @param[out] lr The real component of the eigenvalue
       @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
-   */ 
+   */
    void GetEigenvalue(unsigned int i, double & lr) const;
 
    /** @brief Get the ith eigenvalue after the system has been solved
@@ -90,14 +90,14 @@ public:
       @param[out] lr The real component of the eigenvalue
       @param[out] lc The imaginary component of the eigenvalue
       @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
-   */ 
+   */
    void GetEigenvalue(unsigned int i, double & lr, double & lc) const;
 
    /** @brief Get the ith eigenvector after the system has been solved
       @param[in] i The index for the eigenvector you want ordered by SlepcEigenSolver::SetWhichEigenpairs
       @param[out] vr The real components of the eigenvector
       @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
-   */ 
+   */
    void GetEigenvector(unsigned int i, Vector & vr) const;
 
    /** @brief Get the ith eigenvector after the system has been solved
@@ -105,14 +105,14 @@ public:
       @param[out] vr The real components of the eigenvector
       @param[out] vc The imaginary components of the eigenvector
       @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
-   */    
+   */
    void GetEigenvector(unsigned int i, Vector & vr, Vector & vc) const;
 
    /** @brief Target spectrum for the eigensolver.
-      
+
        This will define the order in which the eigenvalues/eigenvectors are indexed
        after the call to SlepcEigenSolver::Solve.
-       @note Target imaginary is not supported without complex support in SLEPc, 
+       @note Target imaginary is not supported without complex support in SLEPc,
        and intervals are not implemented.
    */
    enum Which
@@ -147,8 +147,8 @@ public:
    };
 
    /** @brief Set the which eignevalues the solver will target and the order they will be indexed in
-      
-      For SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL you will also need to 
+
+      For SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL you will also need to
       set the target value with SlepcEigenSolver::SetTarget.
    */
    void SetWhichEigenpairs(Which which);
