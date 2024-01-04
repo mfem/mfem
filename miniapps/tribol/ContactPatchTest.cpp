@@ -110,9 +110,10 @@ int main(int argc, char *argv[])
    // Create an H1 finite element space on the mesh for displacements/forces
    mfem::H1_FECollection fec(order, 3);
    mfem::ParFiniteElementSpace fespace(&mesh, &fec, 3);
+   auto n_displacement_dofs = fespace.GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
-      std::cout << "Number of displacement unknowns: " << fespace.GlobalTrueVSize() <<
+      std::cout << "Number of displacement unknowns: " << n_displacement_dofs <<
                 std::endl;
    }
 
