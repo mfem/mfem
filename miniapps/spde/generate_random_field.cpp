@@ -148,6 +148,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+#ifdef MFEM_USE_SINGLE
+   MFEM_ABORT("This miniapp is not supported in single precision.");
+#endif
+
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();

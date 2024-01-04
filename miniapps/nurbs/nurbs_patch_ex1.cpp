@@ -152,6 +152,10 @@ int main(int argc, char *argv[])
 
    if (patchAssembly && reducedIntegration && !pa)
    {
+#ifdef MFEM_USE_SINGLE
+      MFEM_ABORT("Reduced integration is not supported in single precision.");
+#endif
+
       di->SetIntegrationMode(NonlinearFormIntegrator::Mode::PATCHWISE_REDUCED);
    }
    else if (patchAssembly)

@@ -201,6 +201,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+#ifdef MFEM_USE_SINGLE
+   MFEM_ABORT("This miniapp is not supported in single precision.");
+#endif
+
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and
    // volume meshes with the same code.
