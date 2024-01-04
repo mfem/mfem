@@ -45,8 +45,8 @@ all: $(MINIAPPS)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< *.o -o $@ $(MFEM_LIBS)
 
 HPP-CPP:
-	$(MFEM_CXX) $(MFEM_FLAGS) -c HPP_CPP/HDGBilinearForm.cpp
-	$(MFEM_CXX) $(MFEM_FLAGS) -c HPP_CPP/hdg_integrators.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c HDGBilinearForm.cpp
+	$(MFEM_CXX) $(MFEM_FLAGS) -c hdg_integrators.cpp
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)

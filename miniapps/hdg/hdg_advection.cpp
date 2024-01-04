@@ -39,8 +39,8 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
-#include "HPP_CPP/HDGBilinearForm.hpp"
-#include "HPP_CPP/hdg_integrators.hpp"
+#include "HDGBilinearForm.hpp"
+#include "hdg_integrators.hpp"
 
 using namespace std;
 using namespace mfem;
