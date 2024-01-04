@@ -1,10 +1,13 @@
 # Tribol Interface Physics Library Mini-applications in MFEM
 
-Tribol is a library of algorithms which express the constraints that arise when
-surfaces of continuum bodies interpenetrate each other.  This involves finding
-potential surface pairs where interpenetration has occured and quantifying the
-violation of the constraints along with their derivatives.  The source code of
-Tribol can be found on [its Github repo](https://github.com/LLNL/Tribol).
+High fidelity simulations modeling complex interactions of moving bodies require
+specialized contact algorithms to enforce constraints between surfaces that come
+into contact in order to prevent penetration and to compute the associated
+contact response forces. Tribol aims to provide a unified interface for various
+contact algorithms, specifically, contact detection and enforcement, and serve
+as a common infrastructure enabling the research and development of advanced
+contact algorithms. More information about Tribol can be found on [its Github
+repo](https://github.com/LLNL/Tribol).
 
 Tribol uses MFEM's data structures to simplify interoperability with MFEM-based
 finite element codes.  As a result, Tribol has a dependency on MFEM.  Other than
