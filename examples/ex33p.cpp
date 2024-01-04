@@ -127,6 +127,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+#ifdef MFEM_USE_SINGLE
+   MFEM_ABORT("This example is not supported in single precision.");
+#endif
+
    Array<real_t> coeffs, poles;
    int progress_steps = 1;
 

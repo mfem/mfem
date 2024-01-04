@@ -205,6 +205,10 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifdef MFEM_USE_SINGLE
+   MFEM_ABORT("This example is not supported in single precision.");
+#endif
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
