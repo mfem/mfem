@@ -36,7 +36,7 @@ protected:
    FiniteElementSpace *fes; // not owned
 
    /** @brief Indicates the NonlinearFormIntegrator%s stored in #dnfi,
-       #fnfi, #bfnfi and #bfnfi are not owned by another NonlinearForm. */
+       #fnfi, #bfnfi and #bfnfi are not owned by this NonlinearForm. */
    bool extern_bfs;
 
    /// Set of Domain Integrators to be assembled (added).
