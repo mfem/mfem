@@ -39,6 +39,10 @@ protected:
    /// The last IterativeSolver to which this monitor was attached.
    const class IterativeSolver *iter_solver;
 
+   /// In MonitorResidual or MonitorSolution, this member variable can be set
+   /// to true to indicate early convergence.
+   bool converged = false;
+
 public:
    IterativeSolverMonitor() : iter_solver(nullptr) {}
 
@@ -46,15 +50,17 @@ public:
 
    /// Monitor the residual vector r
    virtual void MonitorResidual(int it, double norm, const Vector &r,
-                                bool final)
-   {
-   }
+                                bool final) { }
 
    /// Monitor the solution vector x
    virtual void MonitorSolution(int it, double norm, const Vector &x,
-                                bool final)
-   {
-   }
+                                bool final) { }
+
+   /// Has the solver converged?
+   ///
+   /// Can be used if convergence is detected in the monitor (before reaching
+   /// the relative or absolute tolerance of the IterativeSolver).
+   bool HasConverged() { return converged; }
 
    /** @brief This method is invoked by IterativeSolver::SetMonitor, informing
        the monitor which IterativeSolver is using it. */
@@ -170,7 +176,7 @@ protected:
 
    double Dot(const Vector &x, const Vector &y) const;
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
-   void Monitor(int it, double norm, const Vector& r, const Vector& x,
+   bool Monitor(int it, double norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
 public:
