@@ -1,6 +1,44 @@
 // Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+//                -----------------------------------------
+//                Tribol Miniapp: Mortar contact patch test
+//                -----------------------------------------
+//
+// This miniapp uses Tribol's mortar method to solve a contact patch test.
+// Tribol has native support for MFEM data structures (ParMesh, ParGridFunction,
+// HypreParMatrix, etc.) which simplifies including contact support in
+// MFEM-based solid mechanics codes. Note the mesh file two_hex.mesh must be in
+// your path for the miniapp to execute correctly. This mesh file contains two
+// cubes occupying [0,1]^3 and [0,1]x[0,1]x[0.99,1.99]. By default, the miniapp
+// will uniformly refine the mesh twice, then split it across MPI ranks. An
+// elasticity bilinear form will be created over the volume mesh and mortar
+// contact constraints will be formed along the z=1 and z=0.99 surfaces of the
+// blocks.
+//
+// Given the elasticity stiffness matrix and the gap constraint and constraint
+// derivatives from Tribol, the miniapp will form and solve a linear system of
+// equations for updated displacements and pressures. Finally, it will verify
+// force equilibrium and that the gap constraints are satisfied and save output
+// in VisIt format.
+//
+// Command line options:
+//  - -r, --refine: number of uniform refinements of the mesh (default: 2)
+//  - -l, --lambda: Lame parameter lambda (default: 50)
+//  - -m, --mu:     Lame parameter mu (default: 50)
+//
+// Compile with: see README.md
+//
+// Sample runs:  mpirun -n 2 ContactPatchTest
+//               mpirun -n 2 ContactPatchTest -r 3
 
 #include "mfem.hpp"
 
