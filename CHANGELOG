@@ -30,6 +30,11 @@ Miscellaneous
 - Improved thread safety for global variables in the library, for example
   IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
   GlobGeometryRefiner, and FiniteElement::dof2quad_array.
+  
+New and updated examples and miniapps
+-------------------------------------
+- Added a new mortar contact patch test miniapp using the Tribol interface
+  physics library (see https://github.com/LLNL/Tribol).  See miniapps/tribol.
 
 
 Version 4.6, released on September 27, 2023
