@@ -54,7 +54,7 @@ public:
       AMD,
       /// Approximate Minimum Fill method will be used
       AMF,
-      /// The PORD library will be used 
+      /// The PORD library will be used
       PORD,
       /// The METIS library will be used
       METIS,
@@ -98,7 +98,7 @@ public:
     *
     * @param X Array of RHS vectors
     * @param Y Array of Solution vectors
-    */   
+    */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /**
@@ -114,20 +114,20 @@ public:
     *
     * @param X Array of RHS vectors
     * @param Y Array of Solution vectors
-    */   
+    */
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
 
    /**
     * @brief Set the error print level for MUMPS
-    * 
+    *
     * Supported values are:
     * - 0:  No output printed
     * - 1:  Only errors printed
     * - 2:  Errors, warnings, and main stats printed
     * - 3:  Errors, warning, main stats, and terse diagnostics printed
     * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
-    * 
+    *
     * @param print_lvl Print level, default is 2
     *
     * @note This method has to be called before SetOperator
@@ -137,8 +137,8 @@ public:
    /**
     * @brief Set the matrix type
     *
-    * Supported matrix types: MUMPSSolver::UNSYMMETRIC, 
-    * MUMPSSolver::SYMMETRIC_POSITIVE_DEFINITE, 
+    * Supported matrix types: MUMPSSolver::UNSYMMETRIC,
+    * MUMPSSolver::SYMMETRIC_POSITIVE_DEFINITE,
     * and MUMPSSolver::SYMMETRIC_INDEFINITE
     *
     * @param mtype Matrix type
@@ -150,8 +150,8 @@ public:
    /**
     * @brief Set the reordering strategy
     *
-    * Supported reorderings are: MUMPSSolver::AUTOMATIC, 
-    * MUMPSSolver::AMD, MUMPSSolver::AMF, MUMPSSolver::PORD, 
+    * Supported reorderings are: MUMPSSolver::AUTOMATIC,
+    * MUMPSSolver::AMD, MUMPSSolver::AMF, MUMPSSolver::PORD,
     * MUMPSSolver::METIS, MUMPSSolver::PARMETIS,
     * MUMPSSolver::SCOTCH, and MUMPSSolver::PTSCOTCH
     *

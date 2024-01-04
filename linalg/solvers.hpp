@@ -549,7 +549,7 @@ public:
    /// Set the number of iteration to perform between restarts, default is 50.
    void SetKDim(int dim) { m = dim; }
 
-    /// Iterative solution of the linear system using the GMRES method
+   /// Iterative solution of the linear system using the GMRES method
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 

@@ -29,73 +29,73 @@ namespace superlu
 
 // Copy selected enumerations from SuperLU (from superlu_enum_consts.h)
 #ifdef MFEM_USE_SUPERLU5
-typedef enum 
+typedef enum
 {
-   NOROWPERM, 
+   NOROWPERM,
    LargeDiag,
    MY_PERMR
 } RowPerm;
 #else
 /// Define the type of row permutation
-typedef enum 
+typedef enum
 {
    /// No row permutation
-   NOROWPERM, 
+   NOROWPERM,
    /** @brief Duff/Koster algorithm to make the diagonals large compared to the off-diagonals.
        Use LargeDiag for SuperLU version 5 and below.*/
-   LargeDiag_MC64, 
-   /** @brief Parallel approximate weight perfect matching to make the diagonals large 
+   LargeDiag_MC64,
+   /** @brief Parallel approximate weight perfect matching to make the diagonals large
        compared to the off-diagonals.  Option doesn't exist in SuperLU version 5 and below.*/
-   LargeDiag_HWPM, 
+   LargeDiag_HWPM,
    /// User defined row permutation
    MY_PERMR
 } RowPerm;
 #endif
 
 /// Define the type of column permutation
-typedef enum 
+typedef enum
 {
    /// Natural ordering
-   NATURAL, 
+   NATURAL,
    /// Minimum degree ordering on structure of \f$ A^T*A \f$
-   MMD_ATA, 
+   MMD_ATA,
    /// Minimum degree ordering on structure of \f$ A^T+A \f$
-   MMD_AT_PLUS_A, 
+   MMD_AT_PLUS_A,
    /// Approximate minimum degree column ordering
    COLAMD,
    /// Sequential ordering on structure of \f$ A^T+A \f$ using the METIS package
-   METIS_AT_PLUS_A, 
+   METIS_AT_PLUS_A,
    /// Sequential ordering on structure of \f$ A^T+A \f$ using the PARMETIS package
-   PARMETIS, 
+   PARMETIS,
    /// Use the Zoltan library from Sandia to define the column ordering
-   ZOLTAN, 
+   ZOLTAN,
    /// User defined column permutation
    MY_PERMC
 } ColPerm;
 
 /// Define how to do iterative refinement
-typedef enum 
+typedef enum
 {
    /// No interative refinement
-   NOREFINE, 
+   NOREFINE,
    /// Iterative refinement accumulating residuals in a float.
-   SLU_SINGLE=1, 
+   SLU_SINGLE=1,
    /// Iterative refinement accumulating residuals in a double.
-   SLU_DOUBLE, 
+   SLU_DOUBLE,
    /// Iterative refinement accumulating residuals in a higher precision variable.
    SLU_EXTRA
 } IterRefine;
 
 /// Define the information that is provided about the matrix factorization ahead of time
-typedef enum 
+typedef enum
 {
    /// No information is provided, do the full factorization.
-   DOFACT, 
-   /** @brief Matrix A will be factored assuming the sparsity is the same as a previous 
+   DOFACT,
+   /** @brief Matrix A will be factored assuming the sparsity is the same as a previous
        factorization.  Column permutations will be reused. */
-   SamePattern, 
-   /** @brief Matrix A will be factored assuming the sparsity is the same and the matrix 
-       as a previous are similar as a previous factorization.  Column permutations 
+   SamePattern,
+   /** @brief Matrix A will be factored assuming the sparsity is the same and the matrix
+       as a previous are similar as a previous factorization.  Column permutations
        and row permutations will be reused. */
    SamePattern_SameRowPerm,
    /// The matrix A was provided in fully factored form and no factorization is needed.
@@ -156,7 +156,7 @@ private:
 class SuperLUSolver : public Solver
 {
 public:
-   /** @brief Constructor with MPI_Comm parameter.  
+   /** @brief Constructor with MPI_Comm parameter.
 
        @a npdep is the replication factor for the matrix
        data and must be a power of 2 and divide evenly
@@ -167,13 +167,13 @@ public:
 
        @a npdep is the replication factor for the matrix
        data and must be a power of 2 and divide evenly
-       into the number of processors. */   
+       into the number of processors. */
    SuperLUSolver(SuperLURowLocMatrix &A, int npdep = 1);
 
    /// Default destructor.
    ~SuperLUSolver();
 
-   /** @brief Set the operator/matrix.  
+   /** @brief Set the operator/matrix.
        \note  @a A must be a SuperLURowLocMatrix. */
    void SetOperator(const Operator &op);
 
@@ -183,7 +183,7 @@ public:
 
    /** @brief Factor and solve the linear systems \f$ y_i = Op^{-1} x_i \f$
        for all i in the @a X and @a Y arrays.
-       \note Factorization modifies the operator matrix. */   
+       \note Factorization modifies the operator matrix. */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /** @brief Factor and solve the transposed linear system \f$ y = Op^{-T} x \f$
@@ -192,7 +192,7 @@ public:
 
    /** @brief Factor and solve the transposed linear systems \f$ y_i = Op^{-T} x_i \f$
        for all i in the @a X and @a Y arrays.
-       \note Factorization modifies the operator matrix. */      
+       \note Factorization modifies the operator matrix. */
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
 
@@ -203,38 +203,38 @@ public:
       the rows and columns have unit norms.  (default true) */
    void SetEquilibriate(bool equil);
 
-   /** @brief Specify how to permute the columns of the matrix.  
-     
+   /** @brief Specify how to permute the columns of the matrix.
+
       Supported options are:
       superlu::NATURAL, superlu::MMD_ATA, superlu::MMD_AT_PLUS_A, superlu::COLAMD,
-      superlu::METIS_AT_PLUS_A (default), 
+      superlu::METIS_AT_PLUS_A (default),
       superlu::PARMETIS, superlu::ZOLTAN, superlu::MY_PERMC */
    void SetColumnPermutation(superlu::ColPerm col_perm);
 
-   /** @brief Specify how to permute the rows of the matrix.  
-     
+   /** @brief Specify how to permute the rows of the matrix.
+
       Supported options are:
-      superlu::NOROWPERM, superlu::LargeDiag (default), superlu::MY_PERMR for SuperLU 
-      version 5.  For later versions the supported options are: 
-      superlu::NOROWPERM, superlu::LargeDiag_MC64 (default), superlu::LargeDiag_HWPM, 
+      superlu::NOROWPERM, superlu::LargeDiag (default), superlu::MY_PERMR for SuperLU
+      version 5.  For later versions the supported options are:
+      superlu::NOROWPERM, superlu::LargeDiag_MC64 (default), superlu::LargeDiag_HWPM,
       superlu::MY_PERMR */
    void SetRowPermutation(superlu::RowPerm row_perm);
 
    /** @brief Specify how to handle iterative refinement
 
       Supported options are:
-      superlu::NOREFINE, superlu::SLU_SINGLE, 
+      superlu::NOREFINE, superlu::SLU_SINGLE,
       superlu::SLU_DOUBLE (default), superlu::SLU_EXTRA */
    void SetIterativeRefine(superlu::IterRefine iter_ref);
 
-   /** @brief Specify whether to replace tiny diagonals encountered  
+   /** @brief Specify whether to replace tiny diagonals encountered
        during pivot with \f$ \sqrt{\epsilon} \lVert A \rVert \f$ (default false)*/
    void SetReplaceTinyPivot(bool rtp);
 
    /// Specify the number of levels in the look-ahead factorization (default 10)
    void SetNumLookAheads(int num_lookaheads);
 
-   /** @brief Specifies whether to use the elimination tree computed from the 
+   /** @brief Specifies whether to use the elimination tree computed from the
        serial symbolic factorization to perform static scheduling (default false)*/
    void SetLookAheadElimTree(bool etree);
 
@@ -242,7 +242,7 @@ public:
    void SetSymmetricPattern(bool sym);
 
    /** @brief Specify whether to perform parallel symbolic factorization.
-       \note If true SuperLU will use superlu::PARMETIS for the Column 
+       \note If true SuperLU will use superlu::PARMETIS for the Column
        Permutation regardless of the setting */
    void SetParSymbFact(bool par);
 

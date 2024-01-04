@@ -46,7 +46,7 @@ public:
    /** @brief Creates a copy of the parallel matrix hypParMat in STRUMPACK's RowLoc
        format.
 
-       All data is copied so the original matrix may be deleted. 
+       All data is copied so the original matrix may be deleted.
    */
    STRUMPACKRowLocMatrix(const Operator &op, bool sym_sparse = false);
 
@@ -81,16 +81,16 @@ class STRUMPACKSolverBase : public Solver
 {
 protected:
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
-      
-      STRUMPACKSolverBase::SetFromCommandLine must be called for the command 
-      line arguments to be used. 
+
+      STRUMPACKSolverBase::SetFromCommandLine must be called for the command
+      line arguments to be used.
    */
    STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[]);
 
    /** @brief Constructor with STRUMPACK matrix object and command line arguments.
-      
-      STRUMPACKSolverBase::SetFromCommandLine must be called for the command 
-      line arguments to be used. 
+
+      STRUMPACKSolverBase::SetFromCommandLine must be called for the command
+      line arguments to be used.
    */
    STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
 
@@ -104,7 +104,7 @@ public:
    /// Factor and solve the linear systems \f$ Y_i = Op^{-1} X_i \f$ across the array of vectors.
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
-   /** @brief Set the operator/matrix.  
+   /** @brief Set the operator/matrix.
        \note  @a A must be a STRUMPACKRowLocMatrix. */
    void SetOperator(const Operator &op);
 
@@ -131,24 +131,24 @@ public:
    void SetMaxIter(int max_it);
 
    /** @brief Set the flag controlling reuse of the symbolic factorization for multiple
-      operators. 
-      
+      operators.
+
       This method must be called before repeated calls to SetOperator.
    */
    void SetReorderingReuse(bool reuse);
 
-   /** @brief Enable GPU off-loading available if STRUMPACK was compiled with CUDA. 
+   /** @brief Enable GPU off-loading available if STRUMPACK was compiled with CUDA.
        @note Input/Output from MFEM to STRUMPACK is all still through host memory.
    */
    void EnableGPU();
 
-   /** @brief Disable GPU off-loading available if STRUMPACK was compiled with CUDA. 
+   /** @brief Disable GPU off-loading available if STRUMPACK was compiled with CUDA.
        @note Input/Output from MFEM to STRUMPACK is all still through host memory.
-   */   
+   */
    void DisableGPU();
 
    /** @brief Set the Krylov solver method to use
-    * 
+    *
     * STRUMPACK is an (approximate) direct solver. It can be used as a direct
     * solver or as a preconditioner. To use STRUMPACK as only a preconditioner,
     * set the Krylov solver to DIRECT. STRUMPACK also provides iterative solvers
@@ -171,7 +171,7 @@ public:
    void SetKrylovSolver(strumpack::KrylovSolver method);
 
    /** @brief Set matrix reordering strategy
-    * 
+    *
     * Supported reorderings are:
     *  - NATURAL:    Do not reorder the system
     *  - METIS:      Use Metis nested-dissection reordering (default)
@@ -189,8 +189,8 @@ public:
     */
    void SetReorderingStrategy(strumpack::ReorderingStrategy method);
 
-   /** @brief Configure static pivoting for stability. 
-    * 
+   /** @brief Configure static pivoting for stability.
+    *
     * The static pivoting in STRUMPACK
     * permutes the sparse input matrix in order to get large (nonzero) elements
     * on the diagonal. If the input matrix is already diagonally dominant, this
@@ -211,7 +211,7 @@ public:
    void SetMatching(strumpack::MatchingJob job);
 
    /** @brief Select compression for sparse data types
-    * 
+    *
     * Enable support for rank-structured data formats, which can be used
     * for compression within the sparse solver.
     *
@@ -237,30 +237,30 @@ public:
    void SetCompression(strumpack::CompressionType type);
 
    /** @brief Set the relative tolerance for low rank compression methods
-    * 
-    * This currently affects BLR, HSS, and HODLR.  Use 
+    *
+    * This currently affects BLR, HSS, and HODLR.  Use
     * STRUMPACKSolverBase::SetCompression to set the proper compression type.
     */
    void SetCompressionRelTol(double rtol);
 
    /** @brief Set the absolute tolerance for low rank compression methods
-    * 
-    * This currently affects BLR, HSS, and HODLR.  Use 
+    *
+    * This currently affects BLR, HSS, and HODLR.  Use
     * STRUMPACKSolverBase::SetCompression to set the proper compression type.
-    */   
+    */
    void SetCompressionAbsTol(double atol);
 
 #if STRUMPACK_VERSION_MAJOR >= 5
    /** @brief Set the precision for the lossy compression option
-    * 
+    *
     * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
-    */   
+    */
    void SetCompressionLossyPrecision(int precision);
 
    /** @brief Set the number of butterflylevels for the HODLR compression option
-    * 
+    *
     * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
-    */    
+    */
    void SetCompressionButterflyLevels(int levels);
 #endif
 
@@ -292,18 +292,18 @@ public:
    STRUMPACKSolver(STRUMPACKRowLocMatrix &A);
 
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
-      
+
       SetFromCommandLine must be called for the command line arguments
-      to be used. 
+      to be used.
    */
    STRUMPACKSolver(MPI_Comm comm, int argc, char *argv[]);
    MFEM_DEPRECATED STRUMPACKSolver(int argc, char *argv[], MPI_Comm comm)
       : STRUMPACKSolver(comm, argc, argv) {}
 
-    /** @brief Constructor with MSTRUMPACK matrix object and command line arguments.
-      
-      SetFromCommandLine must be called for the command line arguments
-      to be used. 
+   /** @brief Constructor with MSTRUMPACK matrix object and command line arguments.
+
+     SetFromCommandLine must be called for the command line arguments
+     to be used.
    */
    STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
 
@@ -324,16 +324,16 @@ public:
    STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A);
 
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
-      
+
       SetFromCommandLine must be called for the command line arguments
-      to be used. 
+      to be used.
    */
    STRUMPACKMixedPrecisionSolver(MPI_Comm comm, int argc, char *argv[]);
 
    /** @brief Constructor with MSTRUMPACK matrix object and command line arguments.
-      
+
       SetFromCommandLine must be called for the command line arguments
-      to be used. 
+      to be used.
    */
    STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A,
                                  int argc, char *argv[]);
