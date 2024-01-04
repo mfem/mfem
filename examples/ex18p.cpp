@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
       euler.Mult(sol, z);
 
       double max_char_speed;
-      double my_max_char_speed = euler.getMaxCharSpeed();
+      double my_max_char_speed = euler.GetMaxCharSpeed();
       MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
       if (cfl > 0)
       {
          double max_char_speed;
-         double my_max_char_speed = euler.getMaxCharSpeed();
+         double my_max_char_speed = euler.GetMaxCharSpeed();
          MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
          dt = cfl * hmin / max_char_speed / (2 * order + 1);

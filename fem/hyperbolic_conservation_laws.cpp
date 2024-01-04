@@ -12,9 +12,8 @@
 // Implementation of hyperbolic conservation laws
 
 #include "hyperbolic_conservation_laws.hpp"
-#ifdef MFEM_USE_MPI
+#include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
-#endif
 
 namespace mfem
 {
@@ -28,7 +27,7 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    : TimeDependentOperator(vfes_.GetNDofs() * formIntegrator_->num_equations),
      dim(vfes_.GetFE(0)->GetDim()),
      num_equations(formIntegrator_->num_equations),
-     vfes(&vfes_),
+     vfes(vfes_),
      formIntegrator(formIntegrator_),
      Me_inv(0),
      z(vfes_.GetNDofs() * formIntegrator_->num_equations)
@@ -38,20 +37,20 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
 #ifndef MFEM_USE_MPI
    nonlinearForm.reset(new NonlinearForm(vfes));
 #else
-   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(vfes);
+   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
    if (pvfes)
    {
       nonlinearForm.reset(new ParNonlinearForm(pvfes));
    }
    else
    {
-      nonlinearForm.reset(new NonlinearForm(vfes));
+      nonlinearForm.reset(new NonlinearForm(&vfes));
    }
 #endif
    formIntegrator->resetMaxCharSpeed();
 
-   nonlinearForm->AddDomainIntegrator(formIntegrator);
-   nonlinearForm->AddInteriorFaceIntegrator(formIntegrator);
+   nonlinearForm->AddDomainIntegrator(formIntegrator.get());
+   nonlinearForm->AddInteriorFaceIntegrator(formIntegrator.get());
    nonlinearForm->UseExternalIntegrators();
 
    height = z.Size();
@@ -63,12 +62,12 @@ void DGHyperbolicConservationLaws::ComputeInvMass()
    DenseMatrix Me;     // auxiliary local mass matrix
    MassIntegrator mi;  // mass integrator
    // resize it to the current number of elements
-   Me_inv.resize(vfes->GetNE());
-   for (int i = 0; i < vfes->GetNE(); i++)
+   Me_inv.resize(vfes.GetNE());
+   for (int i = 0; i < vfes.GetNE(); i++)
    {
-      Me.SetSize(vfes->GetFE(i)->GetDof());
-      mi.AssembleElementMatrix(*vfes->GetFE(i),
-                               *vfes->GetElementTransformation(i), Me);
+      Me.SetSize(vfes.GetFE(i)->GetDof());
+      mi.AssembleElementMatrix(*vfes.GetFE(i),
+                               *vfes.GetElementTransformation(i), Me);
       DenseMatrixInverse inv(&Me);
       inv.Factor();
       inv.GetInverseMatrix(Me_inv[i]);
@@ -88,13 +87,13 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    Array<int> vdofs;        // local degrees of freedom storage
    DenseMatrix zmat, ymat;  // local dual vector storage
 
-   for (int i = 0; i < vfes->GetNE(); i++)
+   for (int i = 0; i < vfes.GetNE(); i++)
    {
       // Return the vdofs ordered byNODES
-      vfes->GetElementVDofs(i, vdofs);
+      vfes.GetElementVDofs(i, vdofs);
       // get local dual vector
       z.GetSubVector(vdofs, zval);
-      zmat.UseExternalData(zval.GetData(), vfes->GetFE(i)->GetDof(),
+      zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(),
                            num_equations);
       ymat.SetSize(Me_inv[i].Height(), num_equations);
       // mass matrix inversion and pass it to global vector
@@ -103,12 +102,6 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    }
 }
 
-DGHyperbolicConservationLaws::~DGHyperbolicConservationLaws()
-{
-   // Since we marked NonlinearForm uses external data,
-   // we need to delete it manually.
-   delete formIntegrator;
-}
 
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
                                                      ElementTransformation &Tr,

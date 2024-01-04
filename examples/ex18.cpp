@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
-      double max_char_speed = euler.getMaxCharSpeed();
+      double max_char_speed = euler.GetMaxCharSpeed();
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
 
@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
-         double max_char_speed = euler.getMaxCharSpeed();
+         double max_char_speed = euler.GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
       ti++;

@@ -14,9 +14,6 @@
 #define MFEM_HYPERBOLIC_CONSERVATION_LAWS
 
 #include "nonlinearform.hpp"
-#ifdef MFEM_USE_MPI
-#include "pnonlinearform.hpp"
-#endif
 namespace mfem
 {
 //           MFEM Hyperbolic Conservation Laws Serial/Parallel Shared Class
@@ -103,7 +100,7 @@ public:
    virtual void ComputeFluxJacobian(const Vector &state, ElementTransformation &Tr,
                                     DenseTensor &J) const
    {
-      mfem_error("Not Implemented.");
+      MFEM_ABORT("Not Implemented.");
    }
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -282,9 +279,9 @@ private:
    const int dim;
    const int num_equations;
    // Vector finite element space containing conserved variables
-   FiniteElementSpace *vfes;
+   FiniteElementSpace &vfes;
    // Element integration form. Should contain ComputeFlux
-   HyperbolicFormIntegrator *formIntegrator;
+   std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
    // element-wise inverse mass matrix
@@ -296,8 +293,6 @@ private:
 
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
-
-   void Update();
 
 public:
    /**
@@ -318,12 +313,9 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
    // get global maximum characteristic speed to be used in CFL condition
    // where max_char_speed is updated during Mult.
-   inline double getMaxCharSpeed()
-   {
-      return max_char_speed;
-   }
+   double GetMaxCharSpeed() { return max_char_speed; }
+   void Update();
 
-   ~DGHyperbolicConservationLaws();
 };
 
 
