@@ -2871,20 +2871,16 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // Process set names
    if (phys_names_by_dim.size() > 0)
    {
-      map<int,string>::iterator it;
-
       // Process boundary attribute set names
-      for (it = phys_names_by_dim[Dim-1].begin();
-           it != phys_names_by_dim[Dim-1].end(); it++)
+      for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
       {
-         AddToBdrAttributeSet(it->second, it->first);
+         AddToBdrAttributeSet(bdr_attr.second, bdr_attr.first);
       }
 
       // Process element attribute set names
-      for (it = phys_names_by_dim[Dim].begin();
-           it != phys_names_by_dim[Dim].end(); it++)
+      for (auto const &attr : phys_names_by_dim[Dim])
       {
-         AddToAttributeSet(it->second, it->first);
+         AddToAttributeSet(attr.second, attr.first);
       }
    }
 
