@@ -1440,6 +1440,10 @@ public:
 
    /// @brief Builds the transformation defining the i-th element in @a ElTr.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
+   ///
+   /// @note The provided pointer must not be NULL. In the future this should be
+   /// changed to a reference parameter consistent with
+   /// GetFaceElementTransformations.
    void GetElementTransformation(int i,
                                  IsoparametricTransformation *ElTr) const;
 
@@ -1453,6 +1457,10 @@ public:
    /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
+   ///
+   /// @note The provided pointer must not be NULL. In the future this should be
+   /// changed to a reference parameter consistent with
+   /// GetFaceElementTransformations.
    void GetElementTransformation(int i, const Vector &nodes,
                                  IsoparametricTransformation *ElTr) const;
 
@@ -1467,6 +1475,10 @@ public:
    /// @brief Builds the transformation defining the i-th boundary element in
    /// @a ElTr. @a ElTr must be allocated in advance and will be owned by the
    /// caller.
+   ///
+   /// @note The provided pointer must not be NULL. In the future this should be
+   /// changed to a reference parameter consistent with
+   /// GetFaceElementTransformations.
    void GetBdrElementTransformation(int i,
                                     IsoparametricTransformation *ElTr) const;
 
@@ -1478,8 +1490,13 @@ public:
    /// the returned object should NOT be deleted by the caller.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
-   /// Builds the transformation defining the i-th face element in @a FTr.
-   /// @a FTr must be allocated in advance and will be owned by the caller.
+   /// @brief Builds the transformation defining the i-th face element in
+   /// @a FTr. @a FTr must be allocated in advance and will be owned by the
+   /// caller.
+   ///
+   /// @note The provided pointer must not be NULL. In the future this should be
+   /// changed to a reference parameter consistent with
+   /// GetFaceElementTransformations.
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr) const;
 
    /** @brief A helper method that constructs a transformation from the
@@ -1494,6 +1511,10 @@ public:
    /// @brief Builds the transformation defining the i-th edge element in
    /// @a EdTr. @a EdTr must be allocated in advance and will be owned by the
    /// caller.
+   ///
+   /// @note The provided pointer must not be NULL. In the future this should be
+   /// changed to a reference parameter consistent with
+   /// GetFaceElementTransformations.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr) const;
 
    /// @brief Returns a pointer to the transformation defining the given edge
@@ -1544,9 +1565,9 @@ public:
    /// @brief Variant of GetFaceElementTransformations using a user allocated
    /// FaceElementTransformations object.
    virtual void GetFaceElementTransformations(int FaceNo,
-                                              FaceElementTransformations *FElTr,
-                                              IsoparametricTransformation *ElTr1,
-                                              IsoparametricTransformation *ElTr2,
+                                              FaceElementTransformations &FElTr,
+                                              IsoparametricTransformation &ElTr1,
+                                              IsoparametricTransformation &ElTr2,
                                               int mask = 31) const;
 
    /// @brief See GetFaceElementTransformations().
@@ -1559,9 +1580,9 @@ public:
    /// @brief Variant of GetInteriorFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetInteriorFaceTransformations(int FaceNo,
-                                       FaceElementTransformations *FElTr,
-                                       IsoparametricTransformation *ElTr1,
-                                       IsoparametricTransformation *ElTr2) const;
+                                       FaceElementTransformations &FElTr,
+                                       IsoparametricTransformation &ElTr1,
+                                       IsoparametricTransformation &ElTr2) const;
 
    /// @brief Builds the transformation defining the given boundary face.
    ///
@@ -1573,9 +1594,9 @@ public:
    /// @brief Variant of GetBdrFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetBdrFaceTransformations(int BdrElemNo,
-                                  FaceElementTransformations *FElTr,
-                                  IsoparametricTransformation *ElTr1,
-                                  IsoparametricTransformation *ElTr2) const;
+                                  FaceElementTransformations &FElTr,
+                                  IsoparametricTransformation &ElTr1,
+                                  IsoparametricTransformation &ElTr2) const;
 
    /// @}
 
