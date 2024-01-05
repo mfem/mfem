@@ -1581,6 +1581,37 @@ void Mesh::SetAttributes()
    }
 }
 
+void Mesh::AttrToMarker(int max_attr, const Array<int> &attrs,
+                        Array<int> &marker) const
+{
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+
+   marker.SetSize(max_attr);
+   if (attrs.Size() == 1 && attrs[0] == -1)
+   {
+      marker = 1;
+   }
+   else
+   {
+      marker = 0;
+      for (auto const &attr : attrs)
+      {
+         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+         marker[attr-1] = 1;
+      }
+   }
+}
+
+void Mesh::AttrToMarker(const Array<int> &attrs, Array<int> &marker) const
+{
+   AttrToMarker(attributes.Max(), attrs, marker);
+}
+
+void Mesh::BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const
+{
+   AttrToMarker(bdr_attributes.Max(), attrs, marker);
+}
+
 void Mesh::GetAttributeSetNames(std::set<std::string> &names) const
 {
    names.clear();

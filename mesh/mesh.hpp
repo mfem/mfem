@@ -1022,6 +1022,44 @@ public:
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
    virtual void SetAttributes();
 
+   /// @brief Prepares a marker array corresponding to an array of element
+   /// attributes
+   ///
+   /// @param max_attr Number of entries to create in the @a marker array
+   /// @param attrs    An array of attribute numbers which should be activated
+   /// @param marker   Output array indicating active/inactive attributes
+   ///
+   /// The marker array will be of size max_attr and it will contain only zeroes
+   /// and ones. Ones indicate which attribute numbers are present in the attrs
+   /// array. In the special case when attrs has a single entry equal to -1 the
+   /// marker array will contain all ones.
+   void AttrToMarker(int max_attr, const Array<int> &attrs,
+                     Array<int> &marker) const;
+
+   /// @brief Prepares a marker array corresponding to an array of element
+   /// attributes
+   ///
+   /// @param attrs  An array of attribute numbers which should be activated
+   /// @param marker Output array indicating active/inactive attributes
+   ///
+   /// The marker array will be of size Mesh::attributes.Max() and it will
+   /// contain only zeroes and ones. Ones indicate which attribute numbers are
+   /// present in the attrs array. In the special case when attrs has a single
+   /// entry equal to -1 the marker array will contain all ones.
+   void AttrToMarker(const Array<int> &attrs, Array<int> &marker) const;
+
+   /// @brief Prepares a marker array corresponding to an array of boundary
+   /// attributes
+   ///
+   /// @param attrs  An array of attribute numbers which should be activated
+   /// @param marker Output array indicating active/inactive attributes
+   ///
+   /// The marker array will be of size Mesh::bdr_attributes.Max() and it will
+   /// contain only zeroes and ones. Ones indicate which boundary attribute
+   /// numbers are present in the attrs array. In the special case when attrs
+   /// has a single entry equal to -1 the marker array will contain all ones.
+   void BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const;
+
    /// @brief Copy all attribute set names into an STL set
    void GetAttributeSetNames(std::set<std::string> &names) const;
 
