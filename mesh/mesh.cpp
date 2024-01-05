@@ -1605,12 +1605,16 @@ void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
 void Mesh::SetAttributeSet(const std::string &set_name, const Array<int> &attr)
 {
    attr_sets[set_name] = attr;
+   attr_sets[set_name].Sort();
+   attr_sets[set_name].Unique();
 }
 
 void Mesh::SetBdrAttributeSet(const std::string &set_name,
                               const Array<int> &attr)
 {
    bdr_attr_sets[set_name] = attr;
+   bdr_attr_sets[set_name].Sort();
+   bdr_attr_sets[set_name].Unique();
 }
 
 void Mesh::ClearAttributeSet(const std::string &set_name)
@@ -1655,30 +1659,30 @@ void Mesh::AddToBdrAttributeSet(const std::string &set_name,
 
 void Mesh::RemoveFromAttributeSet(const std::string &set_name, int attr)
 {
-   const Array<int> & old_attrs = attr_sets[set_name];
-   Array<int> new_attrs;
-   for (auto const &old_attr : old_attrs)
+   if (attr_sets.find(set_name) == attr_sets.end())
    {
-      if (old_attr != attr)
-      {
-         new_attrs.Append(old_attr);
-      }
+      mfem::err << "Unrecognized attribute set name \"" << set_name
+                << "\" in Mesh::RemoveFromAttributeSet" << endl;
+      return;
    }
-   attr_sets[set_name] = new_attrs;
+
+   Array<int> &attr_set = attr_sets[set_name];
+
+   attr_set.DeleteFirst(attr);
 }
 
 void Mesh::RemoveFromBdrAttributeSet(const std::string &set_name, int attr)
 {
-   const Array<int> & old_attrs = bdr_attr_sets[set_name];
-   Array<int> new_attrs;
-   for (auto const &old_attr : old_attrs)
+   if (bdr_attr_sets.find(set_name) == bdr_attr_sets.end())
    {
-      if (old_attr != attr)
-      {
-         new_attrs.Append(old_attr);
-      }
+      mfem::err << "Unrecognized boundary attribute set name \"" << set_name
+                << "\" in Mesh::RemoveFromBdrAttributeSet" << endl;
+      return;
    }
-   bdr_attr_sets[set_name] = new_attrs;
+
+   Array<int> &bdr_attr_set = bdr_attr_sets[set_name];
+
+   bdr_attr_set.DeleteFirst(attr);
 }
 
 Array<int> & Mesh::GetAttributeSet(const std::string & set_name)
