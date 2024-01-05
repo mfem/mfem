@@ -20,9 +20,7 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
    // 1. Parse command-line options.
-   const char *mesh_file1 = "meshes/block1.mesh";
-   const char *mesh_file2 = "meshes/rotatedblock2.mesh";
-   // const char *mesh_file2 = "meshes/block2.mesh";
+   const char *mesh_file = "meshes/merged.mesh";
    int order = 1;
    int sref = 0;
    int pref = 0;
@@ -33,13 +31,10 @@ int main(int argc, char *argv[])
    double linsolvertol = 1e-6;
    int relax_type = 8;
    double optimizer_tol = 1e-6;
-   bool elasticity_options = false;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file1, "-m1", "--mesh1",
-                  "First mesh file to use.");
-   args.AddOption(&mesh_file2, "-m2", "--mesh2",
-                  "Second mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -52,10 +47,6 @@ int main(int argc, char *argv[])
                   "Interior Point Solver Tolerance.");
    args.AddOption(&relax_type, "-rt", "--relax-type",
                   "Selection of Smoother for AMG");
-   args.AddOption(&elasticity_options, "-elast", "--elasticity-options",
-                  "-no-elast",
-                  "--no-elasticity-options",
-                  "Enable or disable Elasticity options for the AMG preconditioner.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -76,88 +67,44 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   ParElasticityProblem * prob1 = nullptr;
-   ParElasticityProblem * prob2 = nullptr;
+   Mesh * merged_mesh = new Mesh(mesh_file,1);
 
-   ParMesh * pmesh1 = nullptr;
-   ParMesh * pmesh2 = nullptr;
-   ParMesh * pmesh  = nullptr;
 
-   bool own_mesh = true;
-   if (elasticity_options) { own_mesh = true; }
+   Array<int> attr1; attr1.Append(1);
+   Array<int> attr2; attr2.Append(2);
+   Mesh * mesh1 = new Mesh(SubMesh::CreateFromDomain(*merged_mesh,attr1));
+   Mesh * mesh2 = new Mesh(SubMesh::CreateFromDomain(*merged_mesh,attr2));
 
-   if (own_mesh)
+   for (int i = 0; i<sref; i++)
    {
-      Mesh * mesh1 = new Mesh(mesh_file1,1);
-      Mesh * mesh2 = new Mesh(mesh_file2,1);
-
-      for (int i = 0; i<sref; i++)
-      {
-         mesh1->UniformRefinement();
-         mesh2->UniformRefinement();
-      }
-
-      int * part1 = mesh1->GeneratePartitioning(num_procs);
-      int * part2 = mesh2->GeneratePartitioning(num_procs);
-
-      Array<int> part_array1(part1, mesh1->GetNE());
-      Array<int> part_array2(part2, mesh2->GetNE());
-
-      for (int i = 0; i<mesh1->GetNE(); i++)
-      {
-         mesh1->SetAttribute(i,1);
-      }
-      mesh1->SetAttributes();
-      for (int i = 0; i<mesh2->GetNE(); i++)
-      {
-         mesh2->SetAttribute(i,2);
-      }
-      mesh2->SetAttributes();
-
-      Mesh * mesh_array[2];
-      mesh_array[0] = mesh1;
-      mesh_array[1] = mesh2;
-      Mesh * mesh = new Mesh(mesh_array, 2);
-
-
-
-      Array<int> part_array;
-      part_array.Append(part_array1);
-      part_array.Append(part_array2);
-
-      pmesh = new ParMesh(MPI_COMM_WORLD, *mesh, part_array.GetData());
-      MFEM_VERIFY(pmesh->GetNE(), "Empty partition");
-      for (int i = 0; i<pref; i++)
-      {
-         pmesh->UniformRefinement();
-      }
-
-      Array<int> attr1(1); attr1 = 1;
-      Array<int> attr2(1); attr2 = 2;
-
-
-      // pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
-      // pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
-      pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1, part1);
-      pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2, part2);
-
-      for (int i = 0; i<pref; i++)
-      {
-         pmesh1->UniformRefinement();
-         pmesh2->UniformRefinement();
-      }
-
-      MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
-      MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
-
-      prob1 = new ParElasticityProblem(pmesh1,order);
-      prob2 = new ParElasticityProblem(pmesh2,order);
+      mesh1->UniformRefinement();
+      mesh2->UniformRefinement();
    }
-   else
+   for (int i = 0; i<mesh1->GetNE(); i++)
    {
-      prob1 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file1,sref,pref,order);
-      prob2 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file2,sref,pref,order);
+      mesh1->SetAttribute(i,1);
    }
+   mesh1->SetAttributes();
+   for (int i = 0; i<mesh2->GetNE(); i++)
+   {
+      mesh2->SetAttribute(i,2);
+   }
+   mesh2->SetAttributes();
+
+   ParMesh * pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1);
+   ParMesh * pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2);
+
+   for (int i = 0; i<pref; i++)
+   {
+      pmesh1->UniformRefinement();
+      pmesh2->UniformRefinement();
+   }
+
+   MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
+   MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
+
+   ParElasticityProblem * prob1 = new ParElasticityProblem(pmesh1,order);
+   ParElasticityProblem * prob2 = new ParElasticityProblem(pmesh2,order);
 
 
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
@@ -173,16 +120,6 @@ int main(int argc, char *argv[])
    int numconstr = contact.GetGlobalNumConstraints();
 
    ParInteriorPointSolver optimizer(&qpopt);
-   ParFiniteElementSpace *pfes = nullptr;
-   if (pmesh)
-   {
-      pfes = new ParFiniteElementSpace(pmesh,prob1->GetFECol(),3,Ordering::byVDIM);
-      pmesh->SetNodalFESpace(pfes);
-      if (elasticity_options)
-      {
-         optimizer.SetFiniteElementSpace(pfes);
-      }
-   }
 
    optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(50);
@@ -234,8 +171,8 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace * fes1 = prob1->GetFESpace();
       ParFiniteElementSpace * fes2 = prob2->GetFESpace();
 
-      ParMesh * mesh1 = fes1->GetParMesh();
-      ParMesh * mesh2 = fes2->GetParMesh();
+      ParMesh * pmesh_1 = fes1->GetParMesh();
+      ParMesh * pmesh_2 = fes2->GetParMesh();
 
       Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
       Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
@@ -246,28 +183,12 @@ int main(int argc, char *argv[])
       x1_gf.SetFromTrueDofs(X1_new);
       x2_gf.SetFromTrueDofs(X2_new);
 
-      mesh1->MoveNodes(x1_gf);
-      mesh2->MoveNodes(x2_gf);
+      pmesh_1->MoveNodes(x1_gf);
+      pmesh_2->MoveNodes(x2_gf);
 
-
-      ParGridFunction * xgf = nullptr;
-      if (pmesh)
-      {
-         xgf = new ParGridFunction(pfes);
-         *xgf = 0.0;
-         // auto map1 = ParSubMesh::CreateTransferMap(x1_gf, *xgf);
-         // auto map2 = ParSubMesh::CreateTransferMap(x2_gf, *xgf);
-         // map1.Transfer(x1_gf,*xgf);
-         // map2.Transfer(x2_gf,*xgf);
-         xgf->SetVector(x1_gf,0);
-         xgf->SetVector(x2_gf,x1_gf.Size());
-         ParFiniteElementSpace * pfes1 = x1_gf.ParFESpace();
-         ParFiniteElementSpace * pfes2 = x2_gf.ParFESpace();
-         pmesh->MoveNodes(*xgf);
-      }
       if (paraview)
       {
-         ParaViewDataCollection paraview_dc1("QPContactBody1", mesh1);
+         ParaViewDataCollection paraview_dc1("QPContactBody1", pmesh_1);
          paraview_dc1.SetPrefixPath("ParaView");
          paraview_dc1.SetLevelsOfDetail(1);
          paraview_dc1.SetDataFormat(VTKFormat::BINARY);
@@ -277,7 +198,7 @@ int main(int argc, char *argv[])
          paraview_dc1.RegisterField("Body1", &x1_gf);
          paraview_dc1.Save();
 
-         ParaViewDataCollection paraview_dc2("QPContactBody2", mesh2);
+         ParaViewDataCollection paraview_dc2("QPContactBody2", pmesh_2);
          paraview_dc2.SetPrefixPath("ParaView");
          paraview_dc2.SetLevelsOfDetail(1);
          paraview_dc2.SetDataFormat(VTKFormat::BINARY);
@@ -286,21 +207,7 @@ int main(int argc, char *argv[])
          paraview_dc2.SetTime(0.0);
          paraview_dc2.RegisterField("Body2", &x2_gf);
          paraview_dc2.Save();
-
-         if (pmesh)
-         {
-            ParaViewDataCollection paraview_dc("QPContact2Bodies", pmesh);
-            paraview_dc.SetPrefixPath("ParaView");
-            paraview_dc.SetLevelsOfDetail(1);
-            paraview_dc.SetDataFormat(VTKFormat::BINARY);
-            paraview_dc.SetHighOrderOutput(true);
-            paraview_dc.SetCycle(0);
-            paraview_dc.SetTime(0.0);
-            paraview_dc.RegisterField("BothBodies", xgf);
-            paraview_dc.Save();
-         }
       }
-
 
 
       if (visualization)
@@ -309,33 +216,39 @@ int main(int argc, char *argv[])
          int visport = 19916;
 
          {
-            socketstream sol_sock(vishost, visport);
-            sol_sock.precision(8);
-            sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
-                     << "solution\n" << *mesh1 << x1_gf << flush;
-         }
-         {
-            socketstream sol_sock(vishost, visport);
-            sol_sock.precision(8);
-            sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
-                     << "solution\n" << *mesh2 << x2_gf << flush;
-         }
-         if (pmesh)
-         {
             socketstream sol_sock1(vishost, visport);
             sol_sock1.precision(8);
             sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << *pmesh << *xgf << flush;
+                      << "solution\n" << *pmesh_1 << x1_gf << flush;
          }
+         {
+            socketstream sol_sock2(vishost, visport);
+            sol_sock2.precision(8);
+            sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
+                      << "solution\n" << *pmesh_2 << x2_gf << flush;
+         }
+
+         // {
+         //    socketstream sol_sock(vishost, visport);
+         //    sol_sock.precision(8);
+         //    sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
+         //             << "solution\n" << *pmesh_1 << x1_gf << flush;
+         // }
+         // {
+         //    socketstream sol_sock(vishost, visport);
+         //    sol_sock.precision(8);
+         //    sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
+         //             << "solution\n" << *pmesh_2 << x2_gf << flush;
+         // }
       }
-      delete xgf;
    }
 
-   delete pfes;
    delete prob2;
    delete prob1;
    delete pmesh2;
    delete pmesh1;
+   // delete mesh1;
+   // delete mesh2;
 
    return 0;
 }
