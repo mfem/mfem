@@ -16,9 +16,9 @@
 // This miniapp checks the evaluation, 1st, and 2nd derivatives of a TMOP
 // metric. Works only in serial.
 //
-// Compile with: make check-tmop-metric
+// Compile with: make tmop-check-metric
 //
-// Sample runs:  check-tmop-metric -mid 360
+// Sample runs:  tmop-check-metric -mid 360
 
 #include "mfem.hpp"
 #include <iostream>

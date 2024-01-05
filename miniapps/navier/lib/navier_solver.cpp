@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -279,9 +279,9 @@ void NavierSolver::UpdateForms()
    FText_bdr_form->Update();
    g_bdr_form->Update();
 
-   mean_evaluator = std::make_unique<MeanEvaluator>(*pfes, gll_ir);
+   mean_evaluator.reset(new MeanEvaluator(*pfes, gll_ir));
 
-   curl_evaluator = std::make_unique<CurlEvaluator>(*vfes);
+   curl_evaluator.reset(new CurlEvaluator(*vfes));
 
    delete stress_evaluator;
    stress_evaluator = new ShearStressEvaluator(*kin_vis_gf.ParFESpace(),
@@ -300,9 +300,9 @@ void NavierSolver::UpdateSolvers()
    Vector diag_pa(vfes->GetTrueVSize());
    Mv_form->AssembleDiagonal(diag_pa);
 
-   MvInvPC = std::make_unique<OperatorJacobiSmoother>(diag_pa, empty);
+   MvInvPC.reset(new OperatorJacobiSmoother(diag_pa, empty));
 
-   MvInv = std::make_unique<CGSolver>(vfes->GetComm());
+   MvInv.reset(new CGSolver(vfes->GetComm()));
    MvInv->iterative_mode = false;
    MvInv->SetOperator(*Mv);
    MvInv->SetPreconditioner(*MvInvPC);
