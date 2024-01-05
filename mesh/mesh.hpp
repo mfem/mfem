@@ -1377,12 +1377,13 @@ public:
    /// @name Access connectivity data
    /// @{
 
-   ///  The returned Table should be deleted by the caller
+   /// @note The returned Table should be deleted by the caller
    Table *GetVertexToElementTable();
 
    /// Return the "face"-element Table. Here "face" refers to face (3D),
    /// edge (2D), or vertex (1D).
-   /// The returned Table should be deleted by the caller.
+   ///
+   /// @note The returned Table should be deleted by the caller.
    Table *GetFaceToElementTable() const;
 
    /// Returns the face-to-edge Table (3D)
@@ -1391,6 +1392,7 @@ public:
    Table *GetFaceEdgeTable() const;
 
    /// Returns the edge-to-vertex Table (3D)
+   ///
    /// @note The returned object should NOT be deleted by the caller.
    Table *GetEdgeVertexTable() const;
 
@@ -1416,8 +1418,8 @@ public:
 
    /// @brief Return FiniteElement for reference element of the specified type
    ///
-   /// @note The returned object is a pointer to a global object and
-   /// should not be deleted by the caller.
+   /// @note The returned object is a pointer to a global object and should not
+   /// be deleted by the caller.
    static FiniteElement *GetTransformationFEforElementType(Element::Type);
 
    /** @brief For the vertex (1D), edge (2D), or face (3D) of a boundary element
@@ -1436,40 +1438,44 @@ public:
    /// information cached at quadrature points.
    /// @{
 
-   /// Builds the transformation defining the i-th element in @a ElTr.
+   /// @brief Builds the transformation defining the i-th element in @a ElTr.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i,
                                  IsoparametricTransformation *ElTr) const;
 
-   /// Returns a pointer to the transformation defining the i-th element.
+   /// @brief Returns a pointer to the transformation defining the i-th element.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
    ElementTransformation *GetElementTransformation(int i);
 
-   /// Builds the transformation defining the i-th element in @a ElTr
+   /// @brief Builds the transformation defining the i-th element in @a ElTr
    /// assuming position of the vertices/nodes are given by @a nodes.
    /// @a ElTr must be allocated in advance and will be owned by the caller.
    void GetElementTransformation(int i, const Vector &nodes,
                                  IsoparametricTransformation *ElTr) const;
 
-   /// Returns a pointer to the transformation defining the i-th boundary
+   /// @brief Returns a pointer to the transformation defining the i-th boundary
    /// element.
+   ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
    ElementTransformation *GetBdrElementTransformation(int i);
 
-   /// Builds the transformation defining the i-th boundary element in @a ElTr.
-   /// @a ElTr must be allocated in advance and will be owned by the caller.
+   /// @brief Builds the transformation defining the i-th boundary element in
+   /// @a ElTr. @a ElTr must be allocated in advance and will be owned by the
+   /// caller.
    void GetBdrElementTransformation(int i,
                                     IsoparametricTransformation *ElTr) const;
 
-   /// Returns a pointer to the transformation defining the given face element.
+   /// @brief Returns a pointer to the transformation defining the given face
+   /// element.
+   ///
    /// @note The returned object is owned by the class and is shared, i.e.,
-   /// calling this function resets pointers obtained from previous calls.
-   /// Also, the returned object should NOT be deleted by the caller.
+   /// calling this function resets pointers obtained from previous calls. Also,
+   /// the returned object should NOT be deleted by the caller.
    ElementTransformation *GetFaceTransformation(int FaceNo);
 
    /// Builds the transformation defining the i-th face element in @a FTr.
@@ -1485,11 +1491,14 @@ public:
                                    IsoparametricTransformation &Transf,
                                    int info) const;
 
-   /// Builds the transformation defining the i-th edge element in @a EdTr.
-   /// @a EdTr must be allocated in advance and will be owned by the caller.
+   /// @brief Builds the transformation defining the i-th edge element in
+   /// @a EdTr. @a EdTr must be allocated in advance and will be owned by the
+   /// caller.
    void GetEdgeTransformation(int i, IsoparametricTransformation *EdTr) const;
 
-   /// Returns a pointer to the transformation defining the given edge element.
+   /// @brief Returns a pointer to the transformation defining the given edge
+   /// element.
+   ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
@@ -1532,7 +1541,7 @@ public:
    virtual FaceElementTransformations *
    GetFaceElementTransformations(int FaceNo, int mask = 31);
 
-   /// Variant of GetFaceElementTransformations using a user allocated
+   /// @brief Variant of GetFaceElementTransformations using a user allocated
    /// FaceElementTransformations object.
    virtual void GetFaceElementTransformations(int FaceNo,
                                               FaceElementTransformations *FElTr,
@@ -1540,28 +1549,28 @@ public:
                                               IsoparametricTransformation *ElTr2,
                                               int mask = 31) const;
 
-   /// See GetFaceElementTransformations().
+   /// @brief See GetFaceElementTransformations().
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
    FaceElementTransformations *GetInteriorFaceTransformations(int FaceNo);
 
-   /// Variant of GetInteriorFaceTransformations using a user allocated
+   /// @brief Variant of GetInteriorFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetInteriorFaceTransformations(int FaceNo,
                                        FaceElementTransformations *FElTr,
                                        IsoparametricTransformation *ElTr1,
                                        IsoparametricTransformation *ElTr2) const;
 
-   /// Builds the transformation defining the given boundary face.
+   /// @brief Builds the transformation defining the given boundary face.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
    FaceElementTransformations *GetBdrFaceTransformations(int BdrElemNo);
 
-   /// Variant of GetBdrFaceTransformations using a user allocated
+   /// @brief Variant of GetBdrFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetBdrFaceTransformations(int BdrElemNo,
                                   FaceElementTransformations *FElTr,
