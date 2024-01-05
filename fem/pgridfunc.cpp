@@ -753,7 +753,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    {
       MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
                   bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
-                  "internal error");
+                  "internal error: " << pfes->GetLocalTDofNumber(i) << ' ' << bool(
+                     values_counter[i]));
    }
 #endif
 }

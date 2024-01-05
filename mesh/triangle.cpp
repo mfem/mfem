@@ -188,10 +188,13 @@ void Triangle::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 void Triangle::GetVertices(Array<int> &v) const
 {
    v.SetSize(3);
-   for (int i = 0; i < 3; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 3, v.begin());
+}
+
+void Triangle::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 3, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 } // namespace mfem

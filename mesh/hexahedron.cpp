@@ -43,10 +43,18 @@ Hexahedron::Hexahedron(int ind1, int ind2, int ind3, int ind4,
 void Hexahedron::GetVertices(Array<int> &v) const
 {
    v.SetSize(8);
-   for (int i = 0; i < 8; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 8, v.begin());
+}
+
+void Hexahedron::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 8, "!");
+   std::copy(v.begin(), v.end(), indices);
+}
+
+void Hexahedron::SetVertices(const int *ind)
+{
+   std::copy(ind, ind + 8, indices);
 }
 
 TriLinear3DFiniteElement HexahedronFE;
