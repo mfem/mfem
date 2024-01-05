@@ -1413,6 +1413,7 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
          }
          // ghost face
          const int nc_face_id = faces_info[Face].NCFace;
+
          MFEM_ASSERT(nc_face_id >= 0, "parent ghost faces are not supported");
          return faces[nc_faces_info[nc_face_id].MasterFace]->GetGeometryType();
    }
@@ -2047,9 +2048,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
-   for (int i = 0; i < boundary.Size(); i++)
+   for (auto &b : boundary)
    {
-      FreeElement(boundary[i]);
+      FreeElement(b);
    }
 
    if (Dim == 3)
@@ -2060,9 +2061,9 @@ void Mesh::GenerateBoundaryElements()
 
    // count the 'NumOfBdrElements'
    NumOfBdrElements = 0;
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (const auto &fi : faces_info)
    {
-      if (faces_info[i].Elem2No < 0) { NumOfBdrElements++; }
+      if (fi.Elem2No < 0) { ++NumOfBdrElements; }
    }
 
    // Add the boundary elements
@@ -4828,7 +4829,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MakeRefined_(*orig_mesh, ref_factors, ref_type);
 }
 
-void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
                         int ref_type)
 {
    SetEmpty();
@@ -6683,22 +6684,22 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
             {
                // swap vertices 0 and 1 so that we don't change the marked edge:
                // (0,1,2) -> (1,0,2)
-               mfem::Swap<int>(bv[0], bv[1]);
+               mfem::Swap(bv[0], bv[1]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[1], be[2]);
+                  mfem::Swap(be[1], be[2]);
                }
                break;
             }
             case Element::QUADRILATERAL:
             {
-               mfem::Swap<int>(bv[0], bv[2]);
+               mfem::Swap(bv[0], bv[2]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[0], be[1]);
-                  mfem::Swap<int>(be[2], be[3]);
+                  mfem::Swap(be[0], be[1]);
+                  mfem::Swap(be[2], be[3]);
                }
                break;
             }
@@ -7503,26 +7504,27 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 
 void Mesh::GenerateFaces()
 {
-   int i, nfaces = GetNumFaces();
+   int nfaces = GetNumFaces();
 
-   for (i = 0; i < faces.Size(); i++)
+   for (auto &f : faces)
    {
-      FreeElement(faces[i]);
+      FreeElement(f);
    }
 
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
    faces_info.SetSize(nfaces);
-   for (i = 0; i < nfaces; i++)
+   for (int i = 0; i < nfaces; ++i)
    {
       faces[i] = NULL;
       faces_info[i].Elem1No = -1;
       faces_info[i].NCFace = -1;
    }
-   for (i = 0; i < NumOfElements; i++)
+
+   Array<int> v;
+   for (int i = 0; i < NumOfElements; ++i)
    {
-      const int *v = elements[i]->GetVertices();
-      const int *ef;
+      elements[i]->GetVertices(v);
       if (Dim == 1)
       {
          AddPointFaceElement(0, v[0], i);
@@ -7530,7 +7532,7 @@ void Mesh::GenerateFaces()
       }
       else if (Dim == 2)
       {
-         ef = el_to_edge->GetRow(i);
+         const int * const ef = el_to_edge->GetRow(i);
          const int ne = elements[i]->GetNEdges();
          for (int j = 0; j < ne; j++)
          {
@@ -7540,7 +7542,7 @@ void Mesh::GenerateFaces()
       }
       else
       {
-         ef = el_to_face->GetRow(i);
+         const int * const ef = el_to_face->GetRow(i);
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
@@ -7606,9 +7608,9 @@ void Mesh::GenerateNCFaceInfo()
 {
    MFEM_VERIFY(ncmesh, "missing NCMesh.");
 
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (auto &x : faces_info)
    {
-      faces_info[i].NCFace = -1;
+      x.NCFace = -1;
    }
 
    const NCMesh::NCList &list =
@@ -7620,9 +7622,8 @@ void Mesh::GenerateNCFaceInfo()
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (int i = 0; i < list.masters.Size(); i++)
+   for (const NCMesh::Master &master : list.masters)
    {
-      const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
 
       FaceInfo &master_fi = faces_info[master.index];
@@ -7634,10 +7635,8 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (int i = 0; i < list.slaves.Size(); i++)
+   for (const NCMesh::Slave &slave : list.slaves)
    {
-      const NCMesh::Slave &slave = list.slaves[i];
-
       if (slave.index < 0 || // degenerate slave face
           slave.index >= nfaces || // ghost slave
           slave.master >= nfaces) // has ghost master
@@ -7728,7 +7727,7 @@ STable3D *Mesh::GetFacesTable()
 
 STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 {
-   int i, *v;
+   Array<int> v;
    STable3D *faces_tbl;
 
    if (el_to_face != NULL)
@@ -7737,9 +7736,9 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    }
    el_to_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
    faces_tbl = new STable3D(NumOfVertices);
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      v = elements[i]->GetVertices();
+      elements[i]->GetVertices(v);
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -7803,9 +7802,10 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    el_to_face->Finalize();
    NumOfFaces = faces_tbl->NumberOfElements();
    be_to_face.SetSize(NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
+
+   for (int i = 0; i < NumOfBdrElements; i++)
    {
-      v = boundary[i]->GetVertices();
+      boundary[i]->GetVertices(v);
       switch (GetBdrElementType(i))
       {
          case Element::TRIANGLE:

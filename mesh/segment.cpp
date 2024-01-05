@@ -37,13 +37,16 @@ void Segment::SetVertices(const int *ind)
    indices[1] = ind[1];
 }
 
-void Segment::GetVertices( Array<int> &v ) const
+void Segment::GetVertices(Array<int> &v) const
 {
-   v.SetSize( 2 );
-   for (int i=0; i<2; i++)
-   {
-      v[i] = indices[i];
-   }
+   v.SetSize(2);
+   std::copy(indices, indices + 2, v.begin());
+}
+
+void Segment::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 2, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 Linear1DFiniteElement SegmentFE;
