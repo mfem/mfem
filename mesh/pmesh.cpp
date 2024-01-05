@@ -147,18 +147,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       {
          // Copy attribute and bdr_attribute names
-         map<string, Array<int> >::const_iterator it;
-
-         for (it = mesh.attr_sets.cbegin();
-              it != mesh.attr_sets.cend(); it++)
+         for (auto const &attr_set : mesh.attr_sets)
          {
-            it->second.Copy(attr_sets[it->first]);
+            attr_set.second.Copy(attr_sets[attr_set.first]);
          }
 
-         for (it = mesh.bdr_attr_sets.cbegin();
-              it != mesh.bdr_attr_sets.cend(); it++)
+         for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
          {
-            it->second.Copy(bdr_attr_sets[it->first]);
+            bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
          }
       }
 
@@ -200,18 +196,14 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       {
          // Copy attribute and bdr_attribute names
-         map<string, Array<int> >::const_iterator it;
-
-         for (it = mesh.attr_sets.cbegin();
-              it != mesh.attr_sets.cend(); it++)
+         for (auto const &attr_set : mesh.attr_sets)
          {
-            it->second.Copy(attr_sets[it->first]);
+            attr_set.second.Copy(attr_sets[attr_set.first]);
          }
 
-         for (it = mesh.bdr_attr_sets.cbegin();
-              it != mesh.bdr_attr_sets.cend(); it++)
+         for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
          {
-            it->second.Copy(bdr_attr_sets[it->first]);
+            bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
          }
       }
 
@@ -3926,18 +3918,14 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 
    {
       // Copy attribute and bdr_attribute names
-      map<string, Array<int> >::const_iterator it;
-
-      for (it = attr_sets.cbegin();
-           it != attr_sets.cend(); it++)
+      for (auto const &attr_set : attr_sets)
       {
-         it->second.Copy(pmesh2->attr_sets[it->first]);
+         attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
       }
 
-      for (it = bdr_attr_sets.cbegin();
-           it != bdr_attr_sets.cend(); it++)
+      for (auto const &bdr_attr_set : bdr_attr_sets)
       {
-         it->second.Copy(pmesh2->bdr_attr_sets[it->first]);
+         bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
       }
    }
 
@@ -4001,18 +3989,14 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
 
    {
       // Copy attribute and bdr_attribute names
-      map<string, Array<int> >::const_iterator it;
-
-      for (it = attr_sets.cbegin();
-           it != attr_sets.cend(); it++)
+      for (auto const &attr_set : attr_sets)
       {
-         it->second.Copy(mesh2->attr_sets[it->first]);
+         attr_set.second.Copy(mesh2->attr_sets[attr_set.first]);
       }
 
-      for (it = bdr_attr_sets.cbegin();
-           it != bdr_attr_sets.cend(); it++)
+      for (auto const &bdr_attr_set : bdr_attr_sets)
       {
-         it->second.Copy(mesh2->bdr_attr_sets[it->first]);
+         bdr_attr_set.second.Copy(mesh2->bdr_attr_sets[bdr_attr_set.first]);
       }
    }
 
@@ -4069,18 +4053,14 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    {
       // Copy attribute and bdr_attribute names
-      map<string, Array<int> >::const_iterator it;
-
-      for (it = attr_sets.cbegin();
-           it != attr_sets.cend(); it++)
+      for (auto const &attr_set : attr_sets)
       {
-         it->second.Copy(pmesh2->attr_sets[it->first]);
+         attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
       }
 
-      for (it = bdr_attr_sets.cbegin();
-           it != bdr_attr_sets.cend(); it++)
+      for (auto const &bdr_attr_set : bdr_attr_sets)
       {
-         it->second.Copy(pmesh2->bdr_attr_sets[it->first]);
+         bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
       }
    }
 
@@ -4899,16 +4879,14 @@ void ParMesh::Print(std::ostream &os) const
 
    if (set_names)
    {
-      std::map<std::string,Array<int> >::const_iterator it;
-
       os << "\nattribute_sets\n";
       os << attr_sets.size() << '\n';
-      for (it = attr_sets.cbegin(); it!=attr_sets.cend(); it++)
+      for (auto const &it : attr_sets)
       {
-         os << '"' << it->first << '"' << ' ' << it->second.Size();
-         for (int i=0; i<it->second.Size(); i++)
+         os << '"' << it.first << '"' << ' ' << it.second.Size();
+         for (auto const &a : it.second)
          {
-            os << ' ' << it->second[i];
+            os << ' ' << a;
          }
          os << '\n';
       }
@@ -4945,16 +4923,14 @@ void ParMesh::Print(std::ostream &os) const
 
    if (set_names)
    {
-      std::map<std::string,Array<int> >::const_iterator it;
-
       os << "\nbdr_attribute_sets\n";
       os << bdr_attr_sets.size() << '\n';
-      for (it = bdr_attr_sets.cbegin(); it!=bdr_attr_sets.cend(); it++)
+      for (auto const &it : bdr_attr_sets)
       {
-         os << '"' << it->first << '"' << ' ' << it->second.Size();
-         for (int i=0; i<it->second.Size(); i++)
+         os << '"' << it.first << '"' << ' ' << it.second.Size();
+         for (auto const &a :it.second)
          {
-            os << ' ' << it->second[i];
+            os << ' ' << a;
          }
          os << '\n';
       }

@@ -178,19 +178,18 @@ int main(int argc, char *argv[])
       std::set<string> names;
       pmesh.GetAttributeSetNames(names);
       cout << "Element Attribute Set Names: ";
-      for (std::set<string>::iterator it = names.begin(); it!=names.end(); it++)
+      for (auto const &set_name : names)
       {
-         cout << " \"" << *it << "\"";
+         cout << " \"" << set_name << "\"";
       }
       cout << endl;
 
       std::set<string> bdr_names;
       pmesh.GetBdrAttributeSetNames(bdr_names);
       cout << "Boundary Attribute Set Names: ";
-      for (std::set<string>::iterator it = bdr_names.begin();
-           it!=bdr_names.end(); it++)
+      for (auto const &bdr_set_name : bdr_names)
       {
-         cout << " \"" << *it << "\"";
+         cout << " \"" << bdr_set_name << "\"";
       }
       cout << endl;
    }
@@ -458,9 +457,8 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
    else
    {
       marker = 0;
-      for (int j=0; j<attrs.Size(); j++)
+      for (auto const &attr : attrs)
       {
-         int attr = attrs[j];
          MFEM_VERIFY(attr > 0, "Attribute number less than one!");
          marker[attr-1] = 1;
       }

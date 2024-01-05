@@ -1585,11 +1585,9 @@ void Mesh::GetAttributeSetNames(std::set<std::string> &names) const
 {
    names.clear();
 
-   std::map<std::string,Array<int> >::const_iterator it;
-   for (it = attr_sets.cbegin();
-        it != attr_sets.cend(); it++)
+   for (auto const &attr_set : attr_sets)
    {
-      names.insert(it->first);
+      names.insert(attr_set.first);
    }
 }
 
@@ -1597,11 +1595,9 @@ void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
 {
    names.clear();
 
-   std::map<std::string,Array<int> >::const_iterator it;
-   for (it = bdr_attr_sets.cbegin();
-        it != bdr_attr_sets.cend(); it++)
+   for (auto const &bdr_attr_set : bdr_attr_sets)
    {
-      names.insert(it->first);
+      names.insert(bdr_attr_set.first);
    }
 }
 
@@ -1659,30 +1655,30 @@ void Mesh::AddToBdrAttributeSet(const std::string &set_name,
 
 void Mesh::RemoveFromAttributeSet(const std::string &set_name, int attr)
 {
-   const Array<int> & old_attr = attr_sets[set_name];
-   Array<int> new_attr;
-   for (int i=0; i<old_attr.Size(); i++)
+   const Array<int> & old_attrs = attr_sets[set_name];
+   Array<int> new_attrs;
+   for (auto const &old_attr : old_attrs)
    {
-      if (old_attr[i] != attr)
+      if (old_attr != attr)
       {
-         new_attr.Append(old_attr[i]);
+         new_attrs.Append(old_attr);
       }
    }
-   attr_sets[set_name] = new_attr;
+   attr_sets[set_name] = new_attrs;
 }
 
 void Mesh::RemoveFromBdrAttributeSet(const std::string &set_name, int attr)
 {
-   const Array<int> & old_attr = bdr_attr_sets[set_name];
-   Array<int> new_attr;
-   for (int i=0; i<old_attr.Size(); i++)
+   const Array<int> & old_attrs = bdr_attr_sets[set_name];
+   Array<int> new_attrs;
+   for (auto const &old_attr : old_attrs)
    {
-      if (old_attr[i] != attr)
+      if (old_attr != attr)
       {
-         new_attr.Append(old_attr[i]);
+         new_attrs.Append(old_attr);
       }
    }
-   bdr_attr_sets[set_name] = new_attr;
+   bdr_attr_sets[set_name] = new_attrs;
 }
 
 Array<int> & Mesh::GetAttributeSet(const std::string & set_name)
@@ -4219,20 +4215,15 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.bdr_attributes.Copy(bdr_attributes);
 
    {
-     // Copy attribute and bdr_attribute names
-     map<string, Array<int> >::const_iterator it;
-
-     for (it = mesh.attr_sets.cbegin();
-	  it != mesh.attr_sets.cend(); it++)
-     {
-       it->second.Copy(attr_sets[it->first]);
-     }
-
-     for (it = mesh.bdr_attr_sets.cbegin();
-	  it != mesh.bdr_attr_sets.cend(); it++)
-     {
-       it->second.Copy(bdr_attr_sets[it->first]);
-     }
+      // Copy attribute and bdr_attribute names
+      for (auto const &attr_set : mesh.attr_sets)
+      {
+	 attr_set.second.Copy(attr_sets[attr_set.first]);
+      }
+      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
+      {
+	 bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
+      }
    }
 
    // Deep copy the NURBSExtension.
@@ -11296,17 +11287,15 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 
    if (set_names)
    {
-     std::map<std::string,Array<int> >::const_iterator it;
-
      os << "\nattribute_sets\n";
      os << attr_sets.size() << '\n';
-     for (it = attr_sets.cbegin(); it != attr_sets.cend(); it++)
+     for (auto const &it : attr_sets)
      {
-       os << '"' << it->first << '"' << ' ' << it->second.Size();
-       for (i = 0; i < it->second.Size(); i++)
-	 {
-	   os << ' ' << it->second[i];
-	 }
+       os << '"' << it.first << '"' << ' ' << it.second.Size();
+       for (auto const &a : it.second)
+       {
+	  os << ' ' << a;
+       }
        os << '\n';
      }
    }
@@ -11319,16 +11308,14 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 
    if (set_names)
    {
-     std::map<std::string,Array<int> >::const_iterator it;
-
      os << "\nbdr_attribute_sets\n";
      os << bdr_attr_sets.size() << '\n';
-     for (it = bdr_attr_sets.cbegin(); it != bdr_attr_sets.cend(); it++)
+     for (auto const &it : bdr_attr_sets)
      {
-       os << '"' << it->first << '"' << ' ' << it->second.Size();
-       for (i = 0; i < it->second.Size(); i++)
+       os << '"' << it.first << '"' << ' ' << it.second.Size();
+       for (auto const &a :it.second)
 	 {
-	   os << ' ' << it->second[i];
+	   os << ' ' << a;
 	 }
        os << '\n';
      }
