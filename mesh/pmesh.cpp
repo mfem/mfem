@@ -2894,15 +2894,15 @@ Table *ParMesh::GetFaceToAllElementTable() const
 FaceElementTransformations *ParMesh::GetFaceElementTransformations(int FaceNo,
                                                                    int mask)
 {
-   GetFaceElementTransformations(FaceNo, &FaceElemTr, &Transformation,
-                                 &Transformation2, mask);
+   GetFaceElementTransformations(FaceNo, FaceElemTr, Transformation,
+                                 Transformation2, mask);
    return &FaceElemTr;
 }
 
 void ParMesh::GetFaceElementTransformations(int FaceNo,
-                                            FaceElementTransformations *FElTr,
-                                            IsoparametricTransformation *ElTr1,
-                                            IsoparametricTransformation *ElTr2,
+                                            FaceElementTransformations &FElTr,
+                                            IsoparametricTransformation &ElTr1,
+                                            IsoparametricTransformation &ElTr2,
                                             int mask) const
 {
    if (FaceNo < GetNumFaces())
@@ -2920,15 +2920,15 @@ void ParMesh::GetFaceElementTransformations(int FaceNo,
 FaceElementTransformations *ParMesh::GetSharedFaceTransformations(int sf,
                                                                   bool fill2)
 {
-   GetSharedFaceTransformations(sf, &FaceElemTr, &Transformation,
-                                &Transformation2, fill2);
+   GetSharedFaceTransformations(sf, FaceElemTr, Transformation,
+                                Transformation2, fill2);
    return &FaceElemTr;
 }
 
 void ParMesh::GetSharedFaceTransformations(int sf,
-                                           FaceElementTransformations *FElTr,
-                                           IsoparametricTransformation *ElTr1,
-                                           IsoparametricTransformation *ElTr2,
+                                           FaceElementTransformations &FElTr,
+                                           IsoparametricTransformation &ElTr1,
+                                           IsoparametricTransformation &ElTr2,
                                            bool fill2) const
 {
    int FaceNo = GetSharedFace(sf);
@@ -2938,14 +2938,14 @@ void ParMesh::GetSharedFaceTransformations(int sf,
 FaceElementTransformations *
 ParMesh::GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2)
 {
-   GetSharedFaceTransformationsByLocalIndex(FaceNo, &FaceElemTr, &Transformation,
-                                            &Transformation2, fill2);
+   GetSharedFaceTransformationsByLocalIndex(FaceNo, FaceElemTr, Transformation,
+                                            Transformation2, fill2);
    return &FaceElemTr;
 }
 
 void ParMesh::GetSharedFaceTransformationsByLocalIndex(
-   int FaceNo, FaceElementTransformations *FElTr,
-   IsoparametricTransformation *ElTr1, IsoparametricTransformation *ElTr2,
+   int FaceNo, FaceElementTransformations &FElTr,
+   IsoparametricTransformation &ElTr1, IsoparametricTransformation &ElTr2,
    bool fill2) const
 {
    const FaceInfo &face_info = faces_info[FaceNo];
@@ -2955,9 +2955,9 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    bool is_ghost = Nonconforming() && FaceNo >= GetNumFaces();
 
    int mask = 0;
-   FElTr->SetConfigurationMask(0);
-   FElTr->Elem1 = NULL;
-   FElTr->Elem2 = NULL;
+   FElTr.SetConfigurationMask(0);
+   FElTr.Elem1 = NULL;
+   FElTr.Elem2 = NULL;
 
    int local_face =
       is_ghost ? nc_faces_info[face_info.NCFace].MasterFace : FaceNo;
@@ -2965,9 +2965,9 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    Geometry::Type face_geom = GetFaceGeometry(local_face);
 
    // setup the transformation for the first element
-   FElTr->Elem1No = face_info.Elem1No;
-   GetElementTransformation(FElTr->Elem1No, ElTr1);
-   FElTr->Elem1 = ElTr1;
+   FElTr.Elem1No = face_info.Elem1No;
+   GetElementTransformation(FElTr.Elem1No, &ElTr1);
+   FElTr.Elem1 = &ElTr1;
    mask |= FaceElementTransformations::HAVE_ELEM1;
 
    // setup the transformation for the second (neighbor) element
@@ -2975,42 +2975,42 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
    if (fill2)
    {
       Elem2NbrNo = -1 - face_info.Elem2No;
-      // Store the "shifted index" for element 2 in FElTr->Elem2No.
+      // Store the "shifted index" for element 2 in FElTr.Elem2No.
       // `Elem2NbrNo` is the index of the face neighbor (starting from 0),
-      // and `FElTr->Elem2No` will be offset by the number of (local)
+      // and `FElTr.Elem2No` will be offset by the number of (local)
       // elements in the mesh.
-      FElTr->Elem2No = NumOfElements + Elem2NbrNo;
+      FElTr.Elem2No = NumOfElements + Elem2NbrNo;
       GetFaceNbrElementTransformation(Elem2NbrNo, ElTr2);
-      FElTr->Elem2 = ElTr2;
+      FElTr.Elem2 = &ElTr2;
       mask |= FaceElementTransformations::HAVE_ELEM2;
    }
    else
    {
-      FElTr->Elem2No = -1;
+      FElTr.Elem2No = -1;
    }
 
    // setup the face transformation if the face is not a ghost
    if (!is_ghost)
    {
-      GetFaceTransformation(FaceNo, FElTr);
-      // NOTE: The above call overwrites FElTr->Loc1
+      GetFaceTransformation(FaceNo, &FElTr);
+      // NOTE: The above call overwrites FElTr.Loc1
       mask |= FaceElementTransformations::HAVE_FACE;
    }
    else
    {
-      FElTr->SetGeometryType(face_geom);
+      FElTr.SetGeometryType(face_geom);
    }
 
    // setup Loc1 & Loc2
    int elem_type = GetElementType(face_info.Elem1No);
-   GetLocalFaceTransformation(face_type, elem_type, FElTr->Loc1.Transf,
+   GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc1.Transf,
                               face_info.Elem1Inf);
    mask |= FaceElementTransformations::HAVE_LOC1;
 
    if (fill2)
    {
       elem_type = face_nbr_elements[Elem2NbrNo]->GetType();
-      GetLocalFaceTransformation(face_type, elem_type, FElTr->Loc2.Transf,
+      GetLocalFaceTransformation(face_type, elem_type, FElTr.Loc2.Transf,
                                  face_info.Elem2Inf);
       mask |= FaceElementTransformations::HAVE_LOC2;
    }
@@ -3021,7 +3021,7 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
       if (is_ghost || fill2)
       {
          // is_ghost -> modify side 1, otherwise -> modify side 2:
-         ApplyLocalSlaveTransformation(*FElTr, face_info, is_ghost);
+         ApplyLocalSlaveTransformation(FElTr, face_info, is_ghost);
       }
    }
 
@@ -3032,18 +3032,18 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
       mask |= FaceElementTransformations::HAVE_FACE;
    }
 
-   FElTr->SetConfigurationMask(mask);
+   FElTr.SetConfigurationMask(mask);
 
    // This check can be useful for internal debugging, however it will fail on
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FElTr->CheckConsistency();
+   double dist = FElTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
                 << ", dist = " << dist << ", rank = " << MyRank << '\n';
-      FElTr->CheckConsistency(1); // print coordinates
+      FElTr.CheckConsistency(1); // print coordinates
       MFEM_ABORT("internal error");
    }
 #endif
@@ -3051,54 +3051,54 @@ void ParMesh::GetSharedFaceTransformationsByLocalIndex(
 }
 
 void ParMesh::GetGhostFaceTransformation(
-   FaceElementTransformations *FElTr, Element::Type face_type,
+   FaceElementTransformations &FElTr, Element::Type face_type,
    Geometry::Type face_geom) const
 {
-   // calculate composition of FElTr->Loc1 and FElTr->Elem1
-   DenseMatrix &face_pm = FElTr->GetPointMat();
-   FElTr->Reset();
+   // calculate composition of FElTr.Loc1 and FElTr.Elem1
+   DenseMatrix &face_pm = FElTr.GetPointMat();
+   FElTr.Reset();
    if (Nodes == NULL)
    {
-      FElTr->Elem1->Transform(FElTr->Loc1.Transf.GetPointMat(), face_pm);
-      FElTr->SetFE(GetTransformationFEforElementType(face_type));
+      FElTr.Elem1->Transform(FElTr.Loc1.Transf.GetPointMat(), face_pm);
+      FElTr.SetFE(GetTransformationFEforElementType(face_type));
    }
    else
    {
       const FiniteElement* face_el =
-         Nodes->FESpace()->GetTraceElement(FElTr->Elem1No, face_geom);
+         Nodes->FESpace()->GetTraceElement(FElTr.Elem1No, face_geom);
       MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                   "Mesh requires nodal Finite Element.");
 
 #if 0 // TODO: handle the case of non-interpolatory Nodes
       DenseMatrix I;
-      face_el->Project(Transformation.GetFE(), FElTr->Loc1.Transf, I);
+      face_el->Project(Transformation.GetFE(), FElTr.Loc1.Transf, I);
       MultABt(Transformation.GetPointMat(), I, pm_face);
 #else
       IntegrationRule eir(face_el->GetDof());
-      FElTr->Loc1.Transform(face_el->GetNodes(), eir);
-      Nodes->GetVectorValues(*FElTr->Elem1, eir, face_pm);
+      FElTr.Loc1.Transform(face_el->GetNodes(), eir);
+      Nodes->GetVectorValues(*FElTr.Elem1, eir, face_pm);
 #endif
-      FElTr->SetFE(face_el);
+      FElTr.SetFE(face_el);
    }
 }
 
 ElementTransformation *ParMesh::GetFaceNbrElementTransformation(int FaceNo)
 {
-   GetFaceNbrElementTransformation(FaceNo, &Transformation);
+   GetFaceNbrElementTransformation(FaceNo, Transformation);
    return &Transformation;
 }
 
 void ParMesh::GetFaceNbrElementTransformation(
-   int FaceNo, IsoparametricTransformation *ElTr) const
+   int FaceNo, IsoparametricTransformation &ElTr) const
 {
-   DenseMatrix &pointmat = ElTr->GetPointMat();
+   DenseMatrix &pointmat = ElTr.GetPointMat();
    Element *elem = face_nbr_elements[FaceNo];
 
-   ElTr->Attribute = elem->GetAttribute();
-   ElTr->ElementNo = NumOfElements + FaceNo;
-   ElTr->ElementType = ElementTransformation::ELEMENT;
-   ElTr->mesh = this;
-   ElTr->Reset();
+   ElTr.Attribute = elem->GetAttribute();
+   ElTr.ElementNo = NumOfElements + FaceNo;
+   ElTr.ElementType = ElementTransformation::ELEMENT;
+   ElTr.mesh = this;
+   ElTr.Reset();
 
    if (Nodes == NULL)
    {
@@ -3114,7 +3114,7 @@ void ParMesh::GetFaceNbrElementTransformation(
          }
       }
 
-      ElTr->SetFE(GetTransformationFEforElementType(elem->GetType()));
+      ElTr.SetFE(GetTransformationFEforElementType(elem->GetType()));
    }
    else
    {
@@ -3133,7 +3133,7 @@ void ParMesh::GetFaceNbrElementTransformation(
             }
          }
 
-         ElTr->SetFE(pNodes->ParFESpace()->GetFaceNbrFE(FaceNo));
+         ElTr.SetFE(pNodes->ParFESpace()->GetFaceNbrFE(FaceNo));
       }
       else
       {

@@ -142,7 +142,7 @@ protected:
                     int elem, int start, int end, const int fverts[][N]);
 
    void GetGhostFaceTransformation(
-      FaceElementTransformations *FElTr, Element::Type face_type,
+      FaceElementTransformations &FElTr, Element::Type face_type,
       Geometry::Type face_geom) const;
 
    /// Update the groups after triangle refinement
@@ -536,9 +536,9 @@ public:
    /// @brief Variant of GetFaceElementTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetFaceElementTransformations(int FaceNo,
-                                      FaceElementTransformations *FElTr,
-                                      IsoparametricTransformation *ElTr1,
-                                      IsoparametricTransformation *ElTr2,
+                                      FaceElementTransformations &FElTr,
+                                      IsoparametricTransformation &ElTr1,
+                                      IsoparametricTransformation &ElTr2,
                                       int mask = 31) const override;
 
    /// @brief Get the FaceElementTransformations for the given shared face
@@ -556,9 +556,9 @@ public:
    /// @brief Variant of GetSharedFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetSharedFaceTransformations(int sf,
-                                     FaceElementTransformations *FElTr,
-                                     IsoparametricTransformation *ElTr1,
-                                     IsoparametricTransformation *ElTr2,
+                                     FaceElementTransformations &FElTr,
+                                     IsoparametricTransformation &ElTr1,
+                                     IsoparametricTransformation &ElTr2,
                                      bool fill2 = true) const;
 
    /// @brief Get the FaceElementTransformations for the given shared face
@@ -576,9 +576,9 @@ public:
    /// @brief Variant of GetSharedFaceTransformationsByLocalIndex using a user
    /// allocated FaceElementTransformations object.
    void GetSharedFaceTransformationsByLocalIndex(int FaceNo,
-                                                 FaceElementTransformations *FElTr,
-                                                 IsoparametricTransformation *ElTr1,
-                                                 IsoparametricTransformation *ElTr2,
+                                                 FaceElementTransformations &FElTr,
+                                                 IsoparametricTransformation &ElTr1,
+                                                 IsoparametricTransformation &ElTr2,
                                                  bool fill2 = true) const;
 
    /// @brief Returns a pointer to the transformation defining the i-th face
@@ -592,7 +592,7 @@ public:
    /// @brief Variant of GetFaceNbrElementTransformation using a user allocated
    /// IsoparametricTransformation object.
    void GetFaceNbrElementTransformation(int FaceNo,
-                                        IsoparametricTransformation *ElTr) const;
+                                        IsoparametricTransformation &ElTr) const;
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
