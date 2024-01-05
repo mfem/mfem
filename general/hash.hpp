@@ -335,6 +335,8 @@ public:
 
    iterator begin() { return iterator(Base::begin()); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return const_iterator(Base::cbegin()); }
+   const_iterator end() const { return const_iterator(); }
 
    const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
    const_iterator cend() const { return const_iterator(); }
