@@ -198,6 +198,9 @@
 // Enable functionality based on the Google Benchmark library.
 // #define MFEM_USE_BENCHMARK
 
+// Enable interface to Tribol
+// #define MFEM_USE_TRIBOL
+
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 

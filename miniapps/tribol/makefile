@@ -67,5 +67,7 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
+	rm -rf ContactPatchTestSurface_000000*
+	rm -rf ContactPatchTestVolume_000000*
 
 clean-exec:
