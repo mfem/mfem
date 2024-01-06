@@ -19,6 +19,7 @@
 #include "../general/device.hpp"
 #include "../general/tic_toc.hpp"
 #include "../general/gecko.hpp"
+#include "../general/kdtree.hpp"
 #include "../fem/quadinterpolator.hpp"
 
 #include <iostream>
@@ -29,9 +30,8 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
-#include <map>
-#include <set>
-#include <array>
+#include <unordered_map>
+#include <unordered_set>
 
 // Include the METIS header, if using version 5. If using METIS 4, the needed
 // declarations are inlined below, i.e. no header is needed.
@@ -1414,6 +1414,7 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
          }
          // ghost face
          const int nc_face_id = faces_info[Face].NCFace;
+
          MFEM_ASSERT(nc_face_id >= 0, "parent ghost faces are not supported");
          return faces[nc_faces_info[nc_face_id].MasterFace]->GetGeometryType();
    }
@@ -2048,9 +2049,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
-   for (int i = 0; i < boundary.Size(); i++)
+   for (auto &b : boundary)
    {
-      FreeElement(boundary[i]);
+      FreeElement(b);
    }
 
    if (Dim == 3)
@@ -2061,9 +2062,9 @@ void Mesh::GenerateBoundaryElements()
 
    // count the 'NumOfBdrElements'
    NumOfBdrElements = 0;
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (const auto &fi : faces_info)
    {
-      if (faces_info[i].Elem2No < 0) { NumOfBdrElements++; }
+      if (fi.Elem2No < 0) { ++NumOfBdrElements; }
    }
 
    // Add the boundary elements
@@ -4856,7 +4857,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MakeRefined_(*orig_mesh, ref_factors, ref_type);
 }
 
-void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
                         int ref_type)
 {
    SetEmpty();
@@ -5450,14 +5451,14 @@ Mesh Mesh::MakePeriodic(const Mesh &orig_mesh, const std::vector<int> &v2v)
 std::vector<int> Mesh::CreatePeriodicVertexMapping(
    const std::vector<Vector> &translations, double tol) const
 {
-   int sdim = SpaceDimension();
+   const int sdim = SpaceDimension();
 
    Vector coord(sdim), at(sdim), dx(sdim);
    Vector xMax(sdim), xMin(sdim), xDiff(sdim);
    xMax = xMin = xDiff = 0.0;
 
    // Get a list of all vertices on the boundary
-   set<int> bdr_v;
+   unordered_set<int> bdr_v;
    for (int be = 0; be < GetNBE(); be++)
    {
       Array<int> dofs;
@@ -5484,13 +5485,26 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    // vertices will be considered as "replicas".
 
    // replica2primary[v] is the index of the primary vertex of replica `v`
-   map<int, int> replica2primary;
+   unordered_map<int, int> replica2primary;
    // primary2replicas[v] is a set of indices of replicas of primary vertex `v`
-   map<int, set<int>> primary2replicas;
+   unordered_map<int, unordered_set<int>> primary2replicas;
+
+   // Create a KD-tree containing all the boundary vertices
+   std::unique_ptr<KDTreeBase<int,double>> kdtree;
+   if (sdim == 1) { kdtree.reset(new KDTree1D); }
+   else if (sdim == 2) { kdtree.reset(new KDTree2D); }
+   else if (sdim == 3) { kdtree.reset(new KDTree3D); }
+   else { MFEM_ABORT("Invalid space dimension."); }
 
    // We begin with the assumption that all vertices are primary, and that there
    // are no replicas.
-   for (int v : bdr_v) { primary2replicas[v]; }
+   for (const int v : bdr_v)
+   {
+      primary2replicas[v];
+      kdtree->AddPoint(GetVertex(v), v);
+   }
+
+   kdtree->Sort();
 
    // Make `r` and all of `r`'s replicas be replicas of `p`. Delete `r` from the
    // list of primary vertices.
@@ -5499,7 +5513,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
       if (r == p) { return; }
       primary2replicas[p].insert(r);
       replica2primary[r] = p;
-      for (int s : primary2replicas[r])
+      for (const int s : primary2replicas[r])
       {
          primary2replicas[p].insert(s);
          replica2primary[s] = p;
@@ -5514,48 +5528,46 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
          coord = GetVertex(vi);
          add(coord, translations[i], at);
 
-         for (int vj : bdr_v)
+         const int vj = kdtree->FindClosestPoint(at.GetData());
+         coord = GetVertex(vj);
+         add(at, -1.0, coord, dx);
+
+         if (dx.Norml2() > dia*tol) { continue; }
+
+         // The two vertices vi and vj are coincident.
+
+         // Are vertices `vi` and `vj` already primary?
+         const bool pi = primary2replicas.find(vi) != primary2replicas.end();
+         const bool pj = primary2replicas.find(vj) != primary2replicas.end();
+
+         if (pi && pj)
          {
-            coord = GetVertex(vj);
-            add(at, -1.0, coord, dx);
-            if (dx.Norml2() > dia*tol) { continue; }
-
-            // The two vertices vi and vj are coincident.
-
-            // Are vertices `vi` and `vj` already primary?
-            bool pi = primary2replicas.find(vi) != primary2replicas.end();
-            bool pj = primary2replicas.find(vj) != primary2replicas.end();
-
-            if (pi && pj)
-            {
-               // Both vertices are currently primary
-               // Demote `vj` to be a replica of `vi`
-               make_replica(vj, vi);
-            }
-            else if (pi && !pj)
-            {
-               // `vi` is primary and `vj` is a replica
-               int owner_of_vj = replica2primary[vj];
-               // Make `vi` and its replicas be replicas of `vj`'s owner
-               make_replica(vi, owner_of_vj);
-            }
-            else if (!pi && pj)
-            {
-               // `vi` is currently a replica and `vj` is currently primary
-               // Make `vj` and its replicas be replicas of `vi`'s owner
-               int owner_of_vi = replica2primary[vi];
-               make_replica(vj, owner_of_vi);
-            }
-            else
-            {
-               // Both vertices are currently replicas
-               // Make `vj`'s owner and all of its owner's replicas be replicas
-               // of `vi`'s owner
-               int owner_of_vi = replica2primary[vi];
-               int owner_of_vj = replica2primary[vj];
-               make_replica(owner_of_vj, owner_of_vi);
-            }
-            break;
+            // Both vertices are currently primary
+            // Demote `vj` to be a replica of `vi`
+            make_replica(vj, vi);
+         }
+         else if (pi && !pj)
+         {
+            // `vi` is primary and `vj` is a replica
+            const int owner_of_vj = replica2primary[vj];
+            // Make `vi` and its replicas be replicas of `vj`'s owner
+            make_replica(vi, owner_of_vj);
+         }
+         else if (!pi && pj)
+         {
+            // `vi` is currently a replica and `vj` is currently primary
+            // Make `vj` and its replicas be replicas of `vi`'s owner
+            const int owner_of_vi = replica2primary[vi];
+            make_replica(vj, owner_of_vi);
+         }
+         else
+         {
+            // Both vertices are currently replicas
+            // Make `vj`'s owner and all of its owner's replicas be replicas
+            // of `vi`'s owner
+            const int owner_of_vi = replica2primary[vi];
+            const int owner_of_vj = replica2primary[vj];
+            make_replica(owner_of_vj, owner_of_vi);
          }
       }
    }
@@ -5565,7 +5577,7 @@ std::vector<int> Mesh::CreatePeriodicVertexMapping(
    {
       v2v[i] = i;
    }
-   for (auto &&r2p : replica2primary)
+   for (const auto &r2p : replica2primary)
    {
       v2v[r2p.first] = r2p.second;
    }
@@ -6637,22 +6649,22 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
             {
                // swap vertices 0 and 1 so that we don't change the marked edge:
                // (0,1,2) -> (1,0,2)
-               mfem::Swap<int>(bv[0], bv[1]);
+               mfem::Swap(bv[0], bv[1]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[1], be[2]);
+                  mfem::Swap(be[1], be[2]);
                }
                break;
             }
             case Element::QUADRILATERAL:
             {
-               mfem::Swap<int>(bv[0], bv[2]);
+               mfem::Swap(bv[0], bv[2]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[0], be[1]);
-                  mfem::Swap<int>(be[2], be[3]);
+                  mfem::Swap(be[0], be[1]);
+                  mfem::Swap(be[2], be[3]);
                }
                break;
             }
@@ -7445,26 +7457,27 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 
 void Mesh::GenerateFaces()
 {
-   int i, nfaces = GetNumFaces();
+   int nfaces = GetNumFaces();
 
-   for (i = 0; i < faces.Size(); i++)
+   for (auto &f : faces)
    {
-      FreeElement(faces[i]);
+      FreeElement(f);
    }
 
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
    faces_info.SetSize(nfaces);
-   for (i = 0; i < nfaces; i++)
+   for (int i = 0; i < nfaces; ++i)
    {
       faces[i] = NULL;
       faces_info[i].Elem1No = -1;
       faces_info[i].NCFace = -1;
    }
-   for (i = 0; i < NumOfElements; i++)
+
+   Array<int> v;
+   for (int i = 0; i < NumOfElements; ++i)
    {
-      const int *v = elements[i]->GetVertices();
-      const int *ef;
+      elements[i]->GetVertices(v);
       if (Dim == 1)
       {
          AddPointFaceElement(0, v[0], i);
@@ -7472,7 +7485,7 @@ void Mesh::GenerateFaces()
       }
       else if (Dim == 2)
       {
-         ef = el_to_edge->GetRow(i);
+         const int * const ef = el_to_edge->GetRow(i);
          const int ne = elements[i]->GetNEdges();
          for (int j = 0; j < ne; j++)
          {
@@ -7482,7 +7495,7 @@ void Mesh::GenerateFaces()
       }
       else
       {
-         ef = el_to_face->GetRow(i);
+         const int * const ef = el_to_face->GetRow(i);
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
@@ -7548,9 +7561,9 @@ void Mesh::GenerateNCFaceInfo()
 {
    MFEM_VERIFY(ncmesh, "missing NCMesh.");
 
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (auto &x : faces_info)
    {
-      faces_info[i].NCFace = -1;
+      x.NCFace = -1;
    }
 
    const NCMesh::NCList &list =
@@ -7562,9 +7575,8 @@ void Mesh::GenerateNCFaceInfo()
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (int i = 0; i < list.masters.Size(); i++)
+   for (const NCMesh::Master &master : list.masters)
    {
-      const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
 
       FaceInfo &master_fi = faces_info[master.index];
@@ -7576,10 +7588,8 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (int i = 0; i < list.slaves.Size(); i++)
+   for (const NCMesh::Slave &slave : list.slaves)
    {
-      const NCMesh::Slave &slave = list.slaves[i];
-
       if (slave.index < 0 || // degenerate slave face
           slave.index >= nfaces || // ghost slave
           slave.master >= nfaces) // has ghost master
@@ -7670,7 +7680,7 @@ STable3D *Mesh::GetFacesTable()
 
 STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 {
-   int i, *v;
+   Array<int> v;
    STable3D *faces_tbl;
 
    if (el_to_face != NULL)
@@ -7679,9 +7689,9 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    }
    el_to_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
    faces_tbl = new STable3D(NumOfVertices);
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      v = elements[i]->GetVertices();
+      elements[i]->GetVertices(v);
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -7745,9 +7755,10 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    el_to_face->Finalize();
    NumOfFaces = faces_tbl->NumberOfElements();
    be_to_face.SetSize(NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
+
+   for (int i = 0; i < NumOfBdrElements; i++)
    {
-      v = boundary[i]->GetVertices();
+      boundary[i]->GetVertices(v);
       switch (GetBdrElementType(i))
       {
          case Element::TRIANGLE:

@@ -1077,7 +1077,8 @@ void BilinearForm::EliminateEssentialBCFromDofs(
 void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
                                                  DiagonalPolicy dpolicy)
 {
-   MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
+   MFEM_ASSERT(ess_dofs.Size() == height,
+               "incorrect dof Array size: " << ess_dofs.Size() << ' ' << height);
 
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)
@@ -1089,7 +1090,8 @@ void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
 void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
                                                      double value)
 {
-   MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
+   MFEM_ASSERT(ess_dofs.Size() == height,
+               "incorrect dof Array size: " << ess_dofs.Size() << ' ' << height);
 
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)

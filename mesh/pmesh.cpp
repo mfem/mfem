@@ -362,11 +362,8 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
 int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local)
 {
-   int nelems = 0;
-   for (int i = 0; i < mesh.GetNE(); i++)
-   {
-      if (partitioning[i] == MyRank) { nelems++; }
-   }
+   const int nelems = std::count_if(partitioning,
+   partitioning + mesh.GetNE(), [this](int i) { return i == MyRank;});
 
    elements.SetSize(nelems);
 
@@ -385,7 +382,7 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
          {
             v[j] = vert_global_local[v[j]];
          }
-         element_counter++;
+         ++element_counter;
       }
    }
 
@@ -398,7 +395,6 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 Table*& edge_element)
 {
    int nbdry = 0;
-
    if (mesh.NURBSext)
    {
       activeBdrElem.SetSize(mesh.GetNBE());
@@ -2103,7 +2099,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    if (Nonconforming())
    {
-      // with ParNCMesh we can set up face neighbors mostly without communication
+      // With ParNCMesh we can set up face neighbors mostly without communication.
       pncmesh->GetFaceNeighbors(*this);
       have_face_nbr_data = true;
 
