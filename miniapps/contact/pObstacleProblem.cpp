@@ -12,7 +12,6 @@
 //                      minimize (||∇u||² + ||u||²) subject to u ≥ ϕ in H¹.
 
 #include "mfem.hpp"
-#include "problems/problems.hpp"
 #include "ipsolver/IPsolver.hpp"
 #include <fstream>
 #include <iostream>

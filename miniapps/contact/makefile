@@ -12,6 +12,8 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+SRC = ./
+
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/contact/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
@@ -22,19 +24,31 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SEQ_SRC = problems/problems.cpp ipsolver/IPsolver.cpp
-CONTACT_SEC_OBJ = $(CONTACT_PAR_SRC:.cpp=.o)
-CONTACT_PAR_SRC = $(CONTACT_SEQ_SRC)  
+CONTACT_SEQ_SRC = problems/problems.cpp problems/problems_util.cpp util/util.cpp ipsolver/IPsolver.cpp
+CONTACT_SEQ_OBJ = $(CONTACT_PAR_SRC:.cpp=.o)
+CONTACT_PAR_SRC = $(CONTACT_SEQ_SRC) problems/parproblems_util.cpp util/mpicomm.cpp
 CONTACT_PAR_OBJ = $(CONTACT_PAR_SRC:.cpp=.o)
 
-CONTACT_SRC = ObstacleProblem.cpp $(CONTACT_SEQ_SRC)
+OBSTACLE_SEQ_SRC = problems/problems.cpp problems/problems_util.cpp util/util.cpp ipsolver/IPsolver.cpp
+OBSTACLE_SEQ_OBJ = $(OBSTACLE_SEQ_SRC:.cpp=.o)
+
+OBSTACLE_PAR_SRC = $(OBSTACLE_SEQ_SRC) problems/parproblems_util.cpp util/mpicomm.cpp
+OBSTACLE_PAR_OBJ = $(OBSTACLE_PAR_SRC:.cpp=.o)
+
+OBSTACLE_SRC = ObstacleProblem.cpp $(OBSTACLE_SEQ_SRC)
+OBSTACLE_OBJ = $(OBSTACLE_SRC:.cpp=.o)
+
+POBSTACLE_SRC = pObstacleProblem.cpp $(OBSTACLE_PAR_SRC)
+POBSTACLE_OBJ = $(POBSTACLE_SRC:.cpp=.o)
+
+CONTACT_SRC = contact_driver.cpp $(CONTACT_SEQ_SRC)
 CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 
-PCONTACT_SRC = pObstacleProblem.cpp $(CONTACT_PAR_SRC)
+PCONTACT_SRC = pcontact_driver.cpp $(CONTACT_PAR_SRC)
 PCONTACT_OBJ = $(PCONTACT_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = obstacle_problem
-PAR_MINIAPPS = p_obstacle_problem
+SEQ_MINIAPPS = contact_driver obstacle_problem
+PAR_MINIAPPS = pcontact_driver pobstacle_problem
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -69,11 +83,18 @@ problems/%.o: $(SRC)problems/%.cpp $(wildcard $(SRC)problems/%.hpp) $(MFEM_LIB_F
 
 all: $(MINIAPPS)
 
-obstacle_problem: $(CONTACT_OBJ)
+obstacle_problem: $(OBSTACLE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(OBSTACLE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+pobstacle_problem: $(POBSTACLE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(POBSTACLE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+contact_driver: $(CONTACT_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(CONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
-p_obstacle_problem: $(PCONTACT_OBJ)
+pcontact_driver: $(PCONTACT_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PCONTACT_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
 
 
 # Rule for building lib-common
