@@ -331,16 +331,30 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Ginkgo library configuration (currently not needed)
+# Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
 ifeq ($(MFEM_USE_GINKGO),YES)
    BASE_FLAGS = -std=c++14
 endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
-ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
-ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LINK_LIB_DIR = $(GINKGO_DIR)$(subst $(GINKGO_SEARCH_DIR),,$(GINKGO_LIB_DIR))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
 ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
 GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
 ifeq ($(GINKGO_BUILD_TYPE),Debug)
@@ -349,7 +363,8 @@ ifeq ($(GINKGO_BUILD_TYPE),Debug)
   endif
 else
 endif
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
+ $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
