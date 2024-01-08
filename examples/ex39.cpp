@@ -200,13 +200,13 @@ int main(int argc, char *argv[])
       mesh.AddToBdrAttributeSet("Western Boundary", WSW);
 
       mesh.SetBdrAttributeSet("Boundary",
-                               mesh.GetBdrAttributeSet("Northern Boundary"));
+                              mesh.GetBdrAttributeSet("Northern Boundary"));
       mesh.AddToBdrAttributeSet("Boundary",
-				mesh.GetBdrAttributeSet("Southern Boundary"));
+                                mesh.GetBdrAttributeSet("Southern Boundary"));
       mesh.AddToBdrAttributeSet("Boundary",
-				mesh.GetBdrAttributeSet("Eastern Boundary"));
+                                mesh.GetBdrAttributeSet("Eastern Boundary"));
       mesh.AddToBdrAttributeSet("Boundary",
-				mesh.GetBdrAttributeSet("Western Boundary"));
+                                mesh.GetBdrAttributeSet("Western Boundary"));
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr_marker;
       mesh.BdrAttrToMarker(mesh.GetBdrAttributeSet(ess_name),
-			   ess_bdr_marker);
+                           ess_bdr_marker);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
 
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
    //    zero elsewhere.
    Array<int> source_marker;
    mesh.AttrToMarker(mesh.GetAttributeSet(source_name), source_marker);
-   
+
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one), source_marker);
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
-   
+
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
