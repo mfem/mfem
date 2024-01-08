@@ -164,7 +164,8 @@ double checkNormalConeL2(GridFunction &psi, GridFunction &grad,
    GridFunction zero_gf(psi);
    zero_gf = 0.0;
    double volume = 0;
-   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(mu_r - mu_l) > 1e-10)
+   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(
+             mu_r - mu_l) > 1e-10)
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);
@@ -244,6 +245,7 @@ int main(int argc, char *argv[])
    double c1 = 1e-04;
    bool glvis_visualization = true;
    bool save = true;
+   bool paraview = true;
 
    ostringstream solfile, solfile2, meshfile;
 
@@ -499,6 +501,21 @@ int main(int argc, char *argv[])
              << "keys Rjl***************\n"
              << flush;
    }
+   ParaViewDataCollection *pd = NULL;
+   if (paraview)
+   {
+      pd = new ParaViewDataCollection("TopPMD", &mesh);
+      pd->SetPrefixPath("ParaView");
+      pd->RegisterField("state", &u);
+      pd->RegisterField("psi", &psi);
+      pd->RegisterField("frho", &rho_filter);
+      pd->SetLevelsOfDetail(order);
+      pd->SetDataFormat(VTKFormat::BINARY);
+      pd->SetHighOrderOutput(true);
+      pd->SetCycle(0);
+      pd->SetTime(0);
+      pd->Save();
+   }
 
    mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);
    ofstream mesh_ofs(meshfile.str().c_str());
@@ -533,6 +550,12 @@ int main(int argc, char *argv[])
          sout_r << "solution\n" << mesh << rho_gf
                 << flush;
       }
+      if (paraview)
+      {
+         pd->SetCycle(k);
+         pd->SetTime(k);
+         pd->Save();
+      }
       if (normal_cone_L2 < 5e-05)
       {
          break;
@@ -550,6 +573,7 @@ int main(int argc, char *argv[])
    }
    out << "Total number of iteration = " << k << std::endl;
    delete lineSearch;
+   delete pd;
 
    return 0;
 }
