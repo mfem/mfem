@@ -199,6 +199,10 @@ public:
    /// Return the integral of the quadrature function (vdim = 1 only).
    double Integrate() const;
 
+   /// @brief Integrate the (potentially vector-valued) quadrature function,
+   /// storing the results in @a integrals (length @a vdim).
+   void Integrate(Vector &integrals) const;
+
    virtual ~QuadratureFunction()
    {
       if (own_qspace) { delete qspace; }
