@@ -12,6 +12,7 @@
 #include "qfunction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "../mesh/pmesh.hpp"
 
 namespace mfem
 {
@@ -240,12 +241,23 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
    SaveVTU(f, format, compression_level, field_name);
 }
 
+static double ReduceDouble(const Mesh *mesh, double value)
+{
+#ifdef MFEM_USE_MPI
+   if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh))
+   {
+      MPI_Comm comm = pmesh->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
+#endif
+   return value;
+}
+
 double QuadratureFunction::Integrate() const
 {
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
    const double local_integral = (*this)*qspace->GetWeights();
-   // return qspace->GetMesh()->ReduceInt(local_integral);
-   return local_integral;
+   return ReduceDouble(qspace->GetMesh(), local_integral);
 }
 
 }
