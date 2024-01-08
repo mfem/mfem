@@ -13,18 +13,18 @@ public:
    MeshLaplacian(FiniteElementSpace &fes, Array<int> &ess_bdr) :
       laplacian_form(&fes),
       b(fes.GetVSize()),
-      ess_bdr(ess_bdr)
+      ess_bdr(ess_bdr),
+      cg(MPI_COMM_WORLD)
    {
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       laplacian_form.AddDomainIntegrator(new VectorDiffusionIntegrator);
       laplacian_form.Assemble();
 
-      cg = new CGSolver(MPI_COMM_WORLD);
-      cg->SetRelTol(1e-8);
-      cg->SetMaxIter(2000);
-      cg->SetPrintLevel(2);
-      cg->SetPreconditioner(pc);
+      cg.SetRelTol(1e-8);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(2);
+      cg.SetPreconditioner(pc);
    }
 
    void Solve(GridFunction &x)
@@ -33,20 +33,20 @@ public:
 
       laplacian_form.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cg->SetOperator(A);
-      cg->Mult(B, X);
+      cg.SetOperator(A);
+      cg.Mult(B, X);
 
       laplacian_form.RecoverFEMSolution(X, b, x);
    }
 
    BilinearForm laplacian_form;
-   Array<int> &ess_bdr;
-   Array<int> ess_tdof_list;
    Vector b;
+   Array<int> &ess_bdr;
+   CGSolver cg;
+   Array<int> ess_tdof_list;
    Vector X, B;
    SparseMatrix A;
    GSSmoother pc;
-   CGSolver *cg = nullptr;
 };
 
 // Assuming mesh with polynomial order equal to destination space in H1 and
@@ -104,6 +104,11 @@ public:
       }
    }
 
+   ~BoundaryFieldTransfer()
+   {
+      finder.FreeData();
+   }
+
    void Interpolate(GridFunction &src_gf, GridFunction &dst_gf)
    {
       finder.Interpolate(src_gf, interp_vals);
@@ -159,10 +164,14 @@ public:
               Array<int> &ess_bdr) :
       mesh(mesh),
       dim(mesh.Dimension()),
-      density(density),
       ess_bdr(ess_bdr),
       fec(polynomial_order),
-      fes(&mesh, &fec, dim, Ordering::byVDIM)
+      fes(&mesh, &fec, dim, Ordering::byVDIM),
+      Mform(&fes),
+      Kform(&fes),
+      Minv(MPI_COMM_WORLD),
+      Ainv(MPI_COMM_WORLD),
+      density(density)
    {
       this->height = fes.GetTrueVSize();
       this->width = this->height;
@@ -182,21 +191,20 @@ public:
 
       density_coef.constant = density;
 
-      fcoeff = new VectorFunctionCoefficient(dim, [density](const Vector &, Vector &u)
-      {
-         u(0) = 0.0;
-         u(1) = -2.0*density;
-      });
+      // fcoeff = new VectorFunctionCoefficient(dim, [density](const Vector &, Vector &u)
+      // {
+      //    u(0) = 0.0;
+      //    u(1) = -2.0*density;
+      // });
 
       // Fform = new ParLinearForm(&fes);
       // Fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*fcoeff));
       // Fform->Assemble();
       // Fform->ParallelAssemble(F);
 
-      Mform = new ParBilinearForm(&fes);
-      Mform->AddDomainIntegrator(new VectorMassIntegrator(density_coef));
-      Mform->Assemble(0);
-      Mform->FormSystemMatrix(ess_tdof_list, M);
+      Mform.AddDomainIntegrator(new VectorMassIntegrator(density_coef));
+      Mform.Assemble(0);
+      Mform.FormSystemMatrix(ess_tdof_list, M);
 
       {
          const double E = 5.6 * 1e6; // CSM2
@@ -210,29 +218,25 @@ public:
                 mu_coef.constant);
       }
 
-      Kform = new ParBilinearForm(&fes);
-      Kform->AddDomainIntegrator(new ElasticityIntegrator(lambda_coef, mu_coef));
-      Kform->Assemble(0);
-      Kform->FormSystemMatrix(empty, K);
-      Kform->FormSystemMatrix(ess_tdof_list, K0);
+      Kform.AddDomainIntegrator(new ElasticityIntegrator(lambda_coef, mu_coef));
+      Kform.Assemble(0);
+      Kform.FormSystemMatrix(empty, K);
+      Kform.FormSystemMatrix(ess_tdof_list, K0);
 
-      MinvPC = new HypreSmoother;
-      Minv = new CGSolver(MPI_COMM_WORLD);
-      Minv->iterative_mode = false;
-      Minv->SetRelTol(1e-12);
-      Minv->SetMaxIter(500);
-      Minv->SetPreconditioner(*MinvPC);
-      Minv->SetOperator(M);
+      MinvPC.reset(new HypreSmoother);
+      Minv.iterative_mode = false;
+      Minv.SetRelTol(1e-12);
+      Minv.SetMaxIter(500);
+      Minv.SetPreconditioner(*MinvPC);
+      Minv.SetOperator(M);
 
-      AinvPC = new HypreBoomerAMG;
-      static_cast<HypreBoomerAMG *>(AinvPC)->SetPrintLevel(0);
-      static_cast<HypreBoomerAMG *>(AinvPC)->SetElasticityOptions(&fes);
+      AinvPC.SetPrintLevel(0);
+      AinvPC.SetElasticityOptions(&fes);
 
-      Ainv = new GMRESSolver(MPI_COMM_WORLD);
-      Ainv->SetRelTol(1e-12);
-      Ainv->SetPrintLevel(0);
-      Ainv->SetMaxIter(500);
-      Ainv->SetPreconditioner(*AinvPC);
+      Ainv.SetRelTol(1e-12);
+      Ainv.SetPrintLevel(0);
+      Ainv.SetMaxIter(500);
+      Ainv.SetPreconditioner(AinvPC);
    }
 
    void Mult(const Vector &u, const Vector &du_dt,
@@ -241,7 +245,7 @@ public:
       K.Mult(u, z);
       z.Neg();
       z.Add(1.0, F);
-      Minv->Mult(z, d2udt2);
+      Minv.Mult(z, d2udt2);
    }
 
    void ImplicitSolve(const double fac0, const double fac1,
@@ -250,7 +254,7 @@ public:
       if (A == nullptr)
       {
          A = Add(1.0, M, fac0, K);
-         Ainv->SetOperator(*A);
+         Ainv.SetOperator(*A);
          A->EliminateBC(ess_tdof_list, DiagonalPolicy::DIAG_ONE);
       }
       K0.Mult(u, z);
@@ -261,14 +265,14 @@ public:
       {
          z[ess_tdof_list[i]] = 0.0;
       }
-      Ainv->Mult(z, d2udt2);
+      Ainv.Mult(z, d2udt2);
    }
 
    void SetBoundaryTraction(const ParGridFunction &traction_gf)
    {
-      fcoeff = new VectorGridFunctionCoefficient(&traction_gf);
-      scaled_fcoeff = new ScalarVectorProductCoefficient(density, *fcoeff);
-      Fform = new ParLinearForm(&fes);
+      fcoeff.reset(new VectorGridFunctionCoefficient(&traction_gf));
+      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(density, *fcoeff));
+      Fform.reset(new ParLinearForm(&fes));
       Fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*scaled_fcoeff));
       Fform->Assemble();
       Fform->ParallelAssemble(F);
@@ -291,20 +295,20 @@ public:
    H1_FECollection fec;
    ParFiniteElementSpace fes;
 
-   ParBilinearForm *Mform = nullptr;
-   ParBilinearForm *Kform = nullptr;
-   ParLinearForm *Fform = nullptr;
+   ParBilinearForm Mform;
+   ParBilinearForm Kform;
+   std::unique_ptr<ParLinearForm> Fform;
 
    ConstantCoefficient lambda_coef, mu_coef, density_coef;
-   VectorCoefficient *fcoeff = nullptr;
-   VectorCoefficient *scaled_fcoeff = nullptr;
+   std::unique_ptr<VectorCoefficient> fcoeff;
+   std::unique_ptr<VectorCoefficient> scaled_fcoeff;
 
    HypreParMatrix M, K, K0, *A = nullptr;
 
-   CGSolver *Minv = nullptr;
-   Solver *MinvPC = nullptr;
-   GMRESSolver *Ainv = nullptr;
-   Solver *AinvPC = nullptr;
+   CGSolver Minv;
+   std::unique_ptr<Solver> MinvPC;
+   GMRESSolver Ainv;
+   HypreBoomerAMG AinvPC;
 
    mutable Vector acc, disp_pred, vel_pred, z, F;
 
@@ -358,11 +362,11 @@ int main(int argc, char *argv[])
 
    mesh.SetCurvature(polynomial_order, false, dim, Ordering::byNODES);
 
-   auto *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    Array<int> fluid_domain_attributes(1);
    fluid_domain_attributes[0] = 1;
-   auto fluid_mesh = ParSubMesh::CreateFromDomain(*pmesh, fluid_domain_attributes);
+   auto fluid_mesh = ParSubMesh::CreateFromDomain(pmesh, fluid_domain_attributes);
 
    // Create the flow solver.
    NavierSolver navier(&fluid_mesh, polynomial_order, kinematic_viscosity);
@@ -391,7 +395,8 @@ int main(int argc, char *argv[])
       u(1) = 0.0;
    }, no_slip);
 
-   VectorFunctionCoefficient inlet_coeff(dim, [&U](const Vector &coords,
+   // Becomes owned by navier
+   auto *inlet_coeff = new VectorFunctionCoefficient(dim, [&U](const Vector &coords,
                                                    const double time,
                                                    Vector &u)
    {
@@ -414,8 +419,8 @@ int main(int argc, char *argv[])
    Array<int> inlet(fluid_mesh.bdr_attributes.Max());
    inlet = 0;
    inlet[0] = 1;
-   u_gf->ProjectBdrCoefficient(inlet_coeff, inlet);
-   navier.AddVelDirichletBC(&inlet_coeff, inlet);
+   u_gf->ProjectBdrCoefficient(*inlet_coeff, inlet);
+   navier.AddVelDirichletBC(inlet_coeff, inlet);
 
    Array<int> outlet_attr(fluid_mesh.bdr_attributes.Max());
    outlet_attr = 0;
@@ -459,7 +464,7 @@ int main(int argc, char *argv[])
 
    Array<int> solid_domain_attributes(1);
    solid_domain_attributes[0] = 2;
-   auto solid_mesh = ParSubMesh::CreateFromDomain(*pmesh, solid_domain_attributes);
+   auto solid_mesh = ParSubMesh::CreateFromDomain(pmesh, solid_domain_attributes);
 
    Array<int> solid_fluid_interface_attr(solid_mesh.bdr_attributes.Max());
    solid_fluid_interface_attr = 0;

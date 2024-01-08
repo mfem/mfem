@@ -3,7 +3,7 @@
 #include <navierstokes_operator.hpp>
 #include <navierstokes_dae_integrator.hpp>
 #include <boundary_normal_stress_integrator.hpp>
-#include <caliper/cali.h>
+#include <navier_annotation.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -338,13 +338,13 @@ int main(int argc, char *argv[])
       }
    }
 
-   CALI_MARK_FUNCTION_BEGIN;
-   CALI_CXX_MARK_LOOP_BEGIN(odesolve_loop_ann, "ODE Solve");
+   NAVIER_PERF_FUNCTION_BEGIN;
+   NAVIER_PERF_LOOP_BEGIN(odesolve_loop_ann, "ODE Solve");
    while (t < tf)
    {
       // if (t + dt > tf) { dt = tf - t; }
       num_steps++;
-      CALI_CXX_MARK_LOOP_ITERATION(odesolve_loop_ann, num_steps);
+      NAVIER_PERF_LOOP_ITERATION(odesolve_loop_ann, num_steps);
       if (Mpi::Root())
       {
          std::cout << "Step " << std::left << std::setw(5) << num_steps
@@ -450,8 +450,8 @@ int main(int argc, char *argv[])
          std::cout << std::endl;
       }
    }
-   CALI_CXX_MARK_LOOP_END(odesolve_loop_ann);
-   CALI_MARK_FUNCTION_END;
+   NAVIER_PERF_LOOP_END(odesolve_loop_ann);
+   NAVIER_PERF_FUNCTION_END;
 
    if (Mpi::Root())
    {

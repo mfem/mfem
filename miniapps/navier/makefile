@@ -38,10 +38,10 @@ TEST_SRCS := $(shell find ./tests -name '*.cpp')
 TEST_OBJS := $(TEST_SRCS:%=%.o)
 TEST_DEPS := $(TEST_OBJS:.o=.d)
 
-PAR_MINIAPPS = navier_mms navier_kovasznay navier_kovasznay_vs navier_tgv\
+PAR_MINIAPPS = navier_mms navier_mms2 navier_kovasznay navier_kovasznay_vs navier_tgv\
  navier_shear navier_3dfoc navier_turbchan navier_tgv2d
 ifeq ($(MFEM_USE_GSLIB),YES)
-   PAR_MINIAPPS += navier_cht
+   PAR_MINIAPPS += navier_cht navier_fsi
 endif
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -76,7 +76,7 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 
 navier_mms-test-par: navier_mms
-	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
+	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr -rs 1)
 
 navier_kovasznay-test-par: navier_kovasznay
 	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)

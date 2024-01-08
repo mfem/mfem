@@ -419,21 +419,9 @@ public:
     where T is the transformation rule, and Q1/Q2 are the parent coefficients.*/
 class TransformedCoefficient : public Coefficient
 {
-   using t1_f = std::function<double(const double)>;
-   using t2_f = std::function<double(const double, const double)>;
-
 private:
    Coefficient * Q1;
    Coefficient * Q2;
-<<<<<<< HEAD
-   t1_f Transform1;
-   t2_f Transform2;
-
-public:
-   TransformedCoefficient (Coefficient * q, t1_f F)
-      : Q1(q), Transform1(std::move(F)) { Q2 = 0; Transform2 = 0; }
-   TransformedCoefficient (Coefficient * q1,Coefficient * q2, t2_f F)
-=======
    std::function<double(double)> Transform1;
    std::function<double(double, double)> Transform2;
 
@@ -442,7 +430,6 @@ public:
       : Q1(q), Transform1(std::move(F)) { Q2 = 0; Transform2 = 0; }
    TransformedCoefficient (Coefficient * q1,Coefficient * q2,
                            std::function<double(double, double)> F)
->>>>>>> d5aa18f7625032d35e105381f2d34b4a2ffb2db1
       : Q1(q1), Q2(q2), Transform2(std::move(F)) { Transform1 = 0; }
 
    /// Set the time for internally stored coefficients

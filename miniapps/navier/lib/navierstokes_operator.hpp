@@ -77,6 +77,7 @@ public:
 
    void ProjectPressureDirichletBC(Vector &p);
 
+#ifdef MFEM_USE_SUNDIALS
    static int ARKStagePredictPostProcess(double t,
                                          N_Vector zpred_nv,
                                          void *user_data)
@@ -94,6 +95,7 @@ public:
 
       return 0;
    }
+#endif // MFEM_USE_SUNDIALS
 
    /// @brief Set the parameters and prepare forms
    /// @param am_coeff Coefficient that scales mass matrix

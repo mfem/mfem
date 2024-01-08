@@ -260,7 +260,9 @@ miniapps/autodiff/seq_example
 miniapps/autodiff/seq_test
 miniapps/autodiff/Exampl*
 
+miniapps/navier/libnavier.a
 miniapps/navier/navier_mms
+miniapps/navier/navier_mms2
 miniapps/navier/navier_kovasznay
 miniapps/navier/navier_kovasznay_vs
 miniapps/navier/navier_tgv
@@ -268,9 +270,11 @@ miniapps/navier/navier_shear
 miniapps/navier/navier_3dfoc
 miniapps/navier/navier_turbchan
 miniapps/navier/navier_periodic_hill
+miniapps/navier/navier_fsi
 miniapps/navier/test_filter
+miniapps/navier/navier_tgv2d
 miniapps/navier/navier_cht
-miniapps/navier/tgv_out*.txt
+miniapps/navier/tgv_out*
 miniapps/navier/output/*
 
 
