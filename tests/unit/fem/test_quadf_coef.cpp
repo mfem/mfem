@@ -14,10 +14,9 @@
 
 using namespace mfem;
 
-namespace qf_coeff
-{
 
-TEST_CASE("Quadrature Function Coefficients", "[QuadratureFunctionCoefficient]")
+TEST_CASE("Quadrature Function Coefficients",
+          "[Coefficient][QuadratureFunction][QuadratureFunctionCoefficient]")
 {
    int order_h1 = 2, n = 4, dim = 3;
    double tol = 1e-14;
@@ -155,7 +154,7 @@ TEST_CASE("Quadrature Function Coefficients", "[QuadratureFunctionCoefficient]")
    }
 }
 
-TEST_CASE("Quadrature Function Integration", "[QuadratureFunctionCoefficient]")
+TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
 {
    auto fname = GENERATE(
                    "../../data/star.mesh",
@@ -166,7 +165,7 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunctionCoefficient]")
    const int order = GENERATE(1, 2, 3);
 
    Mesh mesh = Mesh::LoadFromFile(fname);
-   L2_FECollection fec(0, mesh.Dimension());
+   H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
 
    int int_order = 2*order + 1;
@@ -200,7 +199,7 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunctionCoefficient]")
       LinearForm lf(&fes);
       auto *integ = new BoundaryLFIntegrator(qf_coeff);
       integ->SetIntRule(&ir);
-      lf.AddDomainIntegrator(integ);
+      lf.AddBoundaryIntegrator(integ);
       lf.Assemble();
       const double integ_1 = lf.Sum();
       const double integ_2 = qf.Integrate();
@@ -208,4 +207,43 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunctionCoefficient]")
    }
 }
 
-} // namespace qf_coeff
+namespace lin_interp
+{
+double f3(const Vector &x);
+void F3(const Vector &x, Vector &v);
+}
+
+TEST_CASE("Face Quadrature Function Coefficients", "[Coefficient]")
+{
+   auto ftype = GENERATE(FaceType::Interior, FaceType::Boundary);
+   auto int_order = GENERATE(3, 5);
+   int n = 4, dim = 3;
+
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+
+   FunctionCoefficient f_coeff(lin_interp::f3);
+   VectorFunctionCoefficient vf_coeff(dim, lin_interp::F3);
+
+   FaceQuadratureSpace qspace(mesh, int_order, ftype);
+
+   QuadratureFunction qf(qspace);
+   QuadratureFunction vqf(&qspace, dim);
+
+   f_coeff.Project(qf);
+   vf_coeff.Project(vqf);
+
+   QuadratureFunctionCoefficient qf_coeff(qf);
+   VectorQuadratureFunctionCoefficient vqf_coeff(vqf);
+
+   for (int i = 0; i < qspace.GetNE(); ++i)
+   {
+      const IntegrationRule &ir = qspace.GetIntRule(i);
+      ElementTransformation &T = *qspace.GetTransformation(i);
+      for (int iq = 0; iq < ir.Size(); ++iq)
+      {
+         const IntegrationPoint &ip = ir[iq];
+         REQUIRE(f_coeff.Eval(T, ip) == qf_coeff.Eval(T, ip));
+      }
+   }
+}

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "qspace.hpp"
+#include "qfunction.hpp"
 #include "../general/forall.hpp"
 
 namespace mfem
@@ -59,6 +60,13 @@ const Vector &QuadratureSpaceBase::GetWeights() const
 {
    if (weights.Size() == 0) { ConstructWeights(); }
    return weights;
+}
+
+double QuadratureSpaceBase::Integrate(Coefficient &coeff) const
+{
+   QuadratureFunction qf(const_cast<QuadratureSpaceBase*>(this));
+   coeff.Project(qf);
+   return qf.Integrate();
 }
 
 void QuadratureSpace::ConstructOffsets()
@@ -165,6 +173,7 @@ void FaceQuadratureSpace::ConstructOffsets()
          continue;
       }
       face_indices[f_idx] = i;
+      face_indices_inv[i] = f_idx;
       offsets[f_idx] = offset;
       Geometry::Type geom = mesh.GetFaceGeometry(i);
       MFEM_ASSERT(int_rule[geom] != NULL, "Missing integration rule");
@@ -195,6 +204,21 @@ int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
    else
    {
       return iq;
+   }
+}
+
+int FaceQuadratureSpace::GetEntityIndex(const ElementTransformation &T) const
+{
+   switch (T.ElementType)
+   {
+      case ElementTransformation::FACE:
+         return face_indices_inv.at(T.ElementNo);
+      case ElementTransformation::BDR_ELEMENT:
+      case ElementTransformation::BDR_FACE:
+         return face_indices_inv.at(mesh.GetBdrElementEdgeIndex(T.ElementNo));
+      default:
+         MFEM_ABORT("Invalid element type.");
+         return -1;
    }
 }
 
