@@ -51,7 +51,7 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
 
    HYPRE_BigInt global_size = fes.GlobalTrueVSize();
    HYPRE_BigInt *row_starts = fes.GetTrueDofOffsets();
-   HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_spmat);
+   HypreParMatrix D(fes.GetComm(), global_size, row_starts, &diag_spmat);
    return new HypreParMatrix(D); // make a deep copy
 }
 
@@ -223,7 +223,7 @@ void HdivSaddlePointSolver::Setup()
       });
    }
 
-   // Reassmble the RT mass operator with the new coefficient
+   // Reassemble the RT mass operator with the new coefficient
    mass_rt.Update();
    mass_rt.Assemble();
    mass_rt.FormSystemMatrix(ess_rt_dofs, R);

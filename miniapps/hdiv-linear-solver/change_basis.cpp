@@ -127,7 +127,7 @@ ChangeOfBasis_RT::ChangeOfBasis_RT(FiniteElementSpace &fes)
 {
    auto op = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
    elem_restr = dynamic_cast<const ElementRestriction*>(op);
-   MFEM_VERIFY(elem_restr != NULL, "Missing element restriciton.");
+   MFEM_VERIFY(elem_restr != NULL, "Missing element restriction.");
 
    const auto *rt_fec = dynamic_cast<const RT_FECollection*>(fes.FEColl());
    MFEM_VERIFY(rt_fec, "Must be RT finite element space.");
@@ -212,7 +212,7 @@ void ChangeOfBasis_RT::MultRT_2D(const Vector &x, Vector &y, Mode mode) const
          }
          for (int iy = 0; iy < ny; ++ iy)
          {
-            double xx[MAX_D1D];
+            double xx[DofQuadLimits::MAX_D1D];
             for (int ix = 0; ix < nx; ++ix) { xx[ix] = 0.0; }
             for (int jx = 0; jx < nx; ++jx)
             {
@@ -263,7 +263,7 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
          }
          for (int iz = 0; iz < nz; ++ iz)
          {
-            double xy[MAX_D1D][MAX_D1D];
+            double xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];
             for (int iy = 0; iy < ny; ++iy)
             {
                for (int ix = 0; ix < nx; ++ix)
@@ -273,7 +273,7 @@ void ChangeOfBasis_RT::MultRT_3D(const Vector &x, Vector &y, Mode mode) const
             }
             for (int iy = 0; iy < ny; ++iy)
             {
-               double xx[MAX_D1D];
+               double xx[DofQuadLimits::MAX_D1D];
                for (int ix = 0; ix < nx; ++ix) { xx[ix] = 0.0; }
                for (int ix = 0; ix < nx; ++ix)
                {

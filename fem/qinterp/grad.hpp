@@ -95,7 +95,7 @@ static void Derivatives1D(const int NE,
 // Template compute kernel for derivatives in 2D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
          int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
-         int T_NBZ = 1, int MAX_D1D = 0, int MAX_Q1D = 0>
+         int T_NBZ = 1>
 static void Derivatives2D(const int NE,
                           const double *b_,
                           const double *g_,
@@ -126,8 +126,8 @@ static void Derivatives2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       const int tidz = MFEM_THREAD_ID(z);
       MFEM_SHARED double BG[2][MQ1*MD1];
@@ -225,8 +225,7 @@ static void Derivatives2D(const int NE,
 
 // Template compute kernel for derivatives in 3D: tensor product version.
 template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
-         int MAX_D1D = 0, int MAX_Q1D = 0>
+         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
 static void Derivatives3D(const int NE,
                           const double *b_,
                           const double *g_,
@@ -254,8 +253,8 @@ static void Derivatives3D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
-      constexpr int MQ1 = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_INTERP_1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
 
       MFEM_SHARED double BG[2][MQ1*MD1];
       kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,b,g,BG);
