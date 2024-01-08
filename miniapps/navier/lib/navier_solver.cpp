@@ -245,6 +245,79 @@ void NavierSolver::Setup(double dt)
    sw_setup.Stop();
 }
 
+void NavierSolver::UpdateSpaces()
+{
+   constexpr int num_vfes_tvecs = 16;
+   // ARRRRGGGHHHH
+   std::array<Vector *, num_vfes_tvecs> vfes_tvecs;
+   vfes_tvecs[0] = &un;
+   vfes_tvecs[1] = &un_next;
+   vfes_tvecs[2] = &unm1;
+   vfes_tvecs[3] = &unm2;
+   vfes_tvecs[4] = &fn;
+   vfes_tvecs[5] = &Nun;
+   vfes_tvecs[6] = &Nunm1;
+   vfes_tvecs[7] = &Nunm2;
+   vfes_tvecs[8] = &u_ext;
+   vfes_tvecs[9] = &Fext;
+   vfes_tvecs[10] = &FText;
+   vfes_tvecs[11] = &Lext;
+   vfes_tvecs[12] = &resu;
+   vfes_tvecs[13] = &tmp1;
+   vfes_tvecs[14] = &grad_nu_sym_grad_uext;
+   vfes_tvecs[15] = &hpfrt_tdofs;
+
+   std::array<ParGridFunction, num_vfes_tvecs> vfes_gfs;
+   for (int i = 0; i < vfes_gfs.size(); i++)
+   {
+      vfes_gfs[i].SetSpace(vfes);
+      vfes_gfs[i].SetFromTrueDofs(*vfes_tvecs[i]);
+   }
+
+   vfes->Update();
+
+   for (int i = 0; i < vfes_gfs.size(); i++)
+   {
+      vfes_gfs[i].Update();
+      vfes_gfs[i].GetTrueDofs(*vfes_tvecs[i]);
+   }
+
+   constexpr int num_pfes_tvecs = 5;
+   std::array<Vector *, num_pfes_tvecs> pfes_tvecs;
+   pfes_tvecs[0] = &pn;
+   pfes_tvecs[1] = &resp;
+   pfes_tvecs[2] = &FText_bdr;
+   pfes_tvecs[3] = &g_bdr;
+   pfes_tvecs[4] = &kv;
+
+   std::array<ParGridFunction, num_pfes_tvecs> pfes_gfs;
+   for (int i = 0; i < pfes_gfs.size(); i++)
+   {
+      pfes_gfs[i].SetSpace(pfes);
+      pfes_gfs[i].SetFromTrueDofs(*pfes_tvecs[i]);
+   }
+
+   pfes->Update();
+
+   for (int i = 0; i < pfes_gfs.size(); i++)
+   {
+      pfes_gfs[i].Update();
+      pfes_gfs[i].GetTrueDofs(*pfes_tvecs[i]);
+   }
+
+   un_gf.Update();
+   un_next_gf.Update();
+   Lext_gf.Update();
+   curlu_gf.Update();
+   curlcurlu_gf.Update();
+   FText_gf.Update();
+   resu_gf.Update();
+   pn_gf.Update();
+   resp_gf.Update();
+   kin_vis_gf.Update();
+   wgn_gf.Update();
+}
+
 void NavierSolver::UpdateForms()
 {
    Array<int> empty;

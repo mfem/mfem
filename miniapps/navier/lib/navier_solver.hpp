@@ -173,6 +173,8 @@ public:
    /// Initialize forms, solvers and preconditioners.
    void Setup(double dt);
 
+   void UpdateSpaces();
+
    void UpdateForms();
 
    void UpdateSolvers();
@@ -209,6 +211,8 @@ public:
 
    /// Return a pointer to the current pressure ParGridFunction.
    ParGridFunction *GetCurrentPressure() { return &pn_gf; }
+
+   BilinearFormIntegrator *GetPressureEquationBLFI() { return *(Sp_form->GetDBFI()[0]); }
 
    /// Add a Dirichlet boundary condition to the velocity field.
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
