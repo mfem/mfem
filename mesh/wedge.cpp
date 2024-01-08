@@ -50,10 +50,13 @@ void Wedge::SetVertices(const int *ind)
 void Wedge::GetVertices(Array<int> &v) const
 {
    v.SetSize(6);
-   for (int i = 0; i < 6; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 6, v.begin());
+}
+
+void Wedge::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 6, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 int Wedge::GetNFaces(int &nFaceVertices) const

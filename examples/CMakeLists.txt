@@ -42,7 +42,14 @@ list(APPEND ALL_EXE_SRCS
   ex33.cpp
   ex34.cpp
   ex36.cpp
+  ex37.cpp
   )
+
+if(MFEM_USE_LAPACK)
+list(APPEND ALL_EXE_SRCS
+  ex38.cpp
+  )
+endif()
 
 if (MFEM_USE_MPI)
   list(APPEND ALL_EXE_SRCS
@@ -82,6 +89,7 @@ if (MFEM_USE_MPI)
     ex34p.cpp
     ex35p.cpp
     ex36p.cpp
+    ex37p.cpp
     )
 endif()
 
@@ -107,6 +115,8 @@ if (MFEM_ENABLE_TESTING)
       list(APPEND THIS_TEST_OPTIONS "-e" "1")
     elseif(${TEST_NAME} MATCHES "ex27p*")
       list(APPEND THIS_TEST_OPTIONS "-dg")
+    elseif(${TEST_NAME} MATCHES "ex37p*")
+      list(APPEND THIS_TEST_OPTIONS "-mi" "3")
     endif()
 
     if (NOT (${TEST_NAME} MATCHES ".*p$"))

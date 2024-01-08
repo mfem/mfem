@@ -250,7 +250,7 @@ protected:
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
-   mutable Array<DofToQuad*> dof2quad_array;
+   mutable Array<DofToQuad *> dof2quad_array;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -307,19 +307,20 @@ public:
    FiniteElement(int D, Geometry::Type G, int Do, int O,
                  int F = FunctionSpace::Pk);
 
-   /// Returns the reference space dimension for the finite element
+   /// Returns the reference space dimension for the finite element.
    int GetDim() const { return dim; }
 
-   /// Returns the vector dimension for vector-valued finite elements
-   int GetVDim() const { return vdim; }
+   /** @brief Returns the vector dimension for vector-valued finite elements,
+       which is also the dimension of the interpolation operatrion. */
+   int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements
+   /// Returns the dimension of the curl for vector-valued finite elements.
    int GetCurlDim() const { return cdim; }
 
-   /// Returns the Geometry::Type of the reference element
+   /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
 
-   /// Returns the number of degrees of freedom in the finite element
+   /// Returns the number of degrees of freedom in the finite element.
    int GetDof() const { return dof; }
 
    /** @brief Returns the order of the finite element. In the case of
@@ -595,7 +596,7 @@ public:
    /** @brief Return a DoF transformation object for this particular type of
        basis.
    */
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return NULL; }
 
    /// Deconstruct the FiniteElement
@@ -1025,8 +1026,8 @@ public:
    };
 
 private:
-   typedef std::map< int, Array<double*>* > PointsMap;
-   typedef std::map< int, Array<Basis*>* > BasisMap;
+   typedef std::map<int, Array<double*>*> PointsMap;
+   typedef std::map<int, Array<Basis*>*> BasisMap;
 
    MemoryType h_mt;
    PointsMap points_container;

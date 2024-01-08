@@ -23,14 +23,12 @@ BlockOperator::BlockOperator(const Array<int> & offsets)
      owns_blocks(0),
      nRowBlocks(offsets.Size() - 1),
      nColBlocks(offsets.Size() - 1),
-     row_offsets(0),
-     col_offsets(0),
+     row_offsets(offsets),
+     col_offsets(offsets),
      op(nRowBlocks, nRowBlocks),
      coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
-   row_offsets.MakeRef(offsets);
-   col_offsets.MakeRef(offsets);
 }
 
 BlockOperator::BlockOperator(const Array<int> & row_offsets_,
@@ -39,14 +37,12 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
      owns_blocks(0),
      nRowBlocks(row_offsets_.Size()-1),
      nColBlocks(col_offsets_.Size()-1),
-     row_offsets(0),
-     col_offsets(0),
+     row_offsets(row_offsets_),
+     col_offsets(col_offsets_),
      op(nRowBlocks, nColBlocks),
      coef(nRowBlocks, nColBlocks)
 {
    op = static_cast<Operator *>(NULL);
-   row_offsets.MakeRef(row_offsets_);
-   col_offsets.MakeRef(col_offsets_);
 }
 
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, double c)

@@ -56,7 +56,7 @@ void mfem_backtrace(int mode = 0, int depth = -1);
 
 /** @brief Function called when an error is encountered. Used by the macros
     MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
-void mfem_error(const char *msg = NULL);
+[[noreturn]] void mfem_error(const char *msg = NULL);
 
 /// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
@@ -154,17 +154,19 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 
 // Additional abort functions for HIP
 #if defined(MFEM_USE_HIP)
+#ifndef __HIP_DEVICE_COMPILE__
 template<typename T>
 __host__ void abort_msg(T & msg)
 {
    MFEM_ABORT(msg);
 }
-
+#else
 template<typename T>
 __device__ void abort_msg(T & msg)
 {
    abort();
 }
+#endif
 #endif
 
 // Abort inside a device kernel
