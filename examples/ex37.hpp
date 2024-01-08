@@ -1075,7 +1075,7 @@ public:
       load = new LinearForm(fes);
 #endif
       // Step 1. Projection
-      proj(1e-12, 500);
+      double volume = proj(1e-12, 500);
 
       // Step 2. Filter equation
       filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
@@ -1102,6 +1102,10 @@ public:
       delete filter;
       delete filterRHS;
 
+      if (volume == infinity())
+      {
+         return -infinity();
+      }
       return current_val;
    }
 
@@ -1419,7 +1423,12 @@ protected:
       current_volume = zero_gf->ComputeL1Error(rho);
       x_gf->ProjectCoefficient(rho);
 
+
       delete zero_gf;
+      if (fabs(current_volume - target_volume) > 1e-05)
+      {
+         return infinity();
+      }
       return current_volume;
    }
    double current_volume;
@@ -1514,19 +1523,10 @@ public:
       double new_val;
       new_val = val + c1*d2 + 1;
       step_size *= 2;
-      int i=-1;
-      while (new_val > val + c1*d2 | d2 > 0)
+      int i;
+      for (i=0; i<maxit; i++)
       {
-         i++;
          step_size *= 0.5;
-         if (new_val > val)
-         {
-            out << "+" << std::flush;
-         }
-         else
-         {
-            out << "-" << std::flush;
-         }
          out << step_size << "," << std::flush;
 
          x = *x0;
@@ -1534,7 +1534,11 @@ public:
          new_val = F.Eval();
          distanceForm.Assemble();
          d2 = distanceForm(*grad);
-         if (d2 > 0) { out << "," << std::flush; }
+         if (new_val < val + c1*d2 & d2 < 0)
+         {
+            break;
+         }
+
       }
       out << std::endl;
       out << i << ", " << step_size;
@@ -1609,7 +1613,7 @@ public:
                                       LinearForm &diff_primal,
                                       GridFunction &grad, GridFunction &latent, GridFunction &latent_old, double c1,
                                       double weight=1.0,
-                                      double eps=1e-10, double max_step_size=1e06):
+                                      double eps=1e-10, double max_step_size=1e06, int max_its=30):
       LipschitzBregmanMirror(F, diff_primal, grad, latent, weight, eps,
                              max_step_size), backTrackingLineSearch(F, diff_primal, latent_old, 1.0, 1.0, c1)
    {

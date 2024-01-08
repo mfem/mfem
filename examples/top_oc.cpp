@@ -147,7 +147,7 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_vo
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
    double volume = 0;
-   while (fabs(volume - target_volume) > 1e-09 / target_volume)
+   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(mu_r - mu_l) > 1e-10)
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 5e-2;
+   double epsilon = 2e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
    double itol = 1e-3;
@@ -350,6 +350,9 @@ int main(int argc, char *argv[])
          }
       }
    }
+   meshfile << "-" << ref_levels;
+   solfile << ref_levels << "-";
+   solfile2 << ref_levels << "-";
    meshfile << ".mesh";
    solfile << "OC-0.gf";
    solfile2 << "OC-f.gf";

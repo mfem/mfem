@@ -164,7 +164,7 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
    double volume = 0;
-   while (fabs(volume - target_volume) > 1e-09 / target_volume)
+   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(mu_r - mu_l) > 1e-10)
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
    int ref_levels = 7;
    int order = 1;
    double alpha = 1.0;
-   double epsilon = 5e-2;
+   double epsilon = 2e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
    double itol = 1e-3;
@@ -415,21 +415,20 @@ int main(int argc, char *argv[])
       case LineSearchMethod::ArmijoBackTracking:
          lineSearch = new BackTracking(obj, succ_diff_rho_form, rho_old,
                                        alpha, 2.0, c1, 10, infinity());
-         solfile << "EXP-";
-         solfile2 << "EXP-";
          break;
       case LineSearchMethod::BregmanBBBackTracking:
          lineSearch = new BackTrackingLipschitzBregmanMirror(
             obj, succ_diff_rho_form, *(obj.Gradient()), rho, rho_old, c1, 1.0, 1e-10,
             infinity());
-         solfile << "BB-";
-         solfile2 << "BB-";
          break;
       default:
          mfem_error("Undefined linesearch method.");
    }
-   solfile << "0.gf";
-   solfile2 << "f.gf";
+   meshfile << "-" << ref_levels;
+   solfile << ref_levels << "-";
+   solfile2 << ref_levels << "-";
+   solfile << "PGD-0.gf";
+   solfile2 << "PGD-f.gf";
    meshfile << ".mesh";
 
    MappedGridFunctionCoefficient &designDensity = obj.GetDesignDensity();
@@ -449,14 +448,14 @@ int main(int argc, char *argv[])
       sout_SIMP.open(vishost, visport);
       sout_SIMP.precision(8);
       sout_SIMP << "solution\n" << mesh << designDensity_gf
-                << "window_title 'Design density r(ρ̃) - MD "
+                << "window_title 'Design density r(ρ̃) - PGD "
                 << problem << " " << lineSearchMethod << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << rho
-             << "window_title 'Raw density ρ - MD "
+             << "window_title 'Raw density ρ - PGD "
              << problem << " " << lineSearchMethod << "'\n"
              << "keys Rjl***************\n"
              << flush;
@@ -492,7 +491,7 @@ int main(int argc, char *argv[])
          sout_r << "solution\n" << mesh << rho
                 << flush;
       }
-      if (normal_cone_L2 < 5e-05)
+      if (normal_cone_L2 < 5e-05 | compliance == -infinity())
       {
          break;
       }
