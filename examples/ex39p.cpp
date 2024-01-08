@@ -1,63 +1,34 @@
-//                       MFEM Example 1 - Parallel Version
+//                       MFEM Example 39 - Parallel Version
 //
-// Compile with: make ex1p
+// Compile with: make ex39p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../data/star.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
-//               mpirun -np 4 ex1p -m ../data/octahedron.mesh -o 1
-//               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/star-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  mpirun -np 4 ex39p
+//               mpirun -np 4 ex39p -ess "Southern Boundary"
+//               mpirun -np 4 ex39p -src Base
 //
 // Device sample runs:
-//               mpirun -np 4 ex1p -pa -d cuda
-//               mpirun -np 4 ex1p -fa -d cuda
-//               mpirun -np 4 ex1p -pa -d occa-cuda
-//               mpirun -np 4 ex1p -pa -d raja-omp
-//               mpirun -np 4 ex1p -pa -d ceed-cpu
-//               mpirun -np 4 ex1p -pa -d ceed-cpu -o 4 -a
-//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/square-mixed.mesh
-//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/fichera-mixed.mesh
-//             * mpirun -np 4 ex1p -pa -d ceed-cuda
-//             * mpirun -np 4 ex1p -pa -d ceed-hip
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
-//               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               mpirun -np 4 ex39p -fa -d cuda
 //
-// Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+// Description:  This example code demonstrates the use of named attribute
+//               sets in MFEM to specify material regions, boundary regions,
+//               or source regions by name rather than attribute numbers. It
+//               also demonstrates how new named attribute sets may be created
+//               from arbitrary groupings of attribute number and used as a
+//               convenient shorthand to refer to those groupings in other
+//               portions of the application or through the command line.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions, static condensation, and the
-//               optional connection to the GLVis tool for visualization.
+//               The particular problem being solved here is nearly the same
+//               as that in example 1 i.e. a simple finite element
+//               discretization of the Laplace problem -Delta u = 1 with
+//               homogeneous Dirichlet boundary conditions and, in this case,
+//               an inhomogeneous diffusion coefficient. The diffusion
+//               coefficient is given a small default value throughout the
+//               domain which is increased by two separate amounts in two named
+//               regions.
+//
+//               The example highlights the use of named attribute sets for
+//               both subdomains and boundaries in different contexts as well
+//               as basic methods to create named sets from existing attributes.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -65,16 +36,6 @@
 
 using namespace std;
 using namespace mfem;
-
-/// Convert a set of attribute numbers to a marker array
-/** The marker array will be of size max_attr and it will contain only zeroes
-    and ones. Ones indicate which attribute numbers are present in the attrs
-    array. In the special case when attrs has a single entry equal to -1 the
-    marker array will contain all ones.
-
-    Note: from miniapps/common/mesh_extras.hpp
- */
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
 
 int main(int argc, char *argv[])
 {
@@ -152,8 +113,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = 0;
-      //        (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+      int ref_levels =
+	(int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -166,13 +127,14 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh.UniformRefinement();
       }
    }
 
+   // Display attribute set names contained in the initial mesh
    if (myid == 0)
    {
       std::set<string> names;
@@ -194,6 +156,7 @@ int main(int argc, char *argv[])
       cout << endl;
    }
 
+   // Define new regions based on existing attribute sets
    {
       Array<int> & Na = pmesh.GetAttributeSet("N Even");
       Array<int> & Nb = pmesh.GetAttributeSet("N Odd");
@@ -239,6 +202,7 @@ int main(int argc, char *argv[])
       pmesh.SetAttributeSet("Rose", Ra);
       pmesh.AddToAttributeSet("Rose", Rb);
    }
+   // Define new boundary regions based on existing boundary attribute sets
    {
       Array<int> & NNE = pmesh.GetBdrAttributeSet("NNE");
       Array<int> & NNW = pmesh.GetBdrAttributeSet("NNW");
@@ -304,26 +268,27 @@ int main(int argc, char *argv[])
 
    // 8. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
+   //    by marking all the boundary regions corresponding to the boundary
+   //    attributes contained in the set named "ess_name" as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr_marker;
-      AttrToMarker(pmesh.bdr_attributes.Max(),
-                   pmesh.GetBdrAttributeSet(ess_name),
-                   ess_bdr_marker);
+      pmesh.BdrAttrToMarker(pmesh.GetBdrAttributeSet(ess_name),
+			    ess_bdr_marker);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
-   //    (1,phi_i) where phi_i are the basis functions in fespace.
+   //    (1_s,phi_i) where phi_i are the basis functions in fespace and 1_s
+   //    is an indicator function equal to 1 on the region defined by the
+   //    named set "source_name" and zero elsewhere.
 
    Array<int> source_marker;
-   AttrToMarker(pmesh.attributes.Max(), pmesh.GetAttributeSet(source_name),
-                source_marker);
-
+   pmesh.AttrToMarker(pmesh.GetAttributeSet(source_name), source_marker);
+   
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one), source_marker);
@@ -349,17 +314,16 @@ int main(int argc, char *argv[])
       a.EnableSparseMatrixSorting(Device::IsEnabled());
    }
 
+   ConstantCoefficient defaultCoef(1.0e-6);
    ConstantCoefficient baseCoef(1.0);
-   ConstantCoefficient roseCoef(0.5);
+   ConstantCoefficient roseCoef(2.0);
 
    Array<int> base_marker;
    Array<int> rose_marker;
-   AttrToMarker(pmesh.attributes.Max(), pmesh.GetAttributeSet("Base"),
-                base_marker);
-   AttrToMarker(pmesh.attributes.Max(), pmesh.GetAttributeSet("Rose"),
-                rose_marker);
+   pmesh.AttrToMarker(pmesh.GetAttributeSet("Base"), base_marker);
+   pmesh.AttrToMarker(pmesh.GetAttributeSet("Rose Even"), rose_marker);
 
-
+   a.AddDomainIntegrator(new DiffusionIntegrator(defaultCoef));
    a.AddDomainIntegrator(new DiffusionIntegrator(baseCoef), base_marker);
    a.AddDomainIntegrator(new DiffusionIntegrator(roseCoef), rose_marker);
 
@@ -433,7 +397,7 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
-      sol_sock << "solution\n" << pmesh << x << flush;
+      sol_sock << "solution\n" << pmesh << x << "keys Rjmm" << flush;
    }
 
    // 17. Free the used memory.
@@ -443,24 +407,4 @@ int main(int argc, char *argv[])
    }
 
    return 0;
-}
-
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
-{
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
-
-   marker.SetSize(max_attr);
-   if (attrs.Size() == 1 && attrs[0] == -1)
-   {
-      marker = 1;
-   }
-   else
-   {
-      marker = 0;
-      for (auto const &attr : attrs)
-      {
-         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-         marker[attr-1] = 1;
-      }
-   }
 }
