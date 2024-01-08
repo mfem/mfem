@@ -107,6 +107,9 @@ public:
    /// Return the integral of the scalar Coefficient @a coeff.
    double Integrate(Coefficient &coeff) const;
 
+   /// Return the integral of the VectorCoefficient @a coeff in @a integrals.
+   void Integrate(VectorCoefficient &coeff, Vector &integrals) const;
+
    virtual ~QuadratureSpaceBase() { }
 };
 
