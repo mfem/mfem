@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-	(int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh.UniformRefinement();
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr_marker;
       pmesh.BdrAttrToMarker(pmesh.GetBdrAttributeSet(ess_name),
-			    ess_bdr_marker);
+                            ess_bdr_marker);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
 
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 
    Array<int> source_marker;
    pmesh.AttrToMarker(pmesh.GetAttributeSet(source_name), source_marker);
-   
+
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
    b.AddDomainIntegrator(new DomainLFIntegrator(one), source_marker);
