@@ -69,6 +69,15 @@ double QuadratureSpaceBase::Integrate(Coefficient &coeff) const
    return qf.Integrate();
 }
 
+void QuadratureSpaceBase::Integrate(VectorCoefficient &coeff,
+                                    Vector &integrals) const
+{
+   const int vdim = coeff.GetVDim();
+   QuadratureFunction qf(const_cast<QuadratureSpaceBase*>(this), vdim);
+   coeff.Project(qf);
+   qf.Integrate(integrals);
+}
+
 void QuadratureSpace::ConstructOffsets()
 {
    const int num_elem = mesh.GetNE();

@@ -184,7 +184,10 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
       lf.Assemble();
       const double integ_1 = lf.Sum();
       const double integ_2 = qf.Integrate();
+      const double integ_3 = qs.Integrate(qf_coeff);
+
       REQUIRE(integ_1 == MFEM_Approx(integ_2));
+      REQUIRE(integ_1 == MFEM_Approx(integ_3));
    }
 
    SECTION("Vector-valued")
@@ -206,8 +209,12 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
       lf.AddDomainIntegrator(integrator);
       lf.Assemble();
 
-      Vector integrals(vdim);
-      qf.Integrate(integrals);
+      Vector integrals_1(vdim);
+      Vector integrals_2(vdim);
+
+      qf.Integrate(integrals_1);
+      qs.Integrate(qf_coeff, integrals_2);
+
       const int ndof = fes.GetNDofs();
       for (int vd = 0; vd < vdim; ++vd)
       {
@@ -216,7 +223,8 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
          {
             integ += lf[i + vd*ndof];
          }
-         REQUIRE(integ == MFEM_Approx(integrals[vd]));
+         REQUIRE(integ == MFEM_Approx(integrals_1[vd]));
+         REQUIRE(integ == MFEM_Approx(integrals_2[vd]));
       }
    }
 
