@@ -12,6 +12,7 @@
 #include "qfunction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "../general/forall.hpp"
 #include "../mesh/pmesh.hpp"
 
 namespace mfem
@@ -258,6 +259,28 @@ double QuadratureFunction::Integrate() const
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
    const double local_integral = (*this)*qspace->GetWeights();
    return ReduceDouble(qspace->GetMesh(), local_integral);
+}
+
+void QuadratureFunction::Integrate(Vector &integrals) const
+{
+   integrals.SetSize(vdim);
+
+   const Vector &weights = qspace->GetWeights();
+   QuadratureFunction component(qspace);
+   const int N = component.Size();
+   const int VDIM = vdim; // avoid capturing 'this' in lambda body
+   const double *d_v = Read();
+
+   for (int vd = 0; vd < vdim; ++vd)
+   {
+      // Extract the component 'vd' into component.
+      double *d_c = component.Write();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_c[i] = d_v[vd + i*VDIM];
+      });
+      integrals[vd] = ReduceDouble(qspace->GetMesh(), component*weights);
+   }
 }
 
 }

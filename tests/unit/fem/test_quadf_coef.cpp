@@ -187,6 +187,39 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
       REQUIRE(integ_1 == MFEM_Approx(integ_2));
    }
 
+   SECTION("Vector-valued")
+   {
+      const int vdim = 3;
+      const int ordering = Ordering::byNODES;
+      FiniteElementSpace fes_vec(&mesh, &fec, vdim, ordering);
+
+      QuadratureSpace qs(&mesh, int_order);
+      const IntegrationRule &ir = qs.GetIntRule(0);
+
+      QuadratureFunction qf(qs, vdim);
+      qf.Randomize(1);
+      VectorQuadratureFunctionCoefficient qf_coeff(qf);
+
+      LinearForm lf(&fes_vec);
+      auto *integrator = new VectorDomainLFIntegrator(qf_coeff);
+      integrator->SetIntRule(&ir);
+      lf.AddDomainIntegrator(integrator);
+      lf.Assemble();
+
+      Vector integrals(vdim);
+      qf.Integrate(integrals);
+      const int ndof = fes.GetNDofs();
+      for (int vd = 0; vd < vdim; ++vd)
+      {
+         double integ = 0.0;
+         for (int i = 0; i < ndof; ++i)
+         {
+            integ += lf[i + vd*ndof];
+         }
+         REQUIRE(integ == MFEM_Approx(integrals[vd]));
+      }
+   }
+
    SECTION("FaceQuadratureSpace")
    {
       FaceQuadratureSpace qs(mesh, int_order, FaceType::Boundary);
