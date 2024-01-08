@@ -243,7 +243,9 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
 double QuadratureFunction::Integrate() const
 {
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
-   return (*this)*qspace->GetWeights();
+   const double local_integral = (*this)*qspace->GetWeights();
+   // return qspace->GetMesh()->ReduceInt(local_integral);
+   return local_integral;
 }
 
 }
