@@ -71,7 +71,7 @@ public:
    /** Gives the locations of the maxima of the knotvector in reference space. The
       function gives the knotspan @a ks, the coordinate in the knotspan @a xi
       and the coordinate of the maximum in parameter space @a u */
-   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u);
+   void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
    /** Global curve interpolation through the points @a x. @a x is an array with the
       length of the spatial dimension containing vectors with spatial coordinates. The
       controlpoints of the interpolated curve are given in @a x in the same form.*/
@@ -86,13 +86,13 @@ public:
 
    void Flip();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    /** Prints the non-zero shape functions and their first and second
        derivatives associated with the KnotVector per element. Use GetElements()
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/
-   void PrintFunctions(std::ostream &out, int samples=11) const;
+   void PrintFunctions(std::ostream &os, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -140,7 +140,7 @@ public:
 
    ~NURBSPatch();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    void DegreeElevate(int dir, int t);
    void KnotInsert   (int dir, const KnotVector &knot);
@@ -401,8 +401,8 @@ public:
    virtual ~NURBSExtension();
 
    // Print functions
-   void Print(std::ostream &out) const;
-   void PrintCharacteristics(std::ostream &out) const;
+   void Print(std::ostream &os, const std::string &comments = "") const;
+   void PrintCharacteristics(std::ostream &os) const;
    void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
@@ -483,7 +483,7 @@ public:
    // Read a GridFunction written patch-by-patch, e.g. with PrintSolution().
    void LoadSolution(std::istream &input, GridFunction &sol) const;
    // Write a GridFunction patch-by-patch.
-   void PrintSolution(const GridFunction &sol, std::ostream &out) const;
+   void PrintSolution(const GridFunction &sol, std::ostream &os) const;
 
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))

@@ -3,28 +3,28 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex1 -m ../../data/square-disc.mesh
+//               ex1 -m ../../data/star.mesh
+//               ex1 -m ../../data/star-mixed.mesh
+//               ex1 -m ../../data/escher.mesh
+//               ex1 -m ../../data/fichera.mesh
+//               ex1 -m ../../data/fichera-mixed.mesh
+//               ex1 -m ../../data/toroid-wedge.mesh
+//               ex1 -m ../../data/square-disc-p2.vtk -o 2
+//               ex1 -m ../../data/square-disc-p3.mesh -o 3
+//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/star-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../../data/fichera-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/star-surf.mesh
+//               ex1 -m ../../data/square-disc-surf.mesh
+//               ex1 -m ../../data/inline-segment.mesh
+//               ex1 -m ../../data/amr-quad.mesh
+//               ex1 -m ../../data/amr-hex.mesh
+//               ex1 -m ../../data/fichera-amr.mesh
+//               ex1 -m ../../data/mobius-strip.mesh
+//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -32,7 +32,7 @@
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem

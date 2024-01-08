@@ -124,8 +124,8 @@ private:
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
-
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
@@ -248,7 +248,11 @@ public:
        If the FiniteElementCollection, @a f, is NULL (default), the FE
        collection used by @a global_fes will be reused. If @a f is not NULL, it
        must be the same as, or a copy of, the FE collection used by
-       @a global_fes. */
+       @a global_fes.
+
+       @note Currently the @a partitioning array is not used by this
+       constructor, it is required for general parallel variable-order support.
+   */
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
                          const int *partitioning,
                          const FiniteElementCollection *f = NULL);
