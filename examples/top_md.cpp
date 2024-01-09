@@ -149,17 +149,18 @@ enum Problem
 double checkNormalConeL2(GridFunction &psi, GridFunction &grad,
                          double target_volume)
 {
+   const double c = 1;
    MappedGridFunctionCoefficient rho_cf(&psi, sigmoid);
    GridFunctionCoefficient grad_cf(&grad);
+   SumCoefficient rho_minus_grad(rho_cf, grad_cf, 1.0, -c);
    ConstantCoefficient mu(0.0);
-   const double c = 1;
-   SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
-   double mu_l = -1.0 - c*grad.Normlinf();
-   double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p,
-                                                                          double g)
+   SumCoefficient shifted_rho(rho_minus_grad, mu);
+
+   double mu_l =  -1.0 - c*grad.Normlinf();
+   double mu_r =   1.0 + c*grad.Normlinf();
+   TransformedCoefficient projectedDensity(&shifted_rho, [](double p)
    {
-      return max(0.0, min(1.0, p - g));
+      return max(0.0, min(1.0, p));
    });
    GridFunction zero_gf(psi);
    zero_gf = 0.0;
@@ -169,7 +170,7 @@ double checkNormalConeL2(GridFunction &psi, GridFunction &grad,
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);
-      if (volume < target_volume)
+      if (volume > target_volume)
       {
          mu_r = mu.constant;
       }
@@ -223,6 +224,7 @@ double checkNormalConeBregman(GridFunction &psi, GridFunction &grad,
    {
       return sigmoid(x) - y;
    });
+   
    return zero_gf.ComputeL2Error(rho_diff);
 }
 
