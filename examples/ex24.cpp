@@ -1,4 +1,4 @@
-//                               MFEM Example 24
+//                                MFEM Example 24
 //
 // Compile with: make ex24
 //

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,11 +17,9 @@ using namespace mfem;
 namespace assemblediagonalpa
 {
 
-int dimension;
-
 double coeffFunction(const Vector& x)
 {
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       return sin(8.0 * M_PI * x[0]) * cos(6.0 * M_PI * x[1]) + 2.0;
    }
@@ -36,12 +34,12 @@ double coeffFunction(const Vector& x)
 void vectorCoeffFunction(const Vector & x, Vector & f)
 {
    f = 0.0;
-   if (dimension > 1)
+   if (x.Size() > 1)
    {
       f[0] = sin(M_PI * x[1]);
       f[1] = sin(2.5 * M_PI * x[0]);
    }
-   if (dimension == 3)
+   if (x.Size() == 3)
    {
       f[2] = sin(6.1 * M_PI * x[2]);
    }
@@ -50,14 +48,14 @@ void vectorCoeffFunction(const Vector & x, Vector & f)
 void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -74,13 +72,13 @@ void asymmetricMatrixCoeffFunction(const Vector & x, DenseMatrix & f)
 void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 {
    f = 0.0;
-   if (dimension == 2)
+   if (x.Size() == 2)
    {
       f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
       f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
    }
-   else if (dimension == 3)
+   else if (x.Size() == 3)
    {
       f(0,0) = sin(M_PI * x[1]);  // 1,1
       f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
@@ -93,12 +91,12 @@ void symmetricMatrixCoeffFunction(const Vector & x, DenseSymmetricMatrix & f)
 
 TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension << "D partial assembly mass diagonal: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
+         const int n_elements = pow(ne, dimension);
+         CAPTURE(dimension, n_elements);
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -131,7 +129,7 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 
             assembly_diag -= pa_diag;
             double error = assembly_diag.Norml2();
-            std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+            CAPTURE(order, error);
             REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
             delete h1_fec;
@@ -140,15 +138,51 @@ TEST_CASE("Mass Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
    }
 }
 
+TEST_CASE("Mass Boundary Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   CAPTURE(fname, order);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   FunctionCoefficient coeff(coeffFunction);
+
+   Vector diag_fa(fes.GetTrueVSize()), diag_pa(fes.GetTrueVSize());
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.SpMat().GetDiag(diag_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.Assemble();
+   blf_pa.AssembleDiagonal(diag_pa);
+
+   diag_pa -= diag_fa;
+
+   REQUIRE(diag_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
 TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         std::cout << "Testing " << dimension <<
-                   "D partial assembly diffusion diagonal: "
-                   << std::pow(ne, dimension) << " elements." << std::endl;
+         const int n_elements = pow(ne, dimension);
+         CAPTURE(dimension, n_elements);
+
          for (int order = 1; order < 5; ++order)
          {
             Mesh mesh;
@@ -224,8 +258,7 @@ TEST_CASE("Diffusion Diagonal PA", "[PartialAssembly][AssembleDiagonal]")
 
                assembly_diag -= pa_diag;
                double error = assembly_diag.Norml2();
-               std::cout << "    order: " << order << ", coefficient type "
-                         << coeffType << ", error norm: " << error << std::endl;
+               CAPTURE(order, coeffType, error);
                REQUIRE(assembly_diag.Norml2() < 1.e-12);
 
                delete coeff;
@@ -323,12 +356,10 @@ TEST_CASE("Vector Diffusion Diagonal PA",
 TEST_CASE("Hcurl/Hdiv diagonal PA",
           "[CUDA][PartialAssembly][AssembleDiagonal]")
 {
-   for (dimension = 2; dimension < 4; ++dimension)
+   for (int dimension = 2; dimension < 4; ++dimension)
    {
       for (int coeffType = 0; coeffType < 5; ++coeffType)
       {
-         const int numSpaces = (coeffType == 0) ? 2 : 1;
-
          Coefficient* coeff = nullptr;
          DiagonalMatrixCoefficient* dcoeff = nullptr;
          MatrixCoefficient* mcoeff = nullptr;
@@ -357,23 +388,19 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
 
          enum Spaces {Hcurl, Hdiv};
 
-         for (int spaceType = 0; spaceType < numSpaces; ++spaceType)
+         for (int spaceType : {Hcurl, Hdiv})
          {
-            const int numIntegrators = (dimension == 3 || coeffType < 2) ? 2 : 1;
+            // For div-div or 2D curl-curl, coefficient must be scalar.
+            const bool testCurlCurl = dimension == 3 || coeffType < 2;
+            const int numIntegrators = (spaceType == Hcurl && testCurlCurl) ||
+                                       (spaceType == Hdiv && coeffType < 2) ? 2 : 1;
+
             for (int integrator = 0; integrator < numIntegrators; ++integrator)
             {
                for (int ne = 1; ne < 3; ++ne)
                {
-                  if (spaceType == Hcurl)
-                     std::cout << "Testing " << dimension <<
-                               "D partial assembly H(curl) diagonal for integrator " << integrator
-                               << " and coeffType " << coeffType << ": "
-                               << std::pow(ne, dimension) << " elements." << std::endl;
-                  else
-                     std::cout << "Testing " << dimension <<
-                               "D partial assembly H(div) diagonal for integrator " << integrator
-                               << " and coeffType " << coeffType << ": "
-                               << std::pow(ne, dimension) << " elements." << std::endl;
+                  const int n_elements = std::pow(ne, dimension);
+                  CAPTURE(dimension, spaceType, integrator, coeffType, n_elements);
 
                   int max_order = (dimension == 3) ? 2 : 3;
 
@@ -419,12 +446,12 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                      }
                      else
                      {
+                        const FiniteElement *fel = fespace.GetFE(0);
+                        const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
+                                                                                  *mesh.GetElementTransformation(0));
+
                         if (spaceType == Hcurl)
                         {
-                           const FiniteElement *fel = fespace.GetFE(0);
-                           const IntegrationRule *intRule = &MassIntegrator::GetRule(*fel, *fel,
-                                                                                     *mesh.GetElementTransformation(0));
-
                            if (coeffType >= 3)
                            {
                               paform.AddDomainIntegrator(new CurlCurlIntegrator(*mcoeff, intRule));
@@ -443,8 +470,8 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
                         }
                         else
                         {
-                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff));
-                           faform.AddDomainIntegrator(new DivDivIntegrator(*coeff));
+                           paform.AddDomainIntegrator(new DivDivIntegrator(*coeff, intRule));
+                           faform.AddDomainIntegrator(new DivDivIntegrator(*coeff, intRule));
                         }
                      }
                      paform.Assemble();
@@ -458,7 +485,7 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
 
                      assembly_diag -= pa_diag;
                      double error = assembly_diag.Norml2();
-                     std::cout << "    order: " << order << ", error norm: " << error << std::endl;
+                     CAPTURE(order, error);
                      REQUIRE(assembly_diag.Norml2() < 1.e-11);
 
                      delete fec;

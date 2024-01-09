@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,6 +49,16 @@ double EvalW_315(const double *J)
    return a*a;
 }
 
+// mu_318 = 0.5 * (I3 + 1/I3) - 1.
+static MFEM_HOST_DEVICE inline
+double EvalW_318(const double *J)
+{
+   double B[9];
+   kernels::InvariantsEvaluator3D ie(Args().J(J).B(B));
+   const double I3 = ie.Get_I3();
+   return 0.5*(I3 + 1.0/I3) - 1.0;
+}
+
 // mu_321 = I1 + I2/I3 - 6
 static MFEM_HOST_DEVICE inline
 double EvalW_321(const double *J)
@@ -59,14 +69,21 @@ double EvalW_321(const double *J)
 }
 
 static MFEM_HOST_DEVICE inline
-double EvalW_332(const double *J, double gamma)
+double EvalW_332(const double *J, const double *w)
 {
-   return (1.0 - gamma) * EvalW_302(J) + gamma * EvalW_315(J);
+   return w[0] * EvalW_302(J) + w[1] * EvalW_315(J);
+}
+
+static MFEM_HOST_DEVICE inline
+double EvalW_338(const double *J, const double *w)
+{
+   return w[0] * EvalW_302(J) + w[1] * EvalW_318(J);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                            const double metric_normal,
-                           const double metric_param,
+                           const Vector &mc_,
+                           const Array<double> &metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -79,13 +96,19 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 ||
-               mid == 321 || mid == 332, "3D metric not yet implemented!");
+   MFEM_VERIFY(mid == 302 || mid == 303 || mid == 315 || mid == 318 ||
+               mid == 321 || mid == 332 || mid == 338,
+               "3D metric not yet implemented!");
+
+   const bool const_m0 = mc_.Size() == 1;
 
    constexpr int DIM = 3;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto MC = const_m0 ?
+                   Reshape(mc_.Read(), 1, 1, 1, 1) :
+                   Reshape(mc_.Read(), Q1D, Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, Q1D, NE);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
    const auto g = Reshape(g_.Read(), Q1D, D1D);
@@ -94,7 +117,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
    auto E = Reshape(energy.Write(), Q1D, Q1D, Q1D, NE);
 
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   const double *metric_data = metric_param.Read();
+
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -122,7 +147,9 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
             {
                const double *Jtr = &J(0,0,qx,qy,qz,e);
                const double detJtr = kernels::Det<3>(Jtr);
-               const double weight = metric_normal * W(qx,qy,qz) * detJtr;
+               const double m_coef = const_m0 ? MC(0,0,0,0) : MC(qx,qy,qz,e);
+               const double weight = metric_normal * m_coef *
+                                     W(qx,qy,qz) * detJtr;
 
                // Jrt = Jtr^{-1}
                double Jrt[9];
@@ -138,11 +165,13 @@ MFEM_REGISTER_TMOP_KERNELS(double, EnergyPA_3D,
 
                // metric->EvalW(Jpt);
                const double EvalW =
-               mid == 302 ? EvalW_302(Jpt) :
-               mid == 303 ? EvalW_303(Jpt) :
-               mid == 315 ? EvalW_315(Jpt) :
-               mid == 321 ? EvalW_321(Jpt) :
-               mid == 332 ? EvalW_332(Jpt, metric_param) : 0.0;
+                  mid == 302 ? EvalW_302(Jpt) :
+                  mid == 303 ? EvalW_303(Jpt) :
+                  mid == 315 ? EvalW_315(Jpt) :
+                  mid == 318 ? EvalW_318(Jpt) :
+                  mid == 321 ? EvalW_321(Jpt) :
+                  mid == 332 ? EvalW_332(Jpt, metric_data) :
+                  mid == 338 ? EvalW_338(Jpt, metric_data) : 0.0;
 
                E(qx,qy,qz,e) = weight * EvalW;
             }
@@ -160,6 +189,7 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
    const int Q1D = PA.maps->nqpt;
    const int id = (D1D << 4 ) | Q1D;
    const double mn = metric_normal;
+   const Vector &MC = PA.MC;
    const DenseTensor &J = PA.Jtr;
    const Array<double> &W = PA.ir->GetWeights();
    const Array<double> &B = PA.maps->B;
@@ -167,10 +197,13 @@ double TMOP_Integrator::GetLocalStateEnergyPA_3D(const Vector &X) const
    const Vector &O = PA.O;
    Vector &E = PA.E;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_332 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
 
-   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,mp,M,N,J,W,B,G,O,X,E);
+   MFEM_LAUNCH_TMOP_KERNEL(EnergyPA_3D,id,mn,MC,mp,M,N,J,W,B,G,O,X,E);
 }
 
 } // namespace mfem

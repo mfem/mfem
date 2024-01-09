@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list(0);
    if (h1 && pmesh.bdr_attributes.Size())
    {
-      // For a continuous basis the linear system must be modifed to enforce an
+      // For a continuous basis the linear system must be modified to enforce an
       // essential (Dirichlet) boundary condition. In the DG case this is not
       // necessary as the boundary condition will only be enforced weakly.
       fespace.GetEssentialTrueDofs(dbc_bdr, ess_tdof_list);

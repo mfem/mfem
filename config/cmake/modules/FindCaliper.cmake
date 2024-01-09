@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -16,7 +16,22 @@
 
 include(MfemCmakeUtilities)
 mfem_find_package(Caliper CALIPER CALIPER_DIR
-       	"include" "caliper/cali.h"
-       	"lib" "caliper"
-  	"Paths to headers required by Caliper."
-       	"Libraries required by Caliper.")
+      "include" "caliper/cali.h"
+      "lib" "caliper"
+      "Paths to headers required by Caliper."
+      "Libraries required by Caliper.")
+
+# Append adiak path/lib if the user provided ADIAK_DIR
+if(ADIAK_DIR AND EXISTS ${ADIAK_DIR})
+    find_package(adiak NO_DEFAULT_PATH REQUIRED PATHS ${ADIAK_DIR}/lib/cmake/adiak ${ADIAK_DIR})
+    list(APPEND CALIPER_INCLUDE_DIRS ${adiak_INCLUDE_DIRS})
+    list(APPEND CALIPER_LIBRARIES ${adiak_LIBRARIES})
+endif()
+
+# Append gotcha path/lib if the user provided GOTCHA_DIR
+if(GOTCHA_DIR AND EXISTS ${GOTCHA_DIR})
+    find_package(gotcha NO_DEFAULT_PATH REQUIRED PATHS ${GOTCHA_DIR}/lib/cmake/gotcha ${GOTCHA_DIR})
+    list(APPEND CALIPER_INCLUDE_DIRS ${gotcha_INCLUDE_DIRS})
+    list(APPEND CALIPER_LIBRARIES ${gotcha_LIBRARIES})
+endif()
+

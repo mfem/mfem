@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace mfem
 {
@@ -28,8 +29,14 @@ namespace mfem
 namespace Ginkgo
 {
 
+// Create a GinkgoExecutor of type exec_type.
 GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 {
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
+#endif
    switch (exec_type)
    {
       case GinkgoExecutor::REFERENCE:
@@ -49,13 +56,23 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_CUDA
             int current_device = 0;
             MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-            executor = gko::CudaExecutor::create(current_device,
-                                                 gko::OmpExecutor::create());
+            if (gko_with_omp_support)
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
+         {
             MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                        "any valid devices.");
+         }
          break;
       }
       case GinkgoExecutor::HIP:
@@ -65,24 +82,111 @@ GinkgoExecutor::GinkgoExecutor(ExecType exec_type)
 #ifdef MFEM_USE_HIP
             int current_device = 0;
             MFEM_GPU_CHECK(hipGetDevice(&current_device));
-            executor = gko::HipExecutor::create(current_device,
-                                                gko::OmpExecutor::create());
+            if (gko_with_omp_support)
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::ReferenceExecutor::create());
+            }
 #endif
          }
          else
-            mfem::err << "gko::HipExecutor::get_num_devices() did not report "
-                      << "any valid devices" << std::endl;
+         {
+            MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
          break;
       }
       default:
-         mfem::err << "Invalid ExecType specified" << std::endl;
+         MFEM_ABORT("Invalid ExecType specified");
    }
 }
 
+// Create a GinkgoExecutor of type exec_type, with host_exec_type for the
+// related CPU Executor (only applicable to GPU backends).
+GinkgoExecutor::GinkgoExecutor(ExecType exec_type, ExecType host_exec_type)
+{
+   switch (exec_type)
+   {
+      case GinkgoExecutor::REFERENCE:
+      {
+         MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+         executor = gko::ReferenceExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::OMP:
+      {
+         MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+         executor = gko::OmpExecutor::create();
+         break;
+      }
+      case GinkgoExecutor::CUDA:
+      {
+         if (gko::CudaExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_CUDA
+            int current_device = 0;
+            MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+            if (host_exec_type == GinkgoExecutor::OMP)
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::CudaExecutor::create(current_device,
+                                                    gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      case GinkgoExecutor::HIP:
+      {
+         if (gko::HipExecutor::get_num_devices() > 0)
+         {
+#ifdef MFEM_USE_HIP
+            int current_device = 0;
+            MFEM_GPU_CHECK(hipGetDevice(&current_device));
+            if (host_exec_type == GinkgoExecutor::OMP)
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::OmpExecutor::create());
+            }
+            else
+            {
+               executor = gko::HipExecutor::create(current_device,
+                                                   gko::ReferenceExecutor::create());
+            }
+#endif
+         }
+         else
+         {
+            MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                       "any valid devices.");
+         }
+         break;
+      }
+      default:
+         MFEM_ABORT("Invalid ExecType specified");
+   }
+}
+
+// Create a GinkgoExecutor to match MFEM's device configuration.
 GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 {
-
-   // Pick "best match" Executor based on MFEM device configuration.
+   gko::version_info gko_version = gko::version_info::get();
+   bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                       "not compiled") != 0);
    if (mfem_device.Allows(Backend::CUDA_MASK))
    {
       if (gko::CudaExecutor::get_num_devices() > 0)
@@ -90,13 +194,23 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_CUDA
          int current_device = 0;
          MFEM_GPU_CHECK(cudaGetDevice(&current_device));
-         executor = gko::CudaExecutor::create(current_device,
-                                              gko::OmpExecutor::create());
+         if (gko_with_omp_support)
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else if (mfem_device.Allows(Backend::HIP_MASK))
    {
@@ -105,16 +219,123 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device)
 #ifdef MFEM_USE_HIP
          int current_device = 0;
          MFEM_GPU_CHECK(hipGetDevice(&current_device));
-         executor = gko::HipExecutor::create(current_device, gko::OmpExecutor::create());
+         if (gko_with_omp_support)
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::ReferenceExecutor::create());
+         }
 #endif
       }
       else
+      {
          MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
                     "any valid devices.");
+      }
    }
    else
    {
-      executor = gko::OmpExecutor::create();
+      if (mfem_device.Allows(Backend::OMP_MASK))
+      {
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         if (gko_with_omp_support)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
+      }
+      else
+      {
+         executor = gko::ReferenceExecutor::create();
+      }
+   }
+}
+
+// Create a GinkgoExecutor to match MFEM's device configuration, with
+// a specific host_exec_type for the associated CPU Executor (only
+// applicable to GPU backends).
+GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
+{
+
+   if (mfem_device.Allows(Backend::CUDA_MASK))
+   {
+      if (gko::CudaExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_CUDA
+         int current_device = 0;
+         MFEM_GPU_CHECK(cudaGetDevice(&current_device));
+         if (host_exec_type == GinkgoExecutor::OMP)
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::CudaExecutor::create(current_device,
+                                                 gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::CudaExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
+   }
+   else if (mfem_device.Allows(Backend::HIP_MASK))
+   {
+      if (gko::HipExecutor::get_num_devices() > 0)
+      {
+#ifdef MFEM_USE_HIP
+         int current_device = 0;
+         MFEM_GPU_CHECK(hipGetDevice(&current_device));
+         if (host_exec_type == GinkgoExecutor::OMP)
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::OmpExecutor::create());
+         }
+         else
+         {
+            executor = gko::HipExecutor::create(current_device,
+                                                gko::ReferenceExecutor::create());
+         }
+#endif
+      }
+      else
+      {
+         MFEM_ABORT("gko::HipExecutor::get_num_devices() did not report "
+                    "any valid devices.");
+      }
+   }
+   else
+   {
+      MFEM_WARNING("Parameter host_exec_type ignored for CPU GinkgoExecutor.");
+      if (mfem_device.Allows(Backend::OMP_MASK))
+      {
+         // Also use OpenMP for Ginkgo, if Ginkgo supports it
+         gko::version_info gko_version = gko::version_info::get();
+         bool gko_with_omp_support = (strcmp(gko_version.omp_version.tag,
+                                             "not compiled") != 0);
+         if (gko_with_omp_support)
+         {
+            executor = gko::OmpExecutor::create();
+         }
+         else
+         {
+            executor = gko::ReferenceExecutor::create();
+         }
+      }
+      else
+      {
+         executor = gko::ReferenceExecutor::create();
+      }
    }
 }
 
@@ -187,10 +408,15 @@ const
 {
    // Add the logger object. See the different masks available in Ginkgo's
    // documentation
+#if MFEM_GINKGO_VERSION < 10500
    convergence_logger = gko::log::Convergence<>::create(
                            executor, gko::log::Logger::criterion_check_completed_mask);
+#else
+   convergence_logger = gko::log::Convergence<>::create(
+                           gko::log::Logger::criterion_check_completed_mask);
+#endif
    residual_logger = std::make_shared<ResidualLogger<>>(executor,
-                                                        gko::lend(system_oper),b);
+                                                        system_oper.get(),b);
 
 }
 
@@ -309,13 +535,13 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    if (!needs_wrapped_vecs)
    {
       gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   x.Size(), const_cast<double *>(
-                                                      x.Read(on_device))), 1);
+                          gko_array<double>::view(executor,
+                                                  x.Size(), const_cast<double *>(
+                                                     x.Read(on_device))), 1);
       gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                          gko::Array<double>::view(executor,
-                                                   y.Size(),
-                                                   y.ReadWrite(on_device)), 1);
+                          gko_array<double>::view(executor,
+                                                  y.Size(),
+                                                  y.ReadWrite(on_device)), 1);
    }
    else // We have at least one wrapped MFEM operator; need wrapped vectors
    {
@@ -329,7 +555,7 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 
    // Create the logger object to log some data from the solvers to confirm
    // convergence.
-   initialize_ginkgo_log(gko::lend(gko_x));
+   initialize_ginkgo_log(gko_x.get());
 
    MFEM_VERIFY(convergence_logger, "convergence logger not initialized" );
    if (print_level==1)
@@ -345,7 +571,11 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
    combined_factory->add_logger(convergence_logger);
 
    // Finally, apply the solver to x and get the solution in y.
+#if MFEM_GINKGO_VERSION < 10600
    solver->apply(gko::lend(gko_x), gko::lend(gko_y));
+#else
+   solver->apply(gko_x, gko_y);
+#endif
 
    // Get the number of iterations taken to converge to the solution.
    final_iter = convergence_logger->get_num_iterations();
@@ -445,14 +675,14 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       const int nnz =  op_mat->GetMemoryData().Capacity();
       system_oper = mtx::create(
                        executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                       gko::Array<double>::view(executor,
-                                                nnz,
-                                                op_mat->ReadWriteData(on_device)),
-                       gko::Array<int>::view(executor,
-                                             nnz,
-                                             op_mat->ReadWriteJ(on_device)),
-                       gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                             op_mat->ReadWriteI(on_device)));
+                       gko_array<double>::view(executor,
+                                               nnz,
+                                               op_mat->ReadWriteData(on_device)),
+                       gko_array<int>::view(executor,
+                                            nnz,
+                                            op_mat->ReadWriteJ(on_device)),
+                       gko_array<int>::view(executor, op_mat->Height() + 1,
+                                            op_mat->ReadWriteI(on_device)));
 
    }
    else
@@ -461,6 +691,10 @@ void GinkgoIterativeSolver::SetOperator(const Operator &op)
       system_oper = std::shared_ptr<OperatorWrapper>(
                        new OperatorWrapper(executor, op.Height(), &op));
    }
+
+   // Set MFEM Solver size values
+   height = op.Height();
+   width = op.Width();
 
    // Generate the solver from the solver using the system matrix or operator.
    solver = solver_gen->generate(system_oper);
@@ -703,11 +937,14 @@ GMRESSolver::GMRESSolver(GinkgoExecutor &exec,
 void GMRESSolver::SetKDim(int dim)
 {
    m = dim;
-   using gmres_type = gko::solver::Gmres<double>;
-   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   using gmres = gko::solver::Gmres<double>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
    if (solver)
    {
-      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
    }
 }
 
@@ -802,11 +1039,14 @@ CBGMRESSolver::CBGMRESSolver(GinkgoExecutor &exec,
 void CBGMRESSolver::SetKDim(int dim)
 {
    m = dim;
-   using gmres_type = gko::solver::CbGmres<double>;
-   gko::as<gmres_type::Factory>(solver_gen)->get_parameters().krylov_dim = m;
+   using gmres = gko::solver::CbGmres<double>;
+   // Create new solver factory with other parameters the same, but new value for krylov_dim
+   auto current_params = gko::as<gmres::Factory>(solver_gen)->get_parameters();
+   this->solver_gen = current_params.with_krylov_dim(static_cast<unsigned long>(m))
+                      .on(this->executor);
    if (solver)
    {
-      gko::as<gmres_type>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
+      gko::as<gmres>(solver)->set_krylov_dim(static_cast<unsigned long>(m));
    }
 }
 
@@ -866,14 +1106,18 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
       on_device = true;
    }
    auto gko_x = vec::create(executor, gko::dim<2>(x.Size(), 1),
-                            gko::Array<double>::view(executor,
-                                                     x.Size(), const_cast<double *>(
-                                                        x.Read(on_device))), 1);
+                            gko_array<double>::view(executor,
+                                                    x.Size(), const_cast<double *>(
+                                                       x.Read(on_device))), 1);
    auto gko_y = vec::create(executor, gko::dim<2>(y.Size(), 1),
-                            gko::Array<double>::view(executor,
-                                                     y.Size(),
-                                                     y.ReadWrite(on_device)), 1);
+                            gko_array<double>::view(executor,
+                                                    y.Size(),
+                                                    y.ReadWrite(on_device)), 1);
+#if MFEM_GINKGO_VERSION < 10600
    generated_precond.get()->apply(gko::lend(gko_x), gko::lend(gko_y));
+#else
+   generated_precond.get()->apply(gko_x, gko_y);
+#endif
 }
 
 void GinkgoPreconditioner::SetOperator(const Operator &op)
@@ -901,17 +1145,21 @@ void GinkgoPreconditioner::SetOperator(const Operator &op)
    const int nnz =  op_mat->GetMemoryData().Capacity();
    auto gko_matrix = mtx::create(
                         executor, gko::dim<2>(op_mat->Height(), op_mat->Width()),
-                        gko::Array<double>::view(executor,
-                                                 nnz,
-                                                 op_mat->ReadWriteData(on_device)),
-                        gko::Array<int>::view(executor,
-                                              nnz,
-                                              op_mat->ReadWriteJ(on_device)),
-                        gko::Array<int>::view(executor, op_mat->Height() + 1,
-                                              op_mat->ReadWriteI(on_device)));
+                        gko_array<double>::view(executor,
+                                                nnz,
+                                                op_mat->ReadWriteData(on_device)),
+                        gko_array<int>::view(executor,
+                                             nnz,
+                                             op_mat->ReadWriteJ(on_device)),
+                        gko_array<int>::view(executor, op_mat->Height() + 1,
+                                             op_mat->ReadWriteI(on_device)));
 
    generated_precond = precond_gen->generate(gko::give(gko_matrix));
    has_generated_precond = true;
+
+   // Set MFEM Solver size values
+   height = op.Height();
+   width = op.Width();
 }
 
 
@@ -963,7 +1211,11 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
    else
@@ -975,7 +1227,11 @@ IluPreconditioner::IluPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
 
@@ -1013,9 +1269,15 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
       .with_factorization_factory(fact_factory)
       .with_l_solver_factory(l_solver_factory)
       .with_u_solver_factory(u_solver_factory)
+#else
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+#endif
       .on(executor);
 
    }
@@ -1029,9 +1291,15 @@ IluIsaiPreconditioner::IluIsaiPreconditioner(
          .on(executor);
       precond_gen = gko::preconditioner::Ilu<l_solver_type,
       u_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
       .with_factorization_factory(fact_factory)
       .with_l_solver_factory(l_solver_factory)
       .with_u_solver_factory(u_solver_factory)
+#else
+      .with_factorization(fact_factory)
+      .with_l_solver(l_solver_factory)
+      .with_u_solver(u_solver_factory)
+#endif
       .on(executor);
    }
 }
@@ -1056,7 +1324,11 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
    else
@@ -1069,7 +1341,11 @@ IcPreconditioner::IcPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
+#else
+                    .with_factorization(fact_factory)
+#endif
                     .on(executor);
    }
 }
@@ -1098,8 +1374,13 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
+#else
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+#endif
                     .on(executor);
    }
    else
@@ -1112,8 +1393,13 @@ IcIsaiPreconditioner::IcIsaiPreconditioner(
          .with_skip_sorting(skip_sort)
          .on(executor);
       precond_gen = gko::preconditioner::Ic<l_solver_type>::build()
+#if MFEM_GINKGO_VERSION < 10700
                     .with_factorization_factory(fact_factory)
                     .with_l_solver_factory(l_solver_factory)
+#else
+                    .with_factorization(fact_factory)
+                    .with_l_solver(l_solver_factory)
+#endif
                     .on(executor);
    }
 }

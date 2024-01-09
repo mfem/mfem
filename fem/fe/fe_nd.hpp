@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,6 +91,8 @@ public:
                             DenseMatrix &curl) const
    { ProjectCurl_ND(tk, dof2tk, fe, Trans, curl); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
@@ -155,6 +157,8 @@ public:
                             DenseMatrix &grad) const
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
 
+   virtual void GetFaceMap(const int face_id, Array<int> &face_map) const;
+
 protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
@@ -174,6 +178,8 @@ class ND_TetrahedronElement : public VectorFiniteElement
 #endif
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
+
+   ND_TetDofTransformation doftrans;
 
 public:
    /// Construct the ND_TetrahedronElement of order @a p
@@ -195,6 +201,8 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -234,6 +242,8 @@ class ND_TriangleElement : public VectorFiniteElement
    Array<int> dof2tk;
    DenseMatrixInverse Ti;
 
+   ND_TriDofTransformation doftrans;
+
 public:
    /// Construct the ND_TriangleElement of order @a p
    ND_TriangleElement(const int p);
@@ -254,6 +264,8 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
    using FiniteElement::Project;
    virtual void Project(VectorCoefficient &vc,
                         ElementTransformation &Trans, Vector &dofs) const
@@ -334,6 +346,8 @@ private:
 #endif
    Array<int> dof2tk, t_dof, s_dof;
 
+   ND_WedgeDofTransformation doftrans;
+
    H1_TriangleElement H1TriangleFE;
    ND_TriangleElement NDTriangleFE;
    H1_SegmentElement  H1SegmentFE;
@@ -364,6 +378,9 @@ public:
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
+
+   virtual const StatelessDofTransformation *GetDofTransformation() const
+   { return &doftrans; }
 
    using FiniteElement::Project;
 

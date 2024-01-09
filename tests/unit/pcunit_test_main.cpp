@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,9 +13,6 @@
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
-
-bool launch_all_non_regression_tests = false;
-std::string mfem_data_dir;
 
 #ifndef MFEM_USE_MPI
 #error "This test should be disabled without MFEM_USE_MPI!"

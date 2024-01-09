@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ void EvalP_002(const double *Jpt, double *P)
 {
    double dI1b[4], dI2b[4];
    kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI1b(dI1b).dI2b(dI2b));
-   kernels::Set(2,2, 1./2., ie.Get_dI1b(), P);
+   kernels::Set(2,2, 0.5, ie.Get_dI1b(), P);
 }
 
 static MFEM_HOST_DEVICE inline
@@ -47,6 +47,16 @@ void EvalP_007(const double *Jpt, double *P)
                 -ie.Get_I1() / (I2*I2), ie.Get_dI2(), P);
 }
 
+// P_56 = 0.5*(1 - 1/I2b^2)*dI2b.
+static MFEM_HOST_DEVICE inline
+void EvalP_056(const double *Jpt, double *P)
+{
+   double dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).dI2b(dI2b));
+   const double I2b = ie.Get_I2b();
+   kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2b * I2b)), ie.Get_dI2b(), P);
+}
+
 static MFEM_HOST_DEVICE inline
 void EvalP_077(const double *Jpt, double *P)
 {
@@ -58,24 +68,38 @@ void EvalP_077(const double *Jpt, double *P)
    kernels::Set(2,2, 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
 }
 
+// P_80 = w0 P_2 + w1 P_77.
 static MFEM_HOST_DEVICE inline
-void EvalP_080(const double *Jpt, double gamma, double *P)
+void EvalP_080(const double *Jpt, const double *w, double *P)
 {
-   // p_80 = (1-gamma) p_2 + gamma p_77.
-
    double dI1b[4], dI2[4], dI2b[4];
    kernels::InvariantsEvaluator2D ie(Args().J(Jpt).
                                      dI1b(dI1b).dI2(dI2).dI2b(dI2b));
 
-   kernels::Set(2,2, (1.0 - gamma) * 1./2., ie.Get_dI1b(), P);
+   kernels::Set(2,2, w[0] * 0.5, ie.Get_dI1b(), P);
 
    const double I2 = ie.Get_I2();
-   kernels::Add(2,2, gamma * 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
+   kernels::Add(2,2, w[1] * 0.5 * (1.0 - 1.0 / (I2 * I2)), ie.Get_dI2(), P);
+}
+
+// P_94 = w0 P_2 + w1 P_56.
+static MFEM_HOST_DEVICE inline
+void EvalP_094(const double *Jpt, const double *w, double *P)
+{
+   double dI1b[4], dI2b[4];
+   kernels::InvariantsEvaluator2D ie(Args().J(Jpt).
+                                     dI1b(dI1b).dI2b(dI2b));
+
+   kernels::Set(2,2, w[0] * 0.5, ie.Get_dI1b(), P);
+
+   const double I2b = ie.Get_I2b();
+   kernels::Add(2,2, w[1] * 0.5 * (1.0 - 1.0 / (I2b * I2b)), ie.Get_dI2b(), P);
 }
 
 MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const double metric_normal,
-                           const double metric_param,
+                           const Vector &mc_,
+                           const Array<double> &metric_param,
                            const int mid,
                            const int NE,
                            const DenseTensor &j_,
@@ -87,8 +111,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
                            const int d1d,
                            const int q1d)
 {
-   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77 || mid == 80,
-               "Metric not yet implemented!");
+   MFEM_VERIFY(mid == 1 || mid == 2 || mid == 7 || mid == 77
+               || mid == 80 || mid == 94,
+               "2D metric not yet implemented!");
+
+   const bool const_m0 = mc_.Size() == 1;
 
    constexpr int DIM = 2;
    constexpr int NBZ = 1;
@@ -96,6 +123,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
+   const auto MC = const_m0 ?
+                   Reshape(mc_.Read(), 1, 1, 1) :
+                   Reshape(mc_.Read(), Q1D, Q1D, NE);
    const auto J = Reshape(j_.Read(), DIM, DIM, Q1D, Q1D, NE);
    const auto W = Reshape(w_.Read(), Q1D, Q1D);
    const auto b = Reshape(b_.Read(), Q1D, D1D);
@@ -103,7 +133,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
    auto X = Reshape(x_.Read(), D1D, D1D, DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, DIM, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   const double *metric_data = metric_param.Read();
+
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int NBZ = 1;
       constexpr int MQ1 = T_Q1D ? T_Q1D : T_MAX;
@@ -128,7 +160,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
          {
             const double *Jtr = &J(0,0,qx,qy,e);
             const double detJtr = kernels::Det<2>(Jtr);
-            const double weight = metric_normal * W(qx,qy) * detJtr;
+            const double m_coef = const_m0 ? MC(0,0,0) : MC(qx,qy,e);
+            const double weight = metric_normal * m_coef *
+                                  W(qx,qy) * detJtr;
 
             // Jrt = Jtr^{-1}
             double Jrt[4];
@@ -147,8 +181,10 @@ MFEM_REGISTER_TMOP_KERNELS(void, AddMultPA_Kernel_2D,
             if (mid ==  1) { EvalP_001(Jpt, P); }
             if (mid ==  2) { EvalP_002(Jpt, P); }
             if (mid ==  7) { EvalP_007(Jpt, P); }
+            if (mid == 56) { EvalP_056(Jpt, P); }
             if (mid == 77) { EvalP_077(Jpt, P); }
-            if (mid == 80) { EvalP_080(Jpt, metric_param, P); }
+            if (mid == 80) { EvalP_080(Jpt, metric_data, P); }
+            if (mid == 94) { EvalP_094(Jpt, metric_data, P); }
             for (int i = 0; i < 4; i++) { P[i] *= weight; }
 
             // PMatO += DS . P^t += DSh . (Jrt . P^t)
@@ -176,11 +212,15 @@ void TMOP_Integrator::AddMultPA_2D(const Vector &X, Vector &Y) const
    const Array<double> &B = PA.maps->B;
    const Array<double> &G = PA.maps->G;
    const double mn = metric_normal;
+   const Vector &MC = PA.MC;
 
-   double mp = 0.0;
-   if (auto m = dynamic_cast<TMOP_Metric_080 *>(metric)) { mp = m->GetGamma(); }
+   Array<double> mp;
+   if (auto m = dynamic_cast<TMOP_Combo_QualityMetric *>(metric))
+   {
+      m->GetWeights(mp);
+   }
 
-   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,mp,M,N,J,W,B,G,X,Y);
+   MFEM_LAUNCH_TMOP_KERNEL(AddMultPA_Kernel_2D,id,mn,MC,mp,M,N,J,W,B,G,X,Y);
 }
 
 } // namespace mfem

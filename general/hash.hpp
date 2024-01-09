@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "array.hpp"
 #include "globals.hpp"
 #include <type_traits>
+#include <cstdint>
 
 namespace mfem
 {
@@ -284,7 +285,7 @@ public:
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
 
    /// @brief Return total size of allocated memory (tables plus items), in bytes.
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    /// @brief Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
@@ -334,6 +335,8 @@ public:
 
    iterator begin() { return iterator(Base::begin()); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return const_iterator(Base::cbegin()); }
+   const_iterator end() const { return const_iterator(); }
 
    const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
    const_iterator cend() const { return const_iterator(); }
@@ -875,7 +878,7 @@ void HashTable<T>::Reparent(int id,
 }
 
 template<typename T>
-long HashTable<T>::MemoryUsage() const
+std::size_t HashTable<T>::MemoryUsage() const
 {
    return (mask+1) * sizeof(int) + Base::MemoryUsage() + unused.MemoryUsage();
 }

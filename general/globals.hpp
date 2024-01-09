@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,12 +63,12 @@ public:
 /** @brief Global stream used by the library for standard output. Initially it
     uses the same std::streambuf as std::cout, however that can be changed.
     @sa OutStream. */
-extern OutStream out;
+extern MFEM_EXPORT OutStream out;
 /** @brief Global stream used by the library for standard error output.
     Initially it uses the same std::streambuf as std::cerr, however that can be
     changed.
     @sa OutStream. */
-extern OutStream err;
+extern MFEM_EXPORT OutStream err;
 
 
 /** @brief Construct a string of the form "<prefix><myid><suffix>" where the

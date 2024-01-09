@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -53,7 +53,9 @@
 //
 // The one-sided coupling between the two domains is via transfer of the
 // advection velocity (u) from fluid domain to thermal domain at each time step.
-// mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
+//
+// Sample run:
+//   mpirun -np 4 navier_cht -r1 3 -r2 2 -np1 2 -np2 2
 
 #include "mfem.hpp"
 #include "navier_solver.hpp"
@@ -134,7 +136,6 @@ int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
 

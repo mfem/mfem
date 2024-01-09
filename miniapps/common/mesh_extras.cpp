@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -232,6 +232,52 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
          marker[attr-1] = 1;
       }
    }
+}
+
+void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   V = 0.0;
+   Vector pos(dim);
+   T.Transform(ip, pos);
+   double x = pos(0), y = pos(1), z = dim == 3 ? pos(2) : 0;
+   double X, Y, Z;
+
+   X = x;
+
+   int layer = x*6.0;
+   double lambda = (x-layer/6.0)*6;
+
+   // The x-range is split in 6 layers going from left-to-left, left-to-right,
+   // right-to-left (2 layers), left-to-right and right-to-right yz-faces.
+   switch (layer)
+   {
+      case 0:
+         Y = left(epsy, y);
+         Z = left(epsz, z);
+         break;
+      case 1:
+      case 4:
+         Y = step(left(epsy, y), right(epsy, y), lambda);
+         Z = step(left(epsz, z), right(epsz, z), lambda);
+         break;
+      case 2:
+         Y = step(right(epsy, y), left(epsy, y), lambda/2);
+         Z = step(right(epsz, z), left(epsz, z), lambda/2);
+         break;
+      case 3:
+         Y = step(right(epsy, y), left(epsy, y), (1+lambda)/2);
+         Z = step(right(epsz, z), left(epsz, z), (1+lambda)/2);
+         break;
+      default:
+         Y = right(epsy, y);
+         Z = right(epsz, z);
+         break;
+   }
+   V.SetSize(dim);
+   V(0) = X;
+   V(1) = Y;
+   if (dim == 3) { V(2) = Z; }
 }
 
 } // namespace common

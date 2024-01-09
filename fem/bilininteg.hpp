@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,20 +15,10 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
+#include "ceed/interface/util.hpp"
 
 namespace mfem
 {
-
-// Local maximum size of dofs and quads in 1D
-constexpr int HCURL_MAX_D1D = 5;
-#ifdef MFEM_USE_HIP
-constexpr int HCURL_MAX_Q1D = 5;
-#else
-constexpr int HCURL_MAX_Q1D = 6;
-#endif
-
-constexpr int HDIV_MAX_D1D = 5;
-constexpr int HDIV_MAX_Q1D = 6;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -60,6 +50,13 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Method defining partial assembly on NURBS patches.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the method AddMultNURBSPA(). */
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
@@ -67,7 +64,7 @@ public:
    /// Assemble diagonal and add it to Vector @a diag.
    virtual void AssembleDiagonalPA(Vector &diag);
 
-   /// Assemble diagonal of ADA^T (A is this integrator) and add it to @a diag.
+   /// Assemble diagonal of \f$ADA^{\mathrm{T}}\f$ (\f$A\f$ is this integrator) and add it to @a diag.
    virtual void AssembleDiagonalPA_ADAt(const Vector &D, Vector &diag);
 
    /// Method for partially assembled action.
@@ -78,6 +75,9 @@ public:
        This method can be called only after the method AssemblePA() has been
        called. */
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   /// Method for partially assembled action on NURBS patches.
+   virtual void AddMultNURBSPA(const Vector&x, Vector&y) const;
 
    /// Method for partially assembled transposed action.
    /** Perform the transpose action of integrator on the input @a x and add the
@@ -137,13 +137,20 @@ public:
                                       DenseMatrix &elmat);
 
    /** Compute the local matrix representation of a bilinear form
-       a(u,v) defined on different trial (given by u) and test
-       (given by v) spaces. The rows in the local matrix correspond
+       \f$a(u,v)\f$ defined on different trial (given by \f$u\f$) and test
+       (given by \f$v\f$) spaces. The rows in the local matrix correspond
        to the test dofs and the columns -- to the trial dofs. */
    virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   /** Given a particular NURBS patch, computes the patch matrix as a
+       SparseMatrix @a smat.
+    */
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
 
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -166,6 +173,15 @@ public:
                                    const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   /** Abstract method used for assembling TraceFaceIntegrators for
+       DPG weak formulations. */
+   virtual void AssembleTraceFaceMatrix(int elem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+
 
    /// @brief Perform the local action of the BilinearFormIntegrator.
    /// Note that the default implementation in the base class is general but not
@@ -223,10 +239,10 @@ public:
                              function by any coefficients describing the
                              integrator.
        @param[in] ir  If passed (the default value is NULL), the implementation
-                        of the method will ignore the integration rule provided
-                        by the @a fluxelem parameter and, instead, compute the
-                        discrete flux at the points specified by the integration
-                        rule @a ir.
+                      of the method will ignore the integration rule provided
+                      by the @a fluxelem parameter and, instead, compute the
+                      discrete flux at the points specified by the integration
+                      rule @a ir.
     */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
@@ -298,6 +314,12 @@ public:
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
+   }
+
+   virtual void AssemblePA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes)
+   {
+      bfi->AssemblePA(test_fes, trial_fes); // Reverse test and trial
    }
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes)
@@ -567,7 +589,7 @@ protected:
 
 
    inline virtual int GetTestVDim(const FiniteElement & test_fe)
-   { return std::max(space_dim, test_fe.GetVDim()); }
+   { return std::max(space_dim, test_fe.GetRangeDim()); }
 
    inline virtual void CalcTestShape(const FiniteElement & test_fe,
                                      ElementTransformation &Trans,
@@ -575,7 +597,7 @@ protected:
    { test_fe.CalcVShape(Trans, shape); }
 
    inline virtual int GetTrialVDim(const FiniteElement & trial_fe)
-   { return std::max(space_dim, trial_fe.GetVDim()); }
+   { return std::max(space_dim, trial_fe.GetRangeDim()); }
 
    inline virtual void CalcTrialShape(const FiniteElement & trial_fe,
                                       ElementTransformation &Trans,
@@ -665,7 +687,7 @@ protected:
 
 
    inline virtual int GetVDim(const FiniteElement & vector_fe)
-   { return std::max(space_dim, vector_fe.GetVDim()); }
+   { return std::max(space_dim, vector_fe.GetRangeDim()); }
 
    inline virtual void CalcVShape(const FiniteElement & vector_fe,
                                   ElementTransformation &Trans,
@@ -693,9 +715,9 @@ private:
 
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, v) in either 1D, 2D,
-    or 3D and where Q is an optional scalar coefficient, u and v are each in H1
-    or L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q u, v)\f$ in either 1D, 2D,
+    or 3D and where \f$Q\f$ is an optional scalar coefficient, \f$u\f$ and \f$v\f$ are each in \f$H^1\f$
+    or \f$L_2\f$. */
 class MixedScalarMassIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -704,9 +726,9 @@ public:
       : MixedScalarIntegrator(q) { same_calc_shape = true; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, v) in either 2D, or
-    3D and where Q is a vector coefficient, u is in H1 or L2 and v is in H(Curl)
-    or H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} u, v)\f$ in either 2D, or
+    3D and where \f$\vec{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H^1\f$ or \f$L_2\f$ and \f$v\f$ is in \f$H\f$(curl)
+    or \f$H\f$(div). */
 class MixedVectorProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -714,8 +736,8 @@ public:
       : MixedScalarVectorIntegrator(vq) {}
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q D u, v) in 1D where Q
-    is an optional scalar coefficient, u is in H1, and v is in L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, v)\f$ in 1D where Q
+    is an optional scalar coefficient, \f$u\f$ is in \f$H^1\f$, and \f$v\f$ is in \f$L_2\f$. */
 class MixedScalarDerivativeIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -749,8 +771,8 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := -(Q u, D v) in 1D where Q
-    is an optional scalar coefficient, u is in L2, and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := -(Q u, \nabla v)\f$ in 1D where \f$Q\f$
+    is an optional scalar coefficient, \f$u\f$ is in \f$L_2\f$, and \f$v\f$ is in \f$H^1\f$. */
 class MixedScalarWeakDerivativeIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -786,8 +808,8 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q div u, v) in either 2D
-    or 3D where Q is an optional scalar coefficient, u is in H(Div), and v is a
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla \cdot u, v)\f$ in either 2D
+    or 3D where \f$Q\f$ is an optional scalar coefficient, \f$u\f$ is in \f$H\f$(div), and \f$v\f$ is a
     scalar field. */
 class MixedScalarDivergenceIntegrator : public MixedScalarIntegrator
 {
@@ -808,7 +830,7 @@ protected:
    inline virtual const char * FiniteElementTypeFailureMessage() const
    {
       return "MixedScalarDivergenceIntegrator:  "
-             "Trial must be H(Div) and the test space must be a "
+             "Trial must be \f$H\f$(div) and the test space must be a "
              "scalar field";
    }
 
@@ -823,9 +845,8 @@ protected:
    { trial_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V div u, v) in either 2D
-    or 3D where V is a vector coefficient, u is in H(Div), and v is a vector
-    field. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \nabla \cdot u, v)\f$ in either 2D
+    or 3D where \f$\vec{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H\f$(div), and \f$v\f$ is in \f$H\f$(div). */
 class MixedVectorDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -861,9 +882,9 @@ protected:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := -(Q u, div v) in either 2D
-    or 3D where Q is an optional scalar coefficient, u is in L2 or H1, and v is
-    in H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := -(Q u, \nabla \cdot v)\f$ in either 2D
+    or 3D where \f$Q\f$ is an optional scalar coefficient, \f$u\f$ is in \f$L_2\f$ or \f$H^1\f$, and \f$v\f$ is
+    in \f$H\f$(div). */
 class MixedScalarWeakGradientIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -901,9 +922,9 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 2D where
-    Q is an optional scalar coefficient, u is in H(Curl), and v is in L2 or
-    H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \mathrm{curl}(u), v)\f$ in 2D where
+    \f$Q\f$ is an optional scalar coefficient, \f$u\f$ is in \f$H\f$(curl), and \f$v\f$ is in \f$L_2\f$ or
+    \f$H^1\f$. */
 class MixedScalarCurlIntegrator : public MixedScalarIntegrator
 {
 public:
@@ -955,9 +976,9 @@ protected:
    int dim, ne, dofs1D, quad1D, dofs1Dtest;
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 2D where
-    Q is an optional scalar coefficient, u is in L2 or H1, and v is in
-    H(Curl). Partial assembly (PA) is supported but could be further optimized
+/** Class for integrating the bilinear form \f$a(u,v) := (Q u, \mathrm{curl}(v))\f$ in 2D where
+    \f$Q\f$ is an optional scalar coefficient, \f$u\f$ is in \f$L_2\f$ or \f$H^1\f$, and \f$v\f$ is in
+    \f$H\f$(curl). Partial assembly (PA) is supported but could be further optimized
     by using more efficient threading and shared memory.
 */
 class MixedScalarWeakCurlIntegrator : public MixedScalarIntegrator
@@ -993,9 +1014,9 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, v) in either 2D or
-    3D and where Q is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) u and v are each in H(Curl) or H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q u, v)\f$ in either 2D or
+    3D and where \f$Q\f$ is an optional coefficient (of type scalar, matrix, or
+    diagonal matrix) \f$u\f$ and \f$v\f$ are each in \f$H\f$(curl) or \f$H\f$(div). */
 class MixedVectorMassIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1008,8 +1029,8 @@ public:
       : MixedVectorIntegrator(mq) { same_calc_shape = true; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x u, v) in 3D and where
-    V is a vector coefficient u and v are each in H(Curl) or H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u, v)\f$ in 3D and where
+    \f$\vec{V}\f$ is a vector coefficient \f$u\f$ and \f$v\f$ are each in \f$H\f$(curl) or \f$H\f$(div). */
 class MixedCrossProductIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1017,9 +1038,9 @@ public:
       : MixedVectorIntegrator(vq, false) { same_calc_shape = true; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V . u, v) in 2D or 3D and
-    where V is a vector coefficient u is in H(Curl) or H(Div) and v is in H1 or
-    L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \cdot u, v)\f$ in 2D or 3D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in \f$H^1\f$ or
+    \f$L_2\f$. */
 class MixedDotProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1042,9 +1063,9 @@ public:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (-V . u, Div v) in 2D or
-    3D and where V is a vector coefficient u is in H(Curl) or H(Div) and v is in
-    RT. */
+/** Class for integrating the bilinear form \f$a(u,v) := (-\vec{V} \cdot u, \nabla \cdot v)\f$ in 2D or
+    3D and where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in
+    \f$H\f$(div). */
 class MixedWeakGradDotIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1080,8 +1101,8 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); shape *= -1.0; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x u, Grad v) in 3D and
-    where V is a vector coefficient u is in H(Curl) or H(Div) and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (v \vec{V} \times u, \nabla v)\f$ in 3D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in \f$H^1\f$. */
 class MixedWeakDivCrossIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1092,7 +1113,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::GRAD );
@@ -1114,9 +1135,9 @@ public:
    { test_fe.CalcPhysDShape(Trans, shape); shape *= -1.0; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q Grad u, Grad v) in 3D
-    or in 2D and where Q is a scalar or matrix coefficient u and v are both in
-    H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, \nabla v)\f$ in 3D
+    or in 2D and where \f$Q\f$ is a scalar or matrix coefficient \f$u\f$ and \f$v\f$ are both in
+    \f$H^1\f$. */
 class MixedGradGradIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1172,8 +1193,8 @@ public:
    { test_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Grad u, Grad v) in 3D
-    or in 2D and where V is a vector coefficient u and v are both in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \nabla u, \nabla v)\f$ in 3D
+    or in 2D and where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ and \f$v\f$ are both in \f$H^1\f$. */
 class MixedCrossGradGradIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1214,9 +1235,9 @@ public:
    { test_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q Curl u, Curl v) in 3D
-    and where Q is a scalar or matrix coefficient u and v are both in
-    H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \mathrm{curl}(u), \mathrm{curl}(v))\f$ in 3D
+    and where \f$Q\f$ is a scalar or matrix coefficient \f$u\f$ and \f$v\f$ are both in
+    \f$H\f$(curl). */
 class MixedCurlCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1263,8 +1284,8 @@ public:
    { test_fe.CalcPhysCurlShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Curl u, Curl v) in 3D
-    and where V is a vector coefficient u and v are both in H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \mathrm{curl}(u), \mathrm{curl}(v))\f$ in 3D
+    and where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ and \f$v\f$ are both in \f$H\f$(curl). */
 class MixedCrossCurlCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1275,8 +1296,8 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetVDim() == 3 &&
-              test_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && trial_fe.GetRangeDim() == 3 &&
+              test_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
@@ -1307,8 +1328,8 @@ public:
    { test_fe.CalcPhysCurlShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Curl u, Grad v) in 3D
-    and where V is a vector coefficient u is in H(Curl) and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \mathrm{curl}(u), \nabla \cdot v)\f$ in 3D
+    and where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) and \f$v\f$ is in \f$H^1\f$. */
 class MixedCrossCurlGradIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1350,8 +1371,8 @@ public:
    { test_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Grad u, Curl v) in 3D
-    and where V is a scalar coefficient u is in H1 and v is in H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (v \times \nabla \cdot u, \mathrm{curl}(v))\f$ in 3D
+    and where \f$v\f$ is a scalar coefficient \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H\f$(curl). */
 class MixedCrossGradCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1393,9 +1414,9 @@ public:
    { test_fe.CalcPhysCurlShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x u, Curl v) in 3D and
-    where V is a vector coefficient u is in H(Curl) or H(Div) and v is in
-    H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u, \mathrm{curl}(v))\f$ in 3D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in
+    \f$H\f$(curl). */
 class MixedWeakCurlCrossIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1406,7 +1427,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
@@ -1428,9 +1449,9 @@ public:
    { test_fe.CalcPhysCurlShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x u, Curl v) in 2D and
-    where V is a vector coefficient u is in H(Curl) or H(Div) and v is in
-    H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u, \mathrm{curl}(v))\f$ in 2D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in
+    \f$H\f$(curl). */
 class MixedScalarWeakCurlCrossIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1463,9 +1484,9 @@ public:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Grad u, v) in 3D or
-    in 2D and where V is a vector coefficient u is in H1 and v is in H(Curl) or
-    H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \nabla \cdot u, v)\f$ in 3D or
+    in 2D and where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H\f$(curl) or
+    \f$H\f$(div). */
 class MixedCrossGradIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1476,7 +1497,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (test_fe.GetVDim() == 3 &&
+      return (test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::SCALAR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::GRAD &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1503,9 +1524,9 @@ public:
    { test_fe.CalcVShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Curl u, v) in 3D and
-    where V is a vector coefficient u is in H(Curl) and v is in H(Curl) or
-    H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \mathrm{curl}(u), v)\f$ in 3D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) and \f$v\f$ is in \f$H\f$(curl) or
+    \f$H\f$(div). */
 class MixedCrossCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1516,7 +1537,7 @@ public:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL   &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
@@ -1538,9 +1559,9 @@ public:
    { trial_fe.CalcPhysCurlShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Curl u, v) in 2D and
-    where V is a vector coefficient u is in H(Curl) and v is in H(Curl) or
-    H(Div). */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \mathrm{curl}(u), v)\f$ in 2D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) and \f$v\f$ is in \f$H\f$(curl) or
+    \f$H\f$(div). */
 class MixedScalarCrossCurlIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1573,8 +1594,8 @@ public:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x Grad u, v) in 2D and
-    where V is a vector coefficient u is in H1 and v is in H1 or L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times \nabla \cdot u, v)\f$ in 2D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H^1\f$ or \f$L_2\f$. */
 class MixedScalarCrossGradIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1607,8 +1628,8 @@ public:
    { vector_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x u, v) in 2D and where
-    V is a vector coefficient u is in ND or RT and v is in H1 or L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u, v)\f$ in 2D and where
+    \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H\f$(curl) or \f$H\f$(div) and \f$v\f$ is in \f$H^1\f$ or \f$L_2\f$. */
 class MixedScalarCrossProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1632,8 +1653,11 @@ public:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V x z u, v) in 2D and
-    where V is a vector coefficient u is in H1 or L2 and v is in ND or RT. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \times u \hat{z}, v)\f$ in 2D and
+    where \f$\vec{V}\f$ is a vector coefficient \f$u\f$ is in \f$H^1\f$ or \f$L_2\f$ and \f$v\f$ is in \f$H\f$(curl) or \f$H\f$(div).
+
+    \todo Documentation what \f$\hat{z}\f$ is (also missing in https://mfem.org/bilininteg/).
+   */
 class MixedScalarWeakCrossProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1662,8 +1686,8 @@ public:
    { scalar_fe.CalcPhysShape(Trans, shape); shape *= -1.0; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (V . Grad u, v) in 2D or
-    3D and where V is a vector coefficient, u is in H1 and v is in H1 or L2. */
+/** Class for integrating the bilinear form \f$a(u,v) := (\vec{V} \cdot \nabla u, v)\f$ in 2D or
+    3D and where \f$\vec{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H^1\f$ or \f$L_2\f$. */
 class MixedDirectionalDerivativeIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1695,8 +1719,8 @@ public:
    { vector_fe.CalcPhysDShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (-V . Grad u, Div v) in 2D
-    or 3D and where V is a vector coefficient, u is in H1 and v is in RT. */
+/** Class for integrating the bilinear form \f$a(u,v) := (-\hat{V} \cdot  \nabla \cdot u, \nabla \cdot v)\f$ in 2D
+    or 3D and where \f$\hat{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H\f$(div). */
 class MixedGradDivIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1734,8 +1758,8 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (-V Div u, Grad v) in 2D
-    or 3D and where V is a vector coefficient, u is in RT and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (-\hat{V} \nabla \cdot u, \nabla \cdot v)\f$ in 2D
+    or 3D and where \f$\hat{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H\f$(div) and \f$v\f$ is in \f$H^1\f$. */
 class MixedDivGradIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1774,8 +1798,8 @@ public:
    { scalar_fe.CalcPhysDivShape(Trans, shape); }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (-\hat{V} u, \nabla \cdot v)\f$ in 2D or 3D
+    and where \f$\hat{V}\f$ is a vector coefficient, \f$u\f$ is in \f$H^1\f$ or \f$L_2\f$ and \f$v\f$ is in \f$H^1\f$. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
@@ -1807,9 +1831,9 @@ public:
    { vector_fe.CalcPhysDShape(Trans, shape); shape *= -1.0; }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q grad u, v) in either 2D
-    or 3D and where Q is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) u is in H1 and v is in H(Curl) or H(Div). Partial assembly
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, v)\f$ in either 2D
+    or 3D and where \f$Q\f$ is an optional coefficient (of type scalar, matrix, or
+    diagonal matrix) \f$u\f$ is in \f$H^1\f$ and \f$v\f$ is in \f$H\f$(curl) or \f$H\f$(div). Partial assembly
     (PA) is supported but could be further optimized by using more efficient
     threading and shared memory.
 */
@@ -1836,7 +1860,7 @@ protected:
    inline virtual const char * FiniteElementTypeFailureMessage() const
    {
       return "MixedVectorGradientIntegrator:  "
-             "Trial spaces must be H1 and the test space must be a "
+             "Trial spaces must be \f$H^1\f$ and the test space must be a "
              "vector field in 2D or 3D";
    }
 
@@ -1868,9 +1892,9 @@ private:
    int dim, ne, dofs1D, quad1D;
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q curl u, v) in 3D and
-    where Q is an optional coefficient (of type scalar, matrix, or diagonal
-    matrix) u is in H(Curl) and v is in H(Div) or H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \mathrm{curl}(u), v)\f$ in 3D and
+    where \f$Q\f$ is an optional coefficient (of type scalar, matrix, or diagonal
+    matrix) \f$u\f$ is in \f$H\f$(curl) and \f$v\f$ is in \f$H\f$(div) or \f$H\f$(curl). */
 class MixedVectorCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1887,7 +1911,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetCurlDim() == 3 && test_fe.GetVDim() == 3 &&
+      return (trial_fe.GetCurlDim() == 3 && test_fe.GetRangeDim() == 3 &&
               trial_fe.GetDerivType() == mfem::FiniteElement::CURL  &&
               test_fe.GetRangeType()  == mfem::FiniteElement::VECTOR );
    }
@@ -1914,6 +1938,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    // PA extension
@@ -1926,9 +1951,9 @@ private:
    int dim, ne, dofs1D, dofs1Dtest,quad1D, testType, trialType, coeffDim;
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, curl v) in 3D and
-    where Q is an optional coefficient (of type scalar, matrix, or diagonal
-    matrix) u is in H(Div) or H(Curl) and v is in H(Curl). */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q u, \mathrm{curl}(v))\f$ in 3D and
+    where \f$Q\f$ is an optional coefficient (of type scalar, matrix, or diagonal
+    matrix) \f$u\f$ is in \f$H\f$(div) or \f$H\f$(curl) and \f$v\f$ is in \f$H\f$(curl). */
 class MixedVectorWeakCurlIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -1945,7 +1970,7 @@ protected:
       const FiniteElement & trial_fe,
       const FiniteElement & test_fe) const
    {
-      return (trial_fe.GetVDim() == 3 && test_fe.GetCurlDim() == 3 &&
+      return (trial_fe.GetRangeDim() == 3 && test_fe.GetCurlDim() == 3 &&
               trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetDerivType()  == mfem::FiniteElement::CURL );
    }
@@ -1972,6 +1997,7 @@ protected:
                            const FiniteElementSpace &test_fes);
 
    virtual void AddMultPA(const Vector&, Vector&) const;
+   virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
 private:
    // PA extension
@@ -1982,9 +2008,9 @@ private:
    int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
 };
 
-/** Class for integrating the bilinear form a(u,v) := - (Q u, grad v) in either
-    2D or 3D and where Q is an optional coefficient (of type scalar, matrix, or
-    diagonal matrix) u is in H(Div) or H(Curl) and v is in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := - (Q u, \nabla v)\f$ in either
+    2D or 3D and where \f$Q\f$ is an optional coefficient (of type scalar, matrix, or
+    diagonal matrix) \f$u\f$ is in \f$H\f$(div) or \f$H\f$(curl) and \f$v\f$ is in \f$H^1\f$. */
 class MixedVectorWeakDivergenceIntegrator : public MixedVectorIntegrator
 {
 public:
@@ -2024,11 +2050,11 @@ protected:
    }
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q grad u, v) where Q is a
-    scalar coefficient, and v is a vector with components v_i in the same (H1) space
-    as u.
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, v)\f$ where \f$Q\f$ is a
+    scalar coefficient, and \f$v\f$ is a vector with components \f$v_i\f$ in the same (\f$H^1\f$) space
+    as \f$u\f$.
 
-    See also MixedVectorGradientIntegrator when v is in H(curl). */
+    See also MixedVectorGradientIntegrator when \f$v\f$ is in \f$H\f$(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2075,7 +2101,7 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, \nabla v)\f$ where \f$Q\f$
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
 {
@@ -2099,6 +2125,59 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+
+   // Data for NURBS patch PA
+
+   // Type for a variable-row-length 2D array, used for data related to 1D
+   // quadrature rules in each dimension.
+   typedef std::vector<std::vector<int>> IntArrayVar2D;
+
+   int numPatches = 0;
+   static constexpr int numTypes = 2;  // Number of rule types
+
+   // In the case integrationMode == Mode::PATCHWISE_REDUCED, an approximate
+   // integration rule with sparse nonzero weights is computed by NNLSSolver,
+   // for each 1D basis function on each patch, in each spatial dimension. For a
+   // fixed 1D basis function b_i with DOF index i, in the tensor product basis
+   // of patch p, the prescribed exact 1D rule is of the form
+   // \sum_k a_{i,j,k} w_k for some integration points indexed by k, with
+   // weights w_k and coefficients a_{i,j,k} depending on Q(x), an element
+   // transformation, b_i, and b_j, for all 1D basis functions b_j whose support
+   // overlaps that of b_i. Define the constraint matrix G = [g_{j,k}] with
+   // g_{j,k} = a_{i,j,k} and the vector of exact weights w = [w_k]. A reduced
+   // rule should have different weights w_r, many of them zero, and should
+   // approximately satisfy Gw_r = Gw. A sparse approximate solution to this
+   // underdetermined system is computed by NNLSSolver, and its data is stored
+   // in the following members.
+
+   // For each patch p, spatial dimension d (total dim), and rule type t (total
+   // numTypes), an std::vector<Vector> of reduced quadrature weights for all
+   // basis functions is stored in reducedWeights[t + numTypes * (d + dim * p)],
+   // reshaped as rw(t,d,p). Note that nd may vary with respect to the patch and
+   // spatial dimension. Array reducedIDs is treated similarly.
+   std::vector<std::vector<Vector>> reducedWeights;
+   std::vector<IntArrayVar2D> reducedIDs;
+   std::vector<Array<int>> pQ1D, pD1D;
+   std::vector<std::vector<Array2D<double>>> pB, pG;
+   std::vector<IntArrayVar2D> pminD, pmaxD, pminQ, pmaxQ, pminDD, pmaxDD;
+
+   std::vector<Array<const IntegrationRule*>> pir1d;
+
+   void SetupPatchPA(const int patch, Mesh *mesh, bool unitWeights=false);
+
+   void SetupPatchBasisData(Mesh *mesh, unsigned int patch);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with full 1D quadrature rules. */
+   void AssemblePatchMatrix_fullQuadrature(const int patch,
+                                           const FiniteElementSpace &fes,
+                                           SparseMatrix*& smat);
+
+   /** Called by AssemblePatchMatrix for sparse matrix assembly on a NURBS patch
+    with reduced 1D quadrature rules. */
+   void AssemblePatchMatrix_reducedQuadrature(const int patch,
+                                              const FiniteElementSpace &fes,
+                                              SparseMatrix*& smat);
 
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
@@ -2135,6 +2214,14 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   virtual void AssemblePatchMatrix(const int patch,
+                                    const FiniteElementSpace &fes,
+                                    SparseMatrix*& smat);
+
+   virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
+
+   void AssemblePatchPA(const int patch, const FiniteElementSpace &fes);
+
    /// Perform the local action of the BilinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -2169,15 +2256,22 @@ public:
 
    virtual void AddMultTransposePA(const Vector&, Vector&) const;
 
+   virtual void AddMultNURBSPA(const Vector&, Vector&) const;
+
+   void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Class for local mass matrix assembling a(u,v) := (Q u, v) */
+/** Class for local mass matrix assembling \f$a(u,v) := (Q u, v)\f$ */
 class MassIntegrator: public BilinearFormIntegrator
 {
+   friend class DGMassInverse;
 protected:
 #ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape;
@@ -2186,8 +2280,9 @@ protected:
    // PA extension
    const FiniteElementSpace *fespace;
    Vector pa_data;
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
+   const DofToQuad *maps;                 ///< Not owned
+   const GeometricFactors *geom;          ///< Not owned
+   const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
 
 public:
@@ -2214,6 +2309,8 @@ public:
 
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
+   virtual void AssemblePABoundary(const FiniteElementSpace &fes);
+
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add);
 
@@ -2232,9 +2329,11 @@ public:
                                          ElementTransformation &Trans);
 
    bool SupportsCeed() const { return DeviceCanUseCeed(); }
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Mass integrator (u, v) restricted to the boundary of a domain */
+/** Mass integrator \f$(u, v)\f$ restricted to the boundary of a domain */
 class BoundaryMassIntegrator : public MassIntegrator
 {
 public:
@@ -2248,7 +2347,7 @@ public:
                                    DenseMatrix &elmat);
 };
 
-/// alpha (q . grad u, v)
+/// \f$ \alpha (Q \cdot \nabla u, v)\f$
 class ConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2306,7 +2405,7 @@ public:
 // Alias for @ConvectionIntegrator.
 using NonconservativeConvectionIntegrator = ConvectionIntegrator;
 
-/// -alpha (u, q . grad v), negative transpose of ConvectionIntegrator
+/// \f$-\alpha (u, q \cdot \nabla v)\f$, negative transpose of ConvectionIntegrator
 class ConservativeConvectionIntegrator : public TransposeIntegrator
 {
 public:
@@ -2314,7 +2413,7 @@ public:
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 };
 
-/// alpha (q . grad u, v) using the "group" FE discretization
+/// \f$ \alpha (Q \cdot \nabla u, v)\f$ using the "group" FE discretization
 class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2333,8 +2432,8 @@ public:
                                       DenseMatrix &);
 };
 
-/** Class for integrating the bilinear form a(u,v) := (Q u, v),
-    where u=(u1,...,un) and v=(v1,...,vn); ui and vi are defined
+/** Class for integrating the bilinear form \f$a(u,v) := (Q u, v)\f$,
+    where \f$ u=(u_1,\dots,u_n) \f$ and \f$ v=(v_1,\dots,v_n)\f$, \f$u_i\f$ and \f$v_i\f$ are defined
     by scalar FE through standard transformation. */
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
@@ -2395,13 +2494,14 @@ public:
 };
 
 
-/** Class for integrating (div u, p) where u is a vector field given by
-    VectorFiniteElement through Piola transformation (for RT elements); p is
+/** Class for integrating \f$(\nabla \cdot u, p)\f$ where \f$u\f$ is a vector field given by
+    VectorFiniteElement through Piola transformation (for Raviart-Thomas elements); \f$p\f$ is
     scalar function given by FiniteElement through standard transformation.
-    Here, u is the trial function and p is the test function.
+    Here, \f$u\f$ is the trial function and \f$p\f$ is the test function.
 
-    Note: the element matrix returned by AssembleElementMatrix2 does NOT depend
-    on the ElementTransformation Trans. */
+    Note: if the test space does not have map type INTEGRAL, then the element
+    matrix returned by AssembleElementMatrix2 will not depend on the
+    ElementTransformation Trans. */
 class VectorFEDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2441,8 +2541,8 @@ public:
 };
 
 
-/** Integrator for `(-Q u, grad v)` for Nedelec (`u`) and H1 (`v`) elements.
-    This is equivalent to a weak divergence of the Nedelec basis functions. */
+/** Integrator for \f$(-Q u, \nabla v)\f$ for Nedelec (\f$u\f$) and \f$H^1\f$ (\f$v\f$) elements.
+    This is equivalent to a weak divergence of the \f$H\f$(curl) basis functions. */
 class VectorFEWeakDivergenceIntegrator: public BilinearFormIntegrator
 {
 protected:
@@ -2468,8 +2568,8 @@ public:
                                        DenseMatrix &elmat);
 };
 
-/** Integrator for (curl u, v) for Nedelec and RT elements. If the trial and
-    test spaces are switched, assembles the form (u, curl v). */
+/** Integrator for \f$(\mathrm{curl}(u), v)\f$ for Nedelec and Raviart-Thomas elements. If the trial and
+    test spaces are switched, assembles the form \f$(u, \mathrm{curl}(v))\f$. */
 class VectorFECurlIntegrator: public BilinearFormIntegrator
 {
 protected:
@@ -2494,7 +2594,7 @@ public:
                                        DenseMatrix &elmat);
 };
 
-/// Class for integrating (Q D_i(u), v); u and v are scalars
+/// Class for integrating \f$ (Q \partial_i(u), v) \f$ where \f$u\f$ and \f$v\f$ are scalars
 class DerivativeIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2517,7 +2617,7 @@ public:
                                        DenseMatrix &elmat);
 };
 
-/// Integrator for (curl u, curl v) for Nedelec elements
+/// Integrator for \f$(\mathrm{curl}(u), \mathrm{curl}(v))\f$ for Nedelec elements
 class CurlCurlIntegrator: public BilinearFormIntegrator
 {
 private:
@@ -2525,6 +2625,7 @@ private:
 #ifndef MFEM_THREAD_SAFE
    Vector D;
    DenseMatrix curlshape, curlshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
    DenseMatrix vshape, projcurl;
 #endif
 
@@ -2558,6 +2659,11 @@ public:
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
 
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u, const FiniteElement &fluxelem,
@@ -2572,9 +2678,11 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Integrator for (curl u, curl v) for FE spaces defined by 'dim' copies of a
+/** Integrator for \f$(\mathrm{curl}(u), \mathrm{curl}(v))\f$ for FE spaces defined by 'dim' copies of a
     scalar FE space. */
 class VectorCurlCurlIntegrator: public BilinearFormIntegrator
 {
@@ -2595,16 +2703,46 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
-   /// Compute element energy: (1/2) (curl u, curl u)_E
+   /// Compute element energy: \f$ \frac{1}{2} (\mathrm{curl}(u), \mathrm{curl}(u))_E\f$
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
 };
 
-/** Integrator for (Q u, v), where Q is an optional coefficient (of type scalar,
-    vector (diagonal matrix), or matrix), trial function u is in H(Curl) or
-    H(Div), and test function v is in H(Curl), H(Div), or v=(v1,...,vn), where
-    vi are in H1. */
+/** Class for integrating the bilinear form \f$a(u,v) := (Q \mathrm{curl}(u), v)\f$ where \f$Q\f$ is
+    an optional scalar coefficient, and \f$v\f$ is a vector with components \f$v_i\f$ in
+    the \f$L_2\f$ or \f$H^1\f$ space. This integrator handles 3 cases:
+    1. u ∈ \f$H\f$(curl) in 3D, \f$v\f$ is a 3D vector with components \f$v_i\f$ in \f$L^2\f$ or \f$H^1\f$
+    2. u ∈ \f$H\f$(curl) in 2D, \f$v\f$ is a scalar field in \f$L^2\f$ or \f$H^1\f$
+    3. u is a scalar field in \f$H^1\f$, i.e, \f$\mathrm{curl}(u) := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}\f$, \f$\nabla u\f$ and \f$v\f$ is a
+        2D vector field with components \f$v_i\f$ in \f$L^2\f$ or \f$H^1\f$ space.
+
+    Note: Case 2 can also be handled by MixedScalarCurlIntegrator  */
+class MixedCurlIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+private:
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix curlshape;
+   DenseMatrix elmat_comp;
+public:
+   MixedCurlIntegrator() : Q{NULL} { }
+   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
+   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+};
+
+/** Integrator for \f$(Q u, v)\f$, where \f$Q\f$ is an optional coefficient (of type scalar,
+    vector (diagonal matrix), or matrix), trial function \f$u\f$ is in \f$H\f$(curl) or
+    \f$H\f$(div), and test function \f$v\f$ is in \f$H\f$(curl), \f$H\f$(div), or \f$v=(v_1,\dots,v_n)\f$, where
+    \f$v_i\f$ are in \f$H^1\f$. */
 class VectorFEMassIntegrator: public BilinearFormIntegrator
 {
 private:
@@ -2657,11 +2795,14 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
    virtual void AddMultPA(const Vector &x, Vector &y) const;
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
    virtual void AssembleDiagonalPA(Vector& diag);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
-/** Integrator for (Q div u, p) where u=(v1,...,vn) and all vi are in the same
-    scalar FE space; p is also in a (different) scalar FE space.  */
+/** Integrator for \f$(Q \nabla \cdot u, v)\f$ where \f$u=(u_1,\cdots,u_n)\f$ and all \f$u_i\f$ are in the same
+    scalar FE space; \f$v\f$ is also in a (different) scalar FE space.  */
 class VectorDivergenceIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2708,7 +2849,7 @@ public:
                                          ElementTransformation &Trans);
 };
 
-/// (Q div u, div v) for RT elements
+/// \f$(Q \nabla \cdot u, \nabla \cdot v)\f$ for Raviart-Thomas elements
 class DivDivIntegrator: public BilinearFormIntegrator
 {
 protected:
@@ -2721,7 +2862,7 @@ protected:
 
 private:
 #ifndef MFEM_THREAD_SAFE
-   Vector divshape;
+   Vector divshape, te_divshape;
 #endif
 
    // PA extension
@@ -2733,18 +2874,26 @@ private:
 
 public:
    DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q) : Q(&q) { }
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q) { }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
                                       DenseMatrix &elmat);
+
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat);
+
+   const Coefficient *GetCoefficient() const { return Q; }
 };
 
 /** Integrator for
-
-      (Q grad u, grad v) = sum_i (Q grad u_i, grad v_i) e_i e_i^T
-
-    for vector FE spaces, where e_i is the unit vector in the i-th direction.
+    \f[
+      (Q \nabla u, \nabla v) = \sum_i (Q \nabla u_i, \nabla v_i) e_i e_i^{\mathrm{T}}
+    \f]
+    for vector FE spaces, where \f$e_i\f$ is the unit vector in the \f$i\f$-th direction.
     The resulting local element matrix is square, of size <tt> vdim*dof </tt>,
     where \c vdim is the vector dimension space and \c dof is the local degrees
     of freedom. The integrator is not aware of the true vector dimension and
@@ -2805,7 +2954,7 @@ public:
        \c Vector.
 
        The element matrix is block-diagonal and each block is integrated with
-       coefficient q_i.
+       coefficient \f$q_{i}\f$.
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
@@ -2817,7 +2966,7 @@ public:
        \c Matrix.
 
        The element matrix is populated in each block. Each block is integrated
-       with coefficient q_ij.
+       with coefficient \f$q_{ij}\f$.
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
@@ -2841,8 +2990,10 @@ public:
 };
 
 /** Integrator for the linear elasticity form:
-    a(u,v) = (lambda div(u), div(v)) + (2 mu e(u), e(v)),
-    where e(v) = (1/2) (grad(v) + grad(v)^T).
+    \f[
+      a(u,v) = (\lambda \mathrm{div}(u), \mathrm{div}(v)) + (2 \mu \varepsilon(u), \varepsilon(v)),
+    \f]
+    where \f$\varepsilon(v) = \frac{1}{2} (\mathrm{grad}(v) + \mathrm{grad}(v)^{\mathrm{T}})\f$.
     This is a 'Vector' integrator, i.e. defined for FE spaces
     using multiple copies of a scalar FE space. */
 class ElasticityIntegrator : public BilinearFormIntegrator
@@ -2861,8 +3012,8 @@ private:
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
    { lambda = &l; mu = &m; }
-   /** With this constructor lambda = q_l * m and mu = q_m * m;
-       if dim * q_l + 2 * q_m = 0 then trace(sigma) = 0. */
+   /** With this constructor \f$\lambda = q_l * m\f$ and \f$\mu = q_m * m\f$
+       if \f$dim * q_l + 2 * q_m = 0\f$ then \f$\tr(\sigma) = 0\f$. */
    ElasticityIntegrator(Coefficient &m, double q_l, double q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
@@ -2870,12 +3021,12 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
-   /** Compute the stress corresponding to the local displacement @a u and
+   /** Compute the stress corresponding to the local displacement @a \f$u\f$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
        part of the stress is stored, so that the size of @a flux is equal to
        the number of DOFs in @a fluxelem times dim*(dim+1)/2. In 2D, the order
-       of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
-       s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
+       of the stress components is: \f$s_xx, s_yy, s_xy\f$. In 3D, it is: \f$s_xx, s_yy,
+       s_zz, s_xy, s_xz, s_yz\f$. In other words, @a flux is the local vector for
        a FE space with dim*(dim+1)/2 vector components, based on the finite
        element @a fluxelem. The integration rule is taken from @a fluxelem.
        @a ir exists to specific an alternative integration rule. */
@@ -2893,37 +3044,39 @@ public:
        dim*(dim+1)/2 vector components, based on the finite element @a fluxelem.
        The number of components, dim*(dim+1)/2 is such that it represents the
        symmetric part of the (symmetric) stress tensor. The order of the
-       components is: s_xx, s_yy, s_xy in 2D, and s_xx, s_yy, s_zz, s_xy, s_xz,
-       s_yz in 3D. */
+       components is: \f$s_xx, s_yy, s_xy\f$ in 2D, and \f$s_xx, s_yy, s_zz, s_xy, s_xz,
+       s_yz\f$ in 3D. */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 };
 
 /** Integrator for the DG form:
-    alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >,
-    where v and w are the trial and test variables, respectively, and rho/u are
-    given scalar/vector coefficients. {v} represents the average value of v on
-    the face and [v] is the jump such that {v}=(v1+v2)/2 and [v]=(v1-v2) for the
-    face between elements 1 and 2. For boundary elements, v2=0. The vector
-    coefficient, u, is assumed to be continuous across the faces and when given
-    the scalar coefficient, rho, is assumed to be discontinuous. The integrator
-    uses the upwind value of rho, rho_u, which is value from the side into which
-    the vector coefficient, u, points.
+    \f[
+      \alpha \langle \rho_u (u \cdot n) \{v\},[w] \rangle + \beta \langle \rho_u |u \cdot n| [v],[w] \rangle,
+    \f]
+    where \f$v\f$ and \f$w\f$ are the trial and test variables, respectively, and \f$\rho\f$/\f$u\f$ are
+    given scalar/vector coefficients. \f$\{v\}\f$ represents the average value of \f$v\f$ on
+    the face and \f$[v]\f$ is the jump such that \f$\{v\}=(v_1+v_2)/2\f$ and \f$[v]=(v_1-v_2)\f$ for the
+    face between elements \f$1\f$ and \f$2\f$. For boundary elements, \f$v2=0\f$. The vector
+    coefficient, \f$u\f$, is assumed to be continuous across the faces and when given
+    the scalar coefficient, \f$\rho\f$, is assumed to be discontinuous. The integrator
+    uses the upwind value of \f$\rho\f$, denoted by \f$\rho_u\f$, which is value from the side into which
+    the vector coefficient, \f$u\f$, points.
 
-    One use case for this integrator is to discretize the operator -u.grad(v)
+    One use case for this integrator is to discretize the operator \f$-u \cdot \nabla v\f$
     with a DG formulation. The resulting formulation uses the
-    ConvectionIntegrator (with coefficient u, and parameter alpha = -1) and the
-    transpose of the DGTraceIntegrator (with coefficient u, and parameters alpha
-    = 1, beta = -1/2 to use the upwind face flux, see also
+    ConvectionIntegrator (with coefficient \f$u\f$, and parameter \f$\alpha = -1\f$) and the
+    transpose of the DGTraceIntegrator (with coefficient \f$u\f$, and parameters \f$\alpha
+    = 1\f$, \f$\beta = -1/2\f$ to use the upwind face flux, see also
     NonconservativeDGTraceIntegrator). This discretization and the handling of
     the inflow and outflow boundaries is illustrated in Example 9/9p.
 
-    Another use case for this integrator is to discretize the operator -div(u v)
+    Another use case for this integrator is to discretize the operator \f$-\mathrm{div}(u v)\f$
     with a DG formulation. The resulting formulation is conservative and
-    consists of the ConservativeConvectionIntegrator (with coefficient u, and
-    parameter alpha = -1) plus the DGTraceIntegrator (with coefficient u, and
-    parameters alpha = -1, beta = -1/2 to use the upwind face flux).
+    consists of the ConservativeConvectionIntegrator (with coefficient \f$u\f$, and
+    parameter \f$\alpha = -1\f$) plus the DGTraceIntegrator (with coefficient \f$u\f$, and
+    parameters \f$\alpha = -1\f$, \f$\beta = -1/2\f$ to use the upwind face flux).
     */
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
@@ -2941,11 +3094,11 @@ private:
    Vector shape1, shape2;
 
 public:
-   /// Construct integrator with rho = 1, b = 0.5*a.
+   /// Construct integrator with \f$\rho = 1\f$, \f$\beta = \alpha/2\f$.
    DGTraceIntegrator(VectorCoefficient &u_, double a)
    { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
 
-   /// Construct integrator with rho = 1.
+   /// Construct integrator with \f$\rho = 1\f$.
    DGTraceIntegrator(VectorCoefficient &u_, double a, double b)
    { rho = NULL; u = &u_; alpha = a; beta = b; }
 
@@ -2990,8 +3143,9 @@ using ConservativeDGTraceIntegrator = DGTraceIntegrator;
 
 /** Integrator that represents the face terms used for the non-conservative
     DG discretization of the convection equation:
-    -alpha < rho_u (u.n) {v},[w] > + beta < rho_u |u.n| [v],[w] >.
-
+    \f[
+      -\alpha \langle \rho_u (u \cdot n) \{v\},[w] \rangle + \beta \langle \rho_u |u \cdot n| [v],[w] \rangle.
+    \f]
     This integrator can be used with together with ConvectionIntegrator to
     implement an upwind DG discretization in non-conservative form, see ex9 and
     ex9p. */
@@ -3010,17 +3164,19 @@ public:
 };
 
 /** Integrator for the DG form:
-
-    - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
-    + kappa < {h^{-1} Q} [u], [v] >,
-
-    where Q is a scalar or matrix diffusion coefficient and u, v are the trial
-    and test spaces, respectively. The parameters sigma and kappa determine the
+    \f[
+        - \langle \{(Q \nabla u) \cdot n\}, [v] \rangle + \sigma \langle [u], \{(Q \nabla v) \cdot n \} \rangle
+        + \kappa \langle \{h^{-1} Q\} [u], [v] \rangle
+    \f]
+    where \f$Q\f$ is a scalar or matrix diffusion coefficient and \f$u\f$, \f$v\f$ are the trial
+    and test spaces, respectively. The parameters \f$\sigma\f$ and \f$\kappa\f$ determine the
     DG method to be used (when this integrator is added to the "broken"
     DiffusionIntegrator):
-    * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
-    * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
-    * sigma = +1, kappa = 0: the method of Baumann and Oden. */
+    - \f$\sigma = -1\f$, \f$\kappa \geq \kappa_0\f$: symm. interior penalty (IP or SIPG) method,
+    - \f$\sigma = +1\f$, \f$\kappa > 0\f$: non-symmetric interior penalty (NIPG) method,
+    - \f$\sigma = +1\f$, \f$\kappa = 0\f$: the method of Baumann and Oden.
+
+    \todo Clarify used notation. */
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -3047,11 +3203,11 @@ public:
 };
 
 /** Integrator for the "BR2" diffusion stabilization term
-
-    sum_e eta (r_e([u]), r_e([v]))
-
-    where r_e is the lifting operator defined on each edge e (potentially
-    weighted by a coefficient Q). The parameter eta can be chosen to be one to
+    \f[
+      \sum_e \eta (r_e([u]), r_e([v]))
+    \f]
+    where \f$r_e\f$ is the lifting operator defined on each edge \f$e\f$ (potentially
+    weighted by a coefficient \f$Q\f$). The parameter eta can be chosen to be one to
     obtain a stable discretization. The constructor for this integrator requires
     the finite element space because the lifting operator depends on the
     element-wise inverse mass matrix.
@@ -3182,8 +3338,8 @@ public:
     \begin{split}
     \sigma(u) &= \lambda \nabla \cdot u I + 2 \mu \varepsilon(u) \\
               &= \lambda \nabla \cdot u I + 2 \mu \frac{1}{2} (\nabla u + \nabla
-                 u^T) \\
-              &= \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^T)
+                 u^{\mathrm{T}}) \\
+              &= \lambda \nabla \cdot u I + \mu (\nabla u + \nabla u^{\mathrm{T}})
     \end{split}
     \f]
 
@@ -3260,8 +3416,8 @@ protected:
       DenseMatrix &elmat, DenseMatrix &jmat);
 };
 
-/** Integrator for the DPG form: < v, [w] > over all faces (the interface) where
-    the trial variable v is defined on the interface and the test variable w is
+/** Integrator for the DPG form:\f$ \langle v, [w] \rangle \f$ over all faces (the interface) where
+    the trial variable \f$v\f$ is defined on the interface and the test variable \f$w\f$ is
     defined inside the elements, generally in a DG space. */
 class TraceJumpIntegrator : public BilinearFormIntegrator
 {
@@ -3278,9 +3434,9 @@ public:
                                    DenseMatrix &elmat);
 };
 
-/** Integrator for the form: < v, [w.n] > over all faces (the interface) where
-    the trial variable v is defined on the interface and the test variable w is
-    in an H(div)-conforming space. */
+/** Integrator for the form:\f$ \langle v, [w \cdot n] \rangle \f$ over all faces (the interface) where
+    the trial variable \f$v\f$ is defined on the interface and the test variable \f$w\f$ is
+    in an \f$H\f$(div)-conforming space. */
 class NormalTraceJumpIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -3297,14 +3453,95 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the DPG form:\f$ \langle v, w \rangle \f$ over a face (the interface) where
+    the trial variable \f$v\f$ is defined on the interface
+    (\f$H^{-1/2}\f$ i.e., \f$v := u \cdot n\f$ normal trace of \f$H\f$(div))
+    and the test variable \f$w\f$ is in an \f$H^1\f$-conforming space. */
+class TraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, shape;
+public:
+   TraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
+/** Integrator for the form: \f$ \langle v, w \cdot n \rangle \f$ over a face (the interface) where
+    the trial variable \f$v\f$ is defined on the interface (\f$H^{1/2}\f$, i.e., trace of \f$H^1\f$)
+    and the test variable \f$w\f$ is in an \f$H\f$(div)-conforming space. */
+class NormalTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   Vector face_shape, normal, shape_n;
+   DenseMatrix shape;
+
+public:
+   NormalTraceIntegrator() { }
+   virtual void AssembleTraceFaceMatrix(int ielem,
+                                        const FiniteElement &trial_face_fe,
+                                        const FiniteElement &test_fe,
+                                        FaceElementTransformations &Trans,
+                                        DenseMatrix &elmat);
+};
+
+
+/** Integrator for the form: \f$\langle v, w \times n \rangle\f$ over a face (the interface)
+ *  In 3D the trial variable \f$v\f$ is defined on the interface (\f$H^{-1/2}\f$(curl), trace of \f$H\f$(curl))
+ *  In 2D it's defined on the interface (\f$H^{1/2}\f$, trace of \f$H^1\f$)
+ *  The test variable \f$w\f$ is in an \f$H\f$(curl)-conforming space. */
+class TangentTraceIntegrator : public BilinearFormIntegrator
+{
+private:
+   DenseMatrix face_shape, shape, shape_n;
+   Vector normal;
+   Vector temp;
+
+   void cross_product(const Vector & x, const DenseMatrix & Y, DenseMatrix & Z)
+   {
+      int dim = x.Size();
+      MFEM_VERIFY(Y.Width() == dim, "Size mismatch");
+      int dimc = dim == 3 ? dim : 1;
+      int h = Y.Height();
+      Z.SetSize(h,dimc);
+      if (dim == 3)
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(2) * Y(i,1) - x(1) * Y(i,2);
+            Z(i,1) = x(0) * Y(i,2) - x(2) * Y(i,0);
+            Z(i,2) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+      else
+      {
+         for (int i = 0; i<h; i++)
+         {
+            Z(i,0) = x(1) * Y(i,0) - x(0) * Y(i,1);
+         }
+      }
+   }
+
+public:
+   TangentTraceIntegrator() { }
+   void AssembleTraceFaceMatrix(int elem,
+                                const FiniteElement &trial_face_fe,
+                                const FiniteElement &test_fe,
+                                FaceElementTransformations &Trans,
+                                DenseMatrix &elmat);
+};
+
 /** Abstract class to serve as a base for local interpolators to be used in the
     DiscreteLinearOperator class. */
 class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
-    H1-conforming space to an H(curl)-conforming space. The range space can be
-    vector L2 space as well. */
+    \f$H^1\f$-conforming space to an \f$H\f$(curl)-conforming space. The range space can be
+    vector \f$L_2\f$ space as well. */
 class GradientInterpolator : public DiscreteInterpolator
 {
 public:
@@ -3321,8 +3558,8 @@ public:
 
    /** @brief Setup method for PA data.
 
-       @param[in] trial_fes   H1 Lagrange space
-       @param[in] test_fes    H(curl) Nedelec space
+       @param[in] trial_fes   \f$H^1\f$ Lagrange space
+       @param[in] test_fes    \f$H\f$(curl) Nedelec space
     */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -3332,7 +3569,7 @@ public:
 
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    bool B_id; // is the B basis operator (maps_C_C) the identity?
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
@@ -3347,6 +3584,8 @@ private:
 class IdentityInterpolator : public DiscreteInterpolator
 {
 public:
+   IdentityInterpolator(): dofquad_fe(NULL) { }
+
    virtual void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                        const FiniteElement &ran_fe,
                                        ElementTransformation &Trans,
@@ -3361,9 +3600,11 @@ public:
    virtual void AddMultPA(const Vector &x, Vector &y) const;
    virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
+   virtual ~IdentityInterpolator() { delete dofquad_fe; }
+
 private:
    /// 1D finite element that generates and owns the 1D DofToQuad maps below
-   FiniteElement * dofquad_fe;
+   FiniteElement *dofquad_fe;
 
    const DofToQuad *maps_C_C; // one-d map with Lobatto rows, Lobatto columns
    const DofToQuad *maps_O_C; // one-d map with Legendre rows, Lobatto columns
@@ -3392,7 +3633,7 @@ public:
     the global discrete divergence matrix.
 
     Note: Since the dofs in the L2_FECollection are nodal values, the local
-    discrete divergence matrix (with an RT-type domain space) will depend on
+    discrete divergence matrix (with an \f$H\f$(div)-type domain space) will depend on
     the transformation. On the other hand, the local matrix returned by
     VectorFEDivergenceIntegrator is independent of the transformation. */
 class DivergenceInterpolator : public DiscreteInterpolator
@@ -3407,8 +3648,8 @@ public:
 
 
 /** A trace face interpolator class for interpolating the normal component of
-    the domain space, e.g. vector H1, into the range space, e.g. the trace of
-    RT which uses FiniteElement::INTEGRAL map type. */
+    the domain space, e.g. vector \f$H^1\f$, into the range space, e.g. the trace of
+    \f$H\f$(div) which uses FiniteElement::INTEGRAL map type. */
 class NormalInterpolator : public DiscreteInterpolator
 {
 public:
@@ -3470,7 +3711,7 @@ protected:
 };
 
 /** Interpolator of the 2D cross product between a vector coefficient and an
-    H(curl)-conforming field onto an L2-conforming field. */
+    \f$H\f$(curl)-conforming field onto an \f$L_2\f$-conforming field. */
 class ScalarCrossProductInterpolator : public DiscreteInterpolator
 {
 public:
@@ -3486,8 +3727,8 @@ protected:
 };
 
 /** Interpolator of the cross product between a vector coefficient and an
-    H(curl)-conforming field onto an H(div)-conforming field. The range space
-    can also be vector L2. */
+    \f$H\f$(curl)-conforming field onto an \f$H\f$(div)-conforming field. The range space
+    can also be vector \f$L_2\f$. */
 class VectorCrossProductInterpolator : public DiscreteInterpolator
 {
 public:
@@ -3503,8 +3744,8 @@ protected:
 };
 
 /** Interpolator of the inner product between a vector coefficient and an
-    H(div)-conforming field onto an L2-conforming field. The range space can
-    also be H1. */
+    \f$H\f$(div)-conforming field onto an \f$L_2\f$-conforming field. The range space can
+    also be \f$H^1\f$. */
 class VectorInnerProductInterpolator : public DiscreteInterpolator
 {
 public:
@@ -3517,18 +3758,6 @@ public:
 protected:
    VectorCoefficient *VQ;
 };
-
-
-
-// PA Diffusion Assemble 2D kernel
-template<const int T_SDIM>
-void PADiffusionSetup2D(const int Q1D,
-                        const int coeffDim,
-                        const int NE,
-                        const Array<double> &w,
-                        const Vector &j,
-                        const Vector &c,
-                        Vector &d);
 
 }
 #endif
