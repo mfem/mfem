@@ -199,6 +199,51 @@ public:
    }
 };
 
+/// @brief Volumetric force for linear elasticity
+class LineVolumeForceCoefficient : public VectorCoefficient
+{
+private:
+   double r2;
+   Vector &center;
+   Vector &force;
+   int direction_dim;
+public:
+   LineVolumeForceCoefficient(double r_, Vector &center_, Vector & force_,
+                              int direction_dim) :
+      VectorCoefficient(center_.Size()), r2(r_*r_), center(center_), force(force_),
+      direction_dim(direction_dim) { }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      Vector xx; xx.SetSize(T.GetDimension());
+      T.Transform(ip,xx);
+      xx(direction_dim) = 0.0;
+      center(direction_dim) = 0.0;
+      double cr = xx.DistanceSquaredTo(center);
+      V.SetSize(T.GetDimension());
+      if (cr <= r2)
+      {
+         V = force;
+      }
+      else
+      {
+         V = 0.0;
+      }
+   }
+
+   void Set(double r_,Vector & center_, Vector & force_)
+   {
+      r2=r_*r_;
+      center = center_;
+      force = force_;
+   }
+   void UpdateSize()
+   {
+      VectorCoefficient::vdim = center.Size();
+   }
+};
+
 /**
  * @brief Class for solving Poisson's equation:
  *
