@@ -1296,46 +1296,27 @@ protected:
       *zero_gf = 0.0;
 
       double Vc = zero_gf->ComputeL1Error(rho);
-      double dVc = Vc - std::pow(zero_gf->ComputeL2Error(rho), 2);
-      if (fabs(Vc - target_volume) > tol)
+      ConstantCoefficient one_cf(1.0);
+      double inv_sig_vol_fraction = inv_sigmoid(target_volume /
+                                                zero_gf->ComputeL1Error(one_cf));
+      double c_l = inv_sig_vol_fraction - x_gf->Max();
+      double c_r = inv_sig_vol_fraction - x_gf->Min();
+      while (fabs(Vc - target_volume) > tol & fabs(c_r - c_l) > 1e-09)
       {
-         double dc;
-         if (dVc > tol) // if derivative is sufficiently large,
+         c = 0.5*(c_r + c_l);
+         Vc = zero_gf->ComputeL1Error(rho);
+         if (Vc > target_volume)
          {
-            dc = -(Vc - target_volume) / dVc;
+            c_r = c;
          }
          else
          {
-            dc = -(Vc > target_volume ? x_gf->Max() : x_gf->Min());
+            c_l = c;
          }
-         c = dc;
-         int k;
-         // Find an interval (c, c+dc) that contains c⋆.
-         for (k=0; k < max_its; k++)
-         {
-            double Vc_old = Vc;
-            Vc = zero_gf->ComputeL1Error(rho);
-            if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
-            {
-               break;
-            }
-            c += dc;
-         }
-         if (k == max_its) // if failed to find the search interval
-         {
-            return infinity();
-         }
-         // Bisection
-         dc = fabs(dc);
-         while (fabs(dc) > 1e-08)
-         {
-            dc /= 2.0;
-            c = Vc > target_volume ? c - dc : c + dc;
-            Vc = zero_gf->ComputeL1Error(rho);
-         }
-         *x_gf += c;
-         c = 0;
       }
+      c = 0.5*(c_r + c_l);
+      *x_gf += c;
+      c = 0.0;
       current_volume = zero_gf->ComputeL1Error(rho);
 
       delete zero_gf;
@@ -1363,6 +1344,9 @@ protected:
       {
          return std::max(0.0, std::min(1.0, x + c));
       });
+
+      double c_l = -(x_gf->Normlinf());
+      double c_r = -c_l;
       // MappedGridFunctionCoefficient proj_drho(x_gf, [&c](const double x) {return der_sigmoid(x + c);});
       GridFunction *zero_gf;
       FiniteElementSpace * fes = x_gf->FESpace();
@@ -1382,53 +1366,22 @@ protected:
       *zero_gf = 0.0;
 
       double Vc = zero_gf->ComputeL1Error(rho);
-      double dVc = Vc - std::pow(zero_gf->ComputeL2Error(rho), 2);
-      if (fabs(Vc - target_volume) > tol)
+      while (fabs(Vc - target_volume) > tol & (c_r - c_l) > 1e-09)
       {
-         double dc;
-         if (dVc > tol) // if derivative is sufficiently large,
+         c = 0.5*(c_r + c_l);
+         Vc = zero_gf->ComputeL1Error(rho);
+         if (Vc > target_volume)
          {
-            dc = -(Vc - target_volume) / dVc;
+            c_r = c;
          }
          else
          {
-            dc = -(Vc > target_volume ? x_gf->Max() : x_gf->Min());
-         }
-         c = dc;
-         int k;
-         // Find an interval (c, c+dc) that contains c⋆.
-         for (k=0; k < max_its; k++)
-         {
-            double Vc_old = Vc;
-            Vc = zero_gf->ComputeL1Error(rho);
-            if ((Vc_old - target_volume)*(Vc - target_volume) < 0)
-            {
-               break;
-            }
-            c += dc;
-         }
-         if (k == max_its) // if failed to find the search interval
-         {
-            return infinity();
-         }
-         // Bisection
-         dc = fabs(dc);
-         while (fabs(dc) > 1e-08)
-         {
-            dc /= 2.0;
-            c = Vc > target_volume ? c - dc : c + dc;
-            Vc = zero_gf->ComputeL1Error(rho);
+            c_l = c;
          }
       }
+      c = 0.5*(c_r + c_l);
       current_volume = zero_gf->ComputeL1Error(rho);
       x_gf->ProjectCoefficient(rho);
-
-
-      delete zero_gf;
-      if (fabs(current_volume - target_volume) > 1e-05)
-      {
-         return infinity();
-      }
       return current_volume;
    }
    double current_volume;
