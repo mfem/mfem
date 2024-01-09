@@ -47,7 +47,7 @@
 using namespace std;
 using namespace mfem;
 
-void EulerMesh(const int problem, const char **mesh_file);
+Mesh EulerMesh(const int problem);
 
 VectorFunctionCoefficient EulerInitialCondition(const int problem,
                                                 const double specific_heat_ratio,
@@ -110,16 +110,11 @@ int main(int argc, char *argv[])
       if (Mpi::Root()) { args.PrintUsage(out); }
       return 1;
    }
-   // When the user does not provide mesh file,
-   // use the default mesh file for the problem.
-   if ((mesh_file == NULL) || (mesh_file[0] == '\0'))    // if NULL or empty
-   {
-      EulerMesh(problem, &mesh_file);  // get default mesh file name
-   }
    if (Mpi::Root()) { args.PrintOptions(out); }
 
    // 2. Read the mesh from the given mesh file.
-   Mesh mesh = Mesh(mesh_file);
+   Mesh mesh = (mesh_file == NULL ||
+                mesh_file[0] == '\0') ? EulerMesh(problem) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
@@ -385,24 +380,24 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-void EulerMesh(const int problem, const char **mesh_file)
+Mesh EulerMesh(const int problem)
 {
    switch (problem)
    {
       case 1:
-         *mesh_file = "../data/periodic-square.mesh";
+         return Mesh("../data/periodic-square.mesh");
          break;
       case 2:
-         *mesh_file = "../data/periodic-square.mesh";
+         return Mesh("../data/periodic-square.mesh");
          break;
       case 3:
-         *mesh_file = "../data/periodic-square.mesh";
+         return Mesh("../data/periodic-square.mesh");
          break;
       case 4:
-         *mesh_file = "../data/periodic-segment.mesh";
+         return Mesh("../data/periodic-segment.mesh");
          break;
       case 5:
-         *mesh_file = "../data/periodic-square.mesh";
+         return Mesh("../data/periodic-square.mesh");
          break;
       default:
          throw invalid_argument("Default mesh is undefined");
