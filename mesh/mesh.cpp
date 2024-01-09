@@ -4249,16 +4249,14 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   for (auto const &attr_set : mesh.attr_sets)
    {
-      // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : mesh.attr_sets)
-      {
-	 attr_set.second.Copy(attr_sets[attr_set.first]);
-      }
-      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-      {
-	 bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-      }
+      attr_set.second.Copy(attr_sets[attr_set.first]);
+   }
+   for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
+   {
+      bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
    }
 
    // Deep copy the NURBSExtension.
