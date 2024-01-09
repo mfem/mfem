@@ -73,184 +73,156 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-
-   Array<int> attr1; attr1.Append(1);
-   Array<int> attr2; attr2.Append(2);
-   Mesh * mesh1 = new Mesh(SubMesh::CreateFromDomain(*mesh,attr1));
-   Mesh * mesh2 = new Mesh(SubMesh::CreateFromDomain(*mesh,attr2));
-
-   Array<int> partition1(mesh1->GeneratePartitioning(num_procs),mesh1->GetNE());
-   Array<int> partition2(mesh2->GeneratePartitioning(num_procs),mesh2->GetNE());
-   Array<int> partition;
-   partition.Append(partition1);
-   partition.Append(partition2);
-
-   ParMesh * pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1,partition1.GetData());
-   ParMesh * pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2,partition2.GetData());
-   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,partition.GetData());
+   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
 
    for (int i = 0; i<pref; i++)
    {
-      pmesh1->UniformRefinement();
-      pmesh2->UniformRefinement();
       pmesh->UniformRefinement();
    }
 
-   MFEM_VERIFY(pmesh1->GetNE(), "Empty partition pmesh1");
-   MFEM_VERIFY(pmesh2->GetNE(), "Empty partition pmesh2");
    MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
 
-   ParElasticityProblem * prob1 = new ParElasticityProblem(pmesh1,order);
-   ParElasticityProblem * prob2 = new ParElasticityProblem(pmesh2,order);
+   ParElasticityProblem * prob = new ParElasticityProblem(pmesh,order);
 
-
-   Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
-   Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
-   Vector lambda2(prob2->GetMesh()->attributes.Max()); lambda2 = 57.6923076923;
-   Vector mu2(prob2->GetMesh()->attributes.Max()); mu2 = 38.4615384615;
-
-   prob1->SetLambda(lambda1); prob1->SetMu(mu1);
-   prob2->SetLambda(lambda2); prob2->SetMu(mu2);
+   Vector lambda(prob->GetMesh()->attributes.Max()); lambda = 57.6923076923;
+   Vector mu(prob->GetMesh()->attributes.Max()); mu = 38.4615384615;
+   prob->SetLambda(lambda); prob->SetMu(mu);
 
 #ifdef MFEM_USE_TRIBOL
-   ParContactProblemTribol contact_tribol(prob1,prob2);
+   ParContactProblemTribol contact_tribol(prob);
    return 0;
 #endif
 
-   ParContactProblem contact(prob1,prob2);
-   QPOptParContactProblem qpopt(&contact);
-   int numconstr = contact.GetGlobalNumConstraints();
+   // ParContactProblem contact(prob1,prob2);
+   // QPOptParContactProblem qpopt(&contact);
+   // int numconstr = contact.GetGlobalNumConstraints();
 
-   ParInteriorPointSolver optimizer(&qpopt);
+   // ParInteriorPointSolver optimizer(&qpopt);
 
-   optimizer.SetTol(optimizer_tol);
-   optimizer.SetMaxIter(50);
+   // optimizer.SetTol(optimizer_tol);
+   // optimizer.SetMaxIter(50);
 
-   int linsolver = 2;
-   optimizer.SetLinearSolver(linsolver);
-   optimizer.SetLinearSolveTol(linsolvertol);
-   optimizer.SetLinearSolveRelaxType(relax_type);
+   // int linsolver = 2;
+   // optimizer.SetLinearSolver(linsolver);
+   // optimizer.SetLinearSolveTol(linsolvertol);
+   // optimizer.SetLinearSolveRelaxType(relax_type);
 
-   ParGridFunction x1 = prob1->GetDisplacementGridFunction();
-   ParGridFunction x2 = prob2->GetDisplacementGridFunction();
+   // ParGridFunction x1 = prob1->GetDisplacementGridFunction();
+   // ParGridFunction x2 = prob2->GetDisplacementGridFunction();
 
-   int ndofs1 = prob1->GetNumTDofs();
-   int ndofs2 = prob2->GetNumTDofs();
-   int gndofs1 = prob1->GetGlobalNumDofs();
-   int gndofs2 = prob2->GetGlobalNumDofs();
-   int ndofs = ndofs1 + ndofs2;
+   // int ndofs1 = prob1->GetNumTDofs();
+   // int ndofs2 = prob2->GetNumTDofs();
+   // int gndofs1 = prob1->GetGlobalNumDofs();
+   // int gndofs2 = prob2->GetGlobalNumDofs();
+   // int ndofs = ndofs1 + ndofs2;
 
-   Vector X1 = x1.GetTrueVector();
-   Vector X2 = x2.GetTrueVector();
+   // Vector X1 = x1.GetTrueVector();
+   // Vector X2 = x2.GetTrueVector();
 
-   Vector x0(ndofs); x0 = 0.0;
-   x0.SetVector(X1,0);
-   x0.SetVector(X2,X1.Size());
+   // Vector x0(ndofs); x0 = 0.0;
+   // x0.SetVector(X1,0);
+   // x0.SetVector(X2,X1.Size());
 
-   Vector xf(ndofs); xf = 0.0;
-   optimizer.Mult(x0, xf);
+   // Vector xf(ndofs); xf = 0.0;
+   // optimizer.Mult(x0, xf);
 
-   double Einitial = contact.E(x0);
-   double Efinal = contact.E(xf);
-   Array<int> & CGiterations = optimizer.GetCGIterNumbers();
-   if (Mpi::Root())
-   {
-      mfem::out << endl;
-      mfem::out << " Initial Energy objective     = " << Einitial << endl;
-      mfem::out << " Final Energy objective       = " << Efinal << endl;
-      mfem::out << " Global number of dofs        = " << gndofs1 + gndofs2 << endl;
-      mfem::out << " Global number of constraints = " << numconstr << endl;
-      mfem::out << " CG iteration numbers         = " ;
-      CGiterations.Print(mfem::out, CGiterations.Size());
-   }
+   // double Einitial = contact.E(x0);
+   // double Efinal = contact.E(xf);
+   // Array<int> & CGiterations = optimizer.GetCGIterNumbers();
+   // if (Mpi::Root())
+   // {
+   //    mfem::out << endl;
+   //    mfem::out << " Initial Energy objective     = " << Einitial << endl;
+   //    mfem::out << " Final Energy objective       = " << Efinal << endl;
+   //    mfem::out << " Global number of dofs        = " << gndofs1 + gndofs2 << endl;
+   //    mfem::out << " Global number of constraints = " << numconstr << endl;
+   //    mfem::out << " CG iteration numbers         = " ;
+   //    CGiterations.Print(mfem::out, CGiterations.Size());
+   // }
 
-   MFEM_VERIFY(optimizer.GetConverged(),
-               "Interior point solver did not converge.");
-
-
-   if (visualization || paraview)
-   {
-      ParFiniteElementSpace * fes1 = prob1->GetFESpace();
-      ParFiniteElementSpace * fes2 = prob2->GetFESpace();
-
-      ParMesh * pmesh_1 = fes1->GetParMesh();
-      ParMesh * pmesh_2 = fes2->GetParMesh();
-
-      Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
-      Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
-
-      ParGridFunction x1_gf(fes1);
-      ParGridFunction x2_gf(fes2);
-
-      x1_gf.SetFromTrueDofs(X1_new);
-      x2_gf.SetFromTrueDofs(X2_new);
-
-      pmesh_1->MoveNodes(x1_gf);
-      pmesh_2->MoveNodes(x2_gf);
-
-      if (paraview)
-      {
-         ParaViewDataCollection paraview_dc1("QPContactBody1", pmesh_1);
-         paraview_dc1.SetPrefixPath("ParaView");
-         paraview_dc1.SetLevelsOfDetail(1);
-         paraview_dc1.SetDataFormat(VTKFormat::BINARY);
-         paraview_dc1.SetHighOrderOutput(true);
-         paraview_dc1.SetCycle(0);
-         paraview_dc1.SetTime(0.0);
-         paraview_dc1.RegisterField("Body1", &x1_gf);
-         paraview_dc1.Save();
-
-         ParaViewDataCollection paraview_dc2("QPContactBody2", pmesh_2);
-         paraview_dc2.SetPrefixPath("ParaView");
-         paraview_dc2.SetLevelsOfDetail(1);
-         paraview_dc2.SetDataFormat(VTKFormat::BINARY);
-         paraview_dc2.SetHighOrderOutput(true);
-         paraview_dc2.SetCycle(0);
-         paraview_dc2.SetTime(0.0);
-         paraview_dc2.RegisterField("Body2", &x2_gf);
-         paraview_dc2.Save();
-      }
+   // MFEM_VERIFY(optimizer.GetConverged(),
+   //             "Interior point solver did not converge.");
 
 
-      if (visualization)
-      {
-         char vishost[] = "localhost";
-         int visport = 19916;
+   // if (visualization || paraview)
+   // {
+   //    ParFiniteElementSpace * fes1 = prob1->GetFESpace();
+   //    ParFiniteElementSpace * fes2 = prob2->GetFESpace();
 
-         {
-            socketstream sol_sock1(vishost, visport);
-            sol_sock1.precision(8);
-            sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << *pmesh_1 << x1_gf << flush;
-         }
-         {
-            socketstream sol_sock2(vishost, visport);
-            sol_sock2.precision(8);
-            sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << *pmesh_2 << x2_gf << flush;
-         }
+   //    ParMesh * pmesh_1 = fes1->GetParMesh();
+   //    ParMesh * pmesh_2 = fes2->GetParMesh();
 
-         // {
-         //    socketstream sol_sock(vishost, visport);
-         //    sol_sock.precision(8);
-         //    sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
-         //             << "solution\n" << *pmesh_1 << x1_gf << flush;
-         // }
-         // {
-         //    socketstream sol_sock(vishost, visport);
-         //    sol_sock.precision(8);
-         //    sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
-         //             << "solution\n" << *pmesh_2 << x2_gf << flush;
-         // }
-      }
-   }
+   //    Vector X1_new(xf.GetData(),fes1->GetTrueVSize());
+   //    Vector X2_new(&xf.GetData()[fes1->GetTrueVSize()],fes2->GetTrueVSize());
 
-   delete prob2;
-   delete prob1;
-   delete pmesh2;
-   delete pmesh1;
-   // delete mesh1;
-   // delete mesh2;
+   //    ParGridFunction x1_gf(fes1);
+   //    ParGridFunction x2_gf(fes2);
 
+   //    x1_gf.SetFromTrueDofs(X1_new);
+   //    x2_gf.SetFromTrueDofs(X2_new);
+
+   //    pmesh_1->MoveNodes(x1_gf);
+   //    pmesh_2->MoveNodes(x2_gf);
+
+   //    if (paraview)
+   //    {
+   //       ParaViewDataCollection paraview_dc1("QPContactBody1", pmesh_1);
+   //       paraview_dc1.SetPrefixPath("ParaView");
+   //       paraview_dc1.SetLevelsOfDetail(1);
+   //       paraview_dc1.SetDataFormat(VTKFormat::BINARY);
+   //       paraview_dc1.SetHighOrderOutput(true);
+   //       paraview_dc1.SetCycle(0);
+   //       paraview_dc1.SetTime(0.0);
+   //       paraview_dc1.RegisterField("Body1", &x1_gf);
+   //       paraview_dc1.Save();
+
+   //       ParaViewDataCollection paraview_dc2("QPContactBody2", pmesh_2);
+   //       paraview_dc2.SetPrefixPath("ParaView");
+   //       paraview_dc2.SetLevelsOfDetail(1);
+   //       paraview_dc2.SetDataFormat(VTKFormat::BINARY);
+   //       paraview_dc2.SetHighOrderOutput(true);
+   //       paraview_dc2.SetCycle(0);
+   //       paraview_dc2.SetTime(0.0);
+   //       paraview_dc2.RegisterField("Body2", &x2_gf);
+   //       paraview_dc2.Save();
+   //    }
+
+
+   //    if (visualization)
+   //    {
+   //       char vishost[] = "localhost";
+   //       int visport = 19916;
+
+   //       {
+   //          socketstream sol_sock1(vishost, visport);
+   //          sol_sock1.precision(8);
+   //          sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
+   //                    << "solution\n" << *pmesh_1 << x1_gf << flush;
+   //       }
+   //       {
+   //          socketstream sol_sock2(vishost, visport);
+   //          sol_sock2.precision(8);
+   //          sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
+   //                    << "solution\n" << *pmesh_2 << x2_gf << flush;
+   //       }
+
+   //       // {
+   //       //    socketstream sol_sock(vishost, visport);
+   //       //    sol_sock.precision(8);
+   //       //    sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
+   //       //             << "solution\n" << *pmesh_1 << x1_gf << flush;
+   //       // }
+   //       // {
+   //       //    socketstream sol_sock(vishost, visport);
+   //       //    sol_sock.precision(8);
+   //       //    sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
+   //       //             << "solution\n" << *pmesh_2 << x2_gf << flush;
+   //       // }
+   //    }
+   // }
+
+   delete prob;
+   delete pmesh;
+   delete mesh;
    return 0;
 }

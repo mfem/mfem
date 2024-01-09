@@ -108,7 +108,7 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
-	rm -f $(CONTACT_OBJ) $(PCONTACT_OBJ) #(PCONTACT_TRIBOL_OBJ)
+	rm -f $(CONTACT_OBJ) $(PCONTACT_OBJ) $(PCONTACT_TRIBOL_OBJ)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

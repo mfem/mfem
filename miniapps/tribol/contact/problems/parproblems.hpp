@@ -84,6 +84,40 @@ public:
    {
       VectorConstantCoefficient delta_cf(delta);
       x.ProjectBdrCoefficient(delta_cf,ess_bdr);
+      bool vis = false;
+      if (vis)
+      {
+         int myid, num_procs;
+         MPI_Comm_rank(comm, &myid);
+         MPI_Comm_size(comm, &num_procs);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << *pmesh << x << std::flush;
+         MFEM_ABORT("");
+      }
+   };
+
+   void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr) 
+   {
+      VectorConstantCoefficient delta_cf(delta);
+      x.ProjectBdrCoefficient(delta_cf,essbdr);
+      bool vis = false;
+      if (vis)
+      {
+         int myid, num_procs;
+         MPI_Comm_rank(comm, &myid);
+         MPI_Comm_size(comm, &num_procs);
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << *pmesh << x << std::flush;
+         MFEM_ABORT("");
+      }
    };
 
    ParGridFunction & GetDisplacementGridFunction() {return x;};
@@ -220,15 +254,34 @@ public:
 
 
 #ifdef MFEM_USE_TRIBOL
-
 class ParContactProblemTribol
 {
 private:
+   MPI_Comm comm;
+   int numprocs;
+   int myid;
+   ParElasticityProblem * prob = nullptr;
+   ParFiniteElementSpace * vfes = nullptr;
+   ParMesh * pmesh = nullptr;
+   int dim;
+   GridFunction nodes0;
+   GridFunction *nodes1 = nullptr;
+   std::vector<int> dof_offsets;
+   std::vector<int> constraints_offsets; 
+   Array<int> tdof_offsets;
+   Array<int> constraints_starts;
+
+   void SetupTribol();
 
 protected:
+   HypreParMatrix * K = nullptr;
+   BlockVector *B = nullptr;
+   HypreParMatrix * M=nullptr;
 
 public:
-   ParContactProblemTribol(ParElasticityProblem * prob1_, ParElasticityProblem * prob2_);
+// for now we work on 1 (merged mesh).
+// TODO work with 2 meshes independently 
+   ParContactProblemTribol(ParElasticityProblem * prob_);
 
    ~ParContactProblemTribol();
 };

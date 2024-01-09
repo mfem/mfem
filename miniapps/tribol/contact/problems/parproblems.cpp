@@ -166,6 +166,8 @@ void ParContactProblem::ComputeContactVertices()
 
 void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2)
 {
+   displ1.Print();
+   displ2.Print();
    ComputeContactVertices();
    ParMesh * pmesh1 = prob1->GetMesh();
    ParMesh * pmesh2 = prob2->GetMesh();
@@ -403,6 +405,7 @@ HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool compute_hessians_)
 {
+   mfem::out << "g = " << endl;
    compute_hessians = compute_hessians_;
    int ndof1 = prob1->GetNumTDofs();
    int ndof2 = prob2->GetNumTDofs();
@@ -519,9 +522,51 @@ QPOptParContactProblem::~QPOptParContactProblem()
 
 #ifdef MFEM_USE_TRIBOL
 
-ParContactProblemTribol::ParContactProblemTribol(ParElasticityProblem * prob1_, ParElasticityProblem * prob2_)
+ParContactProblemTribol::ParContactProblemTribol(ParElasticityProblem * prob_)
+: prob(prob_)
 {
+   pmesh = prob->GetMesh();
+   vfes = prob->GetFESpace();
+   comm = pmesh->GetComm();
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &numprocs);
+   dim = pmesh->Dimension();
+   nodes0.SetSpace(pmesh->GetNodes()->FESpace());
+   nodes0 = *pmesh->GetNodes();
+   nodes1 = pmesh->GetNodes();
+   Vector delta(dim);
+   delta = 0.0; delta[0] = 0.1;
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[1] = 1;
+   prob->SetDisplacementDirichletData(delta, ess_bdr);
+   ParGridFunction & x = prob->GetDisplacementGridFunction();
+
+   SetupTribol();
+
 }
+
+void ParContactProblemTribol::SetupTribol()
+{
+   axom::slic::SimpleLogger logger;
+   axom::slic::setIsRoot(mfem::Mpi::Root());
+
+   // plane of bottom block
+   std::set<int> mortar_attrs({3});
+   // plane of top block
+   std::set<int> nonmortar_attrs({4});
+
+   // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs
+   std::vector<std::set<int>> fixed_attrs(3);
+   fixed_attrs[0] = {1,2,5,6}; // x-comp = 0;
+   fixed_attrs[1] = {1,2,5,6}; // y-comp = 0;
+   fixed_attrs[2] = {1,5,6}; // z-comp = 0
+
+   // TODO how about non-homogeneous Dirichlet? 
+   MFEM_ABORT("Need to setup non-homogenous Dirichlet BCs")
+
+}
+
 
 ParContactProblemTribol::~ParContactProblemTribol()
 {

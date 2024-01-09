@@ -2,7 +2,10 @@
 #include "mfem.hpp"
 #include "problems_util.hpp"
 #include "../util/mpicomm.hpp"
+#include "axom/slic.hpp"
 
+#include "tribol/interface/tribol.hpp"
+#include "tribol/interface/mfem_tribol.hpp"
 // Coordinates in xyz are assumed to be ordered as [X, Y, Z]
 // where X is the list of x-coordinates for all points and so on.
 // conn: connectivity of the target surface elements
