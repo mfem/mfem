@@ -31,7 +31,7 @@ Tribol has dependencies on [Axom](https://github.com/LLNL/axom) and MFEM.  The
 simplest way to satisfy these dependencies is to follow the build instructions
 provided in the Tribol repo.  This will use uberenv and spack to build
 dependencies (and their dependencies) mostly automatically.  To simplify Axom's
-dependencies, the following spack spec is recommended: `^axom~examples~tests`.
+dependencies, the following spack spec is recommended: `^axom~examples~tools`.
 Furthermore, the version of MFEM built by spack should match the version of MFEM
 you are using.  For instance, if you are tracking the latest `master` branch,
 the following spack spec is recommended: `^mfem@develop`.  After building
