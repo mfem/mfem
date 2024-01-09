@@ -137,8 +137,7 @@ int main(int argc, char *argv[])
    // Display attribute set names contained in the initial mesh
    if (myid == 0)
    {
-      std::set<string> names;
-      pmesh.GetAttributeSetNames(names);
+      std::set<string> names = pmesh.GetAttributeSetNames();
       cout << "Element Attribute Set Names: ";
       for (auto const &set_name : names)
       {
@@ -146,8 +145,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
 
-      std::set<string> bdr_names;
-      pmesh.GetBdrAttributeSetNames(bdr_names);
+      std::set<string> bdr_names = pmesh.GetBdrAttributeSetNames();
       cout << "Boundary Attribute Set Names: ";
       for (auto const &bdr_set_name : bdr_names)
       {

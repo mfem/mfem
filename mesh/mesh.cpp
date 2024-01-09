@@ -1622,6 +1622,13 @@ void Mesh::GetAttributeSetNames(std::set<std::string> &names) const
    }
 }
 
+std::set<std::string> Mesh::GetAttributeSetNames() const
+{
+   std::set<std::string> names;
+   GetAttributeSetNames(names);
+   return names;
+}
+
 void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
 {
    names.clear();
@@ -1632,6 +1639,12 @@ void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
    }
 }
 
+std::set<std::string> Mesh::GetBdrAttributeSetNames() const
+{
+   std::set<std::string> names;
+   GetBdrAttributeSetNames(names);
+   return names;
+}
 
 void Mesh::SetAttributeSet(const std::string &set_name, const Array<int> &attr)
 {
