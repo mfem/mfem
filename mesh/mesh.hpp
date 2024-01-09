@@ -1063,8 +1063,14 @@ public:
    /// @brief Copy all attribute set names into an STL set
    void GetAttributeSetNames(std::set<std::string> &names) const;
 
+   /// @brief Return all attribute set names as an STL set
+   std::set<std::string> GetAttributeSetNames() const;
+
    /// @brief Copy all boundary attribute set names into an STL set
    void GetBdrAttributeSetNames(std::set<std::string> &names) const;
+
+   /// @brief Return all boundary attribute set names as an STL set
+   std::set<std::string> GetBdrAttributeSetNames() const;
 
    /// @brief Create a new attribute set
    /**

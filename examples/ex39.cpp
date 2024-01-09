@@ -111,8 +111,7 @@ int main(int argc, char *argv[])
 
    // Display attribute set names contained in the initial mesh
    {
-      std::set<string> names;
-      mesh.GetAttributeSetNames(names);
+      std::set<string> names = mesh.GetAttributeSetNames();
       cout << "Element Attribute Set Names: ";
       for (auto const &set_name : names)
       {
@@ -120,8 +119,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
 
-      std::set<string> bdr_names;
-      mesh.GetBdrAttributeSetNames(bdr_names);
+      std::set<string> bdr_names = mesh.GetBdrAttributeSetNames();
       cout << "Boundary Attribute Set Names: ";
       for (auto const &bdr_set_name : bdr_names)
       {
