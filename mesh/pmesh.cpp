@@ -145,17 +145,15 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      for (auto const &attr_set : mesh.attr_sets)
       {
-         // Copy attribute and bdr_attribute names
-         for (auto const &attr_set : mesh.attr_sets)
-         {
-            attr_set.second.Copy(attr_sets[attr_set.first]);
-         }
+         attr_set.second.Copy(attr_sets[attr_set.first]);
+      }
 
-         for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-         {
-            bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-         }
+      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
+      {
+         bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
       }
 
       GenerateNCFaceInfo();
@@ -194,17 +192,15 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
 
+      // Copy attribute and bdr_attribute names
+      for (auto const &attr_set : mesh.attr_sets)
       {
-         // Copy attribute and bdr_attribute names
-         for (auto const &attr_set : mesh.attr_sets)
-         {
-            attr_set.second.Copy(attr_sets[attr_set.first]);
-         }
+         attr_set.second.Copy(attr_sets[attr_set.first]);
+      }
 
-         for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-         {
-            bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-         }
+      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
+      {
+         bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
       }
 
       NumOfEdges = NumOfFaces = 0;
@@ -3916,17 +3912,15 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   for (auto const &attr_set : attr_sets)
    {
-      // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : attr_sets)
-      {
-         attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
-      }
+      attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
+   }
 
-      for (auto const &bdr_attr_set : bdr_attr_sets)
-      {
-         bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
-      }
+   for (auto const &bdr_attr_set : bdr_attr_sets)
+   {
+      bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
    }
 
    // now swap the meshes, the second mesh will become the old coarse mesh
@@ -3987,17 +3981,15 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    attributes.Copy(mesh2->attributes);
    bdr_attributes.Copy(mesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   for (auto const &attr_set : attr_sets)
    {
-      // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : attr_sets)
-      {
-         attr_set.second.Copy(mesh2->attr_sets[attr_set.first]);
-      }
+      attr_set.second.Copy(mesh2->attr_sets[attr_set.first]);
+   }
 
-      for (auto const &bdr_attr_set : bdr_attr_sets)
-      {
-         bdr_attr_set.second.Copy(mesh2->bdr_attr_sets[bdr_attr_set.first]);
-      }
+   for (auto const &bdr_attr_set : bdr_attr_sets)
+   {
+      bdr_attr_set.second.Copy(mesh2->bdr_attr_sets[bdr_attr_set.first]);
    }
 
    Mesh::Swap(*mesh2, false);
@@ -4051,17 +4043,15 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
    attributes.Copy(pmesh2->attributes);
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
+   // Copy attribute and bdr_attribute names
+   for (auto const &attr_set : attr_sets)
    {
-      // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : attr_sets)
-      {
-         attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
-      }
+      attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
+   }
 
-      for (auto const &bdr_attr_set : bdr_attr_sets)
-      {
-         bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
-      }
+   for (auto const &bdr_attr_set : bdr_attr_sets)
+   {
+      bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
    }
 
    Mesh::Swap(*pmesh2, false);
