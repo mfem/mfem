@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_filter;
    Vector center(2), force(2);
    double r = 0.05;
-   VolumeForceCoefficient vforce_cf(r,center,force);
+   std::unique_ptr<VectorCoefficient> vforce_cf;
    string mesh_file;
    switch (problem)
    {
@@ -308,6 +308,7 @@ int main(int argc, char *argv[])
          ess_bdr(2, 3) = 1;
          center(0) = 2.9; center(1) = 0.5;
          force(0) = 0.0; force(1) = -1.0;
+         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
          solfile << "Cantilever-";
          solfile2 << "Cantilever-";
          meshfile << "Cantilever";
@@ -321,6 +322,7 @@ int main(int argc, char *argv[])
          ess_bdr(2, 4) = 1;
          center(0) = 0.95; center(1) = 0.35;
          force(0) = 0.0; force(1) = -1.0;
+         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
          solfile << "LBracket-";
          solfile2 << "LBracket-";
          meshfile << "LBracket";
@@ -335,14 +337,15 @@ int main(int argc, char *argv[])
          ess_bdr(1, 1) = 1;
          center(0) = 0.05; center(1) = 0.95;
          force(0) = 0.0; force(1) = -1.0;
+         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
          solfile << "MBB-";
          solfile2 << "MBB-";
          meshfile << "MBB";
          break;
 
       case Problem::Cantilever3:
-         mesh = mesh.MakeCartesian3D(4, 1, 2, mfem::Element::Type::HEXAHEDRON, 2.0, 0.25,
-                                     0.5);
+         mesh = mesh.MakeCartesian3D(2, 1, 1, mfem::Element::Type::HEXAHEDRON, 2.0, 1.0,
+                                     1.0);
          ess_bdr.SetSize(4, 7);
          ess_bdr_filter.SetSize(7);
          ess_bdr = 0; ess_bdr_filter = 0;
@@ -350,7 +353,8 @@ int main(int argc, char *argv[])
          center.SetSize(3); force.SetSize(3);
          center(0) = 1.9; center(1) = 0.125; center(2) = 0.25;
          force(0) = 0.0; force(1) = 0.0; force(1) = -1.0;
-         vforce_cf.UpdateSize();
+         vforce_cf.reset(new LineVolumeForceCoefficient(r,center,force,1));
+         vol_fraction = 0.12;
          solfile << "Cantilever-";
          solfile2 << "Cantilever-";
          meshfile << "Cantilever";
@@ -445,22 +449,22 @@ int main(int argc, char *argv[])
    const double target_volume = domain_volume * vol_fraction;
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    SIMPElasticCompliance obj(&lambda_cf, &mu_cf, epsilon,
-                             &rho, &vforce_cf, target_volume,
+                             &rho, vforce_cf.get(), target_volume,
                              ess_bdr,
                              &state_fes,
                              &filter_fes, exponent, rho_min);
    obj.SetGridFunction(&psi);
-   LineSearchAlgorithm *lineSearch;
+   std::unique_ptr<LineSearchAlgorithm> lineSearch;
    switch (lineSearchMethod)
    {
       case LineSearchMethod::ArmijoBackTracking:
-         lineSearch = new BackTracking(obj, succ_diff_rho_form, psi_old,
-                                       alpha, 2.0, c1, 10, infinity());
+         lineSearch.reset(new BackTracking(obj, succ_diff_rho_form, psi_old,
+                                       alpha, 2.0, c1, 10, infinity()));
          break;
       case LineSearchMethod::BregmanBBBackTracking:
-         lineSearch = new BackTrackingLipschitzBregmanMirror(
+         lineSearch.reset(new BackTrackingLipschitzBregmanMirror(
             obj, succ_diff_rho_form, *(obj.Gradient()), psi, psi_old, c1, 1.0, 1e-10,
-            infinity());
+            infinity()));
          break;
       default:
          mfem_error("Undefined linesearch method.");
@@ -501,10 +505,10 @@ int main(int argc, char *argv[])
              << "keys Rjl***************\n"
              << flush;
    }
-   ParaViewDataCollection *pd = NULL;
+   std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("TopPMD", &mesh);
+      pd.reset(new ParaViewDataCollection("TopPMD", &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
       pd->RegisterField("psi", &psi);
@@ -537,7 +541,7 @@ int main(int argc, char *argv[])
       double normal_cone_BD = checkNormalConeBregman(psi, *obj.Gradient(),
                                                      target_volume);
       psi_old = psi;
-      mfem::out <<  ", " << compliance << ", ";
+      mfem::out <<  ", " << obj.GetVolume() << ", " << compliance << ", ";
       mfem::out << norm_increment << ", " << normal_cone_L2 << ", " << normal_cone_BD
                 << std::endl;
 
@@ -572,8 +576,6 @@ int main(int argc, char *argv[])
       sol_ofs2 << *obj.GetFilteredDensity();
    }
    out << "Total number of iteration = " << k << std::endl;
-   delete lineSearch;
-   delete pd;
 
    return 0;
 }
