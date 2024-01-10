@@ -294,7 +294,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParGridFunction dist(&dist_fes);
    dist = 1.0;
    if (normalization == 1) { dist = small_phys_size; }
-   ConstantCoefficient lim_coeff(lim_const);
+   auto coeff_lim_func = [&](const Vector &x) { return x(0) + lim_const; };
+   FunctionCoefficient lim_coeff(coeff_lim_func);
    if (lim_const != 0.0)
    {
       if (lim_type == 0)
@@ -311,14 +312,15 @@ int tmop(int id, Req &res, int argc, char *argv[])
    ParNonlinearForm nlf(&fes);
    nlf.SetAssemblyLevel(pa ? AssemblyLevel::PARTIAL : AssemblyLevel::LEGACY);
 
-   ConstantCoefficient *coeff1 = nullptr;
+   FunctionCoefficient *coeff1 = nullptr;
    TMOP_QualityMetric *metric2 = nullptr;
    TargetConstructor *target_c2 = nullptr;
    FunctionCoefficient coeff2(weight_fun);
    if (combo > 0)
    {
       // First metric.
-      coeff1 = new ConstantCoefficient(1.0);
+      auto coeff_1_func = [&](const Vector &x) { return x(0) + 10.0; };
+      coeff1 = new FunctionCoefficient(coeff_1_func);
       he_nlf_integ->SetCoefficient(*coeff1);
       // Second metric.
       if (dim == 2) { metric2 = new TMOP_Metric_077; }

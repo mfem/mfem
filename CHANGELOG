@@ -15,10 +15,23 @@ Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
   simplices in ParMesh.
+- Introduced support for internal boundary elements in nonconformal adapted
+  meshes.
+
+- Added functionality for construction of cut-surface and cut-volume
+  IntegrationRules through a moment-fitting approach. The cut is specified by
+  the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
 Miscellaneous
 -------------
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
+
+- Updated the Doxygen documentation style, which now requires Doxygen version
+  1.9.8 or later. See the doc/ directory.
+
+- Improved thread safety for global variables in the library, for example
+  IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
+  GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
 
 Version 4.6, released on September 27, 2023
