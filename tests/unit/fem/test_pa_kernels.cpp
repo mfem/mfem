@@ -265,22 +265,22 @@ void pa_gradient_transpose_testnd(int dim)
    for (int i = 0; i < 3; i++)
    {
       // Vector valued
-      FiniteElementCollection *fec1 = nullptr;
+      std::unique_ptr<FiniteElementCollection> fec1;
       if (i == 0)
       {
-         fec1 = new H1_FECollection(order, dim);
+         fec1.reset(new H1_FECollection(order, dim));
       }
       else if (i == 1)
       {
-         fec1 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::VALUE);
+         fec1.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
       }
       else if (i == 2)
       {
-         fec1 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::INTEGRAL);
+         fec1.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
       }
-      FiniteElementSpace fes1(&mesh, fec1, dim);
+      FiniteElementSpace fes1(&mesh, fec1.get(), dim);
 
       MixedBilinearForm g_pa(&fes1, &fes2);
       g_pa.AddDomainIntegrator(
@@ -302,7 +302,6 @@ void pa_gradient_transpose_testnd(int dim)
 
       y_pa -= y_fa;
       REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
-      delete fec1;
    }
 }
 
