@@ -32,6 +32,8 @@ void gradf1(const Vector &x, Vector &u)
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
+   auto fec2_type = GENERATE(0, 1, 2);
+
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
       Mesh mesh = Mesh::MakeCartesian2D(
@@ -52,56 +54,53 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       fes1.GetEssentialTrueDofs(ess_bdr, ess_trial_tdof_list);
       GridFunction field(&fes1);
 
-      for (int i = 0; i < 3; i++)
+      // Vector valued
+      std::unique_ptr<FiniteElementCollection> fec2;
+      if (fec2_type == 0)
       {
-         // Vector valued
-         std::unique_ptr<FiniteElementCollection> fec2;
-         if (i == 0)
-         {
-            fec2.reset(new H1_FECollection(order, dim));
-         }
-         else if (i == 1)
-         {
-            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                           FiniteElement::VALUE));
-         }
-         else if (i == 2)
-         {
-            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                           FiniteElement::INTEGRAL));
-         }
-         FiniteElementSpace fes2(&mesh, fec2.get(), dim);
-         fes2.GetEssentialTrueDofs(ess_bdr, ess_test_tdof_list);
-         GridFunction field2(&fes2);
-
-         MixedBilinearForm gform(&fes1, &fes2);
-         gform.AddDomainIntegrator(new GradientIntegrator);
-         gform.Assemble();
-
-         // Project u = f1
-         FunctionCoefficient fcoeff1(f1);
-         field.ProjectCoefficient(fcoeff1);
-
-         VectorFunctionCoefficient fcoeff2(dim, gradf1);
-         LinearForm lf(&fes2);
-         lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
-         lf.Assemble();
-
-         OperatorHandle G;
-         Vector X, B;
-         gform.FormRectangularLinearSystem(ess_trial_tdof_list,
-                                           ess_test_tdof_list,
-                                           field,
-                                           lf,
-                                           G,
-                                           X,
-                                           B);
-
-         G->Mult(field, field2);
-
-         subtract(B, field2, field2);
-         REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+         fec2.reset(new H1_FECollection(order, dim));
       }
+      else if (fec2_type == 1)
+      {
+         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
+      }
+      else if (fec2_type == 2)
+      {
+         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
+      }
+      FiniteElementSpace fes2(&mesh, fec2.get(), dim);
+      fes2.GetEssentialTrueDofs(ess_bdr, ess_test_tdof_list);
+      GridFunction field2(&fes2);
+
+      MixedBilinearForm gform(&fes1, &fes2);
+      gform.AddDomainIntegrator(new GradientIntegrator);
+      gform.Assemble();
+
+      // Project u = f1
+      FunctionCoefficient fcoeff1(f1);
+      field.ProjectCoefficient(fcoeff1);
+
+      VectorFunctionCoefficient fcoeff2(dim, gradf1);
+      LinearForm lf(&fes2);
+      lf.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff2));
+      lf.Assemble();
+
+      OperatorHandle G;
+      Vector X, B;
+      gform.FormRectangularLinearSystem(ess_trial_tdof_list,
+                                        ess_test_tdof_list,
+                                        field,
+                                        lf,
+                                        G,
+                                        X,
+                                        B);
+
+      G->Mult(field, field2);
+
+      subtract(B, field2, field2);
+      REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
    }
 }
 
