@@ -44,16 +44,16 @@ double der_sigmoid(const double x)
    return tmp*(1.0 - tmp);
 }
 
-double simp(const double x, const double rho_min=1e-06, const double exp=3.0,
+double simp(const double x, const double rho_min=1e-06, const double k=3.0,
             const double rho_max=1.0)
 {
-   return rho_min + std::pow(x, exp) * (rho_max - rho_min);
+   return rho_min + std::pow(x, k) * (rho_max - rho_min);
 }
 
 double der_simp(const double x, const double rho_min=1e-06,
-                const double exp=3.0, const double rho_max=1.0)
+                const double k=3.0, const double rho_max=1.0)
 {
-   return (exp - 1.0) * std::pow(x, exp - 1) * (rho_max - rho_min);
+   return k * std::pow(x, k - 1.0) * (rho_max - rho_min);
 }
 
 
