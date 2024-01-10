@@ -32,7 +32,9 @@ void gradf1(const Vector &x, Vector &u)
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
-   auto fec2_type = GENERATE(0, 1, 2);
+   enum FECType { H1, L2_VALUE, L2_INTEGRAL };
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
 
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
@@ -56,19 +58,19 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 
       // Vector valued
       std::unique_ptr<FiniteElementCollection> fec2;
-      if (fec2_type == 0)
+      switch (fec_type)
       {
-         fec2.reset(new H1_FECollection(order, dim));
-      }
-      else if (fec2_type == 1)
-      {
-         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                        FiniteElement::VALUE));
-      }
-      else if (fec2_type == 2)
-      {
-         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                        FiniteElement::INTEGRAL));
+         case FECType::H1:
+            fec2.reset(new H1_FECollection(order, dim));
+            break;
+         case FECType::L2_VALUE:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::VALUE));
+            break;
+         case FECType::L2_INTEGRAL:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::INTEGRAL));
+            break;
       }
       FiniteElementSpace fes2(&mesh, fec2.get(), dim);
       fes2.GetEssentialTrueDofs(ess_bdr, ess_test_tdof_list);
