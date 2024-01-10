@@ -71,9 +71,11 @@ void Workspace::Consolidate(int requested_size)
    const int capacity = chunks.empty() ? -1 :
                         chunks.front().GetAvailableCapacity();
 
-   if (requested_size > capacity)
+   const int min_chunk_size = std::max(requested_size, empty_capacity);
+
+   if (min_chunk_size > capacity)
    {
-      chunks.emplace_front(std::max(requested_size, empty_capacity));
+      chunks.emplace_front(min_chunk_size);
    }
 }
 
