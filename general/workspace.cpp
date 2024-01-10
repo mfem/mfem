@@ -34,6 +34,11 @@ WorkspaceVector::~WorkspaceVector()
    chunk.FreeCapacity(size_in_chunk);
 }
 
+WorkspaceChunk::WorkspaceChunk(int capacity) : data(capacity), offset(0)
+{
+   mfem::out << "Allocating new WorkspaceChunk.\n";
+}
+
 WorkspaceVector WorkspaceChunk::NewVector(int n)
 {
    MFEM_ASSERT(HasCapacityFor(n), "Requested vector is too large.");
@@ -42,57 +47,56 @@ WorkspaceVector WorkspaceChunk::NewVector(int n)
    return vector;
 }
 
-void Workspace::ClearEmptyChunks()
+void Workspace::Consolidate(int requested_size)
 {
-   while (!chunks.empty())
+   int n_empty = 0;
+   int empty_capacity = 0;
+   // Merge all empty chunks at the beginning of the list
+   auto it = chunks.begin();
+   while (it != chunks.end() && it->IsEmpty())
    {
-      WorkspaceChunk &front_chunk = chunks.front();
-      if (front_chunk.GetOffset() == 0)
-      {
-         current_capacity -= front_chunk.GetCapacity();
-         chunks.pop_front();
-      }
-      else
-      {
-         break;
-      }
+      empty_capacity += it->GetAvailableCapacity();
+      ++it;
+      ++n_empty;
    }
-}
 
-WorkspaceChunk &Workspace::NewChunk(int requested_size)
-{
-   const int new_chunk_size = [&]()
+   // If we have multiple empty chunks at the beginning of the list, we need
+   // to merge them. Also, if the front chunk is empty, but not big enough,
+   // we need to replace it, so we remove it here.
+   if (n_empty > 1 || requested_size > empty_capacity)
    {
-      if (total_requested_capacity - current_capacity >= requested_size)
-      {
-         return total_requested_capacity - current_capacity;
-      }
-      else
-      {
-         return requested_size;
-      }
-   }();
-   current_capacity += new_chunk_size;
-   total_requested_capacity = std::max(total_requested_capacity, current_capacity);
-   chunks.emplace_front(new_chunk_size);
-   return chunks.front();
+      chunks.erase_after(chunks.before_begin(), it);
+   }
+
+   const int capacity = chunks.empty() ? -1 :
+                        chunks.front().GetAvailableCapacity();
+
+   if (requested_size > capacity)
+   {
+      chunks.emplace_front(std::max(requested_size, empty_capacity));
+   }
 }
 
 WorkspaceVector Workspace::NewVector(int n)
 {
-   // If the front chunk has capacity, get the new vector from there
-   if (!chunks.empty())
+   Consolidate(n);
+   return chunks.front().NewVector(n);
+}
+
+Workspace::~Workspace()
+{
+   int nchunks = 0;
+   int total_capacity = 0;
+
+   for (auto &chunk : chunks)
    {
-      WorkspaceChunk &chunk = chunks.front();
-      if (chunk.HasCapacityFor(n))
-      {
-         return chunk.NewVector(n);
-      }
+      ++nchunks;
+      total_capacity += chunk.GetCapacity();
    }
-   // Otherwise, we need to add a new chunk (first getting rid of any empty
-   // chunks that are too small for the requested size)
-   ClearEmptyChunks();
-   return NewChunk(n).NewVector(n);
+
+   mfem::out << "Number of chunks currently in workspace: "
+             << nchunks << '\n';
+   mfem::out << "Total capacity: " << total_capacity << '\n';
 }
 
 } // namespace mfem

@@ -45,14 +45,17 @@ class WorkspaceChunk
    int offset;
 
 public:
-   WorkspaceChunk(int capacity) : data(capacity), offset(0)
-   {
-      mfem::out << "Allocating new WorkspaceChunk.\n";
-   }
+   WorkspaceChunk(int capacity);
 
    int GetCapacity() const { return data.Size(); }
 
    int GetOffset() const { return offset; }
+
+   int GetAvailableCapacity() const { return GetCapacity() - GetOffset(); }
+
+   bool HasCapacityFor(int n) const { return offset + n <= data.Size(); }
+
+   bool IsEmpty() const { return GetOffset() == 0; }
 
    void FreeCapacity(int n)
    {
@@ -61,8 +64,6 @@ public:
    }
 
    Vector &GetData() { return data; }
-
-   bool HasCapacityFor(int n) const { return offset + n <= data.Size(); }
 
    WorkspaceVector NewVector(int n);
 };
@@ -74,7 +75,7 @@ class Workspace
    std::forward_list<WorkspaceChunk> chunks;
 
    Workspace() = default;
-   void ClearEmptyChunks();
+   void Consolidate(int requested_size);
    WorkspaceChunk &NewChunk(int requested_size);
 public:
    static Workspace &Instance()
@@ -84,6 +85,7 @@ public:
    }
    WorkspaceVector NewVector(int n);
    void Clear() { chunks.clear(); }
+   ~Workspace();
 };
 
 } // namespace mfem
