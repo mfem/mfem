@@ -98,7 +98,9 @@ MFEM_PERF_CXXFLAGS_gcc_ppc = -mcpu=native -mtune=native\
 MFEM_PERF_CXXFLAGS_xlc = -mcpu=native
 
 # - Clang extra options:
-ifneq ($(MFEM_MACHINE),arm64)
+ifeq ($(MFEM_MACHINE),riscv64)
+  MFEM_PERF_CXXFLAGS_clang += -march=rv64gc
+else ifneq ($(MFEM_MACHINE),arm64)
   # -march=native is unavailable on clang/ARM64 as of 05/2021: support could be added later.
   MFEM_PERF_CXXFLAGS_clang += -march=native
 endif

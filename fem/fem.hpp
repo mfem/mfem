@@ -13,6 +13,7 @@
 #define MFEM_FEM_HPP
 
 #include "intrules.hpp"
+#include "intrules_cut.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"

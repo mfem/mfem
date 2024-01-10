@@ -650,6 +650,7 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
          MFEM_ASSERT(X[i], "Missing Vector in SuperLUSolver::Mult!");
          Vector s(sol_, i * ldx, ldx);
          s = *X[i];
+         sol_.SyncMemory(s);  // Update flags for sol_ if updated on device
       }
    }
 

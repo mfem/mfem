@@ -51,7 +51,7 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
 
    HYPRE_BigInt global_size = fes.GlobalTrueVSize();
    HYPRE_BigInt *row_starts = fes.GetTrueDofOffsets();
-   HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_spmat);
+   HypreParMatrix D(fes.GetComm(), global_size, row_starts, &diag_spmat);
    return new HypreParMatrix(D); // make a deep copy
 }
 
