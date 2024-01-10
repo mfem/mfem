@@ -122,6 +122,30 @@ void pa_divergence_testnd(int dim,
    REQUIRE(field2.Normlinf() == MFEM_Approx(0.0));
 }
 
+template <typename INTEGRATOR>
+void pa_mixed_transpose_test(FiniteElementSpace &fes1,
+                             FiniteElementSpace &fes2)
+{
+   MixedBilinearForm bform_pa(&fes1, &fes2);
+   bform_pa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   bform_pa.Assemble();
+
+   MixedBilinearForm bform_fa(&fes1, &fes2);
+   bform_fa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_fa.Assemble();
+   bform_fa.Finalize();
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+   x.Randomize(1);
+
+   bform_pa.Mult(x, y_pa);
+   bform_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
 void pa_divergence_transpose_testnd(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
@@ -135,28 +159,7 @@ void pa_divergence_transpose_testnd(int dim)
    H1_FECollection fec2(order, dim);
    FiniteElementSpace fes2(&mesh, &fec2, dim);
 
-   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
-
-   MixedBilinearForm d_pa(&fes1, &fes2);
-   d_pa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   d_pa.Assemble();
-
-   MixedBilinearForm d_fa(&fes1, &fes2);
-   d_fa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_fa.Assemble();
-   d_fa.Finalize();
-
-   x.Randomize(1);
-
-   d_pa.Mult(x, y_pa);
-   d_fa.Mult(x, y_fa);
-
-   y_pa -= y_fa;
-
-   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+   pa_mixed_transpose_test<VectorDivergenceIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
@@ -276,26 +279,7 @@ void pa_gradient_transpose_testnd(int dim, int fec_type)
    }
    FiniteElementSpace fes1(&mesh, fec1.get(), dim);
 
-   MixedBilinearForm g_pa(&fes1, &fes2);
-   g_pa.AddDomainIntegrator(
-      new TransposeIntegrator(new GradientIntegrator));
-   g_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   g_pa.Assemble();
-
-   MixedBilinearForm g_fa(&fes1, &fes2);
-   g_fa.AddDomainIntegrator(
-      new TransposeIntegrator(new GradientIntegrator));
-   g_fa.Assemble();
-   g_fa.Finalize();
-
-   GridFunction x(&fes1);
-   x.Randomize(1);
-
-   g_pa.Mult(x, y_pa);
-   g_fa.Mult(x, y_fa);
-
-   y_pa -= y_fa;
-   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+   pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
