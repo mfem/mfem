@@ -20,6 +20,32 @@ using namespace mfem;
 namespace pa_kernels
 {
 
+enum FECType
+{
+   H1,
+   L2_VALUE,
+   L2_INTEGRAL
+};
+
+FiniteElementCollection *create_fec(FECType fec_type, int order, int dim)
+{
+   switch (fec_type)
+   {
+      case H1:
+         return new H1_FECollection(order, dim);
+         break;
+      case L2_VALUE:
+         return new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::VALUE);
+         break;
+      case L2_INTEGRAL:
+         return new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                    FiniteElement::INTEGRAL);
+         break;
+   }
+   return nullptr;
+}
+
 Mesh MakeCartesianNonaligned(const int dim, const int ne)
 {
    Mesh mesh;
@@ -200,7 +226,7 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
-void pa_gradient_testnd(int dim, int fec_type,
+void pa_gradient_testnd(int dim, FECType fec_type,
                         double (*f1)(const Vector &),
                         void (*gradf1)(const Vector &, Vector &))
 {
@@ -214,20 +240,7 @@ void pa_gradient_testnd(int dim, int fec_type,
 
    // Vector valued
    std::unique_ptr<FiniteElementCollection> fec2;
-   if (fec_type == 0)
-   {
-      fec2.reset(new H1_FECollection(order, dim));
-   }
-   else if (fec_type == 1)
-   {
-      fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                     FiniteElement::VALUE));
-   }
-   else if (fec_type == 2)
-   {
-      fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                     FiniteElement::INTEGRAL));
-   }
+   fec2.reset(create_fec(fec_type, order, dim));
    FiniteElementSpace fes2(&mesh, fec2.get(), dim);
    GridFunction field2(&fes2);
 
@@ -251,7 +264,7 @@ void pa_gradient_testnd(int dim, int fec_type,
    REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
 }
 
-void pa_gradient_transpose_testnd(int dim, int fec_type)
+void pa_gradient_transpose_testnd(int dim, FECType fec_type)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -263,20 +276,7 @@ void pa_gradient_transpose_testnd(int dim, int fec_type)
 
    // Vector valued
    std::unique_ptr<FiniteElementCollection> fec1;
-   if (fec_type == 0)
-   {
-      fec1.reset(new H1_FECollection(order, dim));
-   }
-   else if (fec_type == 1)
-   {
-      fec1.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                     FiniteElement::VALUE));
-   }
-   else if (fec_type == 2)
-   {
-      fec1.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                     FiniteElement::INTEGRAL));
-   }
+   fec1.reset(create_fec(fec_type, order, dim));
    FiniteElementSpace fes1(&mesh, fec1.get(), dim);
 
    pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
@@ -284,7 +284,8 @@ void pa_gradient_transpose_testnd(int dim, int fec_type)
 
 TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
 {
-   auto fec_type = GENERATE(0, 1, 2);
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
 
    SECTION("2D")
    {
