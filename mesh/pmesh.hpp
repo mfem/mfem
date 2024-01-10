@@ -24,6 +24,7 @@
 
 namespace mfem
 {
+
 #ifdef MFEM_USE_PUMI
 class ParPumiMesh;
 #endif
@@ -31,9 +32,16 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-protected:
+   friend class ParNCMesh;
    friend class ParSubMesh;
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
 
+protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -105,7 +113,7 @@ protected:
 
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
-   void MarkTetMeshForRefinement(DSTable &v_to_v) override;
+   void MarkTetMeshForRefinement(const DSTable &v_to_v) override;
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
@@ -336,8 +344,14 @@ public:
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
-   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
+   /** The @a generate_edges parameter is passed to Mesh::Loader. The @a refine
+       and @a fix_orientation parameters are passed to the method
+       Mesh::Finalize().
+
+       @note The order of arguments and their default values are different than
+       for the Mesh class. */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true,
+           int generate_edges = 1, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
@@ -609,8 +623,10 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
+   /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
+       will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
    // for visualization purposes)
@@ -618,8 +634,11 @@ public:
 
    /** Print the part of the mesh in the calling processor using the mfem v1.0
        format. Depending on SetPrintShared(), the parallel interface can be
-       added as boundary for visualization (true by default) . */
-   void Print(std::ostream &out = mfem::out) const override;
+       added as boundary for visualization (true by default). If @a comments is
+       non-empty, it will be printed after the first line of the file, and each
+       line should begin with '#'. */
+   void Print(std::ostream &out = mfem::out,
+              const std::string &comments = "") const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
@@ -640,13 +659,18 @@ public:
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
-       attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out) const;
+       attributes are set to the processor number. If @a comments is non-empty,
+       it will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void PrintAsOne(std::ostream &out = mfem::out,
+                   const std::string &comments = "") const;
 
    /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
-       output mesh does not have any duplication of vertices/nodes at
-       processor boundaries. */
-   void PrintAsSerial(std::ostream &out = mfem::out) const;
+       output mesh does not have any duplication of vertices/nodes at processor
+       boundaries. If @a comments is non-empty, it will be printed after the
+       first line of the file, and each line should begin with '#'. */
+   void PrintAsSerial(std::ostream &out = mfem::out,
+                      const std::string &comments = "") const;
 
    /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
        duplication of vertices/nodes at processor boundaries. */
@@ -694,14 +718,6 @@ public:
    void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
-
-   friend class ParNCMesh;
-#ifdef MFEM_USE_PUMI
-   friend class ParPumiMesh;
-#endif
-#ifdef MFEM_USE_ADIOS2
-   friend class adios2stream;
-#endif
 };
 
 }

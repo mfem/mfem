@@ -77,6 +77,7 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  intrules_cut.cpp
   ceed/interface/basis.cpp
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
@@ -183,6 +184,7 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  intrules_cut.hpp
   ceed/interface/basis.hpp
   ceed/interface/integrator.hpp
   ceed/interface/interface.hpp
