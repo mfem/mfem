@@ -70,10 +70,6 @@ protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    /// Attributes of all mesh elements.
    Array<int> elem_attributes, bdr_attributes;
-   mutable Vector tmp_evec; // Work array
-   mutable Vector localX, localY;
-   mutable Vector int_face_X, int_face_Y;
-   mutable Vector bdr_face_X, bdr_face_Y;
    const Operator *elem_restrict; // Not owned
    const FaceRestriction *int_face_restrict_lex; // Not owned
    const FaceRestriction *bdr_face_restrict_lex; // Not owned

@@ -13,6 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "../general/forall.hpp"
+#include "../general/workspace.hpp"
 #include "bilinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pgridfunc.hpp"
@@ -261,10 +262,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
    elem_restrict = trial_fes->GetElementRestriction(ordering);
    if (elem_restrict)
    {
-      localX.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      localY.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
-
       // Gather the attributes on the host from all the elements
       const Mesh &mesh = *trial_fes->GetMesh();
       elem_attributes.SetSize(mesh.GetNE());
@@ -281,9 +278,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
       int_face_restrict_lex = trial_fes->GetFaceRestriction(
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Interior);
-      int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
-      int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
    }
 
    const bool has_bdr_integs = (a->GetBFBFI()->Size() > 0 ||
@@ -294,9 +288,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
                                  ElementDofOrdering::LEXICOGRAPHIC,
                                  FaceType::Boundary,
                                  m);
-      bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
-      bdr_face_Y.UseDevice(true); // ensure 'faceBoundY = 0.0' is done on device
 
       const Mesh &mesh = *trial_fes->GetMesh();
       // See LinearFormExtension::Update for explanation of f_to_be logic.
@@ -385,6 +376,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict && !DeviceCanUseCeed())
    {
+      auto localY = Workspace::Instance().NewVector(elem_restrict->Height());
       if (iSz > 0)
       {
          localY = 0.0;
@@ -422,6 +414,8 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    const int n_bdr_integs = bdr_integs.Size();
    if (bdr_face_restrict_lex && n_bdr_integs > 0)
    {
+      auto bdr_face_Y = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
       bdr_face_Y = 0.0;
       for (int i = 0; i < n_bdr_integs; ++i)
       {
@@ -506,6 +500,9 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    {
       if (iSz)
       {
+         auto localX = Workspace::Instance().NewVector(elem_restrict->Height());
+         auto localY = Workspace::Instance().NewVector(elem_restrict->Height());
+
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          elem_restrict->Mult(x, localX);
          localY = 0.0;
@@ -526,6 +523,11 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      auto int_face_X = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+      auto int_face_Y = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
       {
@@ -545,6 +547,11 @@ void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
+      auto bdr_face_X = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+      auto bdr_face_Y = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
@@ -572,6 +579,9 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iSz = integrators.Size();
    if (elem_restrict)
    {
+      auto localX = Workspace::Instance().NewVector(elem_restrict->Height());
+      auto localY = Workspace::Instance().NewVector(elem_restrict->Height());
+
       Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
       elem_restrict->Mult(x, localX);
       localY = 0.0;
@@ -596,6 +606,11 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      auto int_face_X = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+      auto int_face_Y = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
       {
@@ -615,6 +630,11 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const bool has_bdr_integs = (n_bdr_face_integs > 0 || n_bdr_integs > 0);
    if (bdr_face_restrict_lex && has_bdr_integs)
    {
+      auto bdr_face_X = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+      auto bdr_face_Y = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+
       Array<Array<int>*> &bdr_markers = *a->GetBBFI_Marker();
       Array<Array<int>*> &bdr_face_markers = *a->GetBFBFI_Marker();
 
@@ -672,7 +692,7 @@ void PABilinearFormExtension::AddMultWithMarkers(
 {
    if (markers)
    {
-      tmp_evec.SetSize(y.Size());
+      auto tmp_evec = Workspace::Instance().NewVector(y.Size());
       tmp_evec = 0.0;
       if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
       else { integ.AddMultPA(x, tmp_evec); }
@@ -771,6 +791,12 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
+
+   auto localX = Workspace::Instance().NewVector(useRestrict
+                                                 ?elem_restrict->Height():0);
+   auto localY = Workspace::Instance().NewVector(useRestrict
+                                                 ?elem_restrict->Height():0);
+
    if (!useRestrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
@@ -810,6 +836,11 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      auto int_face_X = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+      auto int_face_Y = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+
       // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -868,6 +899,11 @@ void EABilinearFormExtension::Mult(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
+      auto bdr_face_X = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+      auto bdr_face_Y = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
@@ -899,6 +935,12 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    // Apply the Element Restriction
    const bool useRestrict = !DeviceCanUseCeed() && elem_restrict;
+
+   auto localX = Workspace::Instance().NewVector(useRestrict
+                                                 ?elem_restrict->Height():0);
+   auto localY = Workspace::Instance().NewVector(useRestrict
+                                                 ?elem_restrict->Height():0);
+
    if (!useRestrict)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
@@ -938,6 +980,11 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int iFISz = intFaceIntegrators.Size();
    if (int_face_restrict_lex && iFISz>0)
    {
+      auto int_face_X = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+      auto int_face_Y = Workspace::Instance().NewVector(
+                           int_face_restrict_lex->Height());
+
       // Apply the Interior Face Restriction
       int_face_restrict_lex->Mult(x, int_face_X);
       if (int_face_X.Size()>0)
@@ -996,6 +1043,11 @@ void EABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    const int bFISz = bdrFaceIntegrators.Size();
    if (!factorize_face_terms && bdr_face_restrict_lex && bFISz>0)
    {
+      auto bdr_face_X = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+      auto bdr_face_Y = Workspace::Instance().NewVector(
+                           bdr_face_restrict_lex->Height());
+
       // Apply the Boundary Face Restriction
       bdr_face_restrict_lex->Mult(x, bdr_face_X);
       if (bdr_face_X.Size()>0)
