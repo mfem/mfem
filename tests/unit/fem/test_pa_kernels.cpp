@@ -212,22 +212,22 @@ void pa_gradient_testnd(int dim,
    for (int i = 0; i < 3; i++)
    {
       // Vector valued
-      FiniteElementCollection *fec2 = nullptr;
+      std::unique_ptr<FiniteElementCollection> fec2;
       if (i == 0)
       {
-         fec2 = new H1_FECollection(order, dim);
+         fec2.reset(new H1_FECollection(order, dim));
       }
       else if (i == 1)
       {
-         fec2 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::VALUE);
+         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
       }
       else if (i == 2)
       {
-         fec2 = new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::INTEGRAL);
+         fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
       }
-      FiniteElementSpace fes2(&mesh, fec2, dim);
+      FiniteElementSpace fes2(&mesh, fec2.get(), dim);
       GridFunction field2(&fes2);
 
       MixedBilinearForm gform(&fes1, &fes2);
@@ -248,7 +248,6 @@ void pa_gradient_testnd(int dim,
       field2 -= lf;
 
       REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
-      delete fec2;
    }
 }
 
