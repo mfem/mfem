@@ -76,16 +76,14 @@ class Workspace
 
    Workspace() = default;
    void Consolidate(int requested_size);
-   WorkspaceChunk &NewChunk(int requested_size);
-public:
    static Workspace &Instance()
    {
       static Workspace ws;
       return ws;
    }
-   WorkspaceVector NewVector(int n);
-   void Clear() { chunks.clear(); }
-   ~Workspace();
+public:
+   static WorkspaceVector NewVector(int n);
+   static void Clear();
 };
 
 } // namespace mfem

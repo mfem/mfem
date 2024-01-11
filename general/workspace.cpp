@@ -81,24 +81,14 @@ void Workspace::Consolidate(int requested_size)
 
 WorkspaceVector Workspace::NewVector(int n)
 {
-   Consolidate(n);
-   return chunks.front().NewVector(n);
+   Workspace &ws = Instance();
+   ws.Consolidate(n);
+   return ws.chunks.front().NewVector(n);
 }
 
-Workspace::~Workspace()
+void Workspace::Clear()
 {
-   int nchunks = 0;
-   int total_capacity = 0;
-
-   for (auto &chunk : chunks)
-   {
-      ++nchunks;
-      total_capacity += chunk.GetCapacity();
-   }
-
-   mfem::out << "Number of chunks currently in workspace: "
-             << nchunks << '\n';
-   mfem::out << "Total capacity: " << total_capacity << '\n';
+   Instance().chunks.clear();
 }
 
 } // namespace mfem
