@@ -24,7 +24,6 @@ WorkspaceVector::WorkspaceVector(internal::WorkspaceChunk &chunk_, int n)
 WorkspaceVector::WorkspaceVector(WorkspaceVector &&other)
    : Vector(std::move( other)), chunk(other.chunk)
 {
-   mfem::out << "WorkspaceVector move ctor\n";
    other.moved_from = true;
 }
 
@@ -36,10 +35,9 @@ WorkspaceVector::~WorkspaceVector()
 namespace internal
 {
 
-WorkspaceChunk::WorkspaceChunk(int capacity) : data(capacity)
-{
-   mfem::out << "Allocating new WorkspaceChunk.\n";
-}
+WorkspaceChunk::WorkspaceChunk(int capacity)
+   : data(capacity), original_capacity(capacity)
+{ }
 
 WorkspaceVector WorkspaceChunk::NewVector(int n)
 {
@@ -54,7 +52,16 @@ void WorkspaceChunk::FreeVector()
 {
    MFEM_ASSERT(vector_count >= 0, "");
    vector_count -= 1;
-   if (vector_count == 0) { offset = 0; }
+   // If the chunk is completely empty, we can reclaim all of the memory and
+   // allow new allocations (before it is completely empty, we cannot reclaim
+   // memory because we don't track the specific regions that are freed).
+   if (vector_count == 0)
+   {
+      offset = 0;
+      // If we are not the front chunk, deallocate the backing memory. This
+      // chunk will be consolidated later anyway.
+      if (!front) { data.Destroy(); }
+   }
 }
 
 } // namespace internal
@@ -73,7 +80,7 @@ void Workspace::ConsolidateAndEnsureAvailable(int requested_size)
    auto it = chunks.begin();
    while (it != chunks.end() && it->IsEmpty())
    {
-      empty_capacity += it->GetAvailableCapacity();
+      empty_capacity += it->GetOriginalCapacity();
       ++it;
       ++n_empty;
    }
@@ -93,6 +100,7 @@ void Workspace::ConsolidateAndEnsureAvailable(int requested_size)
 
    if (min_chunk_size > capacity)
    {
+      if (!chunks.empty()) { chunks.front().SetFront(false); }
       chunks.emplace_front(min_chunk_size);
    }
 }

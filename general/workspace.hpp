@@ -72,14 +72,26 @@ class WorkspaceChunk
    int offset = 0;
    /// How many vectors have been allocated in this chunk.
    int vector_count = 0;
+   /// Is the vector in the front of the list?
+   bool front = true;
+   /// The original capacity allocated.
+   const int original_capacity;
 public:
    /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(int capacity);
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    int GetAvailableCapacity() const { return data.Size() - offset; }
+   /// @brief Returns the original capacity of the chunk.
+   ///
+   /// If the chunk is not in the front of the list and all of its vectors are
+   /// freed, it may deallocate its data, so the capacity becomes zero. The
+   /// "original capacity" remains unchained.
+   int GetOriginalCapacity() const { return original_capacity; }
    /// Return the data offset.
    int GetOffset() const { return offset; }
+   /// Sets whether the chunk is in the front of the list
+   void SetFront(bool front_) { front = front_; }
    /// Returns true if this chunk can fit a new vector of size @a n.
    bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
    /// Returns true if this chunk is empty.
