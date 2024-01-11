@@ -16,8 +16,7 @@ namespace mfem
 
 WorkspaceVector::WorkspaceVector(internal::WorkspaceChunk &chunk_, int n)
    : Vector(chunk_.GetData(), chunk_.GetOffset(), n),
-     chunk(chunk_),
-     moved_from(false)
+     chunk(chunk_)
 {
    UseDevice(true);
 }

@@ -39,7 +39,7 @@ class WorkspaceVector : public Vector
    class internal::WorkspaceChunk &chunk;
    /// @brief Has this WorkspaceVector been moved from? If so, don't deallocate
    /// from its WorkspaceChunk in the destructor.
-   bool moved_from;
+   bool moved_from = false;
    /// Private constructor, create with Workspace::NewVector() instead.
    WorkspaceVector(internal::WorkspaceChunk &chunk_, int n);
 public:
@@ -75,26 +75,19 @@ class WorkspaceChunk
 public:
    /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(int capacity);
-
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    int GetAvailableCapacity() const { return data.Size() - offset; }
-
    /// Return the data offset.
    int GetOffset() const { return offset; }
-
    /// Returns true if this chunk can fit a new vector of size @a n.
    bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
-
    /// Returns true if this chunk is empty.
    bool IsEmpty() const { return vector_count == 0; }
-
    /// Note that a vector from this chunk has been deallocated.
    void FreeVector();
-
    /// Returns the backing data Vector.
    Vector &GetData() { return data; }
-
    /// Returns a new WorkspaceVector of size @a n.
    WorkspaceVector NewVector(int n);
 };
