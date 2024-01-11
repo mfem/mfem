@@ -12,6 +12,7 @@
 #include "transfer.hpp"
 #include "bilinearform.hpp"
 #include "../general/forall.hpp"
+#include "../general/workspace.hpp"
 
 namespace mfem
 {
@@ -1399,15 +1400,10 @@ TensorProductPRefinementTransferOperator(
    MFEM_VERIFY(elem_restrict_lex_h,
                "High order ElementRestriction not available");
 
-   localL.SetSize(elem_restrict_lex_l->Height(), Device::GetMemoryType());
-   localH.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
-   localL.UseDevice(true);
-   localH.UseDevice(true);
-
    MFEM_VERIFY(dynamic_cast<const ElementRestriction*>(elem_restrict_lex_h),
                "High order element restriction is of unsupported type");
 
-   mask.SetSize(localH.Size(), Device::GetMemoryType());
+   mask.SetSize(elem_restrict_lex_h->Height(), Device::GetMemoryType());
    static_cast<const ElementRestriction*>(elem_restrict_lex_h)
    ->BooleanMask(mask);
    mask.UseDevice(true);
@@ -1650,6 +1646,9 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       return;
    }
 
+   auto localH = Workspace::NewVector(elem_restrict_lex_h->Height());
+   auto localL = Workspace::NewVector(elem_restrict_lex_l->Height());
+
    elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
    {
@@ -1675,6 +1674,9 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
    {
       return;
    }
+
+   auto localH = Workspace::NewVector(elem_restrict_lex_h->Height());
+   auto localL = Workspace::NewVector(elem_restrict_lex_l->Height());
 
    elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)

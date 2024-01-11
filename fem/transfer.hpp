@@ -470,8 +470,6 @@ private:
    const Operator* elem_restrict_lex_l;
    const Operator* elem_restrict_lex_h;
    Vector mask;
-   mutable Vector localL;
-   mutable Vector localH;
 
 public:
    /// @brief Constructs a transfer operator from \p lFESpace to \p hFESpace
