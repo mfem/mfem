@@ -437,6 +437,36 @@ public:
    void SetFunction(std::function<double(const double)> fun_) { fun = fun_; }
 };
 
+class MappedPairGridFunctionCoeffitient : public GridFunctionCoefficient
+{
+protected:
+   std::function<double(const double, const double)> fun;
+   GridFunctionCoefficient other_gfcf;
+public:
+   MappedPairGridFunctionCoeffitient()
+      :GridFunctionCoefficient(),
+       fun([](const double x, const double y) {return x;}) {}
+   MappedPairGridFunctionCoeffitient(const GridFunction *gf,
+                                     const GridFunction *other_gf,
+                                     std::function<double(const double, const double)> fun_,
+                                     int comp=1)
+      :GridFunctionCoefficient(gf, comp),
+       fun(fun_), other_gfcf(other_gf, comp) {}
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      return fun(GridFunctionCoefficient::Eval(T, ip), other_gfcf.Eval(T, ip));
+   }
+   void SetFunction(std::function<double(const double, const double)> fun_) { fun = fun_; }
+   void SetGridFunction(GridFunction *gf,
+                        GridFunction *other_gf)
+   {
+      GridFunctionCoefficient::SetGridFunction(gf);
+      other_gfcf.SetGridFunction(other_gf);
+   }
+};
+
 
 /**
  * @brief Returns f(u(x)) where u is a scalar GridFunction and f:R → R
