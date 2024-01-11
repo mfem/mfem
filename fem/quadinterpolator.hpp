@@ -37,7 +37,6 @@ protected:
    mutable QVectorLayout q_layout;     ///< Output Q-vector layout
 
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
-   mutable Vector d_buffer;            ///< Auxiliary device buffer
 
 public:
    static const int MAX_NQ2D = 100;

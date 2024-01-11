@@ -54,8 +54,7 @@ void TensorDeterminants(const int NE,
                         const int vdim,
                         const DofToQuad &maps,
                         const Vector &e_vec,
-                        Vector &q_det,
-                        Vector &d_buff);
+                        Vector &q_det);
 
 } // namespace quadrature_interpolator
 
