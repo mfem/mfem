@@ -18,71 +18,110 @@
 namespace mfem
 {
 
+// Forward declaration of internal::WorkspaceChunk
+namespace internal { class WorkspaceChunk; }
+
+/// @brief A vector used as a short-lived workspace for temporary calculations,
+/// created with Workspace::NewVector.
+///
+/// A WorkspaceVector is created using the Workspace bump allocator. The
+/// allocator can quickly and cheaply create new vectors, so that these vectors
+/// can be created and destroyed in loops without incurring the memory
+/// allocation and deallocation overhead.
+///
+/// WorkspaceVector%s should be used only for short-lived temporary storage;
+/// they are not intended to be stored in other classes.
 class WorkspaceVector : public Vector
 {
-   class WorkspaceChunk &chunk;
-   int size_in_chunk;
+   // using internal::WorkspaceChunk;
+   friend class internal::WorkspaceChunk;
+   /// The WorkspaceChunk containing the data for this vector.
+   class internal::WorkspaceChunk &chunk;
+   /// @brief Has this WorkspaceVector been moved from? If so, don't deallocate
+   /// from its WorkspaceChunk in the destructor.
+   bool moved_from;
+   /// Private constructor, create with Workspace::NewVector() instead.
+   WorkspaceVector(internal::WorkspaceChunk &chunk_, int n);
 public:
-   /// Create a new
-   WorkspaceVector(WorkspaceChunk &chunk_, int n);
-   // Cannot copy from one WorkspaceVector to another
-   WorkspaceVector(WorkspaceVector &other) = delete;
-   WorkspaceVector& operator=(WorkspaceVector &other) = delete;
-   // Can move WorkspaceVector%s, just need to make sure that the moved-from
-   // WorkspaceVector has zero size, so that when it is destroyed, no capacity
-   // is released to the chunk.
+   /// @brief Move constructor. The moved-from WorkspaceVector has @a
+   /// size_in_chunk set to zero.
    WorkspaceVector(WorkspaceVector &&other);
-   // No move assignment operator
+   /// Cannot copy from one WorkspaceVector to another.
+   WorkspaceVector(WorkspaceVector &other) = delete;
+   /// Cannot copy from one WorkspaceVector to another.
+   WorkspaceVector& operator=(WorkspaceVector &other) = delete;
+   /// Cannot move to an existing WorkspaceVector.
    WorkspaceVector& operator=(WorkspaceVector &&other) = delete;
    // All other operator=, inherit from Vector
    using Vector::operator=;
+   /// Destructor. Notifies the WorkspaceChunk that this vector has been freed.
    ~WorkspaceVector();
 };
 
+namespace internal
+{
+
+/// @brief A chunk of storage used to allocate WorkspaceVector%s.
+///
+/// This is an internal class used by Workspace.
 class WorkspaceChunk
 {
+   /// The data used as a base for the WorkspaceVector%s.
    Vector data;
-   int offset;
-
+   /// The offset of currently allocated WorkspaceVector%s in thus chunk.
+   int offset = 0;
+   /// How many vectors have been allocated in this chunk.
+   int vector_count = 0;
 public:
+   /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(int capacity);
 
-   int GetCapacity() const { return data.Size(); }
+   /// @brief Return the available capacity (i.e. the largest vector that will
+   /// fit in this chunk).
+   int GetAvailableCapacity() const { return data.Size() - offset; }
 
+   /// Return the data offset.
    int GetOffset() const { return offset; }
 
-   int GetAvailableCapacity() const { return GetCapacity() - GetOffset(); }
+   /// Returns true if this chunk can fit a new vector of size @a n.
+   bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
 
-   bool HasCapacityFor(int n) const { return offset + n <= data.Size(); }
+   /// Returns true if this chunk is empty.
+   bool IsEmpty() const { return vector_count == 0; }
 
-   bool IsEmpty() const { return GetOffset() == 0; }
+   /// Note that a vector from this chunk has been deallocated.
+   void FreeVector();
 
-   void FreeCapacity(int n)
-   {
-      MFEM_ASSERT(offset >= n, "");
-      offset -= n;
-   }
-
+   /// Returns the backing data Vector.
    Vector &GetData() { return data; }
 
+   /// Returns a new WorkspaceVector of size @a n.
    WorkspaceVector NewVector(int n);
 };
 
+}
+
+/// @brief Storage for temporary, short-lived workspace vectors.
+///
+/// This class implements a simple bump allocator to quickly allocate and
+/// deallocate workspace vectors without incurring the overhead of memory
+/// allocation and deallocation.
 class Workspace
 {
-   int current_capacity = 0;
-   int total_requested_capacity = 0;
-   std::forward_list<WorkspaceChunk> chunks;
-
+   /// Chunks of storage to hold the vectors.
+   std::forward_list<internal::WorkspaceChunk> chunks;
+   /// Default constructor, private (singleton class).
    Workspace() = default;
-   void Consolidate(int requested_size);
-   static Workspace &Instance()
-   {
-      static Workspace ws;
-      return ws;
-   }
+   /// @brief Consolidate the chunks (merge consecutive empty chunks), and
+   /// ensure that the front chunk has sufficient available capacity for a
+   /// vector of @a requested_size.
+   void ConsolidateAndEnsureAvailable(int requested_size);
+   /// Return the singleton instance.
+   static Workspace &Instance();
 public:
+   /// Return a new WorkspaceVector of the requested size.
    static WorkspaceVector NewVector(int n);
+   /// Clear all storage. Invalidates any existing WorkspaceVector%s.
    static void Clear();
 };
 

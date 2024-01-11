@@ -14,10 +14,10 @@
 namespace mfem
 {
 
-WorkspaceVector::WorkspaceVector(WorkspaceChunk &chunk_, int n)
+WorkspaceVector::WorkspaceVector(internal::WorkspaceChunk &chunk_, int n)
    : Vector(chunk_.GetData(), chunk_.GetOffset(), n),
      chunk(chunk_),
-     size_in_chunk(n)
+     moved_from(false)
 {
    UseDevice(true);
 }
@@ -26,15 +26,18 @@ WorkspaceVector::WorkspaceVector(WorkspaceVector &&other)
    : Vector(std::move( other)), chunk(other.chunk)
 {
    mfem::out << "WorkspaceVector move ctor\n";
-   other.size_in_chunk = 0;
+   other.moved_from = true;
 }
 
 WorkspaceVector::~WorkspaceVector()
 {
-   chunk.FreeCapacity(size_in_chunk);
+   if (!moved_from) { chunk.FreeVector(); }
 }
 
-WorkspaceChunk::WorkspaceChunk(int capacity) : data(capacity), offset(0)
+namespace internal
+{
+
+WorkspaceChunk::WorkspaceChunk(int capacity) : data(capacity)
 {
    mfem::out << "Allocating new WorkspaceChunk.\n";
 }
@@ -44,10 +47,26 @@ WorkspaceVector WorkspaceChunk::NewVector(int n)
    MFEM_ASSERT(HasCapacityFor(n), "Requested vector is too large.");
    WorkspaceVector vector(*this, n);
    offset += n;
+   vector_count += 1;
    return vector;
 }
 
-void Workspace::Consolidate(int requested_size)
+void WorkspaceChunk::FreeVector()
+{
+   MFEM_ASSERT(vector_count >= 0, "");
+   vector_count -= 1;
+   if (vector_count == 0) { offset = 0; }
+}
+
+} // namespace internal
+
+Workspace &Workspace::Instance()
+{
+   static Workspace ws;
+   return ws;
+}
+
+void Workspace::ConsolidateAndEnsureAvailable(int requested_size)
 {
    int n_empty = 0;
    int empty_capacity = 0;
@@ -82,7 +101,7 @@ void Workspace::Consolidate(int requested_size)
 WorkspaceVector Workspace::NewVector(int n)
 {
    Workspace &ws = Instance();
-   ws.Consolidate(n);
+   ws.ConsolidateAndEnsureAvailable(n);
    return ws.chunks.front().NewVector(n);
 }
 
