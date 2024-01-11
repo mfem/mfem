@@ -503,18 +503,13 @@ private:
    const FiniteElementSpace& hFESpace;
    const Operator * P = nullptr;
    const SparseMatrix * R = nullptr;
-   TransferOperator* localTransferOperator;
-   mutable Vector tmpL;
-   mutable Vector tmpH;
+   std::unique_ptr<TransferOperator> localTransferOperator;
 
 public:
    /// @brief Constructs a transfer operator working on true degrees of freedom
    /// from \p lFESpace to \p hFESpace
    TrueTransferOperator(const FiniteElementSpace& lFESpace_,
                         const FiniteElementSpace& hFESpace_);
-
-   /// Destructor
-   ~TrueTransferOperator();
 
    /// @brief Interpolation or prolongation of a true dof vector \p x to a true
    /// dof vector \p y.

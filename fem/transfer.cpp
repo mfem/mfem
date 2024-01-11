@@ -1733,7 +1733,7 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
      lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
-   localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
+   localTransferOperator.reset(new TransferOperator(lFESpace_, hFESpace_));
 
    P = lFESpace.GetProlongationMatrix();
    R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
@@ -1743,34 +1743,23 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
    // P can be null and R not null
    // If P is not null it is assumed that R is not null as well
    if (P) { MFEM_VERIFY(R, "Both P and R have to be not NULL") }
-
-   if (P)
-   {
-      tmpL.SetSize(lFESpace_.GetVSize());
-      tmpH.SetSize(hFESpace_.GetVSize());
-   }
-   // P can be null and R not null
-   else if (R)
-   {
-      tmpH.SetSize(hFESpace_.GetVSize());
-   }
-}
-
-TrueTransferOperator::~TrueTransferOperator()
-{
-   delete localTransferOperator;
 }
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
    if (P)
    {
+      auto tmpL = Workspace::NewVector(lFESpace.GetVSize());
+      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
       R->Mult(tmpH, y);
    }
    else if (R)
    {
+      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+
       localTransferOperator->Mult(x, tmpH);
       R->Mult(tmpH, y);
    }
@@ -1784,12 +1773,17 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
    if (P)
    {
+      auto tmpL = Workspace::NewVector(lFESpace.GetVSize());
+      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
       P->MultTranspose(tmpL, y);
    }
    else if (R)
    {
+      auto tmpH = Workspace::NewVector(hFESpace.GetVSize());
+
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, y);
    }
