@@ -479,12 +479,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
-   MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   // typically z and w are large vectors, so store them on the device
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
@@ -520,6 +516,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   auto w = Workspace::NewVector(height);
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -533,6 +530,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 
    // A.AddMult(w, b, -1.0); // if available to all Operators
+   auto z = Workspace::NewVector(height);
    A->Mult(w, z);
    b -= z;
 
@@ -554,6 +552,7 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
       return;
    }
 
+   auto z = Workspace::NewVector(height);
    z = x;
 
    auto idx = constraint_list.Read();
