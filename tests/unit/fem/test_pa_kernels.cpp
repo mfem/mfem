@@ -20,30 +20,30 @@ using namespace mfem;
 namespace pa_kernels
 {
 
-enum FECType
+enum class FECType
 {
    H1,
    L2_VALUE,
    L2_INTEGRAL
 };
 
-FiniteElementCollection *create_fec(FECType fec_type, int order, int dim)
+std::unique_ptr<FiniteElementCollection> create_fec(
+   FECType fec_type, int order, int dim)
 {
+   using Ptr = std::unique_ptr<FiniteElementCollection>;
    switch (fec_type)
    {
-      case H1:
-         return new H1_FECollection(order, dim);
-         break;
-      case L2_VALUE:
-         return new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::VALUE);
-         break;
-      case L2_INTEGRAL:
-         return new L2_FECollection(order, dim, BasisType::GaussLegendre,
-                                    FiniteElement::INTEGRAL);
-         break;
+      case FECType::H1:
+         return Ptr(new H1_FECollection(order, dim));
+      case FECType::L2_VALUE:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
+      case FECType::L2_INTEGRAL:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
+      default:
+         MFEM_ABORT("Invalid FECType");
    }
-   return nullptr;
 }
 
 Mesh MakeCartesianNonaligned(const int dim, const int ne)
@@ -239,8 +239,7 @@ void pa_gradient_testnd(int dim, FECType fec_type,
    GridFunction field(&fes1);
 
    // Vector valued
-   std::unique_ptr<FiniteElementCollection> fec2;
-   fec2.reset(create_fec(fec_type, order, dim));
+   auto fec2 = create_fec(fec_type, order, dim);
    FiniteElementSpace fes2(&mesh, fec2.get(), dim);
    GridFunction field2(&fes2);
 
@@ -275,8 +274,7 @@ void pa_gradient_transpose_testnd(int dim, FECType fec_type)
    GridFunction y_pa(&fes2), y_fa(&fes2);
 
    // Vector valued
-   std::unique_ptr<FiniteElementCollection> fec1;
-   fec1.reset(create_fec(fec_type, order, dim));
+   auto fec1 = create_fec(fec_type, order, dim);
    FiniteElementSpace fes1(&mesh, fec1.get(), dim);
 
    pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
