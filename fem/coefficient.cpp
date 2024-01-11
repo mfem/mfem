@@ -28,7 +28,7 @@ ElementTransformation *RefinedToCoarse(
    Mesh &coarse_mesh, const ElementTransformation &T,
    const IntegrationPoint &ip, IntegrationPoint &coarse_ip)
 {
-   Mesh &fine_mesh = *T.mesh;
+   const Mesh &fine_mesh = *T.mesh;
    // Get the element transformation of the coarse element containing the
    // fine element.
    int fine_element = T.ElementNo;

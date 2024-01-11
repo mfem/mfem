@@ -4113,7 +4113,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 }
 
 void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
-                            DenseMatrix& matrix)
+                            DenseMatrix& matrix) const
 {
    PointMatrix pm = GetGeomIdentity(geom);
 
@@ -4609,9 +4609,9 @@ void NCMesh::MarkCoarseLevel()
 }
 
 void NCMesh::TraverseRefinements(int elem, int coarse_index,
-                                 std::string &ref_path, RefPathMap &map)
+                                 std::string &ref_path, RefPathMap &map) const
 {
-   Element &el = elements[elem];
+   const Element &el = elements[elem];
    if (!el.ref_type)
    {
       int &matrix = map[ref_path];
@@ -4642,7 +4642,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    }
 }
 
-const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
+const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
 {
    MFEM_VERIFY(coarse_elements.Size() || !leaf_elements.Size(),
                "GetRefinementTransforms() must be preceded by MarkCoarseLevel()"
@@ -4693,7 +4693,7 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
    return transforms;
 }
 
-const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
+const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
 {
    MFEM_VERIFY(transforms.embeddings.Size() || !leaf_elements.Size(),
                "GetDerefinementTransforms() must be preceded by Derefine().");
@@ -5232,18 +5232,16 @@ void NCMesh::GetElementFacesAttributes(int leaf_elem,
    }
 }
 
-void NCMesh::FindFaceNodes(int face, int node[4])
+void NCMesh::FindFaceNodes(int face, int node[4]) const
 {
    // Obtain face nodes from one of its elements (note that face->p1, p2, p3
    // cannot be used directly since they are not in order and p4 is missing).
-
-   Face &fa = faces[face];
-
+   const Face &fa = faces[face];
    int elem = fa.elem[0];
    if (elem < 0) { elem = fa.elem[1]; }
    MFEM_ASSERT(elem >= 0, "Face has no elements?");
 
-   Element &el = elements[elem];
+   const Element &el = elements[elem];
    int f = find_local_face(el.Geom(),
                            find_node(el, fa.p1),
                            find_node(el, fa.p2),
