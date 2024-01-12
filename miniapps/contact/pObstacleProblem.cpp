@@ -74,7 +74,10 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace   *Vh  = new ParFiniteElementSpace(&pmesh, fec);
 
    ObstacleProblem problem(Vh,&fRhs, &obstacle);
-  
+ 
+   HYPRE_BigInt * offsets;
+   offsets = problem.GetDofOffsetsM();
+   cout << offsets[0] << ", " << offsets[1] << endl; 
    int dimD = problem.GetDimU();
    Vector x0(dimD); x0 = 100.0;
    Vector xf(dimD); xf = 0.0;
@@ -86,24 +89,24 @@ int main(int argc, char *argv[])
    optimizer.SetMaxIter(maxIPMiters);
    optimizer.Mult(x0, xf);
 
-   ParGridFunction d_gf(Vh);
+   //ParGridFunction d_gf(Vh);
 
-   d_gf.SetFromTrueDofs(xf);
+   //d_gf.SetFromTrueDofs(xf);
 
 
-   FunctionCoefficient dm_fc(dmanufacturedFun); // manufactured solution
-   ParGridFunction dm_gf(Vh);
-   dm_gf.ProjectCoefficient(dm_fc);
-   ParaViewDataCollection paraview_dc("BarrierProblemSolution", &pmesh);
-   paraview_dc.SetPrefixPath("ParaView");
-   paraview_dc.SetLevelsOfDetail(FEorder);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetCycle(0);
-   paraview_dc.SetTime(0.0);
-   paraview_dc.RegisterField("d(x) (numerical)", &d_gf);
-   paraview_dc.RegisterField("d(x) (pseudo-manufactured)", &dm_gf);
-   paraview_dc.Save();
+   //FunctionCoefficient dm_fc(dmanufacturedFun); // manufactured solution
+   //ParGridFunction dm_gf(Vh);
+   //dm_gf.ProjectCoefficient(dm_fc);
+   //ParaViewDataCollection paraview_dc("BarrierProblemSolution", &pmesh);
+   //paraview_dc.SetPrefixPath("ParaView");
+   //paraview_dc.SetLevelsOfDetail(FEorder);
+   //paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   //paraview_dc.SetHighOrderOutput(true);
+   //paraview_dc.SetCycle(0);
+   //paraview_dc.SetTime(0.0);
+   //paraview_dc.RegisterField("d(x) (numerical)", &d_gf);
+   //paraview_dc.RegisterField("d(x) (pseudo-manufactured)", &dm_gf);
+   //paraview_dc.Save();
 
    delete Vh;
    delete fec;

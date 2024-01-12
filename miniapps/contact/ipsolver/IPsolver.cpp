@@ -11,9 +11,6 @@ using namespace mfem;
 InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_) 
                      : problem(problem_), 
                        block_offsetsumlz(5), block_offsetsuml(4), block_offsetsx(3),
-                       Huu(nullptr), Hum(nullptr), Hmu(nullptr), 
-                       Hmm(nullptr), Wmm(nullptr), D(nullptr), 
-                       Ju(nullptr), Jm(nullptr), JuT(nullptr), JmT(nullptr), 
                        saveLogBarrierIterates(false)
 {
    OptTol  = 1.e-2;
@@ -74,7 +71,7 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
    }
    for(int i = 0; i < block_offsetsx.Size(); i++)    
    { 
-      block_offsetsx[i] = block_offsetsuml[i] ; 
+      block_offsetsx[i] = block_offsetsuml[i]; 
    }
 
   
@@ -86,12 +83,28 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
    linSolver = 0;
    linSolveTol = 1.e-8;
 
-   #ifdef MFEM_USE_MPI
+   parallel = problem->IsParallel();
+   if (parallel)
+   {
       MyRank = Mpi::WorldRank();
-   #else
+   }
+   else
+   {
       MyRank = 0;
-   #endif
+   }
    iAmRoot = MyRank == 0 ? true : false;
+
+
+   Huu = nullptr;
+   Hum = nullptr;
+   Hmu = nullptr;
+   Hmm = nullptr;
+   Wmm = nullptr;
+   D   = nullptr;
+   Ju  = nullptr;
+   Jm  = nullptr;
+   JuT = nullptr;
+   JmT = nullptr;
 }
 
 double InteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat, double tau)
@@ -107,13 +120,20 @@ double InteriorPointSolver::MaxStepSize(Vector &x, Vector &xl, Vector &xhat, dou
       } 
    }
 
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
       double alphaMaxGlb;
       MPI_Allreduce(&alphaMaxLoc, &alphaMaxGlb, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       return alphaMaxGlb;
-   #else
-      return alphaMaxLoc;
-   #endif
+   }
+   else
+   {
+#endif
+   return alphaMaxLoc;
+#ifdef MFEM_USE_MPI
+      }
+#endif
 }
 
 double InteriorPointSolver::MaxStepSize(Vector &x, Vector &xhat, double tau)
@@ -196,7 +216,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          converged = true;
 	 if(iAmRoot)
          {
-            cout << "solved optimization problem :)\n";
+            cout << "solved optimization problem!\n";
          }
          break;
       }
@@ -216,7 +236,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             if(iAmRoot)
             {
-               cout << "solved barrier subproblem :), for mu = " << mu_k << endl;
+               cout << "solved barrier subproblem, for mu = " << mu_k << endl;
             }
             // A-3.1. Recompute the barrier parameter
             mu_k  = max(OptTol / 10., min(kMu * mu_k, pow(mu_k, thetaMu)));
@@ -234,7 +254,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // solve for (uhat, mhat, lhat)
       if(iAmRoot)
       {
-         cout << "\n** A-4. IP-Newton solve **\n";
+         cout << "\n** IP-Newton solve **\n";
       }
       zlhat = 0.0; Xhatuml = 0.0;
       IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, false); 
@@ -257,7 +277,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-5. Backtracking line search.
       if(iAmRoot)
       {
-         cout << "\n** A-5. Linesearch **\n";
+         cout << "\n** Linesearch **\n";
          cout << "mu = " << mu_k << endl;
       }
       lineSearch(Xk, Xhat, mu_k);
@@ -266,7 +286,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if(iAmRoot)
          {
-            cout << "lineSearch successful :)\n";
+            cout << "lineSearch success\n";
          }
          if(!switchCondition || !sufficientDecrease)
          {
@@ -284,7 +304,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if(iAmRoot)
          {
-            cout << "lineSearch not successful :(\n";
+            cout << "lineSearch not successful\n";
             cout << "attempting feasibility restoration with theta = " << thx0 << endl;
             cout << "no feasibility restoration implemented, exiting now \n";
          }
@@ -307,11 +327,6 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
    //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
 
-   Huu = problem->Duuf(x); 
-   Hum = problem->Dumf(x);
-   Hmu = problem->Dmuf(x);
-   Hmm = problem->Dmmf(x);
-
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for(int ii = 0; ii < dimM; ii++)
    {
@@ -331,14 +346,48 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    } 
 
    #ifdef MFEM_USE_MPI
-      SparseMatrix * DSparse = new SparseMatrix(DiagLogBar);
-      D = new HypreParMatrix(MPI_COMM_WORLD, dimMGlb, problem->GetDofOffsetsM(), DSparse);
-      HypreStealOwnership(*D, *DSparse);
-      delete DSparse;
-   #else
-      D = new SparseMatrix(DiagLogBar);
+      if (parallel)
+      {
+	 //HYPRE_BigInt * offsets;
+	 //offsets = problem->GetDofOffsetsM();
+	 SparseMatrix * DSparse = new SparseMatrix(DiagLogBar);
+         Dh = new HypreParMatrix(MPI_COMM_WORLD, dimMGlb, problem->GetDofOffsetsM(), DSparse);
+         HypreStealOwnership(*Dh, *DSparse);
+	 Huuh = dynamic_cast<HypreParMatrix *>(problem->Duuf(x)); 
+         Humh = dynamic_cast<HypreParMatrix *>(problem->Dumf(x));
+         Hmuh = dynamic_cast<HypreParMatrix *>(problem->Dmuf(x));
+         Hmmh = dynamic_cast<HypreParMatrix *>(problem->Dmmf(x));
+         
+	 if(Hmmh != nullptr)
+	 {
+	    Wmmh = Hmmh;
+	    Wmmh->Add(1.0, *Dh);
+	 }
+	 else
+	 {
+	    Wmmh = Dh;
+	 }
+         Juh = dynamic_cast<HypreParMatrix *>(problem->Duc(x)); 
+         Jmh = dynamic_cast<HypreParMatrix *>(problem->Dmc(x));
+         JuTh = Juh->Transpose();
+         JmTh = Jmh->Transpose();
+         Ak.SetBlock(0, 0, Huuh);                         Ak.SetBlock(0, 2, JuTh);
+                                  Ak.SetBlock(1, 1, Wmmh); Ak.SetBlock(1, 2, JmTh);
+         Ak.SetBlock(2, 0,  Juh); Ak.SetBlock(2, 1,  Jmh);
+
+         if(Humh != nullptr) { Ak.SetBlock(0, 1, Humh); Ak.SetBlock(1, 0, Hmuh); }
+      }
+      else
+      {
    #endif
-  
+   
+   D = new SparseMatrix(DiagLogBar);
+   
+   Huu = dynamic_cast<SparseMatrix *>(problem->Duuf(x)); 
+   Hum = dynamic_cast<SparseMatrix *>(problem->Dumf(x));
+   Hmu = dynamic_cast<SparseMatrix *>(problem->Dmuf(x));
+   Hmm = dynamic_cast<SparseMatrix *>(problem->Dmmf(x));
+   
    if(Hmm != nullptr)
    {
       Wmm = Hmm;
@@ -348,27 +397,41 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    {
       Wmm = D;
    }
+   
+   Ju = dynamic_cast<SparseMatrix *>(problem->Duc(x)); 
+   Jm = dynamic_cast<SparseMatrix *>(problem->Dmc(x));
+   JuT = Transpose(*Ju);
+   JmT = Transpose(*Jm);
+   
+   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
+                           Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
+   Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
-   Ju = problem->Duc(x); 
-   Jm = problem->Dmc(x);
+   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+
    #ifdef MFEM_USE_MPI
-      JuT = Ju->Transpose();
-      JmT = Jm->Transpose();
-   #else
-      JuT = Transpose(*Ju);
-      JmT = Transpose(*Jm);
-   #endif 
+      }
+   #endif
+  
+
+   //#ifdef MFEM_USE_MPI
+   //   JuT = Ju->Transpose();
+   //   JmT = Jm->Transpose();
+   //#else
+   //   JuT = Transpose(*Ju);
+   //   JmT = Transpose(*Jm);
+   //#endif 
    
    //         IP-Newton system matrix
    //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
-   Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
-                           Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
-   Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
+   //Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
+   //                        Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
+   //Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 
-   if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
+   //if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
 }
 
 // perturbed KKT system solve
@@ -378,7 +441,6 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); BlockVector b(block_offsetsuml); b = 0.0;
    FormIPNewtonMat(x, l, zl, A);
-
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
    //       [          c        ]
@@ -407,66 +469,74 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
 
    #ifdef MFEM_USE_MPI
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
-      HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
-      HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
-      HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
-      HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
-      
-      HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
-      HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
-      /* prepare the reduced rhs */
-      // breduced = bu + Ju^T (bm + Wmm bl)
-      Vector breduced(dimU); breduced = 0.0;
-      Vector tempVec(dimM); tempVec = 0.0;
-      Wmmloc->Mult(b.GetBlock(2), tempVec);
-      tempVec.Add(1.0, b.GetBlock(1));
-      JuTloc->Mult(tempVec, breduced);
-      breduced.Add(1.0, b.GetBlock(0));
-      
-      // CG-AMG on the "reduced" linear system
-      HyprePCG AreducedSolver(MPI_COMM_WORLD);
-      AreducedSolver.SetOperator(*Areduced);
-      HypreBoomerAMG AreducedPrec;
-      AreducedSolver.SetTol(linSolveTol);
-      AreducedSolver.SetMaxIter(500);
-      AreducedSolver.SetPreconditioner(AreducedPrec);
-      AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
-      AreducedSolver.SetPrintLevel(2);
-      AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-      
-      // back-propagate reduced-solve info to determine mhat and lhat
-      // xm = Ju xu - bl
-      Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
-      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+      if (parallel)
+      {
+         HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
+         HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
+         HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
+         HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
+         
+         HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
+         HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
+         /* prepare the reduced rhs */
+         // breduced = bu + Ju^T (bm + Wmm bl)
+         Vector breduced(dimU); breduced = 0.0;
+         Vector tempVec(dimM); tempVec = 0.0;
+         Wmmloc->Mult(b.GetBlock(2), tempVec);
+         tempVec.Add(1.0, b.GetBlock(1));
+         JuTloc->Mult(tempVec, breduced);
+         breduced.Add(1.0, b.GetBlock(0));
+         
+         // CG-AMG on the "reduced" linear system
+         HyprePCG AreducedSolver(MPI_COMM_WORLD);
+         AreducedSolver.SetOperator(*Areduced);
+         HypreBoomerAMG AreducedPrec;
+         AreducedSolver.SetTol(linSolveTol);
+         AreducedSolver.SetMaxIter(500);
+         AreducedSolver.SetPreconditioner(AreducedPrec);
+         AreducedSolver.SetResidualConvergenceOptions(); // convergence criteria based on residual norm
+         AreducedSolver.SetPrintLevel(2);
+         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         
+         // back-propagate reduced-solve info to determine mhat and lhat
+         // xm = Ju xu - bl
+         Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+         Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
-      // xl = Wmm xm - bm
-      Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+         // xl = Wmm xm - bm
+         Wmmloc->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+         Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
 
-      delete JuTDJu;
-      delete Areduced;
+         delete JuTDJu;
+         delete Areduced;
+      }
+      else
+      {
+   #endif
+   #ifdef MFEM_USE_SUITESPARSE
+      BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
+      for(int ii = 0; ii < 3; ii++)
+      {
+        for(int jj = 0; jj < 3; jj++)
+        {
+          if(!A.IsZeroBlock(ii, jj))
+          {
+            ABlockMatrix.SetBlock(ii, jj, dynamic_cast<SparseMatrix *>(&(A.GetBlock(ii, jj))));
+          }
+        }
+      }
+      /* direct solve of the 3x3 IP-Newton linear system */
+      UMFPackSolver ASolver;
+      SparseMatrix *ASparse = ABlockMatrix.CreateMonolithic();
+      ASolver.SetOperator(*ASparse);
+      ASolver.Mult(b, Xhat);
+      delete ASparse;
    #else
-      #ifdef MFEM_USE_SUITESPARSE
-         BlockMatrix ABlockMatrix(block_offsetsuml, block_offsetsuml);
-         for(int ii = 0; ii < 3; ii++)
-         {
-           for(int jj = 0; jj < 3; jj++)
-           {
-             if(!A.IsZeroBlock(ii, jj))
-             {
-               ABlockMatrix.SetBlock(ii, jj, dynamic_cast<SparseMatrix *>(&(A.GetBlock(ii, jj))));
-             }
-           }
-         }
-         /* direct solve of the 3x3 IP-Newton linear system */
-         UMFPackSolver ASolver;
-         SparseMatrix *ASparse = ABlockMatrix.CreateMonolithic();
-         ASolver.SetOperator(*ASparse);
-         ASolver.Mult(b, Xhat);
-         delete ASparse;
-      #else
-         MFEM_VERIFY(false, "serial must be built with SUITESPARSE"); 
-      #endif
+      MFEM_VERIFY(false, "SUITESPARSE must be enabled for serial runs"); 
+   #endif
+
+   #ifdef MFEM_USE_MPI
+      }
    #endif
 
    //// Direct solver (default)
@@ -581,6 +651,20 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
    }
 
    // free memory
+   #ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      delete D;
+      delete JuT;
+      delete JmT;
+      if(Hmm != nullptr)
+      {
+         delete Wmm;
+      }
+   }
+   else
+   {
+   #endif
    delete D;
    delete JuT;
    delete JmT;
@@ -588,6 +672,11 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
    {
       delete Wmm;
    }
+   #ifdef MFEM_USE_MPI
+      }
+   #endif
+
+   
 }
 
 // here Xhat, X will be BlockVectors w.r.t. the 4 partitioning X = (u, m, l, zl)
@@ -629,11 +718,14 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
 
    Dxphi(x0, mu, Dxphi0);
 
-   #ifdef MFEM_USE_MPI
+   if (parallel)
+   {
       Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
-   #else
+   }
+   else
+   {
       Dxphi0_xhat = InnerProduct(Dxphi0, xhat);
-   #endif
+   }
    
    
    descentDirection = Dxphi0_xhat < 0. ? true : false;
@@ -789,20 +881,26 @@ double InteriorPointSolver::E(const BlockVector &x, const Vector &l, const Vecto
    double ll1, zl1; // 1-norm of dual-variables
 
    // norms of optimality residuals and scalings
-   #ifdef MFEM_USE_MPI 
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   { 
       E1 = GlobalLpNorm(infinity(), gradL.Normlinf(), MPI_COMM_WORLD);
       E2 = GlobalLpNorm(infinity(), cx.Normlinf(), MPI_COMM_WORLD);
       E3 = GlobalLpNorm(infinity(), comp.Normlinf(), MPI_COMM_WORLD);
       ll1 = GlobalLpNorm(1,  l.Norml1(), MPI_COMM_WORLD);
       zl1 = GlobalLpNorm(1, zl.Norml1(), MPI_COMM_WORLD); 
-   #else
-      E1 = gradL.Normlinf();
-      E2 = cx.Normlinf();
-      E3 = comp.Normlinf();
-      ll1 = l.Norml1();
-      zl1 = zl.Norml1();
-   #endif
-
+   }
+   else
+   {
+#endif
+   E1 = gradL.Normlinf();
+   E2 = cx.Normlinf();
+   E3 = comp.Normlinf();
+   ll1 = l.Norml1();
+   zl1 = zl.Norml1();
+#ifdef MFEM_USE_MPI
+   }
+#endif
    sc = max(sMax, zl1 / (double(dimMGlb)) ) / sMax;
    sd = max(sMax, (ll1 + zl1) / (double(dimCGlb + dimMGlb))) / sMax;
    if(iAmRoot && printEeval)
@@ -824,11 +922,18 @@ double InteriorPointSolver::theta(const BlockVector &x)
 {
   Vector cx(dimC); cx = 0.0;
   problem->c(x, cx);
-  #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
+  if (parallel)
+  {
      return GlobalLpNorm(2, cx.Norml2(), MPI_COMM_WORLD);
-  #else
-     return cx.Norml2();
-  #endif
+  }
+  else
+  {
+#endif
+  return cx.Norml2();
+#ifdef MFEM_USE_MPI
+     }
+#endif
 }
 
 // log-barrier objective
@@ -840,13 +945,20 @@ double InteriorPointSolver::phi(const BlockVector &x, double mu)
    { 
      logBarrierLoc += log(x(dimU+i) - ml(i));
    }
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
+   if(parallel)
+   {
       double logBarrierGlb;
       MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       return fx - mu * logBarrierGlb;
-   #else
-      return fx - mu * logBarrierLoc;
-   #endif
+   }
+   else
+   {
+#endif
+   return fx - mu * logBarrierLoc;
+#ifdef MFEM_USE_MPI
+   }
+#endif
 }
 
 // gradient of log-barrier objective with respect to x = (u, m)
@@ -866,11 +978,18 @@ double InteriorPointSolver::L(const BlockVector &x, const Vector &l, const Vecto
 {
    double fx = problem->CalcObjective(x);
    Vector cx(dimC); problem->c(x, cx);
-   #ifdef MFEM_USE_MPI
+#ifdef MFEM_USE_MPI
+   if(parallel)
+   {
       return (fx + InnerProduct(MPI_COMM_WORLD, cx, l) - InnerProduct(MPI_COMM_WORLD, x.GetBlock(1), zl));
-   #else
-      return (fx + InnerProduct(cx, l) - InnerProduct(x.GetBlock(1), zl));
-   #endif
+   }
+   else
+   {
+#endif
+   return (fx + InnerProduct(cx, l) - InnerProduct(x.GetBlock(1), zl));
+#ifdef MFEM_USE_MPI
+   }
+#endif
 }
 
 void InteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vector &zl, BlockVector &y)
@@ -880,26 +999,34 @@ void InteriorPointSolver::DxL(const BlockVector &x, const Vector &l, const Vecto
    problem->CalcObjectiveGrad(x, gradxf);
    
    #ifdef MFEM_USE_MPI
-      HypreParMatrix * Jacu, * Jacm, * JacuT, * JacmT;
-   #else
-      SparseMatrix * Jacu, * Jacm, * JacuT, * JacmT;
+      if (parallel)
+      {
+         HypreParMatrix * Jacu, * Jacm, * JacuT, * JacmT;
+	 Jacu = dynamic_cast<HypreParMatrix *>(problem->Duc(x));
+	 Jacm = dynamic_cast<HypreParMatrix *>(problem->Dmc(x));
+	 JacuT = Jacu->Transpose();
+	 JacmT = Jacm->Transpose();
+         JacuT->Mult(l, y.GetBlock(0));
+         JacmT->Mult(l, y.GetBlock(1));
+         
+         delete JacuT;
+         delete JacmT;
+      }
+      else
+      {
    #endif
-   Jacu = problem->Duc(x); 
-   Jacm = problem->Dmc(x);
-   
-   #ifdef MFEM_USE_MPI
-      JacuT = Jacu->Transpose();
-      JacmT = Jacm->Transpose();
-   #else
-      JacuT = Transpose(*Jacu);
-      JacmT = Transpose(*Jacm);
-   #endif
-   
+   SparseMatrix * Jacu, * Jacm, * JacuT, * JacmT;
+   Jacu = dynamic_cast<SparseMatrix *>(problem->Duc(x));
+   Jacm = dynamic_cast<SparseMatrix *>(problem->Dmc(x));
+   JacuT = Transpose(*Jacu);
+   JacmT = Transpose(*Jacm);
    JacuT->Mult(l, y.GetBlock(0));
    JacmT->Mult(l, y.GetBlock(1));
-   
    delete JacuT;
    delete JacmT;
+   #ifdef MFEM_USE_MPI
+      }
+   #endif 
    
    y.Add(1.0, gradxf);
    (y.GetBlock(1)).Add(-1.0, zl);

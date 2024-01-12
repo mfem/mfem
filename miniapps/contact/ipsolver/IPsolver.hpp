@@ -39,17 +39,17 @@ protected:
 
    Vector ckSoc;
 
-   #ifdef MFEM_USE_MPI
-      HypreParMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
-   #else
-      SparseMatrix   * Huu, * Hum, * Hmu, * Hmm, * Wmm, *D, * Ju, * Jm, * JuT, * JmT;
-   #endif
+   SparseMatrix * Huu, * Hum, * Hmu, * Hmm, * Wmm, * D, * Ju, * Jm, * JuT, * JmT;
+#ifdef MFEM_USE_MPI
+   HypreParMatrix * Huuh, * Humh, * Hmuh, * Hmmh, * Wmmh, * Dh, * Juh, * Jmh, * JuTh, * JmTh;
+#endif
    
    int jOpt;
    bool converged;
    
    int MyRank;
    bool iAmRoot;
+   bool parallel;
 
    bool saveLogBarrierIterates;
 

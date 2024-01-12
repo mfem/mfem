@@ -12,8 +12,7 @@
 //                      minimize (||∇u||² + ||u||²) subject to u ≥ ϕ in H¹.
 
 #include "mfem.hpp"
-#include "Problems.hpp"
-#include "IPsolver.hpp"
+#include "ipsolver/IPsolver.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -51,7 +50,7 @@ int main(int argc, char *argv[])
      args.PrintOptions(cout);
    }
 
-   const char *meshFile = "data/inline-quad.mesh";
+   const char *meshFile = "../../data/inline-quad.mesh";
    Mesh mesh(meshFile, 1, 1);
    int dim = mesh.Dimension(); // geometric dimension of the meshed domain
    {
