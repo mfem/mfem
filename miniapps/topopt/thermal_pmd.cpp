@@ -6,7 +6,7 @@
 // Sample runs:
 //     ex37 -alpha 10
 //     ex37 -alpha 10 -pv
-//     ex37 -lambda 0.1 -mu 0.1
+//     ex37 -kappa 0.1 -mu 0.1
 //     ex37 -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
 //     ex37 -r 6 -o 1 -alpha 25.0 -epsilon 0.02 -mi 50 -ntol 1e-5
 //
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 7;
+   int ref_levels = 5;
    int order = 1;
    double epsilon = 1e-2;
    double vol_fraction = 0.5;
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
    Mesh mesh;
    Array2D<int> ess_bdr;
    std::unique_ptr<Coefficient> vforce_cf;
-   
+
    switch (problem)
    {
       case Problem::HeatSink:
@@ -263,13 +263,12 @@ int main(int argc, char *argv[])
    meshfile << ".mesh";
 
    GridFunction &u = optprob.GetState();
-   u = 0.0;
    GridFunction &rho_filter = density.GetFilteredDensity();
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
-   socketstream sout_SIMP, sout_r, sout_u;
+   socketstream sout_SIMP, sout_r;
    std::unique_ptr<GridFunction> designDensity_gf, rho_gf;
    if (glvis_visualization)
    {
@@ -292,18 +291,11 @@ int main(int argc, char *argv[])
              << problem << "'\n"
              << "keys Rjl***************\n"
              << flush;
-      sout_u.open(vishost, visport);
-      sout_u.precision(8);
-      sout_u << "solution\n" << mesh << u
-             << "window_title 'Temperature u - PMD "
-             << problem << "'\n"
-             << "keys Rjl***************\n"
-             << flush;
    }
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
-      pd.reset(new ParaViewDataCollection(paraview_folder.str(), &mesh));
+      pd.reset(new ParaViewDataCollection("TopPMD", &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
       pd->RegisterField("psi", &density.GetGridFunction());
@@ -323,28 +315,36 @@ int main(int argc, char *argv[])
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient()), &psi(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_psi(&control_fes);
+   old_psi = psi; old_grad = grad;
 
-   MappedPairGridFunctionCoeffitient diff_rho(&psi, &old_psi, [](double x,
-   double y) {return sigmoid(x) - sigmoid(y);});
    LinearForm diff_rho_form(&control_fes);
-   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(diff_rho));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
+   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    int k;
    double step_size;
    double compliance = optprob.Eval();
    double old_compliance;
    optprob.UpdateGradient();
+   out << std::setw(10) << "Volume" << ",\t"
+       << std::setw(10) << "Compliance" << ",\t"
+       << std::setw(10) << "Stationarity" << ",\t"
+       << std::setw(10) << "Re-eval" << ",\t"
+       << std::setw(10) << "Step Size" << ",\t"
+       << std::setw(10) << "Stationarity-Bregman"
+       << std::endl;
    for (k = 1; k <= max_it; k++)
    {
+      diff_rho_form.Assemble();
+      old_psi -= psi;
+      old_grad -= grad;
       // Compute Step size
       if (k == 1) { step_size = 1.0; }
       else
       {
-         diff_rho_form.Assemble();
-         step_size = std::fabs(
-                        (diff_rho_form(psi) - diff_rho_form(old_psi))
-                        / (diff_rho_form(grad) - diff_rho_form(old_grad)));
+         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
       }
+
       // Store old data
       old_compliance = compliance;
       old_psi = psi;
@@ -352,6 +352,7 @@ int main(int argc, char *argv[])
 
       // Step and upate gradient
       int num_check = Step_Armijo(optprob, compliance, c1, step_size);
+      compliance = optprob.GetValue();
       optprob.UpdateGradient();
 
       // Visualization
@@ -364,8 +365,6 @@ int main(int argc, char *argv[])
                    << flush;
          sout_r << "solution\n" << mesh << *rho_gf
                 << flush;
-         sout_u << "solution\n" << mesh << u
-                << flush;
       }
       if (paraview)
       {
@@ -376,17 +375,17 @@ int main(int argc, char *argv[])
 
       // Check convergence
       double stationarityError = density.StationarityErrorL2(grad);
-      // double stationarityError_bregman = density.StationarityError(grad);
+      double stationarityError_bregman = density.StationarityError(grad);
 
       out << std::setw(10) << density.GetVolume() << ",\t"
           << std::setw(10) << optprob.GetValue() << ",\t"
           << std::setw(10) << stationarityError << ",\t"
           << std::setw(10) << num_check << ",\t"
-          << std::setw(10) << step_size
-         //  << std::setw(10) << stationarityError_bregman
+          << std::setw(10) << step_size << ",\t"
+          << std::setw(10) << stationarityError_bregman
           << std::endl;
 
-      if (stationarityError < 5e-06 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          break;
       }
