@@ -143,14 +143,11 @@ int main(int argc, char *argv[])
 {
 
    // 1. Parse command-line options.
-   int ref_levels = 7;
+   int ref_levels = 6;
    int order = 1;
-   double alpha = 1.0;
    double epsilon = 2e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
-   double itol = 1e-3;
-   double ntol = 1e-6;
    double rho_min = 1e-6;
    double exponent = 3.0;
    double lambda = 1.0;
@@ -171,16 +168,10 @@ int main(int argc, char *argv[])
                   "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&alpha, "-alpha", "--alpha-step-length",
-                  "Step length for gradient descent.");
    args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
                   "Length scale for ρ.");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
-   args.AddOption(&ntol, "-ntol", "--rel-tol",
-                  "Normalized exit tolerance.");
-   args.AddOption(&itol, "-itol", "--abs-tol",
-                  "Increment exit tolerance.");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
    args.AddOption(&lambda, "-lambda", "--lambda",
@@ -332,19 +323,16 @@ int main(int argc, char *argv[])
    mfem::out << "Number of state unknowns: " << state_size << std::endl;
    mfem::out << "Number of filter unknowns: " << filter_size << std::endl;
    mfem::out << "Number of control unknowns: " << control_size << std::endl;
-
    // 5. Set the initial guess for ρ.
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, epsilon);
-   LatentDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   PrimalDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
 
-
-
-   TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, true);
+   TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false, true);
 
 
    meshfile << "-" << ref_levels;
@@ -371,14 +359,14 @@ int main(int argc, char *argv[])
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       sout_SIMP.precision(8);
-      sout_SIMP << "solution\n" << mesh << designDensity_gf
+      sout_SIMP << "solution\n" << mesh << *designDensity_gf
                 << "window_title 'Design density r(ρ̃) - PMD "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      sout_r << "solution\n" << mesh << rho_gf
+      sout_r << "solution\n" << mesh << *rho_gf
              << "window_title 'Raw density ρ - PMD "
              << problem << "'\n"
              << "keys Rjl***************\n"
@@ -390,7 +378,7 @@ int main(int argc, char *argv[])
       pd.reset(new ParaViewDataCollection("TopPMD", &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
-      pd->RegisterField("psi", &density.GetGridFunction());
+      pd->RegisterField("rho", &density.GetGridFunction());
       pd->RegisterField("frho", &rho_filter);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -405,11 +393,11 @@ int main(int argc, char *argv[])
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    // 11. Iterate
-   GridFunction &grad(optprob.GetGradient()), &psi(density.GetGridFunction());
-   GridFunction old_grad(&control_fes), old_psi(&control_fes);
+   GridFunction &grad(optprob.GetGradient()), &rho(density.GetGridFunction());
+   GridFunction old_grad(&control_fes), old_rho(&control_fes);
 
-   MappedPairGridFunctionCoeffitient diff_rho(&psi, &old_psi, [](double x,
-   double y) {return sigmoid(x) - sigmoid(y);});
+   MappedPairGridFunctionCoeffitient diff_rho(&rho, &old_rho, [](double x,
+   double y) {return x - y;});
    LinearForm diff_rho_form(&control_fes);
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(diff_rho));
 
@@ -420,29 +408,34 @@ int main(int argc, char *argv[])
    optprob.UpdateGradient();
    for (k = 1; k <= max_it; k++)
    {
+      // Compute Step size
       if (k == 1) { step_size = 1.0; }
       else
       {
          diff_rho_form.Assemble();
-         step_size = (
-                        diff_rho_form(psi) - diff_rho_form(old_psi))
-                     / (diff_rho_form(grad) - diff_rho_form(old_grad));
+         step_size = std::fabs(
+                        (diff_rho_form(rho) - diff_rho_form(old_rho))
+                        / (diff_rho_form(grad) - diff_rho_form(old_grad)));
       }
-      old_compliance = compliance;
-      old_psi = psi;
-      old_grad = grad;
-      compliance = Step_Armijo(optprob, compliance, c1, step_size);
-      optprob.UpdateGradient();
-      double stationarityError = density.StationarityError(grad, true);
 
+      // Store old data
+      old_compliance = compliance;
+      old_rho = rho;
+      old_grad = grad;
+
+      // Step and upate gradient
+      int num_check = Step_Armijo(optprob, compliance, c1, step_size);
+      optprob.UpdateGradient();
+
+      // Visualization
       if (glvis_visualization)
       {
          designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                                  density.GetFilteredDensity()));
          rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
-         sout_SIMP << "solution\n" << mesh << designDensity_gf
+         sout_SIMP << "solution\n" << mesh << *designDensity_gf
                    << flush;
-         sout_r << "solution\n" << mesh << rho_gf
+         sout_r << "solution\n" << mesh << *rho_gf
                 << flush;
       }
       if (paraview)
@@ -451,7 +444,18 @@ int main(int argc, char *argv[])
          pd->SetTime(k);
          pd->Save();
       }
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 1e-05)
+
+      // Check convergence
+      double stationarityError = density.StationarityError(grad);
+
+      out << std::setw(10) << density.GetVolume() << ",\t"
+          << std::setw(10) << optprob.GetValue() << ",\t"
+          << std::setw(10) << stationarityError << ",\t"
+          << std::setw(10) << num_check << ",\t"
+          << std::setw(10) << step_size
+          << std::endl;
+
+      if (stationarityError < 5e-06 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          break;
       }
@@ -460,7 +464,7 @@ int main(int argc, char *argv[])
    {
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);

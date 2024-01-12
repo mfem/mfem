@@ -1,4 +1,3 @@
-#include "mfem.hpp"
 #include "helper.hpp"
 namespace mfem
 {

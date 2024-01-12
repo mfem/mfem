@@ -29,7 +29,7 @@ TOPOPT_COMMON_SRC = helper.cpp topopt.cpp
 
 TOPOPT_COMMON_OBJ = $(TOPOPT_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = top_md
+SEQ_MINIAPPS = top_pmd top_pgd thermal_pmd
 # PAR_MINIAPPS = parheat
 # ifeq ($(MFEM_USE_MPI),NO)
 MINIAPPS = $(SEQ_MINIAPPS)

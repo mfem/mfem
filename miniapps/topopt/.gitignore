@@ -1,0 +1,9 @@
+**/ParaView
+**/*.mesh
+**/*.gf
+**/*.mesh.*
+**/*.gf.*
+top_pmd
+top_pgd
+thermal_pmd
+thermal_pgd

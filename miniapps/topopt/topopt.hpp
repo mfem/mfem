@@ -1,57 +1,25 @@
 #pragma once
 #include "mfem.hpp"
 
-/// @brief Inverse sigmoid function
-double inv_sigmoid(const double x)
-{
-   const double tol = 1e-12;
-   const double tmp = std::min(std::max(tol,x),1.0-tol);
-   return std::log(tmp/(1.0-tmp));
-}
-
-/// @brief Sigmoid function
-double sigmoid(const double x)
-{
-   return x>=0 ? 1 / (1 + exp(-x)) : exp(x) / (1 + exp(x));
-}
-
-/// @brief Derivative of sigmoid function
-double der_sigmoid(const double x)
-{
-   const double tmp = sigmoid(x);
-   return tmp*(1.0 - tmp);
-}
-
-/// @brief SIMP function, ρ₀ + (ρ̄ - ρ₀)*x^k
-double simp(const double x, const double rho_0=1e-06, const double k=3.0,
-            const double rho_max=1.0)
-{
-   return rho_0 + std::pow(x, k) * (rho_max - rho_0);
-}
-
-/// @brief Derivative of SIMP function, k*(ρ̄ - ρ₀)*x^(k-1)
-double der_simp(const double x, const double rho_0=1e-06,
-                const double k=3.0, const double rho_max=1.0)
-{
-   return k * std::pow(x, k - 1) * (rho_max - rho_0);
-}
 
 namespace mfem
 {
-class DiscL2ProjectionIntegrator : public MixedScalarIntegrator
-{
-private:
-   std::unique_ptr<BilinearFormIntegrator> invmass, mass;
-#ifndef MFEM_THREAD_SAFE
-   DenseMatrix invM, M;
-#endif
-public:
-   DiscL2ProjectionIntegrator();
-   void AssembleElementMatrix2(const FiniteElement &trial_fe,
-                               const FiniteElement &test_fe,
-                               ElementTransformation &Trans,
-                               DenseMatrix &elmat) override;
-};
+/// @brief Inverse sigmoid function
+double inv_sigmoid(const double x);
+
+/// @brief Sigmoid function
+double sigmoid(const double x);
+
+/// @brief Derivative of sigmoid function
+double der_sigmoid(const double x);
+
+/// @brief SIMP function, ρ₀ + (ρ̄ - ρ₀)*x^k
+double simp(const double x, const double rho_0=1e-06, const double k=3.0,
+            const double rho_max=1.0);
+
+/// @brief Derivative of SIMP function, k*(ρ̄ - ρ₀)*x^(k-1)
+double der_simp(const double x, const double rho_0=1e-06,
+                const double k=3.0, const double rho_max=1.0);
 // Elasticity solver
 class EllipticSolver
 {
@@ -179,23 +147,9 @@ private:
    const double k, rho0;
    std::unique_ptr<MappedGridFunctionCoefficient> phys_density, dphys_dfrho;
 public:
-   SIMPProjector(const double k, const double rho0):k(k), rho0(rho0)
-   {
-      phys_density.reset(new MappedGridFunctionCoefficient(
-      nullptr, [rho0, k](double x) {return simp(x, rho0, k);}));
-      dphys_dfrho.reset(new MappedGridFunctionCoefficient(
-      nullptr, [rho0, k](double x) {return der_simp(x, rho0, k);}));
-   }
-   Coefficient &GetPhysicalDensity(GridFunction &frho) override
-   {
-      phys_density->SetGridFunction(&frho);
-      return *phys_density;
-   }
-   Coefficient &GetDerivative(GridFunction &frho) override
-   {
-      dphys_dfrho->SetGridFunction(&frho);
-      return *dphys_dfrho;
-   }
+   SIMPProjector(const double k, const double rho0);
+   Coefficient &GetPhysicalDensity(GridFunction &frho) override;
+   Coefficient &GetDerivative(GridFunction &frho) override;
 };
 
 class ThresholdProjector : public DensityProjector
@@ -203,32 +157,10 @@ class ThresholdProjector : public DensityProjector
 private:
    const double beta, eta;
    std::unique_ptr<MappedGridFunctionCoefficient> phys_density, dphys_dfrho;
-   ThresholdProjector(const double beta, const double eta):beta(beta), eta(eta)
-   {
-      const double c1 = std::tanh(beta*eta);
-      const double c2 = std::tanh(beta*(1-eta));
-      const double inv_denominator = 1.0 / (c1 + c2);
-      phys_density.reset(new MappedGridFunctionCoefficient(
-                            nullptr, [c1, c2, beta, eta](double x)
-      {
-         return (c1 + std::tanh(beta*(x - eta))) / (c1 + c2);
-      }));
-      dphys_dfrho.reset(new MappedGridFunctionCoefficient(
-                           nullptr, [c1, c2, beta, eta](double x)
-      {
-         return beta*std::pow(1.0/std::cosh(beta*(x - eta)), 2.0) / (c1 + c2);
-      }));
-   }
-   Coefficient &GetPhysicalDensity(GridFunction &frho) override
-   {
-      phys_density->SetGridFunction(&frho);
-      return *phys_density;
-   }
-   Coefficient &GetDerivative(GridFunction &frho) override
-   {
-      dphys_dfrho->SetGridFunction(&frho);
-      return *dphys_dfrho;
-   }
+public:
+   ThresholdProjector(const double beta, const double eta);
+   Coefficient &GetPhysicalDensity(GridFunction &frho) override;
+   Coefficient &GetDerivative(GridFunction &frho) override;
 };
 
 class LatentDesignDensity : public DesignDensity
@@ -258,11 +190,11 @@ public:
    double StationarityError(GridFunction &grad, bool useL2norm);
    double StationarityErrorL2(GridFunction &grad);
    double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
-                                   double log_tol=1e-09);
+                                   double log_tol=1e-13);
 protected:
    void ComputeVolume() override
    {
-      current_volume = zero_gf.ComputeL1Error(*rho_cf.get());
+      current_volume = zero_gf.ComputeL1Error(*rho_cf);
    }
 private:
 };
@@ -339,10 +271,12 @@ protected:
    std::shared_ptr<GridFunction> gradF;
    std::shared_ptr<GridFunction> gradF_filter;
    std::shared_ptr<GridFunction> state, dual_solution;
-   std::unique_ptr<MixedBilinearForm> filter_to_density;
+   std::unique_ptr<BilinearForm> filter_to_density;
    std::unique_ptr<LinearForm> gradF_filter_form;
    std::unique_ptr<Coefficient> dEdfrho;
-   const bool skip_dual;
+   const bool solve_dual;
+   const bool apply_projection;
+   double val;
 private:
 
 public:
@@ -351,15 +285,16 @@ public:
    /// @param objective Objective linear functional, F(u)
    /// @param state_equation State equation, a(u,v) = b(v)
    /// @param density Density object, ρ
-   /// @param skip_dual If true, kip dual solve, a(v,λ)=F(v) and assume λ=u
+   /// @param solve_dual If true, kip dual solve, a(v,λ)=F(v) and assume λ=u
    /// @note It assume that the state equation is symmetric and objective
    TopOptProblem(LinearForm &objective,
                  ParametrizedLinearEquation &state_equation,
-                 DesignDensity &density, bool skip_dual);
+                 DesignDensity &density, bool solve_dual, bool apply_projection);
 
    double Eval();
+   double GetValue() {return val;}
    void UpdateGradient();
-   GridFunction &GetGradient() { return *gradF.get(); }
+   GridFunction &GetGradient() { return *gradF; }
    GridFunction &GetGridFunction() { return density.GetGridFunction(); }
    Coefficient &GetDensity() { return density.GetDensityCoefficient(); }
    GridFunction &GetState() {return *state;}
@@ -413,9 +348,59 @@ public:
                                   DensityProjector &projector,
                                   Coefficient &lambda, Coefficient &mu,
                                   VectorCoefficient &f, Array2D<int> &ess_bdr);
-   virtual std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
-                                                   GridFunction &dual_solution, GridFunction &frho) override
+   std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
+                                           GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new StrainEnergyDensityCoefficient(lambda, mu, u, dual_solution, projector, frho)); }
+protected:
+private:
+};
+
+
+/// @brief Strain energy density coefficient
+class ThermalEnergyDensityCoefficient : public Coefficient
+{
+protected:
+   Coefficient &kappa;
+   GridFunction &u1; // displacement
+   GridFunction &u2; // displacement
+   Coefficient &dphys_dfrho;
+   Vector grad1, grad2; // auxiliary matrix, used in Eval
+
+public:
+   ThermalEnergyDensityCoefficient(Coefficient &kappa,
+                                   GridFunction &u, DensityProjector &projector, GridFunction &frho)
+      : kappa(kappa),  u1(u),  u2(u),
+        dphys_dfrho(projector.GetDerivative(frho))
+   { }
+   ThermalEnergyDensityCoefficient(Coefficient &kappa,
+                                   GridFunction &u1, GridFunction &u2, DensityProjector &projector,
+                                   GridFunction &frho)
+      : kappa(kappa),  u1(u1),  u2(u2),
+        dphys_dfrho(projector.GetDerivative(frho))
+   { }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+class ParametrizedDiffusionEquation : public ParametrizedLinearEquation
+{
+public:
+protected:
+   Coefficient &kappa;
+   GridFunction &filtered_density;
+   ProductCoefficient phys_kappa;
+   Coefficient &f;
+private:
+
+public:
+   ParametrizedDiffusionEquation(FiniteElementSpace &fes,
+                                 GridFunction &filtered_density,
+                                 DensityProjector &projector,
+                                 Coefficient &kappa,
+                                 Coefficient &f, Array2D<int> &ess_bdr);
+   std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
+                                           GridFunction &dual_solution, GridFunction &frho) override
+   { return std::unique_ptr<Coefficient>(new ThermalEnergyDensityCoefficient(kappa, u, dual_solution, projector, frho)); }
 protected:
 private:
 };
@@ -431,8 +416,8 @@ private:
  * @param step_size initial step size
  * @param shrink_factor step size shrink factor, for each iteration, step_size *= shrink_factor
  */
-double Step_Armijo(TopOptProblem &problem, const double val, const double c1,
-                   double step_size, const double shrink_factor=0.5);
+int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
+                double &step_size, const double shrink_factor=0.5);
 
 /// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient
@@ -469,5 +454,8 @@ public:
    void Set(double r_,Vector & center_, Vector & force_);
    void UpdateSize();
 };
+
+void MarkBoundary(Mesh &mesh, std::__1::function<bool(double, double)> mark,
+                  const int idx);
 
 }
