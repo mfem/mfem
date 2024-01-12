@@ -407,13 +407,13 @@ int main(int argc, char *argv[])
    double compliance = optprob.Eval();
    double old_compliance;
    optprob.UpdateGradient();
-      out << std::setw(10) << "Volume" << ",\t"
-          << std::setw(10) << "Compliance" << ",\t"
-          << std::setw(10) << "Stationarity" << ",\t"
-          << std::setw(10) << "Re-eval" << ",\t"
-          << std::setw(10) << "Step Size" << ",\t"
-          << std::setw(10) << "Stationarity-Bregman"
-          << std::endl;
+   out << std::setw(10) << "Volume" << ",\t"
+       << std::setw(10) << "Compliance" << ",\t"
+       << std::setw(10) << "Stationarity" << ",\t"
+       << std::setw(10) << "Re-eval" << ",\t"
+       << std::setw(10) << "Step Size" << ",\t"
+       << std::setw(10) << "Stationarity-Bregman"
+       << std::endl;
    for (k = 1; k <= max_it; k++)
    {
       diff_rho_form.Assemble();
