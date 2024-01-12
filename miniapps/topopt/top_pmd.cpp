@@ -393,27 +393,34 @@ int main(int argc, char *argv[])
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient()), &psi(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_psi(&control_fes);
+   old_psi = psi; old_grad = grad;
 
-   MappedPairGridFunctionCoeffitient diff_rho(&psi, &old_psi, [](double x,
-   double y) {return sigmoid(x) - sigmoid(y);});
    LinearForm diff_rho_form(&control_fes);
-   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(diff_rho));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
+   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    int k;
    double step_size;
    double compliance = optprob.Eval();
    double old_compliance;
    optprob.UpdateGradient();
+      out << std::setw(10) << "Volume" << ",\t"
+          << std::setw(10) << "Compliance" << ",\t"
+          << std::setw(10) << "Stationarity" << ",\t"
+          << std::setw(10) << "Re-eval" << ",\t"
+          << std::setw(10) << "Step Size" << ",\t"
+          << std::setw(10) << "Stationarity-Bregman"
+          << std::endl;
    for (k = 1; k <= max_it; k++)
    {
+      diff_rho_form.Assemble();
+      old_psi -= psi;
+      old_grad -= grad;
       // Compute Step size
       if (k == 1) { step_size = 1.0; }
       else
       {
-         diff_rho_form.Assemble();
-         step_size = std::fabs(
-                        (diff_rho_form(psi) - diff_rho_form(old_psi))
-                        / (diff_rho_form(grad) - diff_rho_form(old_grad)));
+         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
       }
 
       // Store old data
@@ -423,6 +430,7 @@ int main(int argc, char *argv[])
 
       // Step and upate gradient
       int num_check = Step_Armijo(optprob, compliance, c1, step_size);
+      compliance = optprob.GetValue();
       optprob.UpdateGradient();
 
       // Visualization
@@ -455,7 +463,7 @@ int main(int argc, char *argv[])
           << std::setw(10) << stationarityError_bregman
           << std::endl;
 
-      if (stationarityError < 5e-06 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          break;
       }

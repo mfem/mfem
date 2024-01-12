@@ -131,6 +131,8 @@ public:
    virtual void Project() = 0;
    virtual double StationarityError(GridFunction &grad) = 0;
    virtual void ComputeVolume() = 0;
+   virtual std::unique_ptr<Coefficient> GetDensityDiffForm(
+      GridFunction &other_gf) = 0;
 protected:
 private:
 };
@@ -195,6 +197,12 @@ public:
    {
       current_volume = zero_gf.ComputeL1Error(*rho_cf);
    }
+   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
+   {
+      return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
+                                             x_gf.get(), &other_gf,
+      [](double x, double y) {return sigmoid(x) - sigmoid(y);}));
+   }
 protected:
 private:
 };
@@ -221,6 +229,12 @@ public:
    void ComputeVolume() override
    {
       current_volume = x_gf->ComputeL1Error(zero_cf);
+   }
+   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
+   {
+      return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
+                                             x_gf.get(), &other_gf,
+      [](double x, double y) {return x - y;}));
    }
 protected:
 private:
@@ -297,6 +311,14 @@ public:
    GridFunction &GetGradient() { return *gradF; }
    GridFunction &GetGridFunction() { return density.GetGridFunction(); }
    Coefficient &GetDensity() { return density.GetDensityCoefficient(); }
+   // ρ - ρ_other where ρ_other is the provided density.
+   // Assume ρ is constructed by the same mapping.
+   // @note If you need different mapping between two grid functions,
+   //       use GetDensity().
+   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf)
+   {
+      return density.GetDensityDiffForm(other_gf);
+   }
    GridFunction &GetState() {return *state;}
 protected:
 private:
@@ -417,7 +439,7 @@ private:
  * @param shrink_factor step size shrink factor, for each iteration, step_size *= shrink_factor
  */
 int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
-                double &step_size, const double shrink_factor=0.5);
+                double &step_size, const double shrink_factor=0.5, const int max_it=20);
 
 /// @brief Volumetric force for linear elasticity
 class VolumeForceCoefficient : public VectorCoefficient

@@ -15,7 +15,7 @@ double inv_sigmoid(const double x)
 /// @brief Sigmoid function
 double sigmoid(const double x)
 {
-   return x>=0 ? 1 / (1 + exp(-x)) : exp(x) / (1 + exp(x));
+   return x>=0.0 ? 1.0 / (1.0 + exp(-x)) : exp(x) / (1.0 + exp(x));
 }
 
 /// @brief Derivative of sigmoid function
@@ -36,7 +36,7 @@ double simp(const double x, const double rho_0, const double k,
 double der_simp(const double x, const double rho_0,
                 const double k, const double rho_max)
 {
-   return k * std::pow(x, k - 1) * (rho_max - rho_0);
+   return k * std::pow(x, k - 1.0) * (rho_max - rho_0);
 }
 
 EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
@@ -262,8 +262,8 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
      vol_tol(volume_tolerance)
 {
    x_gf.reset(MakeGridFunction(&fes));
-   frho.reset(MakeGridFunction(&fes_filter));
    *x_gf = target_volume_fraction;
+   frho.reset(MakeGridFunction(&fes_filter));
    *frho = target_volume_fraction;
    Mesh *mesh = fes.GetMesh();
    double domain_volume = 0.0;
@@ -527,6 +527,7 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
     solve_dual(solve_dual), apply_projection(apply_projection)
 {
    state.reset(MakeGridFunction(state_equation.FESpace()));
+   *state = 0.0;
    if (!solve_dual)
    {
       dual_solution = state;
@@ -539,6 +540,7 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
    dEdfrho = state_equation.GetdEdfrho(*state, *dual_solution,
                                        density.GetFilteredDensity());
    gradF.reset(MakeGridFunction(density.FESpace()));
+   *gradF = 0.0;
    if (density.FESpace() == density.FESpace_filter())
    {
       gradF_filter = gradF;
@@ -546,6 +548,7 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
    else
    {
       gradF_filter.reset(MakeGridFunction(density.FESpace_filter()));
+      *gradF_filter = 0.0;
       filter_to_density.reset(MakeBilinearForm(density.FESpace()));
       filter_to_density->AddDomainIntegrator(new InverseIntegrator(
                                                 new MassIntegrator));
@@ -730,31 +733,38 @@ void LineVolumeForceCoefficient::UpdateSize()
    VectorCoefficient::vdim = center.Size();
 }
 int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
-                double &step_size, const double shrink_factor)
+                double &step_size, const double shrink_factor, const int max_it)
 {
+   // obtain current point and gradient
    GridFunction &x_gf = problem.GetGridFunction();
    GridFunction &grad = problem.GetGradient();
-
+   // store current point
    std::unique_ptr<GridFunction> x0(MakeGridFunction(x_gf.FESpace()));
    *x0 = x_gf;
-   std::unique_ptr<LinearForm> densityForm(MakeLinearForm(x_gf.FESpace()));
-   densityForm->AddDomainIntegrator(new DomainLFIntegrator(problem.GetDensity()));
-   densityForm->Assemble();
-   double gradF_rho0 = (*densityForm)(grad);
-   double new_val = infinity();
-   double d = 0;
+
+   // ρ - ρ_0
+   std::unique_ptr<Coefficient> diff_density(problem.GetDensityDiffForm(*x0));
+   std::unique_ptr<LinearForm> diff_densityForm(MakeLinearForm(x_gf.FESpace()));
+   diff_densityForm->AddDomainIntegrator(new DomainLFIntegrator(*diff_density));
+
+   double new_val, d;
+   int i;
    step_size /= shrink_factor;
-   int i=0;
-   do
+   out << val << std::endl;
+   for (i=0; i<max_it; i++)
    {
-      i++;
       step_size *= shrink_factor; // reduce step size
-      x_gf = *x0; // move back
+      out << step_size << ", " << std::flush;
+      x_gf = *x0; // restore original position
       x_gf.Add(-step_size, grad); // advance by updated step size
       new_val = problem.Eval(); // re-evaluate at the updated point
-      densityForm->Assemble(); // re-evaluate density inner-product
+      diff_densityForm->Assemble(); // re-evaluate density difference inner-product
+      d = (*diff_densityForm)(grad);
+      out << d << ", " << new_val << ",  " << std::flush;
+      if (new_val < val + c1*d && d < 0) { break; }
    }
-   while (new_val > val + c1*((*densityForm)(grad) - gradF_rho0));
+   out << std::endl;
+
    return i;
 }
 
