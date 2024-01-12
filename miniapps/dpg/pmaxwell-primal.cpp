@@ -301,7 +301,8 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace *ams_fes = nullptr;
       if (static_cond)
       {
-         ams_fes = new ParFiniteElementSpace(&pmesh,E_fes->FEColl()->GetTraceCollection());
+         ams_fes = new ParFiniteElementSpace(&pmesh,
+                                             E_fes->FEColl()->GetTraceCollection());
       }
       HypreAMS * solver_E = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(0,0),
                                          (static_cond) ? ams_fes : E_fes);

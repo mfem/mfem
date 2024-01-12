@@ -120,14 +120,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
    double rnum=50.0e6;
    bool static_cond = false;
-   int sr = 0;
-   int pr = 0;
    bool paraview = false;
    double factor = 1.0;
    double mu = 1.257e-6/factor;
-   // double mu = 1.0;
-   double epsilon = 1.0;
-   double sigma = 0.00;
    double epsilon_scale = 8.8541878128e-12*factor;
    bool graph_norm = true;
    bool mumps_solver = false;
@@ -141,16 +136,8 @@ int main(int argc, char *argv[])
                   "Number of wavelengths");
    args.AddOption(&mu, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
-   args.AddOption(&epsilon, "-eps", "--permittivity",
-                  "Permittivity of free space (or mass constant).");
-   args.AddOption(&sigma, "-sigma", "--sigma",
-                  "conductivity");
    args.AddOption(&delta_order, "-do", "--delta_order",
                   "Order enrichment for DPG test space.");
-   args.AddOption(&sr, "-sref", "--serial_ref",
-                  "Number of serial refinements.");
-   args.AddOption(&pr, "-pref", "--parallel_ref",
-                  "Number of parallel refinements.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&graph_norm, "-graph", "--graph-norm", "-no-gn",
@@ -183,11 +170,6 @@ int main(int argc, char *argv[])
 
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-
-   for (int i = 0; i<sr; i++)
-   {
-      mesh.UniformRefinement();
-   }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
@@ -232,6 +214,17 @@ int main(int argc, char *argv[])
    trial_fes.Append(hatH_fes);
    test_fec.Append(F_fec);
    test_fec.Append(G_fec);
+
+   int gdofs = 0;
+   for (int i = 0; i<trial_fes.Size(); i++)
+   {
+      gdofs += trial_fes[i]->GlobalTrueVSize();
+   }
+
+   if (myid == 0)
+   {
+      mfem::out << "Global number of dofs = " << gdofs << endl;
+   }
 
    // Bilinear form coefficients
    ConstantCoefficient one(1.0);
@@ -286,7 +279,7 @@ int main(int argc, char *argv[])
    // (∇×F,∇×δF)
    a->AddTestIntegrator(new CurlCurlIntegrator(one),nullptr,0,0);
    // (F,δF)
-   a->AddTestIntegrator(new VectorFEMassIntegrator(one),nullptr,0,0);
+   a->AddTestIntegrator(new VectorFEMassIntegrator(l2weight),nullptr,0,0);
 
    if (graph_norm)
    {
@@ -374,251 +367,231 @@ int main(int argc, char *argv[])
                             220, 221, 222, 223, 224, 225, 226, 227,
                             228, 229, 230, 231, 232, 233, 234, 125});
 
-   for (int it = 0; it<=pr; it++)
+   Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
+   Array<int> one_bdr;
+   Array<int> negone_bdr;
+
+   if (myid == 0)
    {
-      Array<int> ess_tdof_list;
-      Array<int> ess_bdr;
-      Array<int> one_bdr;
-      Array<int> negone_bdr;
+      std::cout << "Attributes" << endl;
+   }
 
-      if (myid == 0)
+   if (pmesh.bdr_attributes.Size())
+   {
+      ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+      one_bdr.SetSize(pmesh.bdr_attributes.Max());
+      negone_bdr.SetSize(pmesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      // need to exclude these attributes
+      for (int i = 0; i<internal_bdr.Size(); i++)
       {
-         std::cout << "Attributes" << endl;
+         ess_bdr[internal_bdr[i]-1] = 0;
       }
+      hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      one_bdr = 0;
+      negone_bdr = 0;
+      one_bdr[234] = 1;
+      negone_bdr[235] = 1;
+   }
 
-      if (pmesh.bdr_attributes.Size())
+   if (myid == 0)
+   {
+      std::cout << "Attributes 2" << endl;
+   }
+
+   // Set up bdr conditions
+   // shift the ess_tdofs
+   for (int j = 0; j < ess_tdof_list.Size(); j++)
+   {
+      ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
+   }
+
+   Array<int> offsets(5);
+   offsets[0] = 0;
+   offsets[1] = E_fes->GetVSize();
+   offsets[2] = H_fes->GetVSize();
+   offsets[3] = hatE_fes->GetVSize();
+   offsets[4] = hatH_fes->GetVSize();
+   offsets.PartialSum();
+
+   Vector x(2*offsets.Last());
+   x = 0.;
+   double * xdata = x.GetData();
+
+   ParComplexGridFunction hatE_gf(hatE_fes);
+   hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
+   hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
+
+   hatE_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
+   hatE_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
+
+   if (myid == 0)
+   {
+      std::cout << "Assembly started" << endl;
+   }
+
+   if (static_cond) { a->EnableStaticCondensation(); }
+   a->Assemble();
+
+   if (myid == 0)
+   {
+      std::cout << "Assembly finished" << endl;
+   }
+
+   OperatorPtr Ah;
+   Vector X,B;
+   a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
+
+   ComplexOperator * Ahc = Ah.As<ComplexOperator>();
+
+   BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
+   BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
+
+   int num_blocks = BlockA_r->NumRowBlocks();
+   Array<int> tdof_offsets(2*num_blocks+1);
+
+   tdof_offsets[0] = 0;
+   int skip = (static_cond) ? 0 : 2;
+   int k = (static_cond) ? 2 : 0;
+   for (int i=0; i<num_blocks; i++)
+   {
+      tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
+      tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
+   }
+   tdof_offsets.PartialSum();
+
+   BlockOperator blockA(tdof_offsets);
+   for (int i = 0; i<num_blocks; i++)
+   {
+      for (int j = 0; j<num_blocks; j++)
       {
-         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
-         one_bdr.SetSize(pmesh.bdr_attributes.Max());
-         negone_bdr.SetSize(pmesh.bdr_attributes.Max());
-         ess_bdr = 1;
-         // need to exclude these attributes
-         for (int i = 0; i<internal_bdr.Size(); i++)
-         {
-            ess_bdr[internal_bdr[i]-1] = 0;
-         }
-         hatE_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-         one_bdr = 0;
-         negone_bdr = 0;
-         one_bdr[234] = 1;
-         negone_bdr[235] = 1;
+         blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
+         blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
+         blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
+         blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
       }
+   }
 
-      if (myid == 0)
-      {
-         std::cout << "Attributes 2" << endl;
-      }
+   X = 0.;
 
-      // Set up bdr conditions
-      // shift the ess_tdofs
-      for (int j = 0; j < ess_tdof_list.Size(); j++)
-      {
-         ess_tdof_list[j] += E_fes->GetTrueVSize() + H_fes->GetTrueVSize();
-      }
-
-      Array<int> offsets(5);
-      offsets[0] = 0;
-      offsets[1] = E_fes->GetVSize();
-      offsets[2] = H_fes->GetVSize();
-      offsets[3] = hatE_fes->GetVSize();
-      offsets[4] = hatH_fes->GetVSize();
-      offsets.PartialSum();
-
-      Vector x(2*offsets.Last());
-      x = 0.;
-      double * xdata = x.GetData();
-
-      ParComplexGridFunction hatE_gf(hatE_fes);
-      hatE_gf.real().MakeRef(hatE_fes,&xdata[offsets[2]]);
-      hatE_gf.imag().MakeRef(hatE_fes,&xdata[offsets.Last()+ offsets[2]]);
-
-      hatE_gf.ProjectBdrCoefficientTangent(z_one_cf,zero_cf, one_bdr);
-      hatE_gf.ProjectBdrCoefficientTangent(z_negone_cf,zero_cf, negone_bdr);
-
-      if (myid == 0)
-      {
-         std::cout << "Assembly started" << endl;
-      }
-
-      if (static_cond) { a->EnableStaticCondensation(); }
-      a->Assemble();
-
-      if (myid == 0)
-      {
-         std::cout << "Assembly finished" << endl;
-      }
-
-      OperatorPtr Ah;
-      Vector X,B;
-      a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
-
-      ComplexOperator * Ahc = Ah.As<ComplexOperator>();
-
-      BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-      BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
-
-      int num_blocks = BlockA_r->NumRowBlocks();
-      Array<int> tdof_offsets(2*num_blocks+1);
-
-      tdof_offsets[0] = 0;
-      int skip = (static_cond) ? 0 : 2;
-      int k = (static_cond) ? 2 : 0;
-      for (int i=0; i<num_blocks; i++)
-      {
-         tdof_offsets[i+1] = trial_fes[i+k]->GetTrueVSize();
-         tdof_offsets[num_blocks+i+1] = trial_fes[i+k]->GetTrueVSize();
-      }
-      tdof_offsets.PartialSum();
-
-      BlockOperator blockA(tdof_offsets);
+#ifdef MFEM_USE_MUMPS
+   if (mumps_solver)
+   {
+      // Monolithic real part
+      Array2D <HypreParMatrix * > Ab_r(num_blocks,num_blocks);
+      // Monolithic imag part
+      Array2D <HypreParMatrix * > Ab_i(num_blocks,num_blocks);
       for (int i = 0; i<num_blocks; i++)
       {
          for (int j = 0; j<num_blocks; j++)
          {
-            blockA.SetBlock(i,j,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i,j+num_blocks,&BlockA_i->GetBlock(i,j), -1.0);
-            blockA.SetBlock(i+num_blocks,j+num_blocks,&BlockA_r->GetBlock(i,j));
-            blockA.SetBlock(i+num_blocks,j,&BlockA_i->GetBlock(i,j));
+            Ab_r(i,j) = &(HypreParMatrix &)BlockA_r->GetBlock(i,j);
+            Ab_i(i,j) = &(HypreParMatrix &)BlockA_i->GetBlock(i,j);
          }
       }
+      HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
+      HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
 
-      X = 0.;
+      ComplexHypreParMatrix Acomplex(A_r, A_i,true,true);
 
-#ifdef MFEM_USE_MUMPS
-      if (mumps_solver)
-      {
-         // Monolithic real part
-         Array2D <HypreParMatrix * > Ab_r(num_blocks,num_blocks);
-         // Monolithic imag part
-         Array2D <HypreParMatrix * > Ab_i(num_blocks,num_blocks);
-         for (int i = 0; i<num_blocks; i++)
-         {
-            for (int j = 0; j<num_blocks; j++)
-            {
-               Ab_r(i,j) = &(HypreParMatrix &)BlockA_r->GetBlock(i,j);
-               Ab_i(i,j) = &(HypreParMatrix &)BlockA_i->GetBlock(i,j);
-            }
-         }
-         HypreParMatrix * A_r = HypreParMatrixFromBlocks(Ab_r);
-         HypreParMatrix * A_i = HypreParMatrixFromBlocks(Ab_i);
+      HypreParMatrix * A = Acomplex.GetSystemMatrix();
 
-         ComplexHypreParMatrix Acomplex(A_r, A_i,true,true);
-
-         HypreParMatrix * A = Acomplex.GetSystemMatrix();
-
-         MUMPSSolver mumps;
-         mumps.SetPrintLevel(0);
-         mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
-         mumps.SetOperator(*A);
-         mumps.Mult(B,X);
-         delete A;
-      }
+      MUMPSSolver mumps;
+      mumps.SetPrintLevel(0);
+      mumps.SetMatrixSymType(MUMPSSolver::MatType::UNSYMMETRIC);
+      mumps.SetOperator(*A);
+      mumps.Mult(B,X);
+      delete A;
+   }
 #else
-      if (mumps_solver)
-      {
-         MFEM_WARNING("MFEM compiled without mumps. Switching to an iterative solver");
-      }
-      mumps_solver = false;
+   if (mumps_solver)
+   {
+      MFEM_WARNING("MFEM compiled without mumps. Switching to an iterative solver");
+   }
+   mumps_solver = false;
 #endif
-      if (!mumps_solver)
+   if (!mumps_solver)
+   {
+      BlockDiagonalPreconditioner M(tdof_offsets);
+
+      if (!static_cond)
       {
-         BlockDiagonalPreconditioner M(tdof_offsets);
-
-         if (!static_cond)
-         {
-            HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                           BlockA_r->GetBlock(0,0));
-            solver_E->SetPrintLevel(0);
-            solver_E->SetSystemsOptions(dim);
-            HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                           BlockA_r->GetBlock(1,1));
-            solver_H->SetPrintLevel(0);
-            solver_H->SetSystemsOptions(dim);
-            M.SetDiagonalBlock(0,solver_E);
-            M.SetDiagonalBlock(1,solver_H);
-            M.SetDiagonalBlock(num_blocks,solver_E);
-            M.SetDiagonalBlock(num_blocks+1,solver_H);
-         }
-         HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                                    skip), hatE_fes);
-         HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
-                                                  skip+1,skip+1), hatH_fes);
-         solver_hatE->SetPrintLevel(0);
-         solver_hatH->SetPrintLevel(0);
-
-         M.SetDiagonalBlock(skip,solver_hatE);
-         M.SetDiagonalBlock(skip+1,solver_hatH);
-         M.SetDiagonalBlock(skip+num_blocks,solver_hatE);
-         M.SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
-
-         if (myid == 0)
-         {
-            std::cout << "PCG iterations" << endl;
-         }
-         CGSolver cg(MPI_COMM_WORLD);
-         // GMRESSolver cg(MPI_COMM_WORLD);
-         cg.SetRelTol(1e-6);
-         cg.SetMaxIter(500);
-         cg.SetPrintLevel(1);
-         cg.SetPreconditioner(M);
-         cg.SetOperator(blockA);
-         cg.Mult(B, X);
-
-         for (int i = 0; i<num_blocks; i++)
-         {
-            delete &M.GetDiagonalBlock(i);
-         }
-
-         int num_iter = cg.GetNumIterations();
+         HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
+                                                        BlockA_r->GetBlock(0,0));
+         solver_E->SetPrintLevel(0);
+         solver_E->SetSystemsOptions(dim);
+         HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
+                                                        BlockA_r->GetBlock(1,1));
+         solver_H->SetPrintLevel(0);
+         solver_H->SetSystemsOptions(dim);
+         M.SetDiagonalBlock(0,solver_E);
+         M.SetDiagonalBlock(1,solver_H);
+         M.SetDiagonalBlock(num_blocks,solver_E);
+         M.SetDiagonalBlock(num_blocks+1,solver_H);
       }
-      a->RecoverFEMSolution(X,x);
+      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
+                                                                                 skip), hatE_fes);
+      HypreAMS * solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(
+                                               skip+1,skip+1), hatH_fes);
+      solver_hatE->SetPrintLevel(0);
+      solver_hatH->SetPrintLevel(0);
 
-      E.real().MakeRef(E_fes,x.GetData());
-      E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
+      M.SetDiagonalBlock(skip,solver_hatE);
+      M.SetDiagonalBlock(skip+1,solver_hatH);
+      M.SetDiagonalBlock(skip+num_blocks,solver_hatE);
+      M.SetDiagonalBlock(skip+num_blocks+1,solver_hatH);
 
-      H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
-      H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
-
-      int dofs = 0;
-      for (int i = 0; i<trial_fes.Size(); i++)
+      if (myid == 0)
       {
-         dofs += trial_fes[i]->GlobalTrueVSize();
+         std::cout << "PCG iterations" << endl;
+      }
+      CGSolver cg(MPI_COMM_WORLD);
+      // GMRESSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-10);
+      cg.SetMaxIter(500);
+      cg.SetPrintLevel(1);
+      cg.SetPreconditioner(M);
+      cg.SetOperator(blockA);
+      cg.Mult(B, X);
+
+      for (int i = 0; i<num_blocks; i++)
+      {
+         delete &M.GetDiagonalBlock(i);
       }
 
-      if (visualization)
-      {
-         const char * keys = (it == 0 && dim == 2) ? "jRcml\n" : nullptr;
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         common::VisualizeField(E_out_r,vishost, visport, E.real(),
-                                "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
-         common::VisualizeField(H_out_r,vishost, visport, H.real(),
-                                "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
-      }
+      int num_iter = cg.GetNumIterations();
+   }
+   a->RecoverFEMSolution(X,x);
 
-      if (paraview)
-      {
-         paraview_dc->SetCycle(it);
-         paraview_dc->SetTime((double)it);
-         paraview_dc->Save();
-      }
+   E.real().MakeRef(E_fes,x.GetData());
+   E.imag().MakeRef(E_fes,&x.GetData()[offsets.Last()]);
 
-      if (it == pr)
-      {
-         break;
-      }
+   H.real().MakeRef(H_fes,&x.GetData()[offsets[1]]);
+   H.imag().MakeRef(H_fes,&x.GetData()[offsets.Last()+offsets[1]]);
 
-      pmesh.UniformRefinement();
+   int dofs = 0;
+   for (int i = 0; i<trial_fes.Size(); i++)
+   {
+      dofs += trial_fes[i]->GlobalTrueVSize();
+   }
 
-      for (int i =0; i<trial_fes.Size(); i++)
-      {
-         trial_fes[i]->Update(false);
-      }
-      a->Update();
+   if (visualization)
+   {
+      const char * keys = nullptr;
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      common::VisualizeField(E_out_r,vishost, visport, E.real(),
+                             "Numerical Electric field (real part)", 0, 0, 500, 500, keys);
+      common::VisualizeField(H_out_r,vishost, visport, H.real(),
+                             "Numerical Magnetic field (real part)", 501, 0, 500, 500, keys);
    }
 
    if (paraview)
    {
+      paraview_dc->SetCycle(0);
+      paraview_dc->SetTime(0.0);
+      paraview_dc->Save();
       delete paraview_dc;
    }
 
