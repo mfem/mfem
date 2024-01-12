@@ -55,6 +55,7 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
+#include "pblockform.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
