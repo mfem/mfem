@@ -402,11 +402,10 @@ int main(int argc, char *argv[])
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient()), &rho(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_rho(&control_fes);
-
-   MappedPairGridFunctionCoeffitient diff_rho(&rho, &old_rho, [](double x,
-   double y) {return x - y;});
+   
    LinearForm diff_rho_form(&control_fes);
-   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(diff_rho));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_rho));
+   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    int k;
    double step_size;

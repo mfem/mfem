@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
          meshfile << "Cantilever";
          break;
       case Problem::LBracket:
-         mesh_file = "../data/lbracket_square.mesh";
+         mesh_file = "../../data/lbracket_square.mesh";
          mesh = mesh.LoadFromFile(mesh_file);
          ess_bdr.SetSize(3, 6);
          ess_bdr_filter.SetSize(6);
@@ -351,6 +351,7 @@ int main(int argc, char *argv[])
    GridFunction dv(&control_fes);
    for (int i=0; i<mesh.GetNE(); i++) { dv[i] = mesh.GetElementVolume(i); }
    double domain_volume = dv.Sum();
+   dv *= 1.0 / (domain_volume*vol_fraction);
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -403,10 +404,9 @@ int main(int argc, char *argv[])
    GridFunction &grad(optprob.GetGradient()), &rho(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_rho(&control_fes);
 
-   MappedPairGridFunctionCoeffitient diff_rho(&rho, &old_rho, [](double x,
-   double y) {return x - y;});
    LinearForm diff_rho_form(&control_fes);
-   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(diff_rho));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_rho));
+   diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    int k;
    double step_size;
@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
       Vector lower(rho), upper(rho);
       lower -= mv; lower.Clip(0, 1);
       upper += mv; upper.Clip(0, 1);
-      double con = density.GetVolume() - domain_volume*vol_fraction;
+      double con = density.GetVolume()  / (domain_volume*vol_fraction) - 1.0;
       mma.Update(rho, grad, con, dv, lower, upper);
 
       // Visualization

@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
    Vector center(2), force(2);
    double r = 0.05;
    std::unique_ptr<VectorCoefficient> vforce_cf;
+   string mesh_file;
    switch (problem)
    {
       case Problem::Cantilever:
@@ -214,7 +215,8 @@ int main(int argc, char *argv[])
          meshfile << "Cantilever";
          break;
       case Problem::LBracket:
-         mesh = mesh.LoadFromFile("../data/lbracket_square.mesh");
+         mesh_file = "../../data/lbracket_square.mesh";
+         mesh = mesh.LoadFromFile(mesh_file);
          ess_bdr.SetSize(3, 6);
          ess_bdr_filter.SetSize(6);
          ess_bdr = 0; ess_bdr_filter = 0;
@@ -330,7 +332,8 @@ int main(int argc, char *argv[])
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
 
-   TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false, true);
+   TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
+                         true);
 
 
    meshfile << "-" << ref_levels;
