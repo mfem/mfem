@@ -130,8 +130,8 @@ public:
 
    virtual void Project() = 0;
    virtual double StationarityError(GridFunction &grad) = 0;
-protected:
    virtual void ComputeVolume() = 0;
+protected:
 private:
 };
 
@@ -191,11 +191,11 @@ public:
    double StationarityErrorL2(GridFunction &grad);
    double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
                                    double log_tol=1e-13);
-protected:
    void ComputeVolume() override
    {
       current_volume = zero_gf.ComputeL1Error(*rho_cf);
    }
+protected:
 private:
 };
 
@@ -218,11 +218,11 @@ public:
    }
    void Project() override;
    double StationarityError(GridFunction &grad) override;
-protected:
    void ComputeVolume() override
    {
       current_volume = x_gf->ComputeL1Error(zero_cf);
    }
+protected:
 private:
 };
 

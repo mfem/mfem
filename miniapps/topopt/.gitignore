@@ -5,5 +5,6 @@
 **/*.gf.*
 top_pmd
 top_pgd
+top_oc
 thermal_pmd
 thermal_pgd
