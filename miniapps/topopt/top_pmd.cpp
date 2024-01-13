@@ -282,11 +282,11 @@ int main(int argc, char *argv[])
 
          force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
          force = 0.0;
-         
+
          vforce_cf.reset(new VectorConstantCoefficient(force));
          center(0) = 1.2; center(1) = 0; center(2) = 0;
          torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
-                                                                        Vector &force)
+                                                                       Vector &force)
          {
             force = 0.0;
             if ((0.6 - x[1]) > 1e-09 & x.DistanceTo(center) < r)
@@ -365,6 +365,7 @@ int main(int argc, char *argv[])
 
    GridFunction &u = optprob.GetState();
    GridFunction &rho_filter = density.GetFilteredDensity();
+   GridFunction &grad(optprob.GetGradient()), &psi(density.GetGridFunction());
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -414,7 +415,6 @@ int main(int argc, char *argv[])
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    // 11. Iterate
-   GridFunction &grad(optprob.GetGradient()), &psi(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_psi(&control_fes);
    old_psi = psi; old_grad = grad;
 

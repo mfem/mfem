@@ -365,19 +365,18 @@ int main(int argc, char *argv[])
 
    GridFunction &u = optprob.GetState();
    GridFunction &rho_filter = density.GetFilteredDensity();
+   GridFunction &grad(optprob.GetGradient()), &rho(density.GetGridFunction());
 
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sout_SIMP, sout_r;
-   std::unique_ptr<GridFunction> designDensity_gf, rho_gf;
+   std::unique_ptr<GridFunction> designDensity_gf;
    if (glvis_visualization)
    {
       designDensity_gf.reset(new GridFunction(&filter_fes));
-      rho_gf.reset(new GridFunction(&filter_fes));
       designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
-      rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       sout_SIMP.precision(8);
       sout_SIMP << "solution\n" << mesh << *designDensity_gf
@@ -387,7 +386,7 @@ int main(int argc, char *argv[])
                 << flush;
       sout_r.open(vishost, visport);
       sout_r.precision(8);
-      sout_r << "solution\n" << mesh << *rho_gf
+      sout_r << "solution\n" << mesh << rho
              << "window_title 'Raw density ρ - PMD "
              << problem << "'\n"
              << "keys Rjl***************\n"
@@ -414,7 +413,6 @@ int main(int argc, char *argv[])
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
    // 11. Iterate
-   GridFunction &grad(optprob.GetGradient()), &rho(density.GetGridFunction());
    GridFunction old_grad(&control_fes), old_rho(&control_fes);
    old_rho = rho; old_grad = grad;
 
@@ -460,10 +458,9 @@ int main(int argc, char *argv[])
       {
          designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                                  density.GetFilteredDensity()));
-         rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
          sout_SIMP << "solution\n" << mesh << *designDensity_gf
                    << flush;
-         sout_r << "solution\n" << mesh << *rho_gf
+         sout_r << "solution\n" << mesh << rho
                 << flush;
       }
       if (paraview)
