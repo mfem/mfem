@@ -143,7 +143,7 @@ enum Problem
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int ref_levels = 4;
+   int ref_levels = 6;
    int order = 1;
    double epsilon = 2e-2;
    double vol_fraction = 0.5;

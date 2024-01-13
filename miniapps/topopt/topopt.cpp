@@ -1,5 +1,6 @@
 #include "topopt.hpp"
 #include "helper.hpp"
+#include <fstream>
 
 namespace mfem
 {
@@ -566,7 +567,8 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
 
 #ifdef MFEM_USE_MPI
    auto pstate = dynamic_cast<ParGridFunction*>(state.get());
-   if (pstate) {parallel = true; comm = pstate->ParFESpace()->GetComm(); }
+   if (pstate) { parallel = true; comm = pstate->ParFESpace()->GetComm(); }
+   else { parallel = false;}
 #endif
 }
 
@@ -775,6 +777,7 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    double new_val, d;
    int i;
    step_size /= shrink_factor;
+   std::ostringstream out_string;
    for (i=0; i<max_it; i++)
    {
       step_size *= shrink_factor; // reduce step size
@@ -783,10 +786,22 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
       new_val = problem.Eval(); // re-evaluate at the updated point
       diff_densityForm->Assemble(); // re-evaluate density difference inner-product
       d = (*diff_densityForm)(grad);
+      out_string << i;
 #ifdef MFEM_USE_MPI
-      if (pgrad) { MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm); }
+      if (pgrad)
+      {
+         out << i << std::flush;
+         for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
+         MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm);
+      }
+      else
+      {
+         out << i << std::flush;
+         for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
+      }
 #else
-      out << step_size << ", " << d << ", " << new_val << ",  " << std::flush;
+      out << i << std::flush;
+      for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
 #endif
       if (new_val < val + c1*d && d < 0) { break; }
    }
