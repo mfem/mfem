@@ -136,14 +136,14 @@ enum Problem
    Cantilever,
    MBB,
    LBracket,
-   Cantilever3
+   Cantilever3,
+   Torsion3
 };
 
 int main(int argc, char *argv[])
 {
-
    // 1. Parse command-line options.
-   int ref_levels = 6;
+   int ref_levels = 4;
    int order = 1;
    double epsilon = 2e-2;
    double vol_fraction = 0.5;
@@ -186,10 +186,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(mfem::out);
+      args.PrintUsage(out);
       return 1;
    }
-   args.PrintOptions(mfem::out);
+   args.PrintOptions(out);
 
    Mesh mesh;
    Array2D<int> ess_bdr;
@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
    Vector center(2), force(2);
    double r = 0.05;
    std::unique_ptr<VectorCoefficient> vforce_cf;
+   std::unique_ptr<VectorCoefficient> torsion_cf;
    string mesh_file;
    switch (problem)
    {
@@ -216,6 +217,7 @@ int main(int argc, char *argv[])
          break;
       case Problem::LBracket:
          mesh_file = "../../data/lbracket_square.mesh";
+         ref_levels--;
          mesh = mesh.LoadFromFile(mesh_file);
          ess_bdr.SetSize(3, 6);
          ess_bdr_filter.SetSize(6);
@@ -231,11 +233,11 @@ int main(int argc, char *argv[])
       case Problem::MBB:
          mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
                                      1.0);
-         ess_bdr.SetSize(3, 3);
-         ess_bdr_filter.SetSize(4);
+         ess_bdr.SetSize(3, 5);
+         ess_bdr_filter.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 0) = 1;
-         ess_bdr(1, 1) = 1;
+         ess_bdr(0, 0) = 1; // left : y-roller -> x fixed
+         ess_bdr(1, 4) = 1; // right-bottom : x-roller -> y fixed
          center(0) = 0.05; center(1) = 0.95;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
@@ -245,68 +247,86 @@ int main(int argc, char *argv[])
          break;
 
       case Problem::Cantilever3:
+         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
          mesh = mesh.MakeCartesian3D(2, 1, 1, mfem::Element::Type::HEXAHEDRON, 2.0, 1.0,
+                                     1.0);
+         ess_bdr.SetSize(4, 6);
+         ess_bdr_filter.SetSize(6);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(3, 4) = 1;
+
+         vol_fraction = 0.12;
+
+         center.SetSize(3); force.SetSize(3);
+         center(0) = 1.9; center(1) = 0.1; center(2) = 0.25;
+         force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
+         vforce_cf.reset(new LineVolumeForceCoefficient(r,center,force,1));
+         solfile << "Cantilever3-";
+         solfile2 << "Cantilever3-";
+         meshfile << "Cantilever3";
+         break;
+
+      case Problem::Torsion3:
+         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
+
+         r = 0.2;
+         mesh = mesh.MakeCartesian3D(6, 5, 5, mfem::Element::Type::HEXAHEDRON, 1.2, 1.0,
                                      1.0);
          ess_bdr.SetSize(4, 7);
          ess_bdr_filter.SetSize(7);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(3, 4) = 1;
+         ess_bdr(4, 6) = 1;
          center.SetSize(3); force.SetSize(3);
-         center(0) = 1.9; center(1) = 0.125; center(2) = 0.25;
-         force(0) = 0.0; force(1) = 0.0; force(1) = -1.0;
-         vforce_cf.reset(new LineVolumeForceCoefficient(r,center,force,1));
-         vol_fraction = 0.12;
-         solfile << "Cantilever-";
-         solfile2 << "Cantilever-";
-         meshfile << "Cantilever";
+
+         vol_fraction = 0.005;
+
+         force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
+         force = 0.0;
+         
+         vforce_cf.reset(new VectorConstantCoefficient(force));
+         center(0) = 1.2; center(1) = 0; center(2) = 0;
+         torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
+                                                                        Vector &force)
+         {
+            force = 0.0;
+            if ((0.6 - x[1]) > 1e-09 & x.DistanceTo(center) < r)
+            {
+               force[1] = (x[2] - 0.5); force[2] = -(x[1] - 0.5);
+            }
+         }));
+         solfile << "Torsion3-";
+         solfile2 << "Torsion3-";
+         meshfile << "Torsion3";
          break;
+
       default:
          mfem_error("Undefined problem.");
    }
 
    int dim = mesh.Dimension();
    double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
-
    // 3. Refine the mesh.
-   if (problem == Problem::LBracket) {ref_levels--;}
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
       h *= 0.5;
    }
-
-   if (problem == Problem::MBB)
+   switch (problem)
    {
-
-      for (int i = 0; i<mesh.GetNBE(); i++)
+      case Problem::MBB:
       {
-         Element * be = mesh.GetBdrElement(i);
-         Array<int> vertices;
-         be->GetVertices(vertices);
-
-         double * coords1 = mesh.GetVertex(vertices[0]);
-         double * coords2 = mesh.GetVertex(vertices[1]);
-
-         Vector fc(2);
-         fc(0) = 0.5*(coords1[0] + coords2[0]);
-         fc(1) = 0.5*(coords1[1] + coords2[1]);
-
-         if (abs(fc(0) - 0.0) < 1e-10)
-         {
-            // the left edge
-            be->SetAttribute(1);
-         }
-         else if ((fc(0) > (3 - std::pow(2, -ref_levels + 1))) & (fc(1) < 1e-10))
-         {
-            // all other boundaries
-            be->SetAttribute(2);
-         }
-         else
-         {
-            be->SetAttribute(3);
-         }
+         MarkBoundary(mesh, [](const Vector &fc) {return ((fc(0) > (3 - std::pow(2, -5))) && (fc(1) < 1e-10)); },
+         5);
+         break;
+      }
+      case Problem::Torsion3:
+      {
+         // left center: Dirichlet
+         MarkBoundary(mesh, [r](const Vector &fc) {return (fc.Norml2() < r); }, 7);
+         break;
       }
    }
+   mesh.SetAttributes();
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
