@@ -41,7 +41,7 @@ double der_simp(const double x, const double rho_0,
 
 EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
                                Array<int> &ess_bdr_list):
-   a(a), b(b), ess_bdr(1, ess_bdr_list.Size()), parallel(false), symmetric(false)
+   a(a), b(b), ess_bdr(1, ess_bdr_list.Size()), ess_tdof_list(0), symmetric(false)
 {
    for (int i=0; i<ess_bdr_list.Size(); i++)
    {
@@ -49,30 +49,34 @@ EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
    }
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(a.FESpace());
-   if (pfes) {parallel = true;}
+   if (pfes) {parallel = true; comm = pfes->GetComm(); }
+   else {parallel = false;}
 #endif
+   GetEssentialTrueDofs();
 }
 
 EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
                                Array2D<int> &ess_bdr):
-   a(a), b(b), ess_bdr(ess_bdr), parallel(false), symmetric(false)
+   a(a), b(b), ess_bdr(ess_bdr), ess_tdof_list(0), symmetric(false)
 {
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(a.FESpace());
-   if (pfes) {parallel = true;}
+   if (pfes) {parallel = true; comm = pfes->GetComm(); }
+   else {parallel = false;}
 #endif
+   GetEssentialTrueDofs();
 }
 
-Array<int> EllipticSolver::GetEssentialTrueDofs()
+void EllipticSolver::GetEssentialTrueDofs()
 {
-   Array<int> ess_tdof_list(0);
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(a.FESpace());
       if (ess_bdr.NumRows() == 1)
       {
          Array<int> ess_bdr_list(ess_bdr.GetRow(0), ess_bdr.NumCols());
-         dynamic_cast<ParFiniteElementSpace*>(a.FESpace())->GetEssentialTrueDofs(
+         pfes->GetEssentialTrueDofs(
             ess_bdr_list, ess_tdof_list);
       }
       else
@@ -81,13 +85,13 @@ Array<int> EllipticSolver::GetEssentialTrueDofs()
          for (int i=0; i<ess_bdr.NumRows() - 1; i++)
          {
             Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
-            dynamic_cast<ParFiniteElementSpace*>(a.FESpace())->GetEssentialTrueDofs(
+            pfes->GetEssentialTrueDofs(
                ess_bdr_list, ess_tdof_list_comp, i);
             ess_tdof_list.Append(ess_tdof_list_comp);
          }
          Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
                                  ess_bdr.NumCols());
-         dynamic_cast<ParFiniteElementSpace*>(a.FESpace())->GetEssentialTrueDofs(
+         pfes->GetEssentialTrueDofs(
             ess_bdr_list, ess_tdof_list_comp, -1);
          ess_tdof_list.Append(ess_tdof_list_comp);
       }
@@ -141,7 +145,6 @@ Array<int> EllipticSolver::GetEssentialTrueDofs()
       ess_tdof_list.Append(ess_tdof_list_comp);
    }
 #endif
-   return ess_tdof_list;
 }
 
 bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
@@ -149,9 +152,7 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
 {
    OperatorPtr A;
    Vector B, X;
-   Array<int> ess_tdof_list = GetEssentialTrueDofs();
-
-   if (!A_assembled) { a.Assemble(); }
+   if (!A_assembled) { a.Update(); a.Assemble(); }
    if (!b_Assembled) { b.Assemble(); }
 
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B, true);
@@ -174,8 +175,7 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
       M_ptr->SetPrintLevel(0);
 
       M.reset(M_ptr);
-      cg.reset(new CGSolver((dynamic_cast<ParFiniteElementSpace*>
-                             (a.FESpace()))->GetComm()));
+      cg.reset(new CGSolver(comm));
    }
    else
    {
@@ -204,7 +204,6 @@ bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
 {
    OperatorPtr A;
    Vector B, X;
-   Array<int> ess_tdof_list = GetEssentialTrueDofs();
 
    if (!A_assembled) { a.Assemble(); }
    if (!f_Assembled) { f->Assemble(); }
@@ -327,6 +326,17 @@ Coefficient &ThresholdProjector::GetDerivative(GridFunction &frho)
    dphys_dfrho->SetGridFunction(&frho);
    return *dphys_dfrho;
 }
+LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
+                                         DensityFilter &filter,
+                                         FiniteElementSpace &fes_filter,
+                                         double vol_frac):
+   DesignDensity(fes, filter, fes_filter, vol_frac),
+   zero_gf(MakeGridFunction(&fes))
+{
+   *x_gf = inv_sigmoid(vol_frac);
+   rho_cf.reset(new MappedGridFunctionCoefficient(x_gf.get(), sigmoid));
+   *zero_gf = 0.0;
+}
 
 void LatentDesignDensity::Project()
 {
@@ -371,7 +381,7 @@ double LatentDesignDensity::StationarityError(GridFunction &grad,
       MappedPairGridFunctionCoeffitient rho_diff(x_gf.get(),
                                                  x_gf_backup.get(), [](double x,
       double y) {return sigmoid(x) - sigmoid(y);});
-      d = zero_gf.ComputeL2Error(rho_diff);
+      d = zero_gf->ComputeL2Error(rho_diff);
    }
    else
    {
@@ -396,7 +406,7 @@ double LatentDesignDensity::ComputeBregmanDivergence(GridFunction *p,
              + safe_xlogy(1 - p, 1 - p) - safe_xlogy(1 - p, 1 - q);
    });
    // Since Bregman divergence is always positive, ||Dh||_L¹=∫_Ω Dh.
-   return std::sqrt(zero_gf.ComputeL1Error(Dh));
+   return std::sqrt(zero_gf->ComputeL1Error(Dh));
 }
 
 double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
@@ -421,7 +431,7 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
    while (c_r - c_l > 1e-09)
    {
       c = 0.5 * (c_l + c_r);
-      double vol = zero_gf.ComputeL1Error(projected_rho);
+      double vol = zero_gf->ComputeL1Error(projected_rho);
       if (fabs(vol - target_volume) < vol_tol) { break; }
 
       if (vol > target_volume) { c_r = c; }
@@ -429,7 +439,7 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
    }
 
    SumCoefficient diff_rho(projected_rho, *rho_cf, 1.0, -1.0);
-   return zero_gf.ComputeL2Error(diff_rho);
+   return zero_gf->ComputeL2Error(diff_rho);
 }
 
 
@@ -440,9 +450,6 @@ void PrimalDesignDensity::Project()
    {
       double c_l = target_volume_fraction - x_gf->Max();
       double c_r = target_volume_fraction - x_gf->Min();
-      MappedGridFunctionCoefficient projected_rho(x_gf.get(), [](double x) {return std::min(1.0, std::max(0.0, x));});
-      std::unique_ptr<GridFunction> zero_gf(MakeGridFunction(x_gf->FESpace()));
-      *zero_gf = 0.0;
 #ifdef MFEM_USE_MPI
       auto pfes = dynamic_cast<ParFiniteElementSpace*>(x_gf->FESpace());
       if (pfes)
@@ -451,6 +458,9 @@ void PrimalDesignDensity::Project()
          MPI_Allreduce(MPI_IN_PLACE, &c_r, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
       }
 #endif
+      MappedGridFunctionCoefficient projected_rho(x_gf.get(), [](double x) {return std::min(1.0, std::max(0.0, x));});
+      std::unique_ptr<GridFunction> zero_gf(MakeGridFunction(x_gf->FESpace()));
+      *zero_gf = 0.0;
       double c = 0.5 * (c_l + c_r);
       double dc = 0.5 * (c_r - c_l);
       *x_gf += c;
@@ -515,9 +525,8 @@ void ParametrizedLinearEquation::Solve(GridFunction &x)
 void ParametrizedLinearEquation::DualSolve(GridFunction &x, LinearForm &new_b)
 {
    if (!AisStationary) { a->Update(); }
-   new_b.Update();
    EllipticSolver solver(*a, new_b, ess_bdr);
-   solver.Solve(x, AisStationary, BisStationary);
+   solver.Solve(x, AisStationary, false);
 }
 
 TopOptProblem::TopOptProblem(LinearForm &objective,
@@ -554,6 +563,11 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
                                                 new MassIntegrator));
       filter_to_density->Assemble();
    }
+
+#ifdef MFEM_USE_MPI
+   auto pstate = dynamic_cast<ParGridFunction*>(state.get());
+   if (pstate) {parallel = true; comm = pstate->ParFESpace()->GetComm(); }
+#endif
 }
 
 double TopOptProblem::Eval()
@@ -562,6 +576,12 @@ double TopOptProblem::Eval()
    density.UpdateFilteredDensity();
    state_equation.Solve(*state);
    val = obj(*state);
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &val, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
+#endif
    return val;
 }
 
@@ -738,6 +758,11 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    // obtain current point and gradient
    GridFunction &x_gf = problem.GetGridFunction();
    GridFunction &grad = problem.GetGradient();
+#ifdef MFEM_USE_MPI
+   auto pgrad = dynamic_cast<ParGridFunction*>(&grad);
+   MPI_Comm comm;
+   if (pgrad) { comm = pgrad->ParFESpace()->GetComm(); }
+#endif
    // store current point
    std::unique_ptr<GridFunction> x0(MakeGridFunction(x_gf.FESpace()));
    *x0 = x_gf;
@@ -750,27 +775,28 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    double new_val, d;
    int i;
    step_size /= shrink_factor;
-   out << val << std::endl;
    for (i=0; i<max_it; i++)
    {
       step_size *= shrink_factor; // reduce step size
-      out << step_size << ", " << std::flush;
       x_gf = *x0; // restore original position
       x_gf.Add(-step_size, grad); // advance by updated step size
       new_val = problem.Eval(); // re-evaluate at the updated point
       diff_densityForm->Assemble(); // re-evaluate density difference inner-product
       d = (*diff_densityForm)(grad);
-      out << d << ", " << new_val << ",  " << std::flush;
+#ifdef MFEM_USE_MPI
+      if (pgrad) { MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm); }
+#else
+      out << step_size << ", " << d << ", " << new_val << ",  " << std::flush;
+#endif
       if (new_val < val + c1*d && d < 0) { break; }
    }
-   out << std::endl;
 
    return i;
 }
 
 HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
-                                 const double eps):fes(fes),
-   filter(MakeBilinearForm(&fes)), eps2(eps*eps)
+                                 const double eps, Array<int> &ess_bdr):fes(fes),
+   filter(MakeBilinearForm(&fes)), eps2(eps*eps), ess_bdr(ess_bdr)
 {
    filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
    filter->AddDomainIntegrator(new MassIntegrator());
@@ -782,25 +808,25 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
                "Filter is initialized with finite element space different from the given filtered density.");
    std::unique_ptr<LinearForm> rhoForm(MakeLinearForm(frho.FESpace()));
    rhoForm->AddDomainIntegrator(new DomainLFIntegrator(rho));
-   Array<int> ess_bdr(frho.FESpace()->GetMesh()->bdr_attributes.Max());
-   ess_bdr = 0;
+
    EllipticSolver solver(*filter, *rhoForm, ess_bdr);
    solver.Solve(frho, true, false);
 }
-void MarkBoundary(Mesh &mesh, std::__1::function<bool(double, double)> mark,
+void MarkBoundary(Mesh &mesh, std::__1::function<bool(const Vector &)> mark,
                   const int idx)
 {
+   const int dim = mesh.Dimension();
+   Vector c1(dim), c2(dim);
    for (int i = 0; i<mesh.GetNBE(); i++)
    {
       Element * be = mesh.GetBdrElement(i);
       Array<int> vertices;
       be->GetVertices(vertices);
-      double * coords1 = mesh.GetVertex(vertices[0]);
-      double * coords2 = mesh.GetVertex(vertices[1]);
-      double x = 0.5*(coords1[0] + coords2[0]);
-      double y = 0.5*(coords1[1] + coords2[1]);
+      c1.SetData(mesh.GetVertex(vertices[0]));
+      c2.SetData(mesh.GetVertex(vertices[1]));
+      c1 += c2; c1 *= 0.5;
 
-      if (mark(x, y))
+      if (mark(c1))
       {
          mesh.SetBdrAttribute(i, idx);
       }

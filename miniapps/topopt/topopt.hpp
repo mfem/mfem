@@ -26,16 +26,19 @@ class EllipticSolver
 protected:
    BilinearForm &a; // LHS
    LinearForm &b; // RHS
-   std::unique_ptr<GridFunction> u;
    Array2D<int> ess_bdr; // Component-wise essential boundary marker
-   bool parallel; // Flag for ParFiniteElementSpace
+   Array<int> ess_tdof_list;
    bool symmetric;
+#ifdef MFEM_USE_MPI
+   bool parallel; // Flag for ParFiniteElementSpace
+   MPI_Comm comm;
+#endif
 public:
    /// @brief Linear solver for elliptic problem with given Essential BC
    /// @param a Bilinear Form
    /// @param b Linear Form
    /// @param ess_bdr_list Essential boundary marker for boundary attributes
-   EllipticSolver(BilinearForm &a, LinearForm &b, Array<int> &ess_bdr_list);
+   EllipticSolver(BilinearForm &a, LinearForm &b, Array<int> &ess_bdr_);
    /// @brief Linear solver for elliptic problem with given component-wise essential BC
    /// ess_bdr[0,:] - All components, ess_bdr[i,:] - ith-direction
    /// @param a Bilinear Form
@@ -57,7 +60,7 @@ public:
 protected:
    /// @brief Get true dofs related to the boundaries in @ess_bdr
    /// @return True dof list
-   Array<int> GetEssentialTrueDofs();
+   void GetEssentialTrueDofs();
 private:
 };
 
@@ -81,11 +84,12 @@ public:
 protected:
    FiniteElementSpace &fes;
    std::unique_ptr<BilinearForm> filter;
+   Array<int> &ess_bdr;
    ConstantCoefficient eps2;
 private:
 
 public:
-   HelmholtzFilter(FiniteElementSpace &fes, const double eps);
+   HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr);
    void Apply(const GridFunction &rho, GridFunction &frho) const override
    {
       GridFunctionCoefficient rho_cf(&rho);
@@ -171,19 +175,13 @@ class LatentDesignDensity : public DesignDensity
 public:
 protected:
 private:
-   GridFunction zero_gf;
+   std::unique_ptr<GridFunction> zero_gf;
 
    // functions
 public:
    LatentDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                        FiniteElementSpace &fes_filter,
-                       double vol_frac):
-      DesignDensity(fes, filter, fes_filter, vol_frac), zero_gf(&fes)
-   {
-      *x_gf = inv_sigmoid(vol_frac);
-      rho_cf.reset(new MappedGridFunctionCoefficient(x_gf.get(), sigmoid));
-      zero_gf = 0.0;
-   }
+                       double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override
    {
@@ -195,7 +193,7 @@ public:
                                    double log_tol=1e-13);
    void ComputeVolume() override
    {
-      current_volume = zero_gf.ComputeL1Error(*rho_cf);
+      current_volume = zero_gf->ComputeL1Error(*rho_cf);
    }
    std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
    {
@@ -292,6 +290,10 @@ protected:
    const bool apply_projection;
    double val;
 private:
+#ifdef MFEM_USE_MPI
+   bool parallel;
+   MPI_Comm comm;
+#endif
 
 public:
 
@@ -332,7 +334,7 @@ protected:
    Coefficient &lambda;
    Coefficient &mu;
    GridFunction &u1; // displacement
-   GridFunction &u2; // displacement
+   GridFunction &u2; // dual-displacement
    Coefficient &dphys_dfrho;
    DenseMatrix grad1, grad2; // auxiliary matrix, used in Eval
 
@@ -477,7 +479,7 @@ public:
    void UpdateSize();
 };
 
-void MarkBoundary(Mesh &mesh, std::__1::function<bool(double, double)> mark,
+void MarkBoundary(Mesh &mesh, std::__1::function<bool(const Vector &)> mark,
                   const int idx);
 
 }
