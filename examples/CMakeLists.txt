@@ -43,6 +43,7 @@ list(APPEND ALL_EXE_SRCS
   ex34.cpp
   ex36.cpp
   ex37.cpp
+  ex39.cpp
   )
 
 if(MFEM_USE_LAPACK)
@@ -90,7 +91,8 @@ if (MFEM_USE_MPI)
     ex35p.cpp
     ex36p.cpp
     ex37p.cpp
-    )
+    ex39p.cpp
+  )
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.

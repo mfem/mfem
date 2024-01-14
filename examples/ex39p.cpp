@@ -134,10 +134,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   AttributeSets &attr_sets = pmesh.attribute_sets;
+
    // Display attribute set names contained in the initial mesh
    if (myid == 0)
    {
-      std::set<string> names = pmesh.GetAttributeSetNames();
+      std::set<string> names = attr_sets.GetAttributeSetNames();
       cout << "Element Attribute Set Names: ";
       for (auto const &set_name : names)
       {
@@ -145,7 +147,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
 
-      std::set<string> bdr_names = pmesh.GetBdrAttributeSetNames();
+      std::set<string> bdr_names = attr_sets.GetBdrAttributeSetNames();
       cout << "Boundary Attribute Set Names: ";
       for (auto const &bdr_set_name : bdr_names)
       {
@@ -156,81 +158,85 @@ int main(int argc, char *argv[])
 
    // Define new regions based on existing attribute sets
    {
-      Array<int> & Na = pmesh.GetAttributeSet("N Even");
-      Array<int> & Nb = pmesh.GetAttributeSet("N Odd");
-      Array<int> & Sa = pmesh.GetAttributeSet("S Even");
-      Array<int> & Sb = pmesh.GetAttributeSet("S Odd");
-      Array<int> & Ea = pmesh.GetAttributeSet("E Even");
-      Array<int> & Eb = pmesh.GetAttributeSet("E Odd");
-      Array<int> & Wa = pmesh.GetAttributeSet("W Even");
-      Array<int> & Wb = pmesh.GetAttributeSet("W Odd");
+      Array<int> & Na = attr_sets.GetAttributeSet("N Even");
+      Array<int> & Nb = attr_sets.GetAttributeSet("N Odd");
+      Array<int> & Sa = attr_sets.GetAttributeSet("S Even");
+      Array<int> & Sb = attr_sets.GetAttributeSet("S Odd");
+      Array<int> & Ea = attr_sets.GetAttributeSet("E Even");
+      Array<int> & Eb = attr_sets.GetAttributeSet("E Odd");
+      Array<int> & Wa = attr_sets.GetAttributeSet("W Even");
+      Array<int> & Wb = attr_sets.GetAttributeSet("W Odd");
 
       // Create a new set spanning the North point
-      pmesh.SetAttributeSet("North", Na);
-      pmesh.AddToAttributeSet("North", Nb);
+      attr_sets.SetAttributeSet("North", Na);
+      attr_sets.AddToAttributeSet("North", Nb);
 
       // Create a new set spanning the South point
-      pmesh.SetAttributeSet("South", Sa);
-      pmesh.AddToAttributeSet("South", Sb);
+      attr_sets.SetAttributeSet("South", Sa);
+      attr_sets.AddToAttributeSet("South", Sb);
 
       // Create a new set spanning the East point
-      pmesh.SetAttributeSet("East", Ea);
-      pmesh.AddToAttributeSet("East", Eb);
+      attr_sets.SetAttributeSet("East", Ea);
+      attr_sets.AddToAttributeSet("East", Eb);
 
       // Create a new set spanning the West point
-      pmesh.SetAttributeSet("West", Wa);
-      pmesh.AddToAttributeSet("West", Wb);
+      attr_sets.SetAttributeSet("West", Wa);
+      attr_sets.AddToAttributeSet("West", Wb);
 
       // Create a new set consisting of the "a" sides of the compass rose
-      pmesh.SetAttributeSet("Rose Even", Na);
-      pmesh.AddToAttributeSet("Rose Even", Sa);
-      pmesh.AddToAttributeSet("Rose Even", Ea);
-      pmesh.AddToAttributeSet("Rose Even", Wa);
+      attr_sets.SetAttributeSet("Rose Even", Na);
+      attr_sets.AddToAttributeSet("Rose Even", Sa);
+      attr_sets.AddToAttributeSet("Rose Even", Ea);
+      attr_sets.AddToAttributeSet("Rose Even", Wa);
 
       // Create a new set consisting of the "b" sides of the compass rose
-      pmesh.SetAttributeSet("Rose Odd", Nb);
-      pmesh.AddToAttributeSet("Rose Odd", Sb);
-      pmesh.AddToAttributeSet("Rose Odd", Eb);
-      pmesh.AddToAttributeSet("Rose Odd", Wb);
+      attr_sets.SetAttributeSet("Rose Odd", Nb);
+      attr_sets.AddToAttributeSet("Rose Odd", Sb);
+      attr_sets.AddToAttributeSet("Rose Odd", Eb);
+      attr_sets.AddToAttributeSet("Rose Odd", Wb);
 
 
       // Create a new set consisting of the full compass rose
-      Array<int> & Ra = pmesh.GetAttributeSet("Rose Even");
-      Array<int> & Rb = pmesh.GetAttributeSet("Rose Odd");
-      pmesh.SetAttributeSet("Rose", Ra);
-      pmesh.AddToAttributeSet("Rose", Rb);
+      Array<int> & Ra = attr_sets.GetAttributeSet("Rose Even");
+      Array<int> & Rb = attr_sets.GetAttributeSet("Rose Odd");
+      attr_sets.SetAttributeSet("Rose", Ra);
+      attr_sets.AddToAttributeSet("Rose", Rb);
    }
    // Define new boundary regions based on existing boundary attribute sets
    {
-      Array<int> & NNE = pmesh.GetBdrAttributeSet("NNE");
-      Array<int> & NNW = pmesh.GetBdrAttributeSet("NNW");
-      Array<int> & ENE = pmesh.GetBdrAttributeSet("ENE");
-      Array<int> & ESE = pmesh.GetBdrAttributeSet("ESE");
-      Array<int> & SSE = pmesh.GetBdrAttributeSet("SSE");
-      Array<int> & SSW = pmesh.GetBdrAttributeSet("SSW");
-      Array<int> & WNW = pmesh.GetBdrAttributeSet("WNW");
-      Array<int> & WSW = pmesh.GetBdrAttributeSet("WSW");
+      Array<int> & NNE = attr_sets.GetBdrAttributeSet("NNE");
+      Array<int> & NNW = attr_sets.GetBdrAttributeSet("NNW");
+      Array<int> & ENE = attr_sets.GetBdrAttributeSet("ENE");
+      Array<int> & ESE = attr_sets.GetBdrAttributeSet("ESE");
+      Array<int> & SSE = attr_sets.GetBdrAttributeSet("SSE");
+      Array<int> & SSW = attr_sets.GetBdrAttributeSet("SSW");
+      Array<int> & WNW = attr_sets.GetBdrAttributeSet("WNW");
+      Array<int> & WSW = attr_sets.GetBdrAttributeSet("WSW");
 
-      pmesh.SetBdrAttributeSet("Northern Boundary", NNE);
-      pmesh.AddToBdrAttributeSet("Northern Boundary", NNW);
+      attr_sets.SetBdrAttributeSet("Northern Boundary", NNE);
+      attr_sets.AddToBdrAttributeSet("Northern Boundary", NNW);
 
-      pmesh.SetBdrAttributeSet("Southern Boundary", SSE);
-      pmesh.AddToBdrAttributeSet("Southern Boundary", SSW);
+      attr_sets.SetBdrAttributeSet("Southern Boundary", SSE);
+      attr_sets.AddToBdrAttributeSet("Southern Boundary", SSW);
 
-      pmesh.SetBdrAttributeSet("Eastern Boundary", ENE);
-      pmesh.AddToBdrAttributeSet("Eastern Boundary", ESE);
+      attr_sets.SetBdrAttributeSet("Eastern Boundary", ENE);
+      attr_sets.AddToBdrAttributeSet("Eastern Boundary", ESE);
 
-      pmesh.SetBdrAttributeSet("Western Boundary", WNW);
-      pmesh.AddToBdrAttributeSet("Western Boundary", WSW);
+      attr_sets.SetBdrAttributeSet("Western Boundary", WNW);
+      attr_sets.AddToBdrAttributeSet("Western Boundary", WSW);
 
-      pmesh.SetBdrAttributeSet("Boundary",
-                               pmesh.GetBdrAttributeSet("Northern Boundary"));
-      pmesh.AddToBdrAttributeSet("Boundary",
-                                 pmesh.GetBdrAttributeSet("Southern Boundary"));
-      pmesh.AddToBdrAttributeSet("Boundary",
-                                 pmesh.GetBdrAttributeSet("Eastern Boundary"));
-      pmesh.AddToBdrAttributeSet("Boundary",
-                                 pmesh.GetBdrAttributeSet("Western Boundary"));
+      attr_sets.SetBdrAttributeSet("Boundary",
+                                   attr_sets.GetBdrAttributeSet
+                                   ("Northern Boundary"));
+      attr_sets.AddToBdrAttributeSet("Boundary",
+                                     attr_sets.GetBdrAttributeSet
+                                     ("Southern Boundary"));
+      attr_sets.AddToBdrAttributeSet("Boundary",
+                                     attr_sets.GetBdrAttributeSet
+                                     ("Eastern Boundary"));
+      attr_sets.AddToBdrAttributeSet("Boundary",
+                                     attr_sets.GetBdrAttributeSet
+                                     ("Western Boundary"));
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
@@ -273,7 +279,7 @@ int main(int argc, char *argv[])
    if (pmesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr_marker;
-      pmesh.BdrAttrToMarker(pmesh.GetBdrAttributeSet(ess_name),
+      pmesh.BdrAttrToMarker(attr_sets.GetBdrAttributeSet(ess_name),
                             ess_bdr_marker);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
@@ -285,7 +291,7 @@ int main(int argc, char *argv[])
    //    named set "source_name" and zero elsewhere.
 
    Array<int> source_marker;
-   pmesh.AttrToMarker(pmesh.GetAttributeSet(source_name), source_marker);
+   pmesh.AttrToMarker(attr_sets.GetAttributeSet(source_name), source_marker);
 
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
@@ -318,8 +324,8 @@ int main(int argc, char *argv[])
 
    Array<int> base_marker;
    Array<int> rose_marker;
-   pmesh.AttrToMarker(pmesh.GetAttributeSet("Base"), base_marker);
-   pmesh.AttrToMarker(pmesh.GetAttributeSet("Rose Even"), rose_marker);
+   pmesh.AttrToMarker(attr_sets.GetAttributeSet("Base"), base_marker);
+   pmesh.AttrToMarker(attr_sets.GetAttributeSet("Rose Even"), rose_marker);
 
    a.AddDomainIntegrator(new DiffusionIntegrator(defaultCoef));
    a.AddDomainIntegrator(new DiffusionIntegrator(baseCoef), base_marker);
