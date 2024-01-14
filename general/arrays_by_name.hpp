@@ -186,7 +186,7 @@ public:
    /// consider first calling EntryExists.
    inline void DeleteArray(const std::string &name);
 
-   /// @breif Create a copy of the internal arrays in the provided @a copy.
+   /// @brief Create a copy of the internal arrays in the provided @a copy.
    inline void Copy(ArraysByName &copy) const;
 
    /// @brief Assignment operator: deep copy from 'src'.
