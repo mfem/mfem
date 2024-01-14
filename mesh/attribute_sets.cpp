@@ -14,30 +14,14 @@
 namespace mfem
 {
 
-void AttributeSets::Copy(AttributeSets &copy) const
-{
-   attr_sets.Copy(copy.attr_sets);
-   bdr_attr_sets.Copy(copy.bdr_attr_sets);
-}
-
 bool AttributeSets::SetsExist() const
 {
    return attr_sets.Size() + bdr_attr_sets.Size() > 0;
 }
 
-void AttributeSets::GetAttributeSetNames(std::set<std::string> &names) const
-{
-   attr_sets.GetNames(names);
-}
-
 std::set<std::string> AttributeSets::GetAttributeSetNames() const
 {
    return attr_sets.GetNames();
-}
-
-void AttributeSets::GetBdrAttributeSetNames(std::set<std::string> &names) const
-{
-   bdr_attr_sets.GetNames(names);
 }
 
 std::set<std::string> AttributeSets::GetBdrAttributeSetNames() const

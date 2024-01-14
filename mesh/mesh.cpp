@@ -4179,7 +4179,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.bdr_attributes.Copy(bdr_attributes);
 
    // Copy attribute and bdr_attribute names
-   mesh.attribute_sets.Copy(attribute_sets);
+   attribute_sets = mesh.attribute_sets;
 
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI

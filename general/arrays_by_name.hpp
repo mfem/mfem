@@ -27,124 +27,13 @@ template <class T>
 class ArraysByName
 {
 protected:
+   using container = std::map<std::string,Array<T>>;
    /// Map containing the data sorted alphabetically by name
-   std::map<std::string,Array<T> > data;
+   container data;
 
 public:
-
-   /// Defining minimal iterators so that ranged-for loops can iterate through
-   /// the data container.
-
-   struct const_iterator;
-
-   struct iterator
-   {
-      using iterator_category = std::bidirectional_iterator_tag;
-      using pointer   = typename std::map<std::string,Array<T> >::iterator;
-      using reference = std::pair<const std::string,Array<T> >&;
-
-      friend struct const_iterator;
-
-      iterator(const pointer &mit) : it(mit) {}
-
-      iterator& operator=(const iterator &it2) { it = it2.it; return *this; }
-
-      reference operator*() { return *it; }
-      pointer operator->() { return it; }
-
-      // Prefix increment
-      iterator& operator++() { it++; return *this; }
-      // Prefix decrement
-      iterator& operator--() { it--; return *this; }
-
-      // Postfix increment
-      iterator operator++(int) { iterator tmp = *this; it++; return tmp; }
-
-      // Postfix decrement
-      iterator operator--(int) { iterator tmp = *this; it--; return tmp; }
-
-      friend bool operator== (const iterator& a, const iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const iterator& a, const const_iterator& b);
-      friend bool operator== (const const_iterator& a, const iterator& b);
-      friend bool operator!= (const iterator& a, const iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const iterator& a, const const_iterator& b);
-      friend bool operator!= (const const_iterator& a, const iterator& b);
-
-   private:
-      typename std::map<std::string,Array<T> >::iterator it;
-   };
-
-   struct const_iterator
-   {
-      using iterator_category = std::bidirectional_iterator_tag;
-      using pointer = typename std::map<std::string,Array<T> >::const_iterator;
-      using reference = const std::pair<const std::string,Array<T> >&;
-
-      friend struct iterator;
-
-      const_iterator(const pointer &mit) : it(mit) {}
-      const_iterator(const iterator &mit) : it(mit.it) {}
-
-      const_iterator& operator=(const const_iterator &it2)
-      { it = it2.it; return *this; }
-      const_iterator& operator=(const iterator &it2)
-      { it = it2.it; return *this; }
-
-      reference operator*() const { return *it; }
-      pointer operator->() { return it; }
-
-      // Prefix increment
-      const_iterator& operator++() { it++; return *this; }
-      // Prefix decrement
-      const_iterator& operator--() { it--; return *this; }
-
-      // Postfix increment
-      const_iterator operator++(int)
-      { const_iterator tmp = *this; it++; return tmp; }
-
-      // Postfix decrement
-      const_iterator operator--(int)
-      { const_iterator tmp = *this; it--; return tmp; }
-
-      friend bool operator== (const const_iterator& a, const const_iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const const_iterator& a, const iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const iterator& a, const const_iterator& b)
-      { return a.it == b.it; };
-      friend bool operator!= (const const_iterator& a, const const_iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const const_iterator& a, const iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const iterator& a, const const_iterator& b)
-      { return a.it != b.it; };
-
-   private:
-      typename std::map<std::string,Array<T> >::const_iterator it;
-   };
-
-   /// @brief Default constructor
-   inline ArraysByName() {}
-
-   /// @brief Copy constructor: deep copy from @a src
-   ///
-   /// This method supports source arrays using any MemoryType.
-   inline ArraysByName(const ArraysByName &src);
-
-   /// @brief Copy constructor (deep copy) from 'src', an ArraysByName
-   /// container of convertible type.
-   template <typename CT>
-   inline ArraysByName(const ArraysByName<CT> &src);
-
    /// @brief Return the number of named arrays in the container
    inline int Size() const { return data.size(); }
-
-   /// @brief Copy the array names into an existing set of strings
-   ///
-   /// @note The provided set will be cleared before copying the names into it.
-   inline void GetNames(std::set<std::string> &names) const;
 
    /// @brief Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
@@ -188,18 +77,6 @@ public:
    /// consider first calling EntryExists.
    inline void DeleteArray(const std::string &name);
 
-   /// @brief Create a copy of the internal arrays in the provided @a copy.
-   inline void Copy(ArraysByName &copy) const;
-
-   /// @brief Assignment operator: deep copy from 'src'.
-   ArraysByName<T> &operator=(const ArraysByName<T> &src)
-   { src.Copy(*this); return *this; }
-
-   /// @brief Assignment operator (deep copy) from @a src, an ArraysByName
-   /// container of convertible type.
-   template <typename CT>
-   inline ArraysByName &operator=(const ArraysByName<CT> &src);
-
    /// @brief Print the contents of the container to an output stream
    ///
    /// @note By default each array will be printed on its own line. A specific
@@ -222,16 +99,16 @@ public:
    inline void UniqueAll();
 
    /// STL-like begin.  Returns pointer to the first element of the array.
-   inline iterator begin() { return iterator(data.begin()); }
+   inline typename container::iterator begin() { return data.begin(); }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline iterator end() { return iterator(data.end()); }
+   inline typename container::iterator end() { return data.end(); }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
-   inline const_iterator begin() const { return const_iterator(data.cbegin()); }
+   inline typename container::const_iterator begin() const { return data.cbegin(); }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const_iterator end() const { return const_iterator(data.cend()); }
+   inline typename container::const_iterator end() const { return data.cend(); }
 };
 
 template <class T>
@@ -247,40 +124,14 @@ inline bool operator==(const ArraysByName<T> &LHS, const ArraysByName<T> &RHS)
    return true;
 }
 
-template <class T>
-inline ArraysByName<T>::ArraysByName(const ArraysByName &src)
-{
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
-}
-
-template <typename T> template <typename CT>
-inline ArraysByName<T>::ArraysByName(const ArraysByName<CT> &src)
-{
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
-}
-
-template<class T>
-inline void ArraysByName<T>::GetNames(std::set<std::string> &names) const
-{
-   names.clear();
-
-   for (auto const &entry : data)
-   {
-      names.insert(entry.first);
-   }
-}
-
 template<class T>
 inline std::set<std::string> ArraysByName<T>::GetNames() const
 {
    std::set<std::string> names;
-   GetNames(names);
+   for (const auto &entry : data)
+   {
+      names.insert(entry.first);
+   }
    return names;
 }
 
@@ -331,27 +182,6 @@ inline void ArraysByName<T>::DeleteArray(const std::string &name)
    data.erase(name);
 }
 
-template<class T>
-inline void ArraysByName<T>::Copy(ArraysByName &copy) const
-{
-   copy.DeleteAll();
-   for (auto entry : data)
-   {
-      copy.CreateArray(entry.first) = entry.second;
-   }
-}
-
-template <typename T> template <typename CT>
-inline ArraysByName<T> &ArraysByName<T>::operator=(const ArraysByName<CT> &src)
-{
-   DeleteAll();
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
-   return *this;
-}
-
 template <class T>
 inline void ArraysByName<T>::SortAll()
 {
@@ -373,4 +203,3 @@ inline void ArraysByName<T>::UniqueAll()
 }
 
 #endif
-

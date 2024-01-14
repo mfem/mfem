@@ -32,22 +32,11 @@ public:
    /// Named sets of boundary attributes
    ArraysByName<int> bdr_attr_sets;
 
-   AttributeSets() {}
-
-   /// @brief Create a copy of the internal data to the provided @a copy.
-   void Copy(AttributeSets &copy) const;
-
    /// @brief Return true if any named sets are currently been defined
    bool SetsExist() const;
 
-   /// @brief Copy all attribute set names into an STL set
-   void GetAttributeSetNames(std::set<std::string> &names) const;
-
    /// @brief Return all attribute set names as an STL set
    std::set<std::string> GetAttributeSetNames() const;
-
-   /// @brief Copy all boundary attribute set names into an STL set
-   void GetBdrAttributeSetNames(std::set<std::string> &names) const;
 
    /// @brief Return all boundary attribute set names as an STL set
    std::set<std::string> GetBdrAttributeSetNames() const;
