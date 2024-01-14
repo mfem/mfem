@@ -154,17 +154,19 @@ static void* __enzyme_inactive_global_warn = (void*)mfem_warning;
 
 // Additional abort functions for HIP
 #if defined(MFEM_USE_HIP)
+#ifndef __HIP_DEVICE_COMPILE__
 template<typename T>
 __host__ void abort_msg(T & msg)
 {
    MFEM_ABORT(msg);
 }
-
+#else
 template<typename T>
 __device__ void abort_msg(T & msg)
 {
    abort();
 }
+#endif
 #endif
 
 // Abort inside a device kernel
