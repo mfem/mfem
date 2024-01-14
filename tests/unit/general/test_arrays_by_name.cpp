@@ -124,7 +124,7 @@ TEST_CASE("ArraysByName Various Methods", "[ArraysByName]")
 
    // Get set names and verify that they are valid
    std::set<std::string> names = abn.GetNames();
-   REQUIRE(abn.Size() == names.size());
+   REQUIRE(abn.Size() == (int)names.size());
 
    for (auto name : names)
    {
