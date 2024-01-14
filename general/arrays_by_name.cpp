@@ -15,13 +15,13 @@ namespace mfem
 {
 
 template <class T>
-void ArraysByName<T>::Print(std::ostream &out, int width) const
+void ArraysByName<T>::Print(std::ostream &os, int width) const
 {
-   out << data.size() << '\n';
+   os << data.size() << '\n';
    for (auto const &it : data)
    {
-      out << '"' << it.first << '"' << ' ' << it.second.Size() << ' ';
-      it.second.Print(out, width > 0 ? width : it.second.Size());
+      os << '"' << it.first << '"' << ' ' << it.second.Size() << ' ';
+      it.second.Print(os, width > 0 ? width : it.second.Size());
    }
 }
 
