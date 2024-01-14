@@ -27,103 +27,15 @@ template <class T>
 class ArraysByName
 {
 protected:
+   /// Reusing STL map iterators
+   using container      = std::map<std::string,Array<T> >;
+   using iterator       = typename container::iterator;
+   using const_iterator = typename container::const_iterator;
+
    /// Map containing the data sorted alphabetically by name
-   std::map<std::string,Array<T> > data;
+   container data;
 
 public:
-
-   /// Defining minimal iterators so that ranged-for loops can iterate through
-   /// the data container.
-
-   struct const_iterator;
-
-   struct iterator
-   {
-      using iterator_category = std::bidirectional_iterator_tag;
-      using pointer   = typename std::map<std::string,Array<T> >::iterator;
-      using reference = std::pair<const std::string,Array<T> >&;
-
-      friend struct const_iterator;
-
-      iterator(const pointer &mit) : it(mit) {}
-
-      iterator& operator=(const iterator &it2) { it = it2.it; return *this; }
-
-      reference operator*() { return *it; }
-      pointer operator->() { return it; }
-
-      // Prefix increment
-      iterator& operator++() { it++; return *this; }
-      // Prefix decrement
-      iterator& operator--() { it--; return *this; }
-
-      // Postfix increment
-      iterator operator++(int) { iterator tmp = *this; it++; return tmp; }
-
-      // Postfix decrement
-      iterator operator--(int) { iterator tmp = *this; it--; return tmp; }
-
-      friend bool operator== (const iterator& a, const iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const iterator& a, const const_iterator& b);
-      friend bool operator== (const const_iterator& a, const iterator& b);
-      friend bool operator!= (const iterator& a, const iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const iterator& a, const const_iterator& b);
-      friend bool operator!= (const const_iterator& a, const iterator& b);
-
-   private:
-      typename std::map<std::string,Array<T> >::iterator it;
-   };
-
-   struct const_iterator
-   {
-      using iterator_category = std::bidirectional_iterator_tag;
-      using pointer = typename std::map<std::string,Array<T> >::const_iterator;
-      using reference = const std::pair<const std::string,Array<T> >&;
-
-      friend struct iterator;
-
-      const_iterator(const pointer &mit) : it(mit) {}
-      const_iterator(const iterator &mit) : it(mit.it) {}
-
-      const_iterator& operator=(const const_iterator &it2)
-      { it = it2.it; return *this; }
-      const_iterator& operator=(const iterator &it2)
-      { it = it2.it; return *this; }
-
-      reference operator*() const { return *it; }
-      pointer operator->() { return it; }
-
-      // Prefix increment
-      const_iterator& operator++() { it++; return *this; }
-      // Prefix decrement
-      const_iterator& operator--() { it--; return *this; }
-
-      // Postfix increment
-      const_iterator operator++(int)
-      { const_iterator tmp = *this; it++; return tmp; }
-
-      // Postfix decrement
-      const_iterator operator--(int)
-      { const_iterator tmp = *this; it--; return tmp; }
-
-      friend bool operator== (const const_iterator& a, const const_iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const const_iterator& a, const iterator& b)
-      { return a.it == b.it; };
-      friend bool operator== (const iterator& a, const const_iterator& b)
-      { return a.it == b.it; };
-      friend bool operator!= (const const_iterator& a, const const_iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const const_iterator& a, const iterator& b)
-      { return a.it != b.it; };
-      friend bool operator!= (const iterator& a, const const_iterator& b)
-      { return a.it != b.it; };
-
-   private:
-      typename std::map<std::string,Array<T> >::const_iterator it;
-   };
 
    /// @brief Default constructor
    inline ArraysByName() {}
@@ -222,16 +134,16 @@ public:
    inline void UniqueAll();
 
    /// STL-like begin.  Returns pointer to the first element of the array.
-   inline iterator begin() { return iterator(data.begin()); }
+   inline iterator begin() { return data.begin(); }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline iterator end() { return iterator(data.end()); }
+   inline iterator end() { return data.end(); }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
-   inline const_iterator begin() const { return const_iterator(data.cbegin()); }
+   inline const_iterator begin() const { return data.cbegin(); }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const_iterator end() const { return const_iterator(data.cend()); }
+   inline const_iterator end() const { return data.cend(); }
 };
 
 template <class T>
