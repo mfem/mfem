@@ -69,44 +69,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 
       MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
 
-      int NumSets;
-      input >> NumSets;
-
-      string SetLine, SetName;
-      for (int i=0; i < NumSets; i++)
-      {
-         input >> ws;
-         getline(input, SetLine);
-
-         std::size_t q0 = SetLine.find('"');
-         std::size_t q1 = SetLine.rfind('"');
-
-         if (q0 != std::string::npos && q1 > q0)
-         {
-            // Locate set name between first and last double quote
-            SetName = SetLine.substr(q0+1,q1-q0-1);
-         }
-         else
-         {
-            // If no double quotes found locate set name using white space
-            q1 = SetLine.find(' ');
-            SetName = SetLine.substr(0,q1-1);
-         }
-
-         // Prepare an input stream to read the rest of the line
-         istringstream istr;
-         istr.str(SetLine.substr(q1+1));
-
-         int NumAttr;
-         istr >> NumAttr;
-         attr_sets[SetName].SetSize(NumAttr);
-         for (int j=0; j<NumAttr; j++)
-         {
-            istr >> attr_sets[SetName][j];
-         }
-         attr_sets[SetName].Sort();
-         attr_sets[SetName].Unique();
-      }
+      attribute_sets.attr_sets.Load(input);
+      attribute_sets.attr_sets.SortAll();
+      attribute_sets.attr_sets.UniqueAll();
    }
 
    skip_comment_lines(input, '#');
@@ -127,45 +92,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 
       MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
 
-      int NumSets;
-      input >> NumSets;
-
-      string SetLine, SetName;
-      for (int i=0; i < NumSets; i++)
-      {
-         input >> ws;
-         getline(input, SetLine);
-
-         std::size_t q0 = SetLine.find('"');
-         std::size_t q1 = SetLine.rfind('"');
-
-
-         if (q0 != std::string::npos && q1 > q0)
-         {
-            // Locate set name between first and last double quote
-            SetName = SetLine.substr(q0+1,q1-q0-1);
-         }
-         else
-         {
-            // If no double quotes found locate set name using white space
-            q1 = SetLine.find(' ');
-            SetName = SetLine.substr(0,q1-1);
-         }
-
-         // Prepare an input stream to read the rest of the line
-         istringstream istr;
-         istr.str(SetLine.substr(q1+1));
-
-         int NumAttr;
-         istr >> NumAttr;
-         bdr_attr_sets[SetName].SetSize(NumAttr);
-         for (int j=0; j<NumAttr; j++)
-         {
-            istr >> bdr_attr_sets[SetName][j];
-         }
-         bdr_attr_sets[SetName].Sort();
-         bdr_attr_sets[SetName].Unique();
-      }
+      attribute_sets.bdr_attr_sets.Load(input);
+      attribute_sets.bdr_attr_sets.SortAll();
+      attribute_sets.bdr_attr_sets.UniqueAll();
    }
 
    skip_comment_lines(input, '#');
@@ -2874,13 +2803,21 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       // Process boundary attribute set names
       for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
       {
-         AddToBdrAttributeSet(bdr_attr.second, bdr_attr.first);
+         if (!attribute_sets.BdrAttributeSetExists(bdr_attr.second))
+         {
+            attribute_sets.CreateBdrAttributeSet(bdr_attr.second);
+         }
+         attribute_sets.AddToBdrAttributeSet(bdr_attr.second, bdr_attr.first);
       }
 
       // Process element attribute set names
       for (auto const &attr : phys_names_by_dim[Dim])
       {
-         AddToAttributeSet(attr.second, attr.first);
+         if (!attribute_sets.AttributeSetExists(attr.second))
+         {
+            attribute_sets.CreateAttributeSet(attr.second);
+         }
+         attribute_sets.AddToAttributeSet(attr.second, attr.first);
       }
    }
 

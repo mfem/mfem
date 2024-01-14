@@ -1612,133 +1612,6 @@ void Mesh::BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const
    AttrToMarker(bdr_attributes.Max(), attrs, marker);
 }
 
-void Mesh::GetAttributeSetNames(std::set<std::string> &names) const
-{
-   names.clear();
-
-   for (auto const &attr_set : attr_sets)
-   {
-      names.insert(attr_set.first);
-   }
-}
-
-std::set<std::string> Mesh::GetAttributeSetNames() const
-{
-   std::set<std::string> names;
-   GetAttributeSetNames(names);
-   return names;
-}
-
-void Mesh::GetBdrAttributeSetNames(std::set<std::string> &names) const
-{
-   names.clear();
-
-   for (auto const &bdr_attr_set : bdr_attr_sets)
-   {
-      names.insert(bdr_attr_set.first);
-   }
-}
-
-std::set<std::string> Mesh::GetBdrAttributeSetNames() const
-{
-   std::set<std::string> names;
-   GetBdrAttributeSetNames(names);
-   return names;
-}
-
-void Mesh::SetAttributeSet(const std::string &set_name, const Array<int> &attr)
-{
-   attr_sets[set_name] = attr;
-   attr_sets[set_name].Sort();
-   attr_sets[set_name].Unique();
-}
-
-void Mesh::SetBdrAttributeSet(const std::string &set_name,
-                              const Array<int> &attr)
-{
-   bdr_attr_sets[set_name] = attr;
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
-}
-
-void Mesh::ClearAttributeSet(const std::string &set_name)
-{
-   attr_sets.erase(set_name);
-}
-
-void Mesh::ClearBdrAttributeSet(const std::string &set_name)
-{
-   bdr_attr_sets.erase(set_name);
-}
-
-void Mesh::AddToAttributeSet(const std::string &set_name, int attr)
-{
-   attr_sets[set_name].Append(attr);
-   attr_sets[set_name].Sort();
-   attr_sets[set_name].Unique();
-}
-
-void Mesh::AddToAttributeSet(const std::string &set_name,
-                             const Array<int> &attr)
-{
-   attr_sets[set_name].Append(attr);
-   attr_sets[set_name].Sort();
-   attr_sets[set_name].Unique();
-}
-
-void Mesh::AddToBdrAttributeSet(const std::string &set_name, int attr)
-{
-   bdr_attr_sets[set_name].Append(attr);
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
-}
-
-void Mesh::AddToBdrAttributeSet(const std::string &set_name,
-                                const Array<int> &attr)
-{
-   bdr_attr_sets[set_name].Append(attr);
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
-}
-
-void Mesh::RemoveFromAttributeSet(const std::string &set_name, int attr)
-{
-   if (attr_sets.find(set_name) == attr_sets.end())
-   {
-      mfem::err << "Unrecognized attribute set name \"" << set_name
-                << "\" in Mesh::RemoveFromAttributeSet" << endl;
-      return;
-   }
-
-   Array<int> &attr_set = attr_sets[set_name];
-
-   attr_set.DeleteFirst(attr);
-}
-
-void Mesh::RemoveFromBdrAttributeSet(const std::string &set_name, int attr)
-{
-   if (bdr_attr_sets.find(set_name) == bdr_attr_sets.end())
-   {
-      mfem::err << "Unrecognized boundary attribute set name \"" << set_name
-                << "\" in Mesh::RemoveFromBdrAttributeSet" << endl;
-      return;
-   }
-
-   Array<int> &bdr_attr_set = bdr_attr_sets[set_name];
-
-   bdr_attr_set.DeleteFirst(attr);
-}
-
-Array<int> & Mesh::GetAttributeSet(const std::string & set_name)
-{
-   return attr_sets[set_name];
-}
-
-Array<int> & Mesh::GetBdrAttributeSet(const std::string & set_name)
-{
-   return bdr_attr_sets[set_name];
-}
-
 void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
    SetEmpty();
@@ -4263,14 +4136,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.bdr_attributes.Copy(bdr_attributes);
 
    // Copy attribute and bdr_attribute names
-   for (auto const &attr_set : mesh.attr_sets)
-   {
-      attr_set.second.Copy(attr_sets[attr_set.first]);
-   }
-   for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-   {
-      bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-   }
+   mesh.attribute_sets.Copy(attribute_sets);
 
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI
@@ -11300,7 +11166,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    }
 
    // serial/parallel conforming mesh format
-   bool set_names = !attr_sets.empty() || !bdr_attr_sets.empty();
+   bool set_names = attribute_sets.SetsExist();
    os << (!set_names && section_delimiter.empty()
           ? "MFEM mesh v1.0\n" :
 	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
@@ -11334,16 +11200,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    if (set_names)
    {
      os << "\nattribute_sets\n";
-     os << attr_sets.size() << '\n';
-     for (auto const &it : attr_sets)
-     {
-       os << '"' << it.first << '"' << ' ' << it.second.Size();
-       for (auto const &a : it.second)
-       {
-	  os << ' ' << a;
-       }
-       os << '\n';
-     }
+     attribute_sets.attr_sets.Print(os);
    }
 
    os << "\nboundary\n" << NumOfBdrElements << '\n';
@@ -11355,16 +11212,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
    if (set_names)
    {
      os << "\nbdr_attribute_sets\n";
-     os << bdr_attr_sets.size() << '\n';
-     for (auto const &it : bdr_attr_sets)
-     {
-       os << '"' << it.first << '"' << ' ' << it.second.Size();
-       for (auto const &a :it.second)
-	 {
-	   os << ' ' << a;
-	 }
-       os << '\n';
-     }
+     attribute_sets.bdr_attr_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';

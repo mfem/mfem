@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
 #include "../general/globals.hpp"
+#include "attribute_sets.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "vertex.hpp"
@@ -278,10 +279,8 @@ public:
    /// A list of all unique boundary attributes used by the Mesh.
    Array<int> bdr_attributes;
 
-   /// Named sets of element attributes
-   std::map<std::string,Array<int> > attr_sets;
-   /// Named sets of boundary attributes
-   std::map<std::string,Array<int> > bdr_attr_sets;
+   /// Named sets of element and boundary element attributes
+   AttributeSets attribute_sets;
 
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
@@ -1059,144 +1058,6 @@ public:
    /// numbers are present in the attrs array. In the special case when attrs
    /// has a single entry equal to -1 the marker array will contain all ones.
    void BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const;
-
-   /// @brief Copy all attribute set names into an STL set
-   void GetAttributeSetNames(std::set<std::string> &names) const;
-
-   /// @brief Return all attribute set names as an STL set
-   std::set<std::string> GetAttributeSetNames() const;
-
-   /// @brief Copy all boundary attribute set names into an STL set
-   void GetBdrAttributeSetNames(std::set<std::string> &names) const;
-
-   /// @brief Return all boundary attribute set names as an STL set
-   std::set<std::string> GetBdrAttributeSetNames() const;
-
-   /// @brief Create a new attribute set
-   /**
-       @param[in] set_name The name of the new set
-       @param[in] attr An array of attribute numbers making up the new set
-
-       @note If an attribute set matching this name already exists, that set
-       will be replaced with this new attribute set.
-
-       @note The attribute numbers are not checked for validity or
-       existence within the mesh.
-    */
-   void SetAttributeSet(const std::string &set_name, const Array<int> &attr);
-   /// @brief Create a new boundary attribute set
-   /**
-       @param[in] set_name The name of the new set
-       @param[in] attr An array of attribute numbers making up the new set
-
-       @note If a boundary attribute set matching this name already exists,
-       that set will be replaced with this new boundary attribute set.
-
-       @note The boundary attribute numbers are not checked for validity or
-       existence within the mesh.
-    */
-   void SetBdrAttributeSet(const std::string &set_name, const Array<int> &attr);
-
-   /// @brief Delete a named attribute set
-   void ClearAttributeSet(const std::string &set_name);
-   /// @brief Delete a named boundary attribute set
-   void ClearBdrAttributeSet(const std::string &set_name);
-
-   /// @brief Add a single entry to a attribute set
-   /**
-       @param[in] set_name The name of the set being augmented
-       @param[in] attr A single attribute number to be inserted in the set
-
-       @note If the named set does not exist a new set will be created.
-       @note Duplicate entries will be ignored and the resulting sets will be
-       sorted.
-    */
-   void AddToAttributeSet(const std::string &set_name, int attr);
-
-   /// @brief Add an array of entries to a attribute set
-   /**
-       @param[in] set_name The name of the set being augmented
-       @param[in] attr Array of attribute numbers to be inserted in the set
-
-       @note If the named set does not exist a new set will be created.
-       @note Duplicate entries will be ignored and the resulting sets will be
-       sorted.
-    */
-   void AddToAttributeSet(const std::string &set_name,
-                          const Array<int> &attr);
-
-   /// @brief Add a single entry to a boundary attribute set
-   /**
-       @param[in] set_name The name of the set being augmented
-       @param[in] attr A single attribute number to be inserted in the set
-
-       @note If the named set does not exist a new set will be created.
-       @note Duplicate entries will be ignored and the resulting sets will be
-       sorted.
-    */
-   void AddToBdrAttributeSet(const std::string &set_name, int attr);
-
-   /// @brief Add an array of entries to a boundary attribute set
-   /**
-       @param[in] set_name The name of the set being augmented
-       @param[in] attr Array of attribute numbers to be inserted in the set
-
-       @note If the named set does not exist a new set will be created.
-       @note Duplicate entries will be ignored and the resulting sets will be
-       sorted.
-    */
-   void AddToBdrAttributeSet(const std::string &set_name,
-                             const Array<int> &attr);
-
-   /// @brief Remove a single entry from an attribute set
-   /**
-       @param[in] set_name The name of the set being modified
-       @param[in] attr A single attribute number to be removed from the set
-
-       @note If the named set does not exist a new empty set will be created.
-       @note If @a attr is not a member of the named set the set will not
-       be modified and no error will occur.
-    */
-   void RemoveFromAttributeSet(const std::string &set_name, int attr);
-
-   /// @brief Remove a single entry from a boundary attribute set
-   /**
-       @param[in] set_name The name of the set being modified
-       @param[in] attr A single attribute number to be removed from the set
-
-       @note If the named set does not exist a new empty set will be created.
-       @note If @a attr is not a member of the named set the set will not
-       be modified and no error will occur.
-    */
-   void RemoveFromBdrAttributeSet(const std::string &set_name, int attr);
-
-   /// @brief Access a named attribute set
-   /**
-       @param[in] set_name The name of the set being accessed
-
-       @note If the named set does not exist a new empty set will be created
-       and returned.
-
-       @note The reference returned by this method can be invalidated by
-       subsequent calls to SetAttributeSet, ClearAttributeSet, or
-       RemoveFromAttributeSet. AddToAttributeSet should not invalidate this
-       reference.
-    */
-   Array<int> & GetAttributeSet(const std::string & set_name);
-
-   /// @brief Access a named boundary attribute set
-   /**
-       @param[in] set_name The name of the set being accessed
-
-       @note If the named set does not exist a new empty set will be created
-       and returned.
-
-       @note The reference returned by this method can be invalidated by
-       subsequent calls to SetBdrAttributeSet, ClearBdrAttributeSet, or
-       RemoveFromBdrAttributeSet. AddToBdrAttributeSet should not invalidate
-       this reference.
-    */
-   Array<int> & GetBdrAttributeSet(const std::string & set_name);
 
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some

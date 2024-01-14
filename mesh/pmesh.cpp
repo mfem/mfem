@@ -146,15 +146,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.bdr_attributes.Copy(bdr_attributes);
 
       // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : mesh.attr_sets)
-      {
-         attr_set.second.Copy(attr_sets[attr_set.first]);
-      }
-
-      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-      {
-         bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-      }
+      mesh.attribute_sets.Copy(attribute_sets);
 
       GenerateNCFaceInfo();
    }
@@ -193,15 +185,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       mesh.bdr_attributes.Copy(bdr_attributes);
 
       // Copy attribute and bdr_attribute names
-      for (auto const &attr_set : mesh.attr_sets)
-      {
-         attr_set.second.Copy(attr_sets[attr_set.first]);
-      }
-
-      for (auto const &bdr_attr_set : mesh.bdr_attr_sets)
-      {
-         bdr_attr_set.second.Copy(bdr_attr_sets[bdr_attr_set.first]);
-      }
+      mesh.attribute_sets.Copy(attribute_sets);
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -3913,15 +3897,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
    // Copy attribute and bdr_attribute names
-   for (auto const &attr_set : attr_sets)
-   {
-      attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
-   }
-
-   for (auto const &bdr_attr_set : bdr_attr_sets)
-   {
-      bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
-   }
+   attribute_sets.Copy(pmesh2->attribute_sets);
 
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
@@ -3982,15 +3958,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    bdr_attributes.Copy(mesh2->bdr_attributes);
 
    // Copy attribute and bdr_attribute names
-   for (auto const &attr_set : attr_sets)
-   {
-      attr_set.second.Copy(mesh2->attr_sets[attr_set.first]);
-   }
-
-   for (auto const &bdr_attr_set : bdr_attr_sets)
-   {
-      bdr_attr_set.second.Copy(mesh2->bdr_attr_sets[bdr_attr_set.first]);
-   }
+   attribute_sets.Copy(mesh2->attribute_sets);
 
    Mesh::Swap(*mesh2, false);
    delete mesh2;
@@ -4044,15 +4012,7 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
    bdr_attributes.Copy(pmesh2->bdr_attributes);
 
    // Copy attribute and bdr_attribute names
-   for (auto const &attr_set : attr_sets)
-   {
-      attr_set.second.Copy(pmesh2->attr_sets[attr_set.first]);
-   }
-
-   for (auto const &bdr_attr_set : bdr_attr_sets)
-   {
-      bdr_attr_set.second.Copy(pmesh2->bdr_attr_sets[bdr_attr_set.first]);
-   }
+   attribute_sets.Copy(pmesh2->attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4844,7 +4804,7 @@ void ParMesh::Print(std::ostream &os) const
       }
    }
 
-   bool set_names = !attr_sets.empty() || !bdr_attr_sets.empty();
+   bool set_names = attribute_sets.SetsExist();
 
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
@@ -4870,16 +4830,7 @@ void ParMesh::Print(std::ostream &os) const
    if (set_names)
    {
       os << "\nattribute_sets\n";
-      os << attr_sets.size() << '\n';
-      for (auto const &it : attr_sets)
-      {
-         os << '"' << it.first << '"' << ' ' << it.second.Size();
-         for (auto const &a : it.second)
-         {
-            os << ' ' << a;
-         }
-         os << '\n';
-      }
+      attribute_sets.attr_sets.Print(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4914,16 +4865,7 @@ void ParMesh::Print(std::ostream &os) const
    if (set_names)
    {
       os << "\nbdr_attribute_sets\n";
-      os << bdr_attr_sets.size() << '\n';
-      for (auto const &it : bdr_attr_sets)
-      {
-         os << '"' << it.first << '"' << ' ' << it.second.Size();
-         for (auto const &a :it.second)
-         {
-            os << ' ' << a;
-         }
-         os << '\n';
-      }
+      attribute_sets.bdr_attr_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';
