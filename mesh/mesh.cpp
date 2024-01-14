@@ -11172,9 +11172,9 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter) const
 	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
 
    if (set_names && section_delimiter.empty())
-     {
-       section_delimiter = "mfem_mesh_end";
-     }
+   {
+      section_delimiter = "mfem_mesh_end";
+   }
 
    // optional
    os <<
