@@ -65,12 +65,10 @@ public:
 
       friend bool operator== (const iterator& a, const iterator& b)
       { return a.it == b.it; };
-      friend bool operator== (const iterator& a, const const_iterator& b)
-      { return a.it == b.it; };
+      friend bool operator== (const iterator& a, const const_iterator& b);
       friend bool operator!= (const iterator& a, const iterator& b)
       { return a.it != b.it; };
-      friend bool operator!= (const iterator& a, const const_iterator& b)
-      { return a.it != b.it; };
+      friend bool operator!= (const iterator& a, const const_iterator& b);
 
    private:
       typename std::map<std::string,Array<T> >::iterator it;
@@ -112,9 +110,13 @@ public:
       { return a.it == b.it; };
       friend bool operator== (const const_iterator& a, const iterator& b)
       { return a.it == b.it; };
+      friend bool operator== (const iterator& a, const const_iterator& b)
+      { return a.it == b.it; };
       friend bool operator!= (const const_iterator& a, const const_iterator& b)
       { return a.it != b.it; };
       friend bool operator!= (const const_iterator& a, const iterator& b)
+      { return a.it != b.it; };
+      friend bool operator!= (const iterator& a, const const_iterator& b)
       { return a.it != b.it; };
 
    private:
