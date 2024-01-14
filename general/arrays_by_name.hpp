@@ -47,6 +47,8 @@ public:
 
       iterator(const pointer &mit) : it(mit) {}
 
+      iterator& operator=(const iterator &it2) { it = it2.it; return *this; }
+
       reference operator*() { return *it; }
       pointer operator->() { return it; }
 
@@ -85,8 +87,10 @@ public:
       const_iterator(const pointer &mit) : it(mit) {}
       const_iterator(const iterator &mit) : it(mit.it) {}
 
-      const_iterator& operator=(const const_iterator &it2) { it = it2.it; }
-      const_iterator& operator=(const iterator &it2) { it = it2.it; }
+      const_iterator& operator=(const const_iterator &it2)
+      { it = it2.it; return *this; }
+      const_iterator& operator=(const iterator &it2)
+      { it = it2.it; return *this; }
 
       reference operator*() const { return *it; }
       pointer operator->() { return it; }
