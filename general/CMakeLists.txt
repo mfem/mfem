@@ -11,6 +11,7 @@
 
 list(APPEND SRCS
   array.cpp
+  arrays_by_name.cpp
   binaryio.cpp
   cuda.cpp
   device.cpp
@@ -36,6 +37,7 @@ list(APPEND SRCS
 list(APPEND HDRS
   annotation.hpp
   array.hpp
+  arrays_by_name.hpp
   backends.hpp
   binaryio.hpp
   cuda.hpp
