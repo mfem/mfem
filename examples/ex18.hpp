@@ -1,11 +1,17 @@
+//                  MFEM Example 18 - Serial/Parallel Shared Code
+//                      (Implementation of Time-dependent DG Operator)
+//
+//  Here, we implement the time-dependent DG operator,
+//
+//    (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u,n), [[v]]>_F = 0
+// 
+//  for explicit time stepping methods.
+
+#include <functional>
 #include "mfem.hpp"
 
 namespace mfem
 {
-
-
-
-
 
 /// @brief Time dependent DG operator for hyperbolic conservation laws
 class DGHyperbolicConservationLaws : public TimeDependentOperator
