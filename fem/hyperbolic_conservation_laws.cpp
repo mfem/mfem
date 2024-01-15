@@ -17,90 +17,6 @@
 
 namespace mfem
 {
-//////////////////////////////////////////////////////////////////
-///        HYPERBOLIC CONSERVATION LAWS IMPLEMENTATION         ///
-//////////////////////////////////////////////////////////////////
-
-// Implementation of class DGHyperbolicConservationLaws
-DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
-   FiniteElementSpace &vfes_, HyperbolicFormIntegrator *formIntegrator_)
-   : TimeDependentOperator(vfes_.GetNDofs() * formIntegrator_->num_equations),
-     dim(vfes_.GetFE(0)->GetDim()),
-     num_equations(formIntegrator_->num_equations),
-     vfes(vfes_),
-     formIntegrator(formIntegrator_),
-     Me_inv(0),
-     z(vfes_.GetNDofs() * formIntegrator_->num_equations)
-{
-   // Standard local assembly and inversion for energy mass matrices.
-   ComputeInvMass();
-#ifndef MFEM_USE_MPI
-   nonlinearForm.reset(new NonlinearForm(&vfes));
-#else
-   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
-   if (pvfes)
-   {
-      nonlinearForm.reset(new ParNonlinearForm(pvfes));
-   }
-   else
-   {
-      nonlinearForm.reset(new NonlinearForm(&vfes));
-   }
-#endif
-   formIntegrator->resetMaxCharSpeed();
-
-   nonlinearForm->AddDomainIntegrator(formIntegrator.get());
-   nonlinearForm->AddInteriorFaceIntegrator(formIntegrator.get());
-   nonlinearForm->UseExternalIntegrators();
-
-   height = z.Size();
-   width = z.Size();
-}
-
-void DGHyperbolicConservationLaws::ComputeInvMass()
-{
-   DenseMatrix Me;     // auxiliary local mass matrix
-   MassIntegrator mi;  // mass integrator
-   // resize it to the current number of elements
-   Me_inv.resize(vfes.GetNE());
-   for (int i = 0; i < vfes.GetNE(); i++)
-   {
-      Me.SetSize(vfes.GetFE(i)->GetDof());
-      mi.AssembleElementMatrix(*vfes.GetFE(i),
-                               *vfes.GetElementTransformation(i), Me);
-      DenseMatrixInverse inv(&Me);
-      inv.Factor();
-      inv.GetInverseMatrix(Me_inv[i]);
-   }
-}
-
-void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
-{
-   // 0. Reset wavespeed computation before operator application.
-   formIntegrator->resetMaxCharSpeed();
-   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
-   nonlinearForm->Mult(x, z);
-   max_char_speed = formIntegrator->getMaxCharSpeed();
-
-   // 2. Multiply element-wise by the inverse mass matrices.
-   Vector zval;             // local dual vector storage
-   Array<int> vdofs;        // local degrees of freedom storage
-   DenseMatrix zmat, ymat;  // local dual vector storage
-
-   for (int i = 0; i < vfes.GetNE(); i++)
-   {
-      // Return the vdofs ordered byNODES
-      vfes.GetElementVDofs(i, vdofs);
-      // get local dual vector
-      z.GetSubVector(vdofs, zval);
-      zmat.UseExternalData(zval.GetData(), vfes.GetFE(i)->GetDof(),
-                           num_equations);
-      ymat.SetSize(Me_inv[i].Height(), num_equations);
-      // mass matrix inversion and pass it to global vector
-      mfem::Mult(Me_inv[i], zmat, ymat);
-      y.SetSubVector(vdofs, ymat.GetData());
-   }
-}
 
 
 void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
@@ -242,7 +158,6 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       fluxN *= ip.weight;
       for (int k = 0; k < num_equations; k++)
       {
-         // this loop structure can increase cache hit because
          for (int s = 0; s < dof1; s++)
          {
             elvect1_mat(s, k) -= fluxN(k) * shape1(s);
@@ -286,16 +201,6 @@ double FluxFunction::ComputeFluxDotN(const Vector &U,
 }
 
 
-
-void DGHyperbolicConservationLaws::Update()
-{
-   nonlinearForm->Update();
-   height = nonlinearForm->Height();
-   width = height;
-   z.SetSize(height);
-
-   ComputeInvMass();
-}
 double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
                          Vector &flux) const

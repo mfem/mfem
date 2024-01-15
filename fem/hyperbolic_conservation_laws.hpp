@@ -36,8 +36,8 @@ namespace mfem
 //               implementation of forms, it updates maximum characteristic
 //               speed and collected by DGHyperbolicConservationLaws. The global
 //               maximum characteristic speed can be obtained by public method
-//               getMaxCharSpeed so that the time step can be determined by CFL
-//               condition. Also, resetMaxCharSpeed should be called after each Mult.
+//               GetMaxCharSpeed so that the time step can be determined by CFL
+//               condition. Also, ResetMaxCharSpeed should be called after each Mult.
 //
 //               @note For parallel version, users should reduce all maximum
 //               characteristic speed from all processes using MPI_Allreduce.
@@ -119,10 +119,6 @@ class RiemannSolver
 public:
    RiemannSolver(const FluxFunction &fluxFunction):fluxFunction(fluxFunction)
    {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
    }
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
@@ -142,9 +138,6 @@ public:
    virtual ~RiemannSolver() = default;
 protected:
    const FluxFunction &fluxFunction;
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector fluxN1, fluxN2;
-#endif
 };
 
 /**
@@ -231,12 +224,12 @@ public:
     * @brief Reset the Max Char Speed 0
     *
     */
-   inline void resetMaxCharSpeed()
+   void ResetMaxCharSpeed()
    {
       max_char_speed = 0.0;
    }
 
-   inline double getMaxCharSpeed()
+   double GetMaxCharSpeed()
    {
       return max_char_speed;
    }
@@ -271,67 +264,26 @@ public:
 };
 
 
-// Base Hyperbolic conservation law class.
-// This contains all methods needed except the flux function.
-class DGHyperbolicConservationLaws : public TimeDependentOperator
-{
-private:
-   const int dim;
-   const int num_equations;
-   // Vector finite element space containing conserved variables
-   FiniteElementSpace &vfes;
-   // Element integration form. Should contain ComputeFlux
-   std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
-   // Base Nonlinear Form
-   std::unique_ptr<NonlinearForm> nonlinearForm;
-   // element-wise inverse mass matrix
-   std::vector<DenseMatrix> Me_inv;
-   // global maximum characteristic speed. Updated by form integrators
-   mutable double max_char_speed;
-   // auxiliary variable used in Mult
-   mutable Vector z;
-
-   // Compute element-wise inverse mass matrix
-   void ComputeInvMass();
-
-public:
-   /**
-    * @brief Construct a new DGHyperbolicConservationLaws object
-    *
-    * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
-    * @param formIntegrator_ integrator (F(u,x), grad v)
-    */
-   DGHyperbolicConservationLaws(
-      FiniteElementSpace &vfes_,
-      HyperbolicFormIntegrator *formIntegrator_);
-   /**
-    * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
-    *
-    * @param x current solution vector
-    * @param y resulting dual vector to be used in an EXPLICIT solver
-    */
-   void Mult(const Vector &x, Vector &y) const override;
-   // get global maximum characteristic speed to be used in CFL condition
-   // where max_char_speed is updated during Mult.
-   double GetMaxCharSpeed() { return max_char_speed; }
-   void Update();
-
-};
-
-
 //////////////////////////////////////////////////////////////////
 ///                      NUMERICAL FLUXES                      ///
 //////////////////////////////////////////////////////////////////
 
 /**
- * @brief Rusanov flux hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
+ * @brief Rusanov flux, also knwon as local Lax-Friedrich,
+ *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
  * where λ is the maximum characteristic velocity
  *
  */
 class RusanovFlux : public RiemannSolver
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction):RiemannSolver(fluxFunction) {}
+   RusanovFlux(const FluxFunction &fluxFunction):RiemannSolver(fluxFunction)
+   {
+#ifndef MFEM_THREAD_SAFE
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   }
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
@@ -346,6 +298,10 @@ public:
    double Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector fluxN1, fluxN2;
+#endif
 };
 
 class AdvectionFlux : public FluxFunction
