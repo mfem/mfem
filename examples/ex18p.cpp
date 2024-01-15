@@ -43,6 +43,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include "ex18.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
    const double specific_heat_ratio = 1.4;
    const double gas_constant = 1.0;
 
-   const char *mesh_file = "";
+   string mesh_file = "";
    int IntOrderOffset = 3;
    int ser_ref_levels = 0;
    int par_ref_levels = 1;
@@ -78,10 +79,11 @@ int main(int argc, char *argv[])
    int vis_steps = 50;
 
    int precision = 8;
-   out.precision(precision);
+   cout.precision(precision);
 
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use. If not provided, then a periodic square mesh will be used.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ser_ref_levels, "-rs", "--serial-refine",
@@ -103,18 +105,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(out); }
-      return 1;
-   }
-   if (Mpi::Root()) { args.PrintOptions(out); }
+   args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file.
-   Mesh mesh = (mesh_file == NULL ||
-                mesh_file[0] == '\0') ? EulerMesh(problem) : Mesh(mesh_file);
+   Mesh mesh = mesh_file.empty() ? EulerMesh(problem) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
@@ -126,7 +120,9 @@ int main(int argc, char *argv[])
          y *= 0.5;
       });
    }
-   // perform uniform refine
+   //    Refine the mesh to increase the resolution. In this example we do
+   //    'seq_ref_levels' of uniform refinement, where 'seq_ref_levels' is a
+   //    command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -149,6 +145,9 @@ int main(int argc, char *argv[])
 
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   //    Refine the mesh to increase the resolution. In this example we do
+   //    'par_ref_levels' of uniform refinement, where 'par_ref_levels' is a
+   //    command-line parameter.
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
@@ -160,23 +159,13 @@ int main(int argc, char *argv[])
    ODESolver *ode_solver = NULL;
    switch (ode_solver_type)
    {
-      case 1:
-         ode_solver = new ForwardEulerSolver;
-         break;
-      case 2:
-         ode_solver = new RK2Solver(1.0);
-         break;
-      case 3:
-         ode_solver = new RK3SSPSolver;
-         break;
-      case 4:
-         ode_solver = new RK4Solver;
-         break;
-      case 6:
-         ode_solver = new RK6Solver;
-         break;
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
       default:
-         out << "Unknown ODE solver type: " << ode_solver_type << '\n';
+         cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
 
@@ -194,7 +183,7 @@ int main(int argc, char *argv[])
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
    if (Mpi::Root())
    {
-      out << "Number of unknowns: " << vfes.GlobalTrueVSize() << endl;
+      cout << "Number of unknowns: " << vfes.GlobalTrueVSize() << endl;
    }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
@@ -245,9 +234,9 @@ int main(int argc, char *argv[])
          visualization = false;
          if (Mpi::Root())
          {
-            out << "Unable to connect to GLVis server at " << vishost << ':'
-                << visport << endl;
-            out << "GLVis visualization disabled.\n";
+            cout << "Unable to connect to GLVis server at " << vishost << ':'
+                 << visport << endl;
+            cout << "GLVis visualization disabled.\n";
          }
       }
       else
@@ -262,8 +251,8 @@ int main(int argc, char *argv[])
          sout << flush;
          if (Mpi::Root())
          {
-            out << "GLVis visualization paused."
-                << " Press space (in the GLVis window) to resume it.\n";
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
          }
          MPI_Barrier(pmesh.GetComm());
       }
@@ -325,7 +314,7 @@ int main(int argc, char *argv[])
       {
          if (Mpi::Root())
          {
-            out << "time step: " << ti << ", time: " << t << endl;
+            cout << "time step: " << ti << ", time: " << t << endl;
          }
          if (visualization)
          {
@@ -340,7 +329,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    if (Mpi::Root())
    {
-      out << " done, " << tic_toc.RealTime() << "s." << endl;
+      cout << " done, " << tic_toc.RealTime() << "s." << endl;
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
@@ -370,7 +359,7 @@ int main(int argc, char *argv[])
    const double error = sol.ComputeLpError(2, u0);
    if (Mpi::Root())
    {
-      out << "Solution error: " << error << endl;
+      cout << "Solution error: " << error << endl;
    }
 
    // Free the used memory.
@@ -385,11 +374,7 @@ Mesh EulerMesh(const int problem)
    switch (problem)
    {
       case 1:
-         return Mesh("../data/periodic-square.mesh");
-         break;
       case 2:
-         return Mesh("../data/periodic-square.mesh");
-         break;
       case 3:
          return Mesh("../data/periodic-square.mesh");
          break;
@@ -400,7 +385,7 @@ Mesh EulerMesh(const int problem)
          return Mesh("../data/periodic-square.mesh");
          break;
       default:
-         throw invalid_argument("Default mesh is undefined");
+         MFEM_ABORT("Problem Undefined");
    }
 }
 
@@ -412,107 +397,11 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
    switch (problem)
    {
       case 1: // fast moving vortex
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
-         {
-            MFEM_ASSERT(x.Size() == 2, "");
-
-            double radius = 0, Minf = 0, beta = 0;
-            // "Fast euler"
-            radius = 0.2;
-            Minf = 0.5;
-            beta = 1. / 5.;
-
-            const double xc = 0.0, yc = 0.0;
-
-            // Nice units
-            const double vel_inf = 1.;
-            const double den_inf = 1.;
-
-            // Derive remainder of background state from this and Minf
-            const double pres_inf = (den_inf / specific_heat_ratio) *
-                                    (vel_inf / Minf) * (vel_inf / Minf);
-            const double temp_inf = pres_inf / (den_inf * gas_constant);
-
-            double r2rad = 0.0;
-            r2rad += (x(0) - xc) * (x(0) - xc);
-            r2rad += (x(1) - yc) * (x(1) - yc);
-            r2rad /= (radius * radius);
-
-            const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
-
-            const double velX =
-               vel_inf * (1 - beta * (x(1) - yc) / radius * exp(-0.5 * r2rad));
-            const double velY =
-               vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-            const double vel2 = velX * velX + velY * velY;
-
-            const double specific_heat =
-               gas_constant * specific_heat_ratio * shrinv1;
-            const double temp = temp_inf - 0.5 * (vel_inf * beta) *
-                                (vel_inf * beta) / specific_heat *
-                                exp(-r2rad);
-
-            const double den = den_inf * pow(temp / temp_inf, shrinv1);
-            const double pres = den * gas_constant * temp;
-            const double energy = shrinv1 * pres / den + 0.5 * vel2;
-
-            y(0) = den;
-            y(1) = den * velX;
-            y(2) = den * velY;
-            y(3) = den * energy;
-         });
+         return VectorFunctionCoefficient(
+                   4, GetMovingVortexInit(0.2, 0.5, 1. / 5., gas_constant, specific_heat_ratio));
       case 2: // slow moving vortex
-         return VectorFunctionCoefficient(4, [specific_heat_ratio,
-                                              gas_constant](const Vector &x, Vector &y)
-         {
-            MFEM_ASSERT(x.Size() == 2, "");
-
-            double radius = 0, Minf = 0, beta = 0;
-            // "Slow euler"
-            radius = 0.2;
-            Minf = 0.05;
-            beta = 1. / 50.;
-
-            const double xc = 0.0, yc = 0.0;
-
-            // Nice units
-            const double vel_inf = 1.;
-            const double den_inf = 1.;
-
-            // Derive remainder of background state from this and Minf
-            const double pres_inf = (den_inf / specific_heat_ratio) *
-                                    (vel_inf / Minf) * (vel_inf / Minf);
-            const double temp_inf = pres_inf / (den_inf * gas_constant);
-
-            double r2rad = 0.0;
-            r2rad += (x(0) - xc) * (x(0) - xc);
-            r2rad += (x(1) - yc) * (x(1) - yc);
-            r2rad /= (radius * radius);
-
-            const double shrinv1 = 1.0 / (specific_heat_ratio - 1.);
-
-            const double velX =
-               vel_inf * (1 - beta * (x(1) - yc) / radius * exp(-0.5 * r2rad));
-            const double velY =
-               vel_inf * beta * (x(0) - xc) / radius * exp(-0.5 * r2rad);
-            const double vel2 = velX * velX + velY * velY;
-
-            const double specific_heat =
-               gas_constant * specific_heat_ratio * shrinv1;
-            const double temp = temp_inf - 0.5 * (vel_inf * beta) *
-                                (vel_inf * beta) / specific_heat *
-                                exp(-r2rad);
-
-            const double den = den_inf * pow(temp / temp_inf, shrinv1);
-            const double pres = den * gas_constant * temp;
-            const double energy = shrinv1 * pres / den + 0.5 * vel2;
-
-            y(0) = den;
-            y(1) = den * velX;
-            y(2) = den * velY;
-            y(3) = den * energy;
-         });
+         return VectorFunctionCoefficient(
+                   4, GetMovingVortexInit(0.2, 0.05, 1. / 50., gas_constant, specific_heat_ratio));
       case 3: // moving sine wave
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
@@ -564,6 +453,6 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
             y(3) = energy;
          });
       default:
-         throw invalid_argument("Problem Undefined");
+         MFEM_ABORT("Problem Undefined");
    }
 }

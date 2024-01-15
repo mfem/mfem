@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
    const double specific_heat_ratio = 1.4;
    const double gas_constant = 1.0;
 
-   std::string mesh_file = "";
+   string mesh_file = "";
    int IntOrderOffset = 3;
    int ref_levels = 1;
    int order = 3;
