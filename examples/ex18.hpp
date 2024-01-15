@@ -80,8 +80,6 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
       nonlinearForm.reset(new NonlinearForm(&vfes));
    }
 #endif
-   formIntegrator->ResetMaxCharSpeed();
-
    nonlinearForm->AddDomainIntegrator(formIntegrator.get());
    nonlinearForm->AddInteriorFaceIntegrator(formIntegrator.get());
    nonlinearForm->UseExternalIntegrators();

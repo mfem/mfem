@@ -14,7 +14,10 @@
 //               equations, a model nonlinear hyperbolic PDE, with a
 //               discontinuous Galerkin (DG) formulation.
 //
-//                (u_t, v)_T - (F(u), ∇ v)_T + (F̂(u,n), [[v]])_F = 0
+//                (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u,n), [[v]]>_F = 0
+//
+//               where (⋅,⋅)_T is volume integration, and <⋅,⋅>_F is face integration,
+//               F is the Euler flux function, and F̂ is the numerical flux.
 //
 //               Specifically, it solves for an exact solution of the equations
 //               whereby a vortex is transported by a uniform flow. Since all
