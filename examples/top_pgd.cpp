@@ -164,7 +164,8 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
    double volume = 0;
-   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(mu_r - mu_l) > 1e-10)
+   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(
+             mu_r - mu_l) > 1e-10)
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);

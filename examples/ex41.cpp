@@ -240,15 +240,17 @@ int main(int argc, char *argv[])
    double domain_volume = vol_form.Sum();
    const double target_volume = domain_volume * vol_fraction;
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
-   ConstantCoefficient input_spring_cf(input_spring), output_spring_cf(output_spring);
-   VectorConstantCoefficient input_direction_cf(input_direction), output_direction_cf(output_direction);
+   ConstantCoefficient input_spring_cf(input_spring),
+                       output_spring_cf(output_spring);
+   VectorConstantCoefficient input_direction_cf(input_direction),
+                             output_direction_cf(output_direction);
    CompliantMechanism obj(&lambda_cf, &mu_cf, epsilon,
-                             &rho, target_volume,
-                             ess_bdr, input_bdr, output_bdr,
-                             input_spring_cf, output_spring_cf,
-                             input_direction_cf, output_direction_cf,
-                             &state_fes,
-                             &filter_fes, exponent, rho_min);
+                          &rho, target_volume,
+                          ess_bdr, input_bdr, output_bdr,
+                          input_spring_cf, output_spring_cf,
+                          input_direction_cf, output_direction_cf,
+                          &state_fes,
+                          &filter_fes, exponent, rho_min);
    obj.SetGridFunction(&psi);
    LineSearchAlgorithm *lineSearch;
    switch (lineSearchMethod)

@@ -342,7 +342,8 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(maxat);
    ess_bdr = 0;
    ess_bdr[0] = 1;
-   MappedGridFunctionCoefficient simp_cf(&rho_filter, [rho_min](const double x) {return simp_rule(x, rho_min, 1.0, 3.0);});
+   MappedGridFunctionCoefficient simp_cf(&rho_filter, [rho_min](
+   const double x) {return simp_rule(x, rho_min, 1.0, 3.0);});
    ProductCoefficient lambda_SIMP_cf(lambda, simp_cf);
    ProductCoefficient mu_SIMP_cf(mu, simp_cf);
    // LinearElasticitySolver * ElasticitySolver = new LinearElasticitySolver();

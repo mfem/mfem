@@ -131,7 +131,8 @@ using namespace mfem;
  *
  */
 
-double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_volume)
+double checkNormalConeL2(GridFunction &rho, GridFunction &grad,
+                         double target_volume)
 {
    GridFunctionCoefficient rho_cf(&rho);
    GridFunctionCoefficient grad_cf(&grad);
@@ -140,14 +141,16 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_vo
    SumCoefficient grad_cf_minus_mu(grad_cf, mu, c, 1);
    double mu_l = -1.0 - c*grad.Normlinf();
    double mu_r =  1.0 + c*grad.Normlinf();
-   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p, double g)
+   TransformedCoefficient projectedDensity(&rho_cf, &grad_cf_minus_mu, [](double p,
+                                                                          double g)
    {
       return max(0.0, min(1.0, p - g));
    });
    GridFunction zero_gf(rho);
    zero_gf = 0.0;
    double volume = 0;
-   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(mu_r - mu_l) > 1e-10)
+   while (fabs(volume - target_volume) > 1e-09 / target_volume & fabs(
+             mu_r - mu_l) > 1e-10)
    {
       mu.constant = 0.5*(mu_l + mu_r);
       volume = zero_gf.ComputeL1Error(projectedDensity);
@@ -162,7 +165,8 @@ double checkNormalConeL2(GridFunction &rho, GridFunction &grad, double target_vo
    }
    out << zero_gf.ComputeL1Error(projectedDensity) << ", " << flush;
 
-   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x, double y)
+   TransformedCoefficient rho_diff(&rho_cf, &projectedDensity, [](double x,
+                                                                  double y)
    {
       return x - y;
    });

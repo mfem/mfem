@@ -265,9 +265,9 @@ int main(int argc, char *argv[])
       sout_r.open(vishost, visport);
       sout_r.precision(8);
       sout_r << "solution\n" << mesh << optimizer.GetSIMPrho()
-               << "window_title 'Design density r(ρ̃)'\n"
-               << "keys Rj***************\n"
-               << flush;
+             << "window_title 'Design density r(ρ̃)'\n"
+             << "keys Rj***************\n"
+             << flush;
    }
 
    mfem::ParaViewDataCollection paraview_dc("ex37", &mesh);

@@ -224,7 +224,7 @@ double checkNormalConeBregman(GridFunction &psi, GridFunction &grad,
    {
       return sigmoid(x) - y;
    });
-   
+
    return zero_gf.ComputeL2Error(rho_diff);
 }
 
@@ -461,12 +461,12 @@ int main(int argc, char *argv[])
    {
       case LineSearchMethod::ArmijoBackTracking:
          lineSearch.reset(new BackTracking(obj, succ_diff_rho_form, psi_old,
-                                       alpha, 2.0, c1, 10, infinity()));
+                                           alpha, 2.0, c1, 10, infinity()));
          break;
       case LineSearchMethod::BregmanBBBackTracking:
          lineSearch.reset(new BackTrackingLipschitzBregmanMirror(
-            obj, succ_diff_rho_form, *(obj.Gradient()), psi, psi_old, c1, 1.0, 1e-10,
-            infinity()));
+                             obj, succ_diff_rho_form, *(obj.Gradient()), psi, psi_old, c1, 1.0, 1e-10,
+                             infinity()));
          break;
       default:
          mfem_error("Undefined linesearch method.");

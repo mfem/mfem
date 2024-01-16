@@ -391,7 +391,8 @@ int main(int argc, char *argv[])
 
    VectorConstantCoefficient input_direction_cf(input_direction),
                              output_direction_cf(output_direction);
-   ConstantCoefficient input_spring_cf(input_spring), output_spring_cf(output_spring);
+   ConstantCoefficient input_spring_cf(input_spring),
+                       output_spring_cf(output_spring);
 
    int k;
    for (k = 1; k <= max_it; k++)
