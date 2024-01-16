@@ -9,15 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "bilininteg_diffusion_pa.hpp"
-#include "../gridfunc.hpp"
-#include "../qfunction.hpp"
-#include "ceed/integrators/diffusion/diffusion.hpp"
-#include "../bilininteg.hpp"
-#include "../kernel_dispatch.hpp"
 #ifndef MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 #define MFEM_BILININTEG_DIFFUSION_KERNELS_HPP
 
+#include "../kernel_dispatch.hpp"
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
@@ -28,31 +23,80 @@
 namespace mfem
 {
 
-// PA Diffusion Integrator
 
-DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
-DiffusionIntegrator::Kernels::Kernels()
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   // 2D
-   DiffusionIntegrator::AddSpecialization<2,2,2>();
-   DiffusionIntegrator::AddSpecialization<2,3,3>();
-   DiffusionIntegrator::AddSpecialization<2,4,4>();
-   DiffusionIntegrator::AddSpecialization<2,5,5>();
-   DiffusionIntegrator::AddSpecialization<2,6,6>();
-   DiffusionIntegrator::AddSpecialization<2,7,7>();
-   DiffusionIntegrator::AddSpecialization<2,8,8>();
-   DiffusionIntegrator::AddSpecialization<2,9,9>();
-   // 3D
-   DiffusionIntegrator::AddSpecialization<3,2,2>();
-   DiffusionIntegrator::AddSpecialization<3,2,3>();
-   DiffusionIntegrator::AddSpecialization<3,3,4>();
-   DiffusionIntegrator::AddSpecialization<3,4,5>();
-   DiffusionIntegrator::AddSpecialization<3,4,6>();
-   DiffusionIntegrator::AddSpecialization<3,5,6>();
-   DiffusionIntegrator::AddSpecialization<3,5,8>();
-   DiffusionIntegrator::AddSpecialization<3,6,7>();
-   DiffusionIntegrator::AddSpecialization<3,7,8>();
-   DiffusionIntegrator::AddSpecialization<3,8,9>();
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      if (pa_data.Size()==0) { AssemblePA(*fespace); }
+
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Vector &Dv = pa_data;
+
+      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
+   }
+}
+
+// PA Diffusion Apply kernel
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Array<double> &Bt = maps->Bt;
+      const Array<double> &Gt = maps->Gt;
+      const Vector &Dv = pa_data;
+
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         if (dim == 3)
+         {
+            OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+
+      kernels.apply.Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D, Q1D);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
 }
 
 namespace internal
@@ -69,7 +113,7 @@ void PADiffusionSetup(const int dim,
                       const Vector &C,
                       Vector &D);
 
-// PA Diffusion Assemble 2D kernel
+// PA Diffusion Assemble 2D f
 template<int T_SDIM>
 void PADiffusionSetup2D(const int Q1D,
                         const int coeffDim,
@@ -117,28 +161,6 @@ void PADiffusionAssembleDiagonal(const int dim,
                                  const Array<double> &G,
                                  const Vector &D,
                                  Vector &Y);
-
-void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->GetDiagonal(diag);
-   }
-   else
-   {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
-
-      const int D1D = dofs1D;
-      const int Q1D = quad1D;
-      const int NE = ne;
-      const bool symm = symmetric;
-      const Array<double> &B = maps->B;
-      const Array<double> &G = maps->G;
-      const Vector &Dv = pa_data;
-
-      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
-   }
-}
 
 // PA Diffusion Diagonal 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -560,58 +582,6 @@ void OccaPADiffusionApply3D(const int D1D,
                             Vector &Y);
 #endif // MFEM_USE_OCCA
 
-// PA Diffusion Apply kernel
-void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->AddMult(x, y);
-   }
-   else
-   {
-      const int D1D = dofs1D;
-      const int Q1D = quad1D;
-      const int NE = ne;
-      const bool symm = symmetric;
-      const Array<double> &B = maps->B;
-      const Array<double> &G = maps->G;
-      const Array<double> &Bt = maps->Bt;
-      const Array<double> &Gt = maps->Gt;
-      const Vector &Dv = pa_data;
-
-#ifdef MFEM_USE_OCCA
-      if (DeviceCanUseOcca())
-      {
-         if (dim == 2)
-         {
-            OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
-            return;
-         }
-         if (dim == 3)
-         {
-            OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
-            return;
-         }
-         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
-      }
-#endif // MFEM_USE_OCCA
-
-      kernels.apply.Run(dim,D1D,Q1D,NE,symm,B,G,Bt,Gt,Dv,x,y,D1D,Q1D);
-   }
-}
-
-void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
-{
-   if (symmetric)
-   {
-      AddMultPA(x, y);
-   }
-   else
-   {
-      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
-                 "the symmetric case.")
-   }
-}
 // PA Diffusion Apply 2D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PADiffusionApply2D(const int NE,
@@ -740,6 +710,8 @@ inline void SmemPADiffusionApply2D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
+                                   const Array<double> &bt_,
+                                   const Array<double> &gt_,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1091,6 +1063,8 @@ inline void SmemPADiffusionApply3D(const int NE,
                                    const bool symmetric,
                                    const Array<double> &b_,
                                    const Array<double> &g_,
+                                   const Array<double> &,
+                                   const Array<double> &,
                                    const Vector &d_,
                                    const Vector &x_,
                                    Vector &y_,
@@ -1310,6 +1284,41 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
+template<>
+template<int T_D1D, int T_Q1D, int T_NBZ>
+DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
+
+template<>
+template<int T_D1D, int T_Q1D>
+DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+
+template<>
+DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::Fallback2D() { return internal::PADiffusionApply2D<0,0>; }
+
+template<>
+DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
+
+template<>
+template<int T_D1D, int T_Q1D, int T_NBZ>
+DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
+
+template<>
+template<int T_D1D  , int T_Q1D  >
+DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
+
+template<>
+DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PADiffusionDiagonal2D<0,0>; }
+
+template<>
+DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PADiffusionDiagonal3D<0,0>; }
 } // namespace mfem
 
 #endif

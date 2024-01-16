@@ -16,8 +16,6 @@
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_mass_kernels.hpp"
 
-#include "bilininteg_mass_pa.hpp"
-
 using namespace std;
 
 namespace mfem

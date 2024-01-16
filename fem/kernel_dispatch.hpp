@@ -12,10 +12,55 @@
 #ifndef MFEM_KERNELDISPATCH_HPP
 #define MFEM_KERNELDISPATCH_HPP
 
+#include "general/error.hpp"
+
 #include <unordered_map>
 
 namespace mfem
 {
+
+constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+
+template<typename Kernel>
+class ApplyPAKernelsClassTemplate
+{
+private:
+   constexpr static int D(int D1D) { return (11 - D1D) / 2; }
+public:
+   using KernelSignature = Kernel;
+
+   constexpr static int NBZ(int D1D, int Q1D)
+   {
+      return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
+   }
+
+   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   static Kernel Kernel2D();
+
+   template<int T_D1D = 0, int T_Q1D = 0>
+   static Kernel Kernel3D();
+
+   static Kernel Fallback2D();
+
+   static Kernel Fallback3D();
+};
+
+template<typename Kernel>
+class DiagonalPAKernelsClassTemplate
+{
+public:
+   using KernelSignature = Kernel;
+
+   template<int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
+   static Kernel Kernel2D();
+
+   template<int T_D1D = 0, int T_Q1D = 0>
+   static Kernel Kernel3D();
+
+   static Kernel Fallback2D();
+
+   static Kernel Fallback3D();
+};
 
 template <typename KEY, typename F, typename HASH>
 class DispatchTable
@@ -44,7 +89,7 @@ struct KernelDispatchKeyHash
 
 template <typename T>
 class KernelDispatchTable : public
-   DispatchTable<KernelDispatchKey, typename T::Kernel, KernelDispatchKeyHash>
+   DispatchTable<KernelDispatchKey, typename T::KernelSignature, KernelDispatchKeyHash>
 {
 private:
    // If the type U has member U::NBZ, this overload will be selected, and will
