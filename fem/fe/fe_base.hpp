@@ -130,8 +130,8 @@ public:
 
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
-    FiniteElement at a the quadrature points of a given IntegrationRule. */
-/** Object of this type are typically created and owned by the respective
+    FiniteElement at the quadrature points of a given IntegrationRule. */
+/** Objects of this type are typically created and owned by the respective
     FiniteElement object. */
 class DofToQuad
 {
