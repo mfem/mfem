@@ -827,7 +827,7 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
    EllipticSolver solver(*filter, *rhoForm, ess_bdr);
    solver.Solve(frho, true, false);
 }
-void MarkBoundary(Mesh &mesh, std::__1::function<bool(const Vector &)> mark,
+void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
                   const int idx)
 {
    const int dim = mesh.Dimension();

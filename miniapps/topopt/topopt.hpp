@@ -1,5 +1,6 @@
 #pragma once
 #include "mfem.hpp"
+#include <functional>
 
 
 namespace mfem
@@ -479,7 +480,7 @@ public:
    void UpdateSize();
 };
 
-void MarkBoundary(Mesh &mesh, std::__1::function<bool(const Vector &)> mark,
+void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
                   const int idx);
 
 }
