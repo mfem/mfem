@@ -146,6 +146,8 @@ protected:
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
+   mutable double weights_max_limit = 1e20;
+   bool surf_fit_converge_based_on_error = true;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -186,6 +188,8 @@ protected:
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
+
+   void SaveSurfaceFittingWeight() const;
 
    /// Get the surface fitting weight for all the TMOP integrators.
    void GetSurfaceFittingWeight(Array<double> &weights) const;
@@ -256,6 +260,14 @@ public:
    void SetMinimumDeterminantThreshold(double threshold)
    {
       min_detJ_threshold = threshold;
+   }
+   void SetMaximumFittingWeightLimit(double weight)
+   {
+      weights_max_limit = weight;
+   }
+   void SetFittingConvergenceBasedOnResidual()
+   {
+      surf_fit_converge_based_on_error = false;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const

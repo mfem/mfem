@@ -1790,6 +1790,7 @@ protected:
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
+   double last_active_surf_fit_const;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2104,8 +2105,10 @@ public:
 #ifdef MFEM_USE_MPI
    /// Parallel support for surface fitting to the zero level set of a function.
    void EnableSurfaceFitting(const ParGridFunction &s0,
-                             const Array<bool> &smarker, Coefficient &coeff,
-                             AdaptivityEvaluator &ae);
+                             Array<bool> &smarker, Coefficient &coeff,
+                             AdaptivityEvaluator &ae,
+                             AdaptivityEvaluator *aegrad = NULL,
+                             AdaptivityEvaluator *aehess = NULL);
 
    /** @brief Fitting of certain DOFs in the current mesh to the zero level set
        of a function defined on another (finer) source mesh.
@@ -2130,7 +2133,7 @@ public:
        See the pmesh-fitting miniapp for details on usage. */
    void EnableSurfaceFittingFromSource(const ParGridFunction &s_bg,
                                        ParGridFunction &s0,
-                                       const Array<bool> &smarker,
+                                       Array<bool> &smarker,
                                        Coefficient &coeff,
                                        AdaptivityEvaluator &ae,
                                        const ParGridFunction &s_bg_grad,
@@ -2161,6 +2164,13 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
+
+   void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
+
+   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
+
+   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering = Ordering::byNODES);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -2245,6 +2255,10 @@ public:
 
    /// Get the surface fitting weight.
    double GetSurfaceFittingWeight();
+
+   double GetLastActiveSurfaceFittingWeight() { return last_active_surf_fit_const; };
+
+   void SaveSurfaceFittingWeight();
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
