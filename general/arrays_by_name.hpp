@@ -38,12 +38,13 @@ protected:
 public:
 
    /// @brief Default constructor
-   inline ArraysByName() {}
+   ArraysByName() = default;
 
    /// @brief Copy constructor: deep copy from @a src
-   ///
-   /// This method supports source arrays using any MemoryType.
-   inline ArraysByName(const ArraysByName &src);
+   ArraysByName(const ArraysByName &src) = default;
+
+   /// @brief Move constructor: deep move from @a src
+   ArraysByName(ArraysByName &&src) noexcept = default;
 
    /// @brief Copy constructor (deep copy) from 'src', an ArraysByName
    /// container of convertible type.
@@ -100,12 +101,11 @@ public:
    /// consider first calling EntryExists.
    inline void DeleteArray(const std::string &name);
 
-   /// @brief Create a copy of the internal arrays in the provided @a copy.
-   inline void Copy(ArraysByName &copy) const;
+   /// @brief Copy assignment operator: deep copy from 'src'.
+   ArraysByName<T> &operator=(const ArraysByName<T> &src) = default;
 
-   /// @brief Assignment operator: deep copy from 'src'.
-   ArraysByName<T> &operator=(const ArraysByName<T> &src)
-   { src.Copy(*this); return *this; }
+   /// @brief Move assignment operator: deep move from 'src'.
+   ArraysByName<T> &operator=(ArraysByName<T> &&src) noexcept = default;
 
    /// @brief Assignment operator (deep copy) from @a src, an ArraysByName
    /// container of convertible type.
@@ -157,15 +157,6 @@ inline bool operator==(const ArraysByName<T> &LHS, const ArraysByName<T> &RHS)
       if (it1->second != it2->second) { return false; }
    }
    return true;
-}
-
-template <class T>
-inline ArraysByName<T>::ArraysByName(const ArraysByName &src)
-{
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
 }
 
 template <typename T> template <typename CT>
@@ -241,16 +232,6 @@ inline void ArraysByName<T>::DeleteArray(const std::string &name)
    MFEM_VERIFY( data.find(name) != data.end(),
                 "Attempting to delete unknown named array \"" << name << "\"");
    data.erase(name);
-}
-
-template<class T>
-inline void ArraysByName<T>::Copy(ArraysByName &copy) const
-{
-   copy.DeleteAll();
-   for (auto entry : data)
-   {
-      copy.CreateArray(entry.first) = entry.second;
-   }
 }
 
 template <typename T> template <typename CT>
