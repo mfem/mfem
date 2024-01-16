@@ -54,6 +54,7 @@
 #include <iostream>
 #include <fstream>
 #include "topopt.hpp"
+#include "helper.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -394,23 +395,29 @@ int main(int argc, char *argv[])
                                               density.GetFilteredDensity()));
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
-      sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-      sout_SIMP.precision(8);
-      sout_SIMP << "solution\n" << pmesh << *designDensity_gf
-                << "window_title 'Design density r(ρ̃) - PMD "
+      if (sout_SIMP.is_open())
+      {
+         sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
+         sout_SIMP.precision(8);
+         sout_SIMP << "solution\n" << pmesh << *designDensity_gf
+                   << "window_title 'Design density r(ρ̃) - PMD "
+                   << problem << "'\n"
+                   << "keys Rjl***************\n"
+                   << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
+      sout_r.open(vishost, visport);
+      if (sout_r.is_open())
+      {
+         sout_r << "parallel " << num_procs << " " << myid << "\n";
+         sout_r.precision(8);
+         sout_r << "solution\n" << pmesh << *rho_gf
+                << "window_title 'Raw density ρ - PMD "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
-      MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
-      sout_r.open(vishost, visport);
-      sout_r << "parallel " << num_procs << " " << myid << "\n";
-      sout_r.precision(8);
-      sout_r << "solution\n" << pmesh << *rho_gf
-             << "window_title 'Raw density ρ - PMD "
-             << problem << "'\n"
-             << "keys Rjl***************\n"
-             << flush;
-      MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+      }
    }
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
@@ -443,25 +450,24 @@ int main(int argc, char *argv[])
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
-   int k;
-   double step_size;
    double compliance = optprob.Eval();
+   double step_size, volume, stationarityError, stationarityError_bregman;
+   int num_check;
    double old_compliance;
+
+   TableLogger logger;
+   logger.Append(std::string("Volume"), volume);
+   logger.Append(std::string("Compliance"), compliance);
+   logger.Append(std::string("Stationarity"), stationarityError);
+   logger.Append(std::string("Re-evel"), num_check);
+   logger.Append(std::string("Step Size"), step_size);
+   logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
+
    optprob.UpdateGradient();
-   if (Mpi::Root())
-   {
-      out << std::setw(10) << "Volume" << ",\t"
-          << std::setw(10) << "Compliance" << ",\t"
-          << std::setw(10) << "Stationarity" << ",\t"
-          << std::setw(10) << "Re-eval" << ",\t"
-          << std::setw(10) << "Step Size" << ",\t"
-          << std::setw(10) << "Stationarity-Bregman"
-          << std::endl;
-   }
-   for (k = 1; k <= max_it; k++)
+   for (int k = 0; k < max_it; k++)
    {
       // Compute Step size
-      if (k == 1) { step_size = 1.0; }
+      if (k == 0) { step_size = 1.0; }
       else
       {
          diff_rho_form.Assemble();
@@ -476,24 +482,31 @@ int main(int argc, char *argv[])
       old_grad = grad;
 
       // Step and upate gradient
-      int num_check = Step_Armijo(optprob, compliance, c1, step_size);
+      num_check = Step_Armijo(optprob, compliance, c1, step_size);
       compliance = optprob.GetValue();
+      volume = density.GetVolume();
       optprob.UpdateGradient();
 
       // Visualization
       if (glvis_visualization)
       {
-         designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
-                                                 density.GetFilteredDensity()));
-         rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
-         sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-         sout_SIMP << "solution\n" << pmesh << *designDensity_gf
+         if (sout_SIMP.is_open())
+         {
+            designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+                                                    density.GetFilteredDensity()));
+            sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
+            sout_SIMP << "solution\n" << pmesh << *designDensity_gf
+                      << flush;
+            MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+         }
+         if (sout_r.is_open())
+         {
+            rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+            sout_r << "parallel " << num_procs << " " << myid << "\n";
+            sout_r << "solution\n" << pmesh << *rho_gf
                    << flush;
-         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
-         sout_r << "parallel " << num_procs << " " << myid << "\n";
-         sout_r << "solution\n" << pmesh << *rho_gf
-                << flush;
-         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+            MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
+         }
       }
       if (paraview)
       {
@@ -503,21 +516,14 @@ int main(int argc, char *argv[])
       }
 
       // Check convergence
-      double stationarityError = density.StationarityErrorL2(grad);
-      double stationarityError_bregman = density.StationarityError(grad);
-      if (Mpi::Root())
-      {
-         out << std::setw(10) << density.GetVolume() << ",\t"
-             << std::setw(10) << optprob.GetValue() << ",\t"
-             << std::setw(10) << stationarityError << ",\t"
-             << std::setw(10) << num_check << ",\t"
-             << std::setw(10) << step_size << ",\t"
-             << std::setw(10) << stationarityError_bregman
-             << std::endl;
-      }
+      stationarityError = density.StationarityErrorL2(grad);
+      stationarityError_bregman = density.StationarityError(grad);
+
+      logger.Print();
 
       if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
+         if (Mpi::Root()) { out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
       }
    }
@@ -531,7 +537,6 @@ int main(int argc, char *argv[])
       sol_ofs2.precision(8);
       sol_ofs2 << density.GetFilteredDensity();
    }
-   if (Mpi::Root()) { out << "Total number of iteration = " << k << std::endl; }
 
    return 0;
 }
