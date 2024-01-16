@@ -431,13 +431,13 @@ int main(int argc, char *argv[])
        << std::endl;
    for (k = 1; k <= max_it; k++)
    {
-      diff_rho_form.Assemble();
-      old_psi -= psi;
-      old_grad -= grad;
       // Compute Step size
       if (k == 1) { step_size = 1.0; }
       else
       {
+         diff_rho_form.Assemble();
+         old_psi -= psi;
+         old_grad -= grad;
          step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
       }
 
