@@ -12,7 +12,7 @@
 #ifndef MFEM_KERNELDISPATCH_HPP
 #define MFEM_KERNELDISPATCH_HPP
 
-#include "general/error.hpp"
+#include "../general/error.hpp"
 
 #include <unordered_map>
 
