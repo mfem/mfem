@@ -183,13 +183,8 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(out);
-      return 1;
-   }
-   args.PrintOptions(out);
+   args.ParseCheck();
+
 
    Mesh mesh;
    Array2D<int> ess_bdr;

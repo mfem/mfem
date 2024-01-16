@@ -191,13 +191,8 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(mfem::out); }
-      return 1;
-   }
-   if (Mpi::Root()) { args.PrintOptions(mfem::out); }
+   args.ParseCheck();
+
 
    Mesh mesh;
    Array2D<int> ess_bdr;
@@ -290,11 +285,11 @@ int main(int argc, char *argv[])
 
          force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
          force = 0.0;
-         
+
          vforce_cf.reset(new VectorConstantCoefficient(force));
          center(0) = 1.2; center(1) = 0; center(2) = 0;
          torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
-                                                                        Vector &force)
+                                                                       Vector &force)
          {
             force = 0.0;
             if ((0.6 - x[1]) > 1e-09 & x.DistanceTo(center) < r)
