@@ -61,44 +61,64 @@ TEST_CASE("ArraysByName Copy Methods", "[ArraysByName]")
 
    FillArraysByName(abn);
 
-   ArraysByName<int> abn_copy1 = abn;
+   // Explicit call to copy constructor
+   ArraysByName<int> abn_copy1(abn);
    REQUIRE(abn == abn_copy1);
 
-   ArraysByName<int> abn_copy2;
-   abn_copy2 = abn;
+   // Implicit call to copy constructor
+   ArraysByName<int> abn_copy2 = abn;
    REQUIRE(abn == abn_copy2);
 
+   // Copy assignment operator
    ArraysByName<int> abn_copy3;
-   abn.Copy(abn_copy3);
+   abn_copy3 = abn;
    REQUIRE(abn == abn_copy3);
 
-   ArraysByName<long> abn_copy4 = abn;
-   REQUIRE(abn.Size() == abn_copy4.Size());
-   for (auto entry4 : abn_copy4)
+   // Explicit call to move constructor
+   ArraysByName<int> abn_copy4a(abn);
+   ArraysByName<int> abn_copy4b(std::move(abn_copy4a));
+   REQUIRE(abn == abn_copy4b);
+
+   // Implicit call to move constructor
+   ArraysByName<int> abn_copy5a(abn);
+   ArraysByName<int> abn_copy5b = std::move(abn_copy5a);
+   REQUIRE(abn == abn_copy5b);
+
+   // Move assignment operator
+   ArraysByName<int> abn_copy6a(abn);
+   ArraysByName<int> abn_copy6b;
+   abn_copy6b = std::move(abn_copy6a);
+   REQUIRE(abn == abn_copy6b);
+
+   // Implicit call to convertible type copy constructor
+   ArraysByName<long> abn_copy7 = abn;
+   REQUIRE(abn.Size() == abn_copy7.Size());
+   for (auto entry7 : abn_copy7)
    {
-      std::string name = entry4.first;
+      std::string name = entry7.first;
       REQUIRE(abn.EntryExists(name));
-      REQUIRE(abn[name].Size() == abn_copy4[name].Size());
+      REQUIRE(abn[name].Size() == abn_copy7[name].Size());
       int matches = 0;
       for (int i=0; i<abn[name].Size(); i++)
       {
-         if ((long)abn[name][i] == abn_copy4[name][i]) { matches++; }
+         if ((long)abn[name][i] == abn_copy7[name][i]) { matches++; }
       }
       REQUIRE(matches == abn[name].Size());
    }
 
-   ArraysByName<long> abn_copy5;
-   abn_copy5 = abn;
-   REQUIRE(abn.Size() == abn_copy5.Size());
-   for (auto entry5 : abn_copy5)
+   // Convertible type copy assignment operator
+   ArraysByName<long> abn_copy8;
+   abn_copy8 = abn;
+   REQUIRE(abn.Size() == abn_copy8.Size());
+   for (auto entry8 : abn_copy8)
    {
-      std::string name = entry5.first;
+      std::string name = entry8.first;
       REQUIRE(abn.EntryExists(name));
-      REQUIRE(abn[name].Size() == abn_copy5[name].Size());
+      REQUIRE(abn[name].Size() == abn_copy8[name].Size());
       int matches = 0;
       for (int i=0; i<abn[name].Size(); i++)
       {
-         if ((long)abn[name][i] == abn_copy5[name][i]) { matches++; }
+         if ((long)abn[name][i] == abn_copy8[name][i]) { matches++; }
       }
       REQUIRE(matches == abn[name].Size());
    }
