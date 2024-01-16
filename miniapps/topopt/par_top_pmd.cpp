@@ -280,11 +280,10 @@ int main(int argc, char *argv[])
          ess_bdr_filter.SetSize(7);
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(4, 6) = 1;
+
          center.SetSize(3); force.SetSize(3);
-
-         vol_fraction = 0.005;
-
-         force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
+         vol_fraction = 0.1;
+         epsilon = 0.025;
          force = 0.0;
 
          vforce_cf.reset(new VectorConstantCoefficient(force));
@@ -371,7 +370,7 @@ int main(int argc, char *argv[])
       elasticity.GetLinearForm().AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(
                                                          *torsion_cf));
    }
-   
+
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
