@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
    Vector center(2), force(2);
    double r = 0.05;
    std::unique_ptr<VectorCoefficient> vforce_cf;
-   std::unique_ptr<VectorCoefficient> torsion_cf;
+   std::unique_ptr<VectorCoefficient> torsion_cf(nullptr);
    string mesh_file;
    switch (problem)
    {
@@ -346,7 +346,11 @@ int main(int argc, char *argv[])
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
-
+   if (torsion_cf.get())
+   {
+      elasticity.GetLinearForm().AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(
+                                                         *torsion_cf));
+   }
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
