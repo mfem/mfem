@@ -14,6 +14,33 @@
 namespace mfem
 {
 
+// PA Diffusion Integrator
+
+DiffusionIntegrator::Kernels DiffusionIntegrator::kernels;
+DiffusionIntegrator::Kernels::Kernels()
+{
+   // 2D
+   DiffusionIntegrator::AddSpecialization<2,2,2>();
+   DiffusionIntegrator::AddSpecialization<2,3,3>();
+   DiffusionIntegrator::AddSpecialization<2,4,4>();
+   DiffusionIntegrator::AddSpecialization<2,5,5>();
+   DiffusionIntegrator::AddSpecialization<2,6,6>();
+   DiffusionIntegrator::AddSpecialization<2,7,7>();
+   DiffusionIntegrator::AddSpecialization<2,8,8>();
+   DiffusionIntegrator::AddSpecialization<2,9,9>();
+   // 3D
+   DiffusionIntegrator::AddSpecialization<3,2,2>();
+   DiffusionIntegrator::AddSpecialization<3,2,3>();
+   DiffusionIntegrator::AddSpecialization<3,3,4>();
+   DiffusionIntegrator::AddSpecialization<3,4,5>();
+   DiffusionIntegrator::AddSpecialization<3,4,6>();
+   DiffusionIntegrator::AddSpecialization<3,5,6>();
+   DiffusionIntegrator::AddSpecialization<3,5,8>();
+   DiffusionIntegrator::AddSpecialization<3,6,7>();
+   DiffusionIntegrator::AddSpecialization<3,7,8>();
+   DiffusionIntegrator::AddSpecialization<3,8,9>();
+}
+
 namespace internal
 {
 
@@ -443,14 +470,14 @@ void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,D,X,Y);
-         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,D,X,Y);
-         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,D,X,Y);
-         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,D,X,Y);
-         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,D,X,Y);
-         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,D,X,Y);
-         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,D,X,Y);
-         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,D,X,Y);
+         case 0x22: return SmemPADiffusionApply2D<2,2,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x33: return SmemPADiffusionApply2D<3,3,16>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x44: return SmemPADiffusionApply2D<4,4,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x55: return SmemPADiffusionApply2D<5,5,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x66: return SmemPADiffusionApply2D<6,6,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x77: return SmemPADiffusionApply2D<7,7,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x88: return SmemPADiffusionApply2D<8,8,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x99: return SmemPADiffusionApply2D<9,9,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
          default:   return PADiffusionApply2D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }
@@ -459,16 +486,16 @@ void PADiffusionApply(const int dim,
    {
       switch (id)
       {
-         case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,D,X,Y);
-         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,D,X,Y);
-         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,D,X,Y);
-         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,D,X,Y);
-         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,D,X,Y);
-         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,D,X,Y);
-         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,D,X,Y);
-         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,D,X,Y);
-         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,D,X,Y);
-         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,D,X,Y);
+         case 0x22: return SmemPADiffusionApply3D<2,2>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x23: return SmemPADiffusionApply3D<2,3>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x34: return SmemPADiffusionApply3D<3,4>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x45: return SmemPADiffusionApply3D<4,5>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x46: return SmemPADiffusionApply3D<4,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x56: return SmemPADiffusionApply3D<5,6>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x58: return SmemPADiffusionApply3D<5,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x67: return SmemPADiffusionApply3D<6,7>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x78: return SmemPADiffusionApply3D<7,8>(NE,symm,B,G,Bt,Gt,D,X,Y);
+         case 0x89: return SmemPADiffusionApply3D<8,9>(NE,symm,B,G,Bt,Gt,D,X,Y);
          default:   return PADiffusionApply3D(NE,symm,B,G,Bt,Gt,D,X,Y,D1D,Q1D);
       }
    }

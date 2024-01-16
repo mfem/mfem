@@ -153,12 +153,10 @@ set(HDRS
   bilinearform_ext.hpp
   bilininteg.hpp
   integ/bilininteg_diffusion_kernels.hpp
-  integ/bilininteg_diffusion_pa.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
-  integ/bilininteg_mass_pa.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp

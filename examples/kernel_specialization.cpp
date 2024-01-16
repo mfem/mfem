@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "fem/bilininteg_diffusion_pa.hpp"
+#include "fem/bilininteg_diffusion_kernels.hpp"
 #include "fem/kernel_dispatch.hpp"
 
 using namespace std;
