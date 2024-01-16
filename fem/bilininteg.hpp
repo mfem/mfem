@@ -2044,8 +2044,8 @@ protected:
 };
 
 /** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, v)\f$ where \f$Q\f$ is a
-    scalar coefficient, and \f$v\f$ is a vector with components \f$v_i\f$ in the same (\f$H^1\f$) space
-    as \f$u\f$.
+    scalar coefficient, \f$u\f$ is in (\f$H^1\f$), and \f$v\f$ is a vector with components
+    \f$v_i\f$ in (\f$H^1\f$) or (\f$L^2\f$).
 
     See also MixedVectorGradientIntegrator when \f$v\f$ is in \f$H\f$(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
