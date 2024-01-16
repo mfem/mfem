@@ -1308,7 +1308,7 @@ DiffusionIntegrator::DiagonalKernelType
 DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
 
 template<>
-template<int T_D1D  , int T_Q1D  >
+template<int T_D1D, int T_Q1D  >
 DiffusionIntegrator::DiagonalKernelType
 DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
 

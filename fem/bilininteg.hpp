@@ -2101,14 +2101,14 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 public:
 
    using KernelType = void(*)(const int, const bool, const Array<double>&,
-                             const Array<double>&, const Array<double>&,
-                             const Array<double>&,
-                             const Vector&, const Vector&,
-                             Vector&, const int, const int);
+                              const Array<double>&, const Array<double>&,
+                              const Array<double>&,
+                              const Vector&, const Vector&,
+                              Vector&, const int, const int);
 
    using DiagonalKernelType = void(*)(const int, const bool, const Array<double>&,
-                             const Array<double>&, const Vector&, Vector&,
-                             const int, const int);
+                                      const Array<double>&, const Vector&, Vector&,
+                                      const int, const int);
 
    // Shared memory and non shared memory implementations of non-diagonal diffusion kernels have different
    // signatures. The first template argument refers to the signature of the non shared memory kernel type.
@@ -2314,11 +2314,11 @@ protected:
 public:
 
    using KernelType = void(*)(const int, const Array<double>&,
-                           const Array<double>&, const Vector&, const Vector&,
-                           Vector&, const int, const int);
+                              const Array<double>&, const Vector&, const Vector&,
+                              Vector&, const int, const int);
 
    using DiagonalKernelType =  void(*)(const int, const Array<double>&,
-                           const Vector&, Vector&, const int, const int);
+                                       const Vector&, Vector&, const int, const int);
 
    // The shared memory MassIntegrator kernels have the same signature as the non-shared memory implementations,
    // so make the two template arguments denoting kernel type identical.
