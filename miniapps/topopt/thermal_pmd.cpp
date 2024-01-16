@@ -182,6 +182,7 @@ int main(int argc, char *argv[])
 
    Mesh mesh;
    Array2D<int> ess_bdr;
+   Array<int> ess_bdr_filter;
    std::unique_ptr<Coefficient> vforce_cf;
 
    switch (problem)
@@ -191,16 +192,19 @@ int main(int argc, char *argv[])
                                      1.0);
          MarkBoundary(
             mesh,
-         [](double x, double y) {return std::fabs(x-0.5) < 0.25 && y > 0.5; },
+         [](const Vector &x) {return std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5; },
          1);
          MarkBoundary(
             mesh,
-         [](double x, double y) {return !(std::fabs(x-0.5) < 0.25 && y > 0.5); },
+         [](const Vector &x) {return !(std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5); },
          2);
          mesh.SetAttributes();
          ess_bdr.SetSize(1, 2);
+         ess_bdr_filter.SetSize(2);
          ess_bdr = 0;
          ess_bdr(0, 0) = 1;
+         ess_bdr_filter = 0;
+
          vforce_cf.reset(new ConstantCoefficient(1.0));
          solfile << "HeatSink-";
          solfile2 << "HeatSink-";
@@ -238,7 +242,7 @@ int main(int argc, char *argv[])
    mfem::out << "Number of control unknowns: " << control_size << std::endl;
    // 5. Set the initial guess for ρ.
    SIMPProjector simp_rule(exponent, rho_min);
-   HelmholtzFilter filter(filter_fes, epsilon);
+   HelmholtzFilter filter(filter_fes, epsilon, ess_bdr_filter);
    LatentDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient kappa_cf(kappa);
