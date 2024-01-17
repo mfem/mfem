@@ -16,8 +16,8 @@ namespace mfem
 
 void AttributeSets::Copy(AttributeSets &copy) const
 {
-   attr_sets.Copy(copy.attr_sets);
-   bdr_attr_sets.Copy(copy.bdr_attr_sets);
+   copy.attr_sets = attr_sets;
+   copy.bdr_attr_sets = bdr_attr_sets;
 }
 
 bool AttributeSets::SetsExist() const
