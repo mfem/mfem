@@ -19,7 +19,6 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
    const Vector &xu = x.GetBlock(0);
    const Vector &xp = x.GetBlock(1);
    Vector &zu = z.GetBlock(0);
-   Vector &zp = z.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
