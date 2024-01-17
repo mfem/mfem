@@ -103,13 +103,13 @@ public:
 
    void Flip();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    /** Prints the non-zero shape functions and their first and second
        derivatives associated with the KnotVector per element. Use GetElements()
        to count the elements before using this function. @a samples is the
        number of samples of the shape functions per element.*/
-   void PrintFunctions(std::ostream &out, int samples=11) const;
+   void PrintFunctions(std::ostream &os, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -169,7 +169,7 @@ public:
 
    ~NURBSPatch();
 
-   void Print(std::ostream &out) const;
+   void Print(std::ostream &os) const;
 
    void DegreeElevate(int dir, int t);
 
@@ -477,8 +477,8 @@ public:
    virtual ~NURBSExtension();
 
    // Print functions
-   void Print(std::ostream &out) const;
-   void PrintCharacteristics(std::ostream &out) const;
+   void Print(std::ostream &os, const std::string &comments = "") const;
+   void PrintCharacteristics(std::ostream &os) const;
    void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
@@ -559,7 +559,7 @@ public:
    // Read a GridFunction written patch-by-patch, e.g. with PrintSolution().
    void LoadSolution(std::istream &input, GridFunction &sol) const;
    // Write a GridFunction patch-by-patch.
-   void PrintSolution(const GridFunction &sol, std::ostream &out) const;
+   void PrintSolution(const GridFunction &sol, std::ostream &os) const;
 
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))

@@ -2359,9 +2359,9 @@ NURBSExtension::~NURBSExtension()
    }
 }
 
-void NURBSExtension::Print(std::ostream &os) const
+void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
 {
-   patchTopo->PrintTopo(os, edge_to_knot);
+   patchTopo->PrintTopo(os, edge_to_knot, comments);
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
