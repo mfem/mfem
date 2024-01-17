@@ -4,11 +4,11 @@
 //
 // Sample runs:
 //
-//       mpirun ex18p -p 1 -rs 2 -o 1 -s 3
-//       mpirun ex18p -p 1 -rs 1 -o 3 -s 4
-//       mpirun ex18p -p 1 -rs 0 -o 5 -s 6
-//       mpirun ex18p -p 2 -rs 1 -o 1 -s 3
-//       mpirun ex18p -p 2 -rs 0 -o 3 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -20,10 +20,10 @@
 //               F is the Euler flux function, and F̂ is the numerical flux.
 //
 //               Specifically, it solves for an exact solution of the equations
-//               whereby a euler is transported by a uniform flow. Since all
+//               whereby a vortex is transported by a uniform flow. Since all
 //               boundaries are periodic here, the method's accuracy can be
 //               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the euler returns
+//               the initial condition at a later time when the vortex returns
 //               to its initial location.
 //
 //               Note that as the order of the spatial discretization increases,
@@ -104,7 +104,8 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.ParseCheck();
 
-   // 2. Read the mesh from the given mesh file.
+   // 2. Read the mesh from the given mesh file. When the user does not provide
+   //    mesh file, use the default mesh file for the problem.
    Mesh mesh = mesh_file.empty() ? EulerMesh(problem) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
@@ -117,39 +118,28 @@ int main(int argc, char *argv[])
          y *= 0.5;
       });
    }
-   //    Refine the mesh to increase the resolution. In this example we do
-   //    'seq_ref_levels' of uniform refinement, where 'seq_ref_levels' is a
-   //    command-line parameter.
+
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is a command-line
+   // parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh.UniformRefinement();
    }
 
-   if (numProcs > mesh.GetNE())
-   {
-      if (Mpi::Root())
-      {
-         mfem_warning(
-            "The number of processor is larger than the number of elements.\n"
-            "Refine serial meshes until the number of elements is large enough");
-      }
-      while (mesh.GetNE() < numProcs)
-      {
-         mesh.UniformRefinement();
-      }
-   }
-   if (dim > 1) { mesh.EnsureNCMesh(); }
-
+   // Define a parallel mesh by a partitioning of the serial mesh. Refine this
+   // mesh further in parallel to increase the resolution. Once the parallel
+   // mesh is defined, the serial mesh can be deleted.
    ParMesh pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   //    Refine the mesh to increase the resolution. In this example we do
-   //    'par_ref_levels' of uniform refinement, where 'par_ref_levels' is a
-   //    command-line parameter.
+
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'par_ref_levels' of uniform refinement, where 'par_ref_levels' is a command-line
+   // parameter.
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
    }
-   if (dim > 1) { pmesh.EnsureNCMesh(); }
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
@@ -178,9 +168,10 @@ int main(int argc, char *argv[])
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+   HYPRE_BigInt glob_size = vfes.GlobalTrueVSize();
    if (Mpi::Root())
    {
-      cout << "Number of unknowns: " << vfes.GlobalTrueVSize() << endl;
+      cout << "Number of unknowns: " << glob_size << endl;
    }
 
    // 6. Define the initial conditions, save the corresponding mesh and grid
@@ -214,9 +205,9 @@ int main(int argc, char *argv[])
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    EulerFlux flux(dim, specific_heat_ratio);
-   RiemannSolver *numericalFlux = new RusanovFlux(flux);
+   RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(vfes,
-                                      new HyperbolicFormIntegrator(flux, *numericalFlux, IntOrderOffset));
+                                      new HyperbolicFormIntegrator(flux, numericalFlux, IntOrderOffset));
 
    // Visualize the density
    socketstream sout;
@@ -259,12 +250,12 @@ int main(int argc, char *argv[])
    double hmin;
    if (cfl > 0)
    {
-      double my_hmin = pmesh.GetNE() > 0 ? pmesh.GetElementSize(0, 1) : INFINITY;
+      hmin = pmesh.GetNE() > 0 ? pmesh.GetElementSize(0, 1) : INFINITY;
       for (int i = 1; i < pmesh.GetNE(); i++)
       {
-         my_hmin = min(pmesh.GetElementSize(i, 1), my_hmin);
+         hmin = min(pmesh.GetElementSize(i, 1), hmin);
       }
-      MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    }
 
    // Start the timer.
@@ -282,9 +273,8 @@ int main(int argc, char *argv[])
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
-      double max_char_speed;
-      double my_max_char_speed = euler.GetMaxCharSpeed();
-      MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+      double max_char_speed  = euler.GetMaxCharSpeed();
+      MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
@@ -298,9 +288,8 @@ int main(int argc, char *argv[])
       ode_solver->Step(sol, t, dt_real);
       if (cfl > 0)
       {
-         double max_char_speed;
-         double my_max_char_speed = euler.GetMaxCharSpeed();
-         MPI_Allreduce(&my_max_char_speed, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
+         double max_char_speed = euler.GetMaxCharSpeed();
+         MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
                        pmesh.GetComm());
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
       }
@@ -361,7 +350,6 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
-   delete numericalFlux;
 
    return 0;
 }

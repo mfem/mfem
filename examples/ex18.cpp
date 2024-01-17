@@ -96,9 +96,8 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.ParseCheck();
 
-   // 2. Read the mesh from the given mesh file.
-   // When the user does not provide mesh file,
-   // use the default mesh file for the problem.
+   // 2. Read the mesh from the given mesh file. When the user does not provide
+   //    mesh file, use the default mesh file for the problem.
    Mesh mesh = mesh_file.empty() ? EulerMesh(problem) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
@@ -111,9 +110,9 @@ int main(int argc, char *argv[])
          y *= 0.5;
       });
    }
-   //    Refine the mesh to increase the resolution. In this example we do
-   //    'ref_levels' of uniform refinement, where 'ref_levels' is a
-   //    command-line parameter.
+   // Refine the mesh to increase the resolution. In this example we do
+   // 'ref_levels' of uniform refinement, where 'ref_levels' is a command-line
+   // parameter.
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -179,9 +178,9 @@ int main(int argc, char *argv[])
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    EulerFlux flux(dim, specific_heat_ratio);
-   RiemannSolver *numericalFlux = new RusanovFlux(flux);
+   RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(vfes,
-                                      new HyperbolicFormIntegrator(flux, *numericalFlux, IntOrderOffset));
+                                      new HyperbolicFormIntegrator(flux, numericalFlux, IntOrderOffset));
 
    // Visualize the density
    socketstream sout;
@@ -297,7 +296,6 @@ int main(int argc, char *argv[])
 
    // Free the used memory.
    delete ode_solver;
-   delete numericalFlux;
 
    return 0;
 }
