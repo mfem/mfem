@@ -13,7 +13,7 @@
 // Unsteady flow of a decaying vortex is computed and compared against a known,
 // analytical solution.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
