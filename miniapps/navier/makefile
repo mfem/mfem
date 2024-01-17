@@ -57,10 +57,10 @@ endif
 all: $(MINIAPPS)
 
 test_%: ./tests/test_%.cpp.o $(NAVIER_LIB)
-	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $^ $(MFEM_LIBS)
 
 navier_%: ./examples/navier_%.cpp.o $(NAVIER_LIB)
-	$(MFEM_CXX) -o $@ $^ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $^ $(MFEM_LIBS)
 
 %.cpp.o: %.cpp
 	$(MFEM_CXX) $(MFEM_FLAGS) $(INC_FLAGS) -MMD -MP -c $< -o $@
