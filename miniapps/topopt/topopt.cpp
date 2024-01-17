@@ -152,6 +152,12 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
                            bool b_Assembled)
 {
    OperatorPtr A;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      A.Reset(new HypreParMatrix);
+   }
+#endif
    Vector B, X;
    if (!A_assembled) { a.Update(); a.Assemble(); }
    if (!b_Assembled) { b.Assemble(); }
@@ -171,8 +177,7 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
-      M.reset(new HypreBoomerAMG);
-      auto M_ptr = new HypreBoomerAMG;
+      auto M_ptr = new HypreBoomerAMG(static_cast<HypreParMatrix&>(*A));
       M_ptr->SetPrintLevel(0);
 
       M.reset(M_ptr);
@@ -180,11 +185,11 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
    }
    else
    {
-      M.reset(new GSSmoother((SparseMatrix&)(*A)));
+      M.reset(new GSSmoother(static_cast<SparseMatrix&>(*A)));
       cg.reset(new CGSolver);
    }
 #else
-   M.reset(new GSSmoother((SparseMatrix&)(*A)));
+   M.reset(new GSSmoother(static_cast<SparseMatrix&>(*A)));
    cg.reset(new CGSolver);
 #endif
    cg->SetRelTol(1e-14);
@@ -574,9 +579,43 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
 
 double TopOptProblem::Eval()
 {
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << "\n" << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
+          "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
+       "\r";
+#endif
    if (apply_projection) { density.Project(); }
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << std::setfill('.') << std::setw(15) << "Filter: " << std::flush << "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Filter: " << std::flush << "\r";
+#endif
    density.UpdateFilteredDensity();
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << std::setfill('.') << std::setw(15) << "Solve: " << std::flush << "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Solve: " << std::flush << "\r";
+#endif
    state_equation.Solve(*state);
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << std::setfill('.') << std::setw(15) << "Eval: " << std::flush << "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Eval: " << std::flush << "\r";
+#endif
    val = obj(*state);
 #ifdef MFEM_USE_MPI
    if (parallel)
@@ -584,25 +623,57 @@ double TopOptProblem::Eval()
       MPI_Allreduce(MPI_IN_PLACE, &val, 1, MPI_DOUBLE, MPI_SUM, comm);
    }
 #endif
+   out << std::flush;
    return val;
 }
 
 void TopOptProblem::UpdateGradient()
 {
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << std::setfill('.') << std::setw(15) << "Solve Dual: " << std::flush <<
+          "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Solve Dual: " << std::flush <<
+       "\r";
+#endif
    if (solve_dual)
    {
       // state equation is assumed to be a symmetric operator
       state_equation.DualSolve(*dual_solution, obj);
    }
+#ifdef MFEM_USE_MPI
+   if (!parallel || Mpi::Root())
+   {
+      out << std::setfill('.') << std::setw(15) << "Dual Filter: " << std::flush <<
+          "\r";
+   }
+#else
+   out << std::setfill('.') << std::setw(15) << "Dual Filter: " << std::flush <<
+       "\r";
+#endif
    density.GetFilter().Apply(*dEdfrho, *gradF_filter);
    if (gradF_filter != gradF)
    {
+#ifdef MFEM_USE_MPI
+      if (!parallel || Mpi::Root())
+      {
+         out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
+             "\r";
+      }
+#else
+      out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
+          "\r";
+#endif
       std::unique_ptr<LinearForm> tmp(MakeLinearForm(gradF->FESpace()));
       GridFunctionCoefficient gradF_filter_cf(gradF_filter.get());
       tmp->AddDomainIntegrator(new DomainLFIntegrator(gradF_filter_cf));
       tmp->Assemble();
       filter_to_density->Mult(*tmp, *gradF);
    }
+   out << std::flush;
 }
 
 double StrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
@@ -764,6 +835,7 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    auto pgrad = dynamic_cast<ParGridFunction*>(&grad);
    MPI_Comm comm;
    if (pgrad) { comm = pgrad->ParFESpace()->GetComm(); }
+   bool use_mpi = Mpi::IsInitialized();
 #endif
    // store current point
    std::unique_ptr<GridFunction> x0(MakeGridFunction(x_gf.FESpace()));
@@ -788,20 +860,16 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
       d = (*diff_densityForm)(grad);
       out_string << i;
 #ifdef MFEM_USE_MPI
+      if (!use_mpi || Mpi::Root())
+      {
+         out << i << std::flush << "\r";
+      }
       if (pgrad)
       {
-         out << i << std::flush;
-         for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
          MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm);
       }
-      else
-      {
-         out << i << std::flush;
-         for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
-      }
 #else
-      out << i << std::flush;
-      for (int j=0; j< (i / 10) + 1; j++) { out << "\b";}
+      out << i << std::flush << "\r";
 #endif
       if (new_val < val + c1*d && d < 0) { break; }
    }
