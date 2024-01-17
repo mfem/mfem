@@ -26,7 +26,7 @@ public:
    NavierStokesOperator &nav;
    mutable std::shared_ptr<FDJacobian> fd_linearized;
    mutable BlockVector z;
-   double dt;
+   double cached_dt;
    mutable bool rebuild_pc = true;
 };
 

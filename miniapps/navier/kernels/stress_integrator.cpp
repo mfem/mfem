@@ -34,11 +34,11 @@ void StressIntegrator::AssembleElementMatrix(
 
       double nu = Q->Eval(Tr, ip);
 
-      for (int i = 0; i < dof; i++)
+      for (int n = 0; n < dof; n++)
       {
-         for (int j = 0; j < dof; j++)
+         for (int m = 0; m < dof; m++)
          {
-            pelmat(i,j) = nu * (dshape(i, j) + dshape(j, i));
+            pelmat(n, m) = nu * (dshape(n, m) + dshape(m, n));
          }
       }
       for (int k = 0; k < vdim; ++k)

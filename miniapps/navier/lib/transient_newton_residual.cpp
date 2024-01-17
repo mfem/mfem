@@ -23,10 +23,10 @@ void TransientNewtonResidual::Mult(const Vector &xb, Vector &yb) const
    Vector &yp = y.GetBlock(1);
 
    nav.K->Mult(xu, yu);
-   yu *= dt;
+   yu *= cached_dt;
 
    nav.G->Mult(xp, zu);
-   zu *= dt;
+   zu *= cached_dt;
    yu += zu;
 
    nav.D->Mult(xu, yp);
@@ -56,9 +56,9 @@ Operator& TransientNewtonResidual::GetGradient(const Vector &x) const
 
 void TransientNewtonResidual::Setup(const double dt)
 {
-   if (this->dt != dt)
+   if (cached_dt != dt)
    {
       rebuild_pc = true;
    }
-   this->dt = dt;
+   cached_dt = dt;
 }

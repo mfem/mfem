@@ -334,13 +334,15 @@ protected:
    void BuildHPFForcing(ParGridFunction &vel_gf);
 
    // Evaluate Legendre Polynomials of order N at point x
-   void EvaluateLegendrePolynomial(const int N, const double x, Vector &L);
+   void EvaluateLegendrePolynomial(const int poly_order, const double x,
+                                   Vector &L);
 
    // Evaluate Legendre Polynomials of order N at point x
-   void EvaluateLegendrePolynomialShifted(const int N, const double x, Vector &L);
+   void EvaluateLegendrePolynomialShifted(const int poly_order, const double x,
+                                          Vector &L);
 
    // Evaluate Monomial Basis of order N at point x
-   void EvaluateMonomialBasis(const int N, const double x, Vector &L);
+   void EvaluateMonomialBasis(const int poly_order, const double x, Vector &L);
 
    /// Enable/disable debug output.
    bool debug = false;

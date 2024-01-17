@@ -1082,28 +1082,30 @@ void NavierSolver::PrintInfo()
    }
 }
 
-void NavierSolver::EvaluateLegendrePolynomial(const int N, const double x,
+void NavierSolver::EvaluateLegendrePolynomial(const int poly_order,
+                                              const double x,
                                               Vector &L)
 {
    L(0) = 1.0;
    L(1) = x;
 
-   for (int i = 2; i < N; i++)
+   for (int i = 2; i < poly_order; i++)
    {
       L(i) = ((2*i-1) * x * L(i-1) - (i-1) * L(i-2)) / (double)i;
    }
 }
 
-void NavierSolver::EvaluateLegendrePolynomialShifted(const int N,
+void NavierSolver::EvaluateLegendrePolynomialShifted(const int poly_order,
                                                      const double x,
                                                      Vector &L)
 {
-   EvaluateLegendrePolynomial(N, 2.0 * x - 1.0, L);
+   EvaluateLegendrePolynomial(poly_order, 2.0 * x - 1.0, L);
 }
 
-void NavierSolver::EvaluateMonomialBasis(const int N, const double x, Vector &L)
+void NavierSolver::EvaluateMonomialBasis(const int poly_order, const double x,
+                                         Vector &L)
 {
-   for (int i = 0; i < N; i++)
+   for (int i = 0; i < poly_order; i++)
    {
       L(i) = std::pow(x, i);
    }
@@ -1119,32 +1121,32 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
    const int hpf_kco = filter_cutoff_modes;
    const double hpf_weight = filter_alpha;
    const double hpf_chi = -1.0 * hpf_weight;
-   const int N = order + 1;
+   const int NN = order + 1;
 
    DenseMatrix D_filter;
-   D_filter.Diag(1.0, N);
+   D_filter.Diag(1.0, NN);
 
-   const int k0 = N - hpf_kco;
+   const int k0 = NN - hpf_kco;
    // Amplitude
    double a;
 
-   for (int k = k0; k < N; k++)
+   for (int k = k0; k < NN; k++)
    {
       a = (pow((double)(k+1 - k0), 2.0))/pow((double)(hpf_kco), 2.0);
       D_filter(k, k) = 1.0 - a;
    }
 
    // Legendre Basis interpolation matrix
-   DenseMatrix V(N), Vinv(N);
-   Vector Vi(N);
+   DenseMatrix V(NN), Vinv(NN);
+   Vector Vi(NN);
 
-   for (int i = 0; i < N; i++)
+   for (int i = 0; i < NN; i++)
    {
-      EvaluateLegendrePolynomialShifted(N, gll_ir.IntPoint(i).x, Vi);
+      EvaluateLegendrePolynomialShifted(NN, gll_ir.IntPoint(i).x, Vi);
       V.SetRow(i, Vi);
    }
 
-   DenseMatrix DfVinv(N), F(N), Ft(N);
+   DenseMatrix DfVinv(NN), F(NN), Ft(NN);
    Vinv = V;
    Vinv.Invert();
 
@@ -1166,7 +1168,7 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
    int ndofs = nodal_fe->GetDof();
    dofs.SetSize(ndofs);
    int dim = nodal_fe->GetDim();
-   DenseMatrix W1, W2(N);
+   DenseMatrix W1, W2(NN);
 
    // hpfrt E-vector
    auto h1v_element_restriction = vfes->GetElementRestriction(
@@ -1176,7 +1178,6 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
 
    for (int e = 0; e < vfes->GetNE(); ++e)
    {
-      Array <int> vdofs;
       vfes->GetElementVDofs(e, vdofs);
       for (int d = 0; d < dim; d++)
       {
@@ -1194,7 +1195,7 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
          w1 = u_e;
          // Make 1D input field available as a matrix. Assumes that the 1D
          // field is ordered the same as the quadrature rule.
-         W1.UseExternalData(w1.GetData(), N, N);
+         W1.UseExternalData(w1.GetData(), NN, NN);
          // W2 = F * W1
          Mult(F, W1, W2);
          // W1 = W2 * F'

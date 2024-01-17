@@ -25,15 +25,15 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
                                    ParGridFunction &sigmaN_gf)
 {
    const auto &u_fes = *u_gf.ParFESpace();
-   const auto &p_fes = *p_gf.ParFESpace();
-   const auto &nu_fes = *nu_gf.ParFESpace();
+   // const auto &p_fes = *p_gf.ParFESpace();
+   // const auto &nu_fes = *nu_gf.ParFESpace();
    const auto &sigmaN_fes = *u_gf.ParFESpace();
    const auto &mesh = *u_fes.GetMesh();
    const auto dim = mesh.Dimension();
 
    Array<int> sigmaN_vdofs;
 
-   double p, nu;
+   double nu;
    Vector sigmaN, nor(dim);
    DenseMatrix dshape, dudxi, dudx, A(dim, dim);
 
@@ -62,7 +62,7 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
          nor /= scale;
 
          u_gf.GetVectorGradient(Tr, dudx);
-         p = p_gf.GetValue(Tr, ip);
+         // p = p_gf.GetValue(Tr, ip);
          nu = nu_gf.GetValue(Tr, ip);
 
          // (-p * I + nu (grad(u) + grad(u)^T))

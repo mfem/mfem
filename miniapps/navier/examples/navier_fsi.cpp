@@ -321,8 +321,6 @@ public:
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    int polynomial_order = 2;
@@ -382,7 +380,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
    ParGridFunction *p_gf = navier.GetCurrentPressure();
    ParGridFunction *nu_gf = navier.GetVariableViscosity();
-   GridFunction *w_gf = navier.GetCurrentMeshVelocity();
+   // GridFunction *w_gf = navier.GetCurrentMeshVelocity();
    GridFunction fluid_mesh_nodes_old(*fluid_mesh.GetNodes());
 
    ParGridFunction sigmaN_gf(u_gf->ParFESpace());
@@ -408,7 +406,7 @@ int main(int argc, char *argv[])
                                                         const double time,
                                                         Vector &u)
    {
-      const double x = coords(0);
+      // const double x = coords(0);
       const double y = coords(1);
       const double H = 0.41;
       const double ramp_peak_at = 1.0;
@@ -601,7 +599,6 @@ int main(int argc, char *argv[])
       refiner.Reset();
       derefiner.Reset();
 
-      int ok = -1;
       double previous_dt = dt;
 
       double lift = 0.0, lift2 = 0.0;

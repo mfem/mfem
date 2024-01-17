@@ -247,7 +247,7 @@ void CurlEvaluator::ComputeCurlLegacy(
       ElementTransformation *tr = dom_fes.GetElementTransformation(e);
       const FiniteElement *el = dom_fes.GetFE(e);
       elndofs = el->GetDof();
-      int dim = el->GetDim();
+      // int dim = el->GetDim();
       dshape.SetSize(elndofs, dim);
 
       for (int dof = 0; dof < elndofs; ++dof)

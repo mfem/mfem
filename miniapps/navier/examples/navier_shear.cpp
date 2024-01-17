@@ -84,8 +84,6 @@ private:
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
 
    int serial_refinements = 2;

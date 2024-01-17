@@ -179,9 +179,6 @@ public:
    std::unique_ptr<Solver> LpinvPC;
    std::unique_ptr<Operator> SchurInv;
 
-   Solver *krylov = nullptr;
-   Solver *solver = nullptr;
-
    CahouetChabardPC *Sinv = nullptr;
 
    ParLinearForm *forcing_form = nullptr;
