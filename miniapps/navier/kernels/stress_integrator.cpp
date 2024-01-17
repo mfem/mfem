@@ -32,9 +32,6 @@ void StressIntegrator::AssembleElementMatrix(
 
       el.CalcPhysDShape(Tr, dshape);
 
-      double JxW = Tr.Weight() * ip.weight;
-      // T.InverseJacobian();
-
       double nu = Q->Eval(Tr, ip);
 
       for (int i = 0; i < dof; i++)
@@ -44,10 +41,6 @@ void StressIntegrator::AssembleElementMatrix(
             pelmat(i,j) = nu * (dshape(i, j) + dshape(j, i));
          }
       }
-
-      // MultABt(Tr.InverseJacobian(), S, );
-
-      // Mult_a_AAt(w, dshapedxt, pelmat);
       for (int k = 0; k < vdim; ++k)
       {
          elmat.AddMatrix(pelmat, dof*k, dof*k);

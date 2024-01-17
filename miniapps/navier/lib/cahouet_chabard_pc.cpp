@@ -8,8 +8,8 @@ CahouetChabardPC::CahouetChabardPC(Solver &Mp_inv, Solver &Lp_inv,
    Solver(Mp_inv.Height()),
    Mp_inv(Mp_inv),
    Lp_inv(Lp_inv),
-   dt(dt),
    z(Mp_inv.Height()),
+   dt(dt),
    pres_ess_tdofs(pres_ess_tdofs) { }
 
 void CahouetChabardPC::Mult(const Vector &x, Vector &y) const
