@@ -1036,7 +1036,7 @@ template <typename S, typename T, int m, int n, int... l> MFEM_HOST_DEVICE
 auto dot(const tensor<S, m>& A, const tensor<T, m, n, l...>& B) ->
 tensor<decltype(S {} * T{}), n, l...>
 {
-   constexpr int dimensions[] = {n, l...};
+   // constexpr int dimensions[] = {n, l...}; unused but useful?
    tensor<decltype(S{} * T{}), n, l...> AB{};
    for (int i = 0; i < n; i++)
    {
