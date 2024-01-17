@@ -268,7 +268,7 @@ void NavierSolver::UpdateSpaces()
    vfes_tvecs[15] = &hpfrt_tdofs;
 
    std::array<ParGridFunction, num_vfes_tvecs> vfes_gfs;
-   for (int i = 0; i < vfes_gfs.size(); i++)
+   for (size_t i = 0; i < vfes_gfs.size(); i++)
    {
       vfes_gfs[i].SetSpace(vfes);
       vfes_gfs[i].SetFromTrueDofs(*vfes_tvecs[i]);
@@ -276,7 +276,7 @@ void NavierSolver::UpdateSpaces()
 
    vfes->Update();
 
-   for (int i = 0; i < vfes_gfs.size(); i++)
+   for (size_t i = 0; i < vfes_gfs.size(); i++)
    {
       vfes_gfs[i].Update();
       vfes_gfs[i].GetTrueDofs(*vfes_tvecs[i]);
@@ -291,7 +291,7 @@ void NavierSolver::UpdateSpaces()
    pfes_tvecs[4] = &kv;
 
    std::array<ParGridFunction, num_pfes_tvecs> pfes_gfs;
-   for (int i = 0; i < pfes_gfs.size(); i++)
+   for (size_t i = 0; i < pfes_gfs.size(); i++)
    {
       pfes_gfs[i].SetSpace(pfes);
       pfes_gfs[i].SetFromTrueDofs(*pfes_tvecs[i]);
@@ -299,7 +299,7 @@ void NavierSolver::UpdateSpaces()
 
    pfes->Update();
 
-   for (int i = 0; i < pfes_gfs.size(); i++)
+   for (size_t i = 0; i < pfes_gfs.size(); i++)
    {
       pfes_gfs[i].Update();
       pfes_gfs[i].GetTrueDofs(*pfes_tvecs[i]);
