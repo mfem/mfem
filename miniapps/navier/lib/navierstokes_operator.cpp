@@ -132,11 +132,11 @@ void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
 
 void NavierStokesOperator::Mult(const Vector &xb, Vector &yb) const
 {
-   if (EvalMode::ADDITIVE_TERM_1)
+   if (eval_mode == EvalMode::ADDITIVE_TERM_1)
    {
       MultExplicit(xb, yb);
    }
-   else if (EvalMode::ADDITIVE_TERM_2)
+   else if (eval_mode == EvalMode::ADDITIVE_TERM_2)
    {
       MultImplicit(xb, yb);
    }
