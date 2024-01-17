@@ -93,8 +93,6 @@ void NavierStokesOperator::MultImplicit(const Vector &xb, Vector &yb) const
    const BlockVector x(xb.GetData(), offsets);
    BlockVector y(yb.GetData(), offsets);
 
-   const Vector &xu = x.GetBlock(0);
-   const Vector &xp = x.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
@@ -115,14 +113,16 @@ void NavierStokesOperator::MultExplicit(const Vector &xb, Vector &yb) const
    BlockVector y(yb.GetData(), offsets);
 
    const Vector &xu = x.GetBlock(0);
-   const Vector &xp = x.GetBlock(1);
    Vector &yu = y.GetBlock(0);
    Vector &yp = y.GetBlock(1);
 
    n_form->Mult(xu, yu);
    yu.Neg();
 
-   yu += fu_rhs;
+   if (fu_rhs.Size())
+   {
+      yu += fu_rhs;
+   }
 
    yp = 0.0;
    yu.SetSubVector(vel_ess_tdofs, 0.0);
@@ -561,7 +561,7 @@ void NavierStokesOperator::SetParameters(Coefficient *am,
    delete mp_form;
    mp_form = new ParBilinearForm(&pres_fes);
    auto mp_coeff = new TransformedCoefficient(ak_coeff,
-   [this](const double kv) { return 1.0 / kv; });
+   [](const double kv) { return 1.0 / kv; });
    integrator = new MassIntegrator(*mp_coeff);
    integrator->SetIntRule(&ir);
    mp_form->AddDomainIntegrator(integrator);
