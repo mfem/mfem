@@ -124,7 +124,7 @@ void ScalarEquation::SetFixedValue(Coefficient &c,
 
    Array<int> *attr = new Array<int>(mesh.bdr_attributes.Size());
    *attr = 0;
-   for (int i = 0; i < bdr_attributes.size(); i++)
+   for (size_t i = 0; i < bdr_attributes.size(); i++)
    {
       (*attr)[bdr_attributes[i]] = 1;
    }
