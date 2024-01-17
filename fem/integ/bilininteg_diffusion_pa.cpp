@@ -19,6 +19,82 @@
 namespace mfem
 {
 
+
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      if (pa_data.Size()==0) { AssemblePA(*fespace); }
+
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Vector &Dv = pa_data;
+
+      kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);
+   }
+}
+
+// PA Diffusion Apply kernel
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      const int D1D = dofs1D;
+      const int Q1D = quad1D;
+      const int NE = ne;
+      const bool symm = symmetric;
+      const Array<double> &B = maps->B;
+      const Array<double> &G = maps->G;
+      const Array<double> &Bt = maps->Bt;
+      const Array<double> &Gt = maps->Gt;
+      const Vector &Dv = pa_data;
+
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            OccaPADiffusionApply2D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         if (dim == 3)
+         {
+            OccaPADiffusionApply3D(D1D,Q1D,NE,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+
+      kernels.apply.Run(dim, D1D, Q1D, NE, symm, B, G, Bt, Gt, Dv, x, y, D1D, Q1D);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
+}
+
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
