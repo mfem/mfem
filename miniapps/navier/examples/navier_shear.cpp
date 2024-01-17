@@ -28,7 +28,7 @@
 // instability and the dynamics of the flow. The boundary conditions are fully
 // periodic.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -40,6 +40,9 @@ struct s_NavierContext
    double kinvis = 1.0 / 100000.0;
    double t_final = 1.0;
    double dt = 1e-3;
+   double max_elem_error = 5.0e-3;
+   double hysteresis = 0.15; // derefinement safety coefficient
+   int nc_limit = 3;
 } ctx;
 
 void vel_shear_ic(const Vector &x, double t, Vector &u)
@@ -62,6 +65,22 @@ void vel_shear_ic(const Vector &x, double t, Vector &u)
    u(1) = delta * sin(2.0 * M_PI * xi);
 }
 
+class MagnitudeCoefficient : public Coefficient
+{
+public:
+   MagnitudeCoefficient(const ParGridFunction &u) : u(u) {}
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector val;
+      u.GetVectorValue(T, ip, val);
+      return val.Norml2();
+   }
+
+private:
+   const ParGridFunction &u;
+};
+
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
@@ -71,8 +90,35 @@ int main(int argc, char *argv[])
 
    int serial_refinements = 2;
 
+   OptionsParser args(argc, argv);
+   args.AddOption(&ctx.order,
+                  "-o",
+                  "--order",
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.dt, "-dt", "--time-step", "Time step.");
+   args.AddOption(&ctx.t_final, "-tf", "--final-time", "Final time.");
+
+   args.AddOption(&ctx.max_elem_error, "-e", "--max-err",
+                  "Maximum element error");
+   args.AddOption(&ctx.hysteresis, "-y", "--hysteresis",
+                  "Derefinement safety coefficient.");
+   args.Parse();
+   if (!args.Good())
+   {
+      if (Mpi::Root())
+      {
+         args.PrintUsage(mfem::out);
+      }
+      return 1;
+   }
+   if (Mpi::Root())
+   {
+      args.PrintOptions(mfem::out);
+   }
+
    Mesh *mesh = new Mesh("../../data/periodic-square.mesh");
    mesh->EnsureNodes();
+   mesh->EnsureNCMesh();
    GridFunction *nodes = mesh->GetNodes();
    *nodes -= -1.0;
    *nodes /= 2.0;
@@ -116,6 +162,30 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
    ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
+   MagnitudeCoefficient mag_coeff(*u_gf);
+   ParGridFunction vel_mag_gf(*p_gf);
+
+   auto estimator_integ = new DiffusionIntegrator();
+
+   L2_FECollection flux_fec(ctx.order, 2);
+   // auto flux_fes = new ParFiniteElementSpace(pmesh, &flux_fec, 2);
+   auto flux_fes = new ParFiniteElementSpace(pmesh, p_gf->ParFESpace()->FEColl(),
+                                             2);
+   auto estimator = new ZienkiewiczZhuEstimator(
+      *estimator_integ, vel_mag_gf,
+      flux_fes);
+
+   ThresholdRefiner refiner(*estimator);
+   refiner.SetMaxElements(1000);
+   refiner.SetTotalErrorFraction(0.0); // use purely local threshold
+   refiner.SetLocalErrorGoal(ctx.max_elem_error);
+   refiner.PreferConformingRefinement();
+   refiner.SetNCLimit(ctx.nc_limit);
+
+   ThresholdDerefiner derefiner(*estimator);
+   derefiner.SetThreshold(ctx.hysteresis * ctx.max_elem_error);
+   derefiner.SetNCLimit(ctx.nc_limit);
+
    // ParGridFunction w_gf(*u_gf);
    // flowsolver.ComputeCurl2D(*u_gf, w_gf);
 
@@ -144,6 +214,20 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
+      refiner.Reset();
+      derefiner.Reset();
+
+      if (step % 10 == 0)
+      {
+         vel_mag_gf.ProjectCoefficient(mag_coeff);
+         refiner.Apply(*pmesh);
+         printf("refined to #el: %lld\n", pmesh->GetGlobalNE());
+         flowsolver.UpdateSpaces();
+         flowsolver.UpdateForms();
+         flowsolver.UpdateSolvers();
+         vel_mag_gf.Update();
+      }
+
       flowsolver.Step(t, dt, step);
 
       if (step % 10 == 0)
@@ -156,6 +240,15 @@ int main(int argc, char *argv[])
          // sol_sock << "parallel " << num_procs << " " << myid << "\n";
          // sol_sock.precision(8);
          // sol_sock << "solution\n" << *pmesh << *u_gf << std::flush;
+      }
+
+      if (step % 100 == 0)
+      {
+         derefiner.Apply(*pmesh);
+         printf("derefined to #el: %lld\n", pmesh->GetGlobalNE());
+         flowsolver.UpdateSpaces();
+         flowsolver.UpdateForms();
+         flowsolver.UpdateSolvers();
       }
 
       if (Mpi::Root())

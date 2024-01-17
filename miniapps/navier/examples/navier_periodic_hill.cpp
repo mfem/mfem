@@ -11,8 +11,8 @@
 
 // 3D flow over a cylinder benchmark example
 
-#include "navier_solver.hpp"
-#include "prandtl_kolmogorov.hpp"
+#include "lib/navier_solver.hpp"
+#include "rans/prandtl_kolmogorov.hpp"
 #include "dist_solver.hpp"
 #include <fstream>
 

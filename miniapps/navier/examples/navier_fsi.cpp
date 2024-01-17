@@ -1,7 +1,7 @@
-#include "navier_solver.hpp"
-#include "boundary_normal_stress_integrator.hpp"
-#include "boundary_normal_pressure_integrator.hpp"
-#include "boundary_normal_stress_evaluator.hpp"
+#include "lib/navier_solver.hpp"
+#include "kernels/boundary_normal_stress_integrator.hpp"
+#include "kernels/boundary_normal_pressure_integrator.hpp"
+#include "kernels/boundary_normal_stress_evaluator.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -340,6 +340,9 @@ int main(int argc, char *argv[])
    bool last_step = false;
    double solid_density = 1e3;
    int enable_retry = 1;
+   double max_elem_error = 5.0e-3;
+   double hysteresis = 0.15; // derefinement safety coefficient
+   int nc_limit = 3;
 
    const char *device_config = "cpu";
    OptionsParser args(argc, argv);
@@ -352,6 +355,10 @@ int main(int argc, char *argv[])
                   "enable_retry");
    args.AddOption(&U, "-inflow_velocity", "--inflow_velocity",
                   "inflow_velocity");
+   args.AddOption(&max_elem_error, "-e", "--max-err",
+                  "Maximum element error");
+   args.AddOption(&hysteresis, "-y", "--hysteresis",
+                  "Derefinement safety coefficient.");
    args.ParseCheck();
 
    Mesh mesh("fsi.msh");
@@ -396,9 +403,10 @@ int main(int argc, char *argv[])
    }, no_slip);
 
    // Becomes owned by navier
-   auto *inlet_coeff = new VectorFunctionCoefficient(dim, [&U](const Vector &coords,
-                                                   const double time,
-                                                   Vector &u)
+   auto *inlet_coeff = new VectorFunctionCoefficient(dim, [&U](
+                                                        const Vector &coords,
+                                                        const double time,
+                                                        Vector &u)
    {
       const double x = coords(0);
       const double y = coords(1);
@@ -541,16 +549,32 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   auto solid_fluid_bdr_transfer = BoundaryFieldTransfer(solid_mesh, fluid_mesh,
-                                                         *u_gf->ParFESpace(),
-                                                         solid_fluid_interface_attr);
+   // auto solid_fluid_bdr_transfer = BoundaryFieldTransfer(solid_mesh, fluid_mesh,
+   //                                                       *u_gf->ParFESpace(),
+   //                                                       solid_fluid_interface_attr);
 
-   printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
-          solid_mesh.bdr_attributes.Max());
+   // printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
+   //        solid_mesh.bdr_attributes.Max());
 
-   auto fluid_solid_bdr_transfer = BoundaryFieldTransfer(fluid_mesh, solid_mesh,
-                                                         *solid_displacement_gf.ParFESpace(),
-                                                         solid_fluid_interface_attr);
+   // auto fluid_solid_bdr_transfer = BoundaryFieldTransfer(fluid_mesh, solid_mesh,
+   //                                                       *solid_displacement_gf.ParFESpace(),
+   //                                                       solid_fluid_interface_attr);
+
+   L2_FECollection flux_fec(polynomial_order, dim);
+   auto flux_fes = new ParFiniteElementSpace(&fluid_mesh, &flux_fec, dim);
+   auto estimator = new KellyErrorEstimator(
+      *navier.GetPressureEquationBLFI(), *p_gf,
+      flux_fes);
+
+   ThresholdRefiner refiner(*estimator);
+   refiner.SetTotalErrorFraction(0.0); // use purely local threshold
+   refiner.SetLocalErrorGoal(max_elem_error);
+   refiner.PreferConformingRefinement();
+   refiner.SetNCLimit(nc_limit);
+
+   ThresholdDerefiner derefiner(*estimator);
+   derefiner.SetThreshold(hysteresis * max_elem_error);
+   derefiner.SetNCLimit(nc_limit);
 
    ParaViewDataCollection pvdc("fluid_output", &fluid_mesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
@@ -574,11 +598,17 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
+      refiner.Reset();
+      derefiner.Reset();
+
       int ok = -1;
       double previous_dt = dt;
 
       double lift = 0.0, lift2 = 0.0;
       double drag = 0.0, drag2 = 0.0;
+
+      refiner.Apply(fluid_mesh);
+      printf("refined to #el = %d\n", fluid_mesh.GetNE());
 
       navier.Step(time, dt, step, true);
 
@@ -726,6 +756,7 @@ int main(int argc, char *argv[])
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
          dt = std::min(dt, dt_max);
 
+         derefiner.Apply(fluid_mesh);
          step++;
       }
 

@@ -43,7 +43,7 @@
 // Navier. A basic sample algorithm for determining the next time step is
 // provided based on a CFL restriction on the velocity.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -54,8 +54,8 @@ struct s_NavierContext
    int ser_ref_levels = 1;
    int order = 6;
    double kinvis = 1.0 / 40.0;
-   double t_final = 10 * 0.001;
-   double dt = 0.001;
+   double dt = 0.1;
+   double t_final = 100 * dt;
    double reference_pressure = 0.0;
    double reynolds = 1.0 / kinvis;
    double lam = 0.5 * reynolds
@@ -178,11 +178,19 @@ int main(int argc, char *argv[])
    double cfl_max = 0.8;
    double cfl_tol = 1e-4;
 
+   bool bump = true;
+
    for (int step = 0; !last_step; ++step)
    {
       if (t + dt >= t_final - dt / 2)
       {
          last_step = true;
+      }
+
+      if (bump && t > 1.0)
+      {
+         bump = false;
+         dt = 10 * dt;
       }
 
       // Take a provisional step
@@ -211,6 +219,8 @@ int main(int argc, char *argv[])
       {
          // Accept the time step
          t += dt;
+         // Queue new time step in the history array
+         flowsolver.UpdateTimestepHistory(dt);
 
          // Predict new step size
          double fac_safety = 2.0;
@@ -218,9 +228,6 @@ int main(int argc, char *argv[])
          double fac_min = 0.1;
          double fac_max = 1.4;
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
-
-         // Queue new time step in the history array
-         flowsolver.UpdateTimestepHistory(dt);
       }
 
       u_gf = flowsolver.GetCurrentVelocity();
@@ -233,7 +240,14 @@ int main(int argc, char *argv[])
       p_ex_gf.ProjectCoefficient(p_excoeff);
       flowsolver.MeanZero(p_ex_gf);
 
-      err_u = u_gf->ComputeL2Error(u_excoeff);
+      const IntegrationRule *irs[Geometry::NumGeom];
+      for (int i=0; i < Geometry::NumGeom; ++i)
+      {
+         irs[i] = &(flowsolver.gll_rules.Get(i, 2 * ctx.order - 1));
+      }
+      err_u = u_gf->ComputeL2Error(u_excoeff, irs);
+      err_u = sqrt((err_u*err_u) / flowsolver.volume);
+
       err_p = p_gf->ComputeL2Error(p_ex_gf_coeff);
 
       if (Mpi::Root())

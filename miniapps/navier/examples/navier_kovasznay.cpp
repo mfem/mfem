@@ -39,7 +39,7 @@
 // boundary. The problem, although steady state, is time integrated up to the
 // final time and the solution is compared with the known exact solution.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;

@@ -22,7 +22,7 @@
 // of the equation. Then the numerical solution is computed and compared to the
 // exact manufactured solution to determine the error.
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
