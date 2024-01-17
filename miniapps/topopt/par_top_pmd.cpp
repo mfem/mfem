@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    double epsilon = 2e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
-   double rho_min = 1e-6;
+   double rho_min = 1.;
    double exponent = 3.0;
    double lambda = 1.0;
    double mu = 1.0;
@@ -287,12 +287,12 @@ int main(int argc, char *argv[])
          force = 0.0;
 
          vforce_cf.reset(new VectorConstantCoefficient(force));
-         center(0) = 1.2; center(1) = 0; center(2) = 0;
+         center(0) = 1.2; center(1) = 0.5; center(2) = 0.5;
          torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
                                                                        Vector &force)
          {
             force = 0.0;
-            if ((0.6 - x[1]) > 1e-09 & x.DistanceTo(center) < r)
+            if (x.DistanceTo(center) < r)
             {
                force[1] = (x[2] - 0.5); force[2] = -(x[1] - 0.5);
             }
@@ -369,6 +369,7 @@ int main(int argc, char *argv[])
    {
       elasticity.GetLinearForm().AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(
                                                          *torsion_cf));
+      elasticity.GetLinearForm().Assemble();
    }
 
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
