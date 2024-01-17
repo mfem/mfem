@@ -54,11 +54,6 @@ public:
    /// @brief Return the number of named arrays in the container
    inline int Size() const { return data.size(); }
 
-   /// @brief Copy the array names into an existing set of strings
-   ///
-   /// @note The provided set will be cleared before copying the names into it.
-   inline void GetNames(std::set<std::string> &names) const;
-
    /// @brief Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
 
@@ -169,21 +164,13 @@ inline ArraysByName<T>::ArraysByName(const ArraysByName<CT> &src)
 }
 
 template<class T>
-inline void ArraysByName<T>::GetNames(std::set<std::string> &names) const
+inline std::set<std::string> ArraysByName<T>::GetNames() const
 {
-   names.clear();
-
+   std::set<std::string> names;
    for (auto const &entry : data)
    {
       names.insert(entry.first);
    }
-}
-
-template<class T>
-inline std::set<std::string> ArraysByName<T>::GetNames() const
-{
-   std::set<std::string> names;
-   GetNames(names);
    return names;
 }
 
