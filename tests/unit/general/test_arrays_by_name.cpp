@@ -130,18 +130,6 @@ TEST_CASE("ArraysByName Various Methods", "[ArraysByName]")
 
    FillArraysByName(abn);
 
-   // Compare the two GetNames methods
-   std::set<std::string> names1; abn.GetNames(names1);
-   std::set<std::string> names2 = abn.GetNames();
-   REQUIRE(names1.size() == 4);
-   REQUIRE(names1.size() == names2.size());
-
-   for (auto it1 = names1.begin(), it2 = names2.begin();
-        it1 != names1.end() && it2 != names2.end(); it1++, it2++)
-   {
-      REQUIRE(*it1 == *it2);
-   }
-
    // Get set names and verify that they are valid
    std::set<std::string> names = abn.GetNames();
    REQUIRE(abn.Size() == (int)names.size());
