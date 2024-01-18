@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh orig_mesh("../../data/periodic-cube.mesh");
+   Mesh orig_mesh("/Users/andrej1/repos/mfem/navier-urans//data/periodic-cube.mesh");
    Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
                                  BasisType::ClosedUniform);
    orig_mesh.Clear();
@@ -288,7 +288,11 @@ int main(int argc, char *argv[])
    ParGridFunction w_gf(*u_gf);
    ParGridFunction q_gf(*p_gf);
    CurlEvaluator curl_evaluator(*u_gf->ParFESpace());
-   curl_evaluator.ComputeCurl(*u_gf, w_gf);
+   Vector utdof(u_gf->ParFESpace()->GetTrueVSize());
+   Vector wtdof(u_gf->ParFESpace()->GetTrueVSize());
+   u_gf->GetTrueDofs(utdof);
+   curl_evaluator.ComputeCurl(utdof, wtdof);
+   w_gf.Distribute(wtdof);
    ComputeQCriterion(*u_gf, q_gf);
 
    QuantitiesOfInterest kin_energy(pmesh);
@@ -344,7 +348,9 @@ int main(int argc, char *argv[])
 
       if ((step + 1) % 100 == 0 || last_step)
       {
-         curl_evaluator.ComputeCurl(*u_gf, w_gf);
+         u_gf->GetTrueDofs(utdof);
+         curl_evaluator.ComputeCurl(utdof, wtdof);
+         w_gf.Distribute(wtdof);
          ComputeQCriterion(*u_gf, q_gf);
          pvdc.SetCycle(step);
          pvdc.SetTime(t);
