@@ -15,7 +15,7 @@
 //
 // [1] https://how5.cenaero.be/content/ws2-les-plane-channel-ret550
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 #include <cmath>
 
