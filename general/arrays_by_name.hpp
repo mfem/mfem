@@ -43,16 +43,11 @@ public:
    /// @brief Copy constructor: deep copy from @a src
    ArraysByName(const ArraysByName &src) = default;
 
-   /// @brief Move constructor: deep move from @a src
+   /// @brief Move constructor
    ArraysByName(ArraysByName &&src) noexcept = default;
 
-   /// @brief Copy constructor (deep copy) from 'src', an ArraysByName
-   /// container of convertible type.
-   template <typename CT>
-   inline ArraysByName(const ArraysByName<CT> &src);
-
    /// @brief Return the number of named arrays in the container
-   inline int Size() const { return data.size(); }
+   int Size() const { return data.size(); }
 
    /// @brief Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
@@ -99,19 +94,14 @@ public:
    /// @brief Copy assignment operator: deep copy from 'src'.
    ArraysByName<T> &operator=(const ArraysByName<T> &src) = default;
 
-   /// @brief Move assignment operator: deep move from 'src'.
+   /// @brief Move assignment operator
    ArraysByName<T> &operator=(ArraysByName<T> &&src) noexcept = default;
-
-   /// @brief Assignment operator (deep copy) from @a src, an ArraysByName
-   /// container of convertible type.
-   template <typename CT>
-   inline ArraysByName &operator=(const ArraysByName<CT> &src);
 
    /// @brief Print the contents of the container to an output stream
    ///
    /// @note By default each array will be printed on its own line. A specific
    /// number of entries per line can be used by changing the @a width argument.
-   void Print(std::ostream &out = mfem::out, int width = -1) const;
+   inline void Print(std::ostream &out = mfem::out, int width = -1) const;
 
    /// @brief Load the contents of the container from an input stream
    ///
@@ -129,16 +119,16 @@ public:
    inline void UniqueAll();
 
    /// STL-like begin.  Returns pointer to the first element of the array.
-   inline iterator begin() { return data.begin(); }
+   iterator begin() { return data.begin(); }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline iterator end() { return data.end(); }
+   iterator end() { return data.end(); }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
-   inline const_iterator begin() const { return data.cbegin(); }
+   const_iterator begin() const { return data.cbegin(); }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const_iterator end() const { return data.cend(); }
+   const_iterator end() const { return data.cend(); }
 };
 
 template <class T>
@@ -152,15 +142,6 @@ inline bool operator==(const ArraysByName<T> &LHS, const ArraysByName<T> &RHS)
       if (it1->second != it2->second) { return false; }
    }
    return true;
-}
-
-template <typename T> template <typename CT>
-inline ArraysByName<T>::ArraysByName(const ArraysByName<CT> &src)
-{
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
 }
 
 template<class T>
@@ -221,17 +202,6 @@ inline void ArraysByName<T>::DeleteArray(const std::string &name)
    data.erase(name);
 }
 
-template <typename T> template <typename CT>
-inline ArraysByName<T> &ArraysByName<T>::operator=(const ArraysByName<CT> &src)
-{
-   DeleteAll();
-   for (auto entry : src)
-   {
-      CreateArray(entry.first) = entry.second;
-   }
-   return *this;
-}
-
 template <class T>
 inline void ArraysByName<T>::SortAll()
 {
@@ -251,7 +221,7 @@ inline void ArraysByName<T>::UniqueAll()
 }
 
 template <class T>
-void ArraysByName<T>::Print(std::ostream &os, int width) const
+inline void ArraysByName<T>::Print(std::ostream &os, int width) const
 {
    os << data.size() << '\n';
    for (auto const &it : data)
