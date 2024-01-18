@@ -44,12 +44,7 @@ int main(int argc, char *argv[])
    int order = 1;
    string source_name = "Rose Even";
    string ess_name = "Boundary";
-   bool static_cond = false;
-   bool pa = false;
-   bool fa = false;
-   const char *device_config = "cpu";
    bool visualization = true;
-   bool algebraic_ceed = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -61,19 +56,6 @@ int main(int argc, char *argv[])
                   "Name of attribute set containing source.");
    args.AddOption(&ess_name,"-ess","--ess-attr-name",
                   "Name of attribute set containing essential BC.");
-   args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
-                  "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
-                  "--no-partial-assembly", "Enable Partial Assembly.");
-   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
-                  "--no-full-assembly", "Enable Full Assembly.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
-#ifdef MFEM_USE_CEED
-   args.AddOption(&algebraic_ceed, "-a", "--algebraic",
-                  "-no-a", "--no-algebraic",
-                  "Use algebraic Ceed solver");
-#endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -85,18 +67,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Enable hardware devices such as GPUs, and programming models such as
-   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
-   Device device(device_config);
-   device.Print();
-
-   // 3. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
@@ -109,9 +86,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 4a. Display attribute set names contained in the initial mesh
    AttributeSets &attr_sets = mesh.attribute_sets;
-
-   // Display attribute set names contained in the initial mesh
    {
       std::set<string> names = attr_sets.GetAttributeSetNames();
       cout << "Element Attribute Set Names: ";
@@ -130,7 +106,7 @@ int main(int argc, char *argv[])
       cout << endl;
    }
 
-   // Define new regions based on existing attribute sets
+   // 4b. Define new regions based on existing attribute sets
    {
       Array<int> & Na = attr_sets.GetAttributeSet("N Even");
       Array<int> & Nb = attr_sets.GetAttributeSet("N Odd");
@@ -176,7 +152,7 @@ int main(int argc, char *argv[])
       attr_sets.SetAttributeSet("Rose", Ra);
       attr_sets.AddToAttributeSet("Rose", Rb);
    }
-   // Define new boundary regions based on existing boundary attribute sets
+   // 4c. Define new boundary regions based on existing boundary attribute sets
    {
       Array<int> & NNE = attr_sets.GetBdrAttributeSet("NNE");
       Array<int> & NNW = attr_sets.GetBdrAttributeSet("NNW");
@@ -214,27 +190,9 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
-   bool delete_fec;
-   if (order > 0)
-   {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
-   }
-   else if (mesh.GetNodes())
-   {
-      fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
-      cout << "Using isoparametric FEs: " << fec->Name() << endl;
-   }
-   else
-   {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
-   }
-   FiniteElementSpace fespace(&mesh, fec);
+   //    Lagrange finite elements of the specified order.
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -275,15 +233,6 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the
    //    Diffusion domain integrator.
    BilinearForm a(&fespace);
-   if (pa) { a.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   if (fa)
-   {
-      a.SetAssemblyLevel(AssemblyLevel::FULL);
-      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
-      // when Device::IsEnabled() returns true). This makes the results
-      // bit-for-bit deterministic at the cost of somewhat longer run time.
-      a.EnableSparseMatrixSorting(Device::IsEnabled());
-   }
 
    ConstantCoefficient defaultCoef(1.0e-6);
    ConstantCoefficient baseCoef(1.0);
@@ -299,10 +248,7 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new DiffusionIntegrator(roseCoef), rose_marker);
 
    // 10. Assemble the bilinear form and the corresponding linear system,
-   //     applying any necessary transformations such as: eliminating boundary
-   //     conditions, applying conforming constraints for non-conforming AMR,
-   //     static condensation, etc.
-   if (static_cond) { a.EnableStaticCondensation(); }
+   //     applying any necessary transformations.
    a.Assemble();
 
    OperatorPtr A;
@@ -311,47 +257,15 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   // 11. Solve the linear system A X = B.
-   if (!pa)
-   {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 800, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
-#endif
-   }
-   else
-   {
-      if (UsesTensorBasis(fespace))
-      {
-         if (algebraic_ceed)
-         {
-            ceed::AlgebraicSolver M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 800, 1e-12, 0.0);
-         }
-         else
-         {
-            OperatorJacobiSmoother M(a, ess_tdof_list);
-            PCG(*A, M, B, X, 1, 800, 1e-12, 0.0);
-         }
-      }
-      else
-      {
-         CG(*A, B, X, 1, 800, 1e-12, 0.0);
-      }
-   }
+   // 11. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 1, 800, 1e-12, 0.0);
 
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
-   // 13. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 13. Save the refined mesh and the solution. This output can be viewed
+   //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
@@ -367,12 +281,6 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << "keys Rjmm" << flush;
-   }
-
-   // 15. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
    }
 
    return 0;
