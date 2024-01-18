@@ -1025,8 +1025,8 @@ public:
    /// and ones. Ones indicate which attribute numbers are present in the attrs
    /// array. In the special case when attrs has a single entry equal to -1 the
    /// marker array will contain all ones.
-   void AttrToMarker(int max_attr, const Array<int> &attrs,
-                     Array<int> &marker) const;
+   static void AttrToMarker(int max_attr, const Array<int> &attrs,
+                            Array<int> &marker);
 
    /// @brief Prepares a marker array corresponding to an array of element
    /// attributes
