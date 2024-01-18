@@ -8,7 +8,7 @@ namespace navier
 using mfem::internal::tensor;
 using mfem::internal::make_tensor;
 
-template <int d1d, int q1d> static inline
+template <int d1d, int q1d, int dim = 2> static inline
 void ShearStressEvaluatorApply2D(
    const int ne,
    const Array<double> &B_,
@@ -20,7 +20,6 @@ void ShearStressEvaluatorApply2D(
    const Vector &dkv_
 )
 {
-   constexpr int dim = 2;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
    const tensor<double, q1d, d1d> &B =
