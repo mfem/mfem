@@ -676,7 +676,7 @@ public:
       mma->Update(x.GetData(), dfdx.GetData(), &gx, dgdx.GetData(),
                   xmin.GetData(), xmax.GetData());
    }
-   
+
    void Update(Vector &x, const Vector &dfdx, const Vector &gx,
                const DenseMatrix &dgdx, const Vector &xmin,
                const Vector &xmax)

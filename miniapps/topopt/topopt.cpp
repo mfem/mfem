@@ -588,7 +588,8 @@ double TopOptProblem::Eval()
 #ifdef MFEM_USE_MPI
    if (!parallel || Mpi::Root())
    {
-      out << "\n" << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
+      out << "\n" << std::setfill('.') << std::setw(15) << "Projection: " <<
+          std::flush <<
           "\r";
    }
 #else

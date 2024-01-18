@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
-                  
+
 
    Mesh mesh;
    Array2D<int> ess_bdr;
