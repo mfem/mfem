@@ -14,53 +14,10 @@
 namespace mfem
 {
 
-template <class T>
-void ArraysByName<T>::Print(std::ostream &os, int width) const
-{
-   os << data.size() << '\n';
-   for (auto const &it : data)
-   {
-      os << '"' << it.first << '"' << ' ' << it.second.Size() << ' ';
-      it.second.Print(os, width > 0 ? width : it.second.Size());
-   }
-}
-
-template <class T>
-void ArraysByName<T>::Load(std::istream &in)
-{
-   int NumArrays;
-   in >> NumArrays;
-
-   std::string ArrayLine, ArrayName;
-   for (int i=0; i < NumArrays; i++)
-   {
-      in >> std::ws;
-      getline(in, ArrayLine);
-
-      std::size_t q0 = ArrayLine.find('"');
-      std::size_t q1 = ArrayLine.rfind('"');
-
-      if (q0 != std::string::npos && q1 > q0)
-      {
-         // Locate set name between first and last double quote
-         ArrayName = ArrayLine.substr(q0+1,q1-q0-1);
-      }
-      else
-      {
-         // If no double quotes found locate set name using white space
-         q1 = ArrayLine.find(' ');
-         ArrayName = ArrayLine.substr(0,q1-1);
-      }
-
-      // Prepare an input stream to read the rest of the line
-      std::istringstream istr;
-      istr.str(ArrayLine.substr(q1+1));
-
-      data[ArrayName].Load(istr, 0);
-   }
-
-}
-
+template class ArraysByName<char>;
 template class ArraysByName<int>;
+template class ArraysByName<long>;
+template class ArraysByName<long long>;
+template class ArraysByName<double>;
 
 } // namespace mfem
