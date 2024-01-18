@@ -31,37 +31,8 @@ KnotVector::KnotVector(istream &input)
 {
    input >> Order >> NumOfControlPoints;
 
-   // A negative number of control points in the mesh file denotes that a
-   // spacing formula is specified. The negative number is used in the mesh file
-   // but nowhere in the code, so the absolute value is taken here.
-   const bool spacingFormula = (NumOfControlPoints < 0);
-   NumOfControlPoints = abs(NumOfControlPoints);
    knot.Load(input, NumOfControlPoints + Order + 1);
    GetElements();
-
-   if (spacingFormula)
-   {
-      int spacingType, numIntParam, numDoubleParam;
-      input >> spacingType >> numIntParam >> numDoubleParam;
-
-      MFEM_VERIFY(numIntParam >= 0 &&
-                  numDoubleParam >= 0, "Invalid number of parameters in KnotVector");
-
-      Array<int> ipar(numIntParam);
-      Vector dpar(numDoubleParam);
-
-      for (int i=0; i<numIntParam; ++i)
-      {
-         input >> ipar[i];
-      }
-
-      for (int i=0; i<numDoubleParam; ++i)
-      {
-         input >> dpar[i];
-      }
-
-      spacing.reset(GetSpacingFunction((SPACING_TYPE) spacingType, ipar, dpar));
-   }
 }
 
 KnotVector::KnotVector(int Order_, int NCP)
@@ -282,15 +253,8 @@ void KnotVector::Flip()
 
 void KnotVector::Print(std::ostream &os) const
 {
-   const int outNCP = spacing ? -NumOfControlPoints : NumOfControlPoints;
-   os << Order << ' ' << outNCP << ' ';
-
+   os << Order << ' ' << NumOfControlPoints << ' ';
    knot.Print(os, knot.Size());
-
-   if (spacing)
-   {
-      spacing->Print(os);
-   }
 }
 
 void KnotVector::PrintFunctions(std::ostream &os, int samples) const
@@ -2006,7 +1970,7 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    }
 }
 
-NURBSExtension::NURBSExtension(std::istream &input)
+NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
 {
    // Read topology
    patchTopo = new Mesh;
@@ -2028,6 +1992,41 @@ NURBSExtension::NURBSExtension(std::istream &input)
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
          knotVectors[i] = new KnotVector(input);
+      }
+
+      if (spacing)  // Read spacing formulas for knotvectors
+      {
+         input >> ws >> ident; // 'spacing'
+         MFEM_VERIFY(ident == "spacing",
+                     "Spacing formula section missing from NURBS mesh file");
+         int numSpacing = 0;
+         input >> numSpacing;
+         for (int i = 0; i < numSpacing; i++)
+         {
+            int ki, spacingType, numIntParam, numDoubleParam;
+            input >> ki >> spacingType >> numIntParam >> numDoubleParam;
+
+            MFEM_VERIFY(0 <= ki && ki < NumOfKnotVectors,
+                        "Invalid knotvector index");
+            MFEM_VERIFY(numIntParam >= 0 && numDoubleParam >= 0,
+                        "Invalid number of parameters in KnotVector");
+
+            Array<int> ipar(numIntParam);
+            Vector dpar(numDoubleParam);
+
+            for (int i=0; i<numIntParam; ++i)
+            {
+               input >> ipar[i];
+            }
+
+            for (int i=0; i<numDoubleParam; ++i)
+            {
+               input >> dpar[i];
+            }
+
+            const SPACING_TYPE s = (SPACING_TYPE) spacingType;
+            knotVectors[ki]->spacing.reset(GetSpacingFunction(s, ipar, dpar));
+         }
       }
    }
    else if (ident == "patches")
@@ -2360,9 +2359,18 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
+      Array<int> kvSpacing;
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
          knotVectors[i]->Print(os);
+         if (knotVectors[i]->spacing) { kvSpacing.Append(i); }
+      }
+
+      os << "\nspacing\n" << kvSpacing.Size() << '\n';
+      for (auto kv : kvSpacing)
+      {
+         os << kv << " ";
+         knotVectors[kv]->spacing->Print(os);
       }
 
       if (NumOfActiveElems < NumOfElements)

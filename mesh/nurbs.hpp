@@ -446,7 +446,7 @@ public:
    /// Copy constructor: deep copy
    NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
-   NURBSExtension(std::istream &input);
+   NURBSExtension(std::istream &input, bool spacing=false);
    /** @brief Create a NURBSExtension with elevated order by repeating the
        endpoints of the knot vectors and using uniform weights of 1. */
    /** If a knot vector in @a parent already has order greater than or equal to
