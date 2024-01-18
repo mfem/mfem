@@ -40,7 +40,9 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
 void QuadratureSpaceBase::ConstructWeights() const
 {
    // First get the Jacobian determinants (without the quadrature weight
-   // contributions).
+   // contributions). We also store the pointer to the Vector object, so that
+   // we know when the cached weights are invalidated.
+   nodes_sequence = mesh.GetNodesSequence();
    weights = GetGeometricFactorWeights();
 
    // Then scale by the quadrature weights.
@@ -58,7 +60,10 @@ void QuadratureSpaceBase::ConstructWeights() const
 
 const Vector &QuadratureSpaceBase::GetWeights() const
 {
-   if (weights.Size() == 0) { ConstructWeights(); }
+   if (weights.Size() == 0 || nodes_sequence != mesh.GetNodesSequence())
+   {
+      ConstructWeights();
+   }
    return weights;
 }
 
