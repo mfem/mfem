@@ -130,8 +130,8 @@ public:
 
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
-    FiniteElement at a the quadrature points of a given IntegrationRule. */
-/** Object of this type are typically created and owned by the respective
+    FiniteElement at the quadrature points of a given IntegrationRule. */
+/** Objects of this type are typically created and owned by the respective
     FiniteElement object. */
 class DofToQuad
 {
@@ -250,7 +250,7 @@ protected:
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
-   mutable Array<DofToQuad*> dof2quad_array;
+   mutable Array<DofToQuad *> dof2quad_array;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -1026,8 +1026,8 @@ public:
    };
 
 private:
-   typedef std::map< int, Array<double*>* > PointsMap;
-   typedef std::map< int, Array<Basis*>* > BasisMap;
+   typedef std::map<int, Array<double*>*> PointsMap;
+   typedef std::map<int, Array<Basis*>*> BasisMap;
 
    MemoryType h_mt;
    PointsMap points_container;

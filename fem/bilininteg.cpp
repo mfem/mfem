@@ -793,12 +793,12 @@ void GradientIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      trial_fe.CalcDShape(ip, dshape);
-      test_fe.CalcShape(ip, shape);
-
       Trans.SetIntPoint(&ip);
+
       CalcAdjugate(Trans.Jacobian(), Jadj);
+
+      test_fe.CalcPhysShape(Trans, shape);
+      trial_fe.CalcDShape(ip, dshape);
 
       Mult(dshape, Jadj, gshape);
 
@@ -1346,10 +1346,11 @@ void MassIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      trial_fe.CalcShape(ip, shape);
-      test_fe.CalcShape(ip, te_shape);
-
       Trans.SetIntPoint (&ip);
+
+      trial_fe.CalcPhysShape(Trans, shape);
+      test_fe.CalcPhysShape(Trans, te_shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
