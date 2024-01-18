@@ -82,6 +82,9 @@ protected:
    // Mesh, such as FiniteElementSpace, GridFunction, etc.
    long sequence;
 
+   /// Counter for geometric factor invalidation
+   long nodes_sequence;
+
    Array<Element *> elements;
    // Vertices are only at the corners of elements, where you would expect them
    // in the lowest-order mesh. In some cases, e.g. in a Mesh that defines the
@@ -2121,6 +2124,13 @@ public:
        It is used for checking proper sequence of Space:: and GridFunction::
        Update() calls. */
    long GetSequence() const { return sequence; }
+
+   /// @brief Return the nodes update counter.
+   ///
+   /// This counter starts at zero, and is incremented every time the geometric
+   /// factors must be recomputed (e.g. on calls to Mesh::Transform,
+   /// Mesh::NodesUpdated, etc.)
+   long GetNodesSequence() const { return nodes_sequence; }
 
    /// @}
 
