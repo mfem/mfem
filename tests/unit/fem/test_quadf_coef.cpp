@@ -164,6 +164,8 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
                 );
    const int order = GENERATE(1, 2, 3);
 
+   CAPTURE(fname, order);
+
    Mesh mesh = Mesh::LoadFromFile(fname);
    H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
@@ -173,6 +175,15 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][CUDA]")
    SECTION("QuadratureSpace")
    {
       QuadratureSpace qs(&mesh, int_order);
+
+      // Make sure invalidating the cached weights works properly
+      qs.GetWeights();
+      mesh.Transform([](const Vector &xold, Vector &xnew)
+      {
+         xnew = xold;
+         xnew *= 1.1;
+      });
+
       const IntegrationRule &ir = qs.GetIntRule(0);
 
       QuadratureFunction qf(qs);
