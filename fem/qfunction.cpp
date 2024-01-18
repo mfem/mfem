@@ -257,7 +257,7 @@ static double ReduceDouble(const Mesh *mesh, double value)
 double QuadratureFunction::Integrate() const
 {
    MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
-   const double local_integral = (*this)*qspace->GetWeights();
+   const double local_integral = InnerProduct(*this, qspace->GetWeights());
    return ReduceDouble(qspace->GetMesh(), local_integral);
 }
 
@@ -279,7 +279,8 @@ void QuadratureFunction::Integrate(Vector &integrals) const
       {
          d_c[i] = d_v[vd + i*VDIM];
       });
-      integrals[vd] = ReduceDouble(qspace->GetMesh(), component*weights);
+      integrals[vd] = ReduceDouble(qspace->GetMesh(),
+                                   InnerProduct(component, weights));
    }
 }
 
