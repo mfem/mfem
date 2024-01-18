@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(mfem::out);
    }
 
-   Mesh orig_mesh("/Users/andrej1/repos/mfem/navier-urans//data/periodic-cube.mesh");
+   Mesh orig_mesh("../../data/periodic-cube.mesh");
    Mesh mesh = Mesh::MakeRefined(orig_mesh, ctx.element_subdivisions,
                                  BasisType::ClosedUniform);
    orig_mesh.Clear();
