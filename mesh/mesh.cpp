@@ -1624,8 +1624,9 @@ void Mesh::SetAttributes()
    }
 }
 
+// static method
 void Mesh::AttrToMarker(int max_attr, const Array<int> &attrs,
-                        Array<int> &marker) const
+                        Array<int> &marker)
 {
    MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
 
