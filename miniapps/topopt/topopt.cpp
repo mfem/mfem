@@ -585,44 +585,9 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
 
 double TopOptProblem::Eval()
 {
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << "\n" << std::setfill('.') << std::setw(15) << "Projection: " <<
-          std::flush <<
-          "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
-       "\r";
-#endif
    if (apply_projection) { density.Project(); }
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << std::setfill('.') << std::setw(15) << "Filter: " << std::flush << "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Filter: " << std::flush << "\r";
-#endif
    density.UpdateFilteredDensity();
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << std::setfill('.') << std::setw(15) << "Solve: " << std::flush << "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Solve: " << std::flush << "\r";
-#endif
    state_equation.Solve(*state);
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << std::setfill('.') << std::setw(15) << "Eval: " << std::flush << "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Eval: " << std::flush << "\r";
-#endif
    val = obj(*state);
 #ifdef MFEM_USE_MPI
    if (parallel)
@@ -630,57 +595,25 @@ double TopOptProblem::Eval()
       MPI_Allreduce(MPI_IN_PLACE, &val, 1, MPI_DOUBLE, MPI_SUM, comm);
    }
 #endif
-   out << std::flush;
    return val;
 }
 
 void TopOptProblem::UpdateGradient()
 {
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << std::setfill('.') << std::setw(15) << "Solve Dual: " << std::flush <<
-          "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Solve Dual: " << std::flush <<
-       "\r";
-#endif
    if (solve_dual)
    {
       // state equation is assumed to be a symmetric operator
       state_equation.DualSolve(*dual_solution, obj);
    }
-#ifdef MFEM_USE_MPI
-   if (!parallel || Mpi::Root())
-   {
-      out << std::setfill('.') << std::setw(15) << "Dual Filter: " << std::flush <<
-          "\r";
-   }
-#else
-   out << std::setfill('.') << std::setw(15) << "Dual Filter: " << std::flush <<
-       "\r";
-#endif
    density.GetFilter().Apply(*dEdfrho, *gradF_filter);
    if (gradF_filter != gradF)
    {
-#ifdef MFEM_USE_MPI
-      if (!parallel || Mpi::Root())
-      {
-         out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
-             "\r";
-      }
-#else
-      out << std::setfill('.') << std::setw(15) << "Projection: " << std::flush <<
-          "\r";
-#endif
       std::unique_ptr<LinearForm> tmp(MakeLinearForm(gradF->FESpace()));
       GridFunctionCoefficient gradF_filter_cf(gradF_filter.get());
       tmp->AddDomainIntegrator(new DomainLFIntegrator(gradF_filter_cf));
       tmp->Assemble();
       filter_to_density->Mult(*tmp, *gradF);
    }
-   out << std::flush;
 }
 
 double StrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
