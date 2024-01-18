@@ -4613,6 +4613,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNURBSMesh(input, curved, read_gf);
    }
+   else if (mesh_type == "MFEM NURBS mesh v1.1")
+   {
+     ReadNURBSMesh(input, curved, read_gf, true);
+   }
    else if (mesh_type == "MFEM INLINE mesh v1.0")
    {
       ReadInlineMesh(input, generate_edges);
@@ -5832,7 +5836,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 {
    SetEmpty();
 
-   // Read MFEM NURBS mesh v1.0 format
+   // Read MFEM NURBS mesh v1.0 or 1.1 format
    string ident;
 
    skip_comment_lines(input, '#');
@@ -11367,7 +11371,7 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
    int i;
    Array<int> vert;
 
-   os << "MFEM NURBS mesh v1.0\n";
+   os << "MFEM NURBS mesh v1.1\n";
 
    // optional
    if (!comments.empty()) { os << '\n' << comments << '\n'; }

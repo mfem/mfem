@@ -1,4 +1,4 @@
-MFEM NURBS mesh v1.0
+MFEM NURBS mesh v1.1
 
 #
 # MFEM Geometry Types (see mesh/geom.hpp):
@@ -61,11 +61,14 @@ vertices
 
 knotvectors
 3
-2 -3 0 0 0 1 1 1
-5 3 1 1 0 1 10.0
-2 -3 0 0 0 1 1 1
-5 3 1 1 0 1 10.0
+2 3 0 0 0 1 1 1
+2 3 0 0 0 1 1 1
 2 5 0 0 0 1 1 2 2 2
+
+spacing
+2
+0 5 3 1 1 0 1 10.0
+1 5 3 1 1 0 1 10.0
 
 weights
 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
