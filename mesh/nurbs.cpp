@@ -2001,7 +2001,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
                      "Spacing formula section missing from NURBS mesh file");
          int numSpacing = 0;
          input >> numSpacing;
-         for (int i = 0; i < numSpacing; i++)
+         for (int j = 0; j < numSpacing; j++)
          {
             int ki, spacingType, numIntParam, numDoubleParam;
             input >> ki >> spacingType >> numIntParam >> numDoubleParam;
