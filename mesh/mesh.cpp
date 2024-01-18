@@ -1628,7 +1628,10 @@ void Mesh::SetAttributes()
 void Mesh::AttrToMarker(int max_attr, const Array<int> &attrs,
                         Array<int> &marker)
 {
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+   if (attrs.Size() > 0)
+   {
+      MFEM_VERIFY(attrs.Max() <= max_attr, "Invalid attribute number present.");
+   }
 
    marker.SetSize(max_attr);
    if (attrs.Size() == 1 && attrs[0] == -1)
