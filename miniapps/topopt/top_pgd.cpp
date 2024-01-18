@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
           << std::setw(10) << step_size
           << std::endl;
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < 1e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          break;
       }

@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < 1e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          if (Mpi::Root()) { out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
