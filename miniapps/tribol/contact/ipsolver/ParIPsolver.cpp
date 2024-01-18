@@ -8,7 +8,7 @@ using namespace std;
 using namespace mfem;
 
 
-ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_) 
+ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemTribol * problem_) 
                      : problem(problem_)
 {
    OptTol  = 1.e-2;
@@ -116,7 +116,6 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
    x0block.GetBlock(1) = 1.0;
    x0block.GetBlock(1).Add(1.0, ml);
    BlockVector xfblock(block_offsetsx); xfblock = 0.0;
-
    Mult(x0block, xfblock);
    xf.Set(1.0, xfblock.GetBlock(0));
 }
@@ -177,6 +176,10 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = false;
       Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
+      if(iAmRoot)
+      {
+         cout << "Eevalmu0 = " << Eevalmu0 << "\n";
+      }
       if(Eevalmu0 < OptTol)
       {
          converged = true;
@@ -476,14 +479,14 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       {
          HypreBoomerAMG amg(*Areduced);
          amg.SetPrintLevel(0);
-         if (pfes)
-         {
-            amg.SetElasticityOptions(pfes);
-         }
-         else
-         {
+         // if (pfes)
+         // {
+         //    amg.SetElasticityOptions(pfes);
+         // }
+         // else
+         // {
             amg.SetSystemsOptions(3,false);
-         }
+         // }
          amg.SetRelaxType(relax_type);
          int n;
 

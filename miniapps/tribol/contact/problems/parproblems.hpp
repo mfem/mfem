@@ -23,8 +23,10 @@ private:
    Vector B,X;
    void Init();
    bool own_mesh;
+   Array<int> ess_bdr_attr;
 public:
-   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, int order_ = 1) : comm(comm_), order(order_) 
+   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, Array<int> & ess_bdr_attr_, int order_ = 1 ) 
+   : comm(comm_), ess_bdr_attr(ess_bdr_attr_), order(order_)
    {
       own_mesh = true;
       Mesh * mesh = new Mesh(mesh_file,1,1);
@@ -42,12 +44,14 @@ public:
       Init();
    }
 
-   ParElasticityProblem(ParMesh * pmesh_, int order_ = 1) :  pmesh(pmesh_), order(order_)
+   ParElasticityProblem(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, int order_ = 1) 
+   :  pmesh(pmesh_), order(order_), ess_bdr_attr(ess_bdr_attr_)
    {
       own_mesh = false;
       comm = pmesh->GetComm();
       Init();
    }
+
 
    ParMesh * GetMesh() { return pmesh; }
    ParFiniteElementSpace * GetFESpace() { return fes; }
@@ -261,30 +265,77 @@ private:
    int numprocs;
    int myid;
    ParElasticityProblem * prob = nullptr;
-   ParFiniteElementSpace * vfes = nullptr;
    ParMesh * pmesh = nullptr;
+   ParFiniteElementSpace * vfes = nullptr;
    int dim;
-   GridFunction nodes0;
-   GridFunction *nodes1 = nullptr;
-   std::vector<int> dof_offsets;
-   std::vector<int> constraints_offsets; 
-   Array<int> tdof_offsets;
+   ParGridFunction *coords = nullptr;
    Array<int> constraints_starts;
+   // gap function
+   Vector gapv;
 
    void SetupTribol();
 
 protected:
    HypreParMatrix * K = nullptr;
-   BlockVector *B = nullptr;
-   HypreParMatrix * M=nullptr;
+   Vector *B = nullptr;
+   // Gap Jacobian
+   HypreParMatrix * J=nullptr;
 
 public:
 // for now we work on 1 (merged mesh).
-// TODO work with 2 meshes independently 
    ParContactProblemTribol(ParElasticityProblem * prob_);
+   MPI_Comm GetComm() {return comm;}
+   int GetNumDofs() {return K->Height();}
+   int GetGlobalNumDofs() {return K->GetGlobalNumRows();}
+   int GetNumContraints() {return J->Height();}
+   int GetGlobalNumConstraints() {return J->GetGlobalNumRows();}
+   Array<int> & GetConstraintsStarts() { return constraints_starts; }
+   Vector & GetGapFunction() {return gapv;}
+   HypreParMatrix * GetJacobian() {return J;}
+   double E(const Vector & d);
+   void DdE(const Vector &d, Vector &gradE);
+   HypreParMatrix* DddE();
+   void g(Vector &gd);
+   HypreParMatrix* Ddg();
 
-   ~ParContactProblemTribol();
+   ~ParContactProblemTribol()
+   {
+      delete B;
+      delete K;
+   }
 };
 
+
+class QPOptParContactProblemTribol
+{
+private:
+   ParContactProblemTribol * problem = nullptr;
+   int dimU, dimM, dimC;
+   // Array<int> block_offsets;
+   Vector ml;
+   HypreParMatrix * NegId = nullptr;
+public:
+   QPOptParContactProblemTribol(ParContactProblemTribol * problem_);
+   int GetDimU();
+   int GetDimM();
+   int GetDimC();
+   Vector & Getml();
+   MPI_Comm GetComm() {return problem->GetComm();}
+
+   int * GetConstraintsStarts() {return problem->GetConstraintsStarts().GetData();}
+   int GetGlobalNumConstraints() {return problem->GetGlobalNumConstraints();}
+
+   HypreParMatrix * Duuf(const BlockVector &);
+   HypreParMatrix * Dumf(const BlockVector &);
+   HypreParMatrix * Dmuf(const BlockVector &);
+   HypreParMatrix * Dmmf(const BlockVector &);
+   HypreParMatrix * Duc(const BlockVector &);
+   HypreParMatrix * Dmc(const BlockVector &);
+   HypreParMatrix * lDuuc(const BlockVector &, const Vector &);
+   void c(const BlockVector &, Vector &);
+   double CalcObjective(const BlockVector &);
+   void CalcObjectiveGrad(const BlockVector &, BlockVector &);
+   ~QPOptParContactProblemTribol();
+};
 
 #endif

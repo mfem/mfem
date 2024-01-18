@@ -13,7 +13,8 @@ using namespace mfem;
 class ParInteriorPointSolver
 {
 protected:
-    QPOptParContactProblem* problem;
+    // QPOptParContactProblem* problem = nullptr;
+    QPOptParContactProblemTribol* problem = nullptr;
     double OptTol;
     int  max_iter;
     double mu_k; // \mu_k
@@ -63,7 +64,7 @@ protected:
     double linSolveTol;
     int relax_type = 8;
 public:
-    ParInteriorPointSolver(QPOptParContactProblem*);
+    ParInteriorPointSolver(QPOptParContactProblemTribol*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
     double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);

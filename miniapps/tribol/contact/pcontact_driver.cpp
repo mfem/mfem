@@ -103,8 +103,13 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
    MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
 
-   ParElasticityProblem * prob1 = new ParElasticityProblem(pmesh1,order);
-   ParElasticityProblem * prob2 = new ParElasticityProblem(pmesh2,order);
+
+   Array<int> ess_bdr_attr1; ess_bdr_attr1.Append(2);
+   Array<int> ess_bdr_attr2; ess_bdr_attr2.Append(6);
+   ParElasticityProblem * prob1 = new ParElasticityProblem(pmesh1,ess_bdr_attr1,
+                                                           order);
+   ParElasticityProblem * prob2 = new ParElasticityProblem(pmesh2,ess_bdr_attr2,
+                                                           order);
 
 
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
@@ -147,6 +152,7 @@ int main(int argc, char *argv[])
 
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
+   Vector & g = contact.GetGapFunction();
 
    double Einitial = contact.E(x0);
    double Efinal = contact.E(xf);
@@ -215,31 +221,31 @@ int main(int argc, char *argv[])
          char vishost[] = "localhost";
          int visport = 19916;
 
-         {
-            socketstream sol_sock1(vishost, visport);
-            sol_sock1.precision(8);
-            sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << *pmesh_1 << x1_gf << flush;
-         }
-         {
-            socketstream sol_sock2(vishost, visport);
-            sol_sock2.precision(8);
-            sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
-                      << "solution\n" << *pmesh_2 << x2_gf << flush;
-         }
+         // {
+         //    socketstream sol_sock1(vishost, visport);
+         //    sol_sock1.precision(8);
+         //    sol_sock1 << "parallel " << num_procs << " " << myid << "\n"
+         //              << "solution\n" << *pmesh_1 << x1_gf << flush;
+         // }
+         // {
+         //    socketstream sol_sock2(vishost, visport);
+         //    sol_sock2.precision(8);
+         //    sol_sock2 << "parallel " << num_procs << " " << myid << "\n"
+         //              << "solution\n" << *pmesh_2 << x2_gf << flush;
+         // }
 
-         // {
-         //    socketstream sol_sock(vishost, visport);
-         //    sol_sock.precision(8);
-         //    sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
-         //             << "solution\n" << *pmesh_1 << x1_gf << flush;
-         // }
-         // {
-         //    socketstream sol_sock(vishost, visport);
-         //    sol_sock.precision(8);
-         //    sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
-         //             << "solution\n" << *pmesh_2 << x2_gf << flush;
-         // }
+         {
+            socketstream sol_sock(vishost, visport);
+            sol_sock.precision(8);
+            sol_sock << "parallel " << 2*num_procs << " " << myid << "\n"
+                     << "solution\n" << *pmesh_1 << x1_gf << flush;
+         }
+         {
+            socketstream sol_sock(vishost, visport);
+            sol_sock.precision(8);
+            sol_sock << "parallel " << 2*num_procs << " " << myid+num_procs << "\n"
+                     << "solution\n" << *pmesh_2 << x2_gf << flush;
+         }
       }
    }
 

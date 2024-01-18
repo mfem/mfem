@@ -13,7 +13,11 @@ void ParElasticityProblem::Init()
    {
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
    }
-   ess_bdr = 0; ess_bdr[1] = 1;
+   ess_bdr = 0; 
+   for (int i = 0; i < ess_bdr_attr.Size(); i++ )
+   {
+      ess_bdr[ess_bdr_attr[i]-1] = 1;
+   }
    fes->GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
    // Solution GridFunction
    x.SetSpace(fes);  x = 0.0;
@@ -139,7 +143,7 @@ void ParContactProblem::ComputeContactVertices()
    Array<int> vert;
    for (int b=0; b<pmesh2->GetNBE(); b++)
    {
-      if (pmesh2->GetBdrAttribute(b) == 3)
+      if (pmesh2->GetBdrAttribute(b) == 4)
       {
          pmesh2->GetBdrElementVertices(b, vert);
          for (auto v : vert)
@@ -166,8 +170,6 @@ void ParContactProblem::ComputeContactVertices()
 
 void ParContactProblem::ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2)
 {
-   displ1.Print();
-   displ2.Print();
    ComputeContactVertices();
    ParMesh * pmesh1 = prob1->GetMesh();
    ParMesh * pmesh2 = prob2->GetMesh();
@@ -405,7 +407,6 @@ HypreParMatrix* ParContactProblem::DddE(const Vector &d)
 
 void ParContactProblem::g(const Vector &d, Vector &gd, bool compute_hessians_)
 {
-   mfem::out << "g = " << endl;
    compute_hessians = compute_hessians_;
    int ndof1 = prob1->GetNumTDofs();
    int ndof2 = prob2->GetNumTDofs();
@@ -531,17 +532,23 @@ ParContactProblemTribol::ParContactProblemTribol(ParElasticityProblem * prob_)
    MPI_Comm_rank(comm, &myid);
    MPI_Comm_size(comm, &numprocs);
    dim = pmesh->Dimension();
-   nodes0.SetSpace(pmesh->GetNodes()->FESpace());
-   nodes0 = *pmesh->GetNodes();
-   nodes1 = pmesh->GetNodes();
    Vector delta(dim);
    delta = 0.0; delta[0] = 0.1;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   // Dirichlet BCs attributes
+   int ess_bdr_attr1 = 2;
+   int ess_bdr_attr2 = 6;
    ess_bdr = 0;
-   ess_bdr[1] = 1;
+   ess_bdr[ess_bdr_attr1 -1 ] = 1;
+   prob->SetDisplacementDirichletData(delta, ess_bdr);
+   delta = 0.0;
+   ess_bdr = 0;
+   ess_bdr[ess_bdr_attr2 - 1] = 1;
    prob->SetDisplacementDirichletData(delta, ess_bdr);
    ParGridFunction & x = prob->GetDisplacementGridFunction();
-
+   prob->FormLinearSystem();
+   K= new HypreParMatrix(prob->GetOperator());
+   B = new Vector(prob->GetRHS());
    SetupTribol();
 
 }
@@ -556,19 +563,173 @@ void ParContactProblemTribol::SetupTribol()
    // plane of top block
    std::set<int> nonmortar_attrs({4});
 
-   // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs
-   std::vector<std::set<int>> fixed_attrs(3);
-   fixed_attrs[0] = {1,2,5,6}; // x-comp = 0;
-   fixed_attrs[1] = {1,2,5,6}; // y-comp = 0;
-   fixed_attrs[2] = {1,5,6}; // z-comp = 0
+   // Initialize Tribol contact library
+   tribol::initialize(3, MPI_COMM_WORLD);
 
-   // TODO how about non-homogeneous Dirichlet? 
-   MFEM_ABORT("Need to setup non-homogenous Dirichlet BCs")
+   int coupling_scheme_id = 0;
+   int mesh1_id = 0;
+   int mesh2_id = 1;
+   coords = new ParGridFunction(vfes);
+   pmesh->SetNodalGridFunction(coords);
+   tribol::registerMfemCouplingScheme(
+      coupling_scheme_id, mesh1_id, mesh2_id,
+      *pmesh, *coords, mortar_attrs, nonmortar_attrs,
+      tribol::SURFACE_TO_SURFACE,
+      tribol::NO_SLIDING,
+      tribol::SINGLE_MORTAR,
+      tribol::FRICTIONLESS,
+      tribol::LAGRANGE_MULTIPLIER,
+      tribol::BINNING_GRID
+   );
 
+   // Access Tribol's pressure grid function (on the contact surface)
+   auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
+   if (mfem::Mpi::Root())
+   {
+      std::cout << "Number of pressure unknowns: " <<
+                pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
+   }
+
+   // Set Tribol options for Lagrange multiplier enforcement
+   tribol::setLagrangeMultiplierOptions(
+      coupling_scheme_id,
+      tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
+   );
+
+   // Update contact mesh decomposition
+   tribol::updateMfemParallelDecomposition();
+
+   // Update contact gaps, forces, and tangent stiffness
+   int cycle = 1;   // pseudo cycle
+   double t = 1.0;  // pseudo time
+   double dt = 1.0; // pseudo dt
+   tribol::update(cycle, t, dt);
+
+   // Return contact contribution to the tangent stiffness matrix
+   auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
+   
+   J = new HypreParMatrix(*(HypreParMatrix *)(&A_blk->GetBlock(1,0)));
+   tribol::getMfemGap(coupling_scheme_id, gapv);
+   constraints_starts.SetSize(2);
+   constraints_starts[0] = J->RowPart()[0];
+   constraints_starts[1] = J->RowPart()[1];
 }
 
-
-ParContactProblemTribol::~ParContactProblemTribol()
+double ParContactProblemTribol::E(const Vector & d)
 {
+   Vector kd(K->Height());
+   K->Mult(d,kd);
+   return 0.5 * InnerProduct(comm,d, kd) - InnerProduct(comm,d, *B);
 }
+
+void ParContactProblemTribol::DdE(const Vector &d, Vector &gradE)
+{
+   gradE.SetSize(K->Height());
+   K->Mult(d, gradE);
+   gradE.Add(-1.0, *B); 
+}
+
+HypreParMatrix* ParContactProblemTribol::DddE()
+{
+   return K; 
+}
+
+void ParContactProblemTribol::g(Vector & gd)
+{
+   gd = GetGapFunction();
+}
+
+HypreParMatrix* ParContactProblemTribol::Ddg()
+{
+  return GetJacobian();
+}
+
+
+QPOptParContactProblemTribol::QPOptParContactProblemTribol(ParContactProblemTribol * problem_)
+: problem(problem_)
+{
+   dimU = problem->GetNumDofs();
+   dimM = problem->GetNumContraints();
+   dimC = problem->GetNumContraints();
+   ml.SetSize(dimM); ml = 0.0;
+   Vector negone(dimM); negone = -1.0;
+   SparseMatrix diag(negone);
+
+   int gsize = problem->GetGlobalNumConstraints();
+   int * rows = problem->GetConstraintsStarts().GetData();
+
+   NegId = new HypreParMatrix(problem->GetComm(),gsize, rows,&diag);
+   HypreStealOwnership(*NegId, diag);
+}
+
+int QPOptParContactProblemTribol::GetDimU() { return dimU; }
+
+int QPOptParContactProblemTribol::GetDimM() { return dimM; }
+
+int QPOptParContactProblemTribol::GetDimC() { return dimC; }
+
+Vector & QPOptParContactProblemTribol::Getml() { return ml; }
+
+HypreParMatrix * QPOptParContactProblemTribol::Duuf(const BlockVector & x)
+{
+   return problem->DddE();
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::Dumf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::Dmuf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::Dmmf(const BlockVector & x)
+{
+   return nullptr;
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::Duc(const BlockVector & x)
+{
+   return problem->Ddg();
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::Dmc(const BlockVector & x)
+{
+   return NegId;
+}
+
+HypreParMatrix * QPOptParContactProblemTribol::lDuuc(const BlockVector & x, const Vector & l)
+{
+   return nullptr;
+}
+
+void QPOptParContactProblemTribol::c(const BlockVector &x, Vector & y)
+{
+   Vector g0;
+   problem->g(g0); // gap function
+   g0.Add(-1.0, x.GetBlock(1));  
+   HypreParMatrix *J = problem->GetJacobian();
+   J->Mult(x.GetBlock(0),y);
+   y.Add(1.0, g0);
+}
+
+double QPOptParContactProblemTribol::CalcObjective(const BlockVector & x)
+{
+   return problem->E(x.GetBlock(0));
+}
+
+void QPOptParContactProblemTribol::CalcObjectiveGrad(const BlockVector & x, BlockVector & y)
+{
+   problem->DdE(x.GetBlock(0), y.GetBlock(0));
+   y.GetBlock(1) = 0.0;
+}
+
+QPOptParContactProblemTribol::~QPOptParContactProblemTribol()
+{
+   delete NegId;
+}
+
+
 #endif
