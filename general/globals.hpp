@@ -107,10 +107,16 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
+#if defined MFEM_USE_SINGLE && defined MFEM_USE_DOUBLE
+#error "DOUBLE and SINGLE precision cannot both be specified"
+#endif
+
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
-#else
+#elif defined MFEM_USE_DOUBLE
 typedef double real_t;
+#else
+#error "Either DOUBLE or SINGLE precision must be specified"
 #endif
 
 } // namespace mfem
