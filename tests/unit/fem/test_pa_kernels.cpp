@@ -20,6 +20,32 @@ using namespace mfem;
 namespace pa_kernels
 {
 
+enum class FECType
+{
+   H1,
+   L2_VALUE,
+   L2_INTEGRAL
+};
+
+std::unique_ptr<FiniteElementCollection> create_fec(
+   FECType fec_type, int order, int dim)
+{
+   using Ptr = std::unique_ptr<FiniteElementCollection>;
+   switch (fec_type)
+   {
+      case FECType::H1:
+         return Ptr(new H1_FECollection(order, dim));
+      case FECType::L2_VALUE:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::VALUE));
+      case FECType::L2_INTEGRAL:
+         return Ptr(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                        FiniteElement::INTEGRAL));
+      default:
+         MFEM_ABORT("Invalid FECType");
+   }
+}
+
 Mesh MakeCartesianNonaligned(const int dim, const int ne)
 {
    Mesh mesh;
@@ -122,6 +148,30 @@ void pa_divergence_testnd(int dim,
    REQUIRE(field2.Normlinf() == MFEM_Approx(0.0));
 }
 
+template <typename INTEGRATOR>
+void pa_mixed_transpose_test(FiniteElementSpace &fes1,
+                             FiniteElementSpace &fes2)
+{
+   MixedBilinearForm bform_pa(&fes1, &fes2);
+   bform_pa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   bform_pa.Assemble();
+
+   MixedBilinearForm bform_fa(&fes1, &fes2);
+   bform_fa.AddDomainIntegrator(new TransposeIntegrator(new INTEGRATOR));
+   bform_fa.Assemble();
+   bform_fa.Finalize();
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+   x.Randomize(1);
+
+   bform_pa.Mult(x, y_pa);
+   bform_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
 void pa_divergence_transpose_testnd(int dim)
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
@@ -135,28 +185,7 @@ void pa_divergence_transpose_testnd(int dim)
    H1_FECollection fec2(order, dim);
    FiniteElementSpace fes2(&mesh, &fec2, dim);
 
-   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
-
-   MixedBilinearForm d_pa(&fes1, &fes2);
-   d_pa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   d_pa.Assemble();
-
-   MixedBilinearForm d_fa(&fes1, &fes2);
-   d_fa.AddDomainIntegrator(
-      new TransposeIntegrator(new VectorDivergenceIntegrator));
-   d_fa.Assemble();
-   d_fa.Finalize();
-
-   x.Randomize(1);
-
-   d_pa.Mult(x, y_pa);
-   d_fa.Mult(x, y_fa);
-
-   y_pa -= y_fa;
-
-   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+   pa_mixed_transpose_test<VectorDivergenceIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA VectorDivergence", "[PartialAssembly], [CUDA]")
@@ -197,9 +226,9 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
-double pa_gradient_testnd(int dim,
-                          double (*f1)(const Vector &),
-                          void (*gradf1)(const Vector &, Vector &))
+void pa_gradient_testnd(int dim, FECType fec_type,
+                        double (*f1)(const Vector &),
+                        void (*gradf1)(const Vector &, Vector &))
 {
    Mesh mesh = MakeCartesianNonaligned(dim, 2);
    int order = 4;
@@ -207,12 +236,12 @@ double pa_gradient_testnd(int dim,
    // Scalar
    H1_FECollection fec1(order, dim);
    FiniteElementSpace fes1(&mesh, &fec1);
+   GridFunction field(&fes1);
 
    // Vector valued
-   H1_FECollection fec2(order, dim);
-   FiniteElementSpace fes2(&mesh, &fec2, dim);
-
-   GridFunction field(&fes1), field2(&fes2);
+   auto fec2 = create_fec(fec_type, order, dim);
+   FiniteElementSpace fes2(&mesh, fec2.get(), dim);
+   GridFunction field2(&fes2);
 
    MixedBilinearForm gform(&fes1, &fes2);
    gform.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -231,21 +260,45 @@ double pa_gradient_testnd(int dim,
    lf.Assemble();
    field2 -= lf;
 
-   return field2.Norml2();
+   REQUIRE(field2.Norml2() == MFEM_Approx(0.0));
+}
+
+void pa_gradient_transpose_testnd(int dim, FECType fec_type)
+{
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   int order = 4;
+
+   // Scalar
+   H1_FECollection fec2(order, dim);
+   FiniteElementSpace fes2(&mesh, &fec2);
+   GridFunction y_pa(&fes2), y_fa(&fes2);
+
+   // Vector valued
+   auto fec1 = create_fec(fec_type, order, dim);
+   FiniteElementSpace fes1(&mesh, fec1.get(), dim);
+
+   pa_mixed_transpose_test<GradientIntegrator>(fes1, fes2);
 }
 
 TEST_CASE("PA Gradient", "[PartialAssembly], [CUDA]")
 {
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
+
    SECTION("2D")
    {
       // Check if grad(x^2 + y^3) == [2x, 3y^2]
-      REQUIRE(pa_gradient_testnd(2, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(2, fec_type, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(2, fec_type);
    }
 
    SECTION("3D")
    {
       // Check if grad(x^2 + y^3 + z^4) == [2x, 3y^2, 4z^3]
-      REQUIRE(pa_gradient_testnd(3, f1, gradf1) == MFEM_Approx(0.0));
+      pa_gradient_testnd(3, fec_type, f1, gradf1);
+      // Check transpose
+      pa_gradient_transpose_testnd(3, fec_type);
    }
 }
 
