@@ -271,6 +271,7 @@ public:
    FiniteElementSpace *FESpace() { return a->FESpace(); }
    LinearForm &GetLinearForm() {return *b;}
 protected:
+   virtual void SolveSystem(GridFunction &x) = 0;
 private:
 };
 
@@ -377,6 +378,11 @@ public:
                                            GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new StrainEnergyDensityCoefficient(lambda, mu, u, dual_solution, projector, frho)); }
 protected:
+   void SolveSystem(GridFunction &x) override
+   {
+      EllipticSolver solver(*a, *b, ess_bdr);
+      solver.Solve(x, AisStationary, BisStationary);
+   }
 private:
 };
 
@@ -427,6 +433,11 @@ public:
                                            GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new ThermalEnergyDensityCoefficient(kappa, u, dual_solution, projector, frho)); }
 protected:
+   void SolveSystem(GridFunction &x) override
+   {
+      EllipticSolver solver(*a, *b, ess_bdr);
+      solver.Solve(x, AisStationary, BisStationary);
+   }
 private:
 };
 

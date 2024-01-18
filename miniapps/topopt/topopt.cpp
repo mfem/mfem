@@ -525,14 +525,20 @@ void ParametrizedLinearEquation::Solve(GridFunction &x)
 {
    if (!AisStationary) { a->Update(); }
    if (!BisStationary) { b->Update(); }
-   EllipticSolver solver(*a, *b, ess_bdr);
-   solver.Solve(x, AisStationary, BisStationary);
+   SolveSystem(x);
 }
 void ParametrizedLinearEquation::DualSolve(GridFunction &x, LinearForm &new_b)
 {
    if (!AisStationary) { a->Update(); }
-   EllipticSolver solver(*a, new_b, ess_bdr);
-   solver.Solve(x, AisStationary, false);
+   // store current b temporarly, and assign the given linear form.
+   LinearForm* b_tmp_storage = b.release();
+   b.reset(&new_b);
+   // Assemble and solve
+   new_b.Assemble();
+   SolveSystem(x);
+   // Release and restore. We need to release before reset as new_b is not owned by this.
+   (void) b.release();
+   b.reset(b_tmp_storage);
 }
 
 TopOptProblem::TopOptProblem(LinearForm &objective,
