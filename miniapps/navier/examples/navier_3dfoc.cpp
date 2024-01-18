@@ -11,7 +11,7 @@
 
 // 3D flow over a cylinder benchmark example
 
-#include "navier_solver.hpp"
+#include "lib/navier_solver.hpp"
 #include <fstream>
 
 using namespace mfem;
