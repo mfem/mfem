@@ -315,7 +315,7 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
-   runs="${sruns}${pruns}"
+   runs="${sruns}"$'\n'"${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
