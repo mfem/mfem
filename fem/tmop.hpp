@@ -1821,17 +1821,27 @@ protected:
 
    // PA extension
    // ------------
+   // Jtr: all ref->target Jacobians, (dim x dim) Q-Vector as DenseTensor.
+   //      updated when needed, based on Jtr_needs_update.
+   //
    //  E: Q-vector for TMOP-energy
+   //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
    // X0: E-vector for initial nodal coordinates used for limiting.
+   //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
    // C0: Q-Vector for spatial weight used for the limiting term.
+   //     Updated when the mesh nodes change.
    // LD: E-Vector constructed using limiting distance grid function (delta).
+   //     Does not change during the TMOP iteration.
    // H0: Q-Vector for Hessian associated with the limiting term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
+   // MC: Q-Vector for the metric Coefficient.
+   //     Updated when the mesh nodes change.
    //
-   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
-   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
-   //            grid function.
+   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -1850,7 +1860,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1964,6 +1974,9 @@ protected:
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+   // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
+   // new physical positions of the quadrature points.
+   void UpdateCoefficientsPA(const Vector &x_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
