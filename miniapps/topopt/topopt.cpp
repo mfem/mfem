@@ -83,18 +83,21 @@ void EllipticSolver::GetEssentialTrueDofs()
       else
       {
          Array<int> ess_tdof_list_comp;
-         for (int i=0; i<ess_bdr.NumRows() - 1; i++)
+         Array<int> ess_bdr_list;
+         ess_bdr_list.MakeRef(ess_bdr.GetRow(0),
+                              ess_bdr.NumCols());
+         pfes->GetEssentialTrueDofs(
+            ess_bdr_list, ess_tdof_list_comp, -1);
+         ess_tdof_list.Append(ess_tdof_list_comp);
+
+         for (int i=1; i<ess_bdr.NumRows(); i++)
          {
-            Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
+            ess_bdr_list.MakeRef(ess_bdr.GetRow(i),
+                                 ess_bdr.NumCols());
             pfes->GetEssentialTrueDofs(
                ess_bdr_list, ess_tdof_list_comp, i);
             ess_tdof_list.Append(ess_tdof_list_comp);
          }
-         Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
-                                 ess_bdr.NumCols());
-         pfes->GetEssentialTrueDofs(
-            ess_bdr_list, ess_tdof_list_comp, -1);
-         ess_tdof_list.Append(ess_tdof_list_comp);
       }
    }
    else
@@ -271,7 +274,6 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
    frho.reset(MakeGridFunction(&fes_filter));
    *frho = target_volume_fraction;
    Mesh *mesh = fes.GetMesh();
-   double domain_volume = 0.0;
    for (int i=0; i<mesh->GetNE(); i++)
    {
       domain_volume += mesh->GetElementVolume(i);
