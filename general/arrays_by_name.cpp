@@ -14,10 +14,6 @@
 namespace mfem
 {
 
-template class ArraysByName<char>;
 template class ArraysByName<int>;
-template class ArraysByName<long>;
-template class ArraysByName<long long>;
-template class ArraysByName<double>;
 
 } // namespace mfem
