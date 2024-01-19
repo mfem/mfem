@@ -202,7 +202,6 @@ int main(int argc, char *argv[])
    Vector center(2), force(2);
    double r = 0.05;
    std::unique_ptr<VectorCoefficient> vforce_cf;
-   std::unique_ptr<VectorCoefficient> torsion_cf(nullptr);
    string mesh_file;
    switch (problem)
    {
@@ -274,16 +273,21 @@ int main(int argc, char *argv[])
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(4, 6) = 1;
 
-         center.SetSize(3); force.SetSize(3);
          vol_fraction = 0.1;
          epsilon = 0.025;
-         force = 0.0;
 
-         vforce_cf.reset(new VectorConstantCoefficient(force));
-         center(0) = 1.2; center(1) = 0.5; center(2) = 0.5;
-         torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
-                                                                       Vector &force)
+         center.SetSize(3); force.SetSize(3);
+         force = 0.0;
+         center[0] = 0; center[1] = 0.5; center[2] = 0.5;
+         vforce_cf.reset(new VectorFunctionCoefficient(3, [center, r](const Vector &x,
+                                                                      Vector &f)
          {
+            Vector xx(x); xx(0) = 0.0;
+            double d = center.DistanceTo(x);
+            f[0] = 0.0;
+            f[1] = d < r ? 0.0 : -(x[2] - 0.5);
+            f[2] = d < r ? 0.0 : (x[1] - 0.5);
+         }));
          prob_name << "Torsion3";
          break;
 
@@ -310,14 +314,16 @@ int main(int argc, char *argv[])
    {
       case Problem::MBB:
       {
-         MarkBoundary(pmesh, [](const Vector &fc) {return ((fc(0) > (3 - std::pow(2, -5))) && (fc(1) < 1e-10)); },
+         MarkBoundary(pmesh, [](const Vector &x) {return ((x(0) > (3 - std::pow(2, -5))) && (x(1) < 1e-10)); },
          5);
          break;
       }
       case Problem::Torsion3:
       {
          // left center: Dirichlet
-         MarkBoundary(pmesh, [r](const Vector &fc) {return (fc.Norml2() < r); }, 7);
+         center[0] = 0.0; center[1] = 0.5; center[2] = 0.5;
+         MarkBoundary(pmesh, [r, center](const Vector &x) {return (center.DistanceTo(x) < r); },
+         7);
          break;
       }
    }
@@ -356,13 +362,6 @@ int main(int argc, char *argv[])
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
-   if (torsion_cf.get())
-   {
-      elasticity.GetLinearForm().AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(
-                                                         *torsion_cf));
-      elasticity.GetLinearForm().Assemble();
-   }
-
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
