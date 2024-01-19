@@ -1003,6 +1003,68 @@ void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coord
    M2.Finalize();
 };
 
+void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+                      const Array<int> m_conn, Vector& g, SparseMatrix& M,
+                      const Array<int> & points_map)
+{
+   int ndim = 3;
+
+   int npoints = s_conn.Size();
+   g.SetSize(npoints);
+   g = 0.0;
+
+   double g_tmp = 0.;
+   Vector dg(4*ndim+ndim);
+   dg = 0.;
+   DenseMatrix dg2(4*ndim+ndim,4*ndim+ndim);
+   dg2 = 0.;
+
+   for (int i=0; i<npoints; i++)
+   {
+      Vector x1(ndim);
+      x1[0] = x_s[i*ndim];
+      x1[1] = x_s[i*ndim+1];
+      x1[2] = x_s[i*ndim+2];
+
+      Vector xi2(ndim-1);
+      xi2[0] = xi[i*(ndim-1)];
+      xi2[1] = xi[i*(ndim-1)+1];
+
+      DenseMatrix coords2(4,3);
+      coords2.CopyRows(coordsm, i*4,(i+1)*4-1);
+
+      dg = 0.0;
+      dg2 = 0.;
+      
+      NodeSegConPairs(x1, xi2, coords2, g_tmp, dg, dg2);
+
+      int row = i;
+      g[row] = g_tmp; // should be unique
+      Array<int> m_conn_i(4);
+      m_conn.GetSubArray(4*i, 4, m_conn_i);
+
+      Array<int> node_conn(5);
+      node_conn[0] = s_conn[i];
+      for (int j=0; j<4; j++)
+      {
+         node_conn[j+1] = m_conn_i[j];
+      }
+
+      Array<int> j_idx(5*ndim); j_idx = 0;
+      for (int j=0; j< 5; j++)
+      {
+         for (int d=0; d<ndim; d++)
+         {
+            j_idx[j*ndim+d] = node_conn[j]*ndim+d;
+         }
+      }
+      M.SetRow(points_map[i],j_idx,dg);
+   }
+   M.Finalize();
+   M.Threshold(0.0);
+   M.SortColumnIndices();
+};
+
 
 void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 {
@@ -1063,7 +1125,6 @@ void FindSurfaceToProject(Mesh& mesh, const int elem, int& cbdrface)
 Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
                        int & refFace, int & refNormal, bool & interior)
 {
-
    ElementTransformation *trans = mesh.GetElementTransformation(elem);
    const int dim = mesh.Dimension();
    const int spaceDim = trans->GetSpaceDim();
@@ -1074,6 +1135,7 @@ Vector GetNormalVector(Mesh & mesh, const int elem, const double *ref,
 
    IntegrationPoint ip;
    ip.Set(ref, dim);
+   
 
    trans->SetIntPoint(&ip);
    //CalcOrtho(trans->Jacobian(), n);  // Works only for face transformations

@@ -37,6 +37,10 @@ void Assemble_Contact(const Vector x_s,
                       const Array<int> m_conn, Vector& g, SparseMatrix& M,
                       Array<SparseMatrix *> & dM);
 
+void Assemble_Contact(const Vector x_s, const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
+                      const Array<int> m_conn, Vector& g, SparseMatrix& M,
+                      const Array<int> & points_map);
+
 void Assemble_Contact(const Vector x_s,
                       const Vector xi, const DenseMatrix coordsm, const Array<int> s_conn,
                       const Array<int> m_conn, Vector & g, SparseMatrix & M1, SparseMatrix & M2, 

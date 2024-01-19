@@ -36,8 +36,11 @@ PCONTACT_OBJ = $(PCONTACT_SRC:.cpp=.o)
 PCONTACT_TRIBOL_SRC = pcontact-tribol.cpp $(CONTACT_PAR_SRC)
 PCONTACT_TRIBOL_OBJ = $(PCONTACT_TRIBOL_SRC:.cpp=.o)
 
+PCONTACT_SINGLEMESH_SRC = pcontact_single_mesh.cpp $(CONTACT_PAR_SRC)
+PCONTACT_SINGLEMESH_OBJ = $(PCONTACT_SINGLEMESH_SRC:.cpp=.o)
+
 SEQ_MINIAPPS = contact_driver
-PAR_MINIAPPS = pcontact_driver pcontact-tribol
+PAR_MINIAPPS = pcontact_driver pcontact-tribol pcontact_single_mesh
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -86,6 +89,10 @@ pcontact_driver: $(PCONTACT_OBJ)
 pcontact-tribol: $(PCONTACT_TRIBOL_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PCONTACT_TRIBOL_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
 
+pcontact_single_mesh: $(PCONTACT_SINGLEMESH_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(PCONTACT_SINGLEMESH_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
@@ -108,7 +115,7 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
-	rm -f $(CONTACT_OBJ) $(PCONTACT_OBJ) $(PCONTACT_TRIBOL_OBJ)
+	rm -f $(CONTACT_OBJ) $(PCONTACT_OBJ) $(PCONTACT_TRIBOL_OBJ) $(PCONTACT_SINGLEMESH_OBJ) 
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

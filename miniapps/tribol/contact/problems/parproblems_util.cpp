@@ -304,7 +304,6 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       int refFace, refNormal; 
       // int refNormalSide;
       bool is_interior = -1;
-
       Vector normal = GetNormalVector(mesh, elems_recv[i],
                                       ref_recv.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);

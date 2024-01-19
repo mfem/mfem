@@ -8,7 +8,9 @@ using namespace std;
 using namespace mfem;
 
 
-ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemTribol * problem_) 
+// ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemTribol * problem_) 
+//                      : problem(problem_)
+ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemSingleMesh * problem_) 
                      : problem(problem_)
 {
    OptTol  = 1.e-2;
@@ -124,7 +126,6 @@ void ParInteriorPointSolver::Mult(const Vector &x0, Vector &xf)
 void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    converged = false;
-   
    BlockVector xk(block_offsetsx), xhat(block_offsetsx); xk = 0; xhat = 0.0;
    BlockVector Xk(block_offsetsumlz), Xhat(block_offsetsumlz); Xk = 0.0; Xhat = 0.0;
    BlockVector Xhatuml(block_offsetsuml); Xhatuml = 0.0;
@@ -136,7 +137,7 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    lk  = 0.0;
    zlk = 0.0;
 
-   for(int i = 0; i < dimM; i++)
+   for (int i = 0; i < dimM; i++)
    {
       zlk(i) = 1.e1 * mu_k / (xk(i+dimU) - ml(i));
    }

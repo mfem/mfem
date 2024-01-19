@@ -14,7 +14,8 @@ class ParInteriorPointSolver
 {
 protected:
     // QPOptParContactProblem* problem = nullptr;
-    QPOptParContactProblemTribol* problem = nullptr;
+    // QPOptParContactProblemTribol* problem = nullptr;
+    QPOptParContactProblemSingleMesh* problem = nullptr;
     double OptTol;
     int  max_iter;
     double mu_k; // \mu_k
@@ -64,7 +65,9 @@ protected:
     double linSolveTol;
     int relax_type = 8;
 public:
-    ParInteriorPointSolver(QPOptParContactProblemTribol*);
+    // ParInteriorPointSolver(QPOptParContactProblem*);
+    // ParInteriorPointSolver(QPOptParContactProblemTribol*);
+    ParInteriorPointSolver(QPOptParContactProblemSingleMesh*);
     double MaxStepSize(Vector& , Vector& , Vector& , double);
     double MaxStepSize(Vector& , Vector& , double);
     void Mult(const BlockVector& , BlockVector&);

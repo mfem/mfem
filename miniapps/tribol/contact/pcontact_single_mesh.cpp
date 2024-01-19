@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
    int relax_type = 8;
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 10;
+   bool enable_tribol = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -44,6 +45,9 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");
    args.AddOption(&linsolvertol, "-stol", "--solver-tol",
                   "Linear Solver Tolerance.");
+   args.AddOption(&enable_tribol, "-tribol", "--tribol", "-no-tribol",
+                  "--no-tribol",
+                  "Enable or disable Tribol interface.");
    args.AddOption(&optimizer_tol, "-otol", "--optimizer-tol",
                   "Interior Point Solver Tolerance.");
    args.AddOption(&optimizer_maxit, "-omaxit", "--optimizer-maxit",
@@ -95,10 +99,9 @@ int main(int argc, char *argv[])
    Vector mu(prob->GetMesh()->attributes.Max()); mu = 38.4615384615;
    prob->SetLambda(lambda); prob->SetMu(mu);
 
-#ifdef MFEM_USE_TRIBOL
-   ParContactProblemTribol contact_tribol(prob);
-   QPOptParContactProblemTribol qpopt(&contact_tribol);
-   int numconstr = contact_tribol.GetGlobalNumConstraints();
+   ParContactProblemSingleMesh contact(prob, enable_tribol);
+   QPOptParContactProblemSingleMesh qpopt(&contact);
+   int numconstr = contact.GetGlobalNumConstraints();
    ParInteriorPointSolver optimizer(&qpopt);
    optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(optimizer_maxit);
@@ -112,8 +115,8 @@ int main(int argc, char *argv[])
    int ndofs = x0.Size();
    Vector xf(ndofs); xf = 0.0;
    optimizer.Mult(x0, xf);
-   double Einitial = contact_tribol.E(x0);
-   double Efinal = contact_tribol.E(xf);
+   double Einitial = contact.E(x0);
+   double Efinal = contact.E(xf);
    Array<int> & CGiterations = optimizer.GetCGIterNumbers();
    int gndofs = prob->GetGlobalNumDofs();
    if (Mpi::Root())
@@ -171,7 +174,6 @@ int main(int argc, char *argv[])
                   << "solution\n" << *pmesh << x_gf << flush;
       }
    }
-#endif
 
    delete prob;
    delete pmesh;
