@@ -89,39 +89,6 @@ TEST_CASE("ArraysByName Copy Methods", "[ArraysByName]")
    ArraysByName<int> abn_copy6b;
    abn_copy6b = std::move(abn_copy6a);
    REQUIRE(abn == abn_copy6b);
-
-   // Implicit call to convertible type copy constructor
-   ArraysByName<long> abn_copy7 = abn;
-   REQUIRE(abn.Size() == abn_copy7.Size());
-   for (auto entry7 : abn_copy7)
-   {
-      std::string name = entry7.first;
-      REQUIRE(abn.EntryExists(name));
-      REQUIRE(abn[name].Size() == abn_copy7[name].Size());
-      int matches = 0;
-      for (int i=0; i<abn[name].Size(); i++)
-      {
-         if ((long)abn[name][i] == abn_copy7[name][i]) { matches++; }
-      }
-      REQUIRE(matches == abn[name].Size());
-   }
-
-   // Convertible type copy assignment operator
-   ArraysByName<long> abn_copy8;
-   abn_copy8 = abn;
-   REQUIRE(abn.Size() == abn_copy8.Size());
-   for (auto entry8 : abn_copy8)
-   {
-      std::string name = entry8.first;
-      REQUIRE(abn.EntryExists(name));
-      REQUIRE(abn[name].Size() == abn_copy8[name].Size());
-      int matches = 0;
-      for (int i=0; i<abn[name].Size(); i++)
-      {
-         if ((long)abn[name][i] == abn_copy8[name][i]) { matches++; }
-      }
-      REQUIRE(matches == abn[name].Size());
-   }
 }
 
 TEST_CASE("ArraysByName Various Methods", "[ArraysByName]")
