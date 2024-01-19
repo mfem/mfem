@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
    int seq_ref_levels = 0;
    int par_ref_levels = 6;
    int order = 1;
-   double filter_radius = 2e-2;
+   double filter_radius = 5e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
    double rho_min = 1e-06;
@@ -217,6 +217,19 @@ int main(int argc, char *argv[])
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
          prob_name << "Cantilever";
          break;
+      case Problem::MBB:
+         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
+                                     1.0);
+         ess_bdr.SetSize(3, 5);
+         ess_bdr_filter.SetSize(5);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
+         ess_bdr(2, 4) = 1; // right-bottom : x-roller -> y fixed
+         center(0) = 0.05; center(1) = 0.95;
+         force(0) = 0.0; force(1) = -1.0;
+         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
+         prob_name << "MBB";
+         break;
       case Problem::LBracket:
          mesh_file = "../../data/lbracket_square.mesh";
          seq_ref_levels--;
@@ -230,20 +243,6 @@ int main(int argc, char *argv[])
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
          prob_name << "LBracket";
          break;
-      case Problem::MBB:
-         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
-                                     1.0);
-         ess_bdr.SetSize(3, 5);
-         ess_bdr_filter.SetSize(5);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(1, 0) = 1; // left : y-roller -> x fixed
-         ess_bdr(2, 4) = 1; // right-bottom : x-roller -> y fixed
-         center(0) = 0.05; center(1) = 0.95;
-         force(0) = 0.0; force(1) = -1.0;
-         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         prob_name << "MBB";
-         break;
-
       case Problem::Cantilever3:
          // 1: bottom,
          // 2: front,
@@ -302,7 +301,6 @@ int main(int argc, char *argv[])
    mesh.SetAttributes();
 
    int dim = mesh.Dimension();
-   double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
    if (glvis_visualization && dim == 3)
    {
       glvis_visualization = false;
@@ -313,14 +311,12 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < seq_ref_levels; lev++)
    {
       mesh.UniformRefinement();
-      h *= 0.5;
    }
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
       pmesh.UniformRefinement();
-      h *= 0.5;
    }
    switch (problem)
    {
@@ -519,7 +515,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 1e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
          if (Mpi::Root()) { out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
