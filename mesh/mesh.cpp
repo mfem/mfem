@@ -1651,12 +1651,14 @@ void Mesh::AttrToMarker(int max_attr, const Array<int> &attrs,
 
 void Mesh::AttrToMarker(const Array<int> &attrs, Array<int> &marker) const
 {
-   AttrToMarker(attributes.Max(), attrs, marker);
+   AttrToMarker(attributes.Size() > 0 ? attributes.Max() : 1,
+                attrs, marker);
 }
 
 void Mesh::BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const
 {
-   AttrToMarker(bdr_attributes.Max(), attrs, marker);
+   AttrToMarker(bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 1,
+                attrs, marker);
 }
 
 void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
