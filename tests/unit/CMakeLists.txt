@@ -19,6 +19,7 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_arrays_by_name.cpp
+  general/test_error.cpp
   general/test_mem.cpp
   general/test_text.cpp
   general/test_umpire_mem.cpp
