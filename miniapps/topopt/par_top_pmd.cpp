@@ -152,10 +152,10 @@ int main(int argc, char *argv[])
    int seq_ref_levels = 0;
    int par_ref_levels = 6;
    int order = 1;
-   double epsilon = 2e-2;
+   double filter_radius = 2e-2;
    double vol_fraction = 0.5;
    int max_it = 2e2;
-   double rho_min = 1.;
+   double rho_min = 1e-06;
    double exponent = 3.0;
    double lambda = 1.0;
    double mu = 1.0;
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
                   "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&epsilon, "-epsilon", "--epsilon-thickness",
+   args.AddOption(&filter_radius, "-fr", "--filter-radius",
                   "Length scale for ρ.");
    args.AddOption(&max_it, "-mi", "--max-it",
                   "Maximum number of gradient descent iterations.");
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(3, 4);
          ess_bdr_filter.SetSize(4);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(2, 3) = 1;
+         ess_bdr(0, 3) = 1;
          center(0) = 2.9; center(1) = 0.5;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(3, 6);
          ess_bdr_filter.SetSize(6);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(2, 4) = 1;
+         ess_bdr(0, 4) = 1;
          center(0) = 0.95; center(1) = 0.35;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
@@ -236,8 +236,8 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(3, 5);
          ess_bdr_filter.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 0) = 1; // left : y-roller -> x fixed
-         ess_bdr(1, 4) = 1; // right-bottom : x-roller -> y fixed
+         ess_bdr(1, 0) = 1; // left : y-roller -> x fixed
+         ess_bdr(2, 4) = 1; // right-bottom : x-roller -> y fixed
          center(0) = 0.05; center(1) = 0.95;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
@@ -245,13 +245,18 @@ int main(int argc, char *argv[])
          break;
 
       case Problem::Cantilever3:
-         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
+         // 1: bottom,
+         // 2: front,
+         // 3: right,
+         // 4: back,
+         // 5: left,
+         // 6: top
          mesh = mesh.MakeCartesian3D(2, 1, 1, mfem::Element::Type::HEXAHEDRON, 2.0, 1.0,
                                      1.0);
          ess_bdr.SetSize(4, 6);
          ess_bdr_filter.SetSize(6);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(3, 4) = 1;
+         ess_bdr(0, 4) = 1;
 
          vol_fraction = 0.12;
 
@@ -271,10 +276,9 @@ int main(int argc, char *argv[])
          ess_bdr.SetSize(4, 7);
          ess_bdr_filter.SetSize(7);
          ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(4, 6) = 1;
+         ess_bdr(0, 6) = 1;
 
          vol_fraction = 0.1;
-         epsilon = 0.025;
 
          center.SetSize(3); force.SetSize(3);
          force = 0.0;
@@ -283,10 +287,11 @@ int main(int argc, char *argv[])
                                                                       Vector &f)
          {
             Vector xx(x); xx(0) = 0.0;
-            double d = center.DistanceTo(x);
+            xx -= center;
+            double d = xx.Norml2();
             f[0] = 0.0;
-            f[1] = d < r ? 0.0 : -(x[2] - 0.5);
-            f[2] = d < r ? 0.0 : (x[1] - 0.5);
+            f[1] = d < r ? 0.0 : -xx[2];
+            f[2] = d < r ? 0.0 : xx[1];
          }));
          prob_name << "Torsion3";
          break;
@@ -294,9 +299,16 @@ int main(int argc, char *argv[])
       default:
          mfem_error("Undefined problem.");
    }
+   mesh.SetAttributes();
 
    int dim = mesh.Dimension();
    double h = std::pow(mesh.GetElementVolume(0), 1.0 / dim);
+   if (glvis_visualization && dim == 3)
+   {
+      glvis_visualization = false;
+      if (Mpi::Root()) { out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
+   }
+
    // 3. Refine the mesh.
    for (int lev = 0; lev < seq_ref_levels; lev++)
    {
@@ -322,7 +334,7 @@ int main(int argc, char *argv[])
       {
          // left center: Dirichlet
          center[0] = 0.0; center[1] = 0.5; center[2] = 0.5;
-         MarkBoundary(pmesh, [r, center](const Vector &x) {return (center.DistanceTo(x) < r); },
+         MarkBoundary(pmesh, [r, center](const Vector &x) {if (center.DistanceTo(x) < r) {out << "." << std::flush;} return (center.DistanceTo(x) < r); },
          7);
          break;
       }
@@ -356,7 +368,8 @@ int main(int argc, char *argv[])
 
    // 5. Set the initial guess for ρ.
    SIMPProjector simp_rule(exponent, rho_min);
-   HelmholtzFilter filter(filter_fes, epsilon, ess_bdr_filter);
+   HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
+                          ess_bdr_filter);
    LatentDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
@@ -434,8 +447,9 @@ int main(int argc, char *argv[])
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    double compliance = optprob.Eval();
-   double step_size, volume, stationarityError, stationarityError_bregman;
-   int num_check;
+   double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
+          stationarityError(infinity()), stationarityError_bregman(infinity());
+   int num_check(0);
    double old_compliance;
 
    TableLogger logger;
@@ -445,6 +459,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Re-evel"), num_check);
    logger.Append(std::string("Step Size"), step_size);
    logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
+   logger.Print();
 
    optprob.UpdateGradient();
    for (int k = 0; k < max_it; k++)
