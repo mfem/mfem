@@ -113,6 +113,7 @@ protected:
    double target_volume_fraction;
    double target_volume;
    double current_volume;
+   double domain_volume;
    double vol_tol;
 private:
 
@@ -124,6 +125,7 @@ public:
    FiniteElementSpace *FESpace() {return x_gf->FESpace(); }
    FiniteElementSpace *FESpace_filter() {return frho->FESpace(); }
    double GetVolume() { return current_volume; }
+   double GetDomainVolume() { return domain_volume; }
    GridFunction &GetGridFunction() { return *x_gf; }
    Coefficient &GetDensityCoefficient() { return *rho_cf; }
    GridFunction &GetFilteredDensity() { return *frho; }
