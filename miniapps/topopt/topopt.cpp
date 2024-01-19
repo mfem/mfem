@@ -274,22 +274,14 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
      vol_tol(volume_tolerance)
 {
    x_gf.reset(MakeGridFunction(&fes));
+   {
+      *x_gf = 0.0;
+      ConstantCoefficient one_cf(1.0);
+      domain_volume = x_gf->ComputeL1Error(one_cf);
+   }
    *x_gf = target_volume_fraction;
    frho.reset(MakeGridFunction(&fes_filter));
    *frho = target_volume_fraction;
-   Mesh *mesh = fes.GetMesh();
-   for (int i=0; i<mesh->GetNE(); i++)
-   {
-      domain_volume += mesh->GetElementVolume(i);
-   }
-#ifdef MFEM_USE_MPI
-   ParFiniteElementSpace* pfes = dynamic_cast<ParFiniteElementSpace*>(&fes);
-   if (pfes)
-   {
-      MPI_Allreduce(MPI_IN_PLACE, &domain_volume, 1, MPI_DOUBLE, MPI_SUM,
-                    pfes->GetComm());
-   }
-#endif
    target_volume = domain_volume * target_volume_fraction;
 }
 
@@ -845,7 +837,7 @@ void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
                   const int idx)
 {
    const int dim = mesh.Dimension();
-   Vector c1(dim), c2(dim);
+   Vector c1(dim), c2(dim), m(dim);
    for (int i = 0; i<mesh.GetNBE(); i++)
    {
       Element * be = mesh.GetBdrElement(i);
@@ -853,9 +845,9 @@ void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
       be->GetVertices(vertices);
       c1.SetData(mesh.GetVertex(vertices[0]));
       c2.SetData(mesh.GetVertex(vertices[1]));
-      c1 += c2; c1 *= 0.5;
-
-      if (mark(c1))
+      m = 0.0;
+      m += c1; m += c2; m*= 0.5;
+      if (mark(m))
       {
          mesh.SetBdrAttribute(i, idx);
       }
