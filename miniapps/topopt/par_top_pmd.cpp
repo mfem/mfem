@@ -164,14 +164,15 @@ int main(int argc, char *argv[])
    bool save = true;
    bool paraview = true;
 
-   ostringstream solfile, solfile2, meshfile;
+   ostringstream prob_name;
+   prob_name << "PMD-";
 
    int problem = Problem::Cantilever;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&seq_ref_levels, "-sr", "--seq-refine",
+   args.AddOption(&seq_ref_levels, "-rs", "--seq-refine",
                   "Number of times to refine the sequential mesh uniformly.");
-   args.AddOption(&par_ref_levels, "-pr", "--par-refine",
+   args.AddOption(&par_ref_levels, "-rp", "--par-refine",
                   "Number of times to refine the parallel mesh uniformly.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
@@ -215,9 +216,7 @@ int main(int argc, char *argv[])
          center(0) = 2.9; center(1) = 0.5;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         solfile << "Cantilever-";
-         solfile2 << "Cantilever-";
-         meshfile << "Cantilever";
+         prob_name << "Cantilever";
          break;
       case Problem::LBracket:
          mesh_file = "../../data/lbracket_square.mesh";
@@ -230,9 +229,7 @@ int main(int argc, char *argv[])
          center(0) = 0.95; center(1) = 0.35;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         solfile << "LBracket-";
-         solfile2 << "LBracket-";
-         meshfile << "LBracket";
+         prob_name << "LBracket";
          break;
       case Problem::MBB:
          mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
@@ -245,9 +242,7 @@ int main(int argc, char *argv[])
          center(0) = 0.05; center(1) = 0.95;
          force(0) = 0.0; force(1) = -1.0;
          vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         solfile << "MBB-";
-         solfile2 << "MBB-";
-         meshfile << "MBB";
+         prob_name << "MBB";
          break;
 
       case Problem::Cantilever3:
@@ -265,9 +260,7 @@ int main(int argc, char *argv[])
          center(0) = 1.9; center(1) = 0.1; center(2) = 0.25;
          force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
          vforce_cf.reset(new LineVolumeForceCoefficient(r,center,force,1));
-         solfile << "Cantilever3-";
-         solfile2 << "Cantilever3-";
-         meshfile << "Cantilever3";
+         prob_name << "Cantilever3";
          break;
 
       case Problem::Torsion3:
@@ -291,15 +284,7 @@ int main(int argc, char *argv[])
          torsion_cf.reset(new VectorFunctionCoefficient(3, [r, center](const Vector &x,
                                                                        Vector &force)
          {
-            force = 0.0;
-            if (x.DistanceTo(center) < r)
-            {
-               force[1] = (x[2] - 0.5); force[2] = -(x[1] - 0.5);
-            }
-         }));
-         solfile << "Torsion3-";
-         solfile2 << "Torsion3-";
-         meshfile << "Torsion3";
+         prob_name << "Torsion3";
          break;
 
       default:
@@ -337,6 +322,12 @@ int main(int argc, char *argv[])
       }
    }
    pmesh.SetAttributes();
+   ostringstream meshfile;
+   meshfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+            "." << setfill('0') << setw(6) << myid;
+   ofstream mesh_ofs(meshfile.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh.Print(mesh_ofs);
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -374,14 +365,6 @@ int main(int argc, char *argv[])
 
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
-
-
-   meshfile << "-" << par_ref_levels;
-   solfile << par_ref_levels << "-";
-   solfile2 << par_ref_levels << "-";
-   solfile << "PMD-0." << setfill('0') << setw(6) << myid;
-   solfile2 << "PMD-f." << setfill('0') << setw(6) << myid;
-   meshfile << "." << setfill('0') << setw(6) << myid;
 
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
@@ -427,7 +410,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
-      pd.reset(new ParaViewDataCollection("TopPMD", &pmesh));
+      pd.reset(new ParaViewDataCollection(prob_name.str(), &pmesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
       pd->RegisterField("psi", &density.GetGridFunction());
@@ -440,10 +423,6 @@ int main(int argc, char *argv[])
       pd->Save();
    }
 
-   mfem::ParaViewDataCollection paraview_dc("ex37", &pmesh);
-   ofstream mesh_ofs(meshfile.str().c_str());
-   mesh_ofs.precision(8);
-   pmesh.Print(mesh_ofs);
    // 11. Iterate
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
@@ -534,6 +513,11 @@ int main(int argc, char *argv[])
    }
    if (save)
    {
+      ostringstream solfile, solfile2;
+      solfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+              "-0." << setfill('0') << setw(6) << myid;
+      solfile2 << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+               "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
       sol_ofs << psi;
