@@ -14,3 +14,7 @@ MBB*
 Torsion3*
 thermal_pmd
 thermal_pgd
+**/PMD-*
+**/PGD-*
+**/OC-*
+**/MMA-*
