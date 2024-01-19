@@ -82,8 +82,7 @@ void EllipticSolver::GetEssentialTrueDofs()
       }
       else
       {
-         Array<int> ess_tdof_list_comp;
-         Array<int> ess_bdr_list;
+         Array<int> ess_tdof_list_comp, ess_bdr_list;
          ess_bdr_list.MakeRef(ess_bdr.GetRow(0),
                               ess_bdr.NumCols());
          pfes->GetEssentialTrueDofs(
@@ -95,13 +94,14 @@ void EllipticSolver::GetEssentialTrueDofs()
             ess_bdr_list.MakeRef(ess_bdr.GetRow(i),
                                  ess_bdr.NumCols());
             pfes->GetEssentialTrueDofs(
-               ess_bdr_list, ess_tdof_list_comp, i);
+               ess_bdr_list, ess_tdof_list_comp, i - 1);
             ess_tdof_list.Append(ess_tdof_list_comp);
          }
       }
    }
    else
    {
+
       if (ess_bdr.NumRows() == 1)
       {
          Array<int> ess_bdr_list(ess_bdr.GetRow(0), ess_bdr.NumCols());
@@ -110,19 +110,21 @@ void EllipticSolver::GetEssentialTrueDofs()
       }
       else
       {
-         Array<int> ess_tdof_list_comp;
-         for (int i=0; i<ess_bdr.NumRows() - 1; i++)
-         {
-            Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
-            a.FESpace()->GetEssentialTrueDofs(
-               ess_bdr_list, ess_tdof_list_comp, i);
-            ess_tdof_list.Append(ess_tdof_list_comp);
-         }
-         Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
-                                 ess_bdr.NumCols());
+         Array<int> ess_tdof_list_comp, ess_bdr_list;
+         ess_bdr_list.MakeRef(ess_bdr.GetRow(0),
+                              ess_bdr.NumCols());
          a.FESpace()->GetEssentialTrueDofs(
             ess_bdr_list, ess_tdof_list_comp, -1);
          ess_tdof_list.Append(ess_tdof_list_comp);
+
+         for (int i=1; i<ess_bdr.NumRows(); i++)
+         {
+            ess_bdr_list.MakeRef(ess_bdr.GetRow(i),
+                                 ess_bdr.NumCols());
+            a.FESpace()->GetEssentialTrueDofs(
+               ess_bdr_list, ess_tdof_list_comp, i - 1);
+            ess_tdof_list.Append(ess_tdof_list_comp);
+         }
       }
    }
 #else
@@ -134,19 +136,21 @@ void EllipticSolver::GetEssentialTrueDofs()
    }
    else
    {
-      Array<int> ess_tdof_list_comp;
-      for (int i=0; i<ess_bdr.NumRows() - 1; i++)
-      {
-         Array<int> ess_bdr_list(ess_bdr.GetRow(i), ess_bdr.NumCols());
-         a.FESpace()->GetEssentialTrueDofs(
-            ess_bdr_list, ess_tdof_list_comp, i);
-         ess_tdof_list.Append(ess_tdof_list_comp);
-      }
-      Array<int> ess_bdr_list(ess_bdr.GetRow(ess_bdr.NumRows() - 1),
-                              ess_bdr.NumCols());
+      Array<int> ess_tdof_list_comp, ess_bdr_list;
+      ess_bdr_list.MakeRef(ess_bdr.GetRow(0),
+                           ess_bdr.NumCols());
       a.FESpace()->GetEssentialTrueDofs(
          ess_bdr_list, ess_tdof_list_comp, -1);
       ess_tdof_list.Append(ess_tdof_list_comp);
+
+      for (int i=1; i<ess_bdr.NumRows(); i++)
+      {
+         ess_bdr_list.MakeRef(ess_bdr.GetRow(i),
+                              ess_bdr.NumCols());
+         a.FESpace()->GetEssentialTrueDofs(
+            ess_bdr_list, ess_tdof_list_comp, i - 1);
+         ess_tdof_list.Append(ess_tdof_list_comp);
+      }
    }
 #endif
 }
