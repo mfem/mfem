@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
       {
          // left center: Dirichlet
          center[0] = 0.0; center[1] = 0.5; center[2] = 0.5;
-         MarkBoundary(mesh, [r, center](const Vector &x) {if (center.DistanceTo(x) < r) {out << "." << std::flush;} return (center.DistanceTo(x) < r); },
+         MarkBoundary(mesh, [r, center](const Vector &x) { return (center.DistanceTo(x) < r); },
          7);
          break;
       }
