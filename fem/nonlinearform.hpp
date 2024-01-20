@@ -123,11 +123,11 @@ public:
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
    const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
-   
+
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi)
    { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
-   
+
    /// Adds new Boundary Integrator, restricted to specific attributes.
    void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi,
                               Array<int> &elem_marker)
@@ -339,7 +339,7 @@ public:
 
    /// Adds new Boundary Integrator, restricted to specific attributes.
    void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi,
-                            Array<int> &elem_marker)
+                              Array<int> &elem_marker)
    { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
 
    /// Adds new Interior Face Integrator.
