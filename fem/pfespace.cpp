@@ -1937,13 +1937,14 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
          ghost = pncmesh->GetNEdges();
          {
             const int* row = var_edge_dofs.GetRow(index);
-            MFEM_ASSERT(var < var_edge_dofs.RowSize(index), "");
+            MFEM_ASSERT(0 <= var && var < var_edge_dofs.RowSize(index), "");
+            const int edof_var = edof - (row[var] - row[0]);
             {
                // TODO: keep this or not?
                const int ndof_var = row[var + 1] - row[var];
-               MFEM_ASSERT(edof < ndof_var, "");
+               MFEM_ASSERT(edof_var < ndof_var, "");
             }
-            const int d = row[var] + edof;
+            const int d = row[var] + edof_var;
             if (index < ghost) // regular edge
             {
                return nvdofs + d;
@@ -2345,6 +2346,9 @@ protected:
    // TODO: const?
    int FindEdgeOrder(int edge, int edof, int &os, int &var);
    int FindEdgeDofVar(int edge, int edof, int &os);
+
+   int FindFaceOrder(int edge, int edof, int &os, int &var);
+   int FindFaceDofVar(int edge, int edof, int &os);
 };
 
 void NeighborRowMessage::Encode(int rank)
@@ -2421,6 +2425,24 @@ void NeighborRowMessage::Encode(int rank)
 
             edof += osvar;
          }
+         else if (ent == 2 && varOrder)
+         {
+            int var = 0;
+            int osvar = 0;
+            const int order = FindFaceOrder(ri.index, edof, osvar, var);
+
+            Geometry::Type geom = pncmesh->GetFaceGeometry(ri.index);
+            const int fo = pncmesh->GetFaceOrientation(ri.index);
+            const int *ind = fec->GetDofOrdering(geom, order, fo);
+
+            if ((edof = ind[edof - osvar]) < 0)
+            {
+               edof = -1 - edof;
+               s = -1;
+            }
+
+            edof += osvar;
+         }
 
          bin_io::write<int>(stream, edof);
          ri.row.write(stream, s);
@@ -2449,6 +2471,39 @@ int NeighborRowMessage::FindEdgeDofVar(int edge, int edof, int &os)
    {
       const int eo = fes->GetEdgeOrder(edge, v);
       const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
+      if (edof < os + dofs)
+      {
+         var = v;
+         break;
+      }
+
+      os += dofs;
+   }
+
+   MFEM_ASSERT(var >= 0, "");
+
+   return var;
+}
+
+int NeighborRowMessage::FindFaceOrder(int face, int edof, int &os, int &var)
+{
+   var = FindFaceDofVar(face, edof, os);
+   return fes->GetFaceOrder(face, var);
+}
+
+// TODO: more efficient way?
+int NeighborRowMessage::FindFaceDofVar(int face, int edof, int &os)
+{
+   int var = -1;
+   const int nvar = fes->GetNVariants(2, face);
+
+   Geometry::Type geom = pncmesh->GetFaceGeometry(face);
+
+   os = 0;
+   for (int v=0; v<nvar; ++v)
+   {
+      const int fo = fes->GetFaceOrder(face, v);
+      const int dofs = fec->GetNumDof(geom, fo);
       if (edof < os + dofs)
       {
          var = v;
@@ -2518,7 +2573,7 @@ void NeighborRowMessage::Decode(int rank)
          else if (ent == 2)
          {
             geom = pncmesh->GetFaceGeometry(id.index);
-            int fo = pncmesh->GetFaceOrientation(id.index);
+            const int fo = pncmesh->GetFaceOrientation(id.index);
             ind = fec->DofOrderForOrientation(geom, fo);
          }
 
@@ -3823,7 +3878,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    Table* old_elem_dof = NULL;
    Table* old_elem_fos = NULL;
-   int old_ndofs;
+   int old_ndofs = 0;
 
    // save old DOF table
    if (want_transform)
