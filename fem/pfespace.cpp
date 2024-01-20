@@ -2317,7 +2317,7 @@ public:
 
    void AddRow(int entity, int index, int edof, GroupId group,
                const PMatrixRow &row)
-  {
+   {
       int var = 0;
       if (varOrder && entity == 1)
       {
