@@ -91,8 +91,6 @@ protected:
    /// orientations for each face (from nbr processor)
    std::unique_ptr<Table> face_nbr_el_ori;
 
-   IsoparametricTransformation FaceNbrTransformation;
-
    // glob_elem_offset + local element number defines a global element numbering
    mutable long long glob_elem_offset;
    mutable long glob_offset_sequence;
@@ -151,12 +149,16 @@ protected:
                     const std::unique_ptr<STable3D> &shared_faces,
                     int elem, int start, int end, const int fverts[][N]);
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
-
    void GetGhostFaceTransformation(
-      FaceElementTransformations* FETr, Element::Type face_type,
-      Geometry::Type face_geom);
+      FaceElementTransformations &FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const;
+   void GetGhostFaceTransformation(
+      FaceElementTransformations *FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const
+   {
+      MFEM_ASSERT(FElTr, "Missing FaceElementTransformations object!");
+      GetGhostFaceTransformation(*FElTr, face_type, face_geom);
+   }
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -549,13 +551,20 @@ public:
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetFaceElementTransformations(
-      int FaceNo,
-      int mask = 31) override;
+   FaceElementTransformations *
+   GetFaceElementTransformations(int FaceNo, int mask = 31) override;
 
-   /// Get the FaceElementTransformations for the given shared face (edge 2D)
-   /// using the shared face index @a sf. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not.
+   /// @brief Variant of GetFaceElementTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetFaceElementTransformations(int FaceNo,
+                                      FaceElementTransformations &FElTr,
+                                      IsoparametricTransformation &ElTr1,
+                                      IsoparametricTransformation &ElTr2,
+                                      int mask = 31) const override;
+
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the shared face index @a sf. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///
@@ -565,9 +574,17 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   /// Get the FaceElementTransformations for the given shared face (edge 2D)
-   /// using the face index @a FaceNo. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not.
+   /// @brief Variant of GetSharedFaceTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetSharedFaceTransformations(int sf,
+                                     FaceElementTransformations &FElTr,
+                                     IsoparametricTransformation &ElTr1,
+                                     IsoparametricTransformation &ElTr2,
+                                     bool fill2 = true) const;
+
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the face index @a FaceNo. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///
@@ -577,20 +594,30 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
-   /// Returns a pointer to the transformation defining the i-th face neighbor.
+   /// @brief Variant of GetSharedFaceTransformationsByLocalIndex using a user
+   /// allocated FaceElementTransformations object.
+   void GetSharedFaceTransformationsByLocalIndex(int FaceNo,
+                                                 FaceElementTransformations &FElTr,
+                                                 IsoparametricTransformation &ElTr1,
+                                                 IsoparametricTransformation &ElTr2,
+                                                 bool fill2 = true) const;
+
+   /// @brief Returns a pointer to the transformation defining the i-th face
+   /// neighbor.
+   ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
-   ElementTransformation *GetFaceNbrElementTransformation(int i)
-   {
-      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+   ElementTransformation *GetFaceNbrElementTransformation(int FaceNo);
 
-      return &FaceNbrTransformation;
-   }
+   /// @brief Variant of GetFaceNbrElementTransformation using a user allocated
+   /// IsoparametricTransformation object.
+   void GetFaceNbrElementTransformation(int FaceNo,
+                                        IsoparametricTransformation &ElTr) const;
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
-   double GetFaceNbrElementSize(int i, int type=0);
+   double GetFaceNbrElementSize(int i, int type = 0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -623,8 +650,10 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
+   /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
+       will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
    // Enable Print() to add the parallel interface as boundary (typically used
    // for visualization purposes)
@@ -632,8 +661,11 @@ public:
 
    /** Print the part of the mesh in the calling processor using the mfem v1.0
        format. Depending on SetPrintShared(), the parallel interface can be
-       added as boundary for visualization (true by default) . */
-   void Print(std::ostream &out = mfem::out) const override;
+       added as boundary for visualization (true by default). If @a comments is
+       non-empty, it will be printed after the first line of the file, and each
+       line should begin with '#'. */
+   void Print(std::ostream &out = mfem::out,
+              const std::string &comments = "") const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
@@ -654,13 +686,18 @@ public:
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
-       attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out) const;
+       attributes are set to the processor number. If @a comments is non-empty,
+       it will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void PrintAsOne(std::ostream &out = mfem::out,
+                   const std::string &comments = "") const;
 
    /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
-       output mesh does not have any duplication of vertices/nodes at
-       processor boundaries. */
-   void PrintAsSerial(std::ostream &out = mfem::out) const;
+       output mesh does not have any duplication of vertices/nodes at processor
+       boundaries. If @a comments is non-empty, it will be printed after the
+       first line of the file, and each line should begin with '#'. */
+   void PrintAsSerial(std::ostream &out = mfem::out,
+                      const std::string &comments = "") const;
 
    /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
        duplication of vertices/nodes at processor boundaries. */

@@ -292,7 +292,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       val = Tr.Weight();
 
-      el.CalcShape(ip, shape);
+      el.CalcPhysShape(Tr, shape);
       Q.Eval (Qvec, Tr, ip);
 
       for (int k = 0; k < vdim; k++)
