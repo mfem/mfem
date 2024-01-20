@@ -142,7 +142,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
          }
       }
    }
-   
+
    if (bnfi.Size())
    {
       // Which boundary attributes need to be processed?
@@ -186,7 +186,7 @@ double NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
       }
 
    }
-   
+
    if (fnfi.Size())
    {
       MFEM_ABORT("TODO: add energy contribution from interior face terms");
@@ -899,7 +899,7 @@ double BlockNonlinearForm::GetEnergyBlocked(const BlockVector &bx) const
          {
             if (bnfi_marker[k] &&
                 (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
-         
+
             energy += bnfi[k]->GetElementEnergy(fe, *T, el_x_const);
          }
       }
@@ -1054,7 +1054,7 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                 (*bnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
             bnfi[k]->AssembleElementVector(fe, *T, el_x_const, el_y);
-            
+
             for (int s=0; s<fes.Size(); ++s)
             {
                if (el_y[s]->Size() == 0) { continue; }
