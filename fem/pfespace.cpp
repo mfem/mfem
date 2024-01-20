@@ -1843,10 +1843,6 @@ void ParFiniteElementSpace::GetBareDofsVar(int entity, int index,
          }
          break;
       default:
-         Geometry::Type geom = pncmesh->GetFaceGeometry(index);
-         MFEM_ASSERT(geom == Geometry::SQUARE ||
-                     geom == Geometry::TRIANGLE, "");
-
          ghost = pncmesh->GetNFaces();
 
          {
@@ -1948,11 +1944,6 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
             const int* row = var_edge_dofs.GetRow(index);
             MFEM_ASSERT(0 <= var && var < var_edge_dofs.RowSize(index), "");
             const int edof_var = edof - (row[var] - row[0]);
-            {
-               // TODO: keep this or not?
-               const int ndof_var = row[var + 1] - row[var];
-               MFEM_ASSERT(edof_var < ndof_var, "");
-            }
             const int d = row[var] + edof_var;
             if (index < ghost) // regular edge
             {
@@ -2001,12 +1992,13 @@ void FindDofInTable(const Table & t, int dof,
    }
 
    const int* row = t.GetRow(r);
+#ifdef MFEM_DEBUG
    const int s = t.RowSize(r);
 
    // It is assumed that the table has an extra row at the end, containing just
    // the total number of DOFs. Thus the dof should be found before the final row.
    MFEM_ASSERT(s > 0 && row[0] <= dof && r < t.Size() - 1, "");
-
+#endif
    MFEM_ASSERT(dof < t.GetRow(r+1)[0], "");
 
    index = r;
