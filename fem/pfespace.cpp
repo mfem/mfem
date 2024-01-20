@@ -2307,10 +2307,10 @@ public:
 
       RowInfo(int ent, int idx, int edof, GroupId grp, const PMatrixRow &row,
               int v = 0)
-         : entity(ent), index(idx), edof(edof), group(grp), row(row), var(v) {}
+         : entity(ent), index(idx), edof(edof), var(v), group(grp), row(row) {}
 
       RowInfo(int ent, int idx, int edof, GroupId grp, int v = 0)
-         : entity(ent), index(idx), edof(edof), group(grp), var(v) {}
+         : entity(ent), index(idx), edof(edof), var(v), group(grp) {}
    };
 
    NeighborRowMessage() : pncmesh(NULL) {}
@@ -2325,7 +2325,7 @@ public:
          var = FindEdgeDofVar(index, edof, os);
       }
 
-      rows.emplace_back(entity, index, edof, group, row, var));
+      rows.emplace_back(entity, index, edof, group, row, var);
    }
 
    const std::vector<RowInfo>& GetRows() const { return rows; }
