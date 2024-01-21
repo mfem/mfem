@@ -831,7 +831,21 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
    rhoForm->AddDomainIntegrator(new DomainLFIntegrator(rho));
 
    EllipticSolver solver(*filter, *rhoForm, ess_bdr);
-   solver.Solve(frho, true, false);
+   bool converged = solver.Solve(frho, true, false);
+
+   if (!converged)
+   {
+#ifdef MFEM_USE_MPI
+      if (!Mpi::IsInitialized() || Mpi::Root())
+      {
+         out << "HelmholtzFilter::SolveSystem Failed to Converge." <<
+             std::endl;
+      }
+#else
+      out << "HelmholtzFilter::SolveSystem Failed to Converge." <<
+          std::endl;
+#endif
+   }
 }
 void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
                   const int idx)

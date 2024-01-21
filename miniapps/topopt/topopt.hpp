@@ -385,7 +385,20 @@ protected:
    void SolveSystem(GridFunction &x) override
    {
       EllipticSolver solver(*a, *b, ess_bdr);
-      solver.Solve(x, AisStationary, BisStationary);
+      bool converged = solver.Solve(x, AisStationary, BisStationary);
+      if (!converged)
+      {
+#ifdef MFEM_USE_MPI
+         if (!Mpi::IsInitialized() || Mpi::Root())
+         {
+            out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
+                std::endl;
+         }
+#else
+         out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
+             std::endl;
+#endif
+      }
    }
 private:
 };
@@ -440,7 +453,20 @@ protected:
    void SolveSystem(GridFunction &x) override
    {
       EllipticSolver solver(*a, *b, ess_bdr);
-      solver.Solve(x, AisStationary, BisStationary);
+      bool converged = solver.Solve(x, AisStationary, BisStationary);
+      if (!converged)
+      {
+#ifdef MFEM_USE_MPI
+         if (!Mpi::IsInitialized() || Mpi::Root())
+         {
+            out << "ParametrizedDiffusionEquation::SolveSystem Failed to Converge." <<
+                std::endl;
+         }
+#else
+         out << "ParametrizedDiffusionEquation::SolveSystem Failed to Converge." <<
+             std::endl;
+#endif
+      }
    }
 private:
 };
