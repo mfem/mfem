@@ -147,13 +147,18 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
+   if (Mpi::Root()) { mfem::out << "Parallel run using " << num_procs << " processes" << std::endl; }
 
    // 1. Parse command-line options.
    int seq_ref_levels = 0;
    int par_ref_levels = 6;
    int order = 1;
-   double filter_radius = 5e-2;
-   double vol_fraction = 0.5;
+   // filter radius. Use problem-dependent default value if not provided.
+   // See switch statements below
+   double filter_radius = -1;
+   // Volume fraction. Use problem-dependent default value if not provided.
+   // See switch statements below
+   double vol_fraction = -1;
    int max_it = 2e2;
    double rho_min = 1e-06;
    double exponent = 3.0;
@@ -161,7 +166,7 @@ int main(int argc, char *argv[])
    double mu = 1.0;
    double c1 = 1e-04;
    bool glvis_visualization = true;
-   bool save = true;
+   bool save = false;
    bool paraview = true;
 
    ostringstream prob_name;
@@ -193,7 +198,8 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.ParseCheck();
+   args.Parse();
+   if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(out);}
 
 
    Mesh mesh;
@@ -206,6 +212,9 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::Cantilever:
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
+
          mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
                                      1.0);
          ess_bdr.SetSize(3, 4);
@@ -218,6 +227,9 @@ int main(int argc, char *argv[])
          prob_name << "Cantilever";
          break;
       case Problem::MBB:
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
+
          mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
                                      1.0);
          ess_bdr.SetSize(3, 5);
@@ -231,6 +243,9 @@ int main(int argc, char *argv[])
          prob_name << "MBB";
          break;
       case Problem::LBracket:
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.5; }
+
          mesh_file = "../../data/lbracket_square.mesh";
          seq_ref_levels--;
          mesh = mesh.LoadFromFile(mesh_file);
@@ -244,6 +259,8 @@ int main(int argc, char *argv[])
          prob_name << "LBracket";
          break;
       case Problem::Cantilever3:
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.12; }
          // 1: bottom,
          // 2: front,
          // 3: right,
@@ -257,8 +274,6 @@ int main(int argc, char *argv[])
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(0, 4) = 1;
 
-         vol_fraction = 0.12;
-
          center.SetSize(3); force.SetSize(3);
          center(0) = 1.9; center(1) = 0.1; center(2) = 0.25;
          force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
@@ -267,9 +282,10 @@ int main(int argc, char *argv[])
          break;
 
       case Problem::Torsion3:
-         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
+         if (filter_radius < 0) { filter_radius = 0.003; }
+         if (vol_fraction < 0) { vol_fraction = 0.01; }
 
-         r = 0.2;
+         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
          mesh = mesh.MakeCartesian3D(6, 5, 5, mfem::Element::Type::HEXAHEDRON, 1.2, 1.0,
                                      1.0);
          ess_bdr.SetSize(4, 7);
@@ -277,20 +293,26 @@ int main(int argc, char *argv[])
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(0, 6) = 1;
 
-         vol_fraction = 0.1;
-
          center.SetSize(3); force.SetSize(3);
          force = 0.0;
          center[0] = 0; center[1] = 0.5; center[2] = 0.5;
+         r = 0.2;
          vforce_cf.reset(new VectorFunctionCoefficient(3, [center, r](const Vector &x,
                                                                       Vector &f)
          {
             Vector xx(x); xx(0) = 0.0;
             xx -= center;
             double d = xx.Norml2();
-            f[0] = 0.0;
-            f[1] = d < r ? 0.0 : -xx[2];
-            f[2] = d < r ? 0.0 : xx[1];
+            if (x[0] > 1.0 && d < r)
+            {
+               f[0] = 0.0;
+               f[1] = -xx[2];
+               f[2] = xx[1];
+            }
+            else
+            {
+               f = 0.0;
+            }
          }));
          prob_name << "Torsion3";
          break;
@@ -299,12 +321,31 @@ int main(int argc, char *argv[])
          mfem_error("Undefined problem.");
    }
    mesh.SetAttributes();
-
    int dim = mesh.Dimension();
+   const int num_el = mesh.GetNE() * (int)std::pow(2,
+                                                   dim*(seq_ref_levels + par_ref_levels));
+
+   if (Mpi::Root())
+      mfem::out << "\n"
+                << "Compliance Minimization with Projected Mirror Descent.\n"
+                << "Problem: " << prob_name.str() << "\n"
+                << "The number of elements: " << num_el << "\n"
+                << "Order: " << order << "\n"
+                << "Volume Fraction: " << vol_fraction << "\n"
+                << "Filter Radius: " << filter_radius << "\n"
+                << "Maximum iteration: " << max_it << "\n"
+                << "GLVis: " << glvis_visualization << "\n"
+                << "Paraview: " << paraview << std::endl;
+
+
+
+
+
    if (glvis_visualization && dim == 3)
    {
       glvis_visualization = false;
-      if (Mpi::Root()) { out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
+      paraview = true;
+      if (Mpi::Root()) { mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
    }
 
    // 3. Refine the mesh.
@@ -336,12 +377,16 @@ int main(int argc, char *argv[])
       }
    }
    pmesh.SetAttributes();
-   ostringstream meshfile;
-   meshfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
-            "." << setfill('0') << setw(6) << myid;
-   ofstream mesh_ofs(meshfile.str().c_str());
-   mesh_ofs.precision(8);
-   pmesh.Print(mesh_ofs);
+
+   if (save)
+   {
+      ostringstream meshfile;
+      meshfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+               "." << setfill('0') << setw(6) << myid;
+      ofstream mesh_ofs(meshfile.str().c_str());
+      mesh_ofs.precision(8);
+      pmesh.Print(mesh_ofs);
+   }
 
    // 4. Define the necessary finite element spaces on the mesh.
    H1_FECollection state_fec(order, dim); // space for u
@@ -357,9 +402,10 @@ int main(int argc, char *argv[])
    int filter_size = filter_fes.GlobalTrueVSize();
    if (Mpi::Root())
    {
-      mfem::out << "Number of state unknowns: " << state_size << std::endl;
-      mfem::out << "Number of filter unknowns: " << filter_size << std::endl;
-      mfem::out << "Number of control unknowns: " << control_size << std::endl;
+      mfem::out << "\n"
+                << "Number of state unknowns: " << state_size << "\n"
+                << "Number of filter unknowns: " << filter_size << "\n"
+                << "Number of control unknowns: " << control_size << std::endl;
    }
 
    // 5. Set the initial guess for ρ.
@@ -442,6 +488,11 @@ int main(int argc, char *argv[])
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
+   if (Mpi::Root())
+      mfem::out << "\n"
+                << "Initialization Done." << "\n"
+                << "Start Mirror Descent Step." << "\n" << std::endl;
+
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
           stationarityError(infinity()), stationarityError_bregman(infinity());
@@ -517,7 +568,7 @@ int main(int argc, char *argv[])
 
       if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
-         if (Mpi::Root()) { out << "Total number of iteration = " << k + 1 << std::endl; }
+         if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
       }
    }

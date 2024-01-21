@@ -137,7 +137,7 @@ public:
 
    virtual void Project() = 0;
    virtual double StationarityError(GridFunction &grad) = 0;
-   virtual void ComputeVolume() = 0;
+   virtual double ComputeVolume() = 0;
    virtual std::unique_ptr<Coefficient> GetDensityDiffForm(
       GridFunction &other_gf) = 0;
 protected:
@@ -194,9 +194,10 @@ public:
    double StationarityErrorL2(GridFunction &grad);
    double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
                                    double log_tol=1e-13);
-   void ComputeVolume() override
+   double ComputeVolume() override
    {
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
+      return current_volume;
    }
    std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
    {
@@ -227,9 +228,10 @@ public:
    }
    void Project() override;
    double StationarityError(GridFunction &grad) override;
-   void ComputeVolume() override
+   double ComputeVolume() override
    {
       current_volume = x_gf->ComputeL1Error(zero_cf);
+      return current_volume;
    }
    std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
    {
