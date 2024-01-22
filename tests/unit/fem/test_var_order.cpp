@@ -318,17 +318,12 @@ TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
           "[FiniteElementCollection], [FiniteElementSpace], [NCMesh]"
           "[Parallel]")
 {
-   SECTION("Quad mesh")
-   {
-      Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
-      TestRandomPRefinement(mesh);
-   }
 
-   SECTION("Hex mesh")
-   {
-      Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
-      TestRandomPRefinement(mesh);
-   }
+   int dimension = GENERATE(2, 3);
+   Mesh mesh = dimension == 2 ? Mesh::MakeCartesian2D(4, 4,
+                                                      Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
+   TestRandomPRefinement(mesh);
 }
 #endif  // MFEM_USE_MPI
 
@@ -551,14 +546,6 @@ GridFunction *TestRandomPRefinement_serial(Mesh & mesh)
 
 ParGridFunction *TestRandomPRefinement_parallel(Mesh & mesh)
 {
-   for (int i=0; i<mesh.GetNE(); ++i)
-   {
-      const int p = 1 + (i % 3);  // Order is 1, 2, or 3
-      mesh.SetAttribute(i, p);
-   }
-
-   mesh.EnsureNCMesh();
-
    // standard H1 space with order 1 elements
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
