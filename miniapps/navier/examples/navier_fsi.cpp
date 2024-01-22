@@ -54,95 +54,116 @@ public:
 class BoundaryFieldTransfer
 {
 public:
-   BoundaryFieldTransfer(ParMesh &src_mesh, ParMesh &dst_mesh,
+   enum class Backend {Native, GSLib};
+   BoundaryFieldTransfer(ParGridFunction &src_gf, ParGridFunction &dst_gf,
                          ParFiniteElementSpace &dst_fes,
-                         Array<int> &dst_bdr_attr) :
-      src_mesh(src_mesh),
-      dst_mesh(dst_mesh),
+                         Array<int> &dst_bdr_attr,
+                         BoundaryFieldTransfer::Backend backend_ = BoundaryFieldTransfer::Backend::GSLib)
+      :
+      src_mesh(*(src_gf.ParFESpace()->GetParMesh())),
+      dst_mesh(*(dst_gf.ParFESpace()->GetParMesh())),
       dst_fes(dst_fes),
       dst_bdr_attr(dst_bdr_attr),
       dim(dst_mesh.Dimension()),
-      finder(MPI_COMM_WORLD)
+      finder(MPI_COMM_WORLD),
+      backend(backend_)
    {
-      Vector dst_mesh_nodes = dst_mesh.GetNodes()->GetTrueVector();
-
-      dst_fes.GetEssentialTrueDofs(dst_bdr_attr,
-                                   bdr_tdof_list,
-                                   0);
-
-      Vector bnd_coords(bdr_tdof_list.Size() * dim);
-      for (int i = 0; i < bdr_tdof_list.Size(); i++)
+      if (backend == BoundaryFieldTransfer::Backend::GSLib)
       {
-         int idx = bdr_tdof_list[i] / (dst_fes.GetOrdering() ? dim : 1.0);
-         for (int d = 0; d < dim; d++)
+         Vector dst_mesh_nodes = dst_mesh.GetNodes()->GetTrueVector();
+
+         dst_fes.GetEssentialTrueDofs(dst_bdr_attr,
+                                      bdr_tdof_list,
+                                      0);
+
+         Vector bnd_coords(bdr_tdof_list.Size() * dim);
+         for (int i = 0; i < bdr_tdof_list.Size(); i++)
          {
-            bnd_coords(i + d*bnd_coords.Size()/dim) =
-               dst_mesh_nodes(idx + d*dst_mesh_nodes.Size()/dim);
-         }
-      }
-
-      finder.Setup(src_mesh);
-      finder.FindPoints(bnd_coords);
-      const Array<unsigned int> &code_out_solid = finder.GetCode();
-      for (int i = 0; i < code_out_solid.Size(); i++)
-      {
-         if (code_out_solid[i] != 2)
-         {
-            dst_tdofs_found_on_coords.Append(bdr_tdof_list[i]);
-         }
-      }
-
-      dst_interp_coords.SetSize(dst_tdofs_found_on_coords.Size()*dim);
-      for (int i = 0; i < dst_tdofs_found_on_coords.Size(); i++)
-      {
-         int idx = dst_tdofs_found_on_coords[i] / (dst_fes.GetOrdering() ? dim : 1.0);;
-         for (int d = 0; d < dim; d++)
-         {
-            dst_interp_coords(i + d*dst_interp_coords.Size()/dim) =
-               dst_mesh_nodes(idx + d*dst_mesh_nodes.Size()/dim);
-         }
-      }
-   }
-
-   ~BoundaryFieldTransfer()
-   {
-      finder.FreeData();
-   }
-
-   void Interpolate(GridFunction &src_gf, GridFunction &dst_gf)
-   {
-      finder.Interpolate(src_gf, interp_vals);
-
-      if (src_gf.FESpace()->GetOrdering() == Ordering::byVDIM &&
-          dst_gf.FESpace()->GetOrdering() == Ordering::byNODES)
-      {
-         for (int i = 0; i < dst_tdofs_found_on_coords.Size(); i++)
-         {
-            /// XXXYYYZZZ <- XYZXYZ
-            const int idx = dst_tdofs_found_on_coords[i];
+            int idx = bdr_tdof_list[i] / (dst_fes.GetOrdering() ? dim : 1.0);
             for (int d = 0; d < dim; d++)
             {
-               dst_gf(idx + d*dst_gf.Size()/dim) = interp_vals[i * dim + d];
+               bnd_coords(i + d*bnd_coords.Size()/dim) =
+                  dst_mesh_nodes(idx + d*dst_mesh_nodes.Size()/dim);
             }
          }
-      }
-      else if (src_gf.FESpace()->GetOrdering() == Ordering::byNODES &&
-               dst_gf.FESpace()->GetOrdering() == Ordering::byVDIM)
-      {
+
+         finder.Setup(src_mesh);
+         finder.FindPoints(bnd_coords);
+         const Array<unsigned int> &code_out_solid = finder.GetCode();
+         for (int i = 0; i < code_out_solid.Size(); i++)
+         {
+            if (code_out_solid[i] != 2)
+            {
+               dst_tdofs_found_on_coords.Append(bdr_tdof_list[i]);
+            }
+         }
+
+         dst_interp_coords.SetSize(dst_tdofs_found_on_coords.Size()*dim);
          for (int i = 0; i < dst_tdofs_found_on_coords.Size(); i++)
          {
-            /// XYZXYZ <- XXXYYYZZZ
-            const int idx = dst_tdofs_found_on_coords[i] / (dst_fes.GetOrdering() ? dim :
-                                                            1.0);
+            int idx = dst_tdofs_found_on_coords[i] / (dst_fes.GetOrdering() ? dim : 1.0);;
             for (int d = 0; d < dim; d++)
             {
-               dst_gf(idx * dim + d) = interp_vals[i + d * interp_vals.Size()/dim];
+               dst_interp_coords(i + d*dst_interp_coords.Size()/dim) =
+                  dst_mesh_nodes(idx + d*dst_mesh_nodes.Size()/dim);
             }
          }
       }
       else
       {
-         MFEM_ABORT("not implemented");
+         native_transfer.reset(new ParTransferMap(src_gf, dst_gf));
+      }
+   }
+
+   ~BoundaryFieldTransfer()
+   {
+      if (backend == BoundaryFieldTransfer::Backend::GSLib)
+      {
+         finder.FreeData();
+      }
+   }
+
+   void Interpolate(ParGridFunction &src_gf, ParGridFunction &dst_gf)
+   {
+      if (backend == BoundaryFieldTransfer::Backend::GSLib)
+      {
+         finder.Interpolate(src_gf, interp_vals);
+
+         if (src_gf.FESpace()->GetOrdering() == Ordering::byVDIM &&
+             dst_gf.FESpace()->GetOrdering() == Ordering::byNODES)
+         {
+            for (int i = 0; i < dst_tdofs_found_on_coords.Size(); i++)
+            {
+               /// XXXYYYZZZ <- XYZXYZ
+               const int idx = dst_tdofs_found_on_coords[i];
+               for (int d = 0; d < dim; d++)
+               {
+                  dst_gf(idx + d*dst_gf.Size()/dim) = interp_vals[i * dim + d];
+               }
+            }
+         }
+         else if (src_gf.FESpace()->GetOrdering() == Ordering::byNODES &&
+                  dst_gf.FESpace()->GetOrdering() == Ordering::byVDIM)
+         {
+            for (int i = 0; i < dst_tdofs_found_on_coords.Size(); i++)
+            {
+               /// XYZXYZ <- XXXYYYZZZ
+               const int idx = dst_tdofs_found_on_coords[i] / (dst_fes.GetOrdering() ? dim :
+                                                               1.0);
+               for (int d = 0; d < dim; d++)
+               {
+                  dst_gf(idx * dim + d) = interp_vals[i + d * interp_vals.Size()/dim];
+               }
+            }
+         }
+         else
+         {
+            MFEM_ABORT("not implemented");
+         }
+      }
+      else
+      {
+         native_transfer->Transfer(src_gf,dst_gf);
       }
    }
 
@@ -155,6 +176,8 @@ public:
    Vector dst_interp_coords;
    FindPointsGSLIB finder;
    Vector interp_vals;
+   BoundaryFieldTransfer::Backend backend;
+   std::unique_ptr<ParTransferMap> native_transfer;
 };
 
 class Elasticity : public SecondOrderTimeDependentOperator
@@ -323,6 +346,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    Hypre::Init();
 
+   const char *mesh_file = "../data/star.mesh";
    int polynomial_order = 2;
    double density_fluid = 1e3;
    double kinematic_viscosity = 1e-3;
@@ -331,7 +355,7 @@ int main(int argc, char *argv[])
    double t_final = 0.5;
    double dt = 1e-5;
    double dt_max = 1e-1;
-   double cfl_target = 1.0;
+   double cfl_target = 0.5;
    double cfl_tol = 1e-4;
    int max_bdf_order = 3;
    int current_step = 0;
@@ -341,13 +365,17 @@ int main(int argc, char *argv[])
    double max_elem_error = 5.0e-3;
    double hysteresis = 0.15; // derefinement safety coefficient
    int nc_limit = 3;
+   int refinements = 0;
 
    const char *device_config = "cpu";
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&polynomial_order, "-o", "--order", "polynomial_order");
    args.AddOption(&t_final, "-tf", "--t_final", "t_final");
+   args.AddOption(&refinements, "-r", "--r", "refinements");
    args.AddOption(&max_bdf_order, "-mbdf", "--max_bdf_order", "max_bdf_order");
    args.AddOption(&enable_retry, "-enable_retry", "--enable_retry",
                   "enable_retry");
@@ -359,11 +387,13 @@ int main(int argc, char *argv[])
                   "Derefinement safety coefficient.");
    args.ParseCheck();
 
-   Mesh mesh("fsi.msh");
+   Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   // mesh.UniformRefinement();
-   // mesh.UniformRefinement();
+   for (int i = 0; i < refinements; i++)
+   {
+      mesh.UniformRefinement();
+   }
 
    mesh.SetCurvature(polynomial_order, false, dim, Ordering::byNODES);
 
@@ -380,11 +410,11 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
    ParGridFunction *p_gf = navier.GetCurrentPressure();
    ParGridFunction *nu_gf = navier.GetVariableViscosity();
-   // GridFunction *w_gf = navier.GetCurrentMeshVelocity();
+   GridFunction *w_gf = navier.GetCurrentMeshVelocity();
    GridFunction fluid_mesh_nodes_old(*fluid_mesh.GetNodes());
 
    ParGridFunction sigmaN_gf(u_gf->ParFESpace());
-   ParGridFunction fluid_mesh_dx_gf(u_gf->ParFESpace());
+   GridFunction fluid_mesh_dx_gf(fluid_mesh.GetNodes()->FESpace());
 
    VectorGridFunctionCoefficient fluid_mesh_dx_coef(&fluid_mesh_dx_gf);
 
@@ -500,7 +530,8 @@ int main(int argc, char *argv[])
    HHTAlphaSolver hht;
    hht.Init(elasticity);
 
-   GridFunction fluid_mesh_velocity_gf(fluid_mesh.GetNodes()->FESpace());
+   ParGridFunction fluid_mesh_velocity_gf(static_cast<ParGridFunction *>
+                                          (fluid_mesh.GetNodes())->ParFESpace());
    fluid_mesh_velocity_gf = 0.0;
 
    Array<int> fluid_mesh_laplacian_ess_bdr(fluid_mesh.bdr_attributes.Max());
@@ -547,32 +578,21 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // auto solid_fluid_bdr_transfer = BoundaryFieldTransfer(solid_mesh, fluid_mesh,
-   //                                                       *u_gf->ParFESpace(),
-   //                                                       solid_fluid_interface_attr);
+   BoundaryFieldTransfer::Backend transfer_backend =
+      BoundaryFieldTransfer::Backend::Native;
 
-   // printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
-   //        solid_mesh.bdr_attributes.Max());
+   auto solid_fluid_bdr_transfer = BoundaryFieldTransfer(solid_vel_gf, *u_gf,
+                                                         *u_gf->ParFESpace(),
+                                                         solid_fluid_interface_attr,
+                                                         transfer_backend);
 
-   // auto fluid_solid_bdr_transfer = BoundaryFieldTransfer(fluid_mesh, solid_mesh,
-   //                                                       *solid_displacement_gf.ParFESpace(),
-   //                                                       solid_fluid_interface_attr);
+   printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
+          solid_mesh.bdr_attributes.Max());
 
-   L2_FECollection flux_fec(polynomial_order, dim);
-   auto flux_fes = new ParFiniteElementSpace(&fluid_mesh, &flux_fec, dim);
-   auto estimator = new KellyErrorEstimator(
-      *navier.GetPressureEquationBLFI(), *p_gf,
-      flux_fes);
-
-   ThresholdRefiner refiner(*estimator);
-   refiner.SetTotalErrorFraction(0.0); // use purely local threshold
-   refiner.SetLocalErrorGoal(max_elem_error);
-   refiner.PreferConformingRefinement();
-   refiner.SetNCLimit(nc_limit);
-
-   ThresholdDerefiner derefiner(*estimator);
-   derefiner.SetThreshold(hysteresis * max_elem_error);
-   derefiner.SetNCLimit(nc_limit);
+   auto fluid_solid_bdr_transfer = BoundaryFieldTransfer(*u_gf, solid_vel_gf,
+                                                         *solid_vel_gf.ParFESpace(),
+                                                         solid_fluid_interface_attr,
+                                                         transfer_backend);
 
    ParaViewDataCollection pvdc("fluid_output", &fluid_mesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
@@ -596,16 +616,10 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      refiner.Reset();
-      derefiner.Reset();
-
       double previous_dt = dt;
 
       double lift = 0.0, lift2 = 0.0;
       double drag = 0.0, drag2 = 0.0;
-
-      refiner.Apply(fluid_mesh);
-      printf("refined to #el = %d\n", fluid_mesh.GetNE());
 
       navier.Step(time, dt, step, true);
 
@@ -687,7 +701,6 @@ int main(int argc, char *argv[])
             drag2 *= density_fluid;
          }
 
-#ifdef false
          {
             if (Mpi::Root())
             {
@@ -728,7 +741,6 @@ int main(int argc, char *argv[])
             *w_gf = fluid_mesh_velocity_gf;
             navier.TransformMesh(fluid_mesh_dx_coef);
          }
-#endif
          // @TODO update findpts?
 
          if ((step + 1) % 10 == 0 || last_step)
@@ -753,7 +765,6 @@ int main(int argc, char *argv[])
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
          dt = std::min(dt, dt_max);
 
-         derefiner.Apply(fluid_mesh);
          step++;
       }
 
