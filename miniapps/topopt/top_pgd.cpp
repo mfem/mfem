@@ -144,7 +144,7 @@ enum Problem
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int ref_levels = 0;
+   int ref_levels = 6;
    int order = 1;
    // filter radius. Use problem-dependent default value if not provided.
    // See switch statements below
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
                   "Lamé constant λ.");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lamé constant μ.");
-   args.AddOption(&rho_min, "-rmin", "--psi-min",
+   args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
       pd.reset(new ParaViewDataCollection(prob_name.str(), &mesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
-      pd->RegisterField("psi", &density.GetGridFunction());
+      pd->RegisterField("rho", &density.GetGridFunction());
       pd->RegisterField("frho", &rho_filter);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -447,17 +447,17 @@ int main(int argc, char *argv[])
 
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient());
-   GridFunction &psi(density.GetGridFunction());
-   GridFunction old_grad(&control_fes), old_psi(&control_fes);
-   old_psi = psi; old_grad = grad;
+   GridFunction &rho(density.GetGridFunction());
+   GridFunction old_grad(&control_fes), old_rho(&control_fes);
+   old_rho = rho; old_grad = grad;
 
    LinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    mfem::out << "\n"
              << "Initialization Done." << "\n"
-             << "Start Mirror Descent Step." << "\n" << std::endl;
+             << "Start Gradient Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
@@ -481,18 +481,18 @@ int main(int argc, char *argv[])
       else
       {
          diff_rho_form.Assemble();
-         old_psi -= psi;
+         old_rho -= rho;
          old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+         step_size = std::fabs(diff_rho_form(old_rho)  / diff_rho_form(old_grad));
       }
 
       // Step 2. Store old data
       old_compliance = compliance;
-      old_psi = psi;
+      old_rho = rho;
       old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, diff_rho_form, c1, step_size);
+      num_reeval = Step_Armijo(optprob, old_rho, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
@@ -539,7 +539,7 @@ int main(int argc, char *argv[])
       solfile2 << prob_name.str() << "-" << ref_levels << "-f.gf";
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);

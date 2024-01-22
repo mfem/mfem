@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
                   "Lamé constant λ.");
    args.AddOption(&mu, "-mu", "--mu",
                   "Lamé constant μ.");
-   args.AddOption(&rho_min, "-rmin", "--psi-min",
+   args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
