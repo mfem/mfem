@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
          break;
 
       case Problem::Torsion3:
-         if (filter_radius < 0) { filter_radius = 0.003; }
+         if (filter_radius < 0) { filter_radius = 0.05; }
          if (vol_fraction < 0) { vol_fraction = 0.01; }
 
          // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
@@ -336,10 +336,6 @@ int main(int argc, char *argv[])
                 << "Maximum iteration: " << max_it << "\n"
                 << "GLVis: " << glvis_visualization << "\n"
                 << "Paraview: " << paraview << std::endl;
-
-
-
-
 
    if (glvis_visualization && dim == 3)
    {
@@ -511,7 +507,7 @@ int main(int argc, char *argv[])
    optprob.UpdateGradient();
    for (int k = 0; k < max_it; k++)
    {
-      // Compute Step size
+      // Step 1. Compute Step size
       if (k == 0) { step_size = 1.0; }
       else
       {
@@ -521,18 +517,18 @@ int main(int argc, char *argv[])
          step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
       }
 
-      // Store old data
+      // Step 2. Store old data
       old_compliance = compliance;
       old_psi = psi;
       old_grad = grad;
 
-      // Step and upate gradient
+      // Step 3. Step and upate gradient
       num_check = Step_Armijo(optprob, compliance, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
 
-      // Visualization
+      // Step 4. Visualization
       if (glvis_visualization)
       {
          if (sout_SIMP.is_open())
