@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
    old_psi = psi; old_grad = grad;
 
    LinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_psi));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    int k;

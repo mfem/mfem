@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
    dv *= 1.0 / (density.GetDomainVolume()*vol_fraction);
 
    LinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_rho));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    mfem::out << "\n"

@@ -340,9 +340,9 @@ Coefficient &ThresholdProjector::GetDerivative(GridFunction &frho)
    return *dphys_dfrho;
 }
 SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
-                                         DensityFilter &filter,
-                                         FiniteElementSpace &fes_filter,
-                                         double vol_frac):
+                                           DensityFilter &filter,
+                                           FiniteElementSpace &fes_filter,
+                                           double vol_frac):
    DesignDensity(fes, filter, fes_filter, vol_frac),
    zero_gf(MakeGridFunction(&fes))
 {
@@ -381,7 +381,7 @@ void SigmoidDesignDensity::Project()
 }
 
 double SigmoidDesignDensity::StationarityError(GridFunction &grad,
-                                              bool useL2norm)
+                                               bool useL2norm)
 {
    std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
    *x_gf_backup = *x_gf;
@@ -391,10 +391,8 @@ double SigmoidDesignDensity::StationarityError(GridFunction &grad,
    double d;
    if (useL2norm)
    {
-      MappedPairGridFunctionCoeffitient rho_diff(x_gf.get(),
-                                                 x_gf_backup.get(), [](double x,
-      double y) {return sigmoid(x) - sigmoid(y);});
-      d = zero_gf->ComputeL2Error(rho_diff);
+      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*x_gf_backup);
+      d = zero_gf->ComputeL2Error(*rho_diff);
    }
    else
    {
@@ -406,7 +404,7 @@ double SigmoidDesignDensity::StationarityError(GridFunction &grad,
    return d;
 }
 double SigmoidDesignDensity::ComputeBregmanDivergence(GridFunction *p,
-                                                     GridFunction *q, double epsilon)
+                                                      GridFunction *q, double epsilon)
 {
    // Define safe x*log(x) to avoid log(0)
    const double log_eps = std::log(epsilon);
@@ -772,7 +770,8 @@ void LineVolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
 }
-int Step_Armijo(TopOptProblem &problem, const GridFunction &x0, const GridFunction &direction,
+int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
+                const GridFunction &direction,
                 LinearForm &diff_densityForm, const double c1,
                 double &step_size, const int max_it, const double shrink_factor)
 {

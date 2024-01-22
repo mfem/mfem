@@ -138,7 +138,7 @@ public:
    virtual void Project() = 0;
    virtual double StationarityError(GridFunction &grad) = 0;
    virtual double ComputeVolume() = 0;
-   virtual std::unique_ptr<Coefficient> GetDensityDiffForm(
+   virtual std::unique_ptr<Coefficient> GetDensityDiffCoeff(
       GridFunction &other_gf) = 0;
 protected:
 private:
@@ -199,7 +199,7 @@ public:
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
       return current_volume;
    }
-   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
    {
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
@@ -233,7 +233,7 @@ public:
       current_volume = x_gf->ComputeL1Error(zero_cf);
       return current_volume;
    }
-   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf) override
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
    {
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
@@ -323,9 +323,9 @@ public:
    // Assume ρ is constructed by the same mapping.
    // @note If you need different mapping between two grid functions,
    //       use GetDensity().
-   std::unique_ptr<Coefficient> GetDensityDiffForm(GridFunction &other_gf)
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf)
    {
-      return density.GetDensityDiffForm(other_gf);
+      return density.GetDensityDiffCoeff(other_gf);
    }
    GridFunction &GetState() {return *state;}
 protected:
