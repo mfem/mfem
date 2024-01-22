@@ -74,28 +74,21 @@ MixedBilinearForm *MakeMixedBilinearForm(FiniteElementSpace *trial_fes,
 #ifdef MFEM_USE_MPI
    auto trial_pfes = dynamic_cast<ParFiniteElementSpace*>(trial_fes);
    auto test_pfes = dynamic_cast<ParFiniteElementSpace*>(test_fes);
-   if (trial_pfes)
+   if (trial_pfes && test_pfes)
    {
-      if (test_pfes)
-      {
-         return new ParMixedBilinearForm(trial_pfes, test_pfes);
-      }
-      else
-      {
-         return new MixedBilinearForm(trial_fes, test_fes);
-      }
+      return new ParMixedBilinearForm(trial_pfes, test_pfes);
    }
-   else
+   if (trial_pfes || test_pfes)
    {
-      return new MixedBilinearForm(trial_fes, test_fes);
+      mfem_warning("One of the spaces is parallel but the other is serial. Return a serial mixed-bilinear form");
    }
-#else
-   return new MixedBilinearForm(trial_fes, test_fes);
 #endif
+   return new MixedBilinearForm(trial_fes, test_fes);
 }
 
 
-TableLogger::TableLogger(std::ostream &os): os(os), w(10), var_name_printed(false),
+TableLogger::TableLogger(std::ostream &os): os(os), w(10),
+   var_name_printed(false),
    my_rank(0)
 {
 #ifdef MFEM_USE_MPI
