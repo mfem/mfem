@@ -2953,59 +2953,24 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       for (int i = 0; i < E.Size(); i++)
       {
-         for (int variant = 0; ; variant++)
+         int ebase = IsVariableOrder() ? FindEdgeDof(E[i], ne) : E[i]*ne;
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, order, Eo[i]);
+
+         for (int j = 0; j < ne; j++)
          {
-            int ebase = 0, e_order = 0;
-            if (IsVariableOrder())
-            {
-               e_order = GetEdgeOrder(E[i], variant);
-               if (e_order < 0) { break; }
-
-               ne = fec->GetNumDof(Geometry::SEGMENT, e_order);
-               ebase = FindEdgeDof(E[i], ne);
-            }
-            else
-            {
-               if (variant > 0) { break; }
-               e_order = order;
-               ebase = E[i]*ne;
-            }
-
-            const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, e_order, Eo[i]);
-
-            for (int j = 0; j < ne; j++)
-            {
-               dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
-            }
+            dofs.Append(EncodeDof(nvdofs + ebase, ind[j]));
          }
       }
    }
 
    if (nf) // face DOFs
    {
-      int f_order = order;
-      int fbase = F * nf;
-      for (int variant = 0; ; variant++)
+      int fbase = (var_face_dofs.Size() > 0) ? FindFaceDof(F, nf) : F*nf;
+      const int *ind = fec->GetDofOrdering(geom, order, oF);
+
+      for (int j = 0; j < nf; j++)
       {
-         if (var_face_dofs.Size() > 0)
-         {
-            f_order = GetFaceOrder(F, variant);
-            if (f_order < 0) { break; }
-
-            nf = fec->GetNumDof(geom, f_order);
-            fbase = FindFaceDof(F, nf);
-         }
-         else
-         {
-            if (variant > 0) { break; }
-         }
-
-         const int *ind = fec->GetDofOrdering(geom, f_order, oF);
-
-         for (int j = 0; j < nf; j++)
-         {
-            dofs.Append(EncodeDof(nvdofs + nedofs + fbase, ind[j]));
-         }
+         dofs.Append(EncodeDof(nvdofs + nedofs + fbase, ind[j]));
       }
    }
 }
