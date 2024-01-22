@@ -492,14 +492,14 @@ int main(int argc, char *argv[])
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
           stationarityError(infinity()), stationarityError_bregman(infinity());
-   int num_check(0);
+   int num_reeval(0);
    double old_compliance;
 
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
-   logger.Append(std::string("Re-evel"), num_check);
+   logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
    logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
    logger.Print();
@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
       old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_check = Step_Armijo(optprob, compliance, c1, step_size);
+      num_reeval = Step_Armijo(optprob, old_psi, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();

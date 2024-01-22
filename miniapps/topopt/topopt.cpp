@@ -763,12 +763,14 @@ void LineVolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
 }
-int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
-                double &step_size, const double shrink_factor, const int max_it)
+int Step_Armijo(TopOptProblem &problem, GridFunction &x0,
+                LinearForm &diff_densityForm, const double c1,
+                double &step_size, const int max_it, const double shrink_factor)
 {
    // obtain current point and gradient
    GridFunction &x_gf = problem.GetGridFunction();
    GridFunction &grad = problem.GetGradient();
+   const double val = problem.GetValue();
    int myrank = 0;
 #ifdef MFEM_USE_MPI
    auto pgrad = dynamic_cast<ParGridFunction*>(&grad);
@@ -776,14 +778,6 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    if (pgrad) { comm = pgrad->ParFESpace()->GetComm(); }
    if (Mpi::IsInitialized()) { myrank = Mpi::WorldRank(); }
 #endif
-   // store current point
-   std::unique_ptr<GridFunction> x0(MakeGridFunction(x_gf.FESpace()));
-   *x0 = x_gf;
-
-   // ρ - ρ_0
-   std::unique_ptr<Coefficient> diff_density(problem.GetDensityDiffForm(*x0));
-   std::unique_ptr<LinearForm> diff_densityForm(MakeLinearForm(x_gf.FESpace()));
-   diff_densityForm->AddDomainIntegrator(new DomainLFIntegrator(*diff_density));
 
    double new_val, d;
    int i;
@@ -792,11 +786,11 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    {
       if (myrank == 0) { out << i << std::flush << "\r"; }
       step_size *= shrink_factor; // reduce step size
-      x_gf = *x0; // restore original position
+      x_gf = x0; // restore original position
       x_gf.Add(-step_size, grad); // advance by updated step size
       new_val = problem.Eval(); // re-evaluate at the updated point
-      diff_densityForm->Assemble(); // re-evaluate density difference inner-product
-      d = (*diff_densityForm)(grad);
+      diff_densityForm.Assemble(); // re-evaluate density difference inner-product
+      d = (diff_densityForm)(grad);
 #ifdef MFEM_USE_MPI
       if (pgrad)
       {
