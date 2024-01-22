@@ -1,22 +1,14 @@
+# ignore files without extension
 *
 !/**/
 !?.*
+# ignore paraview files
 **/ParaView
+# ignore everything produced by code
 **/*.mesh
 **/*.gf
 **/*.mesh.*
 **/*.gf.*
-top_pmd
-top_pgd
-top_oc
-top_mma
-par_top_pmd
-Cantilever*
-LBracket*
-MBB*
-Torsion3*
-thermal_pmd
-thermal_pgd
 **/PMD-*
 **/PGD-*
 **/OC-*
