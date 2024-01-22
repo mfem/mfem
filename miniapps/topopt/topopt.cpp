@@ -275,9 +275,18 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
 {
    x_gf.reset(MakeGridFunction(&fes));
    {
-      *x_gf = 0.0;
-      ConstantCoefficient one_cf(1.0);
-      domain_volume = x_gf->ComputeL1Error(one_cf);
+      Mesh * mesh = fes.GetMesh();
+      domain_volume = 0.0;
+      for (int i=0; i<mesh->GetNE(); i++) {domain_volume += mesh->GetElementVolume(i); }
+#ifdef MFEM_USE_MPI
+      auto pmesh = dynamic_cast<ParMesh*>(mesh);
+      if (pmesh)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &domain_volume, 1, MPI_DOUBLE, MPI_SUM,
+                       pmesh->GetComm());
+      }
+#endif
+
    }
    *x_gf = target_volume_fraction;
    frho.reset(MakeGridFunction(&fes_filter));
