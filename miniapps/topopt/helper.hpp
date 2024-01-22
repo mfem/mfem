@@ -23,19 +23,16 @@ protected:
    std::vector<dtype> data_order;
    std::vector<std::string> names;
    std::ostream &os;
+   int w;
    bool var_name_printed;
    int my_rank;
-   // Array<double
-   // MixedBilinearForm blabla();
 private:
 
 public:
    TableLogger(std::ostream &os=mfem::out);
-
+   void setw(const int column_width){w = column_width;}
    void Append(const std::string name, double &val);
-
    void Append(const std::string name, int &val);
-
    void Print();
 
 

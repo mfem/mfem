@@ -95,7 +95,7 @@ MixedBilinearForm *MakeMixedBilinearForm(FiniteElementSpace *trial_fes,
 }
 
 
-TableLogger::TableLogger(std::ostream &os): os(os), var_name_printed(false),
+TableLogger::TableLogger(std::ostream &os): os(os), w(10), var_name_printed(false),
    my_rank(0)
 {
 #ifdef MFEM_USE_MPI
@@ -126,7 +126,7 @@ void TableLogger::Print()
       if (!var_name_printed)
       {
          var_name_printed = true;
-         for (auto &name : names) { os << std::setw(10) << name << "\t";}
+         for (auto &name : names) { os << std::setw(w) << name << "\t";}
          os << "\b\b";
          os << "\n";
       }
@@ -137,12 +137,12 @@ void TableLogger::Print()
          {
             case dtype::DOUBLE:
             {
-               os << std::setw(10) << *monitored_double_data[i_double++] << ",\t";
+               os << std::setw(w) << *monitored_double_data[i_double++] << ",\t";
                break;
             }
             case dtype::INT:
             {
-               os << std::setw(10) << *monitored_int_data[i_int++] << ",\t";
+               os << std::setw(w) << *monitored_int_data[i_int++] << ",\t";
                break;
             }
             default:
