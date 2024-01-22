@@ -455,8 +455,8 @@ int main(int argc, char *argv[])
          rho *= B;
          rho *= 1.0 / std::sqrt(lmid);
          rho.Clip(lower, upper);
-         density.ComputeVolume();
-         if (density.GetVolume() > domain_volume*vol_fraction)
+         double current_volume = density.ComputeVolume();
+         if (current_volume > domain_volume*vol_fraction)
          {
             l1 = lmid;
          }

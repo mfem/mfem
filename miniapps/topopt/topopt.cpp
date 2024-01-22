@@ -769,11 +769,12 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    // obtain current point and gradient
    GridFunction &x_gf = problem.GetGridFunction();
    GridFunction &grad = problem.GetGradient();
+   int myrank = 0;
 #ifdef MFEM_USE_MPI
    auto pgrad = dynamic_cast<ParGridFunction*>(&grad);
    MPI_Comm comm;
    if (pgrad) { comm = pgrad->ParFESpace()->GetComm(); }
-   bool use_mpi = Mpi::IsInitialized();
+   if (Mpi::IsInitialized()) { myrank = Mpi::WorldRank(); }
 #endif
    // store current point
    std::unique_ptr<GridFunction> x0(MakeGridFunction(x_gf.FESpace()));
@@ -787,27 +788,20 @@ int Step_Armijo(TopOptProblem &problem, const double val, const double c1,
    double new_val, d;
    int i;
    step_size /= shrink_factor;
-   std::ostringstream out_string;
    for (i=0; i<max_it; i++)
    {
+      if (myrank == 0) { out << i << std::flush << "\r"; }
       step_size *= shrink_factor; // reduce step size
       x_gf = *x0; // restore original position
       x_gf.Add(-step_size, grad); // advance by updated step size
       new_val = problem.Eval(); // re-evaluate at the updated point
       diff_densityForm->Assemble(); // re-evaluate density difference inner-product
       d = (*diff_densityForm)(grad);
-      out_string << i;
 #ifdef MFEM_USE_MPI
-      if (!use_mpi || Mpi::Root())
-      {
-         out << i << std::flush << "\r";
-      }
       if (pgrad)
       {
          MPI_Allreduce(MPI_IN_PLACE, &d, 1, MPI_DOUBLE, MPI_SUM, comm);
       }
-#else
-      out << i << std::flush << "\r";
 #endif
       if (new_val < val + c1*d && d < 0) { break; }
    }
@@ -859,8 +853,7 @@ void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
       be->GetVertices(vertices);
       c1.SetData(mesh.GetVertex(vertices[0]));
       c2.SetData(mesh.GetVertex(vertices[1]));
-      m = 0.0;
-      m += c1; m += c2; m*= 0.5;
+      m = c1; m += c2; m*= 0.5;
       if (mark(m))
       {
          mesh.SetBdrAttribute(i, idx);
