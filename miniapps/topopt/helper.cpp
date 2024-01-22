@@ -92,8 +92,7 @@ TableLogger::TableLogger(std::ostream &os): os(os), w(10),
    my_rank(0)
 {
 #ifdef MFEM_USE_MPI
-   int mpi_is_initialized = Mpi::IsInitialized();
-   if (mpi_is_initialized) { my_rank = Mpi::WorldRank(); }
+   if (Mpi::IsInitialized()) { my_rank = Mpi::WorldRank(); }
 #endif
 
 }
