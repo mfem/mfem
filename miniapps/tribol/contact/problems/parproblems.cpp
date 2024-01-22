@@ -855,7 +855,7 @@ void ParContactProblemSingleMesh::ComputeGapFunctionAndDerivatives(const Vector 
    Array<int> conn1(npoints*4);
    DenseMatrix coordsm(npoints*4, dim);
    // add(nodes0, displ1_gf, *nodes1);
-   FindPointsInMesh(*pmesh, vertices, conn2, displ_gf, xyz, conn1, xi1, coordsm);
+   FindPointsInMesh(*pmesh, vertices, conn2, displ_gf, xyz, conn1, xi1, coordsm, true);
    if (M)
    {
       delete M;
@@ -886,7 +886,6 @@ void ParContactProblemSingleMesh::ComputeGapFunctionAndDerivatives(const Vector 
    }
 
    Assemble_Contact(xyz, xi1, coordsm, conn2, conn1, gapv, S, points_map);
-   mfem::out << "myid b = " << myid << endl;                          
                 
    // --------------------------------------------------------------------
    // Redistribute the M block matrix [M1 M2]
@@ -910,8 +909,6 @@ void ParContactProblemSingleMesh::ComputeGapFunctionAndDerivatives(const Vector 
    M = new HypreParMatrix(comm,npoints,gnpoints,gndofs,
                           localS.GetI(), localS.GetJ(),localS.GetData(),
                           Mrows,Mcols);
-
-   mfem::out << "myid 1 = " << myid << endl;                          
 }
 
 void ParContactProblemSingleMesh::SetupTribol()
@@ -994,6 +991,7 @@ void ParContactProblemSingleMesh::DdE(const Vector &d, Vector &gradE)
    gradE.SetSize(K->Height());
    K->Mult(d, gradE);
    gradE.Add(-1.0, *B); 
+   // gradE.Print();
 }
 
 HypreParMatrix* ParContactProblemSingleMesh::DddE(const Vector &d)

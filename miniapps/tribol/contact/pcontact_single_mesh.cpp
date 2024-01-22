@@ -80,12 +80,37 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   Array<int> part;
+   Array<int> attr1, attr2;
+   attr1.Append(1);
+   attr2.Append(2);
+   SubMesh mesh1 = SubMesh::CreateFromDomain(*mesh,attr1);
+   SubMesh mesh2 = SubMesh::CreateFromDomain(*mesh,attr2);
+
+   Array<int> part1(mesh1.GeneratePartitioning(num_procs),mesh1.GetNE());
+   Array<int> part2(mesh2.GeneratePartitioning(num_procs),mesh2.GetNE());
+
+   part.Append(part1);
+   part.Append(part2);
+
+   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part.GetData());
+
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int visport = 19916;
+
+      socketstream mesh_sock(vishost, visport);
+      mesh_sock.precision(8);
+      mesh_sock << "parallel " << num_procs << " " << myid << "\n"
+                << "mesh\n" << *pmesh << flush;
+   }
 
    for (int i = 0; i<pref; i++)
    {
       pmesh->UniformRefinement();
    }
+
 
    MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
 

@@ -8,8 +8,8 @@ using namespace std;
 using namespace mfem;
 
 
-// ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemTribol * problem_) 
-//                      : problem(problem_)
+// ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblem * problem_) 
+                     // : problem(problem_)
 ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemSingleMesh * problem_) 
                      : problem(problem_)
 {
@@ -177,10 +177,6 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = false;
       Eevalmu0 = E(xk, lk, zlk, printOptimalityError);
-      if(iAmRoot)
-      {
-         cout << "Eevalmu0 = " << Eevalmu0 << "\n";
-      }
       if(Eevalmu0 < OptTol)
       {
          converged = true;

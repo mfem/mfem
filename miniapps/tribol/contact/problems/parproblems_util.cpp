@@ -210,21 +210,37 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, const Vector & xyz,
 }
 
 
-void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn, const Vector &x1, Vector & xyz, Array<int>& conn,
-                      Vector& xi, DenseMatrix & coords)
+void FindPointsInMesh(ParMesh & pmesh, const Array<int> & gvert, Array<int> & s_conn, const Vector &x1, Vector & xyz, Array<int>& conn,
+                      Vector& xi, DenseMatrix & coords, bool singlemesh)
 {
-   const int dim = mesh.Dimension();
+   const int dim = pmesh.Dimension();
    const int np = xyz.Size() / dim;
    MFEM_VERIFY(np * dim == xyz.Size(), "");
 
-   mesh.EnsureNodes();
+   pmesh.EnsureNodes();
+
+   ParSubMesh * psubmesh = nullptr;
+   ParMesh * mesh = nullptr;
+   Array<int> elem_map;
+   if (singlemesh)
+   {
+      Array<int> attr; attr.Append(1);
+      psubmesh = new ParSubMesh(ParSubMesh::CreateFromDomain(pmesh,attr));
+      mesh = (ParMesh *)psubmesh;
+   }
+   else
+   {
+      mesh = &pmesh;
+   }
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
 
    finder.SetDistanceToleranceForPointsFoundOnBoundary(0.5);
 
    const double bb_t = 0.5;
-   finder.Setup(mesh, bb_t);
+   mfem::out << "mesh->GetNE() = " << mesh->GetNE() << endl;
+   MFEM_VERIFY(mesh->GetNE(), "FindPointsGSLIB does not support empty partition");
+   finder.Setup(*mesh, bb_t);
 
    finder.FindPoints(xyz,mfem::Ordering::byVDIM);
 
@@ -293,10 +309,19 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
    mycomm.Communicate(elems_sorted,elems_recv,1,mfem::Ordering::byVDIM);
    mycomm.Communicate(refcrd_sorted,ref_recv,3,mfem::Ordering::byVDIM);
 
-
    proc_recv = mycomm.GetOriginProcs();
-
    int np_loc = elems_recv.Size();
+   if (singlemesh)
+   {
+      elem_map = psubmesh->GetParentElementIDMap();
+      for (int i = 0; i< np_loc; i++)
+      {
+         elems_recv[i] = elem_map[elems_recv[i]];
+      }
+      delete mesh;
+   }
+
+
    Array<int> conn_loc(np_loc*4);
    Vector xi_send(np_loc*(dim-1));
    for (int i=0; i<np_loc; ++i)
@@ -304,7 +329,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       int refFace, refNormal; 
       // int refNormalSide;
       bool is_interior = -1;
-      Vector normal = GetNormalVector(mesh, elems_recv[i],
+      Vector normal = GetNormalVector(pmesh, elems_recv[i],
                                       ref_recv.GetData() + (i*dim),
                                       refFace, refNormal, is_interior);
 
@@ -313,10 +338,10 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       if (is_interior)
       {
          phyFace = -1; // the id of the face that has the closest point
-         FindSurfaceToProject(mesh, elems_recv[i], phyFace); // seems that this works
+         FindSurfaceToProject(pmesh, elems_recv[i], phyFace); // seems that this works
 
          Array<int> cbdrVert;
-         mesh.GetFaceVertices(phyFace, cbdrVert);
+         pmesh.GetFaceVertices(phyFace, cbdrVert);
          Vector xs(dim);
          xs[0] = xyz_recv[i*dim + 0];
          xs[1] = xyz_recv[i*dim + 1];
@@ -325,7 +350,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
          Vector xi_tmp(dim-1);
          // get nodes!
 
-         GridFunction *nodes = mesh.GetNodes();
+         GridFunction *nodes = pmesh.GetNodes();
          DenseMatrix coord(4,3);
          for (int j=0; j<4; j++)
          {
@@ -378,12 +403,12 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       }
       else
       {
-         mesh.GetElementFaces(elems_recv[i], faces, ori);
+         pmesh.GetElementFaces(elems_recv[i], faces, ori);
          face = faces[refFace];
       }
 
       Array<int> faceVert;
-      mesh.GetFaceVertices(face, faceVert);
+      pmesh.GetFaceVertices(face, faceVert);
 
       for (int p=0; p<4; p++)
       {
@@ -400,7 +425,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
          mfem::out << "("<<xi_send[i*(dim-1)]<<","<<xi_send[i*(dim-1)+1]<<"): -> ";
          for (int j = 0; j<4; j++)
          {
-            double * vc = mesh.GetVertex(conn_loc[4*i+j]);
+            double * vc = pmesh.GetVertex(conn_loc[4*i+j]);
             if (j<3)
             {
                mfem::out << "("<<vc[0]<<","<<vc[1]<<","<<vc[2]<<"), ";
@@ -421,7 +446,7 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
       {
          for (int k=0; k<dim; k++)
          {
-            coordsm(i*4+j,k) = mesh.GetVertex(conn_loc[i*4+j])[k]+x1[dim*conn_loc[i*4+j]+k];
+            coordsm(i*4+j,k) = pmesh.GetVertex(conn_loc[i*4+j])[k]+x1[dim*conn_loc[i*4+j]+k];
          }
       }
    }
@@ -436,6 +461,8 @@ void FindPointsInMesh(Mesh & mesh, const Array<int> & gvert, Array<int> & s_conn
    mycomm.Communicate(xi_send,xi,2,mfem::Ordering::byVDIM);
    mycomm.Communicate(conn_loc,conn,4,mfem::Ordering::byVDIM);
    mycomm.Communicate(coordsm,coords,4,mfem::Ordering::byVDIM);
+
+
 }
 
 int get_rank(int tdof, std::vector<int> & tdof_offsets)
