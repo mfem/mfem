@@ -209,6 +209,43 @@ protected:
 private:
 };
 
+class ExponentialDesignDensity : public DesignDensity
+{
+   // variables
+public:
+protected:
+private:
+   std::unique_ptr<GridFunction> zero_gf;
+
+   // functions
+public:
+   ExponentialDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
+                       FiniteElementSpace &fes_filter,
+                       double vol_frac);
+   void Project() override;
+   double StationarityError(GridFunction &grad) override
+   {
+      return StationarityError(grad, false);
+   };
+   double StationarityError(GridFunction &grad, bool useL2norm);
+   double StationarityErrorL2(GridFunction &grad);
+   double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
+                                   double log_tol=1e-13);
+   double ComputeVolume() override
+   {
+      current_volume = zero_gf->ComputeL1Error(*rho_cf);
+      return current_volume;
+   }
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
+   {
+      return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
+                                             x_gf.get(), &other_gf,
+      [](double x, double y) {return std::exp(x) - std::exp(y);}));
+   }
+protected:
+private:
+};
+
 class PrimalDesignDensity : public DesignDensity
 {
    // variables
