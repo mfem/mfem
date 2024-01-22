@@ -288,9 +288,9 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
 SIMPProjector::SIMPProjector(const double k, const double rho0):k(k), rho0(rho0)
 {
    phys_density.reset(new MappedGridFunctionCoefficient(
-   nullptr, [rho0, k](double x) {return simp(std::min(1.0, std::max(0.0, x)), rho0, k);}));
+   nullptr, [rho0, k](double x) {return simp(x, rho0, k);}));
    dphys_dfrho.reset(new MappedGridFunctionCoefficient(
-   nullptr, [rho0, k](double x) {return der_simp(std::min(1.0, std::max(0.0, x)), rho0, k);}));
+   nullptr, [rho0, k](double x) {return der_simp(x, rho0, k);}));
 }
 Coefficient &SIMPProjector::GetPhysicalDensity(GridFunction &frho)
 {
