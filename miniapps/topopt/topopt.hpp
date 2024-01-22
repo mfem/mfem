@@ -172,7 +172,7 @@ public:
    Coefficient &GetDerivative(GridFunction &frho) override;
 };
 
-class LatentDesignDensity : public DesignDensity
+class SigmoidDesignDensity : public DesignDensity
 {
    // variables
 public:
@@ -182,7 +182,7 @@ private:
 
    // functions
 public:
-   LatentDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
+   SigmoidDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                        FiniteElementSpace &fes_filter,
                        double vol_frac);
    void Project() override;

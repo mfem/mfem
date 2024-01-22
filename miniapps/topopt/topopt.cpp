@@ -339,7 +339,7 @@ Coefficient &ThresholdProjector::GetDerivative(GridFunction &frho)
    dphys_dfrho->SetGridFunction(&frho);
    return *dphys_dfrho;
 }
-LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
+SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
                                          DensityFilter &filter,
                                          FiniteElementSpace &fes_filter,
                                          double vol_frac):
@@ -351,7 +351,7 @@ LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
    *zero_gf = 0.0;
 }
 
-void LatentDesignDensity::Project()
+void SigmoidDesignDensity::Project()
 {
    ComputeVolume();
    if (std::fabs(current_volume - target_volume) > vol_tol)
@@ -380,7 +380,7 @@ void LatentDesignDensity::Project()
    }
 }
 
-double LatentDesignDensity::StationarityError(GridFunction &grad,
+double SigmoidDesignDensity::StationarityError(GridFunction &grad,
                                               bool useL2norm)
 {
    std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
@@ -405,7 +405,7 @@ double LatentDesignDensity::StationarityError(GridFunction &grad,
    current_volume = volume_backup;
    return d;
 }
-double LatentDesignDensity::ComputeBregmanDivergence(GridFunction *p,
+double SigmoidDesignDensity::ComputeBregmanDivergence(GridFunction *p,
                                                      GridFunction *q, double epsilon)
 {
    // Define safe x*log(x) to avoid log(0)
@@ -422,7 +422,7 @@ double LatentDesignDensity::ComputeBregmanDivergence(GridFunction *p,
    return std::sqrt(zero_gf->ComputeL1Error(Dh));
 }
 
-double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
+double SigmoidDesignDensity::StationarityErrorL2(GridFunction &grad)
 {
    double c;
    MappedPairGridFunctionCoeffitient projected_rho(x_gf.get(),

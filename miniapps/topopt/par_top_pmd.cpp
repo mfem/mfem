@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   LatentDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,

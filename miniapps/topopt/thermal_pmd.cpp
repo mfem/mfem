@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
    // 5. Set the initial guess for ρ.
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, epsilon, ess_bdr_filter);
-   LatentDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient kappa_cf(kappa);
    ParametrizedDiffusionEquation diffusion(state_fes,
