@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(out);}
+   if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
 
    Mesh mesh;
