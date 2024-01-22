@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
       old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_rho, diff_rho_form, c1, step_size);
+      num_reeval = Step_Armijo(optprob, old_rho, grad, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();

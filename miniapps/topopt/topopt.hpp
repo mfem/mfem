@@ -473,21 +473,22 @@ private:
 
 
 
-/// @brief Find step size α satisfies F(ρ(α)) ≤ F(ρ_0) - c_1 (∇F, ρ(α) - ρ_0) where ρ(α) = P(ρ_0 - α∇F(ρ_0))
-///        where P is a projection.
+/// @brief Find step size α satisfies F(ρ(α)) ≤ F(ρ_0) - c_1 (∇F, ρ(α) - ρ_0) where ρ(α) = P(ρ_0 - α d)
+///        where P is a projection, d is the negative search direction.
 ///
 ///        We assume, 1) problem is already evaluated at the current point, ρ_0.
 ///                   2) projection is, if any, performed by problem.Eval()
 ///        The resulting density, ρ(α) and the function value will be updated in problem.
 /// @param problem Topology optimization problem
 /// @param x0 Current density gridfunction
+/// @param direction Negative search direction
 /// @param diff_densityForm Linear from L(v) = (x - x0, v)
 /// @param c1 Weights on the directional derivative,
 /// @param step_size Step size. Use reference to monitor updated step size.
 /// @param max_it Maximum number of updates.
 /// @param shrink_factor < 1. Step size will be updated to α <- α * shrink_factor
 /// @return The number of re-evaluation during Armijo condition check.
-int Step_Armijo(TopOptProblem &problem, GridFunction &x0,
+int Step_Armijo(TopOptProblem &problem, const GridFunction &x0, const GridFunction &direction,
                 LinearForm &diff_densityForm, const double c1,
                 double &step_size, const int max_it=20, const double shrink_factor=0.5);
 

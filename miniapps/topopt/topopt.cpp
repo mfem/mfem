@@ -772,7 +772,7 @@ void LineVolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
 }
-int Step_Armijo(TopOptProblem &problem, GridFunction &x0,
+int Step_Armijo(TopOptProblem &problem, const GridFunction &x0, const GridFunction &direction,
                 LinearForm &diff_densityForm, const double c1,
                 double &step_size, const int max_it, const double shrink_factor)
 {
@@ -796,7 +796,7 @@ int Step_Armijo(TopOptProblem &problem, GridFunction &x0,
       if (myrank == 0) { out << i << std::flush << "\r"; }
       step_size *= shrink_factor; // reduce step size
       x_gf = x0; // restore original position
-      x_gf.Add(-step_size, grad); // advance by updated step size
+      x_gf.Add(-step_size, direction); // advance by updated step size
       new_val = problem.Eval(); // re-evaluate at the updated point
       diff_densityForm.Assemble(); // re-evaluate density difference inner-product
       d = (diff_densityForm)(grad);
