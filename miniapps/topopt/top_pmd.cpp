@@ -144,7 +144,7 @@ enum Problem
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int ref_levels = 0;
+   int ref_levels = 6;
    int order = 1;
    // filter radius. Use problem-dependent default value if not provided.
    // See switch statements below
@@ -403,7 +403,6 @@ int main(int argc, char *argv[])
    std::unique_ptr<GridFunction> designDensity_gf, rho_gf;
    if (glvis_visualization)
    {
-      MPI_Barrier(MPI_COMM_WORLD);
       designDensity_gf.reset(new GridFunction(&filter_fes));
       rho_gf.reset(new GridFunction(&filter_fes));
       designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
