@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&sref, "-sr", "--refinements-serial",
                   "Number of serial refinements");
    args.AddOption(&pref, "-pr", "--refinements-parallel",
@@ -118,7 +120,7 @@ int main(int argc, char *argv[])
       essbdr = 1; essbdr[2] = 0;
       ufes.GetEssentialTrueDofs(essbdr, ess_tdof_list);
       essbdr = 0; essbdr[2] = 1;
-      pfes.GetEssentialTrueDofs(essbdr, ess_tdof_listp);
+      // pfes.GetEssentialTrueDofs(essbdr, ess_tdof_listp);
    }
    ConstantCoefficient one(1.0);
 
@@ -223,7 +225,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
    if (paraview)
    {
-      paraview_dc = new ParaViewDataCollection("Stokes-aneurysm", &pmesh);
+      paraview_dc = new ParaViewDataCollection(mesh_file, &pmesh);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(2);
       paraview_dc->SetCycle(0);
