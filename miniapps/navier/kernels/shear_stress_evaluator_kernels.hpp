@@ -78,7 +78,7 @@ void ShearStressEvaluatorApply3D(
    const Vector &dkv_
 )
 {
-   constexpr int dim = 3;
+   static constexpr int dim = 3;
    KernelHelpers::CheckMemoryRestriction(d1d, q1d);
 
    const tensor<double, q1d, d1d> &B =

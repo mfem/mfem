@@ -53,20 +53,16 @@ before_build:
 # - cmake . -Bbuild_serial -DMFEM_USE_MPI=FALSE
 - cmake . -Bbuild_shared_serial -DMFEM_USE_MPI=FALSE -DBUILD_SHARED_LIBS=ON
 
-# build_script:
-# - cmake --build build_parallel --config Debug -j 4
-# # - cmake --build build_serial --config Release -j 4
-# # - cmake --build build_serial --target exec --config Release -j 4
-# - cmake --build build_shared_serial --config Release -j 4
-# - cmake --build build_shared_serial --target exec --config Release -j 4
+build_script:
+- cmake --build build_parallel --config Debug -j 4
+# - cmake --build build_serial --config Release -j 4
+# - cmake --build build_serial --target exec --config Release -j 4
+- cmake --build build_shared_serial --config Release -j 4
+- cmake --build build_shared_serial --target exec --config Release -j 4
 
-# after_build:
-# # - cd build_serial
-# # - ctest -C Release --output-on-failure
-# # - cd ..
-# - cd build_shared_serial
+after_build:
+# - cd build_serial
 # - ctest -C Release --output-on-failure
-
-on_finish:
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-
+# - cd ..
+- cd build_shared_serial
+- ctest -C Release --output-on-failure
