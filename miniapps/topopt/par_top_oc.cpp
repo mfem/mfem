@@ -143,8 +143,15 @@ enum Problem
 
 int main(int argc, char *argv[])
 {
+   Mpi::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
+   if (Mpi::Root()) { mfem::out << "Parallel run using " << num_procs << " processes" << std::endl; }
+
    // 1. Parse command-line options.
-   int ref_levels = 6;
+   int seq_ref_levels = 0;
+   int par_ref_levels = 6;
    int order = 1;
    // filter radius. Use problem-dependent default value if not provided.
    // See switch statements below
@@ -169,8 +176,10 @@ int main(int argc, char *argv[])
    int problem = Problem::Cantilever;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ref_levels, "-r", "--refine",
-                  "Number of times to refine the mesh uniformly.");
+   args.AddOption(&seq_ref_levels, "-rs", "--seq-refine",
+                  "Number of times to refine the sequential mesh uniformly.");
+   args.AddOption(&par_ref_levels, "-rp", "--par-refine",
+                  "Number of times to refine the parallel mesh uniformly.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
    args.AddOption(&order, "-o", "--order",
@@ -191,7 +200,7 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.Parse();
-   if (!args.Good()) {args.PrintUsage(mfem::out);}
+   if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
 
    Mesh mesh;
@@ -239,7 +248,7 @@ int main(int argc, char *argv[])
          if (vol_fraction < 0) { vol_fraction = 0.5; }
 
          mesh_file = "../../data/lbracket_square.mesh";
-         ref_levels--;
+         seq_ref_levels--;
          mesh = mesh.LoadFromFile(mesh_file);
          ess_bdr.SetSize(3, 6);
          ess_bdr_filter.SetSize(6);
@@ -314,36 +323,44 @@ int main(int argc, char *argv[])
    }
    mesh.SetAttributes();
    int dim = mesh.Dimension();
-   const int num_el = mesh.GetNE() * (int)std::pow(2, dim*ref_levels);
+   const int num_el = mesh.GetNE() * (int)std::pow(2,
+                                                   dim*(seq_ref_levels + par_ref_levels));
 
-   mfem::out << "\n"
-             << "Compliance Minimization with Optimality Criteria Method.\n"
-             << "Problem: " << prob_name.str() << "\n"
-             << "The number of elements: " << num_el << "\n"
-             << "Order: " << order << "\n"
-             << "Volume Fraction: " << vol_fraction << "\n"
-             << "Filter Radius: " << filter_radius << "\n"
-             << "Maximum iteration: " << max_it << "\n"
-             << "GLVis: " << glvis_visualization << "\n"
-             << "Paraview: " << paraview << std::endl;
+   if (Mpi::Root())
+      mfem::out << "\n"
+                << "Compliance Minimization with Optimality Criteria Method.\n"
+                << "Problem: " << prob_name.str() << "\n"
+                << "The number of elements: " << num_el << "\n"
+                << "Order: " << order << "\n"
+                << "Volume Fraction: " << vol_fraction << "\n"
+                << "Filter Radius: " << filter_radius << "\n"
+                << "Maximum iteration: " << max_it << "\n"
+                << "GLVis: " << glvis_visualization << "\n"
+                << "Paraview: " << paraview << std::endl;
 
    if (glvis_visualization && dim == 3)
    {
       glvis_visualization = false;
       paraview = true;
-      mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl;
+      if (Mpi::Root()) { mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
    }
 
    // 3. Refine the mesh.
-   for (int lev = 0; lev < ref_levels; lev++)
+   for (int lev = 0; lev < seq_ref_levels; lev++)
    {
       mesh.UniformRefinement();
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
    }
    switch (problem)
    {
       case Problem::MBB:
       {
-         MarkBoundary(mesh, [](const Vector &x) {return ((x(0) > (3 - std::pow(2, -5))) && (x(1) < 1e-10)); },
+         MarkBoundary(pmesh, [](const Vector &x) {return ((x(0) > (3 - std::pow(2, -5))) && (x(1) < 1e-10)); },
          5);
          break;
       }
@@ -351,19 +368,21 @@ int main(int argc, char *argv[])
       {
          // left center: Dirichlet
          center[0] = 0.0; center[1] = 0.5; center[2] = 0.5;
-         MarkBoundary(mesh, [r, center](const Vector &x) { return (center.DistanceTo(x) < r); },
+         MarkBoundary(pmesh, [r, center](const Vector &x) { return (center.DistanceTo(x) < r); },
          7);
          break;
       }
    }
+   pmesh.SetAttributes();
 
    if (save)
    {
       ostringstream meshfile;
-      meshfile << prob_name.str() << "-" << ref_levels << ".mesh";
+      meshfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+               "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
-      mesh.Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
    }
 
    // 4. Define the necessary finite element spaces on the mesh.
@@ -371,17 +390,20 @@ int main(int argc, char *argv[])
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
                                BasisType::GaussLobatto); // space for ψ
-   FiniteElementSpace state_fes(&mesh, &state_fec,dim);
-   FiniteElementSpace filter_fes(&mesh, &filter_fec);
-   FiniteElementSpace control_fes(&mesh, &control_fec);
+   ParFiniteElementSpace state_fes(&pmesh, &state_fec,dim);
+   ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
+   ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
-   int state_size = state_fes.GetTrueVSize();
-   int control_size = control_fes.GetTrueVSize();
-   int filter_size = filter_fes.GetTrueVSize();
-   mfem::out << "\n"
-             << "Number of state unknowns: " << state_size << "\n"
-             << "Number of filter unknowns: " << filter_size << "\n"
-             << "Number of control unknowns: " << control_size << std::endl;
+   int state_size = state_fes.GlobalTrueVSize();
+   int control_size = control_fes.GlobalTrueVSize();
+   int filter_size = filter_fes.GlobalTrueVSize();
+   if (Mpi::Root())
+   {
+      mfem::out << "\n"
+                << "Number of state unknowns: " << state_size << "\n"
+                << "Number of filter unknowns: " << filter_size << "\n"
+                << "Number of control unknowns: " << control_size << std::endl;
+   }
 
    // 5. Set the initial guess for ρ.
    SIMPProjector simp_rule(exponent, rho_min);
@@ -393,47 +415,53 @@ int main(int argc, char *argv[])
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
-                         false);
+                         true);
 
-   GridFunction &u = optprob.GetState();
-   GridFunction &rho_filter = density.GetFilteredDensity();
+   ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
+   ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
+                                 (&density.GetFilteredDensity());
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
    socketstream sout_SIMP, sout_r;
-   std::unique_ptr<GridFunction> designDensity_gf, rho_gf;
+   std::unique_ptr<ParGridFunction> designDensity_gf, rho_gf;
    if (glvis_visualization)
    {
-      designDensity_gf.reset(new GridFunction(&filter_fes));
-      rho_gf.reset(new GridFunction(&filter_fes));
+      MPI_Barrier(MPI_COMM_WORLD);
+      designDensity_gf.reset(new ParGridFunction(&filter_fes));
+      rho_gf.reset(new ParGridFunction(&filter_fes));
       designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       if (sout_SIMP.is_open())
       {
+         sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
-         sout_SIMP << "solution\n" << mesh << *designDensity_gf
+         sout_SIMP << "solution\n" << pmesh << *designDensity_gf
                    << "window_title 'Design density r(ρ̃) - OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
       sout_r.open(vishost, visport);
       if (sout_r.is_open())
       {
+         sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
-         sout_r << "solution\n" << mesh << *rho_gf
+         sout_r << "solution\n" << pmesh << *rho_gf
                 << "window_title 'Raw density ρ - OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
+         MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
       }
    }
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
-      pd.reset(new ParaViewDataCollection(prob_name.str(), &mesh));
+      pd.reset(new ParaViewDataCollection(prob_name.str(), &pmesh));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
       pd->RegisterField("rho", &density.GetGridFunction());
@@ -447,19 +475,21 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   GridFunction &grad(optprob.GetGradient());
-   GridFunction &rho(density.GetGridFunction());
-   GridFunction old_rho(&control_fes), inv_dv(&control_fes);
-   for (int i=0; i<mesh.GetNE(); i++) { inv_dv[i] = mesh.GetElementVolume(i); }
+   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
+   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
+                        (&density.GetGridFunction()));
+   ParGridFunction old_rho(&control_fes), inv_dv(&control_fes);
+   for (int i=0; i<pmesh.GetNE(); i++) { inv_dv[i] = pmesh.GetElementVolume(i); }
    inv_dv.Reciprocal();
 
-   LinearForm diff_rho_form(&control_fes);
+   ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffForm(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
-   mfem::out << "\n"
-             << "Initialization Done." << "\n"
-             << "Start Optimality Criteria Method." << "\n" << std::endl;
+   if (Mpi::Root())
+      mfem::out << "\n"
+                << "Initialization Done." << "\n"
+                << "Start Optimality Criteria Method." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double volume(density.GetDomainVolume()*vol_fraction),
@@ -473,7 +503,7 @@ int main(int argc, char *argv[])
    logger.Print();
 
    optprob.UpdateGradient();
-   GridFunction B(&control_fes), lower(&control_fes), upper(&control_fes);
+   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes);
    for (int k = 0; k < max_it; k++)
    {
       // Store old data
@@ -517,14 +547,18 @@ int main(int argc, char *argv[])
          {
             designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                                     density.GetFilteredDensity()));
-            sout_SIMP << "solution\n" << mesh << *designDensity_gf
+            sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
+            sout_SIMP << "solution\n" << pmesh << *designDensity_gf
                       << flush;
+            MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
          if (sout_r.is_open())
          {
             rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
-            sout_r << "solution\n" << mesh << *rho_gf
+            sout_r << "parallel " << num_procs << " " << myid << "\n";
+            sout_r << "solution\n" << pmesh << *rho_gf
                    << flush;
+            MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
       }
       if (paraview)
@@ -541,15 +575,17 @@ int main(int argc, char *argv[])
 
       if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
-         mfem::out << "Total number of iteration = " << k + 1 << std::endl;
+         if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
       }
    }
    if (save)
    {
       ostringstream solfile, solfile2;
-      solfile << prob_name.str() << "-" << ref_levels << "-0.gf";
-      solfile2 << prob_name.str() << "-" << ref_levels << "-f.gf";
+      solfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+              "-0." << setfill('0') << setw(6) << myid;
+      solfile2 << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+               "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
       sol_ofs << rho;
