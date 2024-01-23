@@ -14,6 +14,7 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
 using namespace std;
 
@@ -3016,6 +3017,12 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 }
 
+ElasticityComponentIntegrator::ElasticityComponentIntegrator(
+   ElasticityIntegrator &parent_, int i_, int j_)
+   : parent(parent_),
+     i_block(i_),
+     j_block(j_)
+{ }
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
