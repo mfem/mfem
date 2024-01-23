@@ -746,9 +746,9 @@ protected:
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    MixedBilinearFormExtension *ext;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in 
-       MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs, 
-       MixedBilinearForm#trace_face_integs and 
+   /** @brief Indicates the BilinearFormIntegrator%s stored in
+       MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs,
+       MixedBilinearForm#trace_face_integs and
        MixedBilinearForm#boundary_trace_face_integs
        are owned by another MixedBilinearForm. */
    int extern_bfs;
