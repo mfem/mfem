@@ -2852,17 +2852,46 @@ int NCMesh::find_local_face(int geom, int a, int b, int c)
    return -1;
 }
 
+namespace
+{
+template <typename T> struct IntHash;
+template <> struct IntHash<float>
+{
+   using int_type = uint32_t;
+   static constexpr int_type initial_value = 0xc4a016dd; // random value;
+};
+template <> struct IntHash<double>
+{
+   using int_type = uint64_t;
+   static constexpr int_type initial_value = 0xf9ca9ba106acbba9; // random value
+};
+}
 
 /// Hash function for a PointMatrix, used in MatrixMap::map.
 struct PointMatrixHash
 {
    std::size_t operator()(const NCMesh::PointMatrix &pm) const
    {
-      MFEM_ASSERT(sizeof(real_t) == sizeof(std::uint64_t), "");
-
       // This is a variation on "Hashing an array of floats" from here:
       // https://cs.stackexchange.com/questions/37952
-      std::uint64_t hash = 0xf9ca9ba106acbba9; // random initial value
+
+      // Make sure (at compile time) that the types have compatible sizes
+      static_assert(sizeof(IntHash<real_t>::int_type) == sizeof(real_t), "");
+      // Suppress maybe unused warnings
+      MFEM_CONTRACT_VAR(IntHash<float>::initial_value);
+      MFEM_CONTRACT_VAR(IntHash<double>::initial_value);
+
+      auto int_bit_cast = [](real_t val)
+      {
+         // std::memcpy is the proper way of doing type punning, see e.g.
+         // https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8
+         IntHash<real_t>::int_type int_val;
+         std::memcpy(&int_val, &val, sizeof(real_t));
+         return int_val;
+      };
+
+      IntHash<real_t>::int_type hash = IntHash<real_t>::initial_value;
+
       for (int i = 0; i < pm.np; i++)
       {
          for (int j = 0; j < pm.points[i].dim; j++)
@@ -2870,7 +2899,7 @@ struct PointMatrixHash
             // mix the doubles by adding their binary representations many times
             // over (note: 31 is 11111 in binary)
             real_t coord = pm.points[i].coord[j];
-            hash = 31*hash + *((std::uint64_t*) &coord);
+            hash = 31*hash + int_bit_cast(coord);
          }
       }
       return hash; // return the lowest bits of the huge sum
