@@ -3156,6 +3156,7 @@ protected:
 
 private:
    Vector shape1, shape2;
+   Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
    /// Construct integrator with \f$\rho = 1\f$, \f$\beta = \alpha/2\f$.
@@ -3173,6 +3174,12 @@ public:
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
