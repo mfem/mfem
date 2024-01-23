@@ -26,7 +26,20 @@ Discretization improvements
 - both element-wise weak divergence and face-wise numerical flux for a general 
   system of hyperbolic conservation laws. To use this integrator for a specific
   flux function, users can define a derived class of `FluxFunction`. Currently,
-  advection, Burgers, shallow-water, Euler equations are available.
+  advection, Burgers, shallow-water, Euler equations (see, Example 18) are available.
+
+GPU support
+----------------------------
+- Added support for full assembly on simplices.
+- Added functionality for BilinearFormIntegrators to use kernels that work for both
+  tensor and unstructured elements.
+- Added partial assembly for linear elasticity. Does not use sum factorization for now.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
+  and a block diagonal preconditioner using low order refinement. Allows comparison with
+  currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
 
 Miscellaneous
 -------------
