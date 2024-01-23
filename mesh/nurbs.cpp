@@ -132,7 +132,7 @@ int KnotVector::GetCoarseningFactor() const
    }
 }
 
-void KnotVector::GetFineKnots(const int cf, Vector & fine)
+void KnotVector::GetFineKnots(const int cf, Vector & fine) const
 {
    if (cf < 2) { return; }
 
@@ -2024,7 +2024,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
                input >> dpar[i];
             }
 
-            const SPACING_TYPE s = (SPACING_TYPE) spacingType;
+            const SpacingType s = (SpacingType) spacingType;
             knotVectors[ki]->spacing.reset(GetSpacingFunction(s, ipar, dpar));
          }
       }

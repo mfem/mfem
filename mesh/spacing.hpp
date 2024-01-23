@@ -17,9 +17,9 @@
 namespace mfem
 {
 
-typedef enum {UNIFORM_SPACING, LINEAR, GEOMETRIC, BELL,
-              GAUSSIAN, LOGARITHMIC, PIECEWISE
-             } SPACING_TYPE;
+enum class SpacingType {UNIFORM_SPACING, LINEAR, GEOMETRIC, BELL,
+                        GAUSSIAN, LOGARITHMIC, PIECEWISE
+                       };
 
 /// Class for spacing functions that define meshes in a dimension, using a
 /// formula or method implemented in a derived class.
@@ -27,7 +27,7 @@ class SpacingFunction
 {
 public:
    /** @brief Base class constructor.
-   @param[in] n_  Size or number of intervals, which defines elements.
+   @param[in] n  Size or number of intervals, which defines elements.
    @param[in] r   Whether to reverse the spacings, false by default.
    @param[in] s   Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
@@ -49,10 +49,10 @@ public:
    void SetReverse(bool r) { reverse = r; }
 
    /// Returns the width of interval @a p (between 0 and @a Size() - 1).
-   virtual double Eval(int p) = 0;
+   virtual double Eval(int p) const = 0;
 
    /// Returns the width of all intervals, resizing @a s to @a Size().
-   void EvalAll(Vector & s)
+   void EvalAll(Vector & s) const
    {
       s.SetSize(n);
       for (int i=0; i<n; ++i)
@@ -69,13 +69,13 @@ public:
    virtual void ScaleParameters(double a) { }
 
    /// Returns the spacing type, indicating the derived class.
-   virtual SPACING_TYPE SpacingType() const = 0;
+   virtual SpacingType GetSpacingType() const = 0;
 
    /** @brief Prints all the data necessary to define the spacing function and
        its current state (size and other parameters).
 
        The format is generally
-       SPACING_TYPE numIntParam numDoubleParam {int params} {double params} */
+       SpacingType numIntParam numDoubleParam {int params} {double params} */
    virtual void Print(std::ostream &os) const = 0;
 
    /// Returns the number of integer parameters defining the spacing function.
@@ -98,12 +98,10 @@ public:
    /// Returns a clone of this spacing function.
    virtual SpacingFunction *Clone() const;
 
-   virtual ~SpacingFunction() { }
-
 protected:
-   int n;  // Size, or number of intervals (elements)
-   bool reverse;  // Whether to reverse the spacing
-   bool scale;  // Whether to scale parameters in ScaleParameters.
+   int n;  ///< Size, or number of intervals (elements)
+   bool reverse;  ///< Whether to reverse the spacing
+   bool scale;  ///< Whether to scale parameters in ScaleParameters.
 };
 
 /** @brief Uniform spacing function, dividing the unit interval into @a Size()
@@ -113,54 +111,55 @@ protected:
 class UniformSpacingFunction : public SpacingFunction
 {
 public:
-   UniformSpacingFunction(int n_)
-      : SpacingFunction(n_)
+   UniformSpacingFunction(int n)
+      : SpacingFunction(n)
    {
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       return s;
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << UNIFORM_SPACING << " 1 0 " << n << "\n";
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::UNIFORM_SPACING) << " 1 0 " << n << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return UNIFORM_SPACING; }
-   virtual int NumIntParameters() const override { return 1; }
-   virtual int NumDoubleParameters() const override { return 0; }
+   SpacingType GetSpacingType() const override { return SpacingType::UNIFORM_SPACING; }
+   int NumIntParameters() const override { return 1; }
+   int NumDoubleParameters() const override { return 0; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(1);
       p[0] = n;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(0);
    }
 
-   virtual bool Nested() const override { return true; }
+   bool Nested() const override { return true; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new UniformSpacingFunction(n);
    }
 
 private:
-   double s; // Width of each interval (element)
+   double s; ///< Width of each interval (element)
 
+   /// Calculate interval width @a s
    void CalculateSpacing()
    {
       // Spacing is 1 / n
@@ -177,20 +176,20 @@ private:
 class LinearSpacingFunction : public SpacingFunction
 {
 public:
-   LinearSpacingFunction(int n_, bool r_, double s_, bool scale_)
-      : SpacingFunction(n_, r_, scale_), s(s_)
+   LinearSpacingFunction(int n, bool r, double s, bool scale)
+      : SpacingFunction(n, r, scale), s(s)
    {
       MFEM_VERIFY(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
       CalculateDifference();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateDifference();
    }
 
-   virtual void ScaleParameters(double a) override
+   void ScaleParameters(double a) override
    {
       if (scale)
       {
@@ -199,7 +198,7 @@ public:
       }
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       MFEM_ASSERT(0 <= p && p < n, "Access element " << p
                   << " of spacing function, size = " << n);
@@ -207,18 +206,18 @@ public:
       return s + (i * d);
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << LINEAR << " 3 1 " << n << " " << (int) reverse << " "
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::LINEAR) << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return LINEAR; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return 1; }
+   SpacingType GetSpacingType() const override { return SpacingType::LINEAR; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -226,21 +225,21 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = s;
    }
 
-   virtual bool Nested() const override { return false; }
+   bool Nested() const override { return false; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new LinearSpacingFunction(n, reverse, s, scale);
    }
 
 private:
-   double s, d;
+   double s, d;  ///< Spacing parameters, set by @a CalculateDifference
 
    void CalculateDifference()
    {
@@ -266,19 +265,19 @@ private:
 class GeometricSpacingFunction : public SpacingFunction
 {
 public:
-   GeometricSpacingFunction(int n_, bool r_, double s_, bool scale_)
-      : SpacingFunction(n_, r_, scale_), s(s_)
+   GeometricSpacingFunction(int n, bool r, double s, bool scale)
+      : SpacingFunction(n, r, scale), s(s)
    {
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual void ScaleParameters(double a) override
+   void ScaleParameters(double a) override
    {
       if (scale)
       {
@@ -287,24 +286,24 @@ public:
       }
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return n == 1 ? 1.0 : s * std::pow(r, i);
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << GEOMETRIC << " 3 1 " << n << " " << (int) reverse << " "
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::GEOMETRIC) << " 3 1 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return GEOMETRIC; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return 1; }
+   SpacingType GetSpacingType() const override { return SpacingType::GEOMETRIC; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -312,23 +311,24 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = s;
    }
 
-   virtual bool Nested() const override { return false; }
+   bool Nested() const override { return false; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new GeometricSpacingFunction(n, reverse, s, scale);
    }
 
 private:
-   double s;  // Initial spacing
-   double r;  // Ratio
+   double s;  ///< Initial spacing
+   double r;  ///< Ratio
 
+   /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
 };
 
@@ -345,15 +345,15 @@ class BellSpacingFunction : public SpacingFunction
 {
 public:
    /** @brief Constructor for BellSpacingFunction.
-   @param[in] n_  Size or number of intervals, which defines elements.
-   @param[in] r_  Whether to reverse the spacings.
-   @param[in] s0_ Width of the first interval (element).
-   @param[in] s1_ Width of the last interval (element).
-   @param[in] s_  Whether to scale parameters by the refinement or coarsening
+   @param[in] n  Size or number of intervals, which defines elements.
+   @param[in] r  Whether to reverse the spacings.
+   @param[in] s0 Width of the first interval (element).
+   @param[in] s1 Width of the last interval (element).
+   @param[in] s  Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   BellSpacingFunction(int n_, bool r_, double s0_, double s1_, bool s_)
-      : SpacingFunction(n_, r_, s_), s0(s0_), s1(s1_)
+   BellSpacingFunction(int n, bool r, double s0, double s1, bool s)
+      : SpacingFunction(n, r, s), s0(s0), s1(s1)
    {
       CalculateSpacing();
    }
@@ -364,13 +364,13 @@ public:
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual void ScaleParameters(double a) override
+   void ScaleParameters(double a) override
    {
       if (scale)
       {
@@ -380,24 +380,25 @@ public:
       }
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << BELL << " 3 2 " << n << " " << (int) reverse << " " << (int) scale
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::BELL) << " 3 2 " << n << " " << (int) reverse << " " <<
+         (int) scale
          << " " << s0 << " " << s1 << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return BELL; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return 2; }
+   SpacingType GetSpacingType() const override { return SpacingType::BELL; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return 2; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -405,24 +406,25 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(2);
       p[0] = s0;
       p[1] = s1;
    }
 
-   virtual bool Nested() const override { return false; }
+   bool Nested() const override { return false; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new BellSpacingFunction(n, reverse, s0, s1, scale);
    }
 
 private:
-   double s0, s1; // First and last interval widths
-   Vector s;
+   double s0, s1; ///< First and last interval widths
+   Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
+   /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
 };
 
@@ -440,26 +442,26 @@ class GaussianSpacingFunction : public SpacingFunction
 {
 public:
    /** @brief Constructor for BellSpacingFunction.
-   @param[in] n_  Size or number of intervals, which defines elements.
-   @param[in] r_  Whether to reverse the spacings.
-   @param[in] s0_ Width of the first interval (element).
-   @param[in] s1_ Width of the last interval (element).
-   @param[in] s_  Whether to scale parameters by the refinement or coarsening
+   @param[in] n  Size or number of intervals, which defines elements.
+   @param[in] r  Whether to reverse the spacings.
+   @param[in] s0 Width of the first interval (element).
+   @param[in] s1 Width of the last interval (element).
+   @param[in] s  Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   GaussianSpacingFunction(int n_, bool r_, double s0_, double s1_, bool s_)
-      : SpacingFunction(n_, r_, s_), s0(s0_), s1(s1_)
+   GaussianSpacingFunction(int n, bool r, double s0, double s1, bool s)
+      : SpacingFunction(n, r, s), s0(s0), s1(s1)
    {
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual void ScaleParameters(double a) override
+   void ScaleParameters(double a) override
    {
       if (scale)
       {
@@ -469,24 +471,24 @@ public:
       }
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << GAUSSIAN << " 3 2 " << n << " " << (int) reverse << " "
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::GAUSSIAN) << " 3 2 " << n << " " << (int) reverse << " "
          << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return GAUSSIAN; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return 2; }
+   SpacingType GetSpacingType() const override { return SpacingType::GAUSSIAN; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return 2; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -494,24 +496,25 @@ public:
       p[2] = (int) scale;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(2);
       p[0] = s0;
       p[1] = s1;
    }
 
-   virtual bool Nested() const override { return false; }
+   bool Nested() const override { return false; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new GaussianSpacingFunction(n, reverse, s0, s1, scale);
    }
 
 private:
-   double s0, s1; // First and last interval widths
-   Vector s;
+   double s0, s1; ///< First and last interval widths
+   Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
+   /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
 };
 
@@ -525,36 +528,37 @@ private:
 class LogarithmicSpacingFunction : public SpacingFunction
 {
 public:
-   LogarithmicSpacingFunction(int n_, bool r_, bool sym_=false, double b_=10.0)
-      : SpacingFunction(n_, r_), sym(sym_), logBase(b_)
+   LogarithmicSpacingFunction(int n, bool r, bool sym=false, double b=10.0)
+      : SpacingFunction(n, r), sym(sym), logBase(b)
    {
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
    }
 
-   virtual void Print(std::ostream &os) const override
+   void Print(std::ostream &os) const override
    {
-      // SPACING_TYPE numIntParam numDoubleParam {int params} {double params}
-      os << LOGARITHMIC << " 3 1 " << n << " " << (int) reverse << " "
+      // SpacingType numIntParam numDoubleParam {int params} {double params}
+      os << int(SpacingType::LOGARITHMIC) << " 3 1 " << n << " " <<
+         (int) reverse << " "
          << (int) sym << " " << logBase << "\n";
    }
 
-   virtual SPACING_TYPE SpacingType() const override { return LOGARITHMIC; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return 1; }
+   SpacingType GetSpacingType() const override { return SpacingType::LOGARITHMIC; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return 1; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3);
       p[0] = n;
@@ -562,26 +566,29 @@ public:
       p[2] = (int) sym;
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(1);
       p[0] = logBase;
    }
 
-   virtual bool Nested() const override { return true; }
+   bool Nested() const override { return true; }
 
-   virtual SpacingFunction *Clone() const override
+   SpacingFunction *Clone() const override
    {
       return new LogarithmicSpacingFunction(n, reverse, sym, logBase);
    }
 
 private:
-   bool sym;
-   double logBase;
-   Vector s;
+   bool sym;  ///< Whether to make the spacing symmetric
+   double logBase;  ///< Base of the logarithmic function
+   Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
+   /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
+   /// Symmetric case for @a CalculateSpacing
    void CalculateSymmetric();
+   /// Nonsymmetric case for @a CalculateSpacing
    void CalculateNonsymmetric();
 };
 
@@ -602,51 +609,51 @@ class PiecewiseSpacingFunction : public SpacingFunction
 {
 public:
    /** @brief Constructor for PiecewiseSpacingFunction.
-   @param[in] n_   Size or number of intervals, which defines elements.
-   @param[in] np_  Number of pieces (subintervals of unit interval).
-   @param[in] r_   Whether to reverse the spacings.
+   @param[in] n   Size or number of intervals, which defines elements.
+   @param[in] np  Number of pieces (subintervals of unit interval).
+   @param[in] r   Whether to reverse the spacings.
    @param[in] relN Relative number of elements per piece.
-   @param[in] ipar Integer parameters for all np_ spacing functions. For each
+   @param[in] ipar Integer parameters for all np spacing functions. For each
                    piece, these parameters are type, number of integer
                    parameters, number of double parameters, integer parameters.
-   @param[in] dpar Double parameters for all np_ spacing functions. The first
-                   np_ - 1 entries define the partition of the unit interval,
+   @param[in] dpar Double parameters for all np spacing functions. The first
+                   np - 1 entries define the partition of the unit interval,
                    and the remaining are for the pieces.
    */
-   PiecewiseSpacingFunction(int n_, int np_, bool r_, Array<int> const& relN,
+   PiecewiseSpacingFunction(int n_, int np_, bool r, Array<int> const& relN,
                             Array<int> const& ipar, Vector const& dpar)
-      : SpacingFunction(n_, r_), np(np_), partition(np_ - 1)
+      : SpacingFunction(n_, r), np(np_), partition(np_ - 1)
    {
       npartition = relN;
       SetupPieces(ipar, dpar);
       CalculateSpacing();
    }
 
-   virtual void SetSize(int size) override
+   void SetSize(int size) override
    {
       n = size;
       CalculateSpacing();
    }
 
-   virtual double Eval(int p) override
+   double Eval(int p) const override
    {
       const int i = reverse ? n - 1 - p : p;
       return s[i];
    }
 
-   virtual void ScaleParameters(double a) override;
+   void ScaleParameters(double a) override;
 
-   virtual void Print(std::ostream &os) const override;
+   void Print(std::ostream &os) const override;
 
-   virtual SpacingFunction *Clone() const override;
+   SpacingFunction* Clone() const override;
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 
-   virtual SPACING_TYPE SpacingType() const override { return PIECEWISE; }
-   virtual int NumIntParameters() const override { return 3; }
-   virtual int NumDoubleParameters() const override { return np - 1; }
+   SpacingType GetSpacingType() const override { return SpacingType::PIECEWISE; }
+   int NumIntParameters() const override { return 3; }
+   int NumDoubleParameters() const override { return np - 1; }
 
-   virtual void GetIntParameters(Array<int> & p) const override
+   void GetIntParameters(Array<int> & p) const override
    {
       p.SetSize(3 + np);
       p[0] = n;
@@ -655,34 +662,31 @@ public:
       for (int i=0; i<np; ++i) { p[3 + i] = npartition[i]; }
    }
 
-   virtual void GetDoubleParameters(Vector & p) const override
+   void GetDoubleParameters(Vector & p) const override
    {
       p.SetSize(np - 1);
       p = partition;
    }
 
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
-   virtual bool Nested() const override;
-
-   ~PiecewiseSpacingFunction()
-   {
-      for (auto p : pieces) { delete p; }
-   }
+   bool Nested() const override;
 
 private:
-   int np;  // Number of pieces
-   Vector partition;
-   Array<int> npartition;
+   int np;  ///< Number of pieces
+   Vector partition;  ///< Partition of the unit interval
+   Array<int> npartition;  ///< Number of intervals in each partition
    Array<SpacingFunction*> pieces;
 
-   int n0 = 0;
+   int n0 = 0;  ///< Total number of intervals
 
-   Vector s;
+   Vector s;  ///< Stores the spacings calculated by @a CalculateSpacing
 
+   /// Calculate parameters used by @a Eval and @a EvalAll
    void CalculateSpacing();
 };
 
-SpacingFunction* GetSpacingFunction(const SPACING_TYPE type,
+/// Returns a new SpacingFunction instance defined by the type and parameters
+SpacingFunction* GetSpacingFunction(const SpacingType type,
                                     Array<int> const& ipar,
                                     Vector const& dpar);
 }
