@@ -32,12 +32,8 @@ public:
    @param[in] s   Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   SpacingFunction(int n, bool r=false, bool s=false)
-   {
-      n = n;
-      reverse = r;
-      scale = s;
-   }
+   SpacingFunction(int n, bool r=false, bool s=false) : n(n), reverse(r), scale(s)
+   { }
 
    /// Returns the size, or number of intervals (elements).
    inline int Size() const { return n; }
