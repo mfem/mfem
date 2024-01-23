@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
+SpacingFunction* GetSpacingFunction(const SpacingType spacingType,
                                     Array<int> const& ipar,
                                     Vector const& dpar)
 {
@@ -22,43 +22,43 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
 
    switch (spacingType)
    {
-      case SPACING_TYPE::UNIFORM_SPACING:
+      case SpacingType::UNIFORM_SPACING:
          MFEM_VERIFY(ipar.Size() == 1 &&
                      dpar.Size() == 0, "Invalid spacing function parameters");
          return new UniformSpacingFunction(ipar[0]);
-      case SPACING_TYPE::LINEAR:
+      case SpacingType::LINEAR:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
          return new LinearSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
                                           (bool) ipar[2]);
-      case SPACING_TYPE::GEOMETRIC:
+      case SpacingType::GEOMETRIC:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
          return new GeometricSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
                                              (bool) ipar[2]);
-      case SPACING_TYPE::BELL:
+      case SpacingType::BELL:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
          return new BellSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
                                         dpar[1], (bool) ipar[2]);
-      case SPACING_TYPE::GAUSSIAN:
+      case SpacingType::GAUSSIAN:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
          return new GaussianSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
                                             dpar[1], (bool) ipar[2]);
-      case SPACING_TYPE::LOGARITHMIC:
+      case SpacingType::LOGARITHMIC:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
          return new LogarithmicSpacingFunction(ipar[0], (bool) ipar[1],
                                                (bool) ipar[2], dpar[0]);
-      case SPACING_TYPE::PIECEWISE:
+      case SpacingType::PIECEWISE:
          MFEM_VERIFY(ipar.Size() >= 3, "Invalid spacing function parameters");
          ipar.GetSubArray(3, ipar[1], relN);
          ipar.GetSubArray(3 + ipar[1], ipar.Size() - 3 - ipar[1], iparsub);
          return new PiecewiseSpacingFunction(ipar[0], ipar[1], (bool) ipar[2],
                                              relN, iparsub, dpar);
       default:
-         MFEM_ABORT("Unknown spacing type \"" << spacingType << "\"");
+         MFEM_ABORT("Unknown spacing type \"" << int(spacingType) << "\"");
          break;
    }
 
@@ -66,10 +66,10 @@ SpacingFunction* GetSpacingFunction(const SPACING_TYPE spacingType,
    return nullptr;
 }
 
-SpacingFunction *SpacingFunction::Clone() const
+SpacingFunction* SpacingFunction::Clone() const
 {
    MFEM_ABORT("Base class SpacingFunction should not be cloned");
-   return NULL;
+   return nullptr;
 }
 
 void GeometricSpacingFunction::CalculateSpacing()
@@ -430,7 +430,7 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
    for (int p=0; p<np; ++p)
    {
       // Setup piece p
-      const SPACING_TYPE type = (SPACING_TYPE) ipar[osi];
+      const SpacingType type = (SpacingType) ipar[osi];
       const int numIntParam = ipar[osi+1];
       const int numDoubleParam = ipar[osi+2];
 
@@ -470,7 +470,7 @@ void PiecewiseSpacingFunction::ScaleParameters(double a)
 
 void PiecewiseSpacingFunction::Print(std::ostream &os) const
 {
-   // SPACING_TYPE numIntParam numDoubleParam npartition {int params} {double params}
+   // SpacingType numIntParam numDoubleParam npartition {int params} {double params}
    int inum = 3 + np;
    int dnum = np-1;
    for (auto p : pieces)
@@ -480,7 +480,8 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
       dnum += p->NumDoubleParameters();
    }
 
-   os << PIECEWISE << " " << inum << " " << dnum << " " << n << " " << np << " "
+   os << int(SpacingType::PIECEWISE) << " " << inum << " " << dnum << " " << n <<
+      " " << np << " "
       << (int) reverse << "\n";
 
    for (auto n : npartition)
@@ -492,7 +493,7 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
    Array<int> ipar;
    for (auto p : pieces)
    {
-      os << "\n" << p->SpacingType() << " " << p->NumIntParameters()
+      os << "\n" << int(p->GetSpacingType()) << " " << p->NumIntParameters()
          << " " << p->NumDoubleParameters();
 
       p->GetIntParameters(ipar);
@@ -589,7 +590,7 @@ void PiecewiseSpacingFunction::CalculateSpacing()
    MFEM_VERIFY(n_total == n, "");
 }
 
-SpacingFunction *PiecewiseSpacingFunction::Clone() const
+SpacingFunction* PiecewiseSpacingFunction::Clone() const
 {
    int osi = 0;
    int osd = np - 1;
@@ -608,7 +609,7 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
    for (auto p : pieces)
    {
       // Setup piece p
-      const SPACING_TYPE type = p->SpacingType();
+      const SpacingType type = p->GetSpacingType();
 
       p->GetIntParameters(ipar_p);
       p->GetDoubleParameters(dpar_p);
@@ -620,7 +621,7 @@ SpacingFunction *PiecewiseSpacingFunction::Clone() const
       // Add three for the type and the integer and double parameter counts.
       ipar.SetSize(osi + numIntParam + 3);
 
-      ipar[osi] = type;
+      ipar[osi] = int(type);
       ipar[osi + 1] = numIntParam;
       ipar[osi + 2] = numDoubleParam;
 
