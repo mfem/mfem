@@ -301,7 +301,7 @@ public:
       return &kin_vis_gf;
    }
 
-   GridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
+   ParGridFunction *GetCurrentMeshVelocity() { return &wgn_gf; }
 
    void TransformMesh(VectorCoefficient &dx);
 
@@ -520,7 +520,7 @@ protected:
 
    Vector grad_nu_sym_grad_uext, kv;
 
-   GridFunction wgn_gf;
+   ParGridFunction wgn_gf;
    VectorGridFunctionCoefficient wg_coef;
 };
 
