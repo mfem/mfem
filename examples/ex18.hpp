@@ -148,7 +148,7 @@ void DGHyperbolicConservationLaws::Update()
 }
 
 std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
-   const double Minf, const double radius, const double beta,
+   const double radius, const double Minf, const double beta,
    const double gas_constant, const double specific_heat_ratio)
 {
    return [specific_heat_ratio,

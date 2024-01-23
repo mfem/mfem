@@ -11,7 +11,7 @@
 
 // Implementation of hyperbolic conservation laws
 
-#include "hyperbolic_conservation_laws.hpp"
+#include "hyperbolic.hpp"
 #include "nonlinearform.hpp"
 #include "pnonlinearform.hpp"
 

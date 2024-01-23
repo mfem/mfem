@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 
 
-#ifndef MFEM_HYPERBOLIC_CONSERVATION_LAWS
-#define MFEM_HYPERBOLIC_CONSERVATION_LAWS
+#ifndef MFEM_HYPERBOLIC
+#define MFEM_HYPERBOLIC
 
 #include "nonlinearform.hpp"
 namespace mfem
