@@ -32,7 +32,7 @@
 //               method. An additional factor can be tuned by passing the --cfl
 //               (or -c shorter) flag.
 //
-//               The example demonstrates usage of DGHyperbolicConservationLaws
+//               The example demonstrates usage of user-defined nonlinear form
 //               that wraps NonlinearFormIntegrators containing element and face
 //               integration schemes. In this case the system also involves an
 //               external approximate Riemann solver for the DG interface flux.

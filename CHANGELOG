@@ -22,6 +22,12 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
+- Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements 
+- both element-wise weak divergence and face-wise numerical flux for a general 
+  system of hyperbolic conservation laws. To use this integrator for a specific
+  flux function, users can define a derived class of `FluxFunction`. Currently,
+  advection, Burgers, shallow-water, Euler equations are available.
+
 Miscellaneous
 -------------
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.
