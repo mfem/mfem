@@ -32,9 +32,9 @@ public:
    @param[in] s   Whether to scale parameters by the refinement or coarsening
                   factor, in the function @a SpacingFunction::ScaleParameters.
    */
-   SpacingFunction(int n_, bool r=false, bool s=false)
+   SpacingFunction(int n, bool r=false, bool s=false)
    {
-      n = n_;
+      n = n;
       reverse = r;
       scale = s;
    }
@@ -620,9 +620,9 @@ public:
                    np - 1 entries define the partition of the unit interval,
                    and the remaining are for the pieces.
    */
-   PiecewiseSpacingFunction(int n_, int np_, bool r, Array<int> const& relN,
+   PiecewiseSpacingFunction(int n, int np, bool r, Array<int> const& relN,
                             Array<int> const& ipar, Vector const& dpar)
-      : SpacingFunction(n_, r), np(np_), partition(np_ - 1)
+      : SpacingFunction(n, r), np(np), partition(np - 1)
    {
       npartition = relN;
       SetupPieces(ipar, dpar);
