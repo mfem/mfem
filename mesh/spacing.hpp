@@ -94,6 +94,8 @@ public:
    /// Returns a clone of this spacing function.
    virtual SpacingFunction *Clone() const;
 
+   virtual ~SpacingFunction() = default;
+
 protected:
    int n;  ///< Size, or number of intervals (elements)
    bool reverse;  ///< Whether to reverse the spacing
@@ -666,6 +668,11 @@ public:
 
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
    bool Nested() const override;
+
+   ~PiecewiseSpacingFunction()
+   {
+      for (auto p : pieces) { delete p; }
+   }
 
 private:
    int np;  ///< Number of pieces
