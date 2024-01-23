@@ -581,7 +581,7 @@ int main(int argc, char *argv[])
    BoundaryFieldTransfer::Backend transfer_backend =
       BoundaryFieldTransfer::Backend::Native;
 
-   auto solid_fluid_bdr_transfer = BoundaryFieldTransfer(solid_vel_gf, *u_gf,
+   BoundaryFieldTransfer solid_fluid_bdr_transfer(solid_vel_gf, *u_gf,
                                                          *u_gf->ParFESpace(),
                                                          solid_fluid_interface_attr,
                                                          transfer_backend);
@@ -589,7 +589,7 @@ int main(int argc, char *argv[])
    printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
           solid_mesh.bdr_attributes.Max());
 
-   auto fluid_solid_bdr_transfer = BoundaryFieldTransfer(*u_gf, solid_vel_gf,
+   BoundaryFieldTransfer fluid_solid_bdr_transfer(*u_gf, solid_vel_gf,
                                                          *solid_vel_gf.ParFESpace(),
                                                          solid_fluid_interface_attr,
                                                          transfer_backend);
