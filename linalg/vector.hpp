@@ -23,6 +23,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <functional>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -318,6 +319,9 @@ public:
    void SetVector(const Vector &v, int offset);
 
    void AddSubVector(const Vector &v, int offset);
+
+   /// (*this) = fun(*this)
+   void ApplyMap(const std::function<double(double)> fun);
 
    /// (*this) = -(*this)
    void Neg();

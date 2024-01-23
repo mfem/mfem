@@ -313,6 +313,14 @@ void Vector::AddSubVector(const Vector &v, int offset)
    }
 }
 
+void Vector::ApplyMap(const std::function<double(double)> fun)
+{
+   const bool use_dev = UseDevice();
+   const int N = size;
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, N, [=, &fun] MFEM_HOST_DEVICE (int i) { y[i] = fun(y[i]); });
+}
+
 void Vector::Neg()
 {
    const bool use_dev = UseDevice();
