@@ -11366,12 +11366,14 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 }
 
 void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
-                     const std::string &comments) const
+		     const int version, const std::string &comments) const
 {
+  MFEM_VERIFY(version == 10 || version == 11, "Invalid NURBS mesh version");
+
    int i;
    Array<int> vert;
 
-   os << "MFEM NURBS mesh v1.1\n";
+   os << "MFEM NURBS mesh v" << int(version / 10) << "." << version % 10 << "\n";
 
    // optional
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
