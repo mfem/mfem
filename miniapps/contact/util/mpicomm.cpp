@@ -1,7 +1,7 @@
 #include "mpicomm.hpp"
 #include "util.hpp"
 
-
+#ifdef MFEM_USE_MPI
 MPICommunicator::MPICommunicator(MPI_Comm comm_, int offset_, int gsize)
 : comm(comm_), offset(offset_)
 {
@@ -528,3 +528,5 @@ void MPICommunicator::Communicate(const Array<SparseMatrix*> & vmat_s, Array<Spa
    }
    resetcounts();
 }
+
+#endif

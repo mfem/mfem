@@ -3,7 +3,7 @@
 using namespace std;
 using namespace mfem;
 
-
+#ifdef MFEM_USE_MPI
 class MPICommunicator
 {
 private:
@@ -45,3 +45,5 @@ public:
     void Communicate(const SparseMatrix & mat_s , SparseMatrix & mat_r);
     void Communicate(const Array<SparseMatrix*> & vmat_s, Array<SparseMatrix*> & vmat_r);
 };
+
+#endif

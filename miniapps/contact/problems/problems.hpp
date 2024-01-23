@@ -1,8 +1,7 @@
 #include "mfem.hpp"
-#include "parproblems_util.hpp"
 #include <fstream>
 #include <iostream>
-
+#include "problems_util.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -65,21 +64,21 @@ public:
 class OptProblem : public GeneralOptProblem
 {
 protected:
-    #ifdef MFEM_USE_MPI
-       HypreParMatrix * Ih;
-    #endif
-    SparseMatrix * Isparse;
+#ifdef MFEM_USE_MPI
+   HypreParMatrix * Ih;
+#endif
+   SparseMatrix * Isparse;
 public:
-    OptProblem();
+   OptProblem();
     
-    // GeneralOptProblem methods are defined in terms of
-    // OptProblem specific methods: E, DdE, DddE, g, Ddg
-    double CalcObjective(const BlockVector &); 
-    void Duf(const BlockVector &, Vector &);
-    void Dmf(const BlockVector &, Vector &);
-    #ifdef MFEM_USE_MPI
-       void Init(HYPRE_BigInt *, HYPRE_BigInt *);
-    #endif
+   // GeneralOptProblem methods are defined in terms of
+   // OptProblem specific methods: E, DdE, DddE, g, Ddg
+   double CalcObjective(const BlockVector &); 
+   void Duf(const BlockVector &, Vector &);
+   void Dmf(const BlockVector &, Vector &);
+#ifdef MFEM_USE_MPI
+   void Init(HYPRE_BigInt *, HYPRE_BigInt *);
+#endif
     void Init(int, int);
     Operator * Duuf(const BlockVector &);
     Operator * Dumf(const BlockVector &);
@@ -132,13 +131,13 @@ class ObstacleProblem : public OptProblem
 protected:
    // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d >= \psi
    // stiffness matrix used to define objective
-   #ifdef MFEM_USE_MPI
-      ParFiniteElementSpace * Vhp;
-      ParBilinearForm * Kformp;
-      ParLinearForm   * fformp;
-      HypreParMatrix    Kh;
-      HypreParMatrix  * Jh;
-   #endif
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace * Vhp;
+   ParBilinearForm * Kformp;
+   ParLinearForm   * fformp;
+   HypreParMatrix    Kh;
+   HypreParMatrix  * Jh;
+#endif
    FiniteElementSpace * Vh;
    BilinearForm * Kform;
    LinearForm   * fform;
@@ -157,193 +156,141 @@ public :
    virtual ~ObstacleProblem();
 };
 
-//#ifdef MFEM_USE_MPI
-//   class ParElasticityProblem
-//   {
-//   private:
-//      MPI_Comm comm;
-//      bool formsystem = false;
-//      ParMesh * pmesh = nullptr;
-//      int order;
-//      int ndofs;
-//      int ntdofs;
-//      int gndofs;
-//      FiniteElementCollection * fec = nullptr;
-//      ParFiniteElementSpace * fes = nullptr;
-//      Vector lambda, mu;
-//      PWConstCoefficient lambda_cf, mu_cf;
-//      Array<int> ess_bdr, ess_tdof_list;
-//      ParBilinearForm *a=nullptr;
-//      ParLinearForm b;
-//      ParGridFunction x;
-//      HypreParMatrix A;
-//      Vector B,X;
-//      void Init();
-//      bool own_mesh;
-//   public:
-//      ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, int order_ = 1) : comm(comm_), order(order_) 
-//      {
-//         own_mesh = true;
-//         Mesh * mesh = new Mesh(mesh_file,1,1);
-//         for (int i = 0; i<sref; i++)
-//         {
-//            mesh->UniformRefinement();
-//         }
-//         pmesh = new ParMesh(comm,*mesh);
-//         MFEM_VERIFY(pmesh->GetNE(), "ParElasticityProblem::Empty partition");
-//         delete mesh;
-//         for (int i = 0; i<pref; i++)
-//         {
-//            pmesh->UniformRefinement();
-//         }
-//         Init();
-//      }
-//   
-//      ParElasticityProblem(ParMesh * pmesh_, int order_ = 1) :  pmesh(pmesh_), order(order_)
-//      {
-//         own_mesh = false;
-//         comm = pmesh->GetComm();
-//         Init();
-//      }
-//   
-//      ParMesh * GetMesh() { return pmesh; }
-//      ParFiniteElementSpace * GetFESpace() { return fes; }
-//      FiniteElementCollection * GetFECol() { return fec; }
-//      int GetNumDofs() { return ndofs; }
-//      int GetNumTDofs() { return ntdofs; }
-//      int GetGlobalNumDofs() { return gndofs; }
-//      HypreParMatrix & GetOperator() 
-//      { 
-//         MFEM_VERIFY(formsystem, "System not formed yet. Call FormLinearSystem()"); 
-//         return A; 
-//      }
-//      Vector & GetRHS() 
-//      { 
-//         MFEM_VERIFY(formsystem, "System not formed yet. Call FormLinearSystem()"); 
-//         return B; 
-//      }
-//   
-//      void SetLambda(const Vector & lambda_) 
-//      { 
-//         lambda = lambda_; 
-//         lambda_cf.UpdateConstants(lambda);
-//      }
-//      void SetMu(const Vector & mu_) 
-//      { 
-//         mu = mu_; 
-//         mu_cf.UpdateConstants(mu);
-//      }
-//   
-//      void FormLinearSystem();
-//      void UpdateLinearSystem();
-//   
-//      void SetDisplacementDirichletData(const Vector & delta) 
-//      {
-//         VectorConstantCoefficient delta_cf(delta);
-//         x.ProjectBdrCoefficient(delta_cf,ess_bdr);
-//      };
-//   
-//      ParGridFunction & GetDisplacementGridFunction() {return x;};
-//      Array<int> & GetEssentialDofs() {return ess_tdof_list;};
-//   
-//      ~ParElasticityProblem()
-//      {
-//         delete a;
-//         delete fes;
-//         delete fec;
-//         if (own_mesh)
-//         {
-//            delete pmesh;
-//         }
-//      }
-//   };
-//
-//
-//   class ParContactProblem : public OptProblem
-//   {
-//   private:
-//      MPI_Comm comm;
-//      int numprocs;
-//      int myid;
-//      ParElasticityProblem * prob1 = nullptr;
-//      ParElasticityProblem * prob2 = nullptr;
-//      ParFiniteElementSpace * vfes1 = nullptr;
-//      ParFiniteElementSpace * vfes2 = nullptr;
-//      int dim;
-//      GridFunction nodes0;
-//      GridFunction *nodes1 = nullptr;
-//      std::set<int> contact_vertices;
-//      bool recompute = true;
-//      bool compute_hessians = true;
-//      std::vector<int> dof_offsets;
-//      std::vector<int> vertex_offsets; 
-//      std::vector<int> constraints_offsets; 
-//      Array<int> tdof_offsets;
-//      Array<int> constraints_starts;
-//      Array<int> globalvertices1;
-//      Array<int> globalvertices2;
-//      Array<int> vertices2;
-//      Array<int> vertices1;
-//   
-//   protected:
-//      int npoints=0;
-//      int gnpoints=0;
-//      int nv, gnv;
-//      HypreParMatrix * K = nullptr;
-//      BlockVector *B = nullptr;
-//      Vector gapv;
-//      HypreParMatrix * M=nullptr;
-//      Array<HypreParMatrix*> dM;
-//      void ComputeContactVertices();
-//   
-//   public:
-//      ParContactProblem(ParElasticityProblem * prob1_, ParElasticityProblem * prob2_);
-//   
-//      ParElasticityProblem * GetElasticityProblem1() {return prob1;}
-//      ParElasticityProblem * GetElasticityProblem2() {return prob2;}
-//      MPI_Comm GetComm() {return comm;}
-//      int GetNumDofs() {return K->Height();}
-//      int GetGlobalNumDofs() {return K->GetGlobalNumRows();}
-//      int GetNumContraints() {return npoints;}
-//      int GetGlobalNumConstraints() {return gnpoints;}
-//      
-//      std::vector<int> & GetDofOffets() { return dof_offsets; }
-//      std::vector<int> & GetVertexOffsets() { return vertex_offsets; }
-//      std::vector<int> & GetConstraintsOffsets() { return constraints_offsets; }
-//      Array<int> & GetConstraintsStarts() { return constraints_starts; }
-//      
-//      Vector & GetGapFunction() {return gapv;}
-//   
-//      HypreParMatrix * GetJacobian() {return M;}
-//      Array<HypreParMatrix*> & GetHessian() {return dM;}
-//      void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector &displ2);
-//   
-//      double E(const Vector & d);
-//      void DdE(const Vector &d, Vector &gradE);
-//      HypreParMatrix* DddE(const Vector &d);
-//      //void g(const Vector &d, Vector &gd, bool compute_hessians_ = true);
-//      void g(const Vector &d, Vector &gd);
-//      HypreParMatrix* Ddg(const Vector &d);
-//      HypreParMatrix* lDddg(const Vector &d, const Vector &l);
-//   
-//      ~ParContactProblem()
-//      {
-//         delete B;
-//         delete K;
-//         delete M;
-//         for (int i = 0; i<dM.Size(); i++)
-//         {
-//            delete dM[i];
-//         }
-//         delete vfes1;
-//         delete vfes2;
-//      }
-//   };
-//
-//
-//
-//
-//#endif
+
+class ElasticityProblem
+{
+   private:
+      bool formsystem = false;
+      bool own_mesh;
+      bool parallel;
+      Mesh * mesh = nullptr;
+      int order;
+      int ndofs;
+      int ntdofs;
+      int gndofs;
+      FiniteElementCollection * fec = nullptr;
+      FiniteElementSpace      * fes = nullptr;
+      Vector lambda, mu;
+      PWConstCoefficient lambda_cf, mu_cf;
+      Array<int> ess_bdr, ess_tdof_list;
+      BilinearForm *a = nullptr;
+      LinearForm    b;
+      GridFunction  x;
+      SparseMatrix A;
+      Vector X, B;
+      
+#ifdef MFEM_USE_MPI 
+      MPI_Comm comm;
+      ParMesh * pmesh = nullptr;
+      ParFiniteElementSpace * fesp = nullptr;
+      ParBilinearForm * ap = nullptr;
+      ParLinearForm bp;
+      ParGridFunction xp;
+      HypreParMatrix Ap;
+#endif
+      void Init();
+      
+   public:
+      ElasticityProblem(const char * mesh_file, int ref, int order_);
+#ifdef MFEM_USE_MPI
+      ElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, int order_);
+      ElasticityProblem(ParMesh * pmesh_, int order_);
+#endif
+      Mesh * GetMesh();
+      FiniteElementCollection * GetFECol() { return fec; };
+      FiniteElementSpace * GetFESpace();
+      int GetNumDofs() { return ndofs; };
+      int GetNumTDofs() { return ntdofs; };
+      int GetGlobalNumDofs() { return gndofs; };
+      Operator & GetOperator();
+      Vector & GetRHS();
+      void SetLambda(const Vector & lambda_);
+      void SetMu(const Vector & mu_);
+      void FormLinearSystem();
+      void UpdateLinearSystem();
+      void SetDisplacementDirichletData(const Vector & delta);
+      GridFunction & GetDisplacementGridFunction();
+#ifdef MFEM_USE_MPI
+      ParGridFunction & GetDisplacementParGridFunction();
+#endif
+      Array<int> & GetEssentialDofs() { return ess_tdof_list; };
+      bool IsParallel() const { return parallel; };
+      ~ElasticityProblem();
+};
+
+
+class ContactProblem : public OptProblem
+{
+private:
+   int numprocs;
+   int myid;
+   ElasticityProblem * prob1 = nullptr;
+   ElasticityProblem * prob2 = nullptr;
+   FiniteElementSpace * vfes1 = nullptr;
+   FiniteElementSpace * vfes2 = nullptr;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+   ParFiniteElementSpace * vfes1p = nullptr;
+   ParFiniteElementSpace * vfes2p = nullptr;
+#endif
+   int dim;
+   GridFunction nodes0;
+   GridFunction *nodes1 = nullptr;
+   std::set<int> contact_vertices;
+   bool recompute = true;
+   bool compute_hessians = true;
+   std::vector<int> dof_offsets;
+   std::vector<int> vertex_offsets; 
+   std::vector<int> constraints_offsets; 
+   Array<int> tdof_offsets;
+   Array<int> constraints_starts;
+   Array<int> globalvertices1;
+   Array<int> globalvertices2;
+   Array<int> vertices2;
+   Array<int> vertices1;
+   
+   protected:
+      bool parallel;
+      int npoints=0;
+      int gnpoints=0;
+      int nv, gnv;
+      SparseMatrix * K = nullptr;
+      BlockVector *B = nullptr;
+      Vector gapv;
+      SparseMatrix * M = nullptr;
+      Array<SparseMatrix *> dM;
+#ifdef MFEM_USE_MPI
+      HypreParMatrix * Kp = nullptr;
+      HypreParMatrix * Mp = nullptr;
+      Array<HypreParMatrix*> dMp;
+      void ParComputeContactVertices();
+#endif
+      void ComputeContactVertices();
+   
+   public:
+      ContactProblem(ElasticityProblem * prob1_, ElasticityProblem * prob2_);
+#ifdef MFEM_USE_MPI
+      MPI_Comm GetComm() { return comm; };
+      void ParComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector & displ2);
+#endif
+      void ComputeGapFunctionAndDerivatives(const Vector & displ1, const Vector & displ2);
+      int GetNumDofs();
+      int GetGlobalNumDofs();
+      int GetNumConstraints() { return npoints; };
+      int GetGlobalNumConstraints() { return gnpoints; };
+      std::vector<int> & GetDofOffets() { return dof_offsets; }
+      std::vector<int> & GetVertexOffsets() { return vertex_offsets; }
+      std::vector<int> & GetConstraintsOffsets() { return constraints_offsets; }
+      Array<int> & GetConstraintsStarts() { return constraints_starts; }
+      Vector & GetGapFunction() { return gapv; }
+      Operator * GetJacobian();
+      Array<Operator *> GetHessian();
+      double E(const Vector & d);
+      void DdE(const Vector &d, Vector &gradE);
+      Operator * DddE(const Vector &d);
+      void g(const Vector &d, Vector &gd); // todo : add in cpp file
+      Operator * Ddg(const Vector &d);
+};
 
 
 #endif

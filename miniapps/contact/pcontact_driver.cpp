@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   ParElasticityProblem * prob1 = nullptr;
-   ParElasticityProblem * prob2 = nullptr;
+   ElasticityProblem * prob1 = nullptr;
+   ElasticityProblem * prob2 = nullptr;
 
    ParMesh * pmesh1 = nullptr;
    ParMesh * pmesh2 = nullptr;
@@ -135,8 +135,6 @@ int main(int argc, char *argv[])
       Array<int> attr2(1); attr2 = 2;
 
 
-      // pmesh1 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr1));
-      // pmesh2 = new ParSubMesh(ParSubMesh::CreateFromDomain(*pmesh, attr2));
       pmesh1 = new ParMesh(MPI_COMM_WORLD,*mesh1, part1);
       pmesh2 = new ParMesh(MPI_COMM_WORLD,*mesh2, part2);
 
@@ -149,15 +147,15 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(pmesh1->GetNE(), "Empty partition mesh1");
       MFEM_VERIFY(pmesh2->GetNE(), "Empty partition mesh2");
 
-      prob1 = new ParElasticityProblem(pmesh1,order);
-      prob2 = new ParElasticityProblem(pmesh2,order);
+      prob1 = new ElasticityProblem(pmesh1,order);
+      prob2 = new ElasticityProblem(pmesh2,order);
    }
    else
    {
-      prob1 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file1,sref,pref,order);
-      prob2 = new ParElasticityProblem(MPI_COMM_WORLD, mesh_file2,sref,pref,order);
+      prob1 = new ElasticityProblem(MPI_COMM_WORLD, mesh_file1,sref,pref,order);
+      prob2 = new ElasticityProblem(MPI_COMM_WORLD, mesh_file2,sref,pref,order);
    }
-
+   cout << "constructed ElasticityProblem\n";
 
    Vector lambda1(prob1->GetMesh()->attributes.Max()); lambda1 = 57.6923076923;
    Vector mu1(prob1->GetMesh()->attributes.Max()); mu1 = 38.4615384615;
@@ -167,8 +165,7 @@ int main(int argc, char *argv[])
    prob1->SetLambda(lambda1); prob1->SetMu(mu1);
    prob2->SetLambda(lambda2); prob2->SetMu(mu2);
 
-   ParContactProblem contact(prob1,prob2);
-
+   ContactProblem contact(prob1,prob2);
    InteriorPointSolver optimizer(&contact);
    ParFiniteElementSpace *pfes = nullptr;
    if (pmesh)
@@ -182,15 +179,15 @@ int main(int argc, char *argv[])
    }
 
    optimizer.SetTol(optimizer_tol);
-   optimizer.SetMaxIter(50);
+   optimizer.SetMaxIter(30);
 
    //int linsolver = 2;
    //optimizer.SetLinearSolver(linsolver);
    //optimizer.SetLinearSolveTol(linsolvertol);
    //optimizer.SetLinearSolveRelaxType(relax_type);
 
-   ParGridFunction x1 = prob1->GetDisplacementGridFunction();
-   ParGridFunction x2 = prob2->GetDisplacementGridFunction();
+   ParGridFunction x1 = prob1->GetDisplacementParGridFunction();
+   ParGridFunction x2 = prob2->GetDisplacementParGridFunction();
 
    int ndofs1 = prob1->GetNumTDofs();
    int ndofs2 = prob2->GetNumTDofs();
@@ -206,6 +203,7 @@ int main(int argc, char *argv[])
    x0.SetVector(X2,X1.Size());
 
    Vector xf(ndofs); xf = 0.0;
+   optimizer.SetLinearSolveTol(1.e-14);
    optimizer.Mult(x0, xf);
 
    double Einitial = contact.E(x0);
@@ -227,8 +225,8 @@ int main(int argc, char *argv[])
 
    if (visualization || paraview)
    {
-      ParFiniteElementSpace * fes1 = prob1->GetFESpace();
-      ParFiniteElementSpace * fes2 = prob2->GetFESpace();
+      ParFiniteElementSpace * fes1 = dynamic_cast<ParFiniteElementSpace *>(prob1->GetFESpace());
+      ParFiniteElementSpace * fes2 = dynamic_cast<ParFiniteElementSpace *>(prob2->GetFESpace());
 
       ParMesh * mesh1 = fes1->GetParMesh();
       ParMesh * mesh2 = fes2->GetParMesh();

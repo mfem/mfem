@@ -24,15 +24,15 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-CONTACT_SEQ_SRC = problems/problems.cpp problems/problems_util.cpp util/util.cpp ipsolver/IPsolver.cpp
+CONTACT_SEQ_SRC = problems/problems.cpp problems/problems_util.cpp util/util.cpp util/mpicomm.cpp ipsolver/IPsolver.cpp
 CONTACT_SEQ_OBJ = $(CONTACT_PAR_SRC:.cpp=.o)
-CONTACT_PAR_SRC = $(CONTACT_SEQ_SRC) problems/parproblems_util.cpp util/mpicomm.cpp
+CONTACT_PAR_SRC = $(CONTACT_SEQ_SRC)
 CONTACT_PAR_OBJ = $(CONTACT_PAR_SRC:.cpp=.o)
 
-OBSTACLE_SEQ_SRC = problems/problems.cpp problems/problems_util.cpp util/util.cpp ipsolver/IPsolver.cpp
+OBSTACLE_SEQ_SRC = $(CONTACT_SEQ_SRC)
 OBSTACLE_SEQ_OBJ = $(OBSTACLE_SEQ_SRC:.cpp=.o)
 
-OBSTACLE_PAR_SRC = $(OBSTACLE_SEQ_SRC) problems/parproblems_util.cpp util/mpicomm.cpp
+OBSTACLE_PAR_SRC = $(OBSTACLE_SEQ_SRC)
 OBSTACLE_PAR_OBJ = $(OBSTACLE_PAR_SRC:.cpp=.o)
 
 OBSTACLE_SRC = ObstacleProblem.cpp $(OBSTACLE_SEQ_SRC)

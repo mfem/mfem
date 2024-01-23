@@ -54,6 +54,7 @@ void PrintVector(const Vector & a, const char *aname)
    mfem::out << endl;
 }
 
+#ifdef MFEM_USE_MPI
 void PrintVertex(Mesh * mesh, int vertex,  int printid)
 {
    int myid = Mpi::WorldRank();
@@ -169,3 +170,4 @@ void PrintSparseMatrix(const SparseMatrix & a, const char *aname,  int printid)
    }
    mfem::out << endl;
 }
+#endif

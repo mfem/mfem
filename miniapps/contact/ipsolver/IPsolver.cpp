@@ -64,7 +64,6 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
       dimCGlb = dimC;
    #endif
 
-
    for(int i = 0; i < block_offsetsuml.Size(); i++)  
    { 
       block_offsetsuml[i] = block_offsetsumlz[i]; 
@@ -84,14 +83,18 @@ InteriorPointSolver::InteriorPointSolver(GeneralOptProblem * problem_)
    linSolveTol = 1.e-8;
 
    parallel = problem->IsParallel();
+#ifdef MFEM_USE_MPI
    if (parallel)
    {
       MyRank = Mpi::WorldRank();
    }
    else
    {
-      MyRank = 0;
+#endif
+   MyRank = 0;
+#ifdef MFEM_USE_MPI
    }
+#endif
    iAmRoot = MyRank == 0 ? true : false;
 
 
@@ -195,7 +198,7 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    */
    double theta0 = theta(xk);
    thetaMin = 1.e-4 * max(1.0, theta0);
-   thetaMax = 1.e8  * thetaMin; // 1.e4 * max(1.0, theta0)
+   thetaMax = 1.e4  * max(1.0, theta0);
 
    double Eeval, maxBarrierSolves, Eevalmu0;
    bool printOptimalityError; // control optimality error print to console for log-barrier subproblems
@@ -322,11 +325,12 @@ void InteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    xf.GetBlock(1).Set(1.0, xk.GetBlock(1));
 }
 
+//         IP-Newton system matrix
+//    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
+//          [H_(m,u)  W_(m,m)   J_m^T]
+//          [ J_u      J_m       0  ]]
 void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &zl, BlockOperator &Ak)
 {
-   // WARNING: Huu, Hum, Hmu, Hmm should all be Hessian terms of the Lagrangian, currently we 
-   //          them by Hessian terms of the objective function and neglect the Hessian of l^T c
-
    Vector DiagLogBar(dimM); DiagLogBar = 0.0;
    for(int ii = 0; ii < dimM; ii++)
    {
@@ -348,8 +352,6 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    #ifdef MFEM_USE_MPI
       if (parallel)
       {
-	 //HYPRE_BigInt * offsets;
-	 //offsets = problem->GetDofOffsetsM();
 	 SparseMatrix * DSparse = new SparseMatrix(DiagLogBar);
          Dh = new HypreParMatrix(MPI_COMM_WORLD, dimMGlb, problem->GetDofOffsetsM(), DSparse);
          HypreStealOwnership(*Dh, *DSparse);
@@ -368,7 +370,7 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
 	    Wmmh = Dh;
 	 }
          Juh = dynamic_cast<HypreParMatrix *>(problem->Duc(x)); 
-         Jmh = dynamic_cast<HypreParMatrix *>(problem->Dmc(x));
+	 Jmh = dynamic_cast<HypreParMatrix *>(problem->Dmc(x));
          JuTh = Juh->Transpose();
          JmTh = Jmh->Transpose();
          Ak.SetBlock(0, 0, Huuh);                         Ak.SetBlock(0, 2, JuTh);
@@ -414,24 +416,6 @@ void InteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector &z
    #endif
   
 
-   //#ifdef MFEM_USE_MPI
-   //   JuT = Ju->Transpose();
-   //   JmT = Jm->Transpose();
-   //#else
-   //   JuT = Transpose(*Ju);
-   //   JmT = Transpose(*Jm);
-   //#endif 
-   
-   //         IP-Newton system matrix
-   //    Ak = [[H_(u,u)  H_(u,m)   J_u^T]
-   //          [H_(m,u)  W_(m,m)   J_m^T]
-   //          [ J_u      J_m       0  ]]
-
-   //Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
-   //                        Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
-   //Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
-
-   //if(Hum != nullptr) { Ak.SetBlock(0, 1, Hum); Ak.SetBlock(1, 0, Hmu); }
 }
 
 // perturbed KKT system solve
@@ -472,7 +456,7 @@ void InteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, V
       if (parallel)
       {
          HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
-         HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
+	 HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
          HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
          HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
          
@@ -718,14 +702,18 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
 
    Dxphi(x0, mu, Dxphi0);
 
+#ifdef MFEM_USE_MPI
    if (parallel)
    {
       Dxphi0_xhat = InnerProduct(MPI_COMM_WORLD, Dxphi0, xhat);
    }
    else
    {
-      Dxphi0_xhat = InnerProduct(Dxphi0, xhat);
+#endif
+   Dxphi0_xhat = InnerProduct(Dxphi0, xhat);
+#ifdef MFEM_USE_MPI
    }
+#endif
    
    
    descentDirection = Dxphi0_xhat < 0. ? true : false;
@@ -800,21 +788,6 @@ void InteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double 
                lineSearchSuccess = true;
                break;
             }
-         }
-         // A-5.5: Initialize the second-order correction
-         if((!(thx0 < thxtrial)) && i == 0)
-         {
-            if (iAmRoot)
-            {
-               cout << "second order correction\n";
-            }
-            problem->c(xtrial, ckSoc);
-            problem->c(x0, ck0);
-            ckSoc.Add(alphaMax, ck0);
-            // A-5.6 Compute the second-order correction.
-            IPNewtonSolve(x0, l0, z0, zhatsoc, Xhatumlsoc, mu, true);
-            mhatsoc.Set(1.0, Xhatumlsoc.GetBlock(1));
-            //WARNING: not complete but currently solver isn't entering this region
          }
       }
       else
