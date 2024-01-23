@@ -477,9 +477,9 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction old_grad(&control_fes), old_psi(&control_fes),
+   ParGridFunction old_direction(&control_fes), old_psi(&control_fes),
                    direction(&control_fes);
-   old_psi = psi; old_grad = grad;
+   old_psi = psi; old_direction = grad;
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -506,30 +506,27 @@ int main(int argc, char *argv[])
    logger.Print();
 
    optprob.UpdateGradient();
-   ParGridFunction lower(&control_fes), upper(&control_fes);
    for (int k = 0; k < max_it; k++)
    {
-      // Step 1. Compute Step size
-      // if (k == 0) { step_size = 1.0; }
-      // else
-      // {
-      //    diff_rho_form.Assemble();
-      //    old_psi -= psi;
-      //    old_grad -= grad;
-      //    step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
-      // }
-      step_size = 0.5;
+      if (k == 0) { step_size = 1.0; }
+      else
+      {
+         diff_rho_form.Assemble();
+         old_psi -= psi;
+         old_direction -= direction;
+         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_direction));
+      }
 
       // Step 2. Store old data
       old_compliance = compliance;
       old_psi = psi;
-      old_grad = grad;
+      old_direction = direction;
 
       // Step 3. Step and upate gradient
       direction = grad;
-      for (auto &val : direction) {val = std::log(-1.0/val);}
-      num_reeval = Step_Armijo(optprob, old_psi, direction, diff_rho_form, c1, step_size);
-      
+      direction.ApplyMap([](double x) {return std::log(1.0 / -x); });
+      num_reeval = Step_Armijo(optprob, old_psi, direction, diff_rho_form, c1,
+                               step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
