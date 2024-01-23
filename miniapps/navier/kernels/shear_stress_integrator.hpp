@@ -90,6 +90,14 @@ public:
                                                          geom->detJ, x, y, nu_wrap);
                break;
             }
+            case 0x66:
+            {
+               return ShearStressIntegratorApply2D<6, 6>(ne, maps->B, maps->G,
+                                                         IntRule->GetWeights(),
+                                                         geom->J,
+                                                         geom->detJ, x, y, nu_wrap);
+               break;
+            }
             case 0x77:
             {
                return ShearStressIntegratorApply2D<7, 7>(ne, maps->B, maps->G,

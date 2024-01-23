@@ -31,11 +31,11 @@ using namespace navier;
 struct s_NavierContext
 {
    bool amr = false;
-   int ser_ref_levels = 0;
-   int order = 4;
-   double kinvis = 1.0e-2;
-   double t_final = 2 * 0.25e-4;
-   double dt = 0.25e-2;
+   int ser_ref_levels = 1;
+   int order = 5;
+   double kinvis = 1.0;
+   double t_final = 10 * 0.25e-4;
+   double dt = 0.25e-4;
    bool visualization = false;
    bool checkres = false;
 } ctx;
@@ -142,11 +142,6 @@ int main(int argc, char *argv[])
    GridFunction *nodes = mesh->GetNodes();
    *nodes *= 2.0;
    *nodes -= 1.0;
-
-   for (int i = 0; i < ctx.ser_ref_levels; ++i)
-   {
-      mesh->UniformRefinement();
-   }
 
    if (ctx.amr)
    {

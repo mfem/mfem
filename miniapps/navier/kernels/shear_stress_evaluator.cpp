@@ -88,6 +88,13 @@ void ShearStressEvaluator::Apply(const Vector &kv, const Vector &u,
                                               geom->detJ, u_e, y_e, dkv_qp);
             break;
          }
+         case 0x66:
+         {
+            ShearStressEvaluatorApply2D<6, 6>(ne, maps->B, maps->G, ir.GetWeights(),
+                                              geom->J,
+                                              geom->detJ, u_e, y_e, dkv_qp);
+            break;
+         }
          case 0x77:
          {
             ShearStressEvaluatorApply2D<7, 7>(ne, maps->B, maps->G, ir.GetWeights(),
