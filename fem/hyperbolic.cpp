@@ -149,7 +149,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const double speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
+      const double speed = rsolver.Eval(fluxFunction, state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
@@ -201,12 +201,16 @@ double FluxFunction::ComputeFluxDotN(const Vector &U,
 }
 
 
-double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
+double RusanovFlux::Eval(const FluxFunction &fluxFunction,
+                         const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
                          Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
+#else
+   fluxN1.SetSize(fluxFunction.num_equations);
+   fluxN2.SetSize(fluxFunction.num_equations);
 #endif
    const double speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
    const double speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);

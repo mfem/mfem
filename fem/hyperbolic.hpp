@@ -117,13 +117,12 @@ private:
 class RiemannSolver
 {
 public:
-   RiemannSolver(const FluxFunction &fluxFunction):fluxFunction(fluxFunction)
-   {
-   }
+   RiemannSolver() {}
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
     *
+    * @param[in] fluxFunction flux function F
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -132,12 +131,12 @@ public:
     * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
     */
-   virtual double Eval(const Vector &state1, const Vector &state2,
+   virtual double Eval(const FluxFunction &fluxFunction,
+                       const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
    virtual ~RiemannSolver() = default;
 protected:
-   const FluxFunction &fluxFunction;
 };
 
 /**
@@ -269,7 +268,7 @@ public:
 //////////////////////////////////////////////////////////////////
 
 /**
- * @brief Rusanov flux, also knwon as local Lax-Friedrich,
+ * @brief Rusanov flux, also known as local Lax-Friedrich,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
  * where λ is the maximum characteristic velocity
  *
@@ -277,16 +276,11 @@ public:
 class RusanovFlux : public RiemannSolver
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction):RiemannSolver(fluxFunction)
-   {
-#ifndef MFEM_THREAD_SAFE
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-#endif
-   }
+   RusanovFlux() {}
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
+    * @param[in] fluxFunction flux function F
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -295,7 +289,8 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
-   double Eval(const Vector &state1, const Vector &state2,
+   double Eval(const FluxFunction &fluxFunction,
+               const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
 protected:

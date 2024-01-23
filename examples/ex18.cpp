@@ -32,7 +32,7 @@
 //               method. An additional factor can be tuned by passing the --cfl
 //               (or -c shorter) flag.
 //
-//               The example demonstrates usage of user-defined nonlinear form
+//               The example demonstrates usage of DGHyperbolicConservationLaws
 //               that wraps NonlinearFormIntegrators containing element and face
 //               integration schemes. In this case the system also involves an
 //               external approximate Riemann solver for the DG interface flux.
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
    // 7. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
    EulerFlux flux(dim, specific_heat_ratio);
-   RusanovFlux numericalFlux(flux);
+   RusanovFlux numericalFlux;
    DGHyperbolicConservationLaws euler(vfes,
                                       new HyperbolicFormIntegrator(flux, numericalFlux, IntOrderOffset));
 
