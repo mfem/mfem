@@ -645,7 +645,7 @@ public:
 
    void Print(std::ostream &os) const override;
 
-   SpacingFunction* Clone() const override;
+   SpacingFunction *Clone() const override;
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 

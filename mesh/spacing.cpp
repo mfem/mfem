@@ -66,7 +66,7 @@ SpacingFunction* GetSpacingFunction(const SpacingType spacingType,
    return nullptr;
 }
 
-SpacingFunction* SpacingFunction::Clone() const
+SpacingFunction *SpacingFunction::Clone() const
 {
    MFEM_ABORT("Base class SpacingFunction should not be cloned");
    return nullptr;
@@ -590,7 +590,7 @@ void PiecewiseSpacingFunction::CalculateSpacing()
    MFEM_VERIFY(n_total == n, "");
 }
 
-SpacingFunction* PiecewiseSpacingFunction::Clone() const
+SpacingFunction *PiecewiseSpacingFunction::Clone() const
 {
    int osi = 0;
    int osd = np - 1;
