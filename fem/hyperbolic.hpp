@@ -136,6 +136,11 @@ public:
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
    virtual ~RiemannSolver() = default;
+
+   // Check compatibility between the Riemann solver and a flux function.
+   // A system-specific Riemann solver should return false when the provided
+   // flux function is not compatible.
+   virtual bool IsCompatible(const FluxFunction &fluxFunction) const {return true;}
 protected:
 };
 

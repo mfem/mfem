@@ -189,6 +189,10 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    fluxN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
+   if (!rsolver.IsCompatible(fluxFunction))
+   {
+      MFEM_ABORT("The Riemann solver provided is incompatible with the flux function.");
+   }
 }
 
 double FluxFunction::ComputeFluxDotN(const Vector &U,
