@@ -432,8 +432,17 @@ protected:
 
    void UpdateNURBS();
 
-   void PrintTopo(std::ostream &out, const Array<int> &e_to_k,
-                  const std::string &comments = "") const;
+   /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
+       patch topology. Optional file comments can be provided in @a comments.
+
+       @param[in] os  Output stream to which to write.
+       @param[in] e_to_k  Map from edge to signed knotvector indices.
+       @param[in] version NURBS mesh version number times 10 (e.g. 11 for v1.1).
+       @param[in] comment Optional comment string, written after version line.
+   */
+   void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
+                  const int version,
+                  const std::string &comment = "") const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,

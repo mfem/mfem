@@ -134,12 +134,13 @@ int KnotVector::GetCoarseningFactor() const
 
 Vector KnotVector::GetFineKnots(const int cf) const
 {
-   if (cf < 2) { return; }
+   Vector fine;
+   if (cf < 2) { return fine; }
 
    const int cne = NumOfElements / cf;  // Coarse number of elements
    MFEM_VERIFY(cne > 0 && cne * cf == NumOfElements, "Invalid coarsening factor");
 
-   Vector fine(cne * (cf - 1));
+   fine.SetSize(cne * (cf - 1));
 
    int fcnt = 0;
    int i = Order;
@@ -2355,22 +2356,33 @@ NURBSExtension::~NURBSExtension()
 
 void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
 {
-   patchTopo->PrintTopo(os, edge_to_knot, comments);
+   Array<int> kvSpacing;
+   if (patches.Size() == 0)
+   {
+      for (int i = 0; i < NumOfKnotVectors; i++)
+      {
+         if (knotVectors[i]->spacing) { kvSpacing.Append(i); }
+      }
+   }
+
+   const int version = kvSpacing.Size() > 0 ? 11 : 10;  // v1.0 or v1.1
+   patchTopo->PrintTopo(os, edge_to_knot, version, comments);
    if (patches.Size() == 0)
    {
       os << "\nknotvectors\n" << NumOfKnotVectors << '\n';
-      Array<int> kvSpacing;
       for (int i = 0; i < NumOfKnotVectors; i++)
       {
          knotVectors[i]->Print(os);
-         if (knotVectors[i]->spacing) { kvSpacing.Append(i); }
       }
 
-      os << "\nspacing\n" << kvSpacing.Size() << '\n';
-      for (auto kv : kvSpacing)
+      if (kvSpacing.Size() > 0)
       {
-         os << kv << " ";
-         knotVectors[kv]->spacing->Print(os);
+         os << "\nspacing\n" << kvSpacing.Size() << '\n';
+         for (auto kv : kvSpacing)
+         {
+            os << kv << " ";
+            knotVectors[kv]->spacing->Print(os);
+         }
       }
 
       if (NumOfActiveElems < NumOfElements)
