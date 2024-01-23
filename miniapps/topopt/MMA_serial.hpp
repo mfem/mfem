@@ -118,9 +118,9 @@ private:
 // PUBLIC
 ////////////////////////////////////////////////////////////////////////////////
 
-MMASolver::MMASolver(int nn, int mm, double ai, double ci, double di)
-   : n(nn)
-   , m(mm)
+MMASolver::MMASolver(int n, int m, double ai, double ci, double di)
+   : n(n)
+   , m(m)
    , iter(0)
    , xmamieps(1.0e-5)
      //, epsimin(1e-7)
@@ -649,15 +649,8 @@ namespace mfem
 class MMA
 {
 public:
-   MMA(int n, int m, double a = 0.0, double c = 1000.0, double d = 0.0)
-   {
-      mma = new MMASolver(n, m, a, c, d);
-   }
-
-   ~MMA()
-   {
-      delete mma;
-   }
+   MMA(int n, int m, double a = 0.0, double c = 1000.0,
+       double d = 0.0):mma(new MMASolver(n, m, a, c, d)) {}
 
    void SetAsymptotes(double init, double decrease, double increase)
    {
@@ -687,6 +680,6 @@ public:
 
    void Reset() { mma->Reset(); };
 private:
-   MMASolver *mma;
+   std::unique_ptr<MMASolver> mma;
 };
 }
