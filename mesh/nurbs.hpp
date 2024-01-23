@@ -94,7 +94,7 @@ public:
 
    /** For a given coarsening factor @a cf, find the fine knots between the
        coarse knots. */
-   void GetFineKnots(const int cf, Vector & fine) const;
+   Vector GetFineKnots(const int cf) const;
 
    /** Return a new KnotVector with elevated degree by repeating the endpoints
        of the knot vector. */

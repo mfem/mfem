@@ -132,14 +132,14 @@ int KnotVector::GetCoarseningFactor() const
    }
 }
 
-void KnotVector::GetFineKnots(const int cf, Vector & fine) const
+Vector KnotVector::GetFineKnots(const int cf) const
 {
    if (cf < 2) { return; }
 
    const int cne = NumOfElements / cf;  // Coarse number of elements
    MFEM_VERIFY(cne > 0 && cne * cf == NumOfElements, "Invalid coarsening factor");
 
-   fine.SetSize(cne * (cf - 1));
+   Vector fine(cne * (cf - 1));
 
    int fcnt = 0;
    int i = Order;
@@ -164,6 +164,8 @@ void KnotVector::GetFineKnots(const int cf, Vector & fine) const
    }
 
    MFEM_VERIFY(fcnt == fine.Size(), "");
+
+   return fine;
 }
 
 void KnotVector::Refinement(Vector &newknots, int rf) const
@@ -959,9 +961,7 @@ void NURBSPatch::Coarsen(Array<int> const& cf, double tol)
       if (!kv[dir]->coarse)
       {
          const int ne_fine = kv[dir]->GetNE();
-         Vector fineKnots;
-         kv[dir]->GetFineKnots(cf[dir], fineKnots);
-         KnotRemove(dir, fineKnots, tol);
+         KnotRemove(dir, kv[dir]->GetFineKnots(cf[dir]), tol);
          kv[dir]->coarse = true;
          kv[dir]->GetElements();
 
