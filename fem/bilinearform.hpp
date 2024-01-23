@@ -73,15 +73,15 @@ protected:
    /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** @brief The ::AssemblyLevel of the form (AssemblyLevel::LEGACY, 
+   /** @brief The ::AssemblyLevel of the form (AssemblyLevel::LEGACY,
        AssemblyLevel::FULL, AssemblyLevel::ELEMENT, AssemblyLevel::PARTIAL) */
    AssemblyLevel assembly;
 
    /// Element batch size used in the form action (1, 8, num_elems, etc.)
    int batch;
 
-   /** @brief Extension for supporting Full Assembly (FA), 
-       Element Assembly (EA),Partial Assembly (PA), 
+   /** @brief Extension for supporting Full Assembly (FA),
+       Element Assembly (EA),Partial Assembly (PA),
        or Matrix Free assembly (MF). */
    BilinearFormExtension *ext;
 
@@ -139,7 +139,7 @@ protected:
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing \f$ P^t A P\f$ where \f$ A \f$ is the
-       internal sparse matrix and \f$ P \f$ is the conforming prolongation 
+       internal sparse matrix and \f$ P \f$ is the conforming prolongation
        matrix of the trial/test FE space. After this call the
        BilinearForm becomes an operator on the conforming FE space. */
    void ConformingAssemble();
@@ -238,7 +238,7 @@ public:
                             BilinearFormIntegrator *constr_integ,
                             const Array<int> &ess_tdof_list);
 
-   /** @brief For scalar FE spaces, precompute the sparsity pattern of the 
+   /** @brief For scalar FE spaces, precompute the sparsity pattern of the
        matrix (assuming dense element matrices) based on the types of
        integrators present in the bilinear form. */
    void UsePrecomputedSparsity(int ps = 1) { precompute_sparsity = ps; }
@@ -336,11 +336,11 @@ public:
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
-   /** @brief Returns a pointer to (approximation) of the matrix inverse:  
+   /** @brief Returns a pointer to (approximation) of the matrix inverse:
        f$ M^{-1} \f$ (currently returns NULL) */
    virtual MatrixInverse *Inverse() const;
 
-   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is 
+   /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
        AssemblyLevel::LEGACY.
        THe matrix that gets finalized is different if you are using static
        condensation or hybridization.*/
@@ -643,7 +643,7 @@ public:
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** @brief  Eliminate the given @a vdofs, storing the eliminated part 
+   /** @brief  Eliminate the given @a vdofs, storing the eliminated part
        internally in \f$ M_e \f$.
 
        This method works in conjunction with EliminateVDofsInRHS() and allows
@@ -653,13 +653,13 @@ public:
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to
-       EliminateVDofs(const Array<int> &, const Vector &, 
+       EliminateVDofs(const Array<int> &, const Vector &,
                       Vector &, DiagonalPolicy)
        but here @a ess_dofs is a marker (boolean) array on all vector-dofs
        (@a ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, 
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
                                      const Vector &sol,
-                                     Vector &rhs, 
+                                     Vector &rhs,
                                      DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to EliminateVDofs(const Array<int> &, DiagonalPolicy) but
@@ -677,12 +677,12 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 
-   /** @brief Compute inner product for full uneliminated matrix: 
+   /** @brief Compute inner product for full uneliminated matrix:
         \f$ y^T M x + y^T M_e x \f$ */
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
-   /** @brief Update the @a FiniteElementSpace and delete all data associated 
+   /** @brief Update the @a FiniteElementSpace and delete all data associated
        with the old one. */
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
@@ -696,7 +696,7 @@ public:
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
-   /** @brief Sets Operator::DiagonalPolicy used upon construction of the 
+   /** @brief Sets Operator::DiagonalPolicy used upon construction of the
        linear system.
        Policies include:
 
@@ -709,7 +709,7 @@ public:
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; }
 
-   /** @brief Deletes internal matrices, bilinear integrators, and the 
+   /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */
    virtual ~BilinearForm();
 };
@@ -820,7 +820,7 @@ public:
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
 
-   /** @brief Returns a pointer to (approximation) of the matrix inverse:  
+   /** @brief Returns a pointer to (approximation) of the matrix inverse:
        \f$ M^{-1} \f$ (currently unimplemented and returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
@@ -935,8 +935,8 @@ public:
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing \f$ P2^t A P1 \f$ where \f$ A \f$ is the
-       internal sparse matrix; \f$ P1 \f$ and \f$ P2 \f$ are the conforming 
-       prolongation matrices of the trial and test FE spaces, respectively. 
+       internal sparse matrix; \f$ P1 \f$ and \f$ P2 \f$ are the conforming
+       prolongation matrices of the trial and test FE spaces, respectively.
        After this call the MixedBilinearForm becomes an operator on the
        conforming FE spaces. */
    void ConformingAssemble();
@@ -983,7 +983,7 @@ public:
        skips the zero elements of the matrix, unless they are breaking the
        symmetry of the system matrix.*/
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
-                                 Array<int> &trial_vdofs, 
+                                 Array<int> &trial_vdofs,
                                  Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
@@ -1017,9 +1017,9 @@ public:
    /** @brief Form the column-constrained linear system matrix A.
 
        Version of the method FormRectangularSystemMatrix() where the system
-       matrix is returned in the variable @a A, of type OpType, holding a 
-       *reference* to the system matrix (created with the method 
-       OpType::MakeRef()). The reference will be invalidated when 
+       matrix is returned in the variable @a A, of type OpType, holding a
+       *reference* to the system matrix (created with the method
+       OpType::MakeRef()). The reference will be invalidated when
        SetOperatorType(), Update(), or the destructor is called. */
    template <typename OpType>
    void FormRectangularSystemMatrix(const Array<int> &trial_tdof_list,
@@ -1032,11 +1032,11 @@ public:
       A.MakeRef(*A_ptr);
    }
 
-   /** @brief Form the linear system A X = B, corresponding to this mixed 
+   /** @brief Form the linear system A X = B, corresponding to this mixed
        bilinear form and the linear form @a b(.).
 
-       Return in @a A a *reference* to the system matrix that is 
-       column-constrained. The reference will be invalidated when 
+       Return in @a A a *reference* to the system matrix that is
+       column-constrained. The reference will be invalidated when
        SetOperatorType(), Update(), or the destructor is called. */
    virtual void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
                                             const Array<int> &test_tdof_list,
@@ -1048,9 +1048,9 @@ public:
        form and the linear form @a b(.).
 
        Version of the method FormRectangularLinearSystem() where the system
-       matrix is returned in the variable @a A, of type OpType, holding a 
-       *reference* to the system matrix (created with the method 
-       OpType::MakeRef()). The reference will be invalidated when 
+       matrix is returned in the variable @a A, of type OpType, holding a
+       *reference* to the system matrix (created with the method
+       OpType::MakeRef()). The reference will be invalidated when
        SetOperatorType(), Update(), or the destructor is called. */
    template <typename OpType>
    void FormRectangularLinearSystem(const Array<int> &trial_tdof_list,
@@ -1059,7 +1059,7 @@ public:
                                     OpType &A, Vector &X, Vector &B)
    {
       OperatorHandle Ah;
-      FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b, 
+      FormRectangularLinearSystem(trial_tdof_list, test_tdof_list, x, b,
                                   Ah, X, B);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
@@ -1081,7 +1081,7 @@ public:
    /// Read-only access to the associated test FiniteElementSpace.
    const FiniteElementSpace *TestFESpace() const { return test_fes; }
 
-   /** @brief Deletes internal matrices, bilinear integrators, and the 
+   /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */
    virtual ~MixedBilinearForm();
 };
