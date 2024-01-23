@@ -337,7 +337,7 @@ public:
    { return mat->InnerProduct (x, y); }
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       f$ M^{-1} \f$ (currently returns NULL) */
+       \f$ M^{-1} \f$ (currently returns NULL) */
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
@@ -746,8 +746,10 @@ protected:
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    MixedBilinearFormExtension *ext;
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #domain_integs,
-       #boundary_integs, #trace_face_integs and #boundary_trace_face_integs
+   /** @brief Indicates the BilinearFormIntegrator%s stored in 
+       MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs, 
+       MixedBilinearForm#trace_face_integs and 
+       MixedBilinearForm#boundary_trace_face_integs
        are owned by another MixedBilinearForm. */
    int extern_bfs;
 
