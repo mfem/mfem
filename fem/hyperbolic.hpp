@@ -117,12 +117,11 @@ private:
 class RiemannSolver
 {
 public:
-   RiemannSolver() {}
+   RiemannSolver(const FluxFunction &fluxFunction):fluxFunction(fluxFunction) {}
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
     *
-    * @param[in] fluxFunction flux function F
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -131,17 +130,16 @@ public:
     * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
     */
-   virtual double Eval(const FluxFunction &fluxFunction,
-                       const Vector &state1, const Vector &state2,
+   virtual double Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
    virtual ~RiemannSolver() = default;
 
-   // Check compatibility between the Riemann solver and a flux function.
-   // A system-specific Riemann solver should return false when the provided
-   // flux function is not compatible.
-   virtual bool IsCompatible(const FluxFunction &fluxFunction) const {return true;}
+   /// @brief Get flux function F
+   /// @return constant reference to the flux function.
+   const FluxFunction &GetFluxFunction() const {return fluxFunction;}
 protected:
+   const FluxFunction &fluxFunction;
 };
 
 /**
@@ -153,9 +151,9 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 private:
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
+   const RiemannSolver &rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
    const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
-   const RiemannSolver &rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
 #ifndef MFEM_THREAD_SAFE
    // Local storages for element integration
    Vector shape;              // shape function value at an integration point
@@ -178,13 +176,12 @@ public:
    /**
     * @brief Construct a new Hyperbolic Form Integrator object
     *
-    * @param[in] fluxFunction governing equation
     * @param[in] rsolver numerical flux
     * @param[in] IntOrderOffset 2*p+IntOrderOffset order Gaussian quadrature
     * will be used
     */
    HyperbolicFormIntegrator(
-      const FluxFunction &fluxFunction, const RiemannSolver &rsolver,
+      const RiemannSolver &rsolver,
       const int IntOrderOffset=0);
 
    /**
@@ -273,7 +270,7 @@ public:
 //////////////////////////////////////////////////////////////////
 
 /**
- * @brief Rusanov flux, also known as local Lax-Friedrich,
+ * @brief Rusanov flux, also known as local Lax-Friedrichs,
  *    F̂ n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
  * where λ is the maximum characteristic velocity
  *
@@ -281,7 +278,7 @@ public:
 class RusanovFlux : public RiemannSolver
 {
 public:
-   RusanovFlux() {}
+   RusanovFlux(const FluxFunction &fluxFunction): RiemannSolver(fluxFunction) {}
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
@@ -294,8 +291,7 @@ public:
     * @param[in] Tr face element transformation
     * @param[out] flux ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     */
-   double Eval(const FluxFunction &fluxFunction,
-               const Vector &state1, const Vector &state2,
+   double Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
 protected:

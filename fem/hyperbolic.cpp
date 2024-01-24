@@ -149,7 +149,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       }
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const double speed = rsolver.Eval(fluxFunction, state1, state2, nor, Tr, fluxN);
+      const double speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
@@ -171,12 +171,12 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 }
 
 HyperbolicFormIntegrator::HyperbolicFormIntegrator(
-   const FluxFunction &fluxFunction, const RiemannSolver &rsolver,
+   const RiemannSolver &rsolver,
    const int IntOrderOffset)
    : NonlinearFormIntegrator(),
-     fluxFunction(fluxFunction),
-     IntOrderOffset(IntOrderOffset),
      rsolver(rsolver),
+     fluxFunction(rsolver.GetFluxFunction()),
+     IntOrderOffset(IntOrderOffset),
      num_equations(fluxFunction.num_equations)
 {
 #ifndef MFEM_THREAD_SAFE
@@ -189,10 +189,6 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    fluxN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
-   if (!rsolver.IsCompatible(fluxFunction))
-   {
-      MFEM_ABORT("The Riemann solver provided is incompatible with the flux function.");
-   }
 }
 
 double FluxFunction::ComputeFluxDotN(const Vector &U,
@@ -205,8 +201,7 @@ double FluxFunction::ComputeFluxDotN(const Vector &U,
 }
 
 
-double RusanovFlux::Eval(const FluxFunction &fluxFunction,
-                         const Vector &state1, const Vector &state2,
+double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          const Vector &nor, FaceElementTransformations &Tr,
                          Vector &flux) const
 {
