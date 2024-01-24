@@ -257,6 +257,7 @@ int main(int argc, char *argv[])
 
    optprob.UpdateGradient();
    ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes);
+   bool converged = false;
    for (int k = 0; k < max_it; k++)
    {
       // Store old data
@@ -328,9 +329,15 @@ int main(int argc, char *argv[])
 
       if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
+         converged = true;
          if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
          break;
       }
+   }
+   if (!converged)
+   {
+      if (Mpi::Root()) { mfem::out << "Total number of iteration = " << max_it << std::endl; }
+      if (Mpi::Root()) { mfem::out << "Maximum iteration reached." << std::endl; }
    }
    if (save)
    {

@@ -215,23 +215,21 @@ int main(int argc, char *argv[])
              << "Start Method of Moving Asymptotes Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
+   double volume(density.GetDomainVolume()*vol_fraction),
           stationarityError(infinity());
-   int num_reeval(0);
    double old_compliance;
 
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
-   logger.Append(std::string("Re-evel"), num_reeval);
-   logger.Append(std::string("Step Size"), step_size);
    logger.Print();
 
    optprob.UpdateGradient();
    MMA mma(rho.Size(), 1);
    density.ComputeVolume();
    GridFunction lower(rho), upper(rho);
+   bool converged = false;
    for (int k = 0; k < max_it; k++)
    {
       // Store old data
@@ -278,9 +276,15 @@ int main(int argc, char *argv[])
 
       if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
       {
+         converged = true;
          mfem::out << "Total number of iteration = " << k + 1 << std::endl;
          break;
       }
+   }
+   if (!converged)
+   { 
+      mfem::out << "Total number of iteration = " << max_it << std::endl;
+      mfem::out << "Maximum iteration reached." << std::endl;
    }
    if (save)
    {
