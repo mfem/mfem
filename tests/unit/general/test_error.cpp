@@ -9,36 +9,18 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "mfem.hpp"
+#include "unit_tests.hpp"
 
-#include "mesh_headers.hpp"
+using namespace mfem;
 
-namespace mfem
+TEST_CASE("MFEM_ABORT noreturn", "[General]")
 {
-
-Point::Point( const int *ind, int attr ) : Element(Geometry::POINT)
-{
-   attribute = attr;
-   indices[0] = ind[0];
-}
-
-void Point::GetVertices(Array<int> &v) const
-{
-   v.SetSize(1);
-   v[0] = indices[0];
-}
-
-void Point::SetVertices(const Array<int> &v)
-{
-   MFEM_ASSERT(v.Size() == 1, "!");
-   indices[0] = v[0];
-}
-
-
-void Point::SetVertices(const int *ind)
-{
-   indices[0] = ind[0];
-}
-
-PointFiniteElement PointFE;
-
+   // Make sure that the compiler does not complain here, since MFEM_ABORT
+   // calls mfem_error, which is marked [[noreturn]].
+   auto lambda = []() -> int
+   {
+      MFEM_ABORT("");
+   };
+   MFEM_CONTRACT_VAR(lambda);
 }

@@ -12,7 +12,6 @@
 
 #include "../fem.hpp"
 #include "../../mesh/nurbs.hpp"
-#include "../../general/tic_toc.hpp"
 
 #include "../../linalg/dtensor.hpp"  // For Reshape
 #include "../../general/forall.hpp"
