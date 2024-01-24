@@ -124,8 +124,8 @@ private:
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
-
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
@@ -365,7 +365,7 @@ public:
        boundary attributes marked in the array bdr_attr_is_ess. */
    void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                              Array<int> &ess_tdof_list,
-                             int component = -1) override;
+                             int component = -1) const override;
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */

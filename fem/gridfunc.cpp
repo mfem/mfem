@@ -2125,8 +2125,8 @@ void GridFunction::AccumulateAndCountBdrValues(
       Vector vals;
       Mesh *mesh = fes->GetMesh();
       NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges);
+      Array<int> bdr_edges, bdr_vertices, bdr_faces;
+      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges, bdr_faces);
 
       for (i = 0; i < bdr_edges.Size(); i++)
       {
@@ -2232,8 +2232,8 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    {
       Mesh *mesh = fes->GetMesh();
       NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges);
+      Array<int> bdr_edges, bdr_vertices, bdr_faces;
+      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges, bdr_faces);
 
       for (int i = 0; i < bdr_edges.Size(); i++)
       {

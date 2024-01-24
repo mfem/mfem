@@ -14,6 +14,7 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
 using namespace std;
 
@@ -787,12 +788,12 @@ void GradientIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      trial_fe.CalcDShape(ip, dshape);
-      test_fe.CalcShape(ip, shape);
-
       Trans.SetIntPoint(&ip);
+
       CalcAdjugate(Trans.Jacobian(), Jadj);
+
+      test_fe.CalcPhysShape(Trans, shape);
+      trial_fe.CalcDShape(ip, dshape);
 
       Mult(dshape, Jadj, gshape);
 
@@ -3016,6 +3017,12 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 }
 
+ElasticityComponentIntegrator::ElasticityComponentIntegrator(
+   ElasticityIntegrator &parent_, int i_, int j_)
+   : parent(parent_),
+     i_block(i_),
+     j_block(j_)
+{ }
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
