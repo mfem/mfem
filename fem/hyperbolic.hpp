@@ -282,7 +282,6 @@ public:
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
-    * @param[in] fluxFunction flux function F
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
