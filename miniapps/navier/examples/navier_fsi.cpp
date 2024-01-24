@@ -524,6 +524,7 @@ int main(int argc, char *argv[])
    solid_vel_gf.GetTrueDofs(solid_vel);
 
    ParGridFunction solid_sigmaN_gf(&elasticity.fes);
+   solid_sigmaN_gf = 0.0;
 
    elasticity.SetBoundaryTraction(solid_sigmaN_gf);
 
