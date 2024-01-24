@@ -51,7 +51,7 @@ public:
 
    ~STRUMPACKRowLocMatrix();
 
-   /// Matrix vector products are not supported on for this type of matrix.
+   /// Matrix vector products are not supported for this type of matrix.
    void Mult(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("STRUMPACKRowLocMatrix::Mult: Matrix vector products are not "
