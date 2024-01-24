@@ -18,12 +18,17 @@ void GetElasticityProblem(const ElasticityProblem problem,
                           double &filter_radius, double &vol_fraction,
                           std::unique_ptr<Mesh> &mesh, std::unique_ptr<VectorCoefficient> &vforce_cf,
                           Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter,
-                          std::string &prob_name, int ref_levels, int par_ref_levels=0)
+                          std::string &prob_name, int ref_levels, int par_ref_levels=-1)
 {
 #ifndef MFEM_USE_MPI
-   if (par_ref_levels)
+   if (par_ref_levels >= 0)
    {
       MFEM_ABORT("Tried to refine in parallel in serial code.");
+   }
+#else
+   if (!Mpi::IsInitialized() && par_ref_levels >= 0)
+   {
+      MFEM_ABORT("Tried to refine in parallel without initializing MPI");
    }
 #endif
    mesh.reset(new Mesh);
@@ -165,14 +170,24 @@ void GetElasticityProblem(const ElasticityProblem problem,
          mfem_error("Undefined problem.");
    }
    mesh->SetAttributes();
-   int dim = mesh->Dimension();
-   const int num_el = mesh->GetNE() * (int)std::pow(2, dim*ref_levels);
 
    // 3. Refine the mesh->
    for (int lev = 0; lev < ref_levels; lev++)
    {
       mesh->UniformRefinement();
    }
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized() && par_ref_levels >= 0)
+   {
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      mesh->Clear();
+      mesh.reset(pmesh);
+      for (int lev=0; lev<par_ref_levels; lev++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
+#endif
    switch (problem)
    {
       case ElasticityProblem::MBB:

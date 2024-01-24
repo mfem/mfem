@@ -55,6 +55,7 @@
 #include <fstream>
 #include "topopt.hpp"
 #include "helper.hpp"
+#include "prob_elasticity.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -132,15 +133,6 @@ using namespace mfem;
  *
  */
 
-enum Problem
-{
-   Cantilever,
-   MBB,
-   LBracket,
-   Cantilever3,
-   Torsion3
-};
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -169,10 +161,10 @@ int main(int argc, char *argv[])
    bool save = false;
    bool paraview = true;
 
-   ostringstream prob_name;
-   prob_name << "PMD-";
+   ostringstream filename_prefix;
+   filename_prefix << "PMD-";
 
-   int problem = Problem::Cantilever;
+   int problem = ElasticityProblem::Cantilever;
 
    OptionsParser args(argc, argv);
    args.AddOption(&seq_ref_levels, "-rs", "--seq-refine",
@@ -202,133 +194,24 @@ int main(int argc, char *argv[])
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
 
-   Mesh mesh;
+   std::unique_ptr<Mesh> mesh;
    Array2D<int> ess_bdr;
    Array<int> ess_bdr_filter;
-   Vector center(2), force(2);
-   double r = 0.05;
    std::unique_ptr<VectorCoefficient> vforce_cf;
-   string mesh_file;
-   switch (problem)
-   {
-      case Problem::Cantilever:
-         if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
-
-         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
-                                     1.0);
-         ess_bdr.SetSize(3, 4);
-         ess_bdr_filter.SetSize(4);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 3) = 1;
-         center(0) = 2.9; center(1) = 0.5;
-         force(0) = 0.0; force(1) = -1.0;
-         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         prob_name << "Cantilever";
-         break;
-      case Problem::MBB:
-         if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
-
-         mesh = mesh.MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true, 3.0,
-                                     1.0);
-         ess_bdr.SetSize(3, 5);
-         ess_bdr_filter.SetSize(5);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
-         ess_bdr(2, 4) = 1; // right-bottom : x-roller -> y fixed
-         center(0) = 0.05; center(1) = 0.95;
-         force(0) = 0.0; force(1) = -1.0;
-         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         prob_name << "MBB";
-         break;
-      case Problem::LBracket:
-         if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
-
-         mesh_file = "../../data/lbracket_square.mesh";
-         seq_ref_levels--;
-         mesh = mesh.LoadFromFile(mesh_file);
-         ess_bdr.SetSize(3, 6);
-         ess_bdr_filter.SetSize(6);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 4) = 1;
-         center(0) = 0.95; center(1) = 0.35;
-         force(0) = 0.0; force(1) = -1.0;
-         vforce_cf.reset(new VolumeForceCoefficient(r,center,force));
-         prob_name << "LBracket";
-         break;
-      case Problem::Cantilever3:
-         if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.12; }
-         // 1: bottom,
-         // 2: front,
-         // 3: right,
-         // 4: back,
-         // 5: left,
-         // 6: top
-         mesh = mesh.MakeCartesian3D(2, 1, 1, mfem::Element::Type::HEXAHEDRON, 2.0, 1.0,
-                                     1.0);
-         ess_bdr.SetSize(4, 6);
-         ess_bdr_filter.SetSize(6);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 4) = 1;
-
-         center.SetSize(3); force.SetSize(3);
-         center(0) = 1.9; center(1) = 0.1; center(2) = 0.25;
-         force(0) = 0.0; force(1) = 0.0; force(2) = -1.0;
-         vforce_cf.reset(new LineVolumeForceCoefficient(r,center,force,1));
-         prob_name << "Cantilever3";
-         break;
-
-      case Problem::Torsion3:
-         if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = 0.01; }
-
-         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
-         mesh = mesh.MakeCartesian3D(6, 5, 5, mfem::Element::Type::HEXAHEDRON, 1.2, 1.0,
-                                     1.0);
-         ess_bdr.SetSize(4, 7);
-         ess_bdr_filter.SetSize(7);
-         ess_bdr = 0; ess_bdr_filter = 0;
-         ess_bdr(0, 6) = 1;
-
-         center.SetSize(3); force.SetSize(3);
-         force = 0.0;
-         center[0] = 0; center[1] = 0.5; center[2] = 0.5;
-         r = 0.2;
-         vforce_cf.reset(new VectorFunctionCoefficient(3, [center, r](const Vector &x,
-                                                                      Vector &f)
-         {
-            Vector xx(x); xx(0) = 0.0;
-            xx -= center;
-            double d = xx.Norml2();
-            if (x[0] > 1.0 && d < r)
-            {
-               f[0] = 0.0;
-               f[1] = -xx[2];
-               f[2] = xx[1];
-            }
-            else
-            {
-               f = 0.0;
-            }
-         }));
-         prob_name << "Torsion3";
-         break;
-
-      default:
-         mfem_error("Undefined problem.");
-   }
-   mesh.SetAttributes();
-   int dim = mesh.Dimension();
-   const int num_el = mesh.GetNE() * (int)std::pow(2,
-                                                   dim*(seq_ref_levels + par_ref_levels));
+   std::string prob_name;
+   GetElasticityProblem((ElasticityProblem)problem, filter_radius, vol_fraction,
+                        mesh, vforce_cf,
+                        ess_bdr, ess_bdr_filter,
+                        prob_name, seq_ref_levels, par_ref_levels);
+   filename_prefix << prob_name;
+   int dim = mesh->Dimension();
+   const int num_el = mesh->GetNE();
+   std::unique_ptr<ParMesh> pmesh(static_cast<ParMesh*>(mesh.release()));
 
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Compliance Minimization with Projected Mirror Descent.\n"
-                << "Problem: " << prob_name.str() << "\n"
+                << "Problem: " << filename_prefix.str() << "\n"
                 << "The number of elements: " << num_el << "\n"
                 << "Order: " << order << "\n"
                 << "Volume Fraction: " << vol_fraction << "\n"
@@ -343,45 +226,16 @@ int main(int argc, char *argv[])
       paraview = true;
       if (Mpi::Root()) { mfem::out << "GLVis for 3D is disabled. Use ParaView" << std::endl; }
    }
-
-   // 3. Refine the mesh.
-   for (int lev = 0; lev < seq_ref_levels; lev++)
-   {
-      mesh.UniformRefinement();
-   }
-   ParMesh pmesh(MPI_COMM_WORLD, mesh);
-   mesh.Clear();
-   for (int lev = 0; lev < par_ref_levels; lev++)
-   {
-      pmesh.UniformRefinement();
-   }
-   switch (problem)
-   {
-      case Problem::MBB:
-      {
-         MarkBoundary(pmesh, [](const Vector &x) {return ((x(0) > (3 - std::pow(2, -5))) && (x(1) < 1e-10)); },
-         5);
-         break;
-      }
-      case Problem::Torsion3:
-      {
-         // left center: Dirichlet
-         center[0] = 0.0; center[1] = 0.5; center[2] = 0.5;
-         MarkBoundary(pmesh, [r, center](const Vector &x) { return (center.DistanceTo(x) < r); },
-         7);
-         break;
-      }
-   }
-   pmesh.SetAttributes();
+   pmesh->SetAttributes();
 
    if (save)
    {
       ostringstream meshfile;
-      meshfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
                "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
+      pmesh->Print(mesh_ofs);
    }
 
    // 4. Define the necessary finite element spaces on the mesh.
@@ -389,9 +243,9 @@ int main(int argc, char *argv[])
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
                                BasisType::GaussLobatto); // space for ψ
-   ParFiniteElementSpace state_fes(&pmesh, &state_fec,dim);
-   ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
-   ParFiniteElementSpace control_fes(&pmesh, &control_fec);
+   ParFiniteElementSpace state_fes(pmesh.get(), &state_fec,dim);
+   ParFiniteElementSpace filter_fes(pmesh.get(), &filter_fec);
+   ParFiniteElementSpace control_fes(pmesh.get(), &control_fec);
 
    int state_size = state_fes.GlobalTrueVSize();
    int control_size = control_fes.GlobalTrueVSize();
@@ -437,7 +291,7 @@ int main(int argc, char *argv[])
       {
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
-         sout_SIMP << "solution\n" << pmesh << *designDensity_gf
+         sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
                    << "window_title 'Design density r(ρ̃) - PMD "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
@@ -449,7 +303,7 @@ int main(int argc, char *argv[])
       {
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
-         sout_r << "solution\n" << pmesh << *rho_gf
+         sout_r << "solution\n" << *pmesh << *rho_gf
                 << "window_title 'Raw density ρ - PMD "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
@@ -460,7 +314,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
-      pd.reset(new ParaViewDataCollection(prob_name.str(), &pmesh));
+      pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
       pd->RegisterField("psi", &density.GetGridFunction());
@@ -536,7 +390,7 @@ int main(int argc, char *argv[])
             designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
                                                     density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
-            sout_SIMP << "solution\n" << pmesh << *designDensity_gf
+            sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
                       << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
@@ -544,7 +398,7 @@ int main(int argc, char *argv[])
          {
             rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
             sout_r << "parallel " << num_procs << " " << myid << "\n";
-            sout_r << "solution\n" << pmesh << *rho_gf
+            sout_r << "solution\n" << *pmesh << *rho_gf
                    << flush;
             MPI_Barrier(MPI_COMM_WORLD); // try to prevent streams from mixing
          }
@@ -571,9 +425,9 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream solfile, solfile2;
-      solfile << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
               "-0." << setfill('0') << setw(6) << myid;
-      solfile2 << prob_name.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
                "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
