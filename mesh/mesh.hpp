@@ -894,7 +894,8 @@ public:
    /// sorted sets of the element attribute values present in the mesh and
    /// store these in the Mesh::attributes and Mesh::bdr_attributes arrays.
    virtual void SetAttributes();
-
+   void MarkBoundary(std::function<bool(const Vector &)> mark,
+                     const int idx);
    /// Check (and optionally attempt to fix) the orientation of the elements
    /** @param[in] fix_it  If `true`, attempt to fix the orientations of some
                           elements: triangles, quads, and tets.

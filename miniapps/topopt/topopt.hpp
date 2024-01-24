@@ -564,8 +564,4 @@ public:
    void Set(double r_,Vector & center_, Vector & force_);
    void UpdateSize();
 };
-
-void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
-                  const int idx);
-
 }

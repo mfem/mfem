@@ -961,23 +961,4 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
 #endif
    }
 }
-void MarkBoundary(Mesh &mesh, std::function<bool(const Vector &)> mark,
-                  const int idx)
-{
-   const int dim = mesh.Dimension();
-   Vector c1(dim), c2(dim), m(dim);
-   for (int i = 0; i<mesh.GetNBE(); i++)
-   {
-      Element * be = mesh.GetBdrElement(i);
-      Array<int> vertices;
-      be->GetVertices(vertices);
-      c1.SetData(mesh.GetVertex(vertices[0]));
-      c2.SetData(mesh.GetVertex(vertices[1]));
-      m = c1; m += c2; m*= 0.5;
-      if (mark(m))
-      {
-         mesh.SetBdrAttribute(i, idx);
-      }
-   }
-}
 }

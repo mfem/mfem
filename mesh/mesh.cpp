@@ -1599,6 +1599,25 @@ void Mesh::SetAttributes()
       MFEM_WARNING("Non-positive attributes in the domain!");
    }
 }
+void Mesh::MarkBoundary(std::function<bool(const Vector &)> mark,
+                        const int idx)
+{
+   const int dim = Dimension();
+   Vector c1(dim), c2(dim), m(dim);
+   for (int i = 0; i<GetNBE(); i++)
+   {
+      Element * be = GetBdrElement(i);
+      Array<int> vertices;
+      be->GetVertices(vertices);
+      c1.SetData(GetVertex(vertices[0]));
+      c2.SetData(GetVertex(vertices[1]));
+      m = c1; m += c2; m*= 0.5;
+      if (mark(m))
+      {
+         SetBdrAttribute(i, idx);
+      }
+   }
+}
 
 void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
