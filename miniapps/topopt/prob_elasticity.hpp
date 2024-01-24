@@ -38,16 +38,14 @@ void GetElasticityProblem(const ElasticityProblem problem,
       {
          if (filter_radius < 0) { filter_radius = 5e-02; }
          if (vol_fraction < 0) { vol_fraction = 0.5; }
-         out << "1" << std::endl;
+         
          *mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true,
                                        3.0,
                                        1.0);
-         out << "1" << std::endl;
          ess_bdr.SetSize(3, 4);
          ess_bdr_filter.SetSize(4);
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(0, 3) = 1;
-         out << "1" << std::endl;
          const Vector center({2.9, 0.5});
          vforce_cf.reset(new VectorFunctionCoefficient(2, [center](const Vector &x,
                                                                    Vector &f)
@@ -55,9 +53,7 @@ void GetElasticityProblem(const ElasticityProblem problem,
             f = 0.0;
             if (x.DistanceTo(center) < 0.05) { f(1) = -1.0; }
          }));
-         out << "1" << std::endl;
          prob_name = "Cantilever";
-         out << "1" << std::endl;
       } break;
       case ElasticityProblem::MBB:
       {

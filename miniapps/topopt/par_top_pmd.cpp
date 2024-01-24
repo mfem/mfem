@@ -1,21 +1,6 @@
-//                              MFEM Example 37
+// Compliancemi minimization with projected mirror descent in parallel
 //
-//
-// Compile with: make ex37
-//
-// Sample runs:
-//     ex37 -alpha 10
-//     ex37 -alpha 10 -pv
-//     ex37 -lambda 0.1 -mu 0.1
-//     ex37 -o 2 -alpha 5.0 -mi 50 -vf 0.4 -ntol 1e-5
-//     ex37 -r 6 -o 1 -alpha 25.0 -epsilon 0.02 -mi 50 -ntol 1e-5
-//
-//
-// Description: This example code demonstrates the use of MFEM to solve a
-//              density-filtered [3] topology optimization problem. The
-//              objective is to minimize the compliance
-//
-//                  minimize ∫_Ω f⋅u dx over u ∈ [H¹(Ω)]² and ρ ∈ L¹(Ω)
+//                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
 //
 //                  subject to
 //
@@ -29,15 +14,18 @@
 //              isotropic linearly elastic material, ϵ > 0 is the design
 //              length scale, and 0 < θ < 1 is the volume fraction.
 //
-//              The problem is discretized and gradients are computing using
-//              finite elements [1]. The design is optimized using an entropic
-//              mirror descent algorithm introduced by Keith and Surowiec [2]
-//              that is tailored to the bound constraint 0 ≤ ρ ≤ 1.
+//              Update is done by
 //
-//              This example highlights the ability of MFEM to deliver high-
-//              order solutions to inverse design problems and showcases how
-//              to set up and solve PDE-constrained optimization problems
-//              using the so-called reduced space approach.
+//              ρ_new = sigmoid(ψ_new) = sigmoid(ψ_cur - α ∇F(ρ_cur) + c)
+//
+//              where c is a constant volume correction. The step size α is
+//              determined by a generalized Barzilai-Borwein method with
+//              Armijo condition check
+//
+//              BB:        α_init = |(δψ, δρ) / (δ∇F(ρ), δρ)|
+//              
+//              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
+//                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
 //
 //
 // [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
@@ -59,79 +47,6 @@
 
 using namespace std;
 using namespace mfem;
-
-/**
- * ---------------------------------------------------------------
- *                      ALGORITHM PREAMBLE
- * ---------------------------------------------------------------
- *
- *  The Lagrangian for this problem is
- *
- *          L(u,ρ,ρ̃,w,w̃) = (f,u) - (r(ρ̃) C ε(u),ε(w)) + (f,w)
- *                       - (ϵ² ∇ρ̃,∇w̃) - (ρ̃,w̃) + (ρ,w̃)
- *
- *  where
- *
- *    r(ρ̃) = ρ₀ + ρ̃³ (1 - ρ₀)       (SIMP rule)
- *
- *    ε(u) = (∇u + ∇uᵀ)/2           (symmetric gradient)
- *
- *    C e = λtr(e)I + 2μe           (isotropic material)
- *
- *  NOTE: The Lame parameters can be computed from Young's modulus E
- *        and Poisson's ratio ν as follows:
- *
- *             λ = E ν/((1+ν)(1-2ν)),      μ = E/(2(1+ν))
- *
- * ---------------------------------------------------------------
- *
- *  Discretization choices:
- *
- *     u ∈ V ⊂ (H¹)ᵈ (order p)
- *     ψ ∈ L² (order p - 1), ρ = sigmoid(ψ)
- *     ρ̃ ∈ H¹ (order p)
- *     w ∈ V  (order p)
- *     w̃ ∈ H¹ (order p)
- *
- * ---------------------------------------------------------------
- *                          ALGORITHM
- * ---------------------------------------------------------------
- *
- *  Update ρ with projected mirror descent via the following algorithm.
- *
- *  1. Initialize ψ = inv_sigmoid(vol_fraction) so that ∫ sigmoid(ψ) = θ vol(Ω)
- *
- *  While not converged:
- *
- *     2. Solve filter equation ∂_w̃ L = 0; i.e.,
- *
- *           (ϵ² ∇ ρ̃, ∇ v ) + (ρ̃,v) = (ρ,v)   ∀ v ∈ H¹.
- *
- *     3. Solve primal problem ∂_w L = 0; i.e.,
- *
- *      (λ r(ρ̃) ∇⋅u, ∇⋅v) + (2 μ r(ρ̃) ε(u), ε(v)) = (f,v)   ∀ v ∈ V.
- *
- *     NB. The dual problem ∂_u L = 0 is the negative of the primal problem due to symmetry.
- *
- *     4. Solve for filtered gradient ∂_ρ̃ L = 0; i.e.,
- *
- *      (ϵ² ∇ w̃ , ∇ v ) + (w̃ ,v) = (-r'(ρ̃) ( λ |∇⋅u|² + 2 μ |ε(u)|²),v)   ∀ v ∈ H¹.
- *
- *     5. Project the gradient onto the discrete latent space; i.e., solve
- *
- *                         (G,v) = (w̃,v)   ∀ v ∈ L².
- *
- *     6. Bregman proximal gradient update; i.e.,
- *
- *                            ψ ← ψ - αG + c,
- *
- *     where α > 0 is a step size parameter and c ∈ R is a constant ensuring
- *
- *                     ∫_Ω sigmoid(ψ - αG + c) dx = θ vol(Ω).
- *
- *  end
- *
- */
 
 int main(int argc, char *argv[])
 {
@@ -332,7 +247,6 @@ int main(int argc, char *argv[])
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
-   old_psi = psi; old_grad = grad;
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));

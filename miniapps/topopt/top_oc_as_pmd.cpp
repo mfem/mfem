@@ -1,4 +1,5 @@
-// Compliancemi minimization with projected mirror descent
+// Compliancemi minimization with Optimality Criteria Method
+//              interpreted as Projected Mirror Descent Method
 //
 //                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
 //
@@ -16,26 +17,20 @@
 //
 //              Update is done by
 //
-//              ρ_new = sigmoid(ψ_new) = sigmoid(ψ_cur - α ∇F(ρ_cur) + c)
+//              ρ_new = clip((-∞,1), exp(ψ_new)) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
 //
-//              where c is a constant volume correction. The step size α is
+//                    with d_cur = log(1/-∇F(ρ_cur))
+//
+//              where c is a constant volume correction, d_cur is the search direction.
+//              The step size α is
 //              determined by a generalized Barzilai-Borwein method with
 //              Armijo condition check
 //
-//              BB:        α_init = |(δψ, δρ) / (δ∇F(ρ), δρ)|
-//              
-//              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
-//                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
+//              BB:        α_init = |(δψ, δρ) / (δd, δρ)|
 //
-// [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
-//    (2011). Efficient topology optimization in MATLAB using 88 lines of
-//    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
-// [2] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints.
-//     arXiv:2307.12444 [math.NA]
-// [3] Lazarov, B. S., & Sigmund, O. (2011). Filters in topology optimization
-//     based on Helmholtz‐type differential equations. International Journal
-//     for Numerical Methods in Engineering, 86(6), 765-781.
+//              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
+//                        with ρ(α) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
+//
 
 #include "mfem.hpp"
 #include <iostream>
@@ -161,7 +156,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   ExponentialDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
