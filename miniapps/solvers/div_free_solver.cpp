@@ -587,7 +587,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Clear();
       ch.Start();
 
-      auto M = dynamic_cast<const HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
+      auto& M = dynamic_cast<const HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
       M.Mult(-1.0, correction.GetBlock(0), 1.0, resid.GetBlock(0));
       SolvePotential(resid.GetBlock(0), correction.GetBlock(1));
       blk_y.GetBlock(1) += correction.GetBlock(1);
