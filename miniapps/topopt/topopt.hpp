@@ -5,22 +5,57 @@
 
 namespace mfem
 {
+
 /// @brief Inverse sigmoid function
-double inv_sigmoid(const double x);
+inline double inv_sigmoid(const double x)
+{
+   const double tol = 1e-12;
+   const double tmp = std::min(std::max(tol,x),1.0-tol);
+   return std::log(tmp/(1.0-tmp));
+}
 
 /// @brief Sigmoid function
-double sigmoid(const double x);
+inline double sigmoid(const double x)
+{
+   return x>=0.0 ? 1.0 / (1.0 + exp(-x)) : exp(x) / (1.0 + exp(x));
+}
 
 /// @brief Derivative of sigmoid function
-double der_sigmoid(const double x);
+inline double der_sigmoid(const double x)
+{
+   const double tmp = sigmoid(x);
+   return tmp*(1.0 - tmp);
+}
 
 /// @brief SIMP function, ρ₀ + (ρ̄ - ρ₀)*x^k
-double simp(const double x, const double rho_0=1e-06, const double k=3.0,
-            const double rho_max=1.0);
+inline double simp(const double x, const double rho_0, const double k,
+                   const double rho_max=1.0)
+{
+   return rho_0 + std::pow(x, k) * (rho_max - rho_0);
+}
 
 /// @brief Derivative of SIMP function, k*(ρ̄ - ρ₀)*x^(k-1)
-double der_simp(const double x, const double rho_0=1e-06,
-                const double k=3.0, const double rho_max=1.0);
+inline double der_simp(const double x, const double rho_0,
+                       const double k, const double rho_max=1.0)
+{
+   return k * std::pow(x, k - 1.0) * (rho_max - rho_0);
+}
+
+inline double FermiDiracEntropy(const double x)
+{
+   return (x < 1e-13 ? 0 : x*std::log(x))
+          + (x > 1 - 1e-13 ? 0 : (1 - x)*std::log(1 - x));
+}
+
+inline double ShannonEntropy(const double x)
+{
+   return x < 1e-13 ? -x : x*std::log(x) - x;
+}
+// exponential double type
+inline double exp_d(const double x) {return std::exp(x);}
+// log double type
+inline double log_d(const double x) {return std::log(x);}
+
 // Elasticity solver
 class EllipticSolver
 {
@@ -183,8 +218,8 @@ private:
    // functions
 public:
    SigmoidDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                       FiniteElementSpace &fes_filter,
-                       double vol_frac);
+                        FiniteElementSpace &fes_filter,
+                        double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override
    {
@@ -199,7 +234,8 @@ public:
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
       return current_volume;
    }
-   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf)
+   override
    {
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
@@ -220,8 +256,8 @@ private:
    // functions
 public:
    ExponentialDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                       FiniteElementSpace &fes_filter,
-                       double vol_frac);
+                            FiniteElementSpace &fes_filter,
+                            double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override
    {
@@ -236,11 +272,56 @@ public:
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
       return current_volume;
    }
-   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf)
+   override
    {
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
       [](double x, double y) {return std::exp(x) - std::exp(y);}));
+   }
+protected:
+private:
+};
+
+
+class LatentDesignDensity : public DesignDensity
+{
+   // variables
+public:
+protected:
+private:
+   std::function<double(double)> h;
+   std::function<double(double)> p2d;
+   std::function<double(double)> d2p;
+   bool clip_lower, clip_upper;
+   std::unique_ptr<GridFunction> zero_gf;
+   // functions
+public:
+   LatentDesignDensity(FiniteElementSpace &fes, FiniteElementSpace &fes_filter,
+                       DensityFilter &filter, double vol_frac,
+                       std::function<double(double)> h,
+                       std::function<double(double)> primal2dual,
+                       std::function<double(double)> dual2primal,
+                       bool clip_lower=false, bool clip_upper=false);
+   void Project() override;
+   double StationarityError(GridFunction &grad) override
+   {
+      return StationarityError(grad, false);
+   };
+   double StationarityError(GridFunction &grad, bool useL2norm);
+   double StationarityErrorL2(GridFunction &grad);
+   double ComputeBregmanDivergence(GridFunction *p, GridFunction *q);
+   double ComputeVolume() override
+   {
+      current_volume = zero_gf->ComputeL1Error(*rho_cf);
+      return current_volume;
+   }
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf)
+   override
+   {
+      return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
+                                             x_gf.get(), &other_gf,
+      [this](double x, double y) {return d2p(x) - d2p(y);}));
    }
 protected:
 private:
@@ -252,25 +333,21 @@ class PrimalDesignDensity : public DesignDensity
 public:
 protected:
 private:
-   ConstantCoefficient zero_cf;
-
+   std::unique_ptr<GridFunction> zero_gf;
    // functions
 public:
    PrimalDesignDensity(FiniteElementSpace &fes, DensityFilter& filter,
                        FiniteElementSpace &fes_filter,
-                       double vol_frac):
-      DesignDensity(fes, filter, fes_filter, vol_frac), zero_cf(0.0)
-   {
-      rho_cf.reset(new GridFunctionCoefficient(x_gf.get()));
-   }
+                       double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override;
    double ComputeVolume() override
    {
-      current_volume = x_gf->ComputeL1Error(zero_cf);
+      current_volume = zero_gf->ComputeL1Error(*rho_cf);
       return current_volume;
    }
-   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf) override
+   std::unique_ptr<Coefficient> GetDensityDiffCoeff(GridFunction &other_gf)
+   override
    {
       return std::unique_ptr<Coefficient>(new MappedPairGridFunctionCoeffitient(
                                              x_gf.get(), &other_gf,
@@ -518,14 +595,15 @@ private:
 ///        The resulting density, ρ(α) and the function value will be updated in problem.
 /// @param problem Topology optimization problem
 /// @param x0 Current density gridfunction
-/// @param direction Negative search direction
+/// @param direction Ascending direction
 /// @param diff_densityForm Linear from L(v) = (x - x0, v)
 /// @param c1 Weights on the directional derivative,
 /// @param step_size Step size. Use reference to monitor updated step size.
 /// @param max_it Maximum number of updates.
 /// @param shrink_factor < 1. Step size will be updated to α <- α * shrink_factor
 /// @return The number of re-evaluation during Armijo condition check.
-int Step_Armijo(TopOptProblem &problem, const GridFunction &x0, const GridFunction &direction,
+int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
+                const GridFunction &direction,
                 LinearForm &diff_densityForm, const double c1,
                 double &step_size, const int max_it=20, const double shrink_factor=0.5);
 

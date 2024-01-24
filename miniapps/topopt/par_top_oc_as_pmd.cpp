@@ -1,5 +1,6 @@
-// Compliancemi minimization with Optimality Criteria Method
-//              interpreted as Projected Mirror Descent Method
+// Compliancemi minimization with projected mirror descent OC in parallel
+// where Bregman divergence is enduced from the Shannon entropy
+// and the descent direction is motivated from OC, log(1/-∇F).
 //
 //                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
 //
@@ -17,20 +18,17 @@
 //
 //              Update is done by
 //
-//              ρ_new = clip((-∞,1), exp(ψ_new)) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
+//              ρ_new = clip(exp(ψ_new)) = clip(exp(ψ_cur - α d_cur + c))
+//              with d_cur = log(1/-∇F(ρ_cur))
 //
-//                    with d_cur = log(1/-∇F(ρ_cur))
-//
-//              where c is a constant volume correction, d_cur is the search direction.
-//              The step size α is
+//              where c is a constant volume correction. The step size α is
 //              determined by a generalized Barzilai-Borwein method with
 //              Armijo condition check
 //
 //              BB:        α_init = |(δψ, δρ) / (δd, δρ)|
 //
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
-//                        with ρ(α) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
-//
+//                        with ρ(α) = clip(exp(ψ_cur - α d_cur + c))
 
 #include "mfem.hpp"
 #include <iostream>
@@ -71,7 +69,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
 
    ostringstream filename_prefix;
-   filename_prefix << "PMD-";
+   filename_prefix << "PMD_OC-";
 
    int problem = ElasticityProblem::Cantilever;
 
@@ -119,7 +117,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
       mfem::out << "\n"
-                << "Compliance Minimization with Projected Mirror Descent.\n"
+                << "Compliance Minimization with Projected Mirror Descent OC.\n"
                 << "Problem: " << filename_prefix.str() << "\n"
                 << "The number of elements: " << num_el << "\n"
                 << "Order: " << order << "\n"
@@ -141,8 +139,7 @@ int main(int argc, char *argv[])
    {
       ostringstream meshfile;
       meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-               par_ref_levels <<
-               "." << setfill('0') << setw(6) << myid;
+               par_ref_levels << "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
@@ -172,7 +169,8 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   ExponentialDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   LatentDesignDensity density(control_fes, filter_fes, filter, vol_fraction,
+                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -202,7 +200,7 @@ int main(int argc, char *argv[])
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
          sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PMD "
+                   << "window_title 'Design density r(ρ̃) - PMD_OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
@@ -214,7 +212,7 @@ int main(int argc, char *argv[])
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
          sout_r << "solution\n" << *pmesh << *rho_gf
-                << "window_title 'Raw density ρ - PMD "
+                << "window_title 'Raw density ρ - PMD_OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -241,8 +239,7 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction direction(&control_fes), old_direction(&control_fes),
-                   old_psi(&control_fes);
+   ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -251,7 +248,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
-                << "Start Mirror Descent Step." << "\n" << std::endl;
+                << "Start Projected Mirror Descent OC Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
@@ -277,20 +274,17 @@ int main(int argc, char *argv[])
       {
          diff_rho_form.Assemble();
          old_psi -= psi;
-         old_direction -= direction;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_direction));
+         old_grad -= grad;
+         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
       }
 
       // Step 2. Store old data
       old_compliance = compliance;
       old_psi = psi;
-      old_direction = direction;
+      old_grad = grad;
 
       // Step 3. Step and upate gradient
-      direction = grad;
-      direction.ApplyMap([](double x) {return std::log(1.0 / -x); });
-      num_reeval = Step_Armijo(optprob, old_psi, direction, diff_rho_form, c1,
-                               step_size);
+      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
@@ -339,11 +333,9 @@ int main(int argc, char *argv[])
    {
       ostringstream solfile, solfile2;
       solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-              par_ref_levels <<
-              "-0." << setfill('0') << setw(6) << myid;
+              par_ref_levels << "-0." << setfill('0') << setw(6) << myid;
       solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-               par_ref_levels <<
-               "-f." << setfill('0') << setw(6) << myid;
+               par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
       sol_ofs << psi;

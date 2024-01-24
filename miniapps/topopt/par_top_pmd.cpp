@@ -23,7 +23,7 @@
 //              Armijo condition check
 //
 //              BB:        α_init = |(δψ, δρ) / (δ∇F(ρ), δρ)|
-//              
+//
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
 //                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
 //
@@ -146,8 +146,8 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream meshfile;
-      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
-               "." << setfill('0') << setw(6) << myid;
+      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+               par_ref_levels << "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
@@ -177,7 +177,8 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   LatentDesignDensity density(control_fes, filter_fes, filter, vol_fraction,
+                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -255,7 +256,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
-                << "Start Mirror Descent Step." << "\n" << std::endl;
+                << "Start Projected Mirror Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
@@ -339,10 +340,10 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream solfile, solfile2;
-      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
-              "-0." << setfill('0') << setw(6) << myid;
-      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
-               "-f." << setfill('0') << setw(6) << myid;
+      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+              par_ref_levels << "-0." << setfill('0') << setw(6) << myid;
+      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+               par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
       sol_ofs << psi;

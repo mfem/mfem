@@ -1,5 +1,6 @@
-// Compliancemi minimization with Optimality Criteria Method
-//              interpreted as Projected Mirror Descent Method
+// Compliancemi minimization with projected mirror descent OC in parallel
+// where Bregman divergence is enduced from the Shannon entropy
+// and the descent direction is motivated from OC, log(1/-∇F).
 //
 //                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
 //
@@ -17,20 +18,17 @@
 //
 //              Update is done by
 //
-//              ρ_new = clip((-∞,1), exp(ψ_new)) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
+//              ρ_new = clip(exp(ψ_new)) = clip(exp(ψ_cur - α d_cur + c))
+//              with d_cur = log(1/-∇F(ρ_cur))
 //
-//                    with d_cur = log(1/-∇F(ρ_cur))
-//
-//              where c is a constant volume correction, d_cur is the search direction.
-//              The step size α is
+//              where c is a constant volume correction. The step size α is
 //              determined by a generalized Barzilai-Borwein method with
 //              Armijo condition check
 //
 //              BB:        α_init = |(δψ, δρ) / (δd, δρ)|
 //
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
-//                        with ρ(α) = clip((-∞,1), exp(ψ_cur - α d_cur + c)
-//
+//                        with ρ(α) = clip(exp(ψ_cur - α d_cur + c))
 
 #include "mfem.hpp"
 #include <iostream>
@@ -65,7 +63,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
 
    ostringstream filename_prefix;
-   filename_prefix << "PMD-";
+   filename_prefix << "PMD_OC-";
 
    int problem = ElasticityProblem::Cantilever;
 
@@ -109,7 +107,7 @@ int main(int argc, char *argv[])
    const int num_el = mesh->GetNE();
 
    mfem::out << "\n"
-             << "Compliance Minimization with Projected Mirror Descent.\n"
+             << "Compliance Minimization with Projected Mirror Descent OC.\n"
              << "Problem: " << filename_prefix.str() << "\n"
              << "The number of elements: " << num_el << "\n"
              << "Order: " << order << "\n"
@@ -156,7 +154,8 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   ExponentialDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   LatentDesignDensity density(control_fes, filter_fes, filter, vol_fraction,
+                               ShannonEntropy, log_d, exp_d, false, true);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -183,7 +182,7 @@ int main(int argc, char *argv[])
       {
          sout_SIMP.precision(8);
          sout_SIMP << "solution\n" << *mesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PMD "
+                   << "window_title 'Design density r(ρ̃) - PMD_OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
@@ -193,7 +192,7 @@ int main(int argc, char *argv[])
       {
          sout_r.precision(8);
          sout_r << "solution\n" << *mesh << *rho_gf
-                << "window_title 'Raw density ρ - PMD "
+                << "window_title 'Raw density ρ - PMD_OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -226,7 +225,7 @@ int main(int argc, char *argv[])
 
    mfem::out << "\n"
              << "Initialization Done." << "\n"
-             << "Start Projected Mirror Descent Step." << "\n" << std::endl;
+             << "Start Projected Mirror Descent OC Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),

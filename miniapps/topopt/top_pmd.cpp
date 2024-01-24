@@ -23,7 +23,7 @@
 //              Armijo condition check
 //
 //              BB:        α_init = |(δψ, δρ) / (δ∇F(ρ), δρ)|
-//              
+//
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
 //                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
 //
@@ -161,7 +161,8 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   LatentDesignDensity density(control_fes, filter_fes, filter, vol_fraction,
+                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
