@@ -92,7 +92,7 @@ public:
    */
    enum CONFIG_SRC
    {
-      /// Configuration with be read directly from a string
+      /// Configuration will be read directly from a string
       INTERNAL,
       /// Configure will be read from a specified file
       EXTERNAL,
@@ -144,9 +144,9 @@ public:
    void InitExclusiveGPU(const MPI_Comm &comm);
 
    /** @brief Initialize the AmgX library and create MPI teams based on the
-      numberof devices on each node @a nDevs.  If configuring with a
-      constructor, theconstructor will make this call, otherwise this will need
-      to be calledafter the solver configuration has been established through
+      number of devices on each node @a nDevs.  If configuring with a
+      constructor, the constructor will make this call, otherwise this will need
+      to be called after the solver configuration has been established through
       the AmgXSolver::ReadParameters call.
    */
    void InitMPITeams(const MPI_Comm &comm,
@@ -178,7 +178,7 @@ public:
        last solve phase. */
    int GetNumIterations();
 
-   /** @brief Read in the Amgx parameters either through a file or directly
+   /** @brief Read in the AmgX parameters either through a file or directly
        through a properly formated string.  If @a source is set to
        AmgXSolver::EXTERNAL the parameters are loaded from a filename set by
        @a config.  If @a source is set to AmgXSolver::INTERNAL the parameters
@@ -198,7 +198,7 @@ public:
       Jacobi).
 
       When configured as a solver the preconditioned conjugate gradient method
-      is used with the AMG V-cycle with a block Jacobi smoother is used as a
+      is used with the AMG V-cycle and a block Jacobi smoother is used as a
       preconditioner.
    */
    void DefaultParameters(const AMGX_MODE amgxMode_, const bool verbose);
@@ -222,8 +222,7 @@ private:
 
 #ifdef MFEM_USE_MPI
    /** @brief  Consolidates matrix diagonal and off diagonal data and uploads
-     matrix to AmgX.
-   */
+       matrix to AmgX. */
    void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
                                  const Array<double> &loc_A,
                                  const Array<int> &loc_I,
@@ -231,9 +230,8 @@ private:
                                  const bool update_mat = false);
 
    /** @brief Consolidates matrix diagonal and off diagonal data for all ranks
-       in an MPIteam. Root rank of each MPI team holds the the consolidated
-      data and setsmatrix.
-   */
+       in an MPI team. Root rank of each MPI team holds the consolidated
+       data and matrix. */
    void SetMatrixMPITeams(const HypreParMatrix &A, const Array<double> &loc_A,
                           const Array<int> &loc_I, const Array<int64_t> &loc_J,
                           const bool update_mat = false);

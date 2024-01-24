@@ -348,7 +348,7 @@ public:
    void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Approach the solution of the transposed linear system by applying
-       jacobi smoothing. */
+       Jacobi smoothing. */
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    /** @brief Recompute the diagonal using the method AssembleDiagonal of the
