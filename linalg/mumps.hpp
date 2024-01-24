@@ -41,7 +41,7 @@ public:
       UNSYMMETRIC = 0,
       /// A sparse symmetric positive definite matrix
       SYMMETRIC_POSITIVE_DEFINITE = 1,
-      /// A sparse symmetric matrix that is no necissisarilty positive definite
+      /// A sparse symmetric matrix that is not necessarily positive definite
       SYMMETRIC_INDEFINITE = 2
    };
 
@@ -50,7 +50,7 @@ public:
    {
       /// Let MUMPS automatically decide the reording strategy
       AUTOMATIC = 0,
-      /// Approximate Minimum Degree with automatic quasi-dense row detection is used
+      /// Approximate Minimum Degree with auto quasi-dense row detection is used
       AMD,
       /// Approximate Minimum Fill method will be used
       AMF,

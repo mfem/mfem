@@ -106,7 +106,8 @@ public:
       PrintLevel &Iterations() { iterations=true; return *this; }
       PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
       PrintLevel &Summary() { summary=true; return *this; }
-      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      PrintLevel &All()
+      { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
       ///@}
    };
 
@@ -343,10 +344,11 @@ public:
    /// Replace diagonal entries with their absolute values.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
-   /// Approach the solution of the linear system by applying jacobi smoothing
+   /// Approach the solution of the linear system by applying jacobi smoothing.
    void Mult(const Vector &x, Vector &y) const;
 
-   /// Approach the solition of the transposed linear system by applying jacobi smoothing
+   /** @brief Approach the solution of the transposed linear system by applying
+       jacobi smoothing. */
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    /** @brief Recompute the diagonal using the method AssembleDiagonal of the
@@ -440,10 +442,12 @@ public:
 
    ~OperatorChebyshevSmoother() {}
 
-   /// Approach the solution of the linear system by applying Chebyshev smoothing
+   /** @brief Approach the solution of the linear system by applying Chebyshev
+       smoothing. */
    void Mult(const Vector &x, Vector &y) const;
 
-   /// Approach the solution of the transposed linear system by applying Chebyshev smoothing
+   /** @brief Approach the solution of the transposed linear system by applying
+       Chebyshev smoothing. */
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    void SetOperator(const Operator &op_)
@@ -518,7 +522,8 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
-   /// Iterative solution of the linear system using the Conjugate Gradient method
+   /** @brief Iterative solution of the linear system using the Conjugate
+       Gradient method. */
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -568,7 +573,7 @@ public:
 
    void SetKDim(int dim) { m = dim; }
 
-   /// Iterative solution of the linear system using the FGMRESt method
+   /// Iterative solution of the linear system using the FGMRES method.
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -636,7 +641,7 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
-   /// Iterative solution of the linear system using the Minres method
+   /// Iterative solution of the linear system using the MINRES method
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -1266,7 +1271,8 @@ public:
    AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
                     bool op_is_symmetric = true, bool own_aux_map = false);
    virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
    using Operator::Mult;
@@ -1287,29 +1293,34 @@ public:
    /// The operator must be a DenseMatrix.
    void SetOperator(const Operator &op) override;
 
-   /// Compute the non-negative least squares solution to the underdetermined system
+   /** @brief Compute the non-negative least squares solution to the
+       underdetermined system. */
    void Mult(const Vector &w, Vector &sol) const override;
 
    /** @brief
-     * Set verbosity. If set to 0: print nothing; if 1: just print results;
-     * if 2: print short update on every iteration; if 3: print longer update
-     * each iteration.
+       Set verbosity. If set to 0: print nothing; if 1: just print results;
+       if 2: print short update on every iteration; if 3: print longer update
+       each iteration.
      */
    void SetVerbosity(int v) { verbosity_ = v; }
 
+   /// Set the target absolute residual norm tolerance for convergence
    void SetTolerance(double tol) { const_tol_ = tol; }
 
    /// Set the minimum number of nonzeros required for the solution.
    void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
 
-   /// Set the maximum number of nonzeros required for the solution, as an early
-   /// termination condition.
+   /** @brief Set the maximum number of nonzeros required for the solution, as
+       an early termination condition. */
    void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
 
-   /// Set threshold on relative change in residual over nStallCheck_ iterations.
+   /** @brief Set threshold on relative change in residual over nStallCheck_
+       iterations. */
    void SetResidualChangeTolerance(double tol)
    { res_change_termination_tol_ = tol; }
 
+   /** @brief Set the magnitude of projected residual entries that are
+       considered zero.  Increasing this value relaxes solution constraints. */
    void SetZeroTolerance(double tol) { zero_tol_ = tol; }
 
    /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().

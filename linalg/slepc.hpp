@@ -51,16 +51,18 @@ public:
 
    virtual ~SlepcEigenSolver();
 
-   /** @brief Set solver convergence tolerance relative to the magnitude of the eigenvalue
+   /** @brief Set solver convergence tolerance relative to the magnitude of the
+       eigenvalue.
 
-      @note Default value is 1e-8
+       @note Default value is 1e-8
    */
    void SetTol(double tol);
 
-   /// Set maximum number of iterations allowed in the call to SlepcEigenSolver::Solve
+   /** @brief Set maximum number of iterations allowed in the call to
+       SlepcEigenSolver::Solve */
    void SetMaxIter(int max_iter);
 
-   /// Set the number of eignemodes to compute
+   /// Set the number of eigenmodes to compute
    void SetNumModes(int num_eigs);
 
    /// Set operator for standard eigenvalue problem
@@ -75,43 +77,52 @@ public:
    /// Solve the eigenvalue problem for the specified number of eigenvalues
    void Solve();
 
-   /// Get the number of converged eigenvalues after the call to SlepcEigenSolver::Solve
+   /** @brief Get the number of converged eigenvalues after the call to
+       SlepcEigenSolver::Solve */
    int GetNumConverged();
 
    /** @brief Get the ith eigenvalue after the system has been solved
-      @param[in] i The index for the eigenvalue you want ordered by SlepcEigenSolver::SetWhichEigenpairs
+      @param[in] i The index for the eigenvalue you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
       @param[out] lr The real component of the eigenvalue
-      @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
    */
    void GetEigenvalue(unsigned int i, double & lr) const;
 
    /** @brief Get the ith eigenvalue after the system has been solved
-      @param[in] i The index for the eigenvalue you want ordered by SlepcEigenSolver::SetWhichEigenpairs
+      @param[in] i The index for the eigenvalue you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
       @param[out] lr The real component of the eigenvalue
       @param[out] lc The imaginary component of the eigenvalue
-      @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
    */
    void GetEigenvalue(unsigned int i, double & lr, double & lc) const;
 
    /** @brief Get the ith eigenvector after the system has been solved
-      @param[in] i The index for the eigenvector you want ordered by SlepcEigenSolver::SetWhichEigenpairs
+      @param[in] i The index for the eigenvector you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
       @param[out] vr The real components of the eigenvector
-      @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
    */
    void GetEigenvector(unsigned int i, Vector & vr) const;
 
    /** @brief Get the ith eigenvector after the system has been solved
-      @param[in] i The index for the eigenvector you want ordered by SlepcEigenSolver::SetWhichEigenpairs
+      @param[in] i The index for the eigenvector you want ordered by
+                 SlepcEigenSolver::SetWhichEigenpairs
       @param[out] vr The real components of the eigenvector
       @param[out] vc The imaginary components of the eigenvector
-      @note the index @a i must be between 0 and SlepcEigenSolver::GetNumConverged - 1
+      @note the index @a i must be between 0 and
+            SlepcEigenSolver::GetNumConverged - 1
    */
    void GetEigenvector(unsigned int i, Vector & vr, Vector & vc) const;
 
    /** @brief Target spectrum for the eigensolver.
 
-       This will define the order in which the eigenvalues/eigenvectors are indexed
-       after the call to SlepcEigenSolver::Solve.
+       This will define the order in which the eigenvalues/eigenvectors are
+       indexed after the call to SlepcEigenSolver::Solve.
        @note Target imaginary is not supported without complex support in SLEPc,
        and intervals are not implemented.
    */
@@ -136,7 +147,7 @@ public:
    };
 
    /** @brief Spectral transformations that can be used by the solver in order
-      to accelerate the convergence to the target eignevalues
+       to accelerate the convergence to the target eignevalues
    */
    enum SpectralTransformation
    {
@@ -146,20 +157,24 @@ public:
       SHIFT_INVERT
    };
 
-   /** @brief Set the which eignevalues the solver will target and the order they will be indexed in
+   /** @brief Set the which eigenvalues the solver will target and the order
+       they will be indexed in.
 
-      For SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL you will also need to
-      set the target value with SlepcEigenSolver::SetTarget.
+       For SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL
+       you will also need to set the target value with
+       SlepcEigenSolver::SetTarget.
    */
    void SetWhichEigenpairs(Which which);
 
-   /** @brief Set the target value for the eigenpairs you want when using SlepcEigenSolver::TARGET_MAGNITUDE
-      or SlepcEigenSolver::TARGET_REAL in the SlepcEigenSolver::SetWhichEigenpairs method.
+   /** @brief Set the target value for the eigenpairs you want when using
+       SlepcEigenSolver::TARGET_MAGNITUDE or SlepcEigenSolver::TARGET_REAL in
+       the SlepcEigenSolver::SetWhichEigenpairs method.
    */
    void SetTarget(double target);
 
-   /** @brief Set the spectral transformation strategy for acceletating convergenvce.
-      Both SlepcEigenSolver::SHIFT and SlepcEigenSolver::SHIFT_INVERT are available.
+   /** @brief Set the spectral transformation strategy for acceletating
+       convergenvce. Both SlepcEigenSolver::SHIFT and
+       SlepcEigenSolver::SHIFT_INVERT are available.
    */
    void SetSpectralTransformation(SpectralTransformation transformation);
 

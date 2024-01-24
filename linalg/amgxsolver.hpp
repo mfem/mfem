@@ -107,7 +107,7 @@ public:
    */
    AmgXSolver(const AMGX_MODE amgxMode_, const bool verbose);
 
-   /** @brief Initilize the AmgX library for serial execution once
+   /** @brief Initialize the AmgX library for serial execution once
       the solver configuration has been established through either the
       AmgXSolver::ReadParameters method or the constructor.  The constructor
       will make this call.
@@ -121,7 +121,8 @@ public:
       (AmgXSolver::SOLVER, AmgXSolver::PRECONDITIONER)
       and verbosity. Pairs each MPI rank with one GPU.
    */
-   AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_, const bool verbose);
+   AmgXSolver(const MPI_Comm &comm, const AMGX_MODE amgxMode_,
+              const bool verbose);
 
    /** @brief
       Configures AmgX with a default configuration based on the AMGX_MODE
@@ -142,11 +143,11 @@ public:
    */
    void InitExclusiveGPU(const MPI_Comm &comm);
 
-   /** @brief Initialize the AmgX library and create MPI teams based on the number
-      of devices on each node @a nDevs.  If configuring with a constructor, the
-      constructor will make this call, otherwise this will need to be called
-      after the solver configuration has been established through the
-      AmgXSolver::ReadParameters call.
+   /** @brief Initialize the AmgX library and create MPI teams based on the
+      numberof devices on each node @a nDevs.  If configuring with a
+      constructor, theconstructor will make this call, otherwise this will need
+      to be calledafter the solver configuration has been established through
+      the AmgXSolver::ReadParameters call.
    */
    void InitMPITeams(const MPI_Comm &comm,
                      const int nDevs);
@@ -164,7 +165,7 @@ public:
    */
    void UpdateOperator(const Operator &op);
 
-   /** @brief Untilize the AmgX library to solve the linear system
+   /** @brief Utilize the AmgX library to solve the linear system
        where the "matrix" is the AMG approximation to the operator set
        by AmgXSolver::SetOperator.  If the mode is set to
        AmgXSolver::PRECONDITIONER the initial guess for the
@@ -173,14 +174,15 @@ public:
    */
    virtual void Mult(const Vector& b, Vector& x) const;
 
-   /// Return the number of iterations that were executed during the last solve phase.
+   /** @brief Return the number of iterations that were executed during the
+       last solve phase. */
    int GetNumIterations();
 
-   /** @brief Read in the AMGx parameters either through a file or directly through a
-       properly formated string.  If @a source is set to AmgXSolver::EXTERNAL
-       the parameters are loaded from a filename set by @a config.  If If @a source is set
-       to AmgXSolver::INTERNAL the parameters are set directly by the string
-       defined by @a config.
+   /** @brief Read in the Amgx parameters either through a file or directly
+       through a properly formated string.  If @a source is set to
+       AmgXSolver::EXTERNAL the parameters are loaded from a filename set by
+       @a config.  If @a source is set to AmgXSolver::INTERNAL the parameters
+       are set directly by the string defined by @a config.
    */
    void ReadParameters(const std::string config, CONFIG_SRC source);
 
@@ -224,12 +226,13 @@ private:
    */
    void SetMatrixMPIGPUExclusive(const HypreParMatrix &A,
                                  const Array<double> &loc_A,
-                                 const Array<int> &loc_I, const Array<int64_t> &loc_J,
+                                 const Array<int> &loc_I,
+                                 const Array<int64_t> &loc_J,
                                  const bool update_mat = false);
 
-   /** @brief Consolidates matrix diagonal and off diagonal data for all ranks in an MPI
-      team. Root rank of each MPI team holds the the consolidated data and sets
-      matrix.
+   /** @brief Consolidates matrix diagonal and off diagonal data for all ranks
+       in an MPIteam. Root rank of each MPI team holds the the consolidated
+      data and setsmatrix.
    */
    void SetMatrixMPITeams(const HypreParMatrix &A, const Array<double> &loc_A,
                           const Array<int> &loc_I, const Array<int64_t> &loc_J,

@@ -41,11 +41,12 @@ typedef enum
 {
    /// No row permutation
    NOROWPERM,
-   /** @brief Duff/Koster algorithm to make the diagonals large compared to the off-diagonals.
-       Use LargeDiag for SuperLU version 5 and below.*/
+   /** @brief Duff/Koster algorithm to make the diagonals large compared to the
+       off-diagonals. Use LargeDiag for SuperLU version 5 and below. */
    LargeDiag_MC64,
-   /** @brief Parallel approximate weight perfect matching to make the diagonals large
-       compared to the off-diagonals.  Option doesn't exist in SuperLU version 5 and below.*/
+   /** @brief Parallel approximate weight perfect matching to make the diagonals
+       large compared to the off-diagonals.  Option doesn't exist in SuperLU
+       version 5 and below. */
    LargeDiag_HWPM,
    /// User defined row permutation
    MY_PERMR
@@ -65,7 +66,8 @@ typedef enum
    COLAMD,
    /// Sequential ordering on structure of \f$ A^T+A \f$ using the METIS package
    METIS_AT_PLUS_A,
-   /// Sequential ordering on structure of \f$ A^T+A \f$ using the PARMETIS package
+   /** @brief Sequential ordering on structure of \f$ A^T+A \f$ using the
+       PARMETIS package */
    PARMETIS,
    /// Use the Zoltan library from Sandia to define the column ordering
    ZOLTAN,
@@ -86,19 +88,21 @@ typedef enum
    SLU_EXTRA
 } IterRefine;
 
-/// Define the information that is provided about the matrix factorization ahead of time
+/** @brief Define the information that is provided about the matrix
+    factorization ahead of time. */
 typedef enum
 {
    /// No information is provided, do the full factorization.
    DOFACT,
-   /** @brief Matrix A will be factored assuming the sparsity is the same as a previous
-       factorization.  Column permutations will be reused. */
+   /** @brief Matrix A will be factored assuming the sparsity is the same as a
+       previous factorization.  Column permutations will be reused. */
    SamePattern,
-   /** @brief Matrix A will be factored assuming the sparsity is the same and the matrix
-       as a previous are similar as a previous factorization.  Column permutations
-       and row permutations will be reused. */
+   /** @brief Matrix A will be factored assuming the sparsity is the same and
+       the matrix as a previous are similar as a previous factorization.  Column
+       permutations and row permutations will be reused. */
    SamePattern_SameRowPerm,
-   /// The matrix A was provided in fully factored form and no factorization is needed.
+   /** @brief The matrix A was provided in fully factored form and no
+       factorization is needed. */
    FACTORED
 } Fact;
 
@@ -116,8 +120,9 @@ public:
                        HYPRE_BigInt glob_nrows, HYPRE_BigInt glob_ncols,
                        int *I, HYPRE_BigInt *J, double *data);
 
-   /** @brief Creates a copy of the parallel matrix hypParMat in SuperLU's RowLoc
-       format. All data is copied so the original matrix may be deleted. */
+   /** @brief Creates a copy of the parallel matrix hypParMat in SuperLU's
+       RowLoc format. All data is copied so the original matrix may be
+       deleted. */
    SuperLURowLocMatrix(const Operator &op);
 
    ~SuperLURowLocMatrix();
@@ -174,25 +179,26 @@ public:
    ~SuperLUSolver();
 
    /** @brief Set the operator/matrix.
-       \note  @a A must be a SuperLURowLocMatrix. */
+       @note  @a A must be a SuperLURowLocMatrix. */
    void SetOperator(const Operator &op);
 
    /** @brief Factor and solve the linear system \f$ y = Op^{-1} x \f$
-       \note Factorization modifies the operator matrix. */
+       @note Factorization modifies the operator matrix. */
    void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Factor and solve the linear systems \f$ y_i = Op^{-1} x_i \f$
        for all i in the @a X and @a Y arrays.
-       \note Factorization modifies the operator matrix. */
+       @note Factorization modifies the operator matrix. */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
-   /** @brief Factor and solve the transposed linear system \f$ y = Op^{-T} x \f$
-       \note Factorization modifies the operator matrix. */
+   /** @brief Factor and solve the transposed linear system
+       \f$ y = Op^{-T} x \f$
+       @note Factorization modifies the operator matrix. */
    void MultTranspose(const Vector &x, Vector &y) const;
 
-   /** @brief Factor and solve the transposed linear systems \f$ y_i = Op^{-T} x_i \f$
-       for all i in the @a X and @a Y arrays.
-       \note Factorization modifies the operator matrix. */
+   /** @brief Factor and solve the transposed linear systems
+       \f$ y_i = Op^{-T} x_i \f$ for all i in the @a X and @a Y arrays.
+       @note Factorization modifies the operator matrix. */
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
 
@@ -206,18 +212,18 @@ public:
    /** @brief Specify how to permute the columns of the matrix.
 
       Supported options are:
-      superlu::NATURAL, superlu::MMD_ATA, superlu::MMD_AT_PLUS_A, superlu::COLAMD,
-      superlu::METIS_AT_PLUS_A (default),
+      superlu::NATURAL, superlu::MMD_ATA, superlu::MMD_AT_PLUS_A,
+      superlu::COLAMD, superlu::METIS_AT_PLUS_A (default),
       superlu::PARMETIS, superlu::ZOLTAN, superlu::MY_PERMC */
    void SetColumnPermutation(superlu::ColPerm col_perm);
 
    /** @brief Specify how to permute the rows of the matrix.
 
       Supported options are:
-      superlu::NOROWPERM, superlu::LargeDiag (default), superlu::MY_PERMR for SuperLU
-      version 5.  For later versions the supported options are:
-      superlu::NOROWPERM, superlu::LargeDiag_MC64 (default), superlu::LargeDiag_HWPM,
-      superlu::MY_PERMR */
+      superlu::NOROWPERM, superlu::LargeDiag (default), superlu::MY_PERMR for
+      SuperLU version 5.  For later versions the supported options are:
+      superlu::NOROWPERM, superlu::LargeDiag_MC64 (default),
+      superlu::LargeDiag_HWPM, superlu::MY_PERMR */
    void SetRowPermutation(superlu::RowPerm row_perm);
 
    /** @brief Specify how to handle iterative refinement
@@ -228,21 +234,24 @@ public:
    void SetIterativeRefine(superlu::IterRefine iter_ref);
 
    /** @brief Specify whether to replace tiny diagonals encountered
-       during pivot with \f$ \sqrt{\epsilon} \lVert A \rVert \f$ (default false)*/
+       during pivot with \f$ \sqrt{\epsilon} \lVert A \rVert \f$
+       (default false) */
    void SetReplaceTinyPivot(bool rtp);
 
    /// Specify the number of levels in the look-ahead factorization (default 10)
    void SetNumLookAheads(int num_lookaheads);
 
    /** @brief Specifies whether to use the elimination tree computed from the
-       serial symbolic factorization to perform static scheduling (default false)*/
+       serial symbolic factorization to perform static scheduling
+       (default false) */
    void SetLookAheadElimTree(bool etree);
 
-   /// Specify whether the matrix has a symmetric pattern to avoid extra work (default false)
+   /** @brief Specify whether the matrix has a symmetric pattern to avoid extra
+       work (default false) */
    void SetSymmetricPattern(bool sym);
 
    /** @brief Specify whether to perform parallel symbolic factorization.
-       \note If true SuperLU will use superlu::PARMETIS for the Column
+       @note If true SuperLU will use superlu::PARMETIS for the Column
        Permutation regardless of the setting */
    void SetParSymbFact(bool par);
 
@@ -250,7 +259,8 @@ public:
        factorization of A.
 
        Supported options are:
-       superlu::DOFACT, superlu::SamePattern, superlu::SamePattern_SameRowPerm, superlu::FACTORED*/
+       superlu::DOFACT, superlu::SamePattern, superlu::SamePattern_SameRowPerm,
+       superlu::FACTORED*/
    void SetFact(superlu::Fact fact);
 
    // Processor grid for SuperLU_DIST.

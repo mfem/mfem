@@ -34,20 +34,19 @@ public:
    /** @brief Creates a general parallel matrix from a local CSR matrix on each
        processor.
 
-       The CSR matrix is described by the I, J and data arrays. The local matrix should
-       be of size (local) nrows by (global) glob_ncols. The new parallel matrix
-       contains copies of all input arrays (so they can be deleted). */
+       The CSR matrix is described by the I, J and data arrays. The local matrix
+       should be of size (local) nrows by (global) glob_ncols. The new parallel
+       matrix contains copies of all input arrays (so they can be deleted). */
    STRUMPACKRowLocMatrix(MPI_Comm comm,
                          int num_loc_rows, HYPRE_BigInt first_loc_row,
                          HYPRE_BigInt glob_nrows, HYPRE_BigInt glob_ncols,
                          int *I, HYPRE_BigInt *J, double *data,
                          bool sym_sparse = false);
 
-   /** @brief Creates a copy of the parallel matrix hypParMat in STRUMPACK's RowLoc
-       format.
+   /** @brief Creates a copy of the parallel matrix hypParMat in STRUMPACK's
+       RowLoc format.
 
-       All data is copied so the original matrix may be deleted.
-   */
+       All data is copied so the original matrix may be deleted. */
    STRUMPACKRowLocMatrix(const Operator &op, bool sym_sparse = false);
 
    ~STRUMPACKRowLocMatrix();
@@ -59,10 +58,10 @@ public:
                  "supported!");
    }
 
-   /// Get the MPI Comm being used by the parallel matrix
+   /// Get the MPI Comm being used by the parallel matrix.
    MPI_Comm GetComm() const { return A_->comm(); }
 
-   /// Gain access to the internal CSR matrix
+   /// Get access to the internal CSR matrix.
    strumpack::CSRMatrixMPI<double, HYPRE_BigInt> *GetA() const { return A_; }
 
 private:
@@ -74,24 +73,22 @@ private:
     The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
     double precision types. See
-    http://portal.nersc.gov/project/sparse/strumpack/.
-*/
+    http://portal.nersc.gov/project/sparse/strumpack/. */
 template <typename STRUMPACKSolverType>
 class STRUMPACKSolverBase : public Solver
 {
 protected:
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
 
-      STRUMPACKSolverBase::SetFromCommandLine must be called for the command
-      line arguments to be used.
-   */
+       STRUMPACKSolverBase::SetFromCommandLine must be called for the command
+       line arguments to be used. */
    STRUMPACKSolverBase(MPI_Comm comm, int argc, char *argv[]);
 
-   /** @brief Constructor with STRUMPACK matrix object and command line arguments.
+   /** @brief Constructor with STRUMPACK matrix object and command line
+       arguments.
 
-      STRUMPACKSolverBase::SetFromCommandLine must be called for the command
-      line arguments to be used.
-   */
+       STRUMPACKSolverBase::SetFromCommandLine must be called for the command
+       line arguments to be used. */
    STRUMPACKSolverBase(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
 
 public:
@@ -101,7 +98,8 @@ public:
    /// Factor and solve the linear system \f$y = Op^{-1} x \f$.
    void Mult(const Vector &x, Vector &y) const;
 
-   /// Factor and solve the linear systems \f$ Y_i = Op^{-1} X_i \f$ across the array of vectors.
+   /** @brief Factor and solve the linear systems \f$ Y_i = Op^{-1} X_i \f$
+       across the array of vectors. */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /** @brief Set the operator/matrix.
@@ -110,9 +108,8 @@ public:
 
    /** @brief Set options that were captured from the command line.
 
-      These were captured in the constructer STRUMPACKSolverBase.  Refer
-      to the STRUMPACK documentation for details.
-   */
+       These were captured in the constructer STRUMPACKSolverBase. Refer
+       to the STRUMPACK documentation for details. */
    void SetFromCommandLine();
 
    /// Set up verbose printing during the factor step
@@ -130,21 +127,22 @@ public:
    /// Set the maximum number of iterations for iterative solvers
    void SetMaxIter(int max_it);
 
-   /** @brief Set the flag controlling reuse of the symbolic factorization for multiple
-      operators.
+   /** @brief Set the flag controlling reuse of the symbolic factorization for
+       multiple operators.
 
-      This method must be called before repeated calls to SetOperator.
-   */
+       This method must be called before repeated calls to SetOperator. */
    void SetReorderingReuse(bool reuse);
 
-   /** @brief Enable GPU off-loading available if STRUMPACK was compiled with CUDA.
-       @note Input/Output from MFEM to STRUMPACK is all still through host memory.
-   */
+   /** @brief Enable GPU off-loading available if STRUMPACK was compiled with
+       CUDA.
+       @note Input/Output from MFEM to STRUMPACK is all still through host
+       memory. */
    void EnableGPU();
 
-   /** @brief Disable GPU off-loading available if STRUMPACK was compiled with CUDA.
-       @note Input/Output from MFEM to STRUMPACK is all still through host memory.
-   */
+   /** @brief Disable GPU off-loading available if STRUMPACK was compiled with
+       CUDA.
+       @note Input/Output from MFEM to STRUMPACK is all still through host
+       memory. */
    void DisableGPU();
 
    /** @brief Set the Krylov solver method to use
@@ -157,13 +155,13 @@ public:
     *
     * Supported values are:
     *  - AUTO:           Use iterative refinement if no HSS compression is
-    *                    used, otherwise use GMRes
+    *                    used, otherwise use GMRES
     *  - DIRECT:         No outer iterative solver, just a single application
     *                    of the multifrontal solver
     *  - REFINE:         Iterative refinement
-    *  - PREC_GMRES:     Preconditioned GMRes
+    *  - PREC_GMRES:     Preconditioned GMRES
     *                    The preconditioner is the (approx) multifrontal solver
-    *  - GMRES:          UN-preconditioned GMRes (for testing mainly)
+    *  - GMRES:          UN-preconditioned GMRES (for testing mainly)
     *  - PREC_BICGSTAB:  Preconditioned BiCGStab
     *                    The preconditioner is the (approx) multifrontal solver
     *  - BICGSTAB:       UN-preconditioned BiCGStab. (for testing mainly)
@@ -253,14 +251,15 @@ public:
 #if STRUMPACK_VERSION_MAJOR >= 5
    /** @brief Set the precision for the lossy compression option
     *
-    * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
-    */
+    *  Use STRUMPACKSolverBase::SetCompression to set the proper compression
+    * type. */
    void SetCompressionLossyPrecision(int precision);
 
-   /** @brief Set the number of butterflylevels for the HODLR compression option
+   /** @brief Set the number of butterfly levels for the HODLR compression
+    *  option.
     *
-    * Use STRUMPACKSolverBase::SetCompression to set the proper compression type.
-    */
+    *  Use STRUMPACKSolverBase::SetCompression to set the proper compression
+    *  type. */
    void SetCompressionButterflyLevels(int levels);
 #endif
 
@@ -293,17 +292,18 @@ public:
 
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
 
-      SetFromCommandLine must be called for the command line arguments
-      to be used.
+       SetFromCommandLine must be called for the command line arguments
+       to be used.
    */
    STRUMPACKSolver(MPI_Comm comm, int argc, char *argv[]);
    MFEM_DEPRECATED STRUMPACKSolver(int argc, char *argv[], MPI_Comm comm)
       : STRUMPACKSolver(comm, argc, argv) {}
 
-   /** @brief Constructor with MSTRUMPACK matrix object and command line arguments.
+   /** @brief Constructor with STRUMPACK matrix object and command line
+       arguments.
 
-     SetFromCommandLine must be called for the command line arguments
-     to be used.
+       SetFromCommandLine must be called for the command line arguments
+       to be used.
    */
    STRUMPACKSolver(STRUMPACKRowLocMatrix &A, int argc, char *argv[]);
 
@@ -325,15 +325,16 @@ public:
 
    /** @brief Constructor with MPI_Comm parameter and command line arguments.
 
-      SetFromCommandLine must be called for the command line arguments
-      to be used.
+       SetFromCommandLine must be called for the command line arguments
+       to be used.
    */
    STRUMPACKMixedPrecisionSolver(MPI_Comm comm, int argc, char *argv[]);
 
-   /** @brief Constructor with MSTRUMPACK matrix object and command line arguments.
+   /** @brief Constructor with STRUMPACK matrix object and command line
+       arguments.
 
-      SetFromCommandLine must be called for the command line arguments
-      to be used.
+       SetFromCommandLine must be called for the command line arguments
+       to be used.
    */
    STRUMPACKMixedPrecisionSolver(STRUMPACKRowLocMatrix &A,
                                  int argc, char *argv[]);
