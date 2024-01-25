@@ -2026,7 +2026,8 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
             }
 
             const SpacingType s = (SpacingType) spacingType;
-            knotVectors[ki]->spacing = std::move(GetSpacingFunction(s, ipar, dpar));
+            knotVectors[ki]->spacing = std::move(GetSpacingFunction(s, ipar,
+                                                                    dpar));
          }
       }
    }

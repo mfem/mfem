@@ -26,44 +26,46 @@ std::unique_ptr<SpacingFunction> GetSpacingFunction(const SpacingType
       case SpacingType::UNIFORM_SPACING:
          MFEM_VERIFY(ipar.Size() == 1 &&
                      dpar.Size() == 0, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new UniformSpacingFunction(ipar[0]));
+         return std::unique_ptr<SpacingFunction>(
+                   new UniformSpacingFunction(ipar[0]));
       case SpacingType::LINEAR:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new LinearSpacingFunction(ipar[0],
-                                                                           (bool) ipar[1], dpar[0],
-                                                                           (bool) ipar[2]));
+         return std::unique_ptr<SpacingFunction>(
+                   new LinearSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                             (bool) ipar[2]));
       case SpacingType::GEOMETRIC:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new GeometricSpacingFunction(ipar[0],
-                                                                              (bool) ipar[1], dpar[0],
-                                                                              (bool) ipar[2]));
+         return std::unique_ptr<SpacingFunction>(
+                   new GeometricSpacingFunction(ipar[0], (bool) ipar[1],
+                                                dpar[0], (bool) ipar[2]));
       case SpacingType::BELL:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new BellSpacingFunction(ipar[0],
-                                                                         (bool) ipar[1], dpar[0],
-                                                                         dpar[1], (bool) ipar[2]));
+         return std::unique_ptr<SpacingFunction>(
+                   new BellSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                           dpar[1], (bool) ipar[2]));
       case SpacingType::GAUSSIAN:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 2, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new GaussianSpacingFunction(ipar[0],
-                                                                             (bool) ipar[1], dpar[0],
-                                                                             dpar[1], (bool) ipar[2]));
+         return std::unique_ptr<SpacingFunction>(
+                   new GaussianSpacingFunction(ipar[0], (bool) ipar[1], dpar[0],
+                                               dpar[1], (bool) ipar[2]));
       case SpacingType::LOGARITHMIC:
          MFEM_VERIFY(ipar.Size() == 3 &&
                      dpar.Size() == 1, "Invalid spacing function parameters");
-         return std::unique_ptr<SpacingFunction>(new LogarithmicSpacingFunction(ipar[0],
-                                                                                (bool) ipar[1],
-                                                                                (bool) ipar[2], dpar[0]));
+         return std::unique_ptr<SpacingFunction>(
+                   new LogarithmicSpacingFunction(ipar[0], (bool) ipar[1],
+                                                  (bool) ipar[2], dpar[0]));
       case SpacingType::PIECEWISE:
          MFEM_VERIFY(ipar.Size() >= 3, "Invalid spacing function parameters");
          ipar.GetSubArray(3, ipar[1], relN);
          ipar.GetSubArray(3 + ipar[1], ipar.Size() - 3 - ipar[1], iparsub);
-         return std::unique_ptr<SpacingFunction>(new PiecewiseSpacingFunction(ipar[0],
-                                                                              ipar[1], (bool) ipar[2],
-                                                                              relN, iparsub, dpar));
+         return std::unique_ptr<SpacingFunction>(
+                   new PiecewiseSpacingFunction(ipar[0], ipar[1],
+                                                (bool) ipar[2], relN, iparsub,
+                                                dpar));
       default:
          MFEM_ABORT("Unknown spacing type \"" << int(spacingType) << "\"");
          break;
@@ -484,9 +486,8 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
       dnum += p->NumDoubleParameters();
    }
 
-   os << int(SpacingType::PIECEWISE) << " " << inum << " " << dnum << " " << n <<
-      " " << np << " "
-      << (int) reverse << "\n";
+   os << int(SpacingType::PIECEWISE) << " " << inum << " " << dnum << " "
+      << n << " " << np << " " << (int) reverse << "\n";
 
    for (auto n : npartition)
    {
