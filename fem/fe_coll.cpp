@@ -1635,7 +1635,8 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 }
 
 
-H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
+H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
+				 const int pyrtype)
    : FiniteElementCollection(p)
    , dim(dim)
 {
@@ -1836,8 +1837,19 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         // H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6;
-         H1_dof[Geometry::PYRAMID] = 0;
+	 if (pyrtype == 0)
+	 {
+	    H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
+	 }
+	 else if (pyrtype == 1)
+	 {
+	    H1_dof[Geometry::PYRAMID] = pm1*pm1*pm1; // Fuentes
+	 }
+	 else
+	 {
+	    H1_dof[Geometry::PYRAMID] = (p-1)*(p-2)/2;
+	    // H1_dof[Geometry::PYRAMID] = 0;
+	 }
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
@@ -1850,7 +1862,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                new H1_TetrahedronElement(p, btype);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
-            H1_Elements[Geometry::PYRAMID] = new H1_PyramidElement(p, btype);
+            if (pyrtype == 0)
+	    {
+	      H1_Elements[Geometry::PYRAMID] = new H1_BergotPyramidElement(p, btype);
+	    }
+	    else
+	    {
+	      H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
+	    }
          }
          // H1_Elements[Geometry::PYRAMID] = new LinearPyramidFiniteElement;
 
@@ -1950,6 +1969,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 const FiniteElement *
 H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
+   return H1_Elements[GeomType];
+   /*
    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
    {
       return H1_Elements[GeomType];
@@ -1961,6 +1982,7 @@ H1_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
                  "for order > 1.");
       return NULL;
    }
+   */
 }
 
 const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
@@ -2063,7 +2085,7 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
 
 
 L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
-                                 const int map_type)
+                                 const int map_type, const int pyr_type)
    : FiniteElementCollection(p)
    , dim(dim)
    , m_type(map_type)
@@ -2201,7 +2223,14 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             new L2_TetrahedronElement(p, btype);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
-         L2_Elements[Geometry::PYRAMID] = new L2_PyramidElement(p, btype);
+	 if (pyr_type == 0)
+	 {
+	   L2_Elements[Geometry::PYRAMID] = new L2_BergotPyramidElement(p, btype);
+	 }
+	 else
+	 {
+	   L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
+	 }
       }
       // L2_Elements[Geometry::PYRAMID] = new P0PyrFiniteElement;
 
@@ -2334,6 +2363,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
 const FiniteElement *
 L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
+   return L2_Elements[GeomType];
+   /*
    if (GeomType != Geometry::PYRAMID || this->GetOrder() == 0)
    {
       return L2_Elements[GeomType];
@@ -2345,6 +2376,7 @@ L2_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
                  "for order > 0.");
       return NULL;
    }
+   */
 }
 
 const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
