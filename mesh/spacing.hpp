@@ -118,21 +118,6 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor
-   UniformSpacingFunction(const UniformSpacingFunction &sf)
-      : SpacingFunction(sf), s(sf.s)
-   { }
-
-   UniformSpacingFunction& operator=(const UniformSpacingFunction &sf)
-   {
-      UniformSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   UniformSpacingFunction(UniformSpacingFunction &&sf) = default;
-   UniformSpacingFunction& operator=(UniformSpacingFunction &&sf) = default;
-
    void SetSize(int size) override
    {
       n = size;
@@ -200,21 +185,6 @@ public:
       MFEM_VERIFY(0.0 < s && s < 1.0, "Initial spacing must be in (0,1)");
       CalculateDifference();
    }
-
-   /// Copy constructor
-   LinearSpacingFunction(const LinearSpacingFunction &sf)
-      : SpacingFunction(sf), s(sf.s), d(sf.d)
-   { }
-
-   LinearSpacingFunction& operator=(const LinearSpacingFunction &sf)
-   {
-      LinearSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   LinearSpacingFunction(LinearSpacingFunction &&sf) = default;
-   LinearSpacingFunction& operator=(LinearSpacingFunction &&sf) = default;
 
    void SetSize(int size) override
    {
@@ -305,21 +275,6 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor
-   GeometricSpacingFunction(const GeometricSpacingFunction &sf)
-      : SpacingFunction(sf), s(sf.s), r(sf.r)
-   { }
-
-   GeometricSpacingFunction& operator=(const GeometricSpacingFunction &sf)
-   {
-      GeometricSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   GeometricSpacingFunction(GeometricSpacingFunction &&sf) = default;
-   GeometricSpacingFunction& operator=(GeometricSpacingFunction &&sf) = default;
-
    void SetSize(int size) override
    {
       n = size;
@@ -409,20 +364,6 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor
-   BellSpacingFunction(const BellSpacingFunction &sf)
-      : SpacingFunction(sf), s0(sf.s0), s1(sf.s1), s(sf.s)
-   { }
-
-   BellSpacingFunction& operator=(const BellSpacingFunction &sf)
-   {
-      BellSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   BellSpacingFunction(BellSpacingFunction &&sf) = default;
-   BellSpacingFunction& operator=(BellSpacingFunction &&sf) = default;
    void SetSize(int size) override
    {
       n = size;
@@ -514,21 +455,6 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor
-   GaussianSpacingFunction(const GaussianSpacingFunction &sf)
-      : SpacingFunction(sf), s0(sf.s0), s1(sf.s1), s(sf.s)
-   { }
-
-   GaussianSpacingFunction& operator=(const GaussianSpacingFunction &sf)
-   {
-      GaussianSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   GaussianSpacingFunction(GaussianSpacingFunction &&sf) = default;
-   GaussianSpacingFunction& operator=(GaussianSpacingFunction &&sf) = default;
-
    void SetSize(int size) override
    {
       n = size;
@@ -608,22 +534,6 @@ public:
    {
       CalculateSpacing();
    }
-
-   /// Copy constructor
-   LogarithmicSpacingFunction(const LogarithmicSpacingFunction &sf)
-      : SpacingFunction(sf), sym(sf.sym), logBase(sf.logBase), s(sf.s)
-   { }
-
-   LogarithmicSpacingFunction& operator=(const LogarithmicSpacingFunction &sf)
-   {
-      LogarithmicSpacingFunction tmp(sf);
-      std::swap(tmp, *this);
-      return *this;
-   }
-
-   LogarithmicSpacingFunction(LogarithmicSpacingFunction &&sf) = default;
-   LogarithmicSpacingFunction& operator=(LogarithmicSpacingFunction &&sf) =
-      default;
 
    void SetSize(int size) override
    {
