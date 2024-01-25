@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -587,7 +587,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
 
    SparseMatrix diag_r, diag_i, offd_r, offd_i;
-   HYPRE_BigInt * cmap_r, * cmap_i;
+   HYPRE_BigInt * cmap_r = NULL, * cmap_i = NULL;
 
    int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
    int ncols_offd_r = 0, ncols_offd_i = 0;
@@ -729,12 +729,14 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
    delete [] offd_col_start_stop;
 
-   std::map<HYPRE_BigInt, HYPRE_BigInt>::iterator mit;
-   HYPRE_BigInt i = 0;
-   for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
    {
-      mit->second = i;
-      cmap[i] = mit->first;
+      std::map<HYPRE_BigInt, HYPRE_BigInt>::iterator mit;
+      HYPRE_BigInt i = 0;
+      for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+      {
+         mit->second = i;
+         cmap[i] = mit->first;
+      }
    }
 
    // Fill the CSR arrays for the off-diagonal portion of the matrix

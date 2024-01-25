@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,11 +27,15 @@ void gradf1(const Vector &x, Vector &u)
 {
    u(0) = 2*x(0);
    if (x.Size() >= 2) { u(1) = 3*pow(x(1), 2); }
-   if (x.Size() >= 3) { u(2) = 4*pow(x(1), 3); }
+   if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
 TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
 {
+   enum FECType { H1, L2_VALUE, L2_INTEGRAL };
+   auto fec_type = GENERATE(FECType::H1, FECType::L2_VALUE,
+                            FECType::L2_INTEGRAL);
+
    SECTION("MixedBilinearForm::FormRectangularSystemMatrix")
    {
       Mesh mesh = Mesh::MakeCartesian2D(
@@ -49,15 +53,28 @@ TEST_CASE("FormRectangular", "[FormRectangularSystemMatrix]")
       // Scalar
       H1_FECollection fec1(order, dim);
       FiniteElementSpace fes1(&mesh, &fec1);
+      fes1.GetEssentialTrueDofs(ess_bdr, ess_trial_tdof_list);
+      GridFunction field(&fes1);
 
       // Vector valued
-      H1_FECollection fec2(order, dim);
-      FiniteElementSpace fes2(&mesh, &fec2, dim);
-
-      fes1.GetEssentialTrueDofs(ess_bdr, ess_trial_tdof_list);
+      std::unique_ptr<FiniteElementCollection> fec2;
+      switch (fec_type)
+      {
+         case FECType::H1:
+            fec2.reset(new H1_FECollection(order, dim));
+            break;
+         case FECType::L2_VALUE:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::VALUE));
+            break;
+         case FECType::L2_INTEGRAL:
+            fec2.reset(new L2_FECollection(order, dim, BasisType::GaussLegendre,
+                                           FiniteElement::INTEGRAL));
+            break;
+      }
+      FiniteElementSpace fes2(&mesh, fec2.get(), dim);
       fes2.GetEssentialTrueDofs(ess_bdr, ess_test_tdof_list);
-
-      GridFunction field(&fes1), field2(&fes2);
+      GridFunction field2(&fes2);
 
       MixedBilinearForm gform(&fes1, &fes2);
       gform.AddDomainIntegrator(new GradientIntegrator);
@@ -159,7 +176,7 @@ TEST_CASE("ParallelFormRectangular",
    }
 }
 
-TEST_CASE("HypreParMatrixBlocks",
+TEST_CASE("HypreParMatrixBlocksRectangular",
           "[Parallel], [BlockMatrix]")
 {
    SECTION("HypreParMatrixFromBlocks")
@@ -257,7 +274,7 @@ TEST_CASE("HypreParMatrixBlocks",
 
       yH -= yB;
       double error = yH.Norml2();
-      std::cout << "  order: " << order
+      mfem::out << "  order: " << order
                 << ", block matrix error norm on rank " << rank << ": " << error << std::endl;
       REQUIRE(error < 1.e-12);
 

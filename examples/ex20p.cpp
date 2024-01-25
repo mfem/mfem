@@ -96,12 +96,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
    MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
    int order  = 1;
@@ -140,7 +140,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -247,17 +246,23 @@ int main(int argc, char *argv[])
    e_var /= (nsteps + 1);
    double e_sd = sqrt(e_var);
 
+   double e_loc_stats[2];
+   double *e_stats = (myid == 0) ? new double[2 * num_procs] : (double*)NULL;
+
+   e_loc_stats[0] = e_mean;
+   e_loc_stats[1] = e_sd;
+   MPI_Gather(e_loc_stats, 2, MPI_DOUBLE, e_stats, 2, MPI_DOUBLE, 0, comm);
+
    if (myid == 0)
    {
-      cout << endl << "Mean and standard deviation of the energy" << endl;
-   }
-   for (int i = 0; i < num_procs; i++)
-   {
-      if (myid == i)
+      cout << endl << "Mean and standard deviation of the energy "
+           << "for different initial conditions" << endl;
+      for (int i = 0; i < num_procs; i++)
       {
-         cout << myid << ": " << e_mean << "\t" << e_sd << endl;
+         cout << i << ": " << e_stats[2 * i + 0]
+              << "\t" << e_stats[2 * i + 1] << endl;
       }
-      MPI_Barrier(comm);
+      delete [] e_stats;
    }
 
    // 9. Finalize the GnuPlot output
@@ -317,8 +322,6 @@ int main(int argc, char *argv[])
            << "window_title 'Energy in Phase Space'\n"
            << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
    }
-
-   MPI_Finalize();
 }
 
 double hamiltonian(double q, double p, double t)

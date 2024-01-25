@@ -185,7 +185,8 @@ public:
 };
 
 // Visualization driver
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name = NULL,
                bool init_vis = false);
 
@@ -196,15 +197,16 @@ void InitialDeformation(const Vector &x, Vector &y);
 
 int main(int argc, char *argv[])
 {
-#ifdef HYPRE_USING_CUDA
+#ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this example\n"
-        << "is NOT supported with the CUDA version of hypre.\n\n";
-   return 255;
+        << "is NOT supported with the GPU version of hypre.\n\n";
+   return 242;
 #endif
 
-   // 1. Initialize MPI
-   MPI_Session mpi;
-   const int myid = mpi.WorldRank();
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init();
+   const int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options
    const char *mesh_file = "../data/beam-tet.mesh";
@@ -486,8 +488,8 @@ void JacobianPreconditioner::SetOperator(const Operator &op)
 
       if (!spaces[0]->GetParMesh()->Nonconforming())
       {
-#ifndef HYPRE_USING_CUDA
-         // Not available yet when hypre is built with CUDA
+#if !defined(HYPRE_USING_GPU)
+         // Not available yet when hypre is built with GPU support
          stiff_prec_amg->SetElasticityOptions(spaces[0]);
 #endif
       }
@@ -617,10 +619,11 @@ RubberOperator::~RubberOperator()
 
 
 // Inline visualization
-void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
+void visualize(ostream &os, ParMesh *mesh,
+               ParGridFunction *deformed_nodes,
                ParGridFunction *field, const char *field_name, bool init_vis)
 {
-   if (!out)
+   if (!os)
    {
       return;
    }
@@ -630,24 +633,27 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
    mesh->SwapNodes(nodes, owns_nodes);
 
-   out << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() << "\n";
-   out << "solution\n" << *mesh << *field;
+   os << "parallel " << mesh->GetNRanks() << " " << mesh->GetMyRank() <<
+      "\n";
+   os << "solution\n" << *mesh << *field;
 
    mesh->SwapNodes(nodes, owns_nodes);
 
    if (init_vis)
    {
-      out << "window_size 800 800\n";
-      out << "window_title '" << field_name << "'\n";
+      os << "window_size 800 800\n";
+      os << "window_title '" << field_name << "'\n";
       if (mesh->SpaceDimension() == 2)
       {
-         out << "view 0 0\n"; // view from top
-         out << "keys jlA\n"; // turn off perspective and light, +anti-aliasing
+         os << "view 0 0\n"; // view from top
+         // turn off perspective and light, +anti-aliasing
+         os << "keys jlA\n";
       }
-      out << "keys cmA\n";        // show colorbar and mesh, +anti-aliasing
-      out << "autoscale value\n"; // update value-range; keep mesh-extents fixed
+      os << "keys cmA\n"; // show colorbar and mesh, +anti-aliasing
+      // update value-range; keep mesh-extents fixed
+      os << "autoscale value\n";
    }
-   out << flush;
+   os << flush;
 }
 
 void ReferenceConfiguration(const Vector &x, Vector &y)

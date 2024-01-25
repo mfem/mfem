@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,12 +27,10 @@
 #endif
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_SEDOV_MPI)
-extern mfem::MPI_Session *GlobalMPISession;
 #define PFesGetParMeshGetComm(pfes) pfes.GetParMesh()->GetComm()
 #define PFesGetParMeshGetComm0(pfes) pfes.GetParMesh()->GetComm()
 #else
 #define HYPRE_BigInt int
-typedef int MPI_Session;
 #define ParMesh Mesh
 #define GetParMesh GetMesh
 #define GlobalTrueVSize GetVSize
@@ -41,7 +39,6 @@ typedef int MPI_Session;
 #define ParFiniteElementSpace FiniteElementSpace
 #define PFesGetParMeshGetComm(...)
 #define PFesGetParMeshGetComm0(...) 0
-#define MPI_Finalize()
 #define MPI_Allreduce(src,dst,...) *dst = *src
 #define MPI_Reduce(src, dst, n, T,...) *dst = *src
 #endif
@@ -119,7 +116,7 @@ void kSmemForceMult2D(const int NE,
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D,D1D,2,NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[Q1D][L1D];
@@ -262,7 +259,7 @@ void kSmemForceMult3D(const int NE,
    const double eps1 = std::numeric_limits<double>::epsilon();
    const double eps2 = eps1*eps1;
    auto velocity = Reshape(v_.Write(), D1D, D1D, D1D, 3, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double B[Q1D][L1D];
@@ -512,7 +509,7 @@ void kSmemForceMultTranspose2D(const int NE,
                        Q1D, Q1D, NE, 2, 2);
    auto velocity = Reshape(v_.Read(), D1D,D1D,2,NE);
    auto energy = Reshape(e_.Write(), L1D, L1D, NE);
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, NBZ,
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double Bt[L1D][Q1D];
@@ -652,7 +649,7 @@ void kSmemForceMultTranspose3D(const int NE,
                        Q1D, Q1D, Q1D, NE, 3, 3);
    auto velocity = Reshape(v_.Read(), D1D, D1D, D1D, 3, NE);
    auto energy = Reshape(e_.Write(), L1D, L1D, L1D, NE);
-   MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       const int z = MFEM_THREAD_ID(z);
       MFEM_SHARED double Bt[L1D][Q1D];
@@ -1150,7 +1147,7 @@ public:
       auto d_diag = diag.Read();
       auto d_x = x.Read();
       auto d_y = y.Write();
-      MFEM_FORALL(i, N, d_y[i] = d_x[i] / d_diag[i];);
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_x[i] / d_diag[i]; });
    }
    void SetOperator(const Operator&) { }
 };
@@ -1233,7 +1230,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    auto O = Reshape(one.Write(), NQ, NE);
    if (dim==2)
    {
-      MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
@@ -1259,7 +1256,7 @@ void ComputeRho0DetJ0AndVolume(const int dim,
    }
    else
    {
-      MFEM_FORALL_3D(e, NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
       {
          MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
@@ -1443,7 +1440,7 @@ void QKernel(const int nzones,
                               stressJinvT.TotalSize());
    if (dim==2)
    {
-      MFEM_FORALL_2D(z, nzones, Q1D, Q1D, 1,
+      mfem::forall_2D(nzones, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int z)
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;
@@ -1474,7 +1471,7 @@ void QKernel(const int nzones,
    }
    if (dim==3)
    {
-      MFEM_FORALL_3D(z, nzones, Q1D, Q1D, Q1D,
+      mfem::forall_3D(nzones, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int z)
       {
          constexpr int DIM = dim;
          constexpr int DIM2 = dim*dim;
@@ -1849,19 +1846,6 @@ public:
    }
 
    void ResetQuadratureData() const { quad_data_is_current = false; }
-
-   void ComputeDensity(ParGridFunction &rho) const
-   {
-      rho.SetSpace(&L2FESpace);
-      DenseMatrix Mrho(l2dofs_cnt);
-      Vector rhs(l2dofs_cnt), rho_z(l2dofs_cnt);
-      Array<int> dofs(l2dofs_cnt);
-      for (int i = 0; i < nzones; i++)
-      {
-         L2FESpace.GetElementDofs(i, dofs);
-         rho.SetSubVector(dofs, rho_z);
-      }
-   }
 };
 } // namespace hydrodynamics
 
@@ -2198,16 +2182,16 @@ static void sedov_tests(int myid)
 #ifndef MFEM_SEDOV_DEVICE
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #else
 TEST_CASE("Sedov", "[Sedov], [Parallel]")
 {
-#if defined(HYPRE_USING_CUDA) && defined(MFEM_DEBUG)
+#if defined(HYPRE_USING_GPU) && defined(MFEM_DEBUG)
    if (!strcmp(MFEM_SEDOV_DEVICE,"debug"))
    {
       cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-           << "is NOT supported with the CUDA version of hypre.\n\n";
+           << "is NOT supported with the GPU version of hypre.\n\n";
       return;
    }
 #endif
@@ -2215,7 +2199,7 @@ TEST_CASE("Sedov", "[Sedov], [Parallel]")
    Device device;
    device.Configure(MFEM_SEDOV_DEVICE);
    device.Print();
-   sedov_tests(GlobalMPISession->WorldRank());
+   sedov_tests(Mpi::WorldRank());
 }
 #endif
 #else

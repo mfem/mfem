@@ -13,10 +13,7 @@ This directory contains utility scripts related to GitLab testing at LLNL.
   perform testing.
 
    While designed to be used in CI context, this script can also be used
-   standalone on LLNL's LC in order to reproduce a similar build. The script
-   uses environment variables for configuration (a place for improvement), such
-   as "BUILD_ROOT", "HOST_CONFIG", "SPEC", etc. Some are mandatory, while
-   others have default values.
+   standalone on LLNL's LC in order to reproduce a similar build.
    Please refer to tests/gitlab/reproduce-ci-jobs-interactively.md for details.
 
 * `get_mfem_uberenv` sets uberenv up for use with MFEM, notably to install TPLs

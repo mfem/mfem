@@ -57,11 +57,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
          {
             args.PrintUsage(cout);
          }
-         MPI_Finalize();
          return 1;
       }
    }
@@ -263,12 +262,13 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
       if (sp_solver)
       {
-         STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+         STRUMPACKSolver * strumpack = new STRUMPACKSolver(MPI_COMM_WORLD, argc, argv);
          strumpack->SetPrintFactorStatistics(true);
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-         strumpack->DisableMatching();
+         strumpack->SetMatching(strumpack::MatchingJob::NONE);
+         strumpack->SetCompression(strumpack::CompressionType::NONE);
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
          precond = strumpack;
@@ -385,8 +385,6 @@ int main(int argc, char *argv[])
       delete fec;
    }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

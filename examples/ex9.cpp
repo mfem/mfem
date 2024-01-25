@@ -27,6 +27,7 @@
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
 //    ex9 -ea -m ../data/periodic-cube.mesh -d cuda
 //    ex9 -fa -m ../data/periodic-cube.mesh -d cuda
+//    ex9 -pa -m ../data/amr-quad.mesh -p 1 -r 2 -dt 0.002 -tf 9 -d cuda
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -449,7 +450,8 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
-   : TimeDependentOperator(M_.Height()), M(M_), K(K_), b(b_), z(M_.Height())
+   : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
+     M(M_), K(K_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
