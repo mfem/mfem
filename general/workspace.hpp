@@ -29,8 +29,8 @@ namespace internal { class WorkspaceChunk; }
 /// can be created and destroyed in loops without incurring the memory
 /// allocation and deallocation overhead.
 ///
-/// WorkspaceVector%s should be used only for short-lived temporary storage;
-/// they are not intended to be stored in other classes.
+/// WorkspaceVector%s should be used only for short-lived temporary storage; for
+/// example, they are not intended to be stored as member data in other classes.
 class WorkspaceVector : public Vector
 {
    // using internal::WorkspaceChunk;
