@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
+   double tol_stationarity = 5e-05;
+   double tol_compliance = 5e-05;
 
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
@@ -304,7 +306,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < tol_stationarity &&
+          std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
          mfem::out << "Total number of iteration = " << k + 1 << std::endl;
@@ -312,7 +315,7 @@ int main(int argc, char *argv[])
       }
    }
    if (!converged)
-   { 
+   {
       mfem::out << "Total number of iteration = " << max_it << std::endl;
       mfem::out << "Maximum iteration reached." << std::endl;
    }

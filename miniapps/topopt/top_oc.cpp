@@ -19,7 +19,7 @@
 //              ρ_new = clip((0,1), ρ_cur (-∇F(ρ_cur)/dv)^(1/2) * c)
 //
 //              where c is a constant volume correction. Also, we limit the
-//              change of ρ before volume correction. 
+//              change of ρ before volume correction.
 
 #include "mfem.hpp"
 #include <iostream>
@@ -52,6 +52,8 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
+   double tol_stationarity = 5e-05;
+   double tol_compliance = 5e-05;
    double mv = 0.2;
 
    ostringstream filename_prefix;
@@ -299,7 +301,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < tol_stationarity &&
+          std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
          mfem::out << "Total number of iteration = " << k + 1 << std::endl;
@@ -307,7 +310,7 @@ int main(int argc, char *argv[])
       }
    }
    if (!converged)
-   { 
+   {
       mfem::out << "Total number of iteration = " << max_it << std::endl;
       mfem::out << "Maximum iteration reached." << std::endl;
    }

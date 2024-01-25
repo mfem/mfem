@@ -23,7 +23,7 @@
 //              Armijo condition check
 //
 //              BB:        α_init = |(δρ, δρ) / (δ∇F(ρ), δρ)|
-//              
+//
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
 //                        with ρ(α) = clip(ρ_cur - α∇F(ρ_cur) + c)
 
@@ -64,6 +64,8 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
+   double tol_stationarity = 5e-05;
+   double tol_compliance = 5e-05;
 
    ostringstream filename_prefix;
    filename_prefix << "PGD-";
@@ -135,7 +137,8 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream meshfile;
-      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+               par_ref_levels <<
                "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
@@ -319,7 +322,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < tol_stationarity &&
+          std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
          if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
@@ -334,9 +338,11 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream solfile, solfile2;
-      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+              par_ref_levels <<
               "-0." << setfill('0') << setw(6) << myid;
-      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" << par_ref_levels <<
+      solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
+               par_ref_levels <<
                "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);

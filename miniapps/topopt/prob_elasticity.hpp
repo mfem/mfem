@@ -38,7 +38,7 @@ void GetElasticityProblem(const ElasticityProblem problem,
       {
          if (filter_radius < 0) { filter_radius = 5e-02; }
          if (vol_fraction < 0) { vol_fraction = 0.5; }
-         
+
          *mesh = Mesh::MakeCartesian2D(3, 1, mfem::Element::Type::QUADRILATERAL, true,
                                        3.0,
                                        1.0);

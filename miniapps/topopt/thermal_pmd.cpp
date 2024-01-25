@@ -155,6 +155,8 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
+   double tol_stationarity = 5e-05;
+   double tol_compliance = 5e-05;
    double K = 1.0;
 
    ostringstream prob_name;
@@ -200,12 +202,10 @@ int main(int argc, char *argv[])
          if (vol_fraction < 0) { vol_fraction = 0.5; }
          mesh = mesh.MakeCartesian2D(4, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0,
                                      1.0);
-         MarkBoundary(
-            mesh,
+         mesh.MarkBoundary(
          [](const Vector &x) {return std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5; },
          1);
-         MarkBoundary(
-            mesh,
+         mesh.MarkBoundary(
          [](const Vector &x) {return !(std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5); },
          2);
          mesh.SetAttributes();
@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,
-                                            density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
+                                           density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(diffusion.GetLinearForm(), diffusion, density, false,
                          true);
 
@@ -423,7 +423,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < 5e-05 && std::fabs(old_compliance - compliance) < 5e-05)
+      if (stationarityError < tol_stationarity &&
+          std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
          mfem::out << "Total number of iteration = " << k + 1 << std::endl;
@@ -431,7 +432,7 @@ int main(int argc, char *argv[])
       }
    }
    if (!converged)
-   { 
+   {
       mfem::out << "Total number of iteration = " << max_it << std::endl;
       mfem::out << "Maximum iteration reached." << std::endl;
    }
