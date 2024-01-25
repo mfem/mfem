@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
-   double tol_stationarity = 5e-05;
+   double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
    double K = 1.0;
 
@@ -302,7 +302,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   SigmoidDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   SigmoidDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,

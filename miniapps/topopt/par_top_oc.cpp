@@ -59,12 +59,12 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
-   double tol_stationarity = 5e-05;
+   double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
    double mv = 0.2;
 
    ostringstream filename_prefix;
-   filename_prefix << "PGD-";
+   filename_prefix << "OC-";
 
    int problem = ElasticityProblem::Cantilever;
 
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
                         mesh, vforce_cf,
                         ess_bdr, ess_bdr_filter,
                         prob_name, seq_ref_levels, par_ref_levels);
-   filename_prefix << prob_name;
+   filename_prefix << prob_name << "-" << seq_ref_levels + par_ref_levels;
    int dim = mesh->Dimension();
    const int num_el = mesh->GetNE();
    std::unique_ptr<ParMesh> pmesh(static_cast<ParMesh*>(mesh.release()));
@@ -133,9 +133,7 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream meshfile;
-      meshfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-               par_ref_levels <<
-               "." << setfill('0') << setw(6) << myid;
+      meshfile << filename_prefix.str() << "." << setfill('0') << setw(6) << myid;
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
@@ -165,7 +163,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   PrimalDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   PrimalDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -195,7 +193,7 @@ int main(int argc, char *argv[])
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
          sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PGD "
+                   << "window_title 'Design density r(ρ̃) - OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
@@ -207,7 +205,7 @@ int main(int argc, char *argv[])
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
          sout_r << "solution\n" << *pmesh << *rho_gf
-                << "window_title 'Raw density ρ - PGD "
+                << "window_title 'Raw density ρ - OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -256,6 +254,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
+   logger.SaveWhenPrint(filename_prefix.str().c_str());
    logger.Print();
 
    optprob.UpdateGradient();

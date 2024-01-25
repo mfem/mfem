@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
-   double tol_stationarity = 5e-05;
+   double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
 
    ostringstream filename_prefix;
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
                         mesh, vforce_cf,
                         ess_bdr, ess_bdr_filter,
                         prob_name, ref_levels);
-   filename_prefix << prob_name;
+   filename_prefix << prob_name << "-" << ref_levels;
    int dim = mesh->Dimension();
    const int num_el = mesh->GetNE();
 
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
    if (save)
    {
       ostringstream meshfile;
-      meshfile << filename_prefix.str() << "-" << ref_levels << ".mesh";
+      meshfile << filename_prefix.str() << ".mesh";
       ofstream mesh_ofs(meshfile.str().c_str());
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   PrimalDesignDensity density(control_fes, filter, filter_fes, vol_fraction);
+   PrimalDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Stationarity"), stationarityError);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
+   logger.SaveWhenPrint(filename_prefix.str().c_str());
    logger.Print();
 
    optprob.UpdateGradient();
