@@ -13,6 +13,8 @@
 #define MFEM_SPACING
 
 #include "../linalg/vector.hpp"
+
+#include <memory>
 #include <vector>
 
 namespace mfem
@@ -133,7 +135,8 @@ public:
       os << int(SpacingType::UNIFORM_SPACING) << " 1 0 " << n << "\n";
    }
 
-   SpacingType GetSpacingType() const override { return SpacingType::UNIFORM_SPACING; }
+   SpacingType GetSpacingType() const override
+   { return SpacingType::UNIFORM_SPACING; }
    int NumIntParameters() const override { return 1; }
    int NumDoubleParameters() const override { return 0; }
 
@@ -208,8 +211,8 @@ public:
    void Print(std::ostream &os) const override
    {
       // SpacingType numIntParam numDoubleParam {int params} {double params}
-      os << int(SpacingType::LINEAR) << " 3 1 " << n << " " << (int) reverse << " "
-         << (int) scale << " " << s << "\n";
+      os << int(SpacingType::LINEAR) << " 3 1 " << n << " " << (int) reverse
+         << " " << (int) scale << " " << s << "\n";
    }
 
    SpacingType GetSpacingType() const override { return SpacingType::LINEAR; }
@@ -234,8 +237,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new LinearSpacingFunction(n, reverse, s,
-                                                                        scale));
+      return std::unique_ptr<SpacingFunction>(
+                new LinearSpacingFunction(n, reverse, s, scale));
    }
 
 private:
@@ -295,11 +298,12 @@ public:
    void Print(std::ostream &os) const override
    {
       // SpacingType numIntParam numDoubleParam {int params} {double params}
-      os << int(SpacingType::GEOMETRIC) << " 3 1 " << n << " " << (int) reverse << " "
-         << (int) scale << " " << s << "\n";
+      os << int(SpacingType::GEOMETRIC) << " 3 1 " << n << " "
+         << (int) reverse << " " << (int) scale << " " << s << "\n";
    }
 
-   SpacingType GetSpacingType() const override { return SpacingType::GEOMETRIC; }
+   SpacingType GetSpacingType() const override
+   { return SpacingType::GEOMETRIC; }
    int NumIntParameters() const override { return 3; }
    int NumDoubleParameters() const override { return 1; }
 
@@ -321,8 +325,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new GeometricSpacingFunction(n, reverse,
-                                                                           s, scale));
+      return std::unique_ptr<SpacingFunction>(
+                new GeometricSpacingFunction(n, reverse, s, scale));
    }
 
 private:
@@ -390,9 +394,8 @@ public:
    void Print(std::ostream &os) const override
    {
       // SpacingType numIntParam numDoubleParam {int params} {double params}
-      os << int(SpacingType::BELL) << " 3 2 " << n << " " << (int) reverse << " " <<
-         (int) scale
-         << " " << s0 << " " << s1 << "\n";
+      os << int(SpacingType::BELL) << " 3 2 " << n << " " << (int) reverse
+         << " " << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
    SpacingType GetSpacingType() const override { return SpacingType::BELL; }
@@ -418,8 +421,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new BellSpacingFunction(n, reverse, s0,
-                                                                      s1, scale));
+      return std::unique_ptr<SpacingFunction>(
+                new BellSpacingFunction(n, reverse, s0, s1, scale));
    }
 
 private:
@@ -482,8 +485,8 @@ public:
    void Print(std::ostream &os) const override
    {
       // SpacingType numIntParam numDoubleParam {int params} {double params}
-      os << int(SpacingType::GAUSSIAN) << " 3 2 " << n << " " << (int) reverse << " "
-         << (int) scale << " " << s0 << " " << s1 << "\n";
+      os << int(SpacingType::GAUSSIAN) << " 3 2 " << n << " " << (int) reverse
+         << " " << (int) scale << " " << s0 << " " << s1 << "\n";
    }
 
    SpacingType GetSpacingType() const override { return SpacingType::GAUSSIAN; }
@@ -509,8 +512,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new GaussianSpacingFunction(n, reverse,
-                                                                          s0, s1, scale));
+      return std::unique_ptr<SpacingFunction>(
+                new GaussianSpacingFunction(n, reverse, s0, s1, scale));
    }
 
 private:
@@ -553,11 +556,11 @@ public:
    {
       // SpacingType numIntParam numDoubleParam {int params} {double params}
       os << int(SpacingType::LOGARITHMIC) << " 3 1 " << n << " " <<
-         (int) reverse << " "
-         << (int) sym << " " << logBase << "\n";
+         (int) reverse << " " << (int) sym << " " << logBase << "\n";
    }
 
-   SpacingType GetSpacingType() const override { return SpacingType::LOGARITHMIC; }
+   SpacingType GetSpacingType() const override
+   { return SpacingType::LOGARITHMIC; }
    int NumIntParameters() const override { return 3; }
    int NumDoubleParameters() const override { return 1; }
 
@@ -579,8 +582,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new LogarithmicSpacingFunction(n,
-                                                                             reverse, sym, logBase));
+      return std::unique_ptr<SpacingFunction>(
+                new LogarithmicSpacingFunction(n, reverse, sym, logBase));
    }
 
 private:
@@ -633,7 +636,7 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor (deep-copy of all data, including SpacingFunction pieces)
+   /// Copy constructor (deep-copy all data, including SpacingFunction pieces)
    PiecewiseSpacingFunction(const PiecewiseSpacingFunction &sf)
       : SpacingFunction(sf), np(sf.np), partition(sf.partition),
         npartition(sf.npartition), pieces(), n0(sf.n0), s(sf.s)
@@ -670,7 +673,8 @@ public:
 
    std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return std::unique_ptr<SpacingFunction>(new PiecewiseSpacingFunction(*this));
+      return std::unique_ptr<SpacingFunction>(
+                new PiecewiseSpacingFunction(*this));
    }
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
