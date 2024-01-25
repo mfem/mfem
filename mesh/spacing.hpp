@@ -642,7 +642,7 @@ public:
         npartition(sf.npartition), pieces(), n0(sf.n0), s(sf.s)
    {
       // To copy, the pointers must be cloned.
-      for (const auto &f : sf.pieces) { pieces.push_back(std::move(f->Clone())); }
+      for (const auto &f : sf.pieces) { pieces.emplace_back(f->Clone()); }
    }
 
    PiecewiseSpacingFunction& operator=(const PiecewiseSpacingFunction &sf)
