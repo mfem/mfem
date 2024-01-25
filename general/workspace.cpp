@@ -112,6 +112,11 @@ WorkspaceVector Workspace::NewVector(int n)
    return ws.chunks.front().NewVector(n);
 }
 
+void Workspace::Reserve(int n)
+{
+   Instance().ConsolidateAndEnsureAvailable(n);
+}
+
 void Workspace::Clear()
 {
    Instance().chunks.clear();
