@@ -13,6 +13,7 @@
 #define MFEM_SPACING
 
 #include "../linalg/vector.hpp"
+#include <vector>
 
 namespace mfem
 {
@@ -91,8 +92,8 @@ public:
    /// Returns true if the spacing function is nested during refinement.
    virtual bool Nested() const = 0;
 
-   /// Returns a clone of this spacing function.
-   virtual SpacingFunction *Clone() const;
+   /// Returns a clone (deep-copy) of this spacing function.
+   virtual std::unique_ptr<SpacingFunction> Clone() const;
 
    virtual ~SpacingFunction() = default;
 
@@ -149,9 +150,9 @@ public:
 
    bool Nested() const override { return true; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new UniformSpacingFunction(n);
+      return std::unique_ptr<SpacingFunction>(new UniformSpacingFunction(n));
    }
 
 private:
@@ -231,9 +232,10 @@ public:
 
    bool Nested() const override { return false; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new LinearSpacingFunction(n, reverse, s, scale);
+      return std::unique_ptr<SpacingFunction>(new LinearSpacingFunction(n, reverse, s,
+                                                                        scale));
    }
 
 private:
@@ -317,9 +319,10 @@ public:
 
    bool Nested() const override { return false; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new GeometricSpacingFunction(n, reverse, s, scale);
+      return std::unique_ptr<SpacingFunction>(new GeometricSpacingFunction(n, reverse,
+                                                                           s, scale));
    }
 
 private:
@@ -413,9 +416,10 @@ public:
 
    bool Nested() const override { return false; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new BellSpacingFunction(n, reverse, s0, s1, scale);
+      return std::unique_ptr<SpacingFunction>(new BellSpacingFunction(n, reverse, s0,
+                                                                      s1, scale));
    }
 
 private:
@@ -503,9 +507,10 @@ public:
 
    bool Nested() const override { return false; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new GaussianSpacingFunction(n, reverse, s0, s1, scale);
+      return std::unique_ptr<SpacingFunction>(new GaussianSpacingFunction(n, reverse,
+                                                                          s0, s1, scale));
    }
 
 private:
@@ -572,9 +577,10 @@ public:
 
    bool Nested() const override { return true; }
 
-   SpacingFunction *Clone() const override
+   std::unique_ptr<SpacingFunction> Clone() const override
    {
-      return new LogarithmicSpacingFunction(n, reverse, sym, logBase);
+      return std::unique_ptr<SpacingFunction>(new LogarithmicSpacingFunction(n,
+                                                                             reverse, sym, logBase));
    }
 
 private:
@@ -627,6 +633,25 @@ public:
       CalculateSpacing();
    }
 
+   /// Copy constructor (deep-copy of all data, including SpacingFunction pieces)
+   PiecewiseSpacingFunction(const PiecewiseSpacingFunction &sf)
+      : SpacingFunction(sf), np(sf.np), partition(sf.partition),
+        npartition(sf.npartition), pieces(), n0(sf.n0), s(sf.s)
+   {
+      // To copy, the pointers must be cloned.
+      for (const auto &f : sf.pieces) { pieces.push_back(std::move(f->Clone())); }
+   }
+
+   PiecewiseSpacingFunction& operator=(const PiecewiseSpacingFunction &sf)
+   {
+      PiecewiseSpacingFunction tmp(sf);
+      std::swap(tmp, *this);
+      return *this;
+   }
+
+   PiecewiseSpacingFunction(PiecewiseSpacingFunction &&sf) = default;
+   PiecewiseSpacingFunction& operator=(PiecewiseSpacingFunction &&sf) = default;
+
    void SetSize(int size) override
    {
       n = size;
@@ -643,7 +668,10 @@ public:
 
    void Print(std::ostream &os) const override;
 
-   SpacingFunction *Clone() const override;
+   std::unique_ptr<SpacingFunction> Clone() const override
+   {
+      return std::unique_ptr<SpacingFunction>(new PiecewiseSpacingFunction(*this));
+   }
 
    void SetupPieces(Array<int> const& ipar, Vector const& dpar);
 
@@ -669,16 +697,11 @@ public:
    // PiecewiseSpacingFunction is nested if and only if all pieces are nested.
    bool Nested() const override;
 
-   ~PiecewiseSpacingFunction()
-   {
-      for (auto p : pieces) { delete p; }
-   }
-
 private:
    int np;  ///< Number of pieces
    Vector partition;  ///< Partition of the unit interval
    Array<int> npartition;  ///< Number of intervals in each partition
-   Array<SpacingFunction*> pieces;
+   std::vector<std::unique_ptr<SpacingFunction>> pieces;
 
    int n0 = 0;  ///< Total number of intervals
 
@@ -689,8 +712,8 @@ private:
 };
 
 /// Returns a new SpacingFunction instance defined by the type and parameters
-SpacingFunction* GetSpacingFunction(const SpacingType type,
-                                    Array<int> const& ipar,
-                                    Vector const& dpar);
+std::unique_ptr<SpacingFunction> GetSpacingFunction(const SpacingType type,
+                                                    Array<int> const& ipar,
+                                                    Vector const& dpar);
 }
 #endif

@@ -54,7 +54,7 @@ KnotVector &KnotVector::operator=(const KnotVector &kv)
    coarse = kv.coarse;
    if (kv.spacing)
    {
-      spacing.reset(kv.spacing->Clone());
+      spacing = std::move(kv.spacing->Clone());
    }
 
    // alternatively, re-compute NumOfElements
@@ -2026,7 +2026,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
             }
 
             const SpacingType s = (SpacingType) spacingType;
-            knotVectors[ki]->spacing.reset(GetSpacingFunction(s, ipar, dpar));
+            knotVectors[ki]->spacing = std::move(GetSpacingFunction(s, ipar, dpar));
          }
       }
    }
