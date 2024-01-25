@@ -1170,6 +1170,19 @@ public:
    static void CalcBernstein(const int p, const double x, Vector &u, Vector &d)
    { CalcBernstein(p, x, u.GetData(), d.GetData()); }
 
+   // Evaluate the values of the Jacobi polynomials, P^{(\alpha,\beta)}_n,
+   // on [0,1] with degrees ranging from 0 to p and parameters alpha and beta
+   // at a point x.  Internally the point is transformed to the traditional
+   // domain of [-1,1].
+   static void CalcJacobi(const int p, const double alpha, const double beta,
+                          const double x, double *u);
+   // Evaluate the values and derivatives of the Jacobi polynomials,
+   // P^{(\alpha,\beta)}_n, on [0,1] with degrees ranging from 0 to p and
+   // parameters alpha and beta at a point x.  Internally the point is
+   // transformed to the traditional domain of [-1,1].
+   static void CalcJacobi(const int p, const double alpha, const double beta,
+                          const double x, double *u, double *d);
+
    static void CalcLegendre(const int p, const double x, double *u);
    static void CalcLegendre(const int p, const double x, double *u, double *d);
 
