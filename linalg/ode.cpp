@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -349,6 +349,7 @@ AdamsBashforthSolver::AdamsBashforthSolver(int s_, const double *a_)
    smax = std::min(s_,5);
    a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 2)
    {
@@ -407,6 +408,20 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 
 void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Bashforth history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    s++;
    s = std::min(s, smax);
    if (s == smax)
@@ -417,13 +432,13 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
       {
          x.Add(a[i]*dt, k[idx[i]]);
       }
+      t += dt;
    }
    else
    {
       f->Mult(x,k[idx[0]]);
       RKsolver->Step(x,t,dt);
    }
-   t += dt;
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
@@ -446,6 +461,7 @@ AdamsMoultonSolver::AdamsMoultonSolver(int s_, const double *a_)
    smax = std::min(s_+1,5);
    a = a_;
    k = new Vector[5];
+   dt_ = -1.0;
 
    if (smax <= 3)
    {
@@ -498,6 +514,20 @@ void AdamsMoultonSolver::Init(TimeDependentOperator &f_)
 
 void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
 {
+   if ( (dt_ > 0.0) && (fabs(dt-dt_) >10*std::numeric_limits<double>::epsilon()))
+   {
+      s = 0;
+      dt_ = dt;
+
+      if (print())
+      {
+         mfem::out << "WARNING:" << std::endl;
+         mfem::out << " - Time step changed" << std::endl;
+         mfem::out << " - Purging Adams-Moulton history" << std::endl;
+         mfem::out << " - Will run Runge-Kutta to rebuild history" << std::endl;
+      }
+   }
+
    if ((s == 0)&&(smax>1))
    {
       f->Mult(x,k[idx[1]]);
@@ -514,13 +544,14 @@ void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
       }
       f->ImplicitSolve(a[0]*dt, x, k[idx[0]]);
       x.Add(a[0]*dt, k[idx[0]]);
+      t += dt;
    }
    else
    {
       RKsolver->Step(x,t,dt);
       f->Mult(x,k[idx[0]]);
    }
-   t += dt;
+
 
    // Shift the index
    for (int i = 0; i < smax; i++) { idx[i] = ++idx[i]%smax; }
@@ -827,29 +858,29 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    gamma = 0.5 + alpha_m - alpha_f;
 }
 
-void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
+void GeneralizedAlphaSolver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&(alpha_f >= 0.5))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -986,10 +1017,10 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
    }
 }
 
-void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f)
+void SecondOrderODESolver::Init(SecondOrderTimeDependentOperator &f_)
 {
-   this->f = &f;
-   mem_type = GetMemoryType(f.GetMemoryClass());
+   this->f = &f_;
+   mem_type = GetMemoryType(f_.GetMemoryClass());
 }
 
 void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
@@ -1000,32 +1031,32 @@ void NewmarkSolver::Init(SecondOrderTimeDependentOperator &f_)
    first = true;
 }
 
-void NewmarkSolver::PrintProperties(std::ostream &out)
+void NewmarkSolver::PrintProperties(std::ostream &os)
 {
-   out << "Newmark time integrator:" << std::endl;
-   out << "beta    = " << beta  << std::endl;
-   out << "gamma   = " << gamma << std::endl;
+   os << "Newmark time integrator:" << std::endl;
+   os << "beta    = " << beta  << std::endl;
+   os << "gamma   = " << gamma << std::endl;
 
    if (gamma == 0.5)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((gamma >= 0.5) && (beta >= (gamma + 0.5)*(gamma + 0.5)/4))
    {
-      out<<"A-Stable"<<std::endl;
+      os<<"A-Stable"<<std::endl;
    }
    else if ((gamma >= 0.5) && (beta >= 0.5*gamma))
    {
-      out<<"Conditionally stable"<<std::endl;
+      os<<"Conditionally stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -1036,7 +1067,7 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
    double fac3 = beta;
    double fac4 = gamma;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (first)
    {
       f->Mult(x, dxdt, d2xdt2);
@@ -1093,32 +1124,32 @@ void GeneralizedAlpha2Solver::SetStateVector(int i, Vector &state)
    nstate = 1;
 }
 
-void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
+void GeneralizedAlpha2Solver::PrintProperties(std::ostream &os)
 {
-   out << "Generalized alpha time integrator:" << std::endl;
-   out << "alpha_m = " << alpha_m << std::endl;
-   out << "alpha_f = " << alpha_f << std::endl;
-   out << "beta    = " << beta    << std::endl;
-   out << "gamma   = " << gamma   << std::endl;
+   os << "Generalized alpha time integrator:" << std::endl;
+   os << "alpha_m = " << alpha_m << std::endl;
+   os << "alpha_f = " << alpha_f << std::endl;
+   os << "beta    = " << beta    << std::endl;
+   os << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
-      out<<"Second order"<<" and ";
+      os<<"Second order"<<" and ";
    }
    else
    {
-      out<<"First order"<<" and ";
+      os<<"First order"<<" and ";
    }
 
    if ((alpha_m >= alpha_f)&&
        (alpha_f >= 0.5) &&
        (beta >= 0.25 + 0.5*(alpha_m - alpha_f)))
    {
-      out<<"Stable"<<std::endl;
+      os<<"Stable"<<std::endl;
    }
    else
    {
-      out<<"Unstable"<<std::endl;
+      os<<"Unstable"<<std::endl;
    }
 }
 
@@ -1132,7 +1163,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac4 = gamma*alpha_f/alpha_m;
    double fac5 = alpha_m;
 
-   // In the first pass compute d2xdt2 directy from operator.
+   // In the first pass compute d2xdt2 directly from operator.
    if (nstate == 0)
    {
       f->Mult(x, dxdt, d2xdt2);

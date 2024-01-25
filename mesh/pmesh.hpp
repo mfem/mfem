@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,7 @@
 
 namespace mfem
 {
+
 #ifdef MFEM_USE_PUMI
 class ParPumiMesh;
 #endif
@@ -31,6 +32,15 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
+   friend class ParNCMesh;
+   friend class ParSubMesh;
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
+#ifdef MFEM_USE_ADIOS2
+   friend class adios2stream;
+#endif
+
 protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
@@ -75,14 +85,20 @@ protected:
    // sface ids: all triangles first, then all quads
    Array<int> sface_lface;
 
-   Table *face_nbr_el_to_face;
-   Table  face_nbr_el_ori; // orientations for each face (from nbr processor)
-
-   IsoparametricTransformation FaceNbrTransformation;
+   /// Table that maps from face neighbor element number, to the face numbers of
+   /// that element.
+   std::unique_ptr<Table> face_nbr_el_to_face;
+   /// orientations for each face (from nbr processor)
+   std::unique_ptr<Table> face_nbr_el_ori;
 
    // glob_elem_offset + local element number defines a global element numbering
-   mutable long glob_elem_offset, glob_offset_sequence;
+   mutable long long glob_elem_offset;
+   mutable long glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
+
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   bool print_shared = true;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -95,7 +111,7 @@ protected:
 
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
-   virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
+   void MarkTetMeshForRefinement(const DSTable &v_to_v) override;
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
@@ -106,14 +122,43 @@ protected:
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
                              const Array<unsigned> &codes, int &pos);
 
-   STable3D *GetFaceNbrElementToFaceTable(int ret_ftbl = 0);
+   // Given a completed FacesTable and SharedFacesTable, construct a table that
+   // maps from face neighbor element number, to the set of faces of that
+   // element. Store the resulting data in the member variable
+   // face_nbr_el_to_face. If the mesh is nonconforming, this also builds the
+   // the face_nbr_el_ori variable from the faces_info.
+   void BuildFaceNbrElementToFaceTable();
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
+   /**
+    * @brief Helper function for adding triangle face neighbor element to face
+    * table entries. Have to use a template here rather than lambda capture
+    * because the FaceVert entries in Geometry have inner size of 3 for tets and
+    * 4 for everything else.
+    *
+    * @tparam N Inner dimension on the fvert variable, 3 for tet, 4 otherwise
+    * @param[in] v Set of vertices for this element
+    * @param[in] faces Table of faces interior to this rank
+    * @param[in] shared_faces Table of faces shared by this rank and another
+    * @param[in] elem The face neighbor element
+    * @param[in] start Starting index into fverts
+    * @param[in] end End index into fverts
+    * @param[in] fverts Array of face vertices for this particular geometry.
+    */
+   template <int N>
+   void AddTriFaces(const Array<int> &v, const std::unique_ptr<STable3D> &faces,
+                    const std::unique_ptr<STable3D> &shared_faces,
+                    int elem, int start, int end, const int fverts[][N]);
 
    void GetGhostFaceTransformation(
-      FaceElementTransformations* FETr, Element::Type face_type,
-      Geometry::Type face_geom);
+      FaceElementTransformations &FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const;
+   void GetGhostFaceTransformation(
+      FaceElementTransformations *FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const
+   {
+      MFEM_ASSERT(FElTr, "Missing FaceElementTransformations object!");
+      GetGhostFaceTransformation(*FElTr, face_type, face_geom);
+   }
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -132,23 +177,23 @@ protected:
    void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
 
    /// Refine a mixed 2D mesh uniformly.
-   virtual void UniformRefinement2D();
+   void UniformRefinement2D() override;
 
    /// Refine a mixed 3D mesh uniformly.
-   virtual void UniformRefinement3D();
+   void UniformRefinement3D() override;
 
-   virtual void NURBSUniformRefinement();
-
-   /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
+   void NURBSUniformRefinement() override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
-   virtual void NonconformingRefinement(const Array<Refinement> &refinements,
-                                        int nc_limit = 0);
+   void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
 
-   virtual bool NonconformingDerefinement(Array<double> &elem_error,
-                                          double threshold, int nc_limit = 0,
-                                          int op = 1);
+   /// This function is not public anymore. Use GeneralRefinement instead.
+   void NonconformingRefinement(const Array<Refinement> &refinements,
+                                int nc_limit = 0) override;
+
+   bool NonconformingDerefinement(Array<double> &elem_error,
+                                  double threshold, int nc_limit = 0,
+                                  int op = 1) override;
 
    void RebalanceImpl(const Array<int> *partition);
 
@@ -201,6 +246,62 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int> &vert_global_local);
 
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * The output of the shared edges is chosen by the @a ordering parameter with
+    * the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering Ordering for the shared edges.
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(int ordering,
+                                  GroupCommunicator& sedge_comm) const;
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * The output of the shared vertices is chosen by the @a ordering parameter
+    * with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(int ordering,
+                                    GroupCommunicator& svert_comm) const;
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * The output of the shared face quadrilaterals is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(int ordering,
+                                  GroupCommunicator& squad_comm) const;
+
+   /**
+    * @brief Get the shared face triangles GroupCommunicator.
+    *
+    * The output of the shared face triangles is chosen by the @a ordering
+    * parameter with the following options
+    * 0: Internal ordering. Not exposed to public interfaces.
+    * 1: Contiguous ordering.
+    *
+    * @param[in] ordering
+    * @param[out] stria_comm
+    */
+   void GetSharedTriCommunicator(int ordering,
+                                 GroupCommunicator& stria_comm) const;
+
    // Similar to Mesh::GetFacesTable()
    STable3D *GetSharedFacesTable();
 
@@ -224,7 +325,7 @@ protected:
 
 public:
    /// Default constructor. Create an empty @a ParMesh.
-   ParMesh() : MyComm(0), NRanks(0), MyRank(-1), face_nbr_el_to_face(NULL),
+   ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       glob_elem_offset(-1), glob_offset_sequence(-1),
       have_face_nbr_data(false), pncmesh(NULL) { }
 
@@ -245,8 +346,14 @@ public:
    explicit ParMesh(const ParMesh &pmesh, bool copy_nodes = true);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
-   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
+   /** The @a generate_edges parameter is passed to Mesh::Loader. The @a refine
+       and @a fix_orientation parameters are passed to the method
+       Mesh::Finalize().
+
+       @note The order of arguments and their default values are different than
+       for the Mesh class. */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true,
+           int generate_edges = 1, bool fix_orientation = true);
 
    /// Deprecated: see @a ParMesh::MakeRefined
    MFEM_DEPRECATED
@@ -259,7 +366,7 @@ public:
    ParMesh& operator=(ParMesh &&mesh);
 
    /// Explicitly delete the copy assignment operator.
-   ParMesh& operator=(ParMesh &mesh) = delete;
+   ParMesh& operator=(const ParMesh &mesh) = delete;
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -278,9 +385,12 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
-   virtual void Finalize(bool refine = false, bool fix_orientation = false);
+   void Finalize(bool refine = false, bool fix_orientation = false) override;
 
-   virtual void SetAttributes();
+   void SetAttributes() override;
+
+   /// Checks if any rank in the mesh has boundary elements
+   bool HasBoundaryElements() const override;
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
@@ -288,10 +398,10 @@ public:
 
    /** Map a global element number to a local element number. If the global
        element is not on this processor, return -1. */
-   int GetLocalElementNum(long global_element_num) const;
+   int GetLocalElementNum(long long global_element_num) const;
 
    /// Map a local element number to a global element number.
-   long GetGlobalElementNum(int local_element_num) const;
+   long long GetGlobalElementNum(int local_element_num) const;
 
    /** The following functions define global indices for all local vertices,
        edges, faces, or elements. The global indices have no meaning or
@@ -321,20 +431,62 @@ public:
 
    ParNCMesh* pncmesh;
 
+   int *partitioning_cache = nullptr;
+
    int GetNGroups() const { return gtopo.NGroups(); }
 
    ///@{ @name These methods require group > 0
-   int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
-   int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
-   int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
-   int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
+   int GroupNVertices(int group) const { return group_svert.RowSize(group-1); }
+   int GroupNEdges(int group) const { return group_sedge.RowSize(group-1); }
+   int GroupNTriangles(int group) const { return group_stria.RowSize(group-1); }
+   int GroupNQuadrilaterals(int group) const { return group_squad.RowSize(group-1); }
 
-   int GroupVertex(int group, int i)
+   int GroupVertex(int group, int i) const
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
-   void GroupEdge(int group, int i, int &edge, int &o);
-   void GroupTriangle(int group, int i, int &face, int &o);
-   void GroupQuadrilateral(int group, int i, int &face, int &o);
+   void GroupEdge(int group, int i, int &edge, int &o) const;
+   void GroupTriangle(int group, int i, int &face, int &o) const;
+   void GroupQuadrilateral(int group, int i, int &face, int &o) const;
    ///@}
+
+   /**
+    * @brief Get the shared edges GroupCommunicator.
+    *
+    * @param[out] sedge_comm
+    */
+   void GetSharedEdgeCommunicator(GroupCommunicator& sedge_comm) const
+   {
+      GetSharedEdgeCommunicator(1, sedge_comm);
+   }
+
+   /**
+    * @brief Get the shared vertices GroupCommunicator.
+    *
+    * @param[out] svert_comm
+    */
+   void GetSharedVertexCommunicator(GroupCommunicator& svert_comm) const
+   {
+      GetSharedVertexCommunicator(1, svert_comm);
+   }
+
+   /**
+    * @brief Get the shared face quadrilaterals GroupCommunicator.
+    *
+    * @param[out] squad_comm
+    */
+   void GetSharedQuadCommunicator(GroupCommunicator& squad_comm) const
+   {
+      GetSharedQuadCommunicator(1, squad_comm);
+   }
+
+   /**
+   * @brief Get the shared face triangles GroupCommunicator.
+   *
+   * @param[out] stria_comm
+   */
+   void GetSharedTriCommunicator(GroupCommunicator& stria_comm) const
+   {
+      GetSharedTriCommunicator(1, stria_comm);
+   }
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
@@ -342,8 +494,14 @@ public:
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+   void SetCurvature(int order, bool discont = false, int space_dim = -1,
+                     int ordering = 1) override;
+
+   /** Replace the internal node GridFunction with a new GridFunction defined
+       on the given FiniteElementSpace. The new node coordinates are projected
+       (derived) from the current nodes/vertices. */
+   void SetNodalFESpace(FiniteElementSpace *nfes) override;
+   void SetNodalFESpace(ParFiniteElementSpace *npfes);
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
    int GetNFaceNeighborElements() const { return face_nbr_elements.Size(); }
@@ -351,29 +509,115 @@ public:
    int GetFaceNbrRank(int fn) const;
 
    /** Similar to Mesh::GetElementFaces */
-   void GetFaceNbrElementFaces(int i, Array<int> &fcs, Array<int> &cor) const;
+   void GetFaceNbrElementFaces(int i, Array<int> &faces,
+                               Array<int> &orientation) const;
 
    /** Similar to Mesh::GetFaceToElementTable with added face-neighbor elements
        with indices offset by the local number of elements. */
+   /// @note The returned Table should be deleted by the caller
    Table *GetFaceToAllElementTable() const;
 
-   /** Get the FaceElementTransformations for the given shared face (edge 2D).
-       In the returned object, 1 and 2 refer to the local and the neighbor
-       elements, respectively. */
+   /// Returns (a pointer to an object containing) the following data:
+   ///
+   /// 1) Elem1No - the index of the first element that contains this face this
+   ///    is the element that has the same outward unit normal vector as the
+   ///    face;
+   ///
+   /// 2) Elem2No - the index of the second element that contains this face this
+   ///    element has outward unit normal vector as the face multiplied with -1;
+   ///
+   /// 3) Elem1, Elem2 - pointers to the ElementTransformation's of the first
+   ///    and the second element respectively;
+   ///
+   /// 4) Face - pointer to the ElementTransformation of the face;
+   ///
+   /// 5) Loc1, Loc2 - IntegrationPointTransformation's mapping the face
+   ///    coordinate system to the element coordinate system (both in their
+   ///    reference elements). Used to transform IntegrationPoints from face to
+   ///    element. More formally, let:
+   ///       TL1, TL2 be the transformations represented by Loc1, Loc2,
+   ///       TE1, TE2 - the transformations represented by Elem1, Elem2,
+   ///       TF - the transformation represented by Face, then
+   ///       TF(x) = TE1(TL1(x)) = TE2(TL2(x)) for all x in the reference face.
+   ///
+   /// 6) FaceGeom - the base geometry for the face.
+   ///
+   /// The mask specifies which fields in the structure to return:
+   ///    mask & 1 - Elem1, mask & 2 - Elem2
+   ///    mask & 4 - Loc1, mask & 8 - Loc2, mask & 16 - Face.
+   /// These mask values are defined in the ConfigMasks enum type as part of the
+   /// FaceElementTransformations class in fem/eltrans.hpp.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   FaceElementTransformations *
+   GetFaceElementTransformations(int FaceNo, int mask = 31) override;
+
+   /// @brief Variant of GetFaceElementTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetFaceElementTransformations(int FaceNo,
+                                      FaceElementTransformations &FElTr,
+                                      IsoparametricTransformation &ElTr1,
+                                      IsoparametricTransformation &ElTr2,
+                                      int mask = 31) const override;
+
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the shared face index @a sf. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   ElementTransformation *
-   GetFaceNbrElementTransformation(int i)
-   {
-      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+   /// @brief Variant of GetSharedFaceTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetSharedFaceTransformations(int sf,
+                                     FaceElementTransformations &FElTr,
+                                     IsoparametricTransformation &ElTr1,
+                                     IsoparametricTransformation &ElTr2,
+                                     bool fill2 = true) const;
 
-      return &FaceNbrTransformation;
-   }
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the face index @a FaceNo. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
+   /// In the returned object, 1 and 2 refer to the local and the neighbor
+   /// elements, respectively.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   FaceElementTransformations *
+   GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
+
+   /// @brief Variant of GetSharedFaceTransformationsByLocalIndex using a user
+   /// allocated FaceElementTransformations object.
+   void GetSharedFaceTransformationsByLocalIndex(int FaceNo,
+                                                 FaceElementTransformations &FElTr,
+                                                 IsoparametricTransformation &ElTr1,
+                                                 IsoparametricTransformation &ElTr2,
+                                                 bool fill2 = true) const;
+
+   /// @brief Returns a pointer to the transformation defining the i-th face
+   /// neighbor.
+   ///
+   /// @note The returned object is owned by the class and is shared, i.e.,
+   /// calling this function resets pointers obtained from previous calls.
+   /// Also, the returned object should NOT be deleted by the caller.
+   ElementTransformation *GetFaceNbrElementTransformation(int FaceNo);
+
+   /// @brief Variant of GetFaceNbrElementTransformation using a user allocated
+   /// IsoparametricTransformation object.
+   void GetFaceNbrElementTransformation(int FaceNo,
+                                        IsoparametricTransformation &ElTr) const;
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
-   double GetFaceNbrElementSize(int i, int type=0);
+   double GetFaceNbrElementSize(int i, int type = 0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
@@ -381,11 +625,21 @@ public:
    /// Return the local face index for the given shared face.
    int GetSharedFace(int sface) const;
 
+   /** @brief Returns the number of local faces according to the requested type,
+       does not count master non-conforming faces.
+
+       If type==Boundary returns only the number of true boundary faces
+       contrary to GetNBE() that returns all "boundary" elements which may
+       include actual interior faces.
+       Similarly, if type==Interior, only the true interior faces (including
+       shared faces) are counted excluding all master non-conforming faces. */
+   int GetNFbyType(FaceType type) const override;
+
    /// See the remarks for the serial version in mesh.hpp
-   MFEM_DEPRECATED virtual void ReorientTetMesh();
+   MFEM_DEPRECATED void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).
-   virtual long ReduceInt(int value) const;
+   long long ReduceInt(int value) const override;
 
    /** Load balance the mesh by equipartitioning the global space-filling
        sequence of elements. Works for nonconforming meshes only. */
@@ -396,38 +650,62 @@ public:
        for 0 <= i < GetNE(). */
    void Rebalance(const Array<int> &partition);
 
-   /// Save the mesh in a parallel mesh format.
-   void ParPrint(std::ostream &out) const;
+   /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
+       will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
-   /** Print the part of the mesh in the calling processor adding the interface
-       as boundary (for visualization purposes) using the mfem v1.0 format. */
-   virtual void Print(std::ostream &out = mfem::out) const;
+   // Enable Print() to add the parallel interface as boundary (typically used
+   // for visualization purposes)
+   void SetPrintShared(bool print) { print_shared = print; }
+
+   /** Print the part of the mesh in the calling processor using the mfem v1.0
+       format. Depending on SetPrintShared(), the parallel interface can be
+       added as boundary for visualization (true by default). If @a comments is
+       non-empty, it will be printed after the first line of the file, and each
+       line should begin with '#'. */
+   void Print(std::ostream &out = mfem::out,
+              const std::string &comments = "") const override;
 
    /// Save the ParMesh to files (one for each MPI rank). The files will be
    /// given suffixes according to the MPI rank. The mesh will be written to the
    /// files using ParMesh::Print. The given @a precision will be used for ASCII
    /// output.
-   virtual void Save(const char *fname, int precision=16) const;
+   void Save(const std::string &fname, int precision=16) const override;
 
 #ifdef MFEM_USE_ADIOS2
    /** Print the part of the mesh in the calling processor using adios2 bp
        format. */
-   virtual void Print(adios2stream &out) const;
+   void Print(adios2stream &out) const override;
 #endif
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
-   virtual void PrintXG(std::ostream &out = mfem::out) const;
+   void PrintXG(std::ostream &out = mfem::out) const override;
 
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
-       attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = mfem::out) const;
+       attributes are set to the processor number. If @a comments is non-empty,
+       it will be printed after the first line of the file, and each line should
+       begin with '#'. */
+   void PrintAsOne(std::ostream &out = mfem::out,
+                   const std::string &comments = "") const;
+
+   /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
+       output mesh does not have any duplication of vertices/nodes at processor
+       boundaries. If @a comments is non-empty, it will be printed after the
+       first line of the file, and each line should begin with '#'. */
+   void PrintAsSerial(std::ostream &out = mfem::out,
+                      const std::string &comments = "") const;
+
+   /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
+       duplication of vertices/nodes at processor boundaries. */
+   Mesh GetSerialMesh(int save_rank) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
    /// @a precision is used for ASCII output.
-   void SaveAsOne(const char *fname, int precision=16) const;
+   void SaveAsOne(const std::string &fname, int precision=16) const;
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
    void PrintAsOneXG(std::ostream &out = mfem::out);
@@ -435,15 +713,15 @@ public:
    /** Print the mesh in parallel PVTU format. The PVTU and VTU files will be
        stored in the directory specified by @a pathname. If the directory does
        not exist, it will be created. */
-   virtual void PrintVTU(std::string pathname,
-                         VTKFormat format=VTKFormat::ASCII,
-                         bool high_order_output=false,
-                         int compression_level=0,
-                         bool bdr=false);
+   void PrintVTU(std::string pathname,
+                 VTKFormat format=VTKFormat::ASCII,
+                 bool high_order_output=false,
+                 int compression_level=0,
+                 bool bdr=false) override;
 
    /// Parallel version of Mesh::Load().
-   virtual void Load(std::istream &input, int generate_edges = 0,
-                     int refine = 1, bool fix_orientation = true);
+   void Load(std::istream &input, int generate_edges = 0,
+             int refine = 1, bool fix_orientation = true) override;
 
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
@@ -457,24 +735,16 @@ public:
    void Swap(ParMesh &other);
 
    /// Print various parallel mesh stats
-   virtual void PrintInfo(std::ostream &out = mfem::out);
+   void PrintInfo(std::ostream &out = mfem::out) override;
 
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
-                          Array<IntegrationPoint>& ips, bool warn = true,
-                          InverseElementTransformation *inv_trans = NULL);
+   int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                  Array<IntegrationPoint>& ips, bool warn = true,
+                  InverseElementTransformation *inv_trans = NULL) override;
 
    /// Debugging method
-   void PrintSharedEntities(const char *fname_prefix) const;
+   void PrintSharedEntities(const std::string &fname_prefix) const;
 
    virtual ~ParMesh();
-
-   friend class ParNCMesh;
-#ifdef MFEM_USE_PUMI
-   friend class ParPumiMesh;
-#endif
-#ifdef MFEM_USE_ADIOS2
-   friend class adios2stream;
-#endif
 };
 
 }

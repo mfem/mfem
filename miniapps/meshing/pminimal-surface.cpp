@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.  We welcome feedback and contributions, see file
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
 //     --------------------------------------------------------------------
@@ -77,7 +77,6 @@ constexpr Element::Type QUAD = Element::QUADRILATERAL;
 constexpr double NL_DMAX = std::numeric_limits<double>::max();
 
 // Static variables for GLVis
-static socketstream glvis;
 constexpr int GLVIZ_W = 1024;
 constexpr int GLVIZ_H = 1024;
 constexpr int  visport = 19916;
@@ -118,6 +117,7 @@ protected:
    Opt &opt;
    ParMesh *mesh;
    Array<int> bc;
+   socketstream glvis;
    H1_FECollection *fec;
    ParFiniteElementSpace *fes;
 public:
@@ -157,7 +157,7 @@ public:
       // Initialize GLVis server if 'visualization' is set
       if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
       // Send to GLVis the first mesh
-      if (opt.vis) { Visualize(opt, mesh, GLVIZ_W, GLVIZ_H); }
+      if (opt.vis) { Visualize(glvis, opt, mesh, GLVIZ_W, GLVIZ_H); }
       // Create and launch the surface solver
       if (opt.by_vdim)
       {
@@ -170,7 +170,7 @@ public:
       if (opt.vis && opt.snapshot)
       {
          opt.keys = "Sq";
-         Visualize(opt, mesh, mesh->GetNodes());
+         Visualize(glvis, opt, mesh, mesh->GetNodes());
       }
       return 0;
    }
@@ -243,7 +243,8 @@ public:
    }
 
    // Initialize visualization of some given mesh
-   static void Visualize(Opt &opt, const Mesh *mesh,
+   static void Visualize(socketstream &glvis,
+                         Opt &opt, const Mesh *mesh,
                          const int w, const int h,
                          const GridFunction *sol = nullptr)
    {
@@ -259,7 +260,8 @@ public:
    }
 
    // Visualize some solution on the given mesh
-   static void Visualize(const Opt &opt, const Mesh *mesh,
+   static void Visualize(socketstream &glvis,
+                         const Opt &opt, const Mesh *mesh,
                          const GridFunction *sol = nullptr)
    {
       glvis << "parallel " << opt.sz << " " << opt.id << "\n";
@@ -328,9 +330,9 @@ public:
          for (int i=0; i < opt.niters; ++i)
          {
             if (opt.amr) { Amr(); }
-            if (opt.vis) { Surface::Visualize(opt, S.mesh); }
+            if (opt.vis) { Surface::Visualize(S.glvis, opt, S.mesh); }
             if (!opt.id) { mfem::out << "Iteration " << i << ": "; }
-            S.mesh->DeleteGeometricFactors();
+            S.mesh->NodesUpdated();
             a.Update();
             a.Assemble();
             if (Step() == converged) { break; }
@@ -399,16 +401,18 @@ public:
       void Amr()
       {
          MFEM_VERIFY(opt.amr_threshold >= 0.0 && opt.amr_threshold <= 1.0, "");
-         Mesh *mesh = S.mesh;
+         Mesh *smesh = S.mesh;
          Array<Refinement> amr;
-         const int NE = mesh->GetNE();
+         const int NE = smesh->GetNE();
          DenseMatrix Jadjt, Jadj(DIM, SDIM);
          for (int e = 0; e < NE; e++)
          {
             double minW = +NL_DMAX;
             double maxW = -NL_DMAX;
-            ElementTransformation *eTr = mesh->GetElementTransformation(e);
-            const Geometry::Type &type = mesh->GetElement(e)->GetGeometryType();
+            ElementTransformation *eTr = smesh->GetElementTransformation(e);
+            const Geometry::Type &type =
+               smesh->GetElement(e)->GetGeometryType();
+
             const IntegrationRule *ir = &IntRules.Get(type, opt.order);
             const int NQ = ir->GetNPoints();
             for (int q = 0; q < NQ; q++)
@@ -431,8 +435,8 @@ public:
          }
          if (amr.Size()>0)
          {
-            mesh->GetNodes()->HostReadWrite();
-            mesh->GeneralRefinement(amr);
+            smesh->GetNodes()->HostReadWrite();
+            smesh->GeneralRefinement(amr);
             S.fes->Update();
             x.HostReadWrite();
             x.Update();
@@ -469,7 +473,10 @@ public:
          auto d_Xi = Xi.Read();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Write();
          const int ndof = S.fes->GetNDofs();
-         MFEM_FORALL(i, ndof, d_nodes[c*ndof + i] = d_Xi[i]; );
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_nodes[c*ndof + i] = d_Xi[i];
+         });
       }
 
       void GetNodes(GridFunction &Xi, const int c)
@@ -477,7 +484,10 @@ public:
          auto d_Xi = Xi.Write();
          const int ndof = S.fes->GetNDofs();
          auto d_nodes  = S.fes->GetMesh()->GetNodes()->Read();
-         MFEM_FORALL(i, ndof, d_Xi[i] = d_nodes[c*ndof + i]; );
+         mfem::forall(ndof, [=] MFEM_HOST_DEVICE (int i)
+         {
+            d_Xi[i] = d_nodes[c*ndof + i];
+         });
       }
 
       ByVDim(Surface &S, Opt &opt): Solver(S, opt)
@@ -1009,7 +1019,7 @@ struct QuarterPeach: public Surface
       for (int i = 0; i < GetNBE(); i++)
       {
          Element *el = GetBdrElement(i);
-         const int fn = GetBdrElementEdgeIndex(i);
+         const int fn = GetBdrElementFaceIndex(i);
          MFEM_VERIFY(!FaceIsTrueInterior(fn),"");
          Array<int> vertices;
          GetFaceVertices(fn, vertices);
@@ -1197,7 +1207,7 @@ static double qf(const int order, const int ker, Mesh &m,
    auto grdU = Reshape(grad_u.Read(), DIM, Q1D, Q1D, NE);
    auto S = Reshape(sum.Write(), Q1D, Q1D, NE);
 
-   MFEM_FORALL_2D(e, NE, Q1D, Q1D, 1,
+   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qy,y,Q1D)
       {
@@ -1216,7 +1226,7 @@ static double qf(const int order, const int ker, Mesh &m,
             const double tgu1 = (J11*gu1 - J21*gu0)/det;
             const double ngu = tgu0*tgu0 + tgu1*tgu1;
             const double s = (ker == AREA) ? sqrt(1.0 + ngu) :
-            (ker == NORM) ? ngu : 0.0;
+                             (ker == NORM) ? ngu : 0.0;
             S(qx, qy, e) = area * s;
          }
       }
@@ -1244,8 +1254,9 @@ static int Problem1(Opt &opt)
    ParGridFunction uold(&fes), u(&fes), b(&fes);
    FunctionCoefficient u0_fc(u0);
    u.ProjectCoefficient(u0_fc);
+   socketstream glvis;
    if (opt.vis) { opt.vis = glvis.open(vishost, visport) == 0; }
-   if (opt.vis) { Surface::Visualize(opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
+   if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, GLVIZ_W, GLVIZ_H, &u); }
    Vector B, X;
    OperatorPtr A;
    CGSolver cg(MPI_COMM_WORLD);
@@ -1277,7 +1288,7 @@ static int Problem1(Opt &opt)
          mfem::out << "Iteration " << i << ", norm: " << norm
                    << ", area: " << area << std::endl;
       }
-      if (opt.vis) { Surface::Visualize(opt, &mesh, &u); }
+      if (opt.vis) { Surface::Visualize(glvis, opt, &mesh, &u); }
       if (opt.print) { Surface::Print(opt, &mesh, &u); }
       if (norm < NRM) { break; }
    }
@@ -1287,9 +1298,11 @@ static int Problem1(Opt &opt)
 int main(int argc, char *argv[])
 {
    Opt opt;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &opt.id);
-   MPI_Comm_size(MPI_COMM_WORLD, &opt.sz);
+   Mpi::Init(argc, argv);
+   opt.id = Mpi::WorldRank();
+   opt.sz = Mpi::WorldSize();
+   Hypre::Init();
+
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&opt.pb, "-p", "--problem", "Problem to solve.");
@@ -1325,7 +1338,7 @@ int main(int argc, char *argv[])
    args.AddOption(&opt.snapshot, "-ss", "--snapshot", "-no-ss", "--no-snapshot",
                   "Enable or disable GLVis snapshot.");
    args.Parse();
-   if (!args.Good()) { args.PrintUsage(mfem::out); MPI_Finalize(); return 1; }
+   if (!args.Good()) { args.PrintUsage(mfem::out); return 1; }
    MFEM_VERIFY(opt.lambda >= 0.0 && opt.lambda <= 1.0,"");
    if (!opt.id) { args.PrintOptions(mfem::out); }
 
@@ -1337,6 +1350,5 @@ int main(int argc, char *argv[])
 
    if (opt.pb == 1) { Problem1(opt); }
 
-   MPI_Finalize();
    return 0;
 }

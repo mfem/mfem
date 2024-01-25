@@ -25,6 +25,8 @@
 //               mpirun -np 4 nurbs_ex1p -m ../../data/square-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/cube-nurbs.mesh -o 2 -no-ibp
 //               mpirun -np 4 nurbs_ex1p -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
+//               mpirun -np 4 nurbs_ex1p -m meshes/square-nurbs.mesh -r 4 -pm "1" -ps "2"
+//
 
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -121,11 +123,11 @@ public:
             w *= Q->Eval(Trans, ip);
          }
 
-         for (int j = 0; j < nd; j++)
+         for (int jj = 0; jj < nd; jj++)
          {
-            for (int i = 0; i < nd; i++)
+            for (int ii = 0; ii < nd; ii++)
             {
-               elmat(i, j) += w*shape(i)*laplace(j);
+               elmat(ii, jj) += w*shape(ii)*laplace(jj);
             }
          }
       }
@@ -135,11 +137,11 @@ public:
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
@@ -151,12 +153,18 @@ int main(int argc, char *argv[])
    bool ibp = 1;
    bool strongBC = 1;
    double kappa = -1;
+   Array<int> master(0);
+   Array<int> slave(0);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
+   args.AddOption(&master, "-pm", "--master",
+                  "Master boundaries for periodic BCs");
+   args.AddOption(&slave, "-ps", "--slave",
+                  "Slave boundaries for periodic BCs");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -181,7 +189,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (!strongBC & (kappa < 0))
@@ -270,6 +277,19 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+
+      // Enforce periodic BC's
+      if (master.Size() > 0)
+      {
+         if (myid == 0)
+         {
+            cout<<"Connecting boundaries"<<endl;
+            cout<<" - master : "; master.Print();
+            cout<<" - slave  : "; slave.Print();
+         }
+
+         NURBSext->ConnectBoundaries(master,slave);
+      }
    }
    else
    {
@@ -323,6 +343,14 @@ int main(int argc, char *argv[])
       {
          ess_bdr = 0;
       }
+
+      // Remove periodic BCs from essential boundary list
+      for (int i = 0; i < master.Size(); i++)
+      {
+         ess_bdr[master[i]-1] = 0;
+         ess_bdr[slave[i]-1] = 0;
+      }
+
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -433,8 +461,6 @@ int main(int argc, char *argv[])
    delete fespace;
    if (own_fec) { delete fec; }
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

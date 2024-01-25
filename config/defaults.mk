@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -42,6 +42,9 @@ STATIC = YES
 SHARED = NO
 
 # CUDA configuration options
+#
+# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
+# clang as its host compiler.
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
 CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
@@ -55,9 +58,12 @@ HIP_CXX = hipcc
 # example: gfx600 (tahiti), gfx700 (kaveri), gfx701 (hawaii), gfx801 (carrizo),
 # gfx900, gfx1010, etc.
 HIP_ARCH = gfx900
-HIP_FLAGS = --amdgpu-target=$(HIP_ARCH)
+HIP_FLAGS = --offload-arch=$(HIP_ARCH)
 HIP_XCOMPILER =
 HIP_XLINKER   = -Wl,
+
+# Flags for generating dependencies.
+DEP_FLAGS = -MM -MT
 
 ifneq ($(NOTMAC),)
    AR      = ar
@@ -86,6 +92,9 @@ else
    BUILD_RPATH = $(XLINKER)-undefined,dynamic_lookup
    INSTALL_SOFLAGS = $(subst $1 ,,$(call MAKE_SOFLAGS,$(MFEM_LIB_DIR)))
    INSTALL_RPATH = $(XLINKER)-undefined,dynamic_lookup
+   # Silence unused command line argument warnings when generating dependencies
+   # with mpicxx and clang
+   DEP_FLAGS := -Wno-unused-command-line-argument $(DEP_FLAGS)
 endif
 
 # Set CXXFLAGS to overwrite the default selection of DEBUG_FLAGS/OPTIM_FLAGS
@@ -122,7 +131,6 @@ MFEM_USE_LEGACY_OPENMP = NO
 MFEM_USE_MEMALLOC      = YES
 MFEM_TIMER_TYPE        = $(if $(NOTMAC),2,4)
 MFEM_USE_SUNDIALS      = NO
-MFEM_USE_MESQUITE      = NO
 MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
@@ -147,12 +155,18 @@ MFEM_USE_RAJA          = NO
 MFEM_USE_OCCA          = NO
 MFEM_USE_CEED          = NO
 MFEM_USE_CALIPER       = NO
+MFEM_USE_ALGOIM        = NO
 MFEM_USE_UMPIRE        = NO
 MFEM_USE_SIMD          = NO
 MFEM_USE_ADIOS2        = NO
 MFEM_USE_MKL_CPARDISO  = NO
+MFEM_USE_MKL_PARDISO   = NO
+MFEM_USE_MOONOLITH     = NO
+MFEM_USE_ADFORWARD     = NO
+MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
+MFEM_USE_ENZYME        = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -162,6 +176,20 @@ ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
    MPI_DIR := $(patsubst %/,%,$(dir $(MPI_DIR)))
    MPI_OPT = -I$(MPI_DIR)/include
    MPI_LIB = -L$(MPI_DIR)/lib $(XLINKER)-rpath,$(MPI_DIR)/lib -lmpi
+endif
+
+# ROCM/HIP directory such that ROCM/HIP libraries like rocsparse and rocrand are
+# found in $(HIP_DIR)/lib, usually as links. Typically, this directory is of
+# the form /opt/rocm-X.Y.Z which is called ROCM_PATH by hipconfig.
+ifeq ($(MFEM_USE_HIP),YES)
+   HIP_DIR := $(patsubst %/,%,$(dir $(shell which $(HIP_CXX))))
+   HIP_DIR := $(patsubst %/,%,$(dir $(HIP_DIR)))
+   ifeq (,$(wildcard $(HIP_DIR)/lib/librocsparse.*))
+      HIP_DIR := $(shell hipconfig --rocmpath 2> /dev/null)
+      ifeq (,$(wildcard $(HIP_DIR)/lib/librocsparse.*))
+         $(error Unable to determine HIP_DIR. Please set it manually.)
+      endif
+   endif
 endif
 
 # Compile and link options for zlib.
@@ -179,7 +207,12 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand
+   HYPRE_LIB += -lcusparse -lcurand -lcublas
+endif
+ifeq (YES,$(MFEM_USE_HIP))
+   # This is only necessary when hypre is built with hip:
+   HYPRE_LIB += -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib\
+ -lrocsparse -lrocrand
 endif
 
 # METIS library configuration
@@ -218,25 +251,27 @@ POSIX_CLOCKS_LIB = -lrt
 # SUNDIALS library configuration
 # For sundials_nvecmpiplusx and nvecparallel remember to build with MPI_ENABLE=ON
 # and modify cmake variables for hypre for sundials
-SUNDIALS_DIR    = @MFEM_DIR@/../sundials-5.0.0/instdir
-SUNDIALS_OPT    = -I$(SUNDIALS_DIR)/include
-SUNDIALS_LIBDIR = $(wildcard $(SUNDIALS_DIR)/lib*)
-SUNDIALS_LIB    = $(XLINKER)-rpath,$(SUNDIALS_LIBDIR) -L$(SUNDIALS_LIBDIR)\
+SUNDIALS_DIR = @MFEM_DIR@/../sundials-5.0.0/instdir
+# SUNDIALS >= 6.4.0 requires C++14:
+ifeq ($(MFEM_USE_SUNDIALS),YES)
+   BASE_FLAGS = -std=c++14
+endif
+SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
+SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
+ $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
+ -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif
 ifeq ($(MFEM_USE_CUDA),YES)
    SUNDIALS_LIB += -lsundials_nveccuda
 endif
+ifeq ($(MFEM_USE_HIP),YES)
+   SUNDIALS_LIB += -lsundials_nvechip
+endif
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
-
-# MESQUITE library configuration
-MESQUITE_DIR = @MFEM_DIR@/../mesquite-2.99
-MESQUITE_OPT = -I$(MESQUITE_DIR)/include
-MESQUITE_LIB = -L$(MESQUITE_DIR)/lib -lmesquite
 
 # SuiteSparse library configuration
 LIB_RT = $(if $(NOTMAC),-lrt,)
@@ -253,10 +288,10 @@ ifeq ($(MFEM_USE_SUPERLU5),YES)
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib -L$(SUPERLU_DIR)/lib\
       -lsuperlu_dist_5.1.0
 else
-   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_6.3.1
+   SUPERLU_DIR = @MFEM_DIR@/../SuperLU_DIST_8.1.2
    SUPERLU_OPT = -I$(SUPERLU_DIR)/include
    SUPERLU_LIB = $(XLINKER)-rpath,$(SUPERLU_DIR)/lib64 -L$(SUPERLU_DIR)/lib64\
-      -lsuperlu_dist -lblas
+      -lsuperlu_dist $(LAPACK_LIB)
 endif
 
 # SCOTCH library configuration (required by STRUMPACK <= v2.1.0, optional in
@@ -276,33 +311,50 @@ SCALAPACK_LIB = -L$(SCALAPACK_DIR)/lib -lscalapack $(LAPACK_LIB)
 MPI_FORTRAN_LIB = -lmpifort
 # OpenMPI:
 # MPI_FORTRAN_LIB = -lmpi_mpifh
-# Additional Fortan library:
+# Additional Fortran library:
 # MPI_FORTRAN_LIB += -lgfortran
 
 # MUMPS library configuration
-MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.2.0
+MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
 MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
+ifeq ($(MFEM_USE_STRUMPACK),YES)
+   BASE_FLAGS = -std=c++14
+endif
 STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # If STRUMPACK was build with OpenMP support, the following may be need:
 # STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
-# Ginkgo library configuration (currently not needed)
+# Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
+GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
 GINKGO_BUILD_TYPE=Release
 ifeq ($(MFEM_USE_GINKGO),YES)
    BASE_FLAGS = -std=c++14
 endif
 GINKGO_OPT = -isystem $(GINKGO_DIR)/include
-GINKGO_LIB_DIR = $(sort $(dir $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
-ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*d.a  $(GINKGO_DIR)/lib*/libginkgo*d.so $(GINKGO_DIR)/lib*/libginkgo*d.dylib $(GINKGO_DIR)/lib*/libginkgo*d.dll)))
-ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard $(GINKGO_DIR)/lib*/libginkgo*.a  $(GINKGO_DIR)/lib*/libginkgo*.so $(GINKGO_DIR)/lib*/libginkgo*.dylib $(GINKGO_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LIB_DIR = $(sort $(dir $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
+GINKGO_LINK_LIB_DIR = $(GINKGO_DIR)$(subst $(GINKGO_SEARCH_DIR),,$(GINKGO_LIB_DIR))
+ALL_GINKGO_LIBS_DEBUG = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*d.dll)))
+ALL_GINKGO_LIBS = $(notdir $(basename $(wildcard\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.a\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.so\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dylib\
+ $(GINKGO_SEARCH_DIR)/lib*/libginkgo*.dll)))
 ALL_GINKGO_LIBS_RELEASE = $(filter-out $(ALL_GINKGO_LIBS_DEBUG),$(ALL_GINKGO_LIBS))
 GINKGO_LINK = $(subst libginkgo,-lginkgo,$(ALL_GINKGO_LIBS_RELEASE))
 ifeq ($(GINKGO_BUILD_TYPE),Debug)
@@ -311,7 +363,8 @@ ifeq ($(GINKGO_BUILD_TYPE),Debug)
   endif
 else
 endif
-GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LIB_DIR) -L$(GINKGO_LIB_DIR) $(GINKGO_LINK)
+GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
+ $(GINKGO_LINK)
 
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
@@ -358,6 +411,11 @@ ifeq ($(SLEPC_FOUND),YES)
    SLEPC_LIB = $(XLINKER)-rpath,$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib\
       -L$(abspath $(SLEPC_DIR))/$(PETSC_ARCH)/lib -lslepc\
       $(subst $(CXX_XLINKER),$(XLINKER),$(SLEPC_DEP))
+endif
+
+ifeq ($(MFEM_USE_MOONOLITH),YES)
+  include $(MOONOLITH_DIR)/config/moonolith-config.makefile
+  MOONOLITH_LIB=$(MOONOLITH_LIBRARIES)
 endif
 
 # MPFR library configuration
@@ -408,6 +466,11 @@ HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop $(LAPACK_LIB)
 
+# CoDiPack
+CODIPACK_DIR = @MFEM_DIR@/../CoDiPack
+CODIPACK_OPT = -I$(CODIPACK_DIR)
+CODIPACK_LIB =
+
 # GSLIB library
 GSLIB_DIR = @MFEM_DIR@/../gslib/build
 GSLIB_OPT = -I$(GSLIB_DIR)/include
@@ -417,9 +480,9 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 CUDA_OPT =
 CUDA_LIB = -lcusparse
 
-# HIP library configuration (currently not needed)
+# HIP library configuration
 HIP_OPT =
-HIP_LIB =
+HIP_LIB = -L$(HIP_DIR)/lib $(XLINKER)-rpath,$(HIP_DIR)/lib -lhipsparse
 
 # OCCA library configuration
 OCCA_DIR = @MFEM_DIR@/../occa
@@ -429,7 +492,26 @@ OCCA_LIB = $(XLINKER)-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 # CALIPER library configuration
 CALIPER_DIR = @MFEM_DIR@/../caliper
 CALIPER_OPT = -I$(CALIPER_DIR)/include
-CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib64 -lcaliper
+CALIPER_LIB = $(XLINKER)-rpath,$(CALIPER_DIR)/lib64 $(XLINKER)-rpath,$(CALIPER_DIR)/lib -L$(CALIPER_DIR)/lib64 -L$(CALIPER_DIR)/lib -lcaliper
+
+ifdef ADIAK_DIR
+   CALIPER_OPT += -I$(ADIAK_DIR)/include
+   CALIPER_LIB += $(XLINKER)-rpath,$(ADIAK_DIR)/lib64 $(XLINKER)-rpath,$(ADIAK_DIR)/lib -L$(ADIAK_DIR)/lib64 -L$(ADIAK_DIR)/lib -ladiak
+endif
+ifdef GOTCHA_DIR
+   CALIPER_OPT += -I$(GOTCHA_DIR)/include
+   CALIPER_LIB += $(XLINKER)-rpath,$(GOTCHA_DIR)/lib64 $(XLINKER)-rpath,$(GOTCHA_DIR)/lib -L$(GOTCHA_DIR)/lib64 -L$(GOTCHA_DIR)/lib -lgotcha
+endif
+
+# BLITZ library configuration
+BLITZ_DIR = @MFEM_DIR@/../blitz
+BLITZ_OPT = -I$(BLITZ_DIR)/include
+BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
+
+# ALGOIM library configuration
+ALGOIM_DIR = @MFEM_DIR@/../algoim
+ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
+ALGOIM_LIB = $(BLITZ_LIB)
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
@@ -442,20 +524,29 @@ CEED_OPT = -I$(CEED_DIR)/include
 CEED_LIB = $(XLINKER)-rpath,$(CEED_DIR)/lib -L$(CEED_DIR)/lib -lceed
 
 # RAJA library configuration
+ifeq ($(MFEM_USE_RAJA),YES)
+   BASE_FLAGS = -std=c++14
+endif
 RAJA_DIR = @MFEM_DIR@/../raja
 RAJA_OPT = -I$(RAJA_DIR)/include
 ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
+
+CAMP_LIB = -lcamp
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
+   CAMP_LIB = $(XLINKER)-rpath,$(CAMP_DIR)/lib -L$(CAMP_DIR)/lib -lcamp
 endif
-RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 
 # UMPIRE library configuration
+ifeq ($(MFEM_USE_UMPIRE),YES)
+   BASE_FLAGS = -std=c++14
+endif
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -lumpire $(CAMP_LIB)
 
 # MKL CPardiso library configuration
 MKL_CPARDISO_DIR ?=
@@ -466,10 +557,34 @@ MKL_CPARDISO_LIB = $(XLINKER)-rpath,$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
    -L$(MKL_CPARDISO_DIR)/$(MKL_LIBRARY_SUBDIR) -l$(MKL_MPI_WRAPPER)\
    -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
 
+# MKL Pardiso library configuration
+MKL_PARDISO_DIR ?=
+MKL_LIBRARY_SUBDIR ?= lib
+MKL_PARDISO_OPT = -I$(MKL_PARDISO_DIR)/include
+MKL_PARDISO_LIB = $(XLINKER)-rpath,$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+   -L$(MKL_PARDISO_DIR)/$(MKL_LIBRARY_SUBDIR)\
+   -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+
 # PARELAG library configuration
 PARELAG_DIR = @MFEM_DIR@/../parelag
 PARELAG_OPT = -I$(PARELAG_DIR)/src -I$(PARELAG_DIR)/build/src
 PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
+
+# Enzyme configuration
+
+# If you want to enable automatic differentiation at compile time, use the
+# options below, adapted to your configuration. To be more flexible, we
+# recommend using the Enzyme plugin during link time optimization. One option is
+# to add your options to the global compiler/linker flags like
+#
+# BASE_FLAGS += -flto
+# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
+#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
+#
+ENZYME_DIR ?= @MFEM_DIR@/../enzyme
+ENZYME_VERSION ?= 14
+ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
+ENZYME_LIB = ""
 
 # If YES, enable some informational messages
 VERBOSE = NO

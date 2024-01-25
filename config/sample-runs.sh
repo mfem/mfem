@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -32,7 +32,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2}[0-9].cpp"'
+   "ex{,1,2,3}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -83,11 +83,13 @@ groups_serial=(
 '"tools"
    "Tools miniapps:"
    "miniapps/tools"
-   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp lor-transfer.cpp"'
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
+    lor-transfer.cpp"'
 '"toys"
    "Toys miniapps:"
    "miniapps/toys"
-   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp snake.cpp"'
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp
+    snake.cpp"'
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -98,7 +100,7 @@ groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1,2}[0-9]p.cpp"'
+   "ex{,1,2,3}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -136,7 +138,7 @@ groups_parallel=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "pmesh-optimizer.cpp pminimal-surface.cpp"'
+   "pmesh-optimizer.cpp pmesh-fitting.cpp pminimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -184,7 +186,7 @@ groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1,2}[0-9]\"{,p}.cpp"'
+   "ex\"{,1,2,3}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
@@ -225,7 +227,7 @@ groups_all=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp extruder.cpp toroid.cpp
-    {,p}mesh-optimizer.cpp {,p}minimal-surface.cpp"'
+    {,p}mesh-optimizer.cpp pmesh-fitting.cpp {,p}minimal-surface.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
@@ -238,7 +240,8 @@ groups_all=(
 '"gslib"
    "GSLIB miniapps:"
    "miniapps/gslib"
-   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp schwarz_ex1p.cpp"'
+   "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp
+    schwarz_ex1p.cpp"'
 '"navier"
    "Navier miniapps:"
    "miniapps/navier"
@@ -258,11 +261,13 @@ groups_all=(
 '"tools"
    "Tools miniapps:"
    "miniapps/tools"
-   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp lor-transfer.cpp"'
+   "convert-dc.cpp display-basis.cpp get-values.cpp load-dc.cpp
+    lor-transfer.cpp"'
 '"toys"
    "Toys miniapps:"
    "miniapps/toys"
-   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp snake.cpp"'
+   "automata.cpp life.cpp lissajous.cpp mandel.cpp mondrian.cpp rubik.cpp
+    snake.cpp"'
 '"convergence"
    "Convergence tests:"
    "tests/convergence"
@@ -310,7 +315,7 @@ function extract_sample_runs()
    sruns=`grep -v "^//.*  mpirun .* ${app}" "${src}" |
           grep "^//.*  ${app}" |
           sed -e "s/.*  ${app}/${vg_app}/g"`
-   runs="${sruns}${pruns}"
+   runs="${sruns}"$'\n'"${pruns}"
    if [ "$skip_gen_meshes" == "yes" ]; then
       runs=`printf "%s" "$runs" | grep -v ".* -m .*\.gen"`
    fi
@@ -549,15 +554,14 @@ function go()
    local cmd_line="${1##+( )}"
    cmd_line="${cmd_line%%+( )}"
    shopt -u extglob
-   eval local cmd=(${cmd_line})
    local res=""
    echo $sep
    echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
-      timed_run "${cmd[@]}"
+      timed_run eval "${cmd_line}"
    else
-      "${cmd[@]}"
+      eval "${cmd_line}"
    fi
    if [ "$?" -eq 0 ]; then
       res="${green}  OK  ${none}"

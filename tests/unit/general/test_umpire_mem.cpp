@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,7 +33,7 @@ constexpr unsigned num_bytes = num_elems * sizeof(double);
 constexpr double host_val = 1.0;
 constexpr double dev_val = -1.0;
 
-static long alloc_size(const char * name)
+static std::size_t alloc_size(const char * name)
 {
    auto &rm = umpire::ResourceManager::getInstance();
    auto a                    = rm.getAllocator(name);
@@ -61,7 +61,7 @@ static void test_umpire_device_memory()
 #define CHECK_PERM(p) REQUIRE(alloc_size(device_perm_alloc_name) == p)
 #define CHECK_TEMP(t) REQUIRE(alloc_size(device_temp_alloc_name) == t)
 #define CHECK_SIZE(p, t) CHECK_PERM(p); CHECK_TEMP(t)
-#define PRINT_SIZES() printf("perm=%ld, temp=%ld\n", alloc_size(device_perm_alloc_name), alloc_size(device_temp_alloc_name));
+#define PRINT_SIZES() printf("perm=%zu, temp=%zu\n", alloc_size(device_perm_alloc_name), alloc_size(device_temp_alloc_name));
 #define SPLIT() printf("\n");
 
    REQUIRE(host_val != dev_val);
@@ -144,7 +144,7 @@ static void test_umpire_device_memory()
    // allocate in temporary device memory
    printf("ReadWrite %u bytes in temporary memory: ", num_bytes);
    double * d_host_temp = host_temp.ReadWrite();
-   MFEM_FORALL(i, num_elems, { d_host_temp[i] = dev_val; });
+   mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_host_temp[i] = dev_val; });
    CHECK_PERM(num_bytes);
    CHECK_TEMP(num_bytes);
    PRINT_SIZES();
@@ -180,7 +180,7 @@ static void test_umpire_device_memory()
 
    printf("Write %u more bytes in temporary memory: ", num_bytes);
    double * d_dev_temp = dev_temp.Write();
-   MFEM_FORALL(i, num_elems, { d_dev_temp[i] = dev_val; });
+   mfem::forall(num_elems, [=] MFEM_HOST_DEVICE (int i) { d_dev_temp[i] = dev_val; });
    CHECK_PERM(num_bytes*2);
    CHECK_TEMP(num_bytes*2);
    PRINT_SIZES();
@@ -266,7 +266,7 @@ static void test_umpire_device_memory()
 
    printf("finally, check that the host pool is empty: ");
    REQUIRE(alloc_size(host_alloc_name) == 0);
-   printf("host=%ld\n", alloc_size(host_alloc_name));
+   printf("host=%zu\n", alloc_size(host_alloc_name));
 }
 
 TEST_CASE("UmpireMemorySpace", "[MemoryManager]")

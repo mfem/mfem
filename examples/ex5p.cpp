@@ -55,11 +55,11 @@ int main(int argc, char *argv[])
 {
    StopWatch chrono;
 
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    bool verbose = (myid == 0);
 
    // 2. Parse command-line options.
@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (verbose)
@@ -487,8 +486,6 @@ int main(int argc, char *argv[])
    delete l2_coll;
    delete hdiv_coll;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

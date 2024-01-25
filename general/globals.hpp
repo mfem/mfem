@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -37,15 +37,15 @@ protected:
    void Init();
 
 public:
-   /** @brief Construct an OutStream from the given stream @a out, by using its
+   /** @brief Construct an OutStream from the given stream @a os, by using its
        `rdbuf()`. */
-   OutStream(std::ostream &out) : std::ostream(NULL) { SetStream(out); }
+   OutStream(std::ostream &os) : std::ostream(NULL) { SetStream(os); }
 
    /** @brief Replace the `rdbuf()` and `tie()` of the OutStream with that of
-       @a out, enabling output. */
-   void SetStream(std::ostream &out)
+       @a os, enabling output. */
+   void SetStream(std::ostream &os)
    {
-      rdbuf(m_rdbuf = out.rdbuf()); tie(m_tie = out.tie()); Init();
+      rdbuf(m_rdbuf = os.rdbuf()); tie(m_tie = os.tie()); Init();
    }
 
    /// Enable output.
@@ -63,12 +63,12 @@ public:
 /** @brief Global stream used by the library for standard output. Initially it
     uses the same std::streambuf as std::cout, however that can be changed.
     @sa OutStream. */
-extern OutStream out;
+extern MFEM_EXPORT OutStream out;
 /** @brief Global stream used by the library for standard error output.
     Initially it uses the same std::streambuf as std::cerr, however that can be
     changed.
     @sa OutStream. */
-extern OutStream err;
+extern MFEM_EXPORT OutStream err;
 
 
 /** @brief Construct a string of the form "<prefix><myid><suffix>" where the

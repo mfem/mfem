@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@ class ElementTransformation
 protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
-   DenseMatrix d2Fdx2;
+   DenseMatrix d2Fdx2, adjJT;
    double Wght;
    int EvalState;
    enum StateMasks
@@ -34,7 +34,8 @@ protected:
       WEIGHT_MASK   = 2,
       ADJUGATE_MASK = 4,
       INVERSE_MASK  = 8,
-      HESSIAN_MASK  = 16
+      HESSIAN_MASK  = 16,
+      TRANS_ADJUGATE_MASK = 32
    };
    Geometry::Type geom;
 
@@ -48,6 +49,7 @@ protected:
 
    double EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
+   const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
 
 public:
@@ -74,6 +76,12 @@ public:
    };
 
    int Attribute, ElementNo, ElementType;
+
+   /// The Mesh object containing the element.
+   /** If the element transformation belongs to a mesh, this will point to the
+       containing Mesh object. ElementNo will be the number of the element in
+       this Mesh. This will be NULL if the element does not belong to a mesh. */
+   const Mesh *mesh;
 
    ElementTransformation();
 
@@ -126,6 +134,11 @@ public:
         at the currently set IntegrationPoint. */
    const DenseMatrix &AdjugateJacobian()
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
+
+   /** @brief Return the transpose of the adjugate of the Jacobian matrix of
+        the transformation at the currently set IntegrationPoint. */
+   const DenseMatrix &TransposeAdjugateJacobian()
+   { return (EvalState & TRANS_ADJUGATE_MASK) ? adjJT : EvalTransAdjugateJ(); }
 
    /** @brief Return the inverse of the Jacobian matrix of the transformation
         at the currently set IntegrationPoint. */
@@ -220,7 +233,7 @@ protected:
    // Parameters of the inversion algorithms:
    const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
-   int qpts_type; // Quadrature1D type for the initial guess type
+   GeometryRefiner refiner; // geometry refiner for initial guess
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
@@ -263,7 +276,7 @@ public:
       : T(Trans),
         ip0(NULL),
         init_guess_type(Center),
-        qpts_type(Quadrature1D::OpenHalfUniform),
+        refiner(Quadrature1D::OpenHalfUniform),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
@@ -288,7 +301,7 @@ public:
    { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
 
    /// Set the Quadrature1D type used for the `Closest*` initial guess types.
-   void SetInitGuessPointsType(int q_type) { qpts_type = q_type; }
+   void SetInitGuessPointsType(int q_type) { refiner.SetType(q_type); }
 
    /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
@@ -348,7 +361,7 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape,d2shape;
+   DenseMatrix dshape, d2shape;
    Vector shape;
 
    const FiniteElement *FElem;

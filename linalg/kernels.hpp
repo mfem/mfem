@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -160,7 +160,7 @@ double Norml2(const int size, const T *data)
     data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
-void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
+void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 {
    if (width == 0)
    {
@@ -170,7 +170,7 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
       }
       return;
    }
-   TA *d_col = data;
+   const TA *d_col = data;
    TX x_col = x[0];
    for (int row = 0; row < height; row++)
    {
@@ -185,6 +185,35 @@ void Mult(const int height, const int width, TA *data, const TX *x, TY *y)
          y[row] += x_col*d_col[row];
       }
       d_col += height;
+   }
+}
+
+/** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
+    is of size @a height x @a width with given @a data, while @a x and @a y
+    specify the data of the input and output vectors. */
+template<typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void MultTranspose(const int height, const int width, const TA *data,
+                   const TX *x, TY *y)
+{
+   if (height == 0)
+   {
+      for (int row = 0; row < width; row++)
+      {
+         y[row] = 0.0;
+      }
+      return;
+   }
+   TY *y_off = y;
+   for (int i = 0; i < width; ++i)
+   {
+      TY val = 0.0;
+      for (int j = 0; j < height; ++j)
+      {
+         val += x[j] * data[i * height + j];
+      }
+      *y_off = val;
+      y_off++;
    }
 }
 
@@ -352,6 +381,34 @@ void MultABt(const int Aheight, const int Awidth, const int Bheight,
       Bdata += Bheight;
    }
 }
+
+/** @brief Multiply the transpose of a matrix of size @a Aheight x @a Awidth
+    and data @a Adata with a matrix of size @a Aheight x @a Bwidth and data @a
+    Bdata: At * B. Return the result in a matrix with data @a AtBdata. */
+template<typename TA, typename TB, typename TC>
+MFEM_HOST_DEVICE inline
+void MultAtB(const int Aheight, const int Awidth, const int Bwidth,
+             const TA *Adata, const TB *Bdata, TC *AtBdata)
+{
+   TC *c = AtBdata;
+   for (int i = 0; i < Bwidth; ++i)
+   {
+      for (int j = 0; j < Awidth; ++j)
+      {
+         TC val = 0.0;
+         for (int k = 0; k < Aheight; ++k)
+         {
+            val += Adata[j * Aheight + k] * Bdata[i * Aheight + k];
+         }
+         *c = val;
+         c++;
+      }
+   }
+}
+
+/// Given a matrix of size 2x1, 3x1, or 3x2, compute the left inverse.
+template<int HEIGHT, int WIDTH> MFEM_HOST_DEVICE
+void CalcLeftInverse(const double *data, double *left_inv);
 
 /// Compute the spectrum of the matrix of size dim with given @a data, returning
 /// the eigenvalues in the array @a lambda and the eigenvectors in the array @a
@@ -1009,6 +1066,41 @@ int Reduce3S(const int &mode,
 
 } // namespace kernels::internal
 
+// Implementations of CalcLeftInverse for dim = 1, 2.
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<2,1>(const double *d, double *left_inv)
+{
+   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,1>(const double *d, double *left_inv)
+{
+   const double t = 1.0 / (d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+   left_inv[0] = d[0] * t;
+   left_inv[1] = d[1] * t;
+   left_inv[2] = d[2] * t;
+}
+
+template<> MFEM_HOST_DEVICE inline
+void CalcLeftInverse<3,2>(const double *d, double *left_inv)
+{
+   double e = d[0]*d[0] + d[1]*d[1] + d[2]*d[2];
+   double g = d[3]*d[3] + d[4]*d[4] + d[5]*d[5];
+   double f = d[0]*d[3] + d[1]*d[4] + d[2]*d[5];
+   const double t = 1.0 / (e*g - f*f);
+   e *= t; g *= t; f *= t;
+
+   left_inv[0] = d[0]*g - d[3]*f;
+   left_inv[1] = d[3]*e - d[0]*f;
+   left_inv[2] = d[1]*g - d[4]*f;
+   left_inv[3] = d[4]*e - d[1]*f;
+   left_inv[4] = d[2]*g - d[5]*f;
+   left_inv[5] = d[5]*e - d[2]*f;
+}
 
 // Implementations of CalcEigenvalues and CalcSingularvalue for dim = 2, 3.
 
