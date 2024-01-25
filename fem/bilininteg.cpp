@@ -3490,15 +3490,16 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
       const IntegrationPoint &ip = ir->IntPoint(p);
       IntegrationPoint eip1, eip2;
       Trans.Loc1.Transform(ip, eip1);
+      Trans.Elem1->SetIntPoint(&eip1);
       if (tr_ndof2 && te_ndof2)
       {
          Trans.Loc2.Transform(ip, eip2);
+         Trans.Elem2->SetIntPoint(&eip2);
       }
-      trial_fe1.CalcShape(eip1, tr_shape1);
-      test_fe1.CalcShape(eip1, te_shape1);
+      trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
+      test_fe1.CalcPhysShape(*Trans.Elem1, te_shape1);
 
       Trans.Face->SetIntPoint(&ip);
-      Trans.Elem1->SetIntPoint(&eip1);
 
       u->Eval(vu, *Trans.Elem1, eip1);
 
@@ -3546,8 +3547,8 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
 
       if (tr_ndof2 && te_ndof2)
       {
-         trial_fe2.CalcShape(eip2, tr_shape2);
-         test_fe2.CalcShape(eip2, te_shape2);
+         trial_fe2.CalcPhysShape(*Trans.Elem2, tr_shape2);
+         test_fe2.CalcPhysShape(*Trans.Elem2, te_shape2);
 
          if (w != 0.0)
             for (int i = 0; i < te_ndof2; i++)
