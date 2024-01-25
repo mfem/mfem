@@ -604,12 +604,15 @@ private:
    template <typename T> friend class Memory;
 
    /// Host memory type set during the Setup.
+   __attribute__((enzyme_inactive))
    static MemoryType host_mem_type;
 
    /// Device memory type set during the Setup.
+   __attribute__((enzyme_inactive))
    static MemoryType device_mem_type;
 
    /// Allow to detect if a global memory manager instance exists.
+   __attribute__((enzyme_inactive))
    static bool exists;
 
    /// Return true if the global memory manager instance exists.
@@ -618,12 +621,14 @@ private:
    /// Array defining the dual MemoryType for each MemoryType
    /** The dual of a host MemoryType is a device MemoryType and vice versa: the
        dual of a device MemoryType is a host MemoryType. */
+   __attribute__((enzyme_inactive))
    static MemoryType dual_map[MemoryTypeSize];
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
    static void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// True if Configure() was called.
+   __attribute__((enzyme_inactive))
    static bool configured;
 
    /// Host and device allocator names for Umpire.
@@ -645,6 +650,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
+   __attribute__((enzyme_inactive, enzyme_nofree))
    static void *Register_(void *ptr, void *h_ptr, size_t bytes, MemoryType mt,
                           bool own, bool alias, unsigned &flags);
 
@@ -688,9 +694,11 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
+   __attribute__((enzyme_inactive, enzyme_nofree))
    static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
 
    /// Return the type the of the host memory.
+   __attribute__((enzyme_inactive, enzyme_nofree))
    static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
