@@ -692,14 +692,23 @@ private: // Static methods used by the Memory<T> class
    static bool MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                                  MemoryType h_mt, size_t bytes, unsigned flags);
 
+#ifdef MFEM_USE_ENZYME
+   __attribute__((enzyme_function_like("__dynamic_cast")))
+#endif
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
    static void *ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
                            size_t bytes, unsigned &flags);
 
+#ifdef MFEM_USE_ENZYME
+   __attribute__((enzyme_function_like("__dynamic_cast")))
+#endif
    static const void *Read_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
                             size_t bytes, unsigned &flags);
 
+#ifdef MFEM_USE_ENZYME
+   __attribute__((enzyme_function_like("__dynamic_cast")))
+#endif
    static void *Write_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
                        size_t bytes, unsigned &flags);
 
