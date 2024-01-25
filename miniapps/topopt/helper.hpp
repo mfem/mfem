@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <fstream>
 namespace mfem
 {
 // Make a new (parallel) grid function from a given (parallel) finite element space.
@@ -38,6 +39,7 @@ protected:
    bool var_name_printed;
    // my_rank = IsSerial ? 0 : Mpi::WorldRank()
    int my_rank;
+   std::unique_ptr<std::ofstream> file;
 private:
 
 public:
@@ -51,6 +53,10 @@ public:
    void Append(const std::string name, int &val);
    // Print a row of currently monitored data. If it is called
    void Print();
+   // Save data to a file whenever Print is called.
+   void SaveWhenPrint(const char *filename, std::ios::openmode mode=std::ios::trunc);
+   // Close file manually.
+   void CloseFile() {if (file) file.reset(nullptr); }
 
 
 };

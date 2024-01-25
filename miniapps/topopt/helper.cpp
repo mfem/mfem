@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 namespace mfem
 {
 GridFunction *MakeGridFunction(FiniteElementSpace *fes)
@@ -130,11 +132,13 @@ void TableLogger::Print()
             case dtype::DOUBLE:
             {
                os << std::setw(w) << *monitored_double_data[i_double++] << ",\t";
+               if (file) { *file << std::setprecision(8) << std::scientific << *monitored_double_data[i_double++]; }
                break;
             }
             case dtype::INT:
             {
                os << std::setw(w) << *monitored_int_data[i_int++] << ",\t";
+               if (file) { *file << *monitored_int_data[i_double++]; }
                break;
             }
             default:
@@ -145,6 +149,12 @@ void TableLogger::Print()
       }
       os << "\b\b"; // remove the last ,\t
       os << std::endl;
+      if (file) { *file << std::endl; }
    }
 }
+void TableLogger::SaveWhenPrint(const char *filename, std::ios::openmode mode)
+{
+   file.reset(new std::ofstream(filename, mode));
+}
+
 }
