@@ -184,7 +184,7 @@ public:
 };
 
 /// Arbitrary order L2 elements in 3D on a pyramid
-class L2_PyramidElement : public NodalFiniteElement
+class L2_FuentesPyramidElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -197,7 +197,28 @@ private:
 
 public:
    /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
-   L2_PyramidElement(const int p,
+   L2_FuentesPyramidElement(const int p,
+			    const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+/// Arbitrary order L2 elements in 3D on a pyramid
+class L2_BergotPyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector u;
+   mutable DenseMatrix du;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   L2_BergotPyramidElement(const int p,
                      const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
