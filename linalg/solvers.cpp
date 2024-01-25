@@ -1170,7 +1170,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    DenseMatrix H(m+1,m);
    Vector s(m+1), cs(m+1), sn(m+1);
    Vector r(b.Size());
-   double resid;
 
    int i, j, k;
 
@@ -1188,6 +1187,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
 
    final_norm = std::max(rel_tol*beta, abs_tol);
+
+   converged = false;
 
    if (beta <= final_norm)
    {
@@ -1259,7 +1260,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
          ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
 
-         resid = fabs(s(i+1));
+         const double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_options.iterations || (print_options.first_and_last &&
                                           resid <= final_norm))
@@ -1304,8 +1305,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       MFEM_ASSERT(IsFinite(beta), "beta = " << beta);
       if (beta <= final_norm)
       {
-         final_norm = beta;
-         final_iter = j;
          converged = true;
 
          break;
@@ -1319,9 +1318,8 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if (z[i]) { delete z[i]; }
    }
 
-   final_norm = resid;
-   final_iter = j-1;
-   converged = false;
+   final_norm = beta;
+   final_iter = j;
 
    // Note: j is off by one when we arrive here
    if (!print_options.iterations && print_options.first_and_last)
