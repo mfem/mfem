@@ -62,7 +62,7 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
          nor /= scale;
 
          u_gf.GetVectorGradient(Tr, dudx);
-         // p = p_gf.GetValue(Tr, ip);
+         auto p = p_gf.GetValue(Tr, ip);
          nu = nu_gf.GetValue(Tr, ip);
 
          // (-p * I + nu (grad(u) + grad(u)^T))
@@ -70,9 +70,9 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
          {
             for (int j = 0; j < dim; j++)
             {
-               // A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
+               A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
                // A(i, j) = -p * (i == j);
-               A(i, j) = nu * (dudx(i, j) + dudx(j, i));
+               // A(i, j) = nu * (dudx(i, j) + dudx(j, i));
             }
          }
 
