@@ -125,7 +125,9 @@ private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
+#ifdef MFEM_USE_ENZYME
    __attribute__((enzyme_inactive))
+#endif
    static MFEM_EXPORT Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
