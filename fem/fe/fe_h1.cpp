@@ -1040,10 +1040,9 @@ void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
-H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
+H1_FuentesPyramidElement::H1_FuentesPyramidElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::PYRAMID,
-                        p * (p * p + 3) + 1, // Fuentes et al
-                        //(p + 1) * (p + 2) * (2 * p + 3) / 6, // JSC
+			p * (p * p + 3) + 1, // Fuentes et al
                         p, FunctionSpace::Qk)
 {
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
@@ -1075,7 +1074,8 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    u.SetSize(dof);
    du.SetSize(dof, dim);
 #else
-   // Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
+   /*
    Vector shape_0(p + 1);
    Vector shape_1(p + 1);
    Vector shape_2(p + 1);
@@ -1085,6 +1085,7 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    Vector dshape_0_1(p + 1);
    Vector dshape_1_1(p + 1);
    Vector dshape_2_1(p + 1);
+   */
 #endif
 
    // vertices
@@ -1197,24 +1198,7 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    }
    mfem::out << "};\n";
    */
-   // interior
-   /*
-   for (int k = 1; k < p - 1; k++)
-   {
-      for (int j = 1; j < p - k; j++)
-      {
-    double wjk = cp[j] + cp[k] + cp[p-j-k];
-    for (int i = 1; i < p - k; i++)
-    {
-       double wik = cp[i] + cp[k] + cp[p-i-k];
-       double w = wik * wjk * cp[p-k];
-       Nodes.IntPoint(o++).Set3(cp[i] * (cp[j] + cp[p-j-k]) / w,
-                 cp[j] * (cp[i] + cp[p-i-k]) / w,
-                 cp[k] * cp[p-k] / w);
-    }
-      }
-   }
-   */
+   
    // Points based on Fuentes' interior bubbles
    // mfem::out << "pts = {";
    for (int k = 1; k < p; k++)
@@ -1240,33 +1224,6 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
       // if (k != p - 1) mfem::out << ",";
    }
    // mfem::out << "};\n";
-   /*
-   // Points based on JSC's interior bubbles
-   mfem::out << "pts = {";
-   for (int k = 1; k < p - 1; k++)
-   {
-      for (int j = 0; j <= p - k; j++)
-      {
-    double wjk = cp[j] + cp[k] + cp[p-j-k];
-    for (int i = 0; i <= p - k; i++)
-    {
-       double wik = cp[i] + cp[k] + cp[p-i-k];
-       // double w = (i >= j) ? wik : wjk;
-       double w = wik * wjk;
-       // mfem::out << wik;
-       mfem::out << "{" << cp[i] * (cp[j] + cp[p-j-k]) / (w * cp[p-k])
-            << "," << cp[j] * (cp[i] + cp[p-i-k]) / (w * cp[p-k])
-            << "," << cp[k] / w << "}";
-       // mfem::out << wjk;
-       if (i != p - k) mfem::out << ",";
-    }
-    if (j != p - k) mfem::out << ",";
-    mfem::out << std::endl;
-      }
-      if (k != p - 2) mfem::out << ",";
-   }
-   mfem::out << "};\n";
-   */
 
    MFEM_ASSERT(o == dof,
                "Number of nodes does not match the "
@@ -1276,34 +1233,6 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    for (int m = 0; m < dof; m++)
    {
       const IntegrationPoint &ip = Nodes.IntPoint(m);
-      /*
-      double x = (ip.z < 1.0) ? (2.0 * ip.x / (1.0 - ip.z) - 1.0) : 0.0;
-      double y = (ip.z < 1.0) ? (2.0 * ip.y / (1.0 - ip.z) - 1.0) : 0.0;
-      double z = 2.0 * ip.z - 1.0;
-      */
-      /*
-      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
-      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
-      double z = ip.z;
-      */
-      /*
-      o = 0;
-      for (int i = 0; i <= p; i++)
-      {
-      poly1d.CalcLegendre(i, x, shape_x);
-         for (int j = 0; j <= p; j++)
-      {
-       poly1d.CalcLegendre(j, y, shape_y);
-       int maxij = std::max(i, j);
-       for (int k = 0; k <= p - maxij; k++)
-       {
-          poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
-               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
-        pow(1.0 - ip.z, maxij);
-            }
-      }
-      }
-      */
       calcBasis(order, ip, shape_0, shape_1, shape_2, T.GetColumn(m));
    }
 
@@ -1344,7 +1273,7 @@ H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
    }
 }
 
-void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
+void H1_FuentesPyramidElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
    const int p = order;
@@ -1353,6 +1282,11 @@ void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
    Vector shape_0(order+1);
    Vector shape_1(order+1);
    Vector shape_2(order+1);
+   /*
+   Vector shape_x(order+1);
+   Vector shape_y(order+1);
+   Vector shape_z(order+1);
+   */
    Vector u(dof);
 #endif
 
@@ -1361,7 +1295,7 @@ void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
    Ti.Mult(u, shape);
 }
 
-void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+void H1_FuentesPyramidElement::CalcDShape(const IntegrationPoint &ip,
                                    DenseMatrix &dshape) const
 {
    const int p = order;
@@ -1702,7 +1636,7 @@ void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
    Ti.Mult(du, dshape);
 }
 
-void H1_PyramidElement::calcBasis(const int p, const IntegrationPoint &ip,
+void H1_FuentesPyramidElement::calcBasis(const int p, const IntegrationPoint &ip,
                                   double * tmp_x, double * tmp_y,
                                   double * tmp_z, double *u)
 {
@@ -1870,15 +1804,43 @@ void H1_PyramidElement::calcBasis(const int p, const IntegrationPoint &ip,
          u[o]= 0.0;
       }
    }
+   /*
+   if (p == 3)
+   {
+   if (z < 1.0)
+   {
+      phi_E(p-1, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), tmp_x);
+      phi_E(p-1, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), tmp_y);
+      phi_E(p-1, mu0(z), mu1(z), tmp_z);
+      for (int k = 2; k <= p-1; k++)
+      {
+         for (int j = 2; j <= p-1; j++)
+         {
+            for (int i = 2; i <= p-1; i++, o++)
+            {
+               u[o] = tmp_x[i] * tmp_y[j] * tmp_z[k];
+            }
+         }
+      }
+   }
+   else
+   {
+      for (int i = 0; i < (p - 2) * (p - 2) * (p - 2); i++, o++)
+      {
+         u[o]= 0.0;
+      }
+   }
+   }
+   */
 }
 /*
-void H1_PyramidElement::calcDBasis(const int p, const IntegrationPoint &ip,
+void H1_FuentesPyramidElement::calcDBasis(const int p, const IntegrationPoint &ip,
                                    DenseMatrix &du)
 {
    du = 0.0;
 }
 */
-void H1_PyramidElement::grad_lam0(const double x, const double y,
+void H1_FuentesPyramidElement::grad_lam0(const double x, const double y,
                                   const double z, double du[])
 {
    du[0] = (z < 1.0) ? - (1.0 - y - z) / (1.0 - z) : 0.0;
@@ -1886,7 +1848,7 @@ void H1_PyramidElement::grad_lam0(const double x, const double y,
    du[2] = (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) - 1.0 : 0.0;
 }
 
-void H1_PyramidElement::grad_lam1(const double x, const double y,
+void H1_FuentesPyramidElement::grad_lam1(const double x, const double y,
                                   const double z, double du[])
 {
    du[0] = (z < 1.0) ? (1.0 - y - z) / (1.0 - z) : 0.0;
@@ -1894,7 +1856,7 @@ void H1_PyramidElement::grad_lam1(const double x, const double y,
    du[2] = (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
 }
 
-void H1_PyramidElement::grad_lam2(const double x, const double y,
+void H1_FuentesPyramidElement::grad_lam2(const double x, const double y,
                                   const double z, double du[])
 {
    du[0] = (z < 1.0) ? y / (1.0 - z) : 0.0;
@@ -1902,7 +1864,7 @@ void H1_PyramidElement::grad_lam2(const double x, const double y,
    du[2] = (z < 1.0) ? x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
 }
 
-void H1_PyramidElement::grad_lam3(const double x, const double y,
+void H1_FuentesPyramidElement::grad_lam3(const double x, const double y,
                                   const double z, double du[])
 {
    du[0] = (z < 1.0) ? - y / (1.0 - z) : 0.0;
@@ -1910,7 +1872,7 @@ void H1_PyramidElement::grad_lam3(const double x, const double y,
    du[2] = (z < 1.0) ? - x * y / ((1.0 - z) * (1.0 - z)) : 0.0;
 }
 
-void H1_PyramidElement::grad_lam4(const double x, const double y,
+void H1_FuentesPyramidElement::grad_lam4(const double x, const double y,
                                   const double z, double du[])
 {
    du[0] = 0.0;
@@ -1918,20 +1880,20 @@ void H1_PyramidElement::grad_lam4(const double x, const double y,
    du[2] = 1.0;
 }
 
-void H1_PyramidElement::phi_E(const int p, const double s0, double s1,
+void H1_FuentesPyramidElement::phi_E(const int p, const double s0, double s1,
                               double *u)
 {
    calcIntegratedLegendre(p, s1, s0 + s1, u);
 }
 
-void H1_PyramidElement::phi_E(const int p, const double s0, double s1,
+void H1_FuentesPyramidElement::phi_E(const int p, const double s0, double s1,
                               double *u, double *duds0, double *duds1)
 {
    calcIntegratedLegendre(p, s1, s0 + s1, u, duds1, duds0);
    for (int i = 0; i <= p; i++) { duds1[i] += duds0[i]; }
 }
 
-void H1_PyramidElement::calcIntegratedLegendre(const int p, const double x,
+void H1_FuentesPyramidElement::calcIntegratedLegendre(const int p, const double x,
                                                const double t,
                                                double *u)
 {
@@ -1957,7 +1919,7 @@ void H1_PyramidElement::calcIntegratedLegendre(const int p, const double x,
    }
 }
 
-void H1_PyramidElement::calcIntegratedLegendre(const int p, const double x,
+void H1_FuentesPyramidElement::calcIntegratedLegendre(const int p, const double x,
                                                const double t,
                                                double *u,
                                                double *dudx, double *dudt)
@@ -1996,7 +1958,7 @@ void H1_PyramidElement::calcIntegratedLegendre(const int p, const double x,
    where t >= 0.0, x \in [0,t], and P_i is the shifted Legendre
    polynomial defined on [0,1] rather than the usual [-1,1].
 */
-void H1_PyramidElement::calcScaledLegendre(const int p, const double x,
+void H1_FuentesPyramidElement::calcScaledLegendre(const int p, const double x,
                                            const double t,
                                            double *u)
 {
@@ -2016,7 +1978,7 @@ void H1_PyramidElement::calcScaledLegendre(const int p, const double x,
    }
 }
 
-void H1_PyramidElement::calcScaledLegendre(const int p, const double x,
+void H1_FuentesPyramidElement::calcScaledLegendre(const int p, const double x,
                                            const double t,
                                            double *u,
                                            double *dudx, double *dudt)
@@ -2054,7 +2016,7 @@ void H1_PyramidElement::calcScaledLegendre(const int p, const double x,
    }
 }
 
-void H1_PyramidElement::calcIntegratedJacobi(const int p,
+void H1_FuentesPyramidElement::calcIntegratedJacobi(const int p,
                                              const double alpha,
                                              const double x,
                                              const double t,
@@ -2089,7 +2051,7 @@ void H1_PyramidElement::calcIntegratedJacobi(const int p,
    }
 }
 
-void H1_PyramidElement::calcIntegratedJacobi(const int p,
+void H1_FuentesPyramidElement::calcIntegratedJacobi(const int p,
                                              const double alpha,
                                              const double x,
                                              const double t,
@@ -2130,7 +2092,7 @@ void H1_PyramidElement::calcIntegratedJacobi(const int p,
    polynomial defined on [0,1] rather than the usual [-1,1]. Note that we only
    consider the special case when \beta = 0.
 */
-void H1_PyramidElement::calcScaledJacobi(const int p, const double alpha,
+void H1_FuentesPyramidElement::calcScaledJacobi(const int p, const double alpha,
                                          const double x,
                                          const double t,
                                          double *u)
@@ -2151,7 +2113,7 @@ void H1_PyramidElement::calcScaledJacobi(const int p, const double alpha,
    }
 }
 
-void H1_PyramidElement::calcScaledJacobi(const int p, const double alpha,
+void H1_FuentesPyramidElement::calcScaledJacobi(const int p, const double alpha,
                                          const double x,
                                          const double t,
                                          double *u, double *dudx, double *dudt)
@@ -2181,5 +2143,656 @@ void H1_PyramidElement::calcScaledJacobi(const int p, const double alpha,
                  - d * t * t * dudt[i - 2] - 2.0 * d * t * u[i - 2]) / a;
    }
 }
+
+H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID,
+                        (p + 1) * (p + 2) * (2 * p + 3) / 6, // Bergot (JSC)
+                        p, FunctionSpace::Qk)
+{
+   const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_z.SetSize(p + 1);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+   ddu.SetSize(dof, (dim * (dim + 1)) / 2);
+   /*
+   shape_0.SetSize(p + 1);
+   shape_1.SetSize(p + 1);
+   shape_2.SetSize(p + 1);
+   dshape_0_0.SetSize(p + 1);
+   dshape_1_0.SetSize(p + 1);
+   dshape_2_0.SetSize(p + 1);
+   dshape_0_1.SetSize(p + 1);
+   dshape_1_1.SetSize(p + 1);
+   dshape_2_1.SetSize(p + 1);
+   u.SetSize(dof);
+   du.SetSize(dof, dim);
+   */
+#else
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1);
+   /*
+   Vector shape_0(p + 1);
+   Vector shape_1(p + 1);
+   Vector shape_2(p + 1);
+   Vector dshape_0_0(p + 1);
+   Vector dshape_1_0(p + 1);
+   Vector dshape_2_0(p + 1);
+   Vector dshape_0_1(p + 1);
+   Vector dshape_1_1(p + 1);
+   Vector dshape_2_1(p + 1);
+   */
+#endif
+
+   // vertices
+   Nodes.IntPoint(0).Set3(cp[0], cp[0], cp[0]);
+   Nodes.IntPoint(1).Set3(cp[p], cp[0], cp[0]);
+   Nodes.IntPoint(2).Set3(cp[p], cp[p], cp[0]);
+   Nodes.IntPoint(3).Set3(cp[0], cp[p], cp[0]);
+   Nodes.IntPoint(4).Set3(cp[0], cp[0], cp[p]);
+
+   // edges
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (3,2)
+   {
+      Nodes.IntPoint(o++).Set3(cp[i], cp[p], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[p-i], cp[p-i], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      Nodes.IntPoint(o++).Set3(cp[0], cp[p-i], cp[i]);
+   }
+
+   // quadrilateral face
+   for (int j = 1; j < p; j++)
+   {
+      for (int i = 1; i < p; i++)
+      {
+         Nodes.IntPoint(o++).Set3(cp[i], cp[j], cp[0]);
+      }
+   }
+
+   // triangular faces
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,1,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[i]/w, cp[0], cp[j]/w);
+         // mfem::out << i << " " << j << "\t" << cp[i]/w << " " << cp[0] << " " << cp[j]/w << std::endl;
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1,2,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(1.0 - cp[j]/w, cp[i]/w, cp[j]/w);
+         // mfem::out << i << " " << j << "\t" << 1.0 - cp[j]/w << " " << cp[i]/w << " " << cp[j]/w << std::endl;
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (3,4,2)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[j]/w, 1.0 - cp[i]/w, cp[i]/w);
+         // mfem::out << i << " " << j << "\t" << cp[j]/w << " " << 1.0 - cp[i]/w << " " << cp[i]/w << std::endl;
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0,4,3)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set3(cp[0], cp[j]/w, cp[i]/w);
+      }
+   /*
+   mfem::out << "pts342 = {";
+   for (int j = 0; j <= p; j++)
+   {
+     for (int i = 0; i + j <= p; i++)  // (3,4,2)
+     {
+       double w = cp[i] + cp[j] + cp[p-i-j];
+       mfem::out << "{" << cp[j] / w
+       << "," << 1.0 - cp[i] / w
+       << "," << cp[i] / w << "}";
+       if (i + j != p) mfem::out << ",";
+     }
+     if (j != p) mfem::out << ",";
+     mfem::out << std::endl;
+   }
+   mfem::out << "};\npts043 = {";
+   for (int j = 0; j <= p; j++)
+   {
+     for (int i = 0; i + j <= p; i++)  // (0,4,3)
+     {
+       double w = cp[i] + cp[j] + cp[p-i-j];
+       mfem::out << "{" << cp[0]
+       << "," << cp[j] / w
+       << "," << cp[i] / w << "}";
+       if (i + j != p) mfem::out << ",";
+     }
+     if (j != p) mfem::out << ",";
+     mfem::out << std::endl;
+   }
+   mfem::out << "};\n";
+   */
+   // interior
+   for (int k = 1; k < p - 1; k++)
+   {
+      for (int j = 1; j < p - k; j++)
+      {
+	double wjk = cp[j] + cp[k] + cp[p-j-k];
+	for (int i = 1; i < p - k; i++)
+	{
+	  double wik = cp[i] + cp[k] + cp[p-i-k];
+	  double w = wik * wjk * cp[p-k];
+	  Nodes.IntPoint(o++).Set3(cp[i] * (cp[j] + cp[p-j-k]) / w,
+				   cp[j] * (cp[i] + cp[p-i-k]) / w,
+				   cp[k] * cp[p-k] / w);
+	}
+      }
+   }
+   
+   /*
+   // Points based on Bergot (JSC)'s interior bubbles
+   // mfem::out << "pts = {";
+   for (int k = 1; k < p - 1; k++)
+   {
+      for (int j = 0; j <= p - k; j++)
+      {
+    double wjk = cp[j] + cp[k] + cp[p-j-k];
+    for (int i = 0; i <= p - k; i++)
+    {
+       double wik = cp[i] + cp[k] + cp[p-i-k];
+       // double w = (i >= j) ? wik : wjk;
+       double w = wik * wjk;
+       // mfem::out << wik;
+       mfem::out << "{" << cp[i] * (cp[j] + cp[p-j-k]) / (w * cp[p-k])
+            << "," << cp[j] * (cp[i] + cp[p-i-k]) / (w * cp[p-k])
+            << "," << cp[k] / w << "}";
+       // mfem::out << wjk;
+       if (i != p - k) mfem::out << ",";
+    }
+    if (j != p - k) mfem::out << ",";
+    mfem::out << std::endl;
+      }
+      if (k != p - 2) mfem::out << ",";
+   }
+   mfem::out << "};\n";
+   */
+   MFEM_ASSERT(o == dof,
+               "Number of nodes does not match the "
+               "number of degrees of freedom");
+   DenseMatrix T(dof);
+
+   for (int m = 0; m < dof; m++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(m);
+
+      double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+      double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+      double z = ip.z;
+      
+      o = 0;
+      for (int i = 0; i <= p; i++)
+      {
+	 poly1d.CalcLegendre(i, x, shape_x);
+	 for (int j = 0; j <= p; j++)
+         {
+	    poly1d.CalcLegendre(j, y, shape_y);
+	    int maxij = std::max(i, j);
+	    for (int k = 0; k <= p - maxij; k++)
+            {
+	       poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
+		 pow(1.0 - ip.z, maxij);
+            }
+	 }
+      }
+   }
+
+   Ti.Factor(T);
+   /*
+   if (false)
+   {
+      calcScaledLegendre(6, 0.3, 0.7, shape_0, dshape_0_0, dshape_0_1);
+      mfem::out << "Scaled Legendre: ";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_0[i]; }
+      mfem::out << '\n';
+
+      mfem::out << "Scaled Legendre du/dx:\n";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_0[i]; }
+      mfem::out << '\n';
+
+      double dx = 1e-8;
+      calcScaledLegendre(6, 0.3+dx, 0.7, shape_2);
+      mfem::out << "Scaled Legendre (x+dx): ";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
+      mfem::out << '\n';
+      mfem::out << "Scaled Legendre (u(x+dx) - u(x)) / dx:\n";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dx; }
+      mfem::out << '\n';
+
+      mfem::out << "Scaled Legendre du/dt:\n";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << dshape_0_1[i]; }
+      mfem::out << '\n';
+
+      double dt = 1e-8;
+      calcScaledLegendre(6, 0.3, 0.7+dt, shape_2);
+      mfem::out << "Scaled Legendre (t+dt): ";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << shape_2[i]; }
+      mfem::out << '\n';
+      mfem::out << "Scaled Legendre (u(t+dt) - u(t)) / dt:\n";
+      for (int i=0; i<6; i++) { mfem::out << '\t' << (shape_2[i] - shape_0[i]) / dt; }
+      mfem::out << '\n';
+   }
+   */
+}
+
+void H1_BergotPyramidElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(order+1);
+   Vector shape_y(order+1);
+   Vector shape_z(order+1);
+   Vector u(dof);
+#endif
+
+   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   double z = ip.z;
+
+   int o = 0;
+
+   for (int i = 0; i <= p; i++)
+   {
+      poly1d.CalcLegendre(i, x, shape_x);
+      for (int j = 0; j <= p; j++)
+      {
+	 poly1d.CalcLegendre(j, y, shape_y);
+	 int maxij = std::max(i, j);
+	 for (int k = 0; k <= p - maxij; k++)
+	 {
+	    poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z, shape_z);
+	    u[o++] = shape_x(i) * shape_y(j) * shape_z(k) *
+	       pow(1.0 - ip.z, maxij);
+	 }
+      }
+   }
+      
+   Ti.Mult(u, shape);
+}
+
+void H1_BergotPyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                   DenseMatrix &dshape) const
+{
+  // const int p = order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector  shape_0(p + 1), shape_1(p + 1), shape_2(p + 1);
+   Vector dshape_0_0(p + 1), dshape_1_0(p + 1), dshape_2_0(p + 1);
+   Vector dshape_0_1(p + 1), dshape_1_1(p + 1), dshape_2_1(p + 1);
+   DenseMatrix du(dof, dim);
+#endif
+   /*
+   double dlam[3];
+   double dlam4[3];
+
+   double dnu0[2];
+   double dnu1[2];
+   double dnu2[2];
+
+   double x = ip.x;
+   double y = ip.y;
+   double z = ip.z;
+
+   int o = 0;
+
+   // Vertices
+   grad_lam0(x, y, z, dlam);
+   for (int i = 0; i < 3; i++) { du(0, i) = dlam[i]; }
+   grad_lam1(x, y, z, dlam);
+   for (int i = 0; i < 3; i++) { du(1, i) = dlam[i]; }
+   grad_lam2(x, y, z, dlam);
+   for (int i = 0; i < 3; i++) { du(2, i) = dlam[i]; }
+   grad_lam3(x, y, z, dlam);
+   for (int i = 0; i < 3; i++) { du(3, i) = dlam[i]; }
+   grad_lam4(x, y, z, dlam);
+   for (int i = 0; i < 3; i++) { du(4, i) = dlam[i]; }
+   o += 5;
+
+   // Mixed edges (base edges)
+   phi_E(p, nu0(x, z), nu1(x, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(x, z, dnu0);
+   grad_nu1(x, z, dnu1);
+   for (int i = 2; i <= p; i++, o++)
+   {
+      // Grad(mu0(y / (1.0 - z)) phi_E(nu0(x, z), nu1(x, z)))
+      du(o, 0) = mu0(y / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]);
+      du(o, 1) = dmu0(y / (1.0 - z)) * shape_0[i] / (1.0 - z);
+      du(o, 2) = dmu0(y / (1.0 - z)) * shape_0[i] / pow(1.0 - z, 2) +
+                 mu0(y / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]);
+   }
+   phi_E(p, nu0(y, z), nu1(y, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(y, z, dnu0);
+   grad_nu1(y, z, dnu1);
+   for (int i = 2; i <= p; i++, o++)
+   {
+      // Grad(mu1(x / (1.0 - z)) * phi_E(nu0(y, z), nu1(y, z)))
+      du(o, 0) = dmu1(x / (1.0 - z)) * shape_0[i] / (1.0 - z);
+      du(o, 1) = mu1(x / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]);
+      du(o, 2) = dmu1(x / (1.0 - z)) * shape_0[i] / pow(1.0 - z, 2) +
+                 mu1(x / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]);
+   }
+   phi_E(p, nu0(x, z), nu1(x, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(x, z, dnu0);
+   grad_nu1(x, z, dnu1);
+   for (int i = 2; i <= p; i++, o++)
+   {
+      // Grad(mu1(y / (1.0 - z)) * phi_E(nu0(x, z), nu1(x, z)))
+      du(o, 0) = mu1(y / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]);
+      du(o, 1) = dmu1(y / (1.0 - z)) * shape_0[i] / (1.0 - z);
+      du(o, 2) = dmu1(y / (1.0 - z)) * shape_0[i] / pow(1.0 - z, 2) +
+                 mu1(y / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]);
+   }
+   phi_E(p, nu0(y, z), nu1(y, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(y, z, dnu0);
+   grad_nu1(y, z, dnu1);
+   for (int i = 2; i <= p; i++, o++)
+   {
+      // Grad(mu0(x / (1.0 - z)) * phi_E(nu0(y, z), nu1(y, z)))
+      du(o, 0) = dmu0(x / (1.0 - z)) * shape_0[i] / (1.0 - z);
+      du(o, 1) = mu0(x / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]);
+      du(o, 2) = dmu0(x / (1.0 - z)) * shape_0[i] / pow(1.0 - z, 2) +
+                 mu0(x / (1.0 - z)) *
+                 (dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]);
+   }
+
+   // Triangle edges (upright edges)
+   grad_lam4(x, y, z, dlam4);
+   grad_lam0(x, y, z, dlam);
+   phi_E(p, lam0(x, y, z), lam4(x, y, z), shape_0, dshape_0_0, dshape_0_1);
+   for (int i = 2; i<= p; i++, o++)
+   {
+      // Grad(phi_E(lam0(x,y,z), lam4(x,y,z)))
+      for (int j = 0; j < 3; j++)
+      {
+         du(o, j) = dshape_0_0[i] * dlam[j] + dshape_0_1[i] * dlam4[j];
+      }
+   }
+   grad_lam1(x, y, z, dlam);
+   phi_E(p, lam1(x, y, z), lam4(x, y, z), shape_0, dshape_0_0, dshape_0_1);
+   for (int i = 2; i<= p; i++, o++)
+   {
+      // Grad(phi_E(lam1(x,y,z), lam4(x,y,z)))
+      for (int j = 0; j < 3; j++)
+      {
+         du(o, j) = dshape_0_0[i] * dlam[j] + dshape_0_1[i] * dlam4[j];
+      }
+   }
+   grad_lam2(x, y, z, dlam);
+   phi_E(p, lam2(x, y, z), lam4(x, y, z), shape_0, dshape_0_0, dshape_0_1);
+   for (int i = 2; i<= p; i++, o++)
+   {
+      // Grad(phi_E(lam2(x,y,z), lam4(x,y,z)))
+      for (int j = 0; j < 3; j++)
+      {
+         du(o, j) = dshape_0_0[i] * dlam[j] + dshape_0_1[i] * dlam4[j];
+      }
+   }
+   grad_lam3(x, y, z, dlam);
+   phi_E(p, lam3(x, y, z), lam4(x, y, z), shape_0, dshape_0_0, dshape_0_1);
+   for (int i = 2; i<= p; i++, o++)
+   {
+      // Grad(phi_E(lam3(x,y,z), lam4(x,y,z)))
+      for (int j = 0; j < 3; j++)
+      {
+         du(o, j) = dshape_0_0[i] * dlam[j] + dshape_0_1[i] * dlam4[j];
+      }
+   }
+
+   // Quadrilateral face
+   phi_E(p, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), shape_0,
+         dshape_0_0, dshape_0_1);
+   phi_E(p, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), shape_1,
+         dshape_1_0, dshape_1_1);
+   for (int j = 2; j <= p; j++)
+   {
+      for (int i = 2; i <= p; i++, o++)
+      {
+         // Grad(mu0(z) * phi_E(mu0(x / (1.0 - z)), mu1(x / (1.0 - z)))
+         //             * phi_E(mu0(y / (1.0 - z)), mu1(y / (1.0 - z))))
+         du(o, 0) = mu0(z) * (dshape_0_0[i] * dmu0(x / (1.0 - z)) +
+                              dshape_0_1[i] * dmu1(x / (1.0 - z))) * shape_1[j]
+                    / (1.0 - z);
+         du(o, 1) = mu0(z) * shape_0[i] * (dshape_1_0[i] * dmu0(y / (1.0 - z)) +
+                                           dshape_1_1[i] * dmu1(y / (1.0 - z)))
+                    / (1.0 - z);
+         du(o, 2) = dmu0(z) * shape_0[i] * shape_1[j] +
+                    mu0(z) * ((dshape_0_0[i] * dmu0(x / (1.0 - z)) +
+                               dshape_0_1[i] * dmu1(x / (1.0 - z))) * x * shape_1[j] +
+                              shape_0[i] * (dshape_1_0[i] * dmu0(y / (1.0 - z)) +
+                                            dshape_1_1[i] * dmu1(y / (1.0 - z))) * y)
+                    / pow(1.0 - z, 2);
+      }
+   }
+
+   // Triangular faces
+   phi_E(p, nu0(x, z), nu1(x, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(x, z, dnu0);
+   grad_nu1(x, z, dnu1);
+   grad_nu2(x, z, dnu2);
+   for (int i = 2; i <= p; i++)
+   {
+      calcIntegratedJacobi(p, 2.0 * i, nu2(x, z), 1.0, shape_1,
+                           dshape_1_0, dshape_1_1);
+      for (int j = 1; j <= p - i; j++, o++)
+      {
+         // u[o] = mu0(y / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+         du(o, 0) = mu0(y / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[j] * dnu2[0]);
+         du(o, 1) = dmu0(y / (1.0 - z)) * shape_0[i] * shape_1[j] / (1.0 - z);
+         du(o, 2) = dmu0(y / (1.0 - z)) * shape_0[i] * shape_1[j]
+                    / pow(1.0 - z, 2) +
+                    mu0(y / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[i] * dnu2[1]);
+      }
+   }
+   phi_E(p, nu0(y, z), nu1(y, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(y, z, dnu0);
+   grad_nu1(y, z, dnu1);
+   grad_nu2(y, z, dnu2);
+   for (int i = 2; i <= p; i++)
+   {
+      calcIntegratedJacobi(p, 2.0 * i, nu2(y, z), 1.0, shape_1,
+                           dshape_1_0, dshape_1_1);
+      for (int j = 1; j <= p - i; j++, o++)
+      {
+         // u[o] = mu1(x / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+         du(o, 0) = dmu1(x / (1.0 - z)) * shape_0[i] * shape_1[j] / (1.0 - z);
+         du(o, 1) = mu1(x / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[j] * dnu2[0]);
+         du(o, 2) = dmu1(x / (1.0 - z)) * shape_0[i] * shape_1[j]
+                    / pow(1.0 - z, 2) +
+                    mu1(x / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[i] * dnu2[1]);
+      }
+   }
+   phi_E(p, nu0(x, z), nu1(x, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(x, z, dnu0);
+   grad_nu1(x, z, dnu1);
+   grad_nu2(x, z, dnu2);
+   for (int i = 2; i <= p; i++)
+   {
+      calcIntegratedJacobi(p, 2.0 * i, nu2(x, z), 1.0, shape_1,
+                           dshape_1_0, dshape_1_1);
+      for (int j = 1; j <= p - i; j++, o++)
+      {
+         // u[o] = mu1(y / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+         du(o, 0) = mu1(y / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[j] * dnu2[0]);
+         du(o, 1) = dmu1(y / (1.0 - z)) * shape_0[i] * shape_1[j] / (1.0 - z);
+         du(o, 2) = dmu1(y / (1.0 - z)) * shape_0[i] * shape_1[j]
+                    / pow(1.0 - z, 2) +
+                    mu1(y / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[i] * dnu2[1]);
+      }
+   }
+   phi_E(p, nu0(y, z), nu1(y, z), shape_0, dshape_0_0, dshape_0_1);
+   grad_nu0(y, z, dnu0);
+   grad_nu1(y, z, dnu1);
+   grad_nu2(y, z, dnu2);
+   for (int i = 2; i <= p; i++)
+   {
+      calcIntegratedJacobi(p, 2.0 * i, nu2(y, z), 1.0, shape_1,
+                           dshape_1_0, dshape_1_1);
+      for (int j = 1; j <= p - i; j++, o++)
+      {
+         // u[o] = mu0(x / (1.0 - z)) * tmp_x[i] * tmp_y[j];
+         du(o, 0) = dmu0(x / (1.0 - z)) * shape_0[i] * shape_1[j] / (1.0 - z);
+         du(o, 1) = mu0(x / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[0] + dshape_0_1[i] * dnu1[0]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[j] * dnu2[0]);
+         du(o, 2) = dmu0(x / (1.0 - z)) * shape_0[i] * shape_1[j]
+                    / pow(1.0 - z, 2) +
+                    mu0(x / (1.0 - z)) *
+                    ((dshape_0_0[i] * dnu0[1] + dshape_0_1[i] * dnu1[1]) * shape_1[j] +
+                     shape_0[i] * dshape_1_0[i] * dnu2[1]);
+      }
+   }
+
+   // Interior
+   phi_E(p, mu0(x / (1.0 - z)), mu1(x / (1.0 - z)), shape_0,
+         dshape_0_0, dshape_0_1);
+   phi_E(p, mu0(y / (1.0 - z)), mu1(y / (1.0 - z)), shape_1,
+         dshape_1_0, dshape_1_1);
+   phi_E(p, mu0(z), mu1(z), shape_2, dshape_2_0, dshape_2_1);
+   for (int k = 2; k <= p; k++)
+   {
+      for (int j = 2; j <= p; j++)
+      {
+         for (int i = 2; i <= p; i++, o++)
+         {
+            du(o, 0) = (dshape_0_0[i] * dmu0(x / (1.0 - z)) +
+                        dshape_0_1[i] * dmu1(x / (1.0 - z))) *
+                       shape_1[j] * shape_2[k] / (1.0 - z);
+            du(o, 1) = shape_0[i] * (dshape_1_0[j] * dmu0(y / (1.0 - z)) +
+                                     dshape_1_1[j] * dmu1(y / (1.0 - z))) *
+                       shape_2[k] / (1.0 - z);
+            du(o, 2) = ((dshape_0_0[i] * dmu0(x / (1.0 - z)) +
+                         dshape_0_1[i] * dmu1(x / (1.0 - z))) * shape_1[j] +
+                        shape_0[i] * (dshape_1_0[j] * dmu0(y / (1.0 - z)) +
+                                      dshape_1_1[j] * dmu1(y / (1.0 - z)))) *
+                       shape_2[k] / pow(1.0 - z, 2) +
+                       shape_0[i] * shape_1[j] * (dshape_2_0[k] * dmu0(z) +
+                                                  dshape_2_1[k] * dmu1(z));
+         }
+      }
+   }
+   */
+   /*
+   double x = ip.x;
+   double y = ip.y;
+   double z = ip.z;
+
+   dshape.SetSize(5, 3);
+   dshape(0,0) = -1.0 + ((z<1.0) ? (y / (1.0 - z)) : 0.0);
+   dshape(0,1) = -1.0 + ((z<1.0) ? (x / (1.0 - z)) : 0.0);
+   dshape(0,2) = -1.0 + ((z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0);
+
+   dshape(1,0) = 1.0 - ((z<1.0) ? (y / (1.0 - z)) : 0.0);
+   dshape(1,1) = (z<1.0) ? (-x / (1.0 - z)) : 0.0;
+   dshape(1,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(2,0) = (z<1.0) ? (y / (1.0 - z)) : 0.0;
+   dshape(2,1) = (z<1.0) ? (x / (1.0 - z)) : 0.0;
+   dshape(2,2) = (z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(3,0) = (z<1.0) ? (-y / (1.0 - z)) : 0.0;
+   dshape(3,1) = 1.0 - ((z<1.0) ? (x / (1.0 - z)) : 0.0);
+   dshape(3,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(4,0) = 0.0;
+   dshape(4,1) = 0.0;
+   dshape(4,2) = 1.0;
+   */
+   /*
+   double x = (ip.z < 1.0) ? (ip.x / (1.0 - ip.z)) : 0.0;
+   double y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
+   double z = ip.z;
+
+   int o = 0;
+   for (int i = 0; i <= p; i++)
+   {
+      poly1d.CalcLegendre(i, x, shape_x, dshape_x);
+      for (int j = 0; j <= p; j++)
+      {
+    poly1d.CalcLegendre(j, y, shape_y, dshape_y);
+    int maxij = std::max(i, j);
+    for (int k = 0; k <= p - maxij; k++)
+    {
+      poly1d.CalcJacobi(k, 2.0 * (maxij + 1.0), 0.0, z,
+                shape_z, dshape_z);
+      du(o,0) = dshape_x(i) * shape_y(j) * shape_z(k) *
+        pow(1.0 - ip.z, maxij - 1);
+      du(o,1) = shape_x(i) * dshape_y(j) * shape_z(k) *
+        pow(1.0 - ip.z, maxij - 1);
+      du(o,2) = shape_x(i) * shape_y(j) * dshape_z(k) *
+        pow(1.0 - ip.z, maxij) +
+        (dshape_x(i) * shape_y(j) + shape_x(i) * dshape_y(j)) *
+        shape_z(k) * pow(1.0 - ip.z, maxij - 2) -
+        ((maxij > 0) ? (maxij * shape_x(i) * shape_y(j) * shape_z(k) *
+              pow(1.0 - ip.z, maxij - 1)) : 0.0);
+      o++;
+    }
+      }
+   }
+   */
+   // calcDBasis(order, ip, du);
+   Ti.Mult(du, dshape);
+}
+
 
 }
