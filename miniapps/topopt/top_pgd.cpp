@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Stationarity"), stationarityError);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
-   logger.SaveWhenPrint(filename_prefix.str().c_str());
+   logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
    optprob.UpdateGradient();

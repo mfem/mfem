@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
-   logger.SaveWhenPrint(filename_prefix.str().c_str());
+   logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
    optprob.UpdateGradient();

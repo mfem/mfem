@@ -3,7 +3,6 @@
 #include <vector>
 #include <string>
 #include <iostream>
-#include <fstream>
 namespace mfem
 {
 // Make a new (parallel) grid function from a given (parallel) finite element space.
@@ -24,9 +23,9 @@ public:
    enum dtype {DOUBLE, INT};
 protected:
    // Double data to be printed.
-   std::vector<double*> monitored_double_data;
+   std::vector<double*> data_double;
    // Int data to be printed
-   std::vector<int*> monitored_int_data;
+   std::vector<int*> data_int;
    // Data type for each column
    std::vector<dtype> data_order;
    // Name of each monitored data
@@ -37,8 +36,7 @@ protected:
    int w;
    // Whether the variable name row has been printed or not
    bool var_name_printed;
-   // my_rank = IsSerial ? 0 : Mpi::WorldRank()
-   int my_rank;
+   bool isRoot; // true if serial or root in parallel
    std::unique_ptr<std::ofstream> file;
 private:
 
@@ -54,7 +52,7 @@ public:
    // Print a row of currently monitored data. If it is called
    void Print();
    // Save data to a file whenever Print is called.
-   void SaveWhenPrint(const char *filename, std::ios::openmode mode=std::ios::trunc);
+   void SaveWhenPrint(std::string filename, std::ios::openmode mode=std::ios::out);
    // Close file manually.
    void CloseFile() {if (file) file.reset(nullptr); }
 

@@ -2,7 +2,6 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include <fstream>
 #include <iomanip>
 namespace mfem
 {
@@ -91,10 +90,10 @@ MixedBilinearForm *MakeMixedBilinearForm(FiniteElementSpace *trial_fes,
 
 TableLogger::TableLogger(std::ostream &os): os(os), w(10),
    var_name_printed(false),
-   my_rank(0)
+   isRoot(true)
 {
 #ifdef MFEM_USE_MPI
-   if (Mpi::IsInitialized()) { my_rank = Mpi::WorldRank(); }
+   isRoot = Mpi::IsInitialized() ? Mpi::Root() : true;
 #endif
 
 }
@@ -102,20 +101,20 @@ TableLogger::TableLogger(std::ostream &os): os(os), w(10),
 void TableLogger::Append(const std::string name, double &val)
 {
    names.push_back(name);
-   monitored_double_data.push_back(&val);
+   data_double.push_back(&val);
    data_order.push_back(dtype::DOUBLE);
 }
 
 void TableLogger::Append(const std::string name, int &val)
 {
    names.push_back(name);
-   monitored_int_data.push_back(&val);
+   data_int.push_back(&val);
    data_order.push_back(dtype::INT);
 }
 
 void TableLogger::Print()
 {
-   if (my_rank == 0)
+   if (isRoot)
    {
       if (!var_name_printed)
       {
@@ -123,6 +122,11 @@ void TableLogger::Print()
          for (auto &name : names) { os << std::setw(w) << name << "\t";}
          os << "\b\b";
          os << "\n";
+         if (file && file->is_open())
+         {
+            for (auto &name : names) { *file << std::setw(w) << name << "\t";}
+            *file << std::endl;
+         }
       }
       int i_double(0), i_int(0);
       for (auto d: data_order)
@@ -131,14 +135,16 @@ void TableLogger::Print()
          {
             case dtype::DOUBLE:
             {
-               os << std::setw(w) << *monitored_double_data[i_double++] << ",\t";
-               if (file) { *file << std::setprecision(8) << std::scientific << *monitored_double_data[i_double++]; }
+               os << std::setw(w) << *data_double[i_double] << ",\t";
+               if (file && file->is_open()) { *file << std::setprecision(8) << std::scientific << *data_double[i_double] << ",\t"; }
+               i_double++;
                break;
             }
             case dtype::INT:
             {
-               os << std::setw(w) << *monitored_int_data[i_int++] << ",\t";
-               if (file) { *file << *monitored_int_data[i_double++]; }
+               os << std::setw(w) << *data_int[i_int] << ",\t";
+               if (file && file->is_open()) { *file << *data_int[i_int] << ",\t"; }
+               i_int++;
                break;
             }
             default:
@@ -152,9 +158,21 @@ void TableLogger::Print()
       if (file) { *file << std::endl; }
    }
 }
-void TableLogger::SaveWhenPrint(const char *filename, std::ios::openmode mode)
+void TableLogger::SaveWhenPrint(std::string filename, std::ios::openmode mode)
 {
-   file.reset(new std::ofstream(filename, mode));
+   if (isRoot)
+   {
+      filename = filename.append(".txt");
+      file.reset(new std::ofstream);
+      file->open(filename, mode);
+      if (!file->is_open())
+      {
+         std::string msg("");
+         msg += "Cannot open file ";
+         msg += filename;
+         MFEM_ABORT(msg);
+      }
+   }
 }
 
 }
