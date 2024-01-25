@@ -230,10 +230,10 @@ public:
       Mform.FormSystemMatrix(ess_tdof_list, M);
 
       {
-         const double E = 5.6 * 1e6; // CSM2
-         // const double E = 1.4 * 1e6; // CSM3
-         const double nu = 0.4;
-         const double mu = E / (2*(1+nu)); // CSM2
+         // const double E = 5.6 * 1e6; // CSM2
+         const double E = 1.4 * 1e6; // CSM3
+         const double nu = 0.4; // CSM123
+         const double mu = E / (2*(1+nu)); // CSM123
          const double lambda = nu * E / ((1+nu) * (1-2*nu));
          mu_coef.constant = mu;
          lambda_coef.constant = lambda;
@@ -291,7 +291,7 @@ public:
       Ainv.Mult(z, d2udt2);
    }
 
-   void SetBoundaryTraction(const ParGridFunction &traction_gf)
+   void SetBodyTraction(const ParGridFunction &traction_gf)
    {
       fcoeff.reset(new VectorGridFunctionCoefficient(&traction_gf));
       scaled_fcoeff.reset(new ScalarVectorProductCoefficient(density, *fcoeff));
@@ -360,12 +360,14 @@ int main(int argc, char *argv[])
    int max_bdf_order = 3;
    int current_step = 0;
    bool last_step = false;
-   double solid_density = 1e3;
+   double solid_density = 1.0e3;
    int enable_retry = 1;
    double max_elem_error = 5.0e-3;
    double hysteresis = 0.15; // derefinement safety coefficient
    int nc_limit = 3;
    int refinements = 0;
+   int csm_only = 0;
+   int cfd_only = 0;
 
    const char *device_config = "cpu";
    OptionsParser args(argc, argv);
@@ -385,6 +387,12 @@ int main(int argc, char *argv[])
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
                   "Derefinement safety coefficient.");
+   args.AddOption(&csm_only, "-csm_only", "--csm_only",
+                  "Run only CSM.");
+   args.AddOption(&cfd_only, "-cfd_only", "--cfd_only",
+                  "Run only CFD.");
+   args.AddOption(&dt, "-dt", "--dt",
+                  "dt.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -439,15 +447,15 @@ int main(int argc, char *argv[])
       // const double x = coords(0);
       const double y = coords(1);
       const double H = 0.41;
-      const double ramp_peak_at = 1.0;
+      const double ramp_peak_at = 0.1;
       const double ramp = 0.5 * (1.0 - cos(M_PI / ramp_peak_at * time));
       if (time < ramp_peak_at)
       {
-         u(0) = U * 1.5 * y * (H - y) / pow(H / 2.0, 2.0) * ramp;
+         u(0) = U * y * (H - y) / pow(H / 2.0, 2.0) * ramp;
       }
       else
       {
-         u(0) = U * 1.5 * y * (H - y) / pow(H / 2.0, 2.0);
+         u(0) = U * y * (H - y) / pow(H / 2.0, 2.0);
       }
       u(1) = 0.0;
    });
@@ -526,7 +534,7 @@ int main(int argc, char *argv[])
    ParGridFunction solid_sigmaN_gf(&elasticity.fes);
    solid_sigmaN_gf = 0.0;
 
-   elasticity.SetBoundaryTraction(solid_sigmaN_gf);
+   elasticity.SetBodyTraction(solid_sigmaN_gf);
 
    HHTAlphaSolver hht;
    hht.Init(elasticity);
@@ -551,9 +559,16 @@ int main(int argc, char *argv[])
    pvdc_solid.RegisterField("velocity", &solid_vel_gf);
    pvdc_solid.Save();
 
-#ifdef false
+   if (csm_only)
    {
-      dt = 1e-3;
+      auto gravitational_force = [](const Vector &, Vector &u)
+      {
+         u(0) = 0.0;
+         u(1) = -2.0;
+      };
+      VectorFunctionCoefficient gravitational_force_coeff(dim, gravitational_force);
+      solid_sigmaN_gf.ProjectCoefficient(gravitational_force_coeff);
+      double max_disp_y = 0.0;
       for (int step = 0; !last_step; ++step)
       {
          if (time + dt >= t_final - dt / 2)
@@ -566,34 +581,53 @@ int main(int argc, char *argv[])
          solid_displacement_gf.SetFromTrueDofs(solid_displacement);
          solid_vel_gf.SetFromTrueDofs(solid_vel);
 
-         if ((step + 1) % 100 == 0 || last_step)
+         Vector point(2);
+         point(0) = 0.6;
+         point(1) = 0.2;
+         DenseMatrix points(dim, 1);
+         points.SetCol(0, point);
+
+         Array<int> elem_ids;
+         Array<IntegrationPoint> ips;
+
+         solid_mesh.FindPoints(points, elem_ids, ips);
+
+         Vector val;
+         solid_displacement_gf.GetVectorValue(elem_ids[0], ips[0], val);
+
+         double disp_x = val(0);
+         double disp_y = val(1);
+
+         max_disp_y = std::max(abs(max_disp_y), abs(val(1)));
+
+         if ((step + 1) % 10 == 0 || last_step)
          {
-            printf("%d %1.3E %1.3E\n", step, time, dt);
+            printf("%d %1.3E %1.3E %1.3E %1.3E\n", step, time, dt, disp_x, disp_y);
             time += dt;
             pvdc_solid.SetCycle(step);
             pvdc_solid.SetTime(time);
             pvdc_solid.Save();
          }
       }
+      printf("max y-displacement = %1.3E\n", max_disp_y);
       exit(0);
    }
-#endif
 
    BoundaryFieldTransfer::Backend transfer_backend =
       BoundaryFieldTransfer::Backend::Native;
 
    BoundaryFieldTransfer solid_fluid_bdr_transfer(solid_vel_gf, *u_gf,
-                                                         *u_gf->ParFESpace(),
-                                                         solid_fluid_interface_attr,
-                                                         transfer_backend);
+                                                  *u_gf->ParFESpace(),
+                                                  solid_fluid_interface_attr,
+                                                  transfer_backend);
 
    printf("%d %d\n", fluid_mesh.bdr_attributes.Max(),
           solid_mesh.bdr_attributes.Max());
 
    BoundaryFieldTransfer fluid_solid_bdr_transfer(*u_gf, solid_vel_gf,
-                                                         *solid_vel_gf.ParFESpace(),
-                                                         solid_fluid_interface_attr,
-                                                         transfer_backend);
+                                                  *solid_vel_gf.ParFESpace(),
+                                                  solid_fluid_interface_attr,
+                                                  transfer_backend);
 
    ParaViewDataCollection pvdc("fluid_output", &fluid_mesh);
    pvdc.SetDataFormat(VTKFormat::BINARY32);
