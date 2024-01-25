@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
    LatentDesignDensity density(control_fes, filter, vol_fraction,
-                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
+                               ShannonEntropy, log_d, exp_d, false, true);
 
    ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
    ParametrizedElasticityEquation elasticity(state_fes,
