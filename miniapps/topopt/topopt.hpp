@@ -104,12 +104,14 @@ class DensityFilter
 {
 public:
 protected:
+   FiniteElementSpace &fes;
 private:
 
 public:
-   DensityFilter() = default;
+   DensityFilter(FiniteElementSpace &fes):fes(fes) {};
    virtual void Apply(const GridFunction &rho, GridFunction &frho) const = 0;
    virtual void Apply(Coefficient &rho, GridFunction &frho) const = 0;
+   FiniteElementSpace &GetFESpace() {return fes;};
 protected:
 private:
 };
@@ -118,7 +120,6 @@ class HelmholtzFilter : public DensityFilter
 {
 public:
 protected:
-   FiniteElementSpace &fes;
    std::unique_ptr<BilinearForm> filter;
    Array<int> &ess_bdr;
    ConstantCoefficient eps2;
@@ -155,8 +156,7 @@ private:
    // functions
 public:
    DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                 FiniteElementSpace &filter_fes, double vol_frac,
-                 double volume_tolerance=1e-09);
+                 double vol_frac, double volume_tolerance=1e-09);
    FiniteElementSpace *FESpace() {return x_gf->FESpace(); }
    FiniteElementSpace *FESpace_filter() {return frho->FESpace(); }
    double GetVolume() { return current_volume; }
@@ -218,7 +218,6 @@ private:
    // functions
 public:
    SigmoidDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                        FiniteElementSpace &fes_filter,
                         double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override
@@ -256,7 +255,6 @@ private:
    // functions
 public:
    ExponentialDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                            FiniteElementSpace &fes_filter,
                             double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override
@@ -297,7 +295,7 @@ private:
    std::unique_ptr<GridFunction> zero_gf;
    // functions
 public:
-   LatentDesignDensity(FiniteElementSpace &fes, FiniteElementSpace &fes_filter,
+   LatentDesignDensity(FiniteElementSpace &fes,
                        DensityFilter &filter, double vol_frac,
                        std::function<double(double)> h,
                        std::function<double(double)> primal2dual,
@@ -337,7 +335,6 @@ private:
    // functions
 public:
    PrimalDesignDensity(FiniteElementSpace &fes, DensityFilter& filter,
-                       FiniteElementSpace &fes_filter,
                        double vol_frac);
    void Project() override;
    double StationarityError(GridFunction &grad) override;

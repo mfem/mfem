@@ -231,7 +231,6 @@ bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
 }
 
 DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
-                             FiniteElementSpace &fes_filter,
                              double target_volume_fraction,
                              double volume_tolerance)
    : filter(filter), target_volume_fraction(target_volume_fraction),
@@ -253,7 +252,7 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
 
    }
    *x_gf = target_volume_fraction;
-   frho.reset(MakeGridFunction(&fes_filter));
+   frho.reset(MakeGridFunction(&(filter.GetFESpace())));
    *frho = target_volume_fraction;
    target_volume = domain_volume * target_volume_fraction;
 }
@@ -305,9 +304,8 @@ Coefficient &ThresholdProjector::GetDerivative(GridFunction &frho)
 }
 SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
                                            DensityFilter &filter,
-                                           FiniteElementSpace &fes_filter,
                                            double vol_frac):
-   DesignDensity(fes, filter, fes_filter, vol_frac),
+   DesignDensity(fes, filter, vol_frac),
    zero_gf(MakeGridFunction(&fes))
 {
    *x_gf = inv_sigmoid(vol_frac);
@@ -420,9 +418,8 @@ double SigmoidDesignDensity::StationarityErrorL2(GridFunction &grad)
 
 ExponentialDesignDensity::ExponentialDesignDensity(FiniteElementSpace &fes,
                                                    DensityFilter &filter,
-                                                   FiniteElementSpace &fes_filter,
                                                    double vol_frac):
-   DesignDensity(fes, filter, fes_filter, vol_frac),
+   DesignDensity(fes, filter, vol_frac),
    zero_gf(MakeGridFunction(&fes))
 {
    *x_gf = std::log(vol_frac);
@@ -534,13 +531,12 @@ double ExponentialDesignDensity::StationarityErrorL2(GridFunction &grad)
 }
 
 LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
-                                         FiniteElementSpace &fes_filter,
                                          DensityFilter &filter, double vol_frac,
                                          std::function<double(double)> h,
                                          std::function<double(double)> primal2dual,
                                          std::function<double(double)> dual2primal,
                                          bool clip_lower, bool clip_upper):
-   DesignDensity(fes, filter, fes_filter, vol_frac),
+   DesignDensity(fes, filter, vol_frac),
    h(h), p2d(primal2dual), d2p(dual2primal),
    clip_lower(clip_lower), clip_upper(clip_upper),
    zero_gf(MakeGridFunction(&fes))
@@ -670,9 +666,8 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
 }
 PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
                                          DensityFilter& filter,
-                                         FiniteElementSpace &fes_filter,
                                          double vol_frac):
-   DesignDensity(fes, filter, fes_filter, vol_frac),
+   DesignDensity(fes, filter, vol_frac),
    zero_gf(MakeGridFunction(&fes))
 {
    rho_cf.reset(new GridFunctionCoefficient(x_gf.get()));
@@ -1035,7 +1030,7 @@ int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
 }
 
 HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
-                                 const double eps, Array<int> &ess_bdr):fes(fes),
+                                 const double eps, Array<int> &ess_bdr):DensityFilter(fes),
    filter(MakeBilinearForm(&fes)), eps2(eps*eps), ess_bdr(ess_bdr)
 {
    filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
