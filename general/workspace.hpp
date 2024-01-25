@@ -126,6 +126,8 @@ class Workspace
 public:
    /// Return a new WorkspaceVector of the requested size.
    static WorkspaceVector NewVector(int n);
+   /// Ensure that capacity of at least @a n is available for allocations.
+   static void Reserve(int n);
    /// Clear all storage. Invalidates any existing WorkspaceVector%s.
    static void Clear();
 };
