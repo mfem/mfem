@@ -268,7 +268,8 @@ protected:
 
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
-                            const int btype = BasisType::GaussLobatto);
+                            const int btype = BasisType::GaussLobatto,
+			    const int pyrtype = 0);
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const;
@@ -341,7 +342,8 @@ private:
 public:
    L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
-                   const int map_type = FiniteElement::VALUE);
+                   const int map_type = FiniteElement::VALUE,
+		   const int pyrtype = 0);
 
    virtual const FiniteElement *FiniteElementForGeometry(
       Geometry::Type GeomType) const;
