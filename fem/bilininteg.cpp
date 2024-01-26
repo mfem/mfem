@@ -1711,9 +1711,6 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
    shape.SetSize(test_nd);
 #endif
 
-   MFEM_ASSERT(test_fe.GetMapType() == FiniteElement::VALUE,
-               "Only value-based scalar finite elements are supported");
-
    elmat.SetSize(test_nd, trial_nd);
 
    const IntegrationRule *ir = IntRule;
