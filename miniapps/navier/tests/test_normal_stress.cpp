@@ -9,8 +9,10 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "navier_solver.hpp"
-#include "boundary_normal_stress_integrator.hpp"
+#include "fem/intrules.hpp"
+#include "lib/navier_solver.hpp"
+#include "kernels/boundary_normal_stress_integrator.hpp"
+#include "kernels/boundary_normal_stress_evaluator.hpp"
 #include <fstream>
 
 using namespace mfem;
@@ -68,6 +70,7 @@ int main(int argc, char *argv[])
    mesh.EnsureNodes();
 
    const int dimension = mesh.Dimension();
+   const double density = 1.0;
 
    Array<int> left_domain(mesh.attributes.Max());
    left_domain = 0;
@@ -122,6 +125,13 @@ int main(int argc, char *argv[])
    Vector diff(bdr_f);
    diff -= analytical_sigma_ne_dual;
    MFEM_ASSERT(diff.Norml2() < 1e-12, "");
+
+   ParGridFunction sigma_ne(u->ParFESpace());
+   BoundaryNormalStressEvaluator(*u, *p, *mu, interface_marker, navier.gll_ir_face,
+                                 sigma_ne);
+
+   sigma_ne -= analytical_sigma_ne;
+   MFEM_ASSERT(sigma_ne.Norml2() < 1e-12, "");
 
    ParSubMesh solid_mesh = ParSubMesh::CreateFromDomain(pmesh, right_domain);
 
