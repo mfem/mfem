@@ -1831,9 +1831,6 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
    MFEM_ASSERT(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
                test_fe.GetMapType() == mfem::FiniteElement::H_CURL,
                "At least one of the finite elements must be in H(Curl)");
-   MFEM_ASSERT(trial_fe.GetMapType() == FiniteElement::VALUE ||
-               test_fe.GetMapType() == FiniteElement::VALUE,
-               "Only value-based scalar finite elements are supported");
 
    int curl_nd, vec_nd;
    if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
@@ -1892,12 +1889,12 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
          if ( trial_fe.GetMapType() == mfem::FiniteElement::H_CURL )
          {
             trial_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
-            test_fe.CalcShape(ip, shapeTest);
+            test_fe.CalcPhysShape(Trans, shapeTest);
          }
          else
          {
             test_fe.CalcCurlShape(ip, curlshapeTrial_dFT);
-            trial_fe.CalcShape(ip, shapeTest);
+            trial_fe.CalcPhysShape(Trans, shapeTest);
          }
       }
 
