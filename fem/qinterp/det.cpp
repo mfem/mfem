@@ -58,11 +58,10 @@ static void Det2D(const int NE,
                   const double *g,
                   const double *x,
                   double *y,
-                  const int vdim = 1,
+                  const int sdim,
                   const int d1d = 0,
                   const int q1d = 0)
 {
-   constexpr int DIM = 2;
    static constexpr int NBZ = 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -70,37 +69,117 @@ static void Det2D(const int NE,
 
    const auto B = Reshape(b, Q1D, D1D);
    const auto G = Reshape(g, Q1D, D1D);
-   const auto X = Reshape(x,  D1D, D1D, DIM, NE);
+   const auto X = Reshape(x,  D1D, D1D, sdim, NE);
    auto Y = Reshape(y, Q1D, Q1D, NE);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   if (sdim == 2)
    {
-      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-      MFEM_SHARED double BG[2][MQ1*MD1];
-      MFEM_SHARED double XY[2][NBZ][MD1*MD1];
-      MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
-      MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
-
-      kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
-      kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
-
-      kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
-      kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
-
-      MFEM_FOREACH_THREAD(qy,y,Q1D)
+      mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
       {
-         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         const int D1D = T_D1D ? T_D1D : d1d;
+         const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+         MFEM_SHARED double BG[2][MQ1*MD1];
+         MFEM_SHARED double XY[2][NBZ][MD1*MD1];
+         MFEM_SHARED double DQ[4][NBZ][MD1*MQ1];
+         MFEM_SHARED double QQ[4][NBZ][MQ1*MQ1];
+
+         kernels::internal::LoadX<MD1,NBZ>(e,D1D,X,XY);
+         kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+
+         kernels::internal::GradX<MD1,MQ1,NBZ>(D1D,Q1D,BG,XY,DQ);
+         kernels::internal::GradY<MD1,MQ1,NBZ>(D1D,Q1D,BG,DQ,QQ);
+
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
          {
-            double J[4];
-            kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
-            Y(qx,qy,e) = kernels::Det<2>(J);
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double J[4];
+               kernels::internal::PullGrad<MQ1,NBZ>(Q1D,qx,qy,QQ,J);
+               Y(qx,qy,e) = kernels::Det<2>(J);
+            }
          }
-      }
-   });
+      });
+   }
+   else
+   {
+      static constexpr int SDIM = 3;
+      mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+      {
+         constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+         constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+         const int D1D = T_D1D ? T_D1D : d1d;
+         const int Q1D = T_Q1D ? T_Q1D : q1d;
+         const int tidz = MFEM_THREAD_ID(z);
+
+         MFEM_SHARED double BG[2][MQ1*MD1];
+         MFEM_SHARED double XYZ[SDIM][NBZ][MD1*MD1];
+         MFEM_SHARED double DQ[2*SDIM][NBZ][MD1*MQ1];
+
+         kernels::internal::LoadBG<MD1,MQ1>(D1D,Q1D,B,G,BG);
+
+         // Load XYZ components
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               for (int d = 0; d < SDIM; ++d)
+               {
+                  XYZ[d][tidz][dx + dy*D1D] = X(dx,dy,d,e);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         ConstDeviceMatrix B_mat(BG[0], D1D, Q1D);
+         ConstDeviceMatrix G_mat(BG[1], D1D, Q1D);
+
+         // x contraction
+         MFEM_FOREACH_THREAD(dy,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               for (int d = 0; d < SDIM; ++d)
+               {
+                  double u = 0.0;
+                  double v = 0.0;
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     const double xval = XYZ[d][tidz][dx + dy*D1D];
+                     u += xval * G_mat(dx,qx);
+                     v += xval * B_mat(dx,qx);
+                  }
+                  DQ[d][tidz][dy + qx*D1D] = u;
+                  DQ[3 + d][tidz][dy + qx*D1D] = v;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+         // y contraction and determinant computation
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               double J_[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+               for (int d = 0; d < SDIM; ++d)
+               {
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     J_[d] += DQ[d][tidz][dy + qx*D1D] * B_mat(dy,qy);
+                     J_[3 + d] += DQ[3 + d][tidz][dy + qx*D1D] * G_mat(dy,qy);
+                  }
+               }
+               DeviceTensor<2> J(J_, 3, 2);
+               const double E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
+               const double F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
+               const double G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
+               Y(qx,qy,e) = sqrt(E*G - F*F);
+            }
+         }
+      });
+   }
 }
 
 template<int T_D1D = 0, int T_Q1D = 0, bool SMEM = true>
@@ -109,7 +188,6 @@ static void Det3D(const int NE,
                   const double *g,
                   const double *x,
                   double *y,
-                  const int vdim = 1,
                   const int d1d = 0,
                   const int q1d = 0,
                   Vector *d_buff = nullptr) // used only with SMEM = false
@@ -214,15 +292,15 @@ void TensorDeterminants(const int NE,
    {
       switch (id)
       {
-         case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
-         case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
-         case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
-         case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
-         case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
-         case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
-         case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
-         case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
-         case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
+         case 0x222: return Det2D<2,2>(NE,B,G,X,Y,2);
+         case 0x223: return Det2D<2,3>(NE,B,G,X,Y,2);
+         case 0x224: return Det2D<2,4>(NE,B,G,X,Y,2);
+         case 0x226: return Det2D<2,6>(NE,B,G,X,Y,2);
+         case 0x234: return Det2D<3,4>(NE,B,G,X,Y,2);
+         case 0x236: return Det2D<3,6>(NE,B,G,X,Y,2);
+         case 0x244: return Det2D<4,4>(NE,B,G,X,Y,2);
+         case 0x246: return Det2D<4,6>(NE,B,G,X,Y,2);
+         case 0x256: return Det2D<5,6>(NE,B,G,X,Y,2);
          default:
          {
             const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
@@ -250,10 +328,10 @@ void TensorDeterminants(const int NE,
             const int MQ = DeviceDofQuadLimits::Get().MAX_DET_1D;
             // Highest orders that fit in shared memory
             if (D1D <= MD && Q1D <= MQ)
-            { return Det3D<0,0,true>(NE,B,G,X,Y,vdim,D1D,Q1D); }
+            { return Det3D<0,0,true>(NE,B,G,X,Y,D1D,Q1D); }
             // Last fall-back will use global memory
             return Det3D<0,0,false>(
-                      NE,B,G,X,Y,vdim,D1D,Q1D,&d_buff);
+                      NE,B,G,X,Y,D1D,Q1D,&d_buff);
          }
       }
    }

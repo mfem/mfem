@@ -168,7 +168,6 @@ static void Eval2D(const int NE,
    MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 2, "");
    MFEM_VERIFY(ND <= QI::MAX_ND2D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ2D, "");
-   MFEM_VERIFY(VDIM == 2 || !(eval_flags & QI::DETERMINANTS), "");
    MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
                "'geom' must be given (non-null) only when evaluating physical"
                " derivatives");
@@ -277,11 +276,17 @@ static void Eval2D(const int NE,
                   }
                }
             }
-            if (VDIM == 2 && (eval_flags & QI::DETERMINANTS))
+            if (eval_flags & QI::DETERMINANTS)
             {
-               // The check (VDIM == 2) should eliminate this block when VDIM is
-               // known at compile time and (VDIM != 2).
-               det(q,e) = kernels::Det<2>(D);
+               if (VDIM == 2) { det(q,e) = kernels::Det<2>(D); }
+               else
+               {
+                  DeviceTensor<2> j(D, 3, 2);
+                  const double E = j(0,0)*j(0,0) + j(1,0)*j(1,0) + j(2,0)*j(2,0);
+                  const double F = j(0,0)*j(0,1) + j(1,0)*j(1,1) + j(2,0)*j(2,1);
+                  const double G = j(0,1)*j(0,1) + j(1,1)*j(1,1) + j(2,1)*j(2,1);
+                  det(q,e) = sqrt(E*G - F*F);
+               }
             }
          }
       }
