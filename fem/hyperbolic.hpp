@@ -35,9 +35,11 @@ namespace mfem
 //               To implement a specific hyperbolic conservation laws, users can
 //               create derived classes from @a FluxFunction with overloaded
 //               @a ComputeFlux. One can optionally overload @a ComputeFluxDotN to avoid
-//               creating dense matrix when computing normal flux. User can control
-//               the quadrature rule by either providing the integration rule, or
-//               integration order offset (see, @a HyperbolicFormIntegrator::GetRule)
+//               creating dense matrix when computing normal flux. Several example equations
+//               are also defined including: advection, Burgers', shallow water, and Euler 
+//               equations. User can control the quadrature rule by either providing the 
+//               integration rule, or integration order offset.
+//               See, @a HyperbolicFormIntegrator::GetRule
 //
 //               At each call of @a HyperbolicFormIntegrator::AssembleElementVector
 //               @a HyperbolicFormIntegrator::AssembleFaceVector,
