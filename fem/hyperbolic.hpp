@@ -16,31 +16,36 @@
 #include "nonlinearform.hpp"
 namespace mfem
 {
-//           MFEM Hyperbolic Conservation Laws Serial/Parallel Shared Class
+//                            MFEM Hyperbolic Conservation Laws
 //
 // Description:  This file contains general hyperbolic conservation element/face
 //               form integrators.
 //
-//               Abstract RiemannSolver, HyperbolicFormIntegrator, and
-//               DGHyperbolicConservationLaws are defined. Also, several example
-//               hyperbolic equations are defined; including advection, burgers,
-//               shallow water, and euler equations.
+//               HyperbolicFormIntegrator and RiemannSolver are defined.
+//               HyperbolicFormIntegrator is a @a NonlinearFormIntegrator that
+//               implements element weak divergence and interface flux
+//
+//                   ∫_T F(u):∇v,   ∫_e F̂(u)⋅[[v]]
+//
+//               Here, @a T is an element, @a e is an edge, and [[⋅]] is jump.
+//               This form integrator is coupled with @a RiemannSolver that implements
+//               the numerical flux F̂. For RiemannSolver, the Rusanov flux, also known
+//               as local Lax-Friedrichs flux, is provided.
 //
 //               To implement a specific hyperbolic conservation laws, users can
-//               create derived classes from HyperbolicFormIntegrator with overloaded
-//               ComputeFlux. One can optionally overload ComputeFluxDotN to avoid
-//               creating dense matrix when computing normal flux.
+//               create derived classes from @a FluxFunction with overloaded
+//               @a ComputeFlux. One can optionally overload @a ComputeFluxDotN to avoid
+//               creating dense matrix when computing normal flux. User can control
+//               the quadrature rule by either providing the integration rule, or
+//               integration order offset (see, @a HyperbolicFormIntegrator::GetRule)
 //
-//               FormIntegrator use high-order quadrature points to implement
-//               the given form to handle nonlinear flux function. During the
-//               implementation of forms, it updates maximum characteristic
-//               speed and collected by DGHyperbolicConservationLaws. The global
-//               maximum characteristic speed can be obtained by public method
-//               GetMaxCharSpeed so that the time step can be determined by CFL
-//               condition. Also, ResetMaxCharSpeed should be called after each Mult.
-//
-//               @note For parallel version, users should reduce all maximum
-//               characteristic speed from all processes using MPI_Allreduce.
+//               At each call of @a HyperbolicFormIntegrator::AssembleElementVector
+//               @a HyperbolicFormIntegrator::AssembleFaceVector,
+//               the maximum characteristic speed will be updated. This will not be
+//               reinitialized automatically. To reinitialize, use
+//               @a HyperbolicFormIntegrator::ResetMaxCharSpeed. See, @a ex18.hpp.
+//               @note To avoid communication overhead, we update the maximum characteristic
+//               speed within each process. Use a proper MPI routine to gather the information.
 //
 
 

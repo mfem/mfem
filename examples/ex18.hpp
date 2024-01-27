@@ -1,11 +1,24 @@
 //                  MFEM Example 18 - Serial/Parallel Shared Code
 //                      (Implementation of Time-dependent DG Operator)
 //
-//  Here, we implement the time-dependent DG operator,
+// This code provide example problems for the Euler equations and implements
+// the time-dependent DG operator given by the equation:
 //
-//    (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u,n), [[v]]>_F = 0
+//            (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u, n), [[v]]>_F = 0.
 //
-//  for explicit time stepping methods.
+// This operator is designed for explicit time stepping methods. Specifically, the
+// function DGHyperbolicConservationLaws::Mult implements the following transformation:
+//
+//                             u ↦ M⁻¹(-DF(u) + NF(u))
+//
+// where M is the mass matrix, DF is the weak divergence of flux, and NF is the
+// interface flux. The inverse of the mass matrix is computed element-wise by
+// leveraging the block-diagonal structure of the DG mass matrix. Additionally,
+// the flux-related terms are computed using the HyperbolicFormIntegrator.
+//
+// The maximum characteristic speed is determined for each time step. For more details,
+// refer to the documentation of DGHyperbolicConservationLaws::Mult.
+//
 
 #include <functional>
 #include "mfem.hpp"
