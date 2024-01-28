@@ -317,7 +317,7 @@ public:
 };
 
 /** Class for boundary integration of \f$ L(v) := (g, v) \f$, where
-    \f$f=(f_1,\dots,f_n)\f$ and \f$v=(v_1,\dots,v_n)\f$. */
+    \f$g=(g_1,\dots,g_n)\f$ and \f$v=(v_1,\dots,v_n)\f$. */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
 {
 private:
