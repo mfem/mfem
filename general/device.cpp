@@ -166,7 +166,6 @@ Device::~Device()
       mm.Destroy();
    }
    Get().ngpu = -1;
-   Get().mode = SEQUENTIAL;
    Get().backends = Backend::CPU;
    Get().host_mem_type = MemoryType::HOST;
    Get().host_mem_class = MemoryClass::HOST;
@@ -233,9 +232,7 @@ void Device::Configure(const std::string &device, const int device_id)
    // Perform setup.
    Get().Setup(device_option, device_id);
 
-   // Enable the device
-   const bool accelerated = Get().backends & ~(Backend::CPU);
-   if (accelerated) { Get().mode = Device::ACCELERATED; }
+   // Configure the host/device MemoryType/MemoryClass.
    Get().UpdateMemoryTypeAndClass(device_option);
 
    // Copy all data members from the global 'singleton_device' into '*this'.
