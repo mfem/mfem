@@ -251,6 +251,9 @@ public:
    /// Get the device id of the configured device.
    static inline int GetId() { return Get().dev; }
 
+   /// Get the number of available devices (may be called before configuration).
+   static int GetDeviceCount();
+
    /** @brief Return true if any of the backends in the backend mask, @a b_mask,
        are allowed. */
    /** This method can be used with any of the Backend::Id constants, the
