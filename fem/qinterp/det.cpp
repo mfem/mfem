@@ -11,6 +11,7 @@
 
 #include "../quadinterpolator.hpp"
 #include "../../general/forall.hpp"
+#include "../../general/workspace.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../fem/kernels.hpp"
 #include "../../linalg/kernels.hpp"
@@ -111,8 +112,7 @@ static void Det3D(const int NE,
                   double *y,
                   const int vdim = 1,
                   const int d1d = 0,
-                  const int q1d = 0,
-                  Vector *d_buff = nullptr) // used only with SMEM = false
+                  const int q1d = 0)
 {
    constexpr int DIM = 3;
    static constexpr int GRID = SMEM ? 0 : 128;
@@ -126,6 +126,7 @@ static void Det3D(const int NE,
    auto Y = Reshape(y, Q1D, Q1D, Q1D, NE);
 
    double *GM = nullptr;
+   int buffer_size = 0;
    if (!SMEM)
    {
       const DeviceDofQuadLimits &limits = DeviceDofQuadLimits::Get();
@@ -133,9 +134,11 @@ static void Det3D(const int NE,
       const int max_d1d = T_D1D ? T_D1D : limits.MAX_Q1D;
       const int max_qd = std::max(max_q1d, max_d1d);
       const int mem_size = max_qd * max_qd * max_qd * 9;
-      d_buff->SetSize(2*mem_size*GRID);
-      GM = d_buff->Write();
+      buffer_size = 2*mem_size*GRID;
    }
+   // if SMEM is true, d_buff will be empty (zero size)
+   auto d_buff = Workspace::NewVector(buffer_size);
+   GM = d_buff.Write();
 
    mfem::forall_3D_grid(NE, Q1D, Q1D, Q1D, GRID, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -185,8 +188,7 @@ void TensorDeterminants(const int NE,
                         const int vdim,
                         const DofToQuad &maps,
                         const Vector &e_vec,
-                        Vector &q_det,
-                        Vector &d_buff)
+                        Vector &q_det)
 {
    if (NE == 0) { return; }
    const int dim = maps.FE->GetDim();
@@ -253,7 +255,7 @@ void TensorDeterminants(const int NE,
             { return Det3D<0,0,true>(NE,B,G,X,Y,vdim,D1D,Q1D); }
             // Last fall-back will use global memory
             return Det3D<0,0,false>(
-                      NE,B,G,X,Y,vdim,D1D,Q1D,&d_buff);
+                      NE,B,G,X,Y,vdim,D1D,Q1D);
          }
       }
    }

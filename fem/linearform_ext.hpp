@@ -39,9 +39,6 @@ class LinearFormExtension
    /// Operator that converts L-vectors to boundary E-vectors.
    const FaceRestriction *bdr_restrict_lex; // Not owned
 
-   /// Internal E-vectors.
-   mutable Vector b, bdr_b;
-
 public:
 
    /// \brief Create a LinearForm extension of @a lf.
