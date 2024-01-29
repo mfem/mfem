@@ -22,7 +22,8 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
                                    ParGridFunction &nu_gf,
                                    Array<int> &marker,
                                    IntegrationRule &ir_face,
-                                   ParGridFunction &sigmaN_gf)
+                                   ParGridFunction &sigmaN_gf,
+                                   const double density = 1.0)
 {
    const auto &u_fes = *u_gf.ParFESpace();
    // const auto &p_fes = *p_gf.ParFESpace();
@@ -70,7 +71,7 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
          {
             for (int j = 0; j < dim; j++)
             {
-               A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
+               A(i, j) = -p * (i == j) + density * nu * (dudx(i, j) + dudx(j, i));
                // A(i, j) = -p * (i == j);
                // A(i, j) = nu * (dudx(i, j) + dudx(j, i));
             }

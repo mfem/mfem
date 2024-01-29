@@ -21,10 +21,11 @@ class BoundaryNormalStressIntegrator : public LinearFormIntegrator
 {
 public:
    BoundaryNormalStressIntegrator(const GridFunction &ugf, const GridFunction &pgf,
-                                  const GridFunction &nugf) :
+                                  const GridFunction &nugf, const double density = 1.0) :
       ugf(ugf),
       pgf(pgf),
-      nugf(nugf)
+      nugf(nugf),
+      density(density)
    { }
 
    virtual bool SupportsDevice() const { return false; }
@@ -69,7 +70,7 @@ public:
          {
             for (int j = 0; j < dim; j++)
             {
-               A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
+               A(i, j) = -p * (i == j) + density * nu * (dudx(i, j) + dudx(j, i));
                // A(i, j) = -p * (i == j);
                // A(i, j) = nu * (dudx(i, j) + dudx(j, i));
             }
@@ -97,4 +98,5 @@ public:
    const GridFunction &ugf;
    const GridFunction &pgf;
    const GridFunction &nugf;
+   const double density;
 };
