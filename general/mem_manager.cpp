@@ -426,8 +426,8 @@ class WorkspaceChunk
    size_t ptr_count = 0;
    /// Is the chunk in the front of the list?
    bool front = true;
-   /// The original capacity (in bytes) allocated.
-   const size_t original_capacity;
+   /// Whether the memory has been freed (prevent double-free).
+   bool dealloced = false;
 public:
    /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(size_t capacity);
@@ -435,15 +435,15 @@ public:
    ~WorkspaceChunk();
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
-   int GetAvailableCapacity() const { return original_capacity - offset; }
+   size_t GetAvailableCapacity() const { return data.bytes - offset; }
    /// @brief Returns the original capacity of the chunk.
    ///
    /// If the chunk is not in the front of the list and all of its vectors are
    /// freed, it may deallocate its data, so the capacity becomes zero. The
    /// "original capacity" remains unchained.
-   int GetOriginalCapacity() const { return original_capacity; }
+   size_t GetCapacity() const { return data.bytes; }
    /// Return the data offset.
-   int GetOffset() const { return offset; }
+   size_t GetOffset() const { return offset; }
    /// Sets whether the chunk is in the front of the list
    void SetFront(bool front_) { front = front_; }
    /// Returns true if this chunk can fit a new vector of size @a n.
@@ -487,7 +487,7 @@ class Workspace
       auto it = chunks.begin();
       while (it != chunks.end() && it->IsEmpty())
       {
-         empty_capacity += it->GetOriginalCapacity();
+         empty_capacity += it->GetCapacity();
          ++it;
          ++n_empty;
       }
@@ -1928,13 +1928,11 @@ Memory NewMemory(size_t nbytes)
    return Memory(h_ptr, nbytes, h_mt, d_mt);
 }
 
-WorkspaceChunk::WorkspaceChunk(size_t capacity)
-   : data(NewMemory(capacity)), original_capacity(capacity)
-{ }
+WorkspaceChunk::WorkspaceChunk(size_t capacity) : data(NewMemory(capacity)) { }
 
 WorkspaceChunk::~WorkspaceChunk()
 {
-   if (ctrl)
+   if (ctrl && !dealloced)
    {
       if (data.d_ptr)
       {
@@ -1963,6 +1961,7 @@ void WorkspaceChunk::FreePointer()
             ctrl->Device(data.d_mt)->Dealloc(data);
          }
          ctrl->Host(data.h_mt)->Dealloc(data.h_ptr);
+         dealloced = true;
       }
    }
 }
