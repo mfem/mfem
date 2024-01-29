@@ -95,7 +95,6 @@ struct Backend
       CEED_MASK = CEED_CPU | CEED_CUDA | CEED_HIP,
       /// Biwise-OR of all device backends
       DEVICE_MASK = CUDA_MASK | HIP_MASK | DEBUG_DEVICE,
-
       /// Biwise-OR of all RAJA backends
       RAJA_MASK = RAJA_CPU | RAJA_OMP | RAJA_CUDA | RAJA_HIP,
       /// Biwise-OR of all OCCA backends
@@ -176,16 +175,16 @@ public:
        a program.
        @note This object should be destroyed after all other MFEM objects that
        use the Device are destroyed. */
-   Device(const std::string &device, const int dev = 0)
-   { Configure(device, dev); }
+   Device(const std::string &device, const int device_id = 0)
+   { Configure(device, device_id); }
 
    /// Destructor.
    ~Device();
 
    /// Configure the Device backends.
    /** The string parameter @a device must be a comma-separated list of backend
-       string names (see below). The @a dev argument specifies the ID of the
-       actual devices (e.g. GPU) to use.
+       string names (see below). The @a device_id argument specifies the ID of
+       the actual devices (e.g. GPU) to use.
        * The available backends are described by the Backend class.
        * The string name of a backend is the lowercase version of the
          Backend::Id enumeration constant with '_' replaced by '-', e.g. the
@@ -213,8 +212,10 @@ public:
          and evaluation of operators and enables the 'hip' backend to avoid
          transfers between host and device.
        * The 'debug' backend should not be combined with other device backends.
-   */
-   void Configure(const std::string &device, const int dev = 0);
+
+       @note If the device is actually enabled, this method will also update the
+       current host/device MemoryType and MemoryClass. */
+   void Configure(const std::string &device, const int device_id = 0);
 
    /// Set the default host and device MemoryTypes, @a h_mt and @a d_mt.
    /** The host and device MemoryTypes are also set to be dual to each other.
@@ -242,7 +243,7 @@ public:
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
 
-   /// Get the device id of the configured device.
+   /// Get the device ID of the configured device.
    static inline int GetId() { return Get().dev; }
 
    /// Get the number of available devices (may be called before configuration).
@@ -281,9 +282,13 @@ public:
    /** @deprecated Use GetDeviceMemoryClass() instead. */
    static inline MemoryClass GetMemoryClass() { return Get().device_mem_class; }
 
+   /** @brief Manually set the status of GPU-aware MPI flag for use in MPI
+       communication routines which have optimized implementations for device
+       buffers. */
    static void SetGPUAwareMPI(const bool force = true)
    { Get().mpi_gpu_aware = force; }
 
+   /// Get the status of GPU-aware MPI flag.
    static bool GetGPUAwareMPI() { return Get().mpi_gpu_aware; }
 };
 
@@ -359,6 +364,6 @@ inline T *HostReadWrite(Memory<T> &mem, int size)
    return mfem::ReadWrite(mem, size, false);
 }
 
-} // mfem
+} // namespace mfem
 
 #endif // MFEM_DEVICE_HPP

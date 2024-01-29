@@ -142,7 +142,6 @@ Device::Device()
    }
 }
 
-
 Device::~Device()
 {
    if ( device_env && !destroy_mm) { return; }
@@ -366,15 +365,6 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
    mm.Configure(host_mem_type, device_mem_type);
 }
 
-#ifdef MFEM_USE_CUDA
-static void DeviceSetup(const int dev, int &ngpu)
-{
-   ngpu = CuGetDeviceCount();
-   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
-   MFEM_GPU_CHECK(cudaSetDevice(dev));
-}
-#endif
-
 // static method
 int Device::GetDeviceCount()
 {
@@ -395,7 +385,9 @@ int Device::GetDeviceCount()
 static void CudaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   DeviceSetup(dev, ngpu);
+   ngpu = CuGetDeviceCount();
+   MFEM_VERIFY(ngpu > 0, "No CUDA device found!");
+   MFEM_GPU_CHECK(cudaSetDevice(dev));
 #else
    MFEM_CONTRACT_VAR(dev);
    MFEM_CONTRACT_VAR(ngpu);
@@ -417,7 +409,7 @@ static void HipDeviceSetup(const int dev, int &ngpu)
 static void RajaDeviceSetup(const int dev, int &ngpu)
 {
 #ifdef MFEM_USE_CUDA
-   if (ngpu <= 0) { DeviceSetup(dev, ngpu); }
+   CudaDeviceSetup(dev, ngpu);
 #elif defined(MFEM_USE_HIP)
    HipDeviceSetup(dev, ngpu);
 #else
@@ -527,12 +519,6 @@ void Device::Setup(const std::string &device_option, const int device_id)
 #ifndef MFEM_USE_CEED
    MFEM_VERIFY(!Allows(Backend::CEED_MASK),
                "the CEED backends require MFEM built with MFEM_USE_CEED=YES");
-#else
-   int ceed_cpu  = Allows(Backend::CEED_CPU);
-   int ceed_cuda = Allows(Backend::CEED_CUDA);
-   int ceed_hip  = Allows(Backend::CEED_HIP);
-   MFEM_VERIFY(ceed_cpu + ceed_cuda + ceed_hip <= 1,
-               "Only one CEED backend can be enabled at a time!");
 #endif
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
@@ -570,4 +556,4 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::DEBUG_DEVICE)) { ngpu = 1; }
 }
 
-} // mfem
+} // namespace mfem
