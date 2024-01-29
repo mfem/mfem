@@ -14,6 +14,7 @@
 
 #include "globals.hpp"
 #include "mem_manager.hpp"
+#include <string>
 
 namespace mfem
 {
@@ -144,28 +145,21 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
-   char *device_option = NULL;
-   Device(Device const&);
-   void operator=(Device const&);
+   // Delete copy constructor and copy assignment.
+   Device(Device const &) = delete;
+   void operator=(Device const &) = delete;
+
+   // Access the Device singleton.
    static Device& Get() { return device_singleton; }
 
-   /// Setup switcher based on configuration settings
-   void Setup(const int device_id = 0);
+   /// Setup switcher based on configuration settings.
+   void Setup(const std::string &device_option, const int device_id);
 
+   /// Configure host/device MemoryType/MemoryClass.
+   void UpdateMemoryTypeAndClass(const std::string &device_option);
+
+   /// Configure the backends to include @a b.
    void MarkBackend(Backend::Id b) { backends |= b; }
-
-   void UpdateMemoryTypeAndClass();
-
-   /// Enable the use of the configured device in the code that follows.
-   /** After this call MFEM classes will use the backend kernels whenever
-       possible, transferring data automatically to the device, if necessary.
-
-       If the only configured backend is the default host CPU one, the device
-       will remain disabled.
-
-       If the device is actually enabled, this method will also update the
-       current host/device MemoryType and MemoryClass. */
-   static void Enable();
 
 public:
    /** @brief Default constructor. Unless Configure() is called later, the
