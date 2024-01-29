@@ -14,6 +14,7 @@
 
 #include <list>
 #include <cstring> // std::memcpy, std::memcmp
+#include <forward_list>
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
@@ -117,6 +118,7 @@ static void MFEM_VERIFY_TYPES(const MemoryType h_mt, const MemoryType d_mt)
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE) ||
       (h_mt == MemoryType::HOST_UMPIRE && d_mt == MemoryType::DEVICE_UMPIRE_2) ||
       (h_mt == MemoryType::HOST_DEBUG && d_mt == MemoryType::DEVICE_DEBUG) ||
+      (h_mt == MemoryType::HOST_WORKSPACE && d_mt == MemoryType::DEVICE_WORKSPACE) ||
       (h_mt == MemoryType::MANAGED && d_mt == MemoryType::MANAGED) ||
       (h_mt == MemoryType::HOST_64 && d_mt == MemoryType::DEVICE) ||
       (h_mt == MemoryType::HOST_32 && d_mt == MemoryType::DEVICE) ||
@@ -412,6 +414,148 @@ public:
    void Dealloc(void *ptr) { CuMemFree(ptr); }
 };
 
+
+/// This is an internal class used by Workspace.
+class WorkspaceChunk
+{
+   /// The data used as a base pointer
+   Memory data;
+   /// The offset (in bytes) of the next available memory in this chunk.
+   size_t offset = 0;
+   /// How many pointers have been allocated in this chunk.
+   size_t ptr_count = 0;
+   /// Is the chunk in the front of the list?
+   bool front = true;
+   /// The original capacity (in bytes) allocated.
+   const size_t original_capacity;
+public:
+   /// Create a WorkspaceChunk with the given @a capacity.
+   WorkspaceChunk(size_t capacity);
+   /// Destroy a WorkspaceChunk (free the memory)
+   ~WorkspaceChunk();
+   /// @brief Return the available capacity (i.e. the largest vector that will
+   /// fit in this chunk).
+   int GetAvailableCapacity() const { return original_capacity - offset; }
+   /// @brief Returns the original capacity of the chunk.
+   ///
+   /// If the chunk is not in the front of the list and all of its vectors are
+   /// freed, it may deallocate its data, so the capacity becomes zero. The
+   /// "original capacity" remains unchained.
+   int GetOriginalCapacity() const { return original_capacity; }
+   /// Return the data offset.
+   int GetOffset() const { return offset; }
+   /// Sets whether the chunk is in the front of the list
+   void SetFront(bool front_) { front = front_; }
+   /// Returns true if this chunk can fit a new vector of size @a n.
+   bool HasCapacityFor(size_t n) const { return n <= GetAvailableCapacity(); }
+   /// Returns true if this chunk is empty.
+   bool IsEmpty() const { return ptr_count == 0; }
+   /// Note that a vector from this chunk has been deallocated.
+   void FreePointer();
+   /// Returns the backing data pointer.
+   // void *GetData() { return data; }
+   /// Allocates a buffer of size nbytes, returns the associated pointer.
+   void *NewPointer(size_t nbytes)
+   {
+      MFEM_ASSERT(HasCapacityFor(nbytes), "Requested pointer is too large.");
+      void *ptr = ((char*)data.h_ptr) + offset;
+      offset += nbytes;
+      ptr_count += 1;
+      return ptr;
+   }
+
+   void *GetDevicePointer(void *h_ptr);
+};
+
+class Workspace
+{
+   friend class WorkspaceHostMemorySpace;
+   friend class WorkspaceDeviceMemorySpace;
+
+   /// Chunks of storage to hold the vectors.
+   std::forward_list<internal::WorkspaceChunk> chunks;
+   /// Map from pointers to chunks
+   std::unordered_map<void*,internal::WorkspaceChunk*> map;
+   /// @brief Consolidate the chunks (merge consecutive empty chunks), and
+   /// ensure that the front chunk has sufficient available capacity for a
+   /// buffer of @a requested_size.
+   void ConsolidateAndEnsureAvailable(size_t requested_size)
+   {
+      size_t n_empty = 0;
+      size_t empty_capacity = 0;
+      // Merge all empty chunks at the beginning of the list
+      auto it = chunks.begin();
+      while (it != chunks.end() && it->IsEmpty())
+      {
+         empty_capacity += it->GetOriginalCapacity();
+         ++it;
+         ++n_empty;
+      }
+
+      // If we have multiple empty chunks at the beginning of the list, we need
+      // to merge them. Also, if the front chunk is empty, but not big enough,
+      // we need to replace it, so we remove it here.
+      if (n_empty > 1 || requested_size > empty_capacity)
+      {
+         chunks.erase_after(chunks.before_begin(), it);
+      }
+
+      const size_t min_chunk_size = std::max(requested_size, empty_capacity);
+      bool add_new_chunk = false;
+      if (chunks.empty())
+      {
+         add_new_chunk = true;
+      }
+      else
+      {
+         add_new_chunk = min_chunk_size > chunks.front().GetAvailableCapacity();
+      }
+
+      if (add_new_chunk)
+      {
+         if (!chunks.empty()) { chunks.front().SetFront(false); }
+         chunks.emplace_front(min_chunk_size);
+      }
+   }
+   static Workspace &Instance()
+   {
+      static Workspace ws;
+      return ws;
+   }
+};
+
+class WorkspaceHostMemorySpace : public HostMemorySpace
+{
+public:
+   void Alloc(void **ptr, size_t nbytes) override
+   {
+      Workspace &ws = Workspace::Instance();
+      ws.ConsolidateAndEnsureAvailable(nbytes);
+      internal::WorkspaceChunk &front_chunk = ws.chunks.front();
+      void *new_ptr = front_chunk.NewPointer(nbytes);
+      ws.map.emplace(new_ptr, &front_chunk);
+      *ptr = new_ptr;
+   }
+   void Dealloc(void *ptr) override
+   {
+      Workspace &ws = Workspace::Instance();
+      auto it = ws.map.find(ptr);
+      it->second->FreePointer();
+      ws.map.erase(it);
+   }
+};
+
+class WorkspaceDeviceMemorySpace : public DeviceMemorySpace
+{
+public:
+   void Alloc(Memory &base) override;
+   void Dealloc(Memory &base) override;
+   void *HtoD(void *dst, const void *src, size_t bytes) override;
+   void *DtoD(void* dst, const void* src, size_t bytes) override;
+   void *DtoH(void *dst, const void *src, size_t bytes) override;
+};
+
+
 /// The 'No' device memory space
 class NoDeviceMemorySpace: public DeviceMemorySpace
 {
@@ -657,6 +801,7 @@ public:
       // HOST_DEBUG is delayed, as it reroutes signals
       host[static_cast<int>(MT::HOST_DEBUG)] = nullptr;
       host[static_cast<int>(MT::HOST_UMPIRE)] = nullptr;
+      host[static_cast<int>(MT::HOST_WORKSPACE)] = new WorkspaceHostMemorySpace();
       host[static_cast<int>(MT::MANAGED)] = new UvmHostMemorySpace();
 
       // Filling the device memory backends, shifting with the device size
@@ -731,6 +876,7 @@ private:
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
          case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_WORKSPACE: return new WorkspaceDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)
@@ -1006,6 +1152,7 @@ bool MemoryManager::MemoryClassCheck_(MemoryClass mc, void *h_ptr,
                      d_mt == MemoryType::DEVICE_DEBUG ||
                      d_mt == MemoryType::DEVICE_UMPIRE ||
                      d_mt == MemoryType::DEVICE_UMPIRE_2 ||
+                     d_mt == MemoryType::DEVICE_WORKSPACE ||
                      d_mt == MemoryType::MANAGED,"");
          return true;
       }
@@ -1718,17 +1865,19 @@ MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
-   /* HOST            */  MemoryType::DEVICE,
-   /* HOST_32         */  MemoryType::DEVICE,
-   /* HOST_64         */  MemoryType::DEVICE,
-   /* HOST_DEBUG      */  MemoryType::DEVICE_DEBUG,
-   /* HOST_UMPIRE     */  MemoryType::DEVICE_UMPIRE,
-   /* HOST_PINNED     */  MemoryType::DEVICE,
-   /* MANAGED         */  MemoryType::MANAGED,
-   /* DEVICE          */  MemoryType::HOST,
-   /* DEVICE_DEBUG    */  MemoryType::HOST_DEBUG,
-   /* DEVICE_UMPIRE   */  MemoryType::HOST_UMPIRE,
-   /* DEVICE_UMPIRE_2 */  MemoryType::HOST_UMPIRE
+   /* HOST             */  MemoryType::DEVICE,
+   /* HOST_32          */  MemoryType::DEVICE,
+   /* HOST_64          */  MemoryType::DEVICE,
+   /* HOST_DEBUG       */  MemoryType::DEVICE_DEBUG,
+   /* HOST_UMPIRE      */  MemoryType::DEVICE_UMPIRE,
+   /* HOST_PINNED      */  MemoryType::DEVICE,
+   /* HOST_WORKSPACE   */  MemoryType::DEVICE_WORKSPACE,
+   /* MANAGED          */  MemoryType::MANAGED,
+   /* DEVICE           */  MemoryType::HOST,
+   /* DEVICE_DEBUG     */  MemoryType::HOST_DEBUG,
+   /* DEVICE_UMPIRE    */  MemoryType::HOST_UMPIRE,
+   /* DEVICE_UMPIRE_2  */  MemoryType::HOST_UMPIRE,
+   /* DEVICE_WORKSPACE */  MemoryType::HOST_WORKSPACE
 };
 
 #ifdef MFEM_USE_UMPIRE
@@ -1741,6 +1890,7 @@ const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 const char *MemoryTypeName[MemoryTypeSize] =
 {
    "host-std", "host-32", "host-64", "host-debug", "host-umpire", "host-pinned",
+   "host-workspace",
 #if defined(MFEM_USE_CUDA)
    "cuda-uvm",
    "cuda",
@@ -1762,6 +1912,98 @@ const char *MemoryTypeName[MemoryTypeSize] =
    "device-umpire",
    "device-umpire-2",
 #endif
+   "device-workspace"
 };
+
+namespace internal
+{
+
+Memory NewMemory(size_t nbytes)
+{
+   MFEM_ASSERT(ctrl != nullptr, "");
+   const MemoryType h_mt = MemoryManager::GetHostMemoryType();
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   void *h_ptr;
+   ctrl->Host(h_mt)->Alloc(&h_ptr, nbytes);
+   return Memory(h_ptr, nbytes, h_mt, d_mt);
+}
+
+WorkspaceChunk::WorkspaceChunk(size_t capacity)
+   : data(NewMemory(capacity)), original_capacity(capacity)
+{ }
+
+WorkspaceChunk::~WorkspaceChunk()
+{
+   if (ctrl)
+   {
+      if (data.d_ptr)
+      {
+         ctrl->Device(data.d_mt)->Dealloc(data);
+      }
+      ctrl->Host(data.h_mt)->Dealloc(data.h_ptr);
+   }
+}
+
+void WorkspaceChunk::FreePointer()
+{
+   MFEM_ASSERT(ptr_count >= 0, "");
+   ptr_count -= 1;
+   // If the chunk is completely empty, we can reclaim all of the memory and
+   // allow new allocations (before it is completely empty, we cannot reclaim
+   // memory because we don't track the specific regions that are freed).
+   if (ptr_count == 0)
+   {
+      offset = 0;
+      // If we are not the front chunk, deallocate the backing memory. This
+      // chunk will be consolidated later anyway.
+      if (!front)
+      {
+         if (data.d_ptr)
+         {
+            ctrl->Device(data.d_mt)->Dealloc(data);
+         }
+         ctrl->Host(data.h_mt)->Dealloc(data.h_ptr);
+      }
+   }
+}
+
+void *WorkspaceChunk::GetDevicePointer(void *h_ptr)
+{
+   if (data.d_ptr == nullptr)
+   {
+      ctrl->Device(data.d_mt)->Alloc(data);
+   }
+   const size_t ptr_offset = ((char*)h_ptr) - ((char*)data.h_ptr);
+   return ((char*)data.d_ptr) + ptr_offset;
+}
+
+void WorkspaceDeviceMemorySpace::Alloc(Memory &base)
+{
+   Workspace &ws = Workspace::Instance();
+   auto it = ws.map.find(base.h_ptr);
+   base.d_ptr = it->second->GetDevicePointer(base.h_ptr);
+}
+
+void WorkspaceDeviceMemorySpace::Dealloc(Memory &base) { /* no-op */ }
+
+void *WorkspaceDeviceMemorySpace::HtoD(void *dst, const void *src, size_t bytes)
+{
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   return ctrl->Device(d_mt)->HtoD(dst, src, bytes);
+}
+
+void *WorkspaceDeviceMemorySpace::DtoD(void* dst, const void* src, size_t bytes)
+{
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   return ctrl->Device(d_mt)->DtoD(dst, src, bytes);
+}
+
+void *WorkspaceDeviceMemorySpace::DtoH(void *dst, const void *src, size_t bytes)
+{
+   const MemoryType d_mt = MemoryManager::GetDeviceMemoryType();
+   return ctrl->Device(d_mt)->DtoH(dst, src, bytes);
+}
+
+}
 
 } // namespace mfem

@@ -37,16 +37,18 @@ enum class MemoryType
    HOST_UMPIRE,    /**< Host memory; using an Umpire allocator which can be set
                         with MemoryManager::SetUmpireHostAllocatorName */
    HOST_PINNED,    ///< Host memory: pinned (page-locked)
+   HOST_WORKSPACE, ///< Host memory: using workspace (fast arena allocator)
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
                         "device-debug" pool */
-   DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
+   DEVICE_UMPIRE,   /**< Device memory; using an Umpire allocator which can be
                         set with MemoryManager::SetUmpireDeviceAllocatorName */
    DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator settable
                          with MemoryManager::SetUmpireDevice2AllocatorName */
-   SIZE,           ///< Number of host and device memory types
+   DEVICE_WORKSPACE, ///< Host memory: using workspace (fast arena allocator)
+   SIZE,             ///< Number of host and device memory types
 
    PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType
                         parameters to request preservation of existing
@@ -73,11 +75,12 @@ extern MFEM_EXPORT const char *MemoryTypeName[MemoryTypeSize];
 enum class MemoryClass
 {
    HOST,    /**< Memory types: { HOST, HOST_32, HOST_64, HOST_DEBUG,
-                                 HOST_UMPIRE, HOST_PINNED, MANAGED } */
+                                 HOST_UMPIRE, HOST_PINNED, HOST_WORKSPACE,
+                                 MANAGED } */
    HOST_32, ///< Memory types: { HOST_32, HOST_64, HOST_DEBUG }
    HOST_64, ///< Memory types: { HOST_64, HOST_DEBUG }
    DEVICE,  /**< Memory types: { DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE,
-                                 DEVICE_UMPIRE_2, MANAGED } */
+                                 DEVICE_UMPIRE_2, DEVICE_WORKSPACE, MANAGED } */
    MANAGED  ///< Memory types: { MANAGED }
 };
 
@@ -134,7 +137,8 @@ MemoryClass operator*(MemoryClass mc1, MemoryClass mc2);
 
     A Memory object stores up to two different pointers: one host pointer (with
     MemoryType from MemoryClass::HOST) and one device pointer (currently one of
-    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE or MANAGED).
+    MemoryType: DEVICE, DEVICE_DEBUG, DEVICE_UMPIRE, DEVICE_WORKSPACE, or
+    MANAGED).
 
     A Memory object can hold (wrap) an externally allocated pointer with any
     given MemoryType.
@@ -770,19 +774,21 @@ public:
    /// Return the dual MemoryType of the given one, @a mt.
    /** The default dual memory types are:
 
-       memory type     | dual type
-       --------------- | ---------
-       HOST            | DEVICE
-       HOST_32         | DEVICE
-       HOST_64         | DEVICE
-       HOST_DEBUG      | DEVICE_DEBUG
-       HOST_UMPIRE     | DEVICE_UMPIRE
-       HOST_PINNED     | DEVICE
-       MANAGED         | MANAGED
-       DEVICE          | HOST
-       DEVICE_DEBUG    | HOST_DEBUG
-       DEVICE_UMPIRE   | HOST_UMPIRE
-       DEVICE_UMPIRE_2 | HOST_UMPIRE
+       memory type      | dual type
+       ---------------- | ---------
+       HOST             | DEVICE
+       HOST_32          | DEVICE
+       HOST_64          | DEVICE
+       HOST_DEBUG       | DEVICE_DEBUG
+       HOST_UMPIRE      | DEVICE_UMPIRE
+       HOST_PINNED      | DEVICE
+       HOST_WORKSPACE   | DEVICE_WORKSPACE
+       MANAGED          | MANAGED
+       DEVICE           | HOST
+       DEVICE_DEBUG     | HOST_DEBUG
+       DEVICE_UMPIRE    | HOST_UMPIRE
+       DEVICE_UMPIRE_2  | HOST_UMPIRE
+       DEVICE_WORKSPACE | HOST_WORKSPACE
 
        The dual types can be modified before device configuration using the
        method SetDualMemoryType() or by calling Device::SetMemoryTypes(). */
