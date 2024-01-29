@@ -123,16 +123,16 @@ class Device
 {
 private:
    friend class MemoryManager;
-   enum MODES {SEQUENTIAL, ACCELERATED};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
    static MFEM_EXPORT Device device_singleton;
 
-   MODES mode = Device::SEQUENTIAL;
    int dev = 0;   ///< Device ID of the configured device.
    int ngpu = -1; ///< Number of detected devices; -1: not initialized.
+
    /// Bitwise-OR of all configured backends.
    unsigned long backends = Backend::CPU;
+
    /// Set to true during configuration, except in 'device_singleton'.
    bool destroy_mm = false;
    bool mpi_gpu_aware = false;
@@ -237,7 +237,7 @@ public:
    static inline bool IsAvailable() { return Get().ngpu > 0; }
 
    /// Return true if any backend other than Backend::CPU is enabled.
-   static inline bool IsEnabled() { return Get().mode == ACCELERATED; }
+   static inline bool IsEnabled() { return Get().backends & ~(Backend::CPU); }
 
    /// The opposite of IsEnabled().
    static inline bool IsDisabled() { return !IsEnabled(); }
@@ -295,7 +295,7 @@ public:
     and ReadWrite(), while setting the device use flag in @a mem, if @a on_dev
     is true. */
 template <typename T>
-MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
+inline MemoryClass GetMemoryClass(const Memory<T> &mem, bool on_dev)
 {
    if (!on_dev)
    {
