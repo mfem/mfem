@@ -26,7 +26,7 @@
 // mpirun -np 4 pacoustics -o 4 -m meshes/scatter.mesh -sref 1 -pref 1  -rnum 12.1 -sc -prob 5
 
 // AMR runs
-// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 10 -theta 0.75 -rnum 10.1 -sc -prob 3
+// mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 7 -theta 0.75 -rnum 10.1 -sc -prob 3
 // mpirun -np 4 pacoustics -o 3 -m meshes/scatter.mesh -sref 0 -pref 12 -theta 0.75 -rnum 20.1 -sc -prob 3
 
 // Description:
