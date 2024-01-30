@@ -22,7 +22,7 @@ WorkspaceVector::WorkspaceVector(internal::WorkspaceChunk &chunk_, int n)
 }
 
 WorkspaceVector::WorkspaceVector(WorkspaceVector &&other)
-   : Vector(std::move( other)), chunk(other.chunk)
+   : Vector(std::move(other)), chunk(other.chunk)
 {
    other.moved_from = true;
 }
