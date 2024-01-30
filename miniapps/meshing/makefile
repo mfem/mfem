@@ -10,9 +10,9 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR = /g/g92/atallah1/Source/mfem
-MFEM_BUILD_DIR = /g/g92/atallah1/Build/mfem_Parallel_noMUMPS
-SRC = ./
+MFEM_DIR ?= ../..
+MFEM_BUILD_DIR ?= ../..
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/meshing/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 # Include defaults.mk to get XLINKER
