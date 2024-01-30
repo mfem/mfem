@@ -25,7 +25,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-TOPOPT_COMMON_SRC = helper.cpp topopt.cpp
+TOPOPT_COMMON_SRC = helper.cpp topopt.cpp MMA.cpp
 
 TOPOPT_COMMON_OBJ = $(TOPOPT_COMMON_SRC:.cpp=.o)
 
