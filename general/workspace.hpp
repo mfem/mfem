@@ -35,25 +35,34 @@ class WorkspaceVector : public Vector
 {
    // using internal::WorkspaceChunk;
    friend class internal::WorkspaceChunk;
+
    /// The WorkspaceChunk containing the data for this vector.
    internal::WorkspaceChunk &chunk;
+
    /// @brief Has this WorkspaceVector been moved from? If so, don't deallocate
    /// from its WorkspaceChunk in the destructor.
    bool moved_from = false;
+
    /// Private constructor, create with Workspace::NewVector() instead.
    WorkspaceVector(internal::WorkspaceChunk &chunk_, int n);
+
 public:
    /// @brief Move constructor. The moved-from WorkspaceVector has @a
    /// size_in_chunk set to zero.
    WorkspaceVector(WorkspaceVector &&other);
+
    /// Cannot copy from one WorkspaceVector to another.
    WorkspaceVector(WorkspaceVector &other) = delete;
+
    /// Cannot copy from one WorkspaceVector to another.
    WorkspaceVector& operator=(WorkspaceVector &other) = delete;
+
    /// Cannot move to an existing WorkspaceVector.
    WorkspaceVector& operator=(WorkspaceVector &&other) = delete;
+
    // All other operator=, inherit from Vector
    using Vector::operator=;
+
    /// Destructor. Notifies the WorkspaceChunk that this vector has been freed.
    ~WorkspaceVector();
 };
@@ -68,38 +77,52 @@ class WorkspaceChunk
 {
    /// The data used as a base for the WorkspaceVector%s.
    Vector data;
+
    /// The offset of currently allocated WorkspaceVector%s in thus chunk.
    int offset = 0;
+
    /// How many vectors have been allocated in this chunk.
    int vector_count = 0;
+
    /// Is the vector in the front of the list?
    bool front = true;
+
    /// The original capacity allocated.
    const int original_capacity;
+
 public:
    /// Create a WorkspaceChunk with the given @a capacity.
    WorkspaceChunk(int capacity);
+
    /// @brief Return the available capacity (i.e. the largest vector that will
    /// fit in this chunk).
    int GetAvailableCapacity() const { return data.Size() - offset; }
+
    /// @brief Returns the original capacity of the chunk.
    ///
    /// If the chunk is not in the front of the list and all of its vectors are
    /// freed, it may deallocate its data, so the capacity becomes zero. The
    /// "original capacity" remains unchained.
    int GetOriginalCapacity() const { return original_capacity; }
+
    /// Return the data offset.
    int GetOffset() const { return offset; }
+
    /// Sets whether the chunk is in the front of the list
    void SetFront(bool front_) { front = front_; }
+
    /// Returns true if this chunk can fit a new vector of size @a n.
    bool HasCapacityFor(int n) const { return n <= GetAvailableCapacity(); }
+
    /// Returns true if this chunk is empty.
    bool IsEmpty() const { return vector_count == 0; }
+
    /// Note that a vector from this chunk has been deallocated.
    void FreeVector();
+
    /// Returns the backing data Vector.
    Vector &GetData() { return data; }
+
    /// Returns a new WorkspaceVector of size @a n.
    WorkspaceVector NewVector(int n);
 };
@@ -115,19 +138,25 @@ class Workspace
 {
    /// Chunks of storage to hold the vectors.
    std::forward_list<internal::WorkspaceChunk> chunks;
+
    /// Default constructor, private (singleton class).
    Workspace() = default;
+
    /// @brief Consolidate the chunks (merge consecutive empty chunks), and
    /// ensure that the front chunk has sufficient available capacity for a
    /// vector of @a requested_size.
    void ConsolidateAndEnsureAvailable(int requested_size);
+
    /// Return the singleton instance.
    static Workspace &Instance();
+
 public:
    /// Return a new WorkspaceVector of the requested size.
    static WorkspaceVector NewVector(int n);
+
    /// Ensure that capacity of at least @a n is available for allocations.
    static void Reserve(int n);
+
    /// Clear all storage. Invalidates any existing WorkspaceVector%s.
    static void Clear();
 };
