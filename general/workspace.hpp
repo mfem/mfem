@@ -36,7 +36,7 @@ class WorkspaceVector : public Vector
    // using internal::WorkspaceChunk;
    friend class internal::WorkspaceChunk;
    /// The WorkspaceChunk containing the data for this vector.
-   class internal::WorkspaceChunk &chunk;
+   internal::WorkspaceChunk &chunk;
    /// @brief Has this WorkspaceVector been moved from? If so, don't deallocate
    /// from its WorkspaceChunk in the destructor.
    bool moved_from = false;
