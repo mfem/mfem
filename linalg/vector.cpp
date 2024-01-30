@@ -342,7 +342,24 @@ void Vector::Clip(const double lower, const double upper)
    const bool use_dev = UseDevice();
    const int N = size;
    auto y = ReadWrite(use_dev);
-   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::max(lower, std::min(upper, y[i])); });
+   bool lower_is_finite = mfem::IsFinite(lower);
+   bool upper_is_finite = mfem::IsFinite(upper);
+   if (lower_is_finite && upper_is_finite)
+   {
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::max(lower, std::min(upper, y[i])); });
+   }
+   else if (!lower_is_finite && upper_is_finite)
+   {
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::min(upper, y[i]); });
+   }
+   else if (lower_is_finite && !upper_is_finite)
+   {
+      mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i) { y[i] = std::max(lower, y[i]); });
+   }
+   else
+   {
+      // do nothing
+   }
 }
 
 void Vector::Clip(const Vector &lower, const Vector &upper)
