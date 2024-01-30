@@ -264,7 +264,7 @@ void ParametrizedTMOP_Integrator::AssembleElementGradExact(const FiniteElement &
       metric->SetTargetJacobian(Jtr_q);
       CalcInverse(Jtr_q, Jrt);
       weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
-      double weight_m = weights(q); // * metric_normal;
+      double weight_m = weights(q) * metric_normal;
       el.CalcDShape(ip, DSh);
       // change comes here for DSh?
       Mult(DSh, Jrt, DS);
