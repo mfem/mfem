@@ -1858,11 +1858,11 @@ protected:
                                      double &metric_energy, double &lim_energy,
                                      double &surf_fit_gf_energy);
 
-   void AssembleElementVectorExact(const FiniteElement &el,
+   virtual void AssembleElementVectorExact(const FiniteElement &el,
                                    ElementTransformation &T,
                                    const Vector &elfun, Vector &elvect);
 
-   void AssembleElementGradExact(const FiniteElement &el,
+   virtual void AssembleElementGradExact(const FiniteElement &el,
                                  ElementTransformation &T,
                                  const Vector &elfun, DenseMatrix &elmat);
 

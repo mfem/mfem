@@ -3436,7 +3436,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 {
    if (!fdflag)
    {
-      AssembleElementVectorExact(el, T, elfun, elvect);
+     AssembleElementVectorExact(el, T, elfun, elvect);
    }
    else
    {
@@ -3465,7 +3465,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  Vector &elvect)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
-
    DenseMatrix Amat(dim), work1(dim), work2(dim);
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
