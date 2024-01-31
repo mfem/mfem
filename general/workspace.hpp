@@ -39,12 +39,18 @@ class WorkspaceVector : public Vector
    /// The WorkspaceChunk containing the data for this vector.
    internal::WorkspaceChunk &chunk;
 
+   /// Offset in the chunk.
+   const int offset;
+
+   /// Original size allocated.
+   const int original_size;
+
    /// @brief Has this WorkspaceVector been moved from? If so, don't deallocate
    /// from its WorkspaceChunk in the destructor.
    bool moved_from = false;
 
    /// Private constructor, create with Workspace::NewVector() instead.
-   WorkspaceVector(internal::WorkspaceChunk &chunk_, int n);
+   WorkspaceVector(internal::WorkspaceChunk &chunk_, int offset_, int n);
 
 public:
    /// @brief Move constructor. The moved-from WorkspaceVector has @a
@@ -118,7 +124,7 @@ public:
    bool IsEmpty() const { return vector_count == 0; }
 
    /// Note that a vector from this chunk has been deallocated.
-   void FreeVector();
+   void FreeVector(const WorkspaceVector &v);
 
    /// Returns the backing data Vector.
    Vector &GetData() { return data; }

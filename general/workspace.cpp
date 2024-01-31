@@ -14,22 +14,28 @@
 namespace mfem
 {
 
-WorkspaceVector::WorkspaceVector(internal::WorkspaceChunk &chunk_, int n)
+WorkspaceVector::WorkspaceVector(
+   internal::WorkspaceChunk &chunk_, int offset_, int n)
    : Vector(chunk_.GetData(), chunk_.GetOffset(), n),
-     chunk(chunk_)
+     chunk(chunk_),
+     offset(offset_),
+     original_size(n)
 {
    UseDevice(true);
 }
 
 WorkspaceVector::WorkspaceVector(WorkspaceVector &&other)
-   : Vector(std::move(other)), chunk(other.chunk)
+   : Vector(std::move(other)),
+     chunk(other.chunk),
+     offset(other.offset),
+     original_size(other.original_size)
 {
-   other.moved_from = true;
+   if (this != &other) { other.moved_from = true; }
 }
 
 WorkspaceVector::~WorkspaceVector()
 {
-   if (!moved_from) { chunk.FreeVector(); }
+   if (!moved_from) { chunk.FreeVector(*this); }
 }
 
 namespace internal
@@ -42,13 +48,13 @@ WorkspaceChunk::WorkspaceChunk(int capacity)
 WorkspaceVector WorkspaceChunk::NewVector(int n)
 {
    MFEM_ASSERT(HasCapacityFor(n), "Requested vector is too large.");
-   WorkspaceVector vector(*this, n);
+   WorkspaceVector vector(*this, offset, n);
    offset += n;
    vector_count += 1;
    return vector;
 }
 
-void WorkspaceChunk::FreeVector()
+void WorkspaceChunk::FreeVector(const WorkspaceVector &v)
 {
    MFEM_ASSERT(vector_count >= 0, "");
    vector_count -= 1;
@@ -61,6 +67,17 @@ void WorkspaceChunk::FreeVector()
       // If we are not the front chunk, deallocate the backing memory. This
       // chunk will be consolidated later anyway.
       if (!front) { data.Destroy(); }
+   }
+   else
+   {
+      // If the vector being freed is the most recent vector allocated (i.e. if
+      // the vector is freed in stack/LIFO order), then we can reclaim its
+      // memory by moving the offset.
+      const int size = v.original_size;
+      if (v.offset == offset - size)
+      {
+         offset -= size;
+      }
    }
 }
 
@@ -90,6 +107,8 @@ void Workspace::ConsolidateAndEnsureAvailable(int requested_size)
    // we need to replace it, so we remove it here.
    if (n_empty > 1 || requested_size > empty_capacity)
    {
+      // Note: if chunks is empty, then 'it' will be chunks.begin(), and the
+      // next line is a no-op.
       chunks.erase_after(chunks.before_begin(), it);
    }
 
