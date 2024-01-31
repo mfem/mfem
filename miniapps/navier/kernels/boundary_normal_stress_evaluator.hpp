@@ -29,8 +29,9 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
    // const auto &p_fes = *p_gf.ParFESpace();
    // const auto &nu_fes = *nu_gf.ParFESpace();
    const auto &sigmaN_fes = *u_gf.ParFESpace();
-   const auto &mesh = *u_fes.GetMesh();
+   const auto &mesh = *u_fes.GetParMesh();
    const auto dim = mesh.Dimension();
+   sigmaN_gf = 0.;
 
    Array<int> sigmaN_vdofs;
 
@@ -89,6 +90,9 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
       }
       sigmaN_gf.SetSubVector(sigmaN_vdofs, sigmaN);
    }
+   Vector true_sigmaN;
+   sigmaN_gf.GetTrueDofs(true_sigmaN);
+   sigmaN_gf.SetFromTrueDofs(true_sigmaN);
 }
 
 }
