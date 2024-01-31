@@ -757,13 +757,12 @@ int main(int argc, char *argv[])
 
             fluid_mesh_dx_gf = *fluid_mesh.GetNodes();
 
-            fluid_mesh_velocity_gf *= dt;
-            fluid_mesh_dx_gf += fluid_mesh_velocity_gf;
+            fluid_mesh_dx_gf.Add(dt, fluid_mesh_velocity_gf);
 
             const double fluid_mesh_velocity_norm = fluid_mesh_velocity_gf.Norml2();
             if (Mpi::Root())
             {
-               printf("moving fluid mesh |dx|_l2 = %.3E\n", fluid_mesh_velocity_norm);
+               printf("moving fluid mesh |dx|_l2 = %.3E\n", fluid_mesh_velocity_norm*dt);
             }
 
             *w_gf = fluid_mesh_velocity_gf;
