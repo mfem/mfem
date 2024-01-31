@@ -303,7 +303,6 @@ public:
                                    DenseMatrix &elmat);
 
    using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
@@ -2230,10 +2229,9 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2296,10 +2294,9 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
@@ -2333,7 +2330,6 @@ public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -2366,10 +2362,9 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2783,7 +2778,6 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -3032,6 +3026,7 @@ public:
                                       ElementTransformation &Tr,
                                       DenseMatrix &elmat);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -3161,8 +3156,6 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-
-   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
@@ -3560,13 +3553,12 @@ public:
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
-   using BilinearFormIntegrator::AssemblePA;
-
    /** @brief Setup method for PA data.
 
        @param[in] trial_fes   \f$H^1\f$ Lagrange space
        @param[in] test_fes    \f$H\f$(curl) Nedelec space
     */
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -3599,7 +3591,6 @@ public:
    { ran_fe.Project(dom_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
