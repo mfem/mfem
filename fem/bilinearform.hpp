@@ -62,12 +62,12 @@ class BilinearForm : public Matrix
    friend FABilinearFormExtension;
 
 protected:
-   /// Sparse matrix \f$ M \f$ to be associated with the form. Owned.
+   /// Sparse matrix $ M $ to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /** @brief Sparse Matrix \f$ M_e \f$ used to store the eliminations
+   /** @brief Sparse Matrix $ M_e $ used to store the eliminations
         from the b.c.  Owned.
-       \f$ M + M_e = M_{original} \f$ */
+       $ M + M_e = M_{original} $ */
    SparseMatrix *mat_e;
 
    /// FE space on which the form lives. Not owned.
@@ -278,59 +278,59 @@ public:
    Array<Array<int>*> *GetBFBFI_Marker()
    { return &boundary_face_integs_marker; }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
+   /// Returns a reference to: $ M_{ij} $
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
-   /// Returns a reference to: \f$ M_{ij} \f$
+   /// Returns a reference to: $ M_{ij} $
    virtual double &Elem(int i, int j);
 
-   /// Returns constant reference to: \f$ M_{ij} \f$
+   /// Returns constant reference to: $ M_{ij} $
    virtual const double &Elem(int i, int j) const;
 
-   /// Matrix vector multiplication:  \f$ y = M x \f$
+   /// Matrix vector multiplication:  $ y = M x $
    virtual void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Matrix vector multiplication with the original uneliminated
-       matrix.  The original matrix is \f$ M + M_e \f$ so we have:
-       \f$ y = M x + M_e x \f$ */
+       matrix.  The original matrix is $ M + M_e $ so we have:
+       $ y = M x + M_e x $ */
    void FullMult(const Vector &x, Vector &y) const
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
    { mat -> AddMult (x, y, a); }
 
    /** @brief Add the original uneliminated matrix vector multiple to a vector.
-       The original matrix is \f$ M + Me \f$ so we have:
-       \f$ y += M x + M_e x \f$ */
+       The original matrix is $ M + Me $ so we have:
+       $ y += M x + M_e x $ */
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
    /** @brief Add the original uneliminated matrix transpose vector
-       multiple to a vector. The original matrix is \f$ M + M_e \f$
-       so we have: \f$ y += M^T x + {M_e}^T x \f$ */
+       multiple to a vector. The original matrix is $ M + M_e $
+       so we have: $ y += M^T x + {M_e}^T x $ */
    void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
-   /// Compute \f$ y^T M x \f$
+   /// Compute $ y^T M x $
    double InnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct (x, y); }
 
-   /// Returns a pointer to (approximation) of the matrix inverse:  \f$ M^{-1} \f$
+   /// Returns a pointer to (approximation) of the matrix inverse:  $ M^{-1} $
    virtual MatrixInverse *Inverse() const;
 
    /// Finalizes the matrix initialization.
    virtual void Finalize(int skip_zeros = 1);
 
-   /** @brief Returns a const reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a const reference to the sparse matrix:  $ M $
 
        This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
@@ -339,7 +339,7 @@ public:
       return *mat;
    }
 
-   /** @brief Returns a reference to the sparse matrix:  \f$ M \f$
+   /** @brief Returns a reference to the sparse matrix:  $ M $
 
        This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
@@ -357,12 +357,12 @@ public:
    }
 
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /** @brief Returns a const reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
@@ -372,7 +372,7 @@ public:
    }
 
    /** @brief Returns a reference to the sparse matrix of eliminated b.c.:
-       \f$ M_e \f$
+       $ M_e $
 
        This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
@@ -422,7 +422,7 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
-   /// Sets all sparse values of \f$ M \f$ and \f$ M_e \f$ to 'a'.
+   /// Sets all sparse values of $ M $ and $ M_e $ to 'a'.
    void operator=(const double a)
    {
       if (mat != NULL) { *mat = a; }
@@ -617,12 +617,12 @@ public:
                                  double value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
-   /** In this case the eliminations are applied to the internal \f$ M \f$
-       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
+   /** In this case the eliminations are applied to the internal $ M $
+       and @a rhs without storing the elimination matrix $ M_e $. */
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /// Eliminate the given @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
+   /// Eliminate the given @a vdofs, storing the eliminated part internally in $ M_e $.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
@@ -651,7 +651,7 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs, const Vector &x,
                             Vector &b);
 
-   /// Compute inner product for full uneliminated matrix \f$ y^T M x + y^T M_e x \f$
+   /// Compute inner product for full uneliminated matrix $ y^T M x + y^T M_e x $
    double FullInnerProduct(const Vector &x, const Vector &y) const
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
@@ -769,13 +769,13 @@ public:
                      FiniteElementSpace *te_fes,
                      MixedBilinearForm *mbf);
 
-   /// Returns a reference to: \f$ M_{ij} \f$
+   /// Returns a reference to: $ M_{ij} $
    virtual double &Elem(int i, int j);
 
-   /// Returns a reference to: \f$ M_{ij} \f$
+   /// Returns a reference to: $ M_{ij} $
    virtual const double &Elem(int i, int j) const;
 
-   /// Matrix multiplication: \f$ y = M x \f$
+   /// Matrix multiplication: $ y = M x $
    virtual void Mult(const Vector & x, Vector & y) const;
 
    virtual void AddMult(const Vector & x, Vector & y,
@@ -795,13 +795,13 @@ public:
        test and trial spaces, respectively. */
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
-   /// Returns a const reference to the sparse matrix:  \f$ M \f$
+   /// Returns a const reference to the sparse matrix:  $ M $
    const SparseMatrix &SpMat() const { return *mat; }
 
-   /// Returns a reference to the sparse matrix:  \f$ M \f$
+   /// Returns a reference to the sparse matrix:  $ M $
    SparseMatrix &SpMat() { return *mat; }
 
-   /**  @brief Nullifies the internal matrix \f$ M \f$ and returns a pointer
+   /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
@@ -859,7 +859,7 @@ public:
    Array<Array<int>*> *GetBTFBFI_Marker()
    { return &boundary_trace_face_integs_marker; }
 
-   /// Sets all sparse values of \f$ M \f$ to @a a.
+   /// Sets all sparse values of $ M $ to @a a.
    void operator=(const double a) { *mat = a; }
 
    /// Set the desired assembly level. The default is AssemblyLevel::LEGACY.
