@@ -135,7 +135,7 @@ public:
    AmgXSolver(const MPI_Comm &comm, const int nDevs,
               const AMGX_MODE amgx_Mode_, const bool verbose);
 
-   /** @brief Initilize the AmgX library in parallel mode with exactly one
+   /** @brief Initialize the AmgX library in parallel mode with exactly one
       GPU per rank after the solver configuration has been established,
       either through the constructor or the AmgXSolver::ReadParameters
       method.  If configuring with a constructor, the constructor will make
