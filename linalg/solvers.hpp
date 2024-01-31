@@ -344,7 +344,7 @@ public:
    /// Replace diagonal entries with their absolute values.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
-   /// Approach the solution of the linear system by applying jacobi smoothing.
+   /// Approach the solution of the linear system by applying Jacobi smoothing.
    void Mult(const Vector &x, Vector &y) const;
 
    /** @brief Approach the solution of the transposed linear system by applying
