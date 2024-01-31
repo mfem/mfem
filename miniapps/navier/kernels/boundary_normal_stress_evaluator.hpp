@@ -22,14 +22,16 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
                                    ParGridFunction &nu_gf,
                                    Array<int> &marker,
                                    IntegrationRule &ir_face,
-                                   ParGridFunction &sigmaN_gf)
+                                   ParGridFunction &sigmaN_gf,
+                                   const double density = 1.0)
 {
    const auto &u_fes = *u_gf.ParFESpace();
    // const auto &p_fes = *p_gf.ParFESpace();
    // const auto &nu_fes = *nu_gf.ParFESpace();
    const auto &sigmaN_fes = *u_gf.ParFESpace();
-   const auto &mesh = *u_fes.GetMesh();
+   const auto &mesh = *u_fes.GetParMesh();
    const auto dim = mesh.Dimension();
+   sigmaN_gf = 0.;
 
    Array<int> sigmaN_vdofs;
 
@@ -70,7 +72,7 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
          {
             for (int j = 0; j < dim; j++)
             {
-               A(i, j) = -p * (i == j) + nu * (dudx(i, j) + dudx(j, i));
+               A(i, j) = -p * (i == j) + density * nu * (dudx(i, j) + dudx(j, i));
                // A(i, j) = -p * (i == j);
                // A(i, j) = nu * (dudx(i, j) + dudx(j, i));
             }
@@ -88,6 +90,9 @@ void BoundaryNormalStressEvaluator(ParGridFunction &u_gf,
       }
       sigmaN_gf.SetSubVector(sigmaN_vdofs, sigmaN);
    }
+   Vector true_sigmaN;
+   sigmaN_gf.GetTrueDofs(true_sigmaN);
+   sigmaN_gf.SetFromTrueDofs(true_sigmaN);
 }
 
 }

@@ -184,7 +184,7 @@ class Elasticity : public SecondOrderTimeDependentOperator
 {
 public:
    Elasticity(ParMesh &mesh, const int polynomial_order, const double density,
-              Array<int> &ess_bdr) :
+              Array<int> &ess_bdr, const double lambda, const double mu) :
       mesh(mesh),
       dim(mesh.Dimension()),
       ess_bdr(ess_bdr),
@@ -229,17 +229,9 @@ public:
       Mform.Assemble(0);
       Mform.FormSystemMatrix(ess_tdof_list, M);
 
-      {
-         // const double E = 5.6 * 1e6; // CSM2
-         const double E = 1.4 * 1e6; // CSM3
-         const double nu = 0.4; // CSM123
-         const double mu = E / (2*(1+nu)); // CSM123
-         const double lambda = nu * E / ((1+nu) * (1-2*nu));
-         mu_coef.constant = mu;
-         lambda_coef.constant = lambda;
-         printf("lambda_coeff = %.3E mu = %.3E\n", lambda_coef.constant,
-                mu_coef.constant);
-      }
+      mu_coef.constant = mu;
+      lambda_coef.constant = lambda;
+
 
       Kform.AddDomainIntegrator(new ElasticityIntegrator(lambda_coef, mu_coef));
       Kform.Assemble(0);
@@ -294,7 +286,7 @@ public:
    void SetBodyTraction(const ParGridFunction &traction_gf)
    {
       fcoeff.reset(new VectorGridFunctionCoefficient(&traction_gf));
-      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(density, *fcoeff));
+      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(1.0, *fcoeff));
       Fform.reset(new ParLinearForm(&fes));
       Fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*scaled_fcoeff));
       Fform->Assemble();
@@ -348,7 +340,7 @@ int main(int argc, char *argv[])
 
    const char *mesh_file = "../data/star.mesh";
    int polynomial_order = 2;
-   double density_fluid = 1e3;
+   double fluid_density = 1e3;
    double kinematic_viscosity = 1e-3;
    double U = 0.2;
    double time = 0.0;
@@ -363,6 +355,9 @@ int main(int argc, char *argv[])
    double solid_density = 1.0e3;
    int enable_retry = 1;
    double max_elem_error = 5.0e-3;
+   double solid_mu = 2.0e6;
+   double solid_nu = 0.4;
+   double solid_lambda;
    double hysteresis = 0.15; // derefinement safety coefficient
    int nc_limit = 3;
    int refinements = 0;
@@ -383,6 +378,8 @@ int main(int argc, char *argv[])
                   "enable_retry");
    args.AddOption(&U, "-inflow_velocity", "--inflow_velocity",
                   "inflow_velocity");
+   args.AddOption(&solid_mu, "-sh", "--shear_modulus",
+                  "Shear modulus/rigidity");
    args.AddOption(&max_elem_error, "-e", "--max-err",
                   "Maximum element error");
    args.AddOption(&hysteresis, "-y", "--hysteresis",
@@ -394,6 +391,12 @@ int main(int argc, char *argv[])
    args.AddOption(&dt, "-dt", "--dt",
                   "dt.");
    args.ParseCheck();
+
+   if(cfd_only){
+      solid_density = 1.0e6;
+      solid_mu = 1.0e12;
+   }
+   solid_lambda = 2*solid_mu*solid_nu/(1-2*solid_nu);
 
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
@@ -412,7 +415,7 @@ int main(int argc, char *argv[])
    auto fluid_mesh = ParSubMesh::CreateFromDomain(pmesh, fluid_domain_attributes);
 
    // Create the flow solver.
-   NavierSolver navier(&fluid_mesh, polynomial_order, kinematic_viscosity);
+   NavierSolver navier(&fluid_mesh, polynomial_order, kinematic_viscosity, fluid_density);
    navier.SetMaxBDFOrder(max_bdf_order);
 
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
@@ -447,15 +450,15 @@ int main(int argc, char *argv[])
       // const double x = coords(0);
       const double y = coords(1);
       const double H = 0.41;
-      const double ramp_peak_at = 0.1;
+      const double ramp_peak_at = 2.0;
       const double ramp = 0.5 * (1.0 - cos(M_PI / ramp_peak_at * time));
       if (time < ramp_peak_at)
       {
-         u(0) = U * y * (H - y) / pow(H / 2.0, 2.0) * ramp;
+         u(0) = U * 1.5 * y * (H - y) / pow(H / 2.0, 2.0) * ramp;
       }
       else
       {
-         u(0) = U * y * (H - y) / pow(H / 2.0, 2.0);
+         u(0) = U * 1.5 * y * (H - y) / pow(H / 2.0, 2.0);
       }
       u(1) = 0.0;
    });
@@ -490,7 +493,7 @@ int main(int argc, char *argv[])
    solid_interface_attr[5] = 1;
 
    ParLinearForm lift_drag_form(u_gf->ParFESpace());
-   auto stress_integ = new BoundaryNormalStressIntegrator(*u_gf, *p_gf, *nu_gf);
+   auto stress_integ = new BoundaryNormalStressIntegrator(*u_gf, *p_gf, *nu_gf, fluid_density);
    stress_integ->SetIntRule(&navier.gll_ir_face);
    lift_drag_form.AddBoundaryIntegrator(stress_integ,
                                         solid_interface_attr);
@@ -499,11 +502,7 @@ int main(int argc, char *argv[])
    ParLinearForm lift_drag_form2(u_gf->ParFESpace());
    auto stress_integ2 = new VectorBoundaryLFIntegrator(sigmaN_coeff);
    stress_integ2->SetIntRule(&navier.gll_ir_face);
-   auto stress_integ3 = new BoundaryNormalPressureIntegrator(*p_gf);
-   stress_integ3->SetIntRule(&navier.gll_ir_face);
    lift_drag_form2.AddBoundaryIntegrator(stress_integ2,
-                                         solid_interface_attr);
-   lift_drag_form2.AddBoundaryIntegrator(stress_integ3,
                                          solid_interface_attr);
 
    Array<int> solid_domain_attributes(1);
@@ -519,7 +518,7 @@ int main(int argc, char *argv[])
    solid_ess_bdr[6] = 1;
 
    Elasticity elasticity(solid_mesh, polynomial_order, solid_density,
-                         solid_ess_bdr);
+                         solid_ess_bdr, solid_lambda, solid_mu);
 
    Vector solid_displacement;
    ParGridFunction solid_displacement_gf(&elasticity.fes);
@@ -703,15 +702,12 @@ int main(int argc, char *argv[])
                               1);
                lift += lift_drag_form[idx_y];
             }
-
-            lift *= density_fluid;
-            drag *= density_fluid;
          }
          {
             BoundaryNormalStressEvaluator(*u_gf, *p_gf, *nu_gf,
                                           solid_interface_attr,
                                           navier.gll_ir_face,
-                                          sigmaN_gf);
+                                          sigmaN_gf, fluid_density);
 
             lift_drag_form2.Assemble();
 
@@ -731,9 +727,6 @@ int main(int argc, char *argv[])
                               1);
                lift2 += lift_drag_form2[idx_y];
             }
-
-            lift2 *= density_fluid;
-            drag2 *= density_fluid;
          }
 
          {

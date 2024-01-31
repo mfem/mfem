@@ -18,8 +18,8 @@
 using namespace mfem;
 using namespace navier;
 
-NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis)
-   : pmesh(mesh), order(order), kin_vis(kin_vis),
+NavierSolver::NavierSolver(ParMesh *mesh, int order, double kin_vis, const double density)
+   : pmesh(mesh), order(order), kin_vis(kin_vis), density(density),
      gll_rules(0, Quadrature1D::GaussLobatto)
 {
    vfec = new H1_FECollection(order, pmesh->Dimension());
@@ -620,6 +620,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
    g_bdr_form->ParallelAssemble(g_bdr);
    resp.Add(1.0, FText_bdr);
    resp.Add(-bd0 / dt, g_bdr);
+   resp*=density;
 
    if (pres_dbcs.empty())
    {
@@ -656,6 +657,7 @@ void NavierSolver::Step(double &time, double dt, int current_step,
 
    // Project velocity.
    G->Mult(pn, resu);
+   resu *= (1.0/density);
    resu.Neg();
    Mv->Mult(Fext, tmp1);
    resu.Add(1.0, tmp1);
