@@ -170,7 +170,7 @@ public:
    virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
@@ -443,7 +443,7 @@ public:
    virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
