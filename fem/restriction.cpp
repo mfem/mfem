@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -360,6 +360,10 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
+         MFEM_ASSERT_KERNEL(
+            j_nbElts <= Max,
+            "The connectivity of this mesh is beyond the max, increase the "
+            "MaxNbNbr variable to comply with your mesh.");
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
             GetAndIncrementNnzIndex(i_L, I);
