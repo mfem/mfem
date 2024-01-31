@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,7 +81,7 @@ public:
    /** If the element transformation belongs to a mesh, this will point to the
        containing Mesh object. ElementNo will be the number of the element in
        this Mesh. This will be NULL if the element does not belong to a mesh. */
-   class Mesh *mesh;
+   const Mesh *mesh;
 
    ElementTransformation();
 
