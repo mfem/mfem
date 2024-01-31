@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1031,7 +1031,7 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
-                                                 int component)
+                                                 int component) const
 {
    Array<int> ess_dofs, true_ess_dofs;
 
