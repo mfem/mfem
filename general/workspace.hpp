@@ -57,11 +57,15 @@ public:
    /// size_in_chunk set to zero.
    WorkspaceVector(WorkspaceVector &&other);
 
-   /// Cannot copy from one WorkspaceVector to another.
+   /// No copy constructor.
    WorkspaceVector(WorkspaceVector &other) = delete;
 
-   /// Cannot copy from one WorkspaceVector to another.
-   WorkspaceVector& operator=(WorkspaceVector &other) = delete;
+   /// Copy assignment: copy contents of vector, not metadata.
+   WorkspaceVector& operator=(WorkspaceVector &other)
+   {
+      Vector::operator=(other);
+      return *this;
+   }
 
    /// Cannot move to an existing WorkspaceVector.
    WorkspaceVector& operator=(WorkspaceVector &&other) = delete;
