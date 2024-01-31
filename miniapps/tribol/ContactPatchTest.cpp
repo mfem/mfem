@@ -13,6 +13,9 @@
 //                Tribol Miniapp: Mortar contact patch test
 //                -----------------------------------------
 //
+// Tribol is an open source contact mechanics library available at
+// https://github.com/LLNL/Tribol.
+//
 // This miniapp uses Tribol's mortar method to solve a contact patch test.
 // Tribol has native support for MFEM data structures (ParMesh, ParGridFunction,
 // HypreParMatrix, etc.) which simplifies including contact support in
@@ -24,11 +27,11 @@
 // contact constraints will be formed along the z=1 and z=0.99 surfaces of the
 // blocks.
 //
-// Given the elasticity stiffness matrix and the gap constraint and constraint
+// Given the elasticity stiffness matrix and the gap constraints and constraint
 // derivatives from Tribol, the miniapp will form and solve a linear system of
-// equations for updated displacements and pressures. Finally, it will verify
-// force equilibrium and that the gap constraints are satisfied and save output
-// in VisIt format.
+// equations for updated displacements and pressure Lagrange multipliers
+// enforcing the contact constraints. Finally, it will verify force equilibrium
+// and that the gap constraints are satisfied and save output in VisIt format.
 //
 // Command line options:
 //  - -r, --refine: number of uniform refinements of the mesh (default: 2)
@@ -41,6 +44,7 @@
 //               mpirun -n 2 ContactPatchTest -r 3
 
 #include "mfem.hpp"
+#include "general/error.hpp"
 
 #include "axom/slic.hpp"
 
@@ -86,14 +90,18 @@ int main(int argc, char *argv[])
    // Fixed options
    // two block mesh; bottom block = [0,1]^3 and top block = [0,1]x[0,1]x[0.99,1.99]
    std::string mesh_file = "two-hex.mesh";
+   // Problem dimension (NOTE: Tribol's mortar only works in 3D)
+   constexpr int dim = 3;
    // FE polynomial degree (NOTE: only 1 works for now)
-   int order = 1;
-   // z=1 plane of bottom block
+   constexpr int order = 1;
+   // z=1 plane of bottom block (contact plane)
    std::set<int> mortar_attrs({4});
-   // z=0.99 plane of top block
+   // z=0.99 plane of top block (contact plane)
    std::set<int> nonmortar_attrs({5});
-   // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs
-   std::vector<std::set<int>> fixed_attrs(3);
+   // per-dimension sets of boundary attributes with homogeneous Dirichlet BCs.
+   // allows transverse deformation of the blocks while precluding rigid body
+   // rotations/translations.
+   std::vector<std::set<int>> fixed_attrs(dim);
    fixed_attrs[0] = {1}; // x=0 plane of both blocks
    fixed_attrs[1] = {2}; // y=0 plane of both blocks
    fixed_attrs[2] = {3, 6}; // 3: z=0 plane of bottom block; 6: z=1.99 plane of top block
@@ -107,9 +115,12 @@ int main(int argc, char *argv[])
    mfem::ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
 
+   MFEM_ASSERT(dim == mesh.Dimension(),
+               "This miniapp must be run with the supplied two-hex.mesh file.");
+
    // Create an H1 finite element space on the mesh for displacements/forces
-   mfem::H1_FECollection fec(order, 3);
-   mfem::ParFiniteElementSpace fespace(&mesh, &fec, 3);
+   mfem::H1_FECollection fec(order, dim);
+   mfem::ParFiniteElementSpace fespace(&mesh, &fec, dim);
    auto n_displacement_dofs = fespace.GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
@@ -128,7 +139,7 @@ int main(int argc, char *argv[])
    {
       mfem::Array<int> ess_vdof_marker(fespace.GetVSize());
       ess_vdof_marker = 0;
-      for (int i = 0; i < 3; ++i)
+      for (int i = 0; i < dim; ++i)
       {
          mfem::Array<int> ess_bdr(mesh.bdr_attributes.Max());
          ess_bdr = 0;
@@ -159,25 +170,33 @@ int main(int argc, char *argv[])
    std::unique_ptr<mfem::HypreParMatrix> A(new mfem::HypreParMatrix);
    a.FormSystemMatrix(ess_tdof_list, *A);
 
-   // Initialize Tribol contact library
-   tribol::initialize(3, MPI_COMM_WORLD);
+   // #1: Initialize Tribol contact library
+   tribol::initialize(dim, MPI_COMM_WORLD);
 
-   // Create a Tribol coupling scheme: defines contact surfaces and enforcement
+   // #2: Create a Tribol coupling scheme: defines contact surfaces and enforcement
    int coupling_scheme_id = 0;
+   // NOTE: While there is a single mfem ParMesh for this problem, Tribol
+   // defines a mortar and a nonmortar contact mesh, each with a unique mesh ID.
+   // The Tribol mesh IDs for each contact surface are defined here.
    int mesh1_id = 0;
    int mesh2_id = 1;
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       mesh, coords, mortar_attrs, nonmortar_attrs,
       tribol::SURFACE_TO_SURFACE,
-      tribol::NO_SLIDING,
+      tribol::NO_CASE,
       tribol::SINGLE_MORTAR,
       tribol::FRICTIONLESS,
       tribol::LAGRANGE_MULTIPLIER,
       tribol::BINNING_GRID
    );
 
-   // Access Tribol's pressure grid function (on the contact surface)
+   // #3: Set additional options/access pressure grid function on contact surfaces
+   // Access Tribol's pressure grid function (on the contact surface). The
+   // pressure ParGridFunction is created upon calling
+   // registerMfemCouplingScheme(). It's lifetime coincides with the lifetime of
+   // the coupling scheme, so the host code can reference and update it as
+   // needed.
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
    if (mfem::Mpi::Root())
    {
@@ -191,21 +210,27 @@ int main(int argc, char *argv[])
       tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
    );
 
-   // Update contact mesh decomposition
+   // #4: Update contact mesh decomposition so the on-rank Tribol meshes
+   // coincide with the current configuration of the mesh. This must be called
+   // before tribol::update().
    tribol::updateMfemParallelDecomposition();
 
-   // Update contact gaps, forces, and tangent stiffness
+   // #5: Update contact gaps, forces, and tangent stiffness contributions
    int cycle = 1;   // pseudo cycle
    double t = 1.0;  // pseudo time
    double dt = 1.0; // pseudo dt
    tribol::update(cycle, t, dt);
 
-   // Return contact contribution to the tangent stiffness matrix
+   // #6a: Return contact contribution to the tangent stiffness matrix as a
+   // block operator. See documentation for getMfemBlockJacobian() for block
+   // definitions.
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
-   A_blk->SetBlock(0, 0,
-                   A.release());  // add elasticity contribution to the block operator
+   // Add elasticity contribution to the block operator returned by
+   // getMfemBlockJacobian(). Note the (0,0) block Tribol returns is empty, so
+   // we can simply set the (0,0) block to A.
+   A_blk->SetBlock(0, 0, A.release());
 
-   // Convert block tangent stiffness to a single HypreParMatrix
+   // Convert block operator to a single HypreParMatrix
    mfem::Array2D<mfem::HypreParMatrix*> hypre_blocks(2, 2);
    for (int i{0}; i < 2; ++i)
    {
@@ -222,17 +247,19 @@ int main(int argc, char *argv[])
          }
       }
    }
-   auto A_merged = std::unique_ptr<mfem::HypreParMatrix>(
-                      mfem::HypreParMatrixFromBlocks(hypre_blocks)
-                   );
+   auto A_hyprePar = std::unique_ptr<mfem::HypreParMatrix>(
+                        mfem::HypreParMatrixFromBlocks(hypre_blocks)
+                     );
 
    // Create block RHS vector holding forces and gaps at tdofs
    mfem::BlockVector B_blk(A_blk->RowOffsets());
    B_blk = 0.0;
 
    // Fill with initial nodal gaps.
-   // Note forces from contact are currently zero since pressure is currently zero.
+   // Note forces from contact are currently zero since pressure is zero prior
+   // to first solve.
    mfem::Vector gap;
+   // #6b: Return computed gap constraints on the contact surfaces
    tribol::getMfemGap(coupling_scheme_id, gap); // gap on ldofs
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    auto& gap_true = B_blk.GetBlock(1); // gap tdof vectorParFESpace()
@@ -243,14 +270,27 @@ int main(int argc, char *argv[])
    mfem::BlockVector X_blk(A_blk->ColOffsets());
    X_blk = 0.0;
 
-   // Solve for displacements and pressures
+   // Solve for displacements and pressures. Direct solvers such as STRUMPACK
+   // are a good way to solve the saddle point system, but MINRES can be used if
+   // the MFEM build doesn't have access to STRUMPACK.
+#ifdef MFEM_USE_STRUMPACK
+   std::unique_ptr<mfem::STRUMPACKRowLocMatrix> A_strumpk(new
+                                                          mfem::STRUMPACKRowLocMatrix(*A_hyprePar));
+   mfem::STRUMPACKSolver solver(0, nullptr, MPI_COMM_WORLD);
+   solver.SetKrylovSolver(strumpack::KrylovSolver::Direct);
+   solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+   solver.SetPrintFactorStatistics(true);
+   solver.SetPrintSolveStatistics(true);
+   solver.SetOperator(*A_strumpk);
+#else
    mfem::MINRESSolver solver(MPI_COMM_WORLD);
    solver.SetRelTol(1.0e-12);
    solver.SetMaxIter(2000);
    solver.SetPrintLevel(3);
-   solver.SetOperator(*A_merged);
-   mfem::HypreDiagScale prec(*A_merged);
+   solver.SetOperator(*A_hyprePar);
+   mfem::HypreDiagScale prec(*A_hyprePar);
    solver.SetPreconditioner(prec);
+#endif
    solver.Mult(B_blk, X_blk);
 
    // Update displacement and coords grid functions
@@ -308,6 +348,8 @@ int main(int argc, char *argv[])
    }
 
    // Update the Tribol mesh based on deformed configuration
+   // NOTE: This is done to update the contact submesh based on the current
+   // deformed shape of the mesh.
    tribol::updateMfemParallelDecomposition();
 
    // Save data in VisIt format
@@ -320,7 +362,7 @@ int main(int argc, char *argv[])
    visit_surf_dc.RegisterField("pressure", &pressure);
    visit_surf_dc.Save();
 
-   // Tribol cleanup: deletes coupling schemes and clears associated memory
+   // #7: Tribol cleanup: deletes coupling schemes and clears associated memory
    tribol::finalize();
 
    return 0;

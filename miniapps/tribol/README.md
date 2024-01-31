@@ -1,12 +1,11 @@
 # Tribol Interface Physics Library Mini-applications in MFEM
 
 High fidelity simulations modeling complex interactions of moving bodies require
-specialized contact algorithms to enforce constraints between surfaces that come
-into contact in order to prevent penetration and to compute the associated
-contact response forces. Tribol aims to provide a unified interface for various
-contact algorithms, specifically, contact detection and enforcement, and serve
-as a common infrastructure enabling the research and development of advanced
-contact algorithms. More information about Tribol can be found on [its Github
+specialized contact algorithms to enforce zero-interpenetration constraints
+between surfaces. Tribol provides a unified interface for various contact
+algorithms, including contact search, detection and enforcement, thereby
+enabling the research and development of advanced contact algorithms. More
+information about Tribol can be found on [its Github
 repo](https://github.com/LLNL/Tribol).
 
 Tribol uses MFEM's data structures to simplify interoperability with MFEM-based
@@ -18,7 +17,14 @@ miniapp in a separately cloned repo. The installation instructions below follow
 this procedure.
 
 This directory contains an example using Tribol's mortar method to solve a
-contact patch test.  The mortar implementation is based on [Puso and Laursen
+contact patch test. A contact patch test places two aligned linear elastic cubes
+in contact, then verifies the exact elasticity solution for this problem is
+recovered. The exact solution requires transmission of a uniform pressure field
+across a non-conforming interface, which Tribol's mortar implementation is able
+to do. The test assumes small deformations and no accelerations so relationship
+between forces/contact pressures and deformations/contact gaps is linear and,
+therefore, the problem can be solved exactly with a single linear solve. The
+mortar implementation is based on [Puso and Laursen
 (2004)](https://doi.org/10.1016/j.cma.2003.10.010).  A description of the Tribol
 implementation is available in [Serac
 documentation](https://serac.readthedocs.io/en/latest/sphinx/theory_reference/solid.html#contact-mechanics).
@@ -88,6 +94,6 @@ formed along the $z=1$ and $z=0.99$ surfaces of the blocks.
 
 Given the elasticity stiffness matrix and the gap constraint and constraint
 derivatives from Tribol, the miniapp will form and solve a linear system of
-equations for updated displacements and pressures. Finally, it will verify force
-equilibrium and that the gap constraints are satisfied and save output in VisIt
-format.
+equations for updated displacements and contact pressures. Finally, it will
+verify force equilibrium and that the gap constraints are satisfied and save
+output in VisIt format.
