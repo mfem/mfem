@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -337,13 +337,13 @@ public:
    /** After refinement, calculate the relation of each fine element to its
        parent coarse element. Note that Refine() or LimitNCLevel() can be called
        multiple times between MarkCoarseLevel() and this function. */
-   const CoarseFineTransformations& GetRefinementTransforms();
+   const CoarseFineTransformations& GetRefinementTransforms() const;
 
    /** After derefinement, calculate the relations of previous fine elements
        (some of which may no longer exist) to the current leaf elements.
        Unlike for refinement, Derefine() may only be called once before this
        function so there is no MarkFineLevel(). */
-   const CoarseFineTransformations& GetDerefinementTransforms();
+   const CoarseFineTransformations& GetDerefinementTransforms() const;
 
    /// Free all internal data created by the above three functions.
    void ClearTransforms();
@@ -1052,15 +1052,15 @@ protected: // implementation
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
 
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
-                       DenseMatrix& matrix);
+                       DenseMatrix& matrix) const;
 
    typedef std::map<std::string, int> RefPathMap;
 
    void TraverseRefinements(int elem, int coarse_index,
-                            std::string &ref_path, RefPathMap &map);
+                            std::string &ref_path, RefPathMap &map) const;
 
    /// storage for data returned by Get[De]RefinementTransforms()
-   CoarseFineTransformations transforms;
+   mutable CoarseFineTransformations transforms;
 
    /// state of leaf_elements before Refine(), set by MarkCoarseLevel()
    Array<int> coarse_elements;
@@ -1085,7 +1085,7 @@ protected: // implementation
 
    int GetEdgeMaster(int node) const;
 
-   void FindFaceNodes(int face, int node[4]);
+   void FindFaceNodes(int face, int node[4]) const;
 
    /**
     * @brief Return the number of splits of this edge that have occurred in the
