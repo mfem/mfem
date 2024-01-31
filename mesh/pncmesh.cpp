@@ -107,6 +107,8 @@ void ParNCMesh::Update()
       entity_owner[i].DeleteAll();
       entity_pmat_group[i].DeleteAll();
       entity_index_rank[i].DeleteAll();
+      entity_conf_group[i].DeleteAll();
+      entity_elem_local[i].DeleteAll();
    }
 
    shared_vertices.Clear();
