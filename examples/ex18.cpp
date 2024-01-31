@@ -180,7 +180,8 @@ int main(int argc, char *argv[])
    EulerFlux flux(dim, specific_heat_ratio);
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(vfes,
-                                      new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset));
+                                      std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
+                                                                                   numericalFlux, IntOrderOffset)));
 
    // Visualize the density
    socketstream sout;
