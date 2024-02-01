@@ -19,7 +19,7 @@
 //              Update is done by
 //
 //              ρ_new = clip(exp(ψ_new)) = clip(exp(ψ_cur - α d_cur + c))
-//              with d_cur = log(1/-∇F(ρ_cur))
+//              with d_cur = -log(-∇F(ρ_cur))
 //
 //              where c is a constant volume correction. The step size α is
 //              determined by a generalized Barzilai-Borwein method with
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient());
    GridFunction &psi(density.GetGridFunction());
-   GridFunction old_grad(&control_fes), old_psi(&control_fes);
+   GridFunction d(&control_fes), old_d(&control_fes), old_psi(&control_fes);
 
    LinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -249,23 +249,25 @@ int main(int argc, char *argv[])
    bool converged = false;
    for (int k = 0; k < max_it; k++)
    {
+      old_d = d;
+      d = grad;
+      d.ApplyMap([](double x) {return -std::log(-x); });
       // Step 1. Compute Step size
       if (k == 0) { step_size = 1.0; }
       else
       {
          diff_rho_form.Assemble();
          old_psi -= psi;
-         old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+         old_d -= d;
+         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_d));
       }
 
       // Step 2. Store old data
       old_compliance = compliance;
       old_psi = psi;
-      old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
+      num_reeval = Step_Armijo(optprob, old_psi, d, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
