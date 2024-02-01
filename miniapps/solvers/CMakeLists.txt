@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,6 +19,12 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(plor_solvers
     MAIN plor_solvers.cpp
     EXTRA_HEADERS lor_mms.hpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(lor_elast
+    MAIN lor_elast.cpp
+    EXTRA_SOURCES block_fespace_operator.cpp
+    EXTRA_HEADERS block_fespace_operator.hpp
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
@@ -43,6 +49,20 @@ if (MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:plor_solvers> -fe n -m ../../data/fichera.mesh -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME lor_elast-tri_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lor_elast> -l 2 -ca -pa -ss
+      -m ../../data/beam-tri.mesh -o 2
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME lor_elast-hex_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lor_elast> -l 1 -pa -o 2
+      -m ../../data/beam-hex.mesh
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
