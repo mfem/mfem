@@ -50,7 +50,8 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 {
-   mfem::Vector z(y.Size());
+   z.SetSize(y.Size());
+   z.UseDevice(true);
    Mult(x, z);
    y.Add(a, z);
 }
@@ -58,7 +59,8 @@ void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const double a) const
 {
-   mfem::Vector z(y.Size());
+   z.SetSize(y.Size());
+   z.UseDevice(true);
    MultTranspose(x, z);
    y.Add(a, z);
 }

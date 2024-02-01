@@ -27,6 +27,8 @@ protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
+   mutable Vector z;
+
    /// see FormSystemOperator()
    /** @note Uses DiagonalPolicy::DIAG_ONE. */
    void FormConstrainedSystemOperator(

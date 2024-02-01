@@ -41,7 +41,7 @@ protected:
    int preSmoothingSteps;
    int postSmoothingSteps;
 
-   mutable Array2D<Vector*> X, Y, R, Z;
+   mutable Array2D<Vector*> X, Y, R;
    mutable int nrhs;
 
 public:

@@ -56,7 +56,6 @@ void MultigridBase::InitVectors() const
    X.SetSize(M, nrhs);
    Y.SetSize(M, nrhs);
    R.SetSize(M, nrhs);
-   Z.SetSize(M, nrhs);
    for (int i = 0; i < X.NumRows(); ++i)
    {
       const int n = operators[i]->Height();
@@ -65,7 +64,6 @@ void MultigridBase::InitVectors() const
          X(i, j) = new Vector(n);
          Y(i, j) = new Vector(n);
          R(i, j) = new Vector(n);
-         Z(i, j) = new Vector(n);
       }
    }
 }
@@ -79,7 +77,6 @@ void MultigridBase::EraseVectors() const
          delete X(i, j);
          delete Y(i, j);
          delete R(i, j);
-         delete Z(i, j);
       }
    }
 }
@@ -154,8 +151,7 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
    }
    else
    {
-      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
-            Z_(Z[level], nrhs);
+      Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs);
       GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
@@ -163,15 +159,11 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
       }
       if (transpose)
       {
-         GetSmootherAtLevel(level)->ArrayMultTranspose(R_, Z_);
+         GetSmootherAtLevel(level)->ArrayAddMultTranspose(R_, Y_);
       }
       else
       {
-         GetSmootherAtLevel(level)->ArrayMult(R_, Z_);
-      }
-      for (int j = 0; j < nrhs; ++j)
-      {
-         *Y_[j] += *Z_[j];
+         GetSmootherAtLevel(level)->ArrayAddMult(R_, Y_);
       }
    }
 }
@@ -220,12 +212,8 @@ void MultigridBase::Cycle(int level) const
 
    // Prolongate and add
    {
-      Array<Vector *> Y_(Y[level - 1], nrhs), Z_(Z[level], nrhs);
-      GetProlongationAtLevel(level - 1)->ArrayMult(Y_, Z_);
-      for (int j = 0; j < nrhs; ++j)
-      {
-         *Y(level, j) += *Z_[j];
-      }
+      Array<Vector *> Y_lm1(Y[level - 1], nrhs), Y_l(Y[level], nrhs);
+      GetProlongationAtLevel(level - 1)->ArrayAddMult(Y_lm1, Y_l);
    }
 
    // Post-smooth
