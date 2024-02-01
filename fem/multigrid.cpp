@@ -156,11 +156,11 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
    {
       Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
             Z_(Z[level], nrhs);
+      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
-         *R_[j] = *X(level, j);
+         add(1.0, *X(level, j), -1.0, *R_[j], *R_[j]);
       }
-      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
       if (transpose)
       {
          GetSmootherAtLevel(level)->ArrayMultTranspose(R_, Z_);
@@ -195,11 +195,12 @@ void MultigridBase::Cycle(int level) const
    {
       Array<Vector *> Y_(Y[level], nrhs), R_(R[level], nrhs),
             X_(X[level - 1], nrhs);
+
+      GetOperatorAtLevel(level)->ArrayMult(Y_, R_);
       for (int j = 0; j < nrhs; ++j)
       {
-         *R_[j] = *X(level, j);
+         add(1.0, *X(level, j), -1.0, *R_[j], *R_[j]);
       }
-      GetOperatorAtLevel(level)->ArrayAddMult(Y_, R_, -1.0);
       GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
       for (int j = 0; j < nrhs; ++j)
       {
