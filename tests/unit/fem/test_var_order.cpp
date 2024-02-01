@@ -419,7 +419,7 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
       mesh.Clear();
 
-      int ndof0, ncdof1, ncdof2, ndof1;
+      int ndof0, ncdof2;
 
       std::unique_ptr<FiniteElementCollection> fec;
       if (space_type == SpaceType::RT)
@@ -430,15 +430,11 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
          if (dim == 2)
          {
             ndof0 = 40;
-            ndof1 = 62;
-            ncdof1 = 56;
             ncdof2 = 312;
          }
          else
          {
             ndof0 = 36;
-            ndof1 = 141;
-            ncdof1 = 114;
             ncdof2 = 756;
          }
       }
@@ -450,15 +446,11 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
          if (dim == 2)
          {
             ndof0 = 40;
-            ndof1 = 50;
-            ncdof1 = 46;
             ncdof2 = 144;
          }
          else
          {
             ndof0 = 54;
-            ndof1 = 105;
-            ncdof1 = 75;
             ncdof2 = 300;
          }
       }
