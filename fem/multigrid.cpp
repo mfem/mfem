@@ -56,13 +56,16 @@ void MultigridBase::InitVectors() const
    X.SetSize(M, nrhs);
    Y.SetSize(M, nrhs);
    R.SetSize(M, nrhs);
-   for (int i = 0; i < X.NumRows(); ++i)
+   for (int i = 0; i < M; ++i)
    {
       const int n = operators[i]->Height();
-      for (int j = 0; j < X.NumCols(); ++j)
+      for (int j = 0; j < nrhs; ++j)
       {
-         X(i, j) = new Vector(n);
-         Y(i, j) = new Vector(n);
+         if (i < M - 1)
+         {
+            X(i, j) = new Vector(n);
+            Y(i, j) = new Vector(n);
+         }
          R(i, j) = new Vector(n);
       }
    }
@@ -74,8 +77,11 @@ void MultigridBase::EraseVectors() const
    {
       for (int j = 0; j < X.NumCols(); ++j)
       {
-         delete X(i, j);
-         delete Y(i, j);
+         if (i < X.NumRows() - 1)
+         {
+            delete X(i, j);
+            delete Y(i, j);
+         }
          delete R(i, j);
       }
    }
@@ -131,14 +137,10 @@ void MultigridBase::ArrayMult(const Array<const Vector*>& X_,
    for (int j = 0; j < nrhs; ++j)
    {
       MFEM_ASSERT(X_[j] && Y_[j], "Missing Vector in MultigridBase::Mult!");
-      *X(M - 1, j) = *X_[j];
-      *Y(M - 1, j) = 0.0;
+      X(M - 1, j) = const_cast<Vector*>(X_[j]);
+      Y(M - 1, j) = Y_[j];
    }
    Cycle(M - 1);
-   for (int j = 0; j < nrhs; ++j)
-   {
-      *Y_[j] = *Y(M - 1, j);
-   }
 }
 
 void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
