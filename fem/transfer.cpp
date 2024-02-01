@@ -1634,13 +1634,8 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
       }
    });
 }
+
 } // namespace TransferKernels
-
-
-TensorProductPRefinementTransferOperator::
-~TensorProductPRefinementTransferOperator()
-{
-}
 
 void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                                                     Vector& y) const
