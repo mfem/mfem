@@ -494,8 +494,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       MFEM_ABORT("Chebyshev smoother requires operator");
    }
 
-   residual = x;
-   helperVector.SetSize(x.Size());
+   z = x;
 
    y.UseDevice(true);
    y = 0.0;
@@ -505,20 +504,21 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       // Apply
       if (k > 0)
       {
-         oper->Mult(residual, helperVector);
-         residual = helperVector;
+         oper->Mult(residual, z);
       }
 
-      // Scale residual by inverse diagonal
+      // Scale residual by inverse diagonal and add weighted contribution to y
       const int n = N;
       auto Dinv = dinv.Read();
-      auto R = residual.ReadWrite();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
-
-      // Add weighted contribution to y
-      auto Y = y.ReadWrite();
       auto C = coeffs.Read();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
+      auto Z = z.Read();
+      auto R = residual.Write();
+      auto Y = y.ReadWrite();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+      {
+         R[i] = Dinv[i]*Z[i];
+         Y[i] += C[k] * R[i];
+      });
    }
 }
 

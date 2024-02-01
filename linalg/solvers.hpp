@@ -452,7 +452,7 @@ private:
    Array<double> coeffs;
    const Array<int>& ess_tdof_list;
    mutable Vector residual;
-   mutable Vector helperVector;
+   mutable Vector z;
    const Operator* oper;
 };
 
