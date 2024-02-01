@@ -927,7 +927,7 @@ public:
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   ~ConstrainedOperator() { if (own_A) { delete A; } }
+   ~ConstrainedOperator() override { if (own_A) { delete A; } }
 };
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on
