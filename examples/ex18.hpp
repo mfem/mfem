@@ -30,7 +30,6 @@ namespace mfem
 class DGHyperbolicConservationLaws : public TimeDependentOperator
 {
 private:
-   const int dim; // domain dimension
    const int num_equations; // the number of equations
    FiniteElementSpace &vfes; // vector finite element space
    // Element integration form. Should contain ComputeFlux
@@ -79,7 +78,6 @@ DGHyperbolicConservationLaws::DGHyperbolicConservationLaws(
    FiniteElementSpace &vfes_,
    std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_)
    : TimeDependentOperator(vfes_.GetTrueVSize()),
-     dim(vfes_.GetMesh()->Dimension()),
      num_equations(formIntegrator_->num_equations),
      vfes(vfes_),
      formIntegrator(std::move(formIntegrator_)),
