@@ -12,6 +12,7 @@
 #include "transfer.hpp"
 #include "bilinearform.hpp"
 #include "../general/forall.hpp"
+#include "kernels.hpp"
 
 namespace mfem
 {
@@ -1420,7 +1421,7 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
                     const Array<double>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
-   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
+   auto y_ = Reshape(localH.Write(), Q1D, Q1D, NE);
    auto B_ = Reshape(B.Read(), Q1D, D1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
 
@@ -1462,12 +1463,80 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
    });
 }
 
+template <int DLO, int DHI>
+static void SmemProlongation3D(const int NE,
+                               const Vector& localL, Vector& localH,
+                               const Array<double> &b, const Vector& mask)
+{
+   auto u_lo = Reshape(localL.Read(), DLO, DLO, DLO, NE);
+   auto u_hi = Reshape(localH.Write(), DHI, DHI, DHI, NE);
+   auto d_b = Reshape(b.Read(), DHI, DLO);
+   auto m_ = Reshape(mask.Read(), DHI, DHI, DHI, NE);
+
+   mfem::forall_2D(NE, DHI, DHI, [=] MFEM_HOST_DEVICE (int e)
+   {
+      // Load B into shared memory
+      MFEM_SHARED double s_B[DHI*DLO];
+      kernels::internal::LoadBt<DLO,DHI>(DLO,DHI,d_b,s_B);
+      const DeviceMatrix B(s_B, DHI, DLO);
+
+      MFEM_SHARED double s_u[DHI*DHI*DLO];
+      const DeviceCube u(s_u, DHI, DHI, DLO);
+      double v[DHI];
+
+      MFEM_FOREACH_THREAD(lx,x,DLO)
+      {
+         MFEM_FOREACH_THREAD(ly,y,DLO)
+         {
+            for (int hz = 0; hz < DHI; ++hz) { v[hz] = 0.0; }
+            for (int lz = 0; lz < DLO; ++lz)
+            {
+               const double XYZ = u_lo(lx,ly,lz,e);
+               for (int hz = 0; hz < DHI; ++hz) { v[hz] += XYZ * B(hz,lz); }
+            }
+            for (int hz = 0; hz < DHI; ++hz) { u(hz,ly,lx) = v[hz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(hz,y,DHI)
+      {
+         MFEM_FOREACH_THREAD(lx,x,DLO)
+         {
+            for (int hy = 0; hy < DHI; ++hy) { v[hy] = 0.0; }
+            for (int ly = 0; ly < DLO; ++ly)
+            {
+               const double zYX = u(hz,ly,lx);
+               for (int hy = 0; hy < DHI; ++hy) { v[hy] += zYX * B(hy,ly); }
+            }
+            for (int hy = 0; hy < DHI; ++hy) { u(hz,hy,lx) = v[hy]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(hz,y,DHI)
+      {
+         MFEM_FOREACH_THREAD(hy,x,DHI)
+         {
+            for (int hx = 0; hx < DHI; ++hx) { v[hx] = 0.0; }
+            for (int lx = 0; lx < DLO; ++lx)
+            {
+               const double zyX = u(hz,hy,lx);
+               for (int hx = 0; hx < DHI; ++hx) { v[hx] += zyX * B(hx,lx); }
+            }
+            for (int hx = 0; hx < DHI; ++hx)
+            {
+               u_hi(hx,hy,hz,e) = m_(hx,hy,hz,e)*v[hx];
+            }
+         }
+      }
+   });
+}
+
 void Prolongation3D(const int NE, const int D1D, const int Q1D,
                     const Vector& localL, Vector& localH,
                     const Array<double>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, NE);
-   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
+   auto y_ = Reshape(localH.Write(), Q1D, Q1D, Q1D, NE);
    auto B_ = Reshape(B.Read(), Q1D, D1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
@@ -1534,12 +1603,12 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
    });
 }
 
-void Restriction2D(const int NE, const int D1D, const int Q1D,
-                   const Vector& localH, Vector& localL,
-                   const Array<double>& Bt, const Vector& mask)
+void ProlongationTranspose2D(const int NE, const int D1D, const int Q1D,
+                             const Vector& localH, Vector& localL,
+                             const Array<double>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
-   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
+   auto y_ = Reshape(localL.Write(), D1D, D1D, NE);
    auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
 
@@ -1573,12 +1642,81 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
       }
    });
 }
-void Restriction3D(const int NE, const int D1D, const int Q1D,
-                   const Vector& localH, Vector& localL,
-                   const Array<double>& Bt, const Vector& mask)
+
+template <int DLO, int DHI>
+static void SmemProlongationTranspose3D(
+   const int NE, const Vector& localH, Vector& localL,
+   const Array<double>& bt, const Vector& mask)
+{
+   auto u_h = Reshape(localH.Read(), DHI, DHI, DHI, NE);
+   auto u_l = Reshape(localL.Write(), DLO, DLO, DLO, NE);
+   auto d_bt = Reshape(bt.Read(), DLO, DHI);
+   auto m_ = Reshape(mask.Read(), DHI, DHI, DHI, NE);
+
+   mfem::forall_2D(NE, DHI, DHI, [=] MFEM_HOST_DEVICE (int e)
+   {
+      // Load Bt into shared memory
+      MFEM_SHARED double s_Bt[DHI*DLO];
+      kernels::internal::LoadBt<DHI,DLO>(DHI,DLO,d_bt,s_Bt);
+      const DeviceMatrix Bt(s_Bt, DLO, DHI);
+
+      MFEM_SHARED double s_u[DLO*DHI*DHI];
+      const DeviceCube u(s_u, DLO, DHI, DHI);
+      double v[DLO];
+
+      MFEM_FOREACH_THREAD(hx,x,DHI)
+      {
+         MFEM_FOREACH_THREAD(hy,y,DHI)
+         {
+            for (int lz = 0; lz < DLO; ++lz) { v[lz] = 0.0; }
+            for (int hz = 0; hz < DHI; ++hz)
+            {
+               const double XYZ = m_(hx,hy,hz,e)*u_h(hx,hy,hz,e);
+               for (int lz = 0; lz < DLO; ++lz) { v[lz] += XYZ * Bt(lz,hz); }
+            }
+            for (int lz = 0; lz < DLO; ++lz) { u(lz,hy,hx) = v[lz]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(lz,y,DLO)
+      {
+         MFEM_FOREACH_THREAD(hx,x,DHI)
+         {
+            for (int ly = 0; ly < DLO; ++ly) { v[ly] = 0.0; }
+            for (int hy = 0; hy < DHI; ++hy)
+            {
+               const double zYX = u(lz,hy,hx);
+               for (int ly = 0; ly < DLO; ++ly) { v[ly] += zYX * Bt(ly,hy); }
+            }
+            for (int ly = 0; ly < DLO; ++ly) { u(lz,ly,hx) = v[ly]; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(lz,y,DLO)
+      {
+         MFEM_FOREACH_THREAD(ly,x,DLO)
+         {
+            for (int lx = 0; lx < DLO; ++lx) { v[lx] = 0.0; }
+            for (int hx = 0; hx < DHI; ++hx)
+            {
+               const double zyX = u(lz,ly,hx);
+               for (int lx = 0; lx < DLO; ++lx) { v[lx] += zyX * Bt(lx,hx); }
+            }
+            for (int lx = 0; lx < DLO; ++lx)
+            {
+               u_l(lx,ly,lz,e) = v[lx];
+            }
+         }
+      }
+   });
+}
+
+void ProlongationTranspose3D(const int NE, const int D1D, const int Q1D,
+                             const Vector& localH, Vector& localL,
+                             const Array<double>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
-   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
+   auto y_ = Reshape(localL.Write(), D1D, D1D, D1D, NE);
    auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
@@ -1640,6 +1778,8 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
 void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
                                                     Vector& y) const
 {
+   using namespace TransferKernels;
+
    if (lFESpace.GetMesh()->GetNE() == 0)
    {
       return;
@@ -1648,11 +1788,17 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
    elem_restrict_lex_l->Mult(x, localL);
    if (dim == 2)
    {
-      TransferKernels::Prolongation2D(NE, D1D, Q1D, localL, localH, B, mask);
+      Prolongation2D(NE, D1D, Q1D, localL, localH, B, mask);
    }
    else if (dim == 3)
    {
-      TransferKernels::Prolongation3D(NE, D1D, Q1D, localL, localH, B, mask);
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23:
+            SmemProlongation3D<2,3>(NE, localL, localH, B, mask); break;
+         default:
+            Prolongation3D(NE, D1D, Q1D, localL, localH, B, mask); break;
+      }
    }
    else
    {
@@ -1666,6 +1812,8 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
 void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
                                                              Vector& y) const
 {
+   using namespace TransferKernels;
+
    if (lFESpace.GetMesh()->GetNE() == 0)
    {
       return;
@@ -1674,11 +1822,17 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
    elem_restrict_lex_h->Mult(x, localH);
    if (dim == 2)
    {
-      TransferKernels::Restriction2D(NE, D1D, Q1D, localH, localL, Bt, mask);
+      ProlongationTranspose2D(NE, D1D, Q1D, localH, localL, Bt, mask);
    }
    else if (dim == 3)
    {
-      TransferKernels::Restriction3D(NE, D1D, Q1D, localH, localL, Bt, mask);
+      switch ((D1D << 4 ) | Q1D)
+      {
+         case 0x23:
+            SmemProlongationTranspose3D<2,3>(NE, localH, localL, Bt, mask); break;
+         default:
+            ProlongationTranspose3D(NE, D1D, Q1D, localH, localL, Bt, mask); break;
+      }
    }
    else
    {
