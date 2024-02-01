@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
    {
       old_d = d;
       d = grad;
-      d.ApplyMap([](double x) {return -std::log(-x); });
+      d.ApplyMap([](double x) {return x > -1e-13 ? -std::log(1e-13) : -std::log(-x); });
       // Step 1. Compute Step size
       if (k == 0) { step_size = 1.0; }
       else
