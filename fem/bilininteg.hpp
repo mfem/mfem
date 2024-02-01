@@ -42,8 +42,6 @@ public:
    // make sense for the action of the nonlinear operator (but they all make
    // sense for its Jacobian).
 
-   using NonlinearFormIntegrator::AssemblePA;
-
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
@@ -282,7 +280,7 @@ private:
    DenseMatrix bfi_elmat;
 
 public:
-   TransposeIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
+   TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
    virtual void SetIntRule(const IntegrationRule *ir);
@@ -3553,11 +3551,6 @@ public:
                                        DenseMatrix &elmat)
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
-   /** @brief Setup method for PA data.
-
-       @param[in] trial_fes   \f$H^1\f$ Lagrange space
-       @param[in] test_fes    \f$H\f$(curl) Nedelec space
-    */
    using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
