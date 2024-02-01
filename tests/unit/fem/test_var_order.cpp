@@ -17,11 +17,26 @@ namespace mfem
 
 static double exact_sln(const Vector &p);
 static void TestSolve(FiniteElementSpace &fespace);
+static void TestSolveVec(FiniteElementSpace &fespace);
 #ifdef MFEM_USE_MPI
 static void TestSolvePar(ParFiniteElementSpace &fespace);
-void TestRandomPRefinement(Mesh & mesh);
+static void TestRandomPRefinement(Mesh & mesh);
+static void TestSolveParVec(ParFiniteElementSpace &fespace);
 #endif
 
+namespace var_order_test { enum class SpaceType {RT, ND}; }
+
+Mesh MakeCartesianMesh(int nx, int dim)
+{
+   if (dim == 2)
+   {
+      return Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, true);
+   }
+   else
+   {
+      return Mesh::MakeCartesian3D(nx, nx, nx, Element::HEXAHEDRON);
+   }
+}
 
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
@@ -249,6 +264,83 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
       TestSolve(fespace);
    }
+
+   SECTION("Quad/hex mesh ND/RT")
+   {
+      using namespace var_order_test;
+
+      const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
+      const int dim = GENERATE(2, 3);
+
+      Mesh mesh = MakeCartesianMesh(dim == 2 ? 4 : 2, dim);
+      mesh.EnsureNCMesh();
+
+      int ndof0, ncdof1, ncdof2, ndof1;
+      std::unique_ptr<FiniteElementCollection> fec;
+      if (space_type == SpaceType::RT)
+      {
+         // Standard RT space with order 0 elements
+         fec.reset(new RT_FECollection(0, dim));
+
+         if (dim == 2)
+         {
+            ndof0 = 40;
+            ndof1 = 62;
+            ncdof1 = 56;
+            ncdof2 = 312;
+         }
+         else
+         {
+            ndof0 = 36;
+            ndof1 = 141;
+            ncdof1 = 114;
+            ncdof2 = 756;
+         }
+      }
+      else
+      {
+         // Standard ND space with order 1 elements
+         fec.reset(new ND_FECollection(1, dim));
+
+         if (dim == 2)
+         {
+            ndof0 = 40;
+            ndof1 = 50;
+            ncdof1 = 46;
+            ncdof2 = 144;
+         }
+         else
+         {
+            ndof0 = 54;
+            ndof1 = 105;
+            ncdof1 = 75;
+            ncdof2 = 300;
+         }
+      }
+
+      FiniteElementSpace fespace(&mesh, fec.get());
+
+      REQUIRE(fespace.GetNDofs() == ndof0);
+      REQUIRE(fespace.GetNConformingDofs() == ndof0);
+
+      // Convert to variable order space: p-refine first element
+      fespace.SetElementOrder(0, 2);
+      fespace.Update(false);
+
+      REQUIRE(fespace.GetNDofs() == ndof1);
+      REQUIRE(fespace.GetNConformingDofs() == ncdof1);
+
+      // p-refine all elements
+      for (int i = 1; i < mesh.GetNE(); i++)
+      {
+         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+      }
+      fespace.Update(false);
+
+      REQUIRE(fespace.GetNConformingDofs() == ncdof2);
+
+      TestSolveVec(fespace);
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -311,6 +403,81 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       REQUIRE(fespace.GlobalTrueVSize() == 125);
 
       TestSolvePar(fespace);
+   }
+
+   SECTION("Quad/hex mesh ND/RT")
+   {
+      using namespace var_order_test;
+
+      const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
+      const int dim = GENERATE(2, 3);
+
+      Mesh mesh = MakeCartesianMesh(dim == 2 ? 4 : 2, dim);
+
+      mesh.EnsureNCMesh();
+
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+      mesh.Clear();
+
+      int ndof0, ncdof1, ncdof2, ndof1;
+
+      std::unique_ptr<FiniteElementCollection> fec;
+      if (space_type == SpaceType::RT)
+      {
+         // Standard RT space with order 0 elements
+         fec.reset(new RT_FECollection(0, dim));
+
+         if (dim == 2)
+         {
+            ndof0 = 40;
+            ndof1 = 62;
+            ncdof1 = 56;
+            ncdof2 = 312;
+         }
+         else
+         {
+            ndof0 = 36;
+            ndof1 = 141;
+            ncdof1 = 114;
+            ncdof2 = 756;
+         }
+      }
+      else
+      {
+         // Standard ND space with order 1 elements
+         fec.reset(new ND_FECollection(1, dim));
+
+         if (dim == 2)
+         {
+            ndof0 = 40;
+            ndof1 = 50;
+            ncdof1 = 46;
+            ncdof2 = 144;
+         }
+         else
+         {
+            ndof0 = 54;
+            ndof1 = 105;
+            ncdof1 = 75;
+            ncdof2 = 300;
+         }
+      }
+
+      ParFiniteElementSpace fespace(&pmesh, fec.get());
+
+      REQUIRE(fespace.GlobalTrueVSize() == ndof0);
+
+      // Convert to variable order space by p-refinement
+      // Increase order on all elements
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         fespace.SetElementOrder(i, fespace.GetElementOrder(i) + 1);
+      }
+      fespace.Update(false);
+
+      REQUIRE(fespace.GlobalTrueVSize() == ncdof2);
+
+      TestSolveParVec(fespace);
    }
 }
 
@@ -400,6 +567,67 @@ static void TestSolve(FiniteElementSpace &fespace)
    sol_sock << "solution\n" << *mesh << *vis_x;
    delete vis_x;
 #endif
+}
+
+// Quadratic exact solution for vector-valued spaces
+void exact_sln_vec(const Vector &x, Vector &f)
+{
+   if (f.Size() == 3)
+   {
+      f(0) = x(1)*x(2);
+      f(1) = x(0)*x(2);
+      f(2) = x(0)*x(1);
+   }
+   else
+   {
+      f(0) = x(0)*x(1);
+      f(1) = x(0)*x(1);
+   }
+}
+
+static void TestSolveVec(FiniteElementSpace &fespace)
+{
+   Mesh *mesh = fespace.GetMesh();
+   const int sdim = mesh->SpaceDimension();
+
+   // Exact solution and RHS for the mass-matrix problem E = f
+   VectorFunctionCoefficient exsol(sdim, exact_sln_vec);
+
+   // No boundary conditions
+   Array<int> ess_attr(mesh->bdr_attributes.Max());
+   ess_attr = 0;
+
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+   GridFunction x(&fespace);
+   x = 0.0;
+   x.ProjectBdrCoefficient(exsol, ess_attr);
+
+   // Assemble the linear form
+   LinearForm lf(&fespace);
+   lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(exsol));
+   lf.Assemble();
+
+   // Assemble the bilinear form
+   BilinearForm bf(&fespace);
+   bf.AddDomainIntegrator(new VectorFEMassIntegrator());
+   bf.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+   // Solve
+   GSSmoother M((SparseMatrix&)(*A));
+   PCG(*A, M, B, X, 0, 500, 1e-30, 0.0);
+
+   bf.RecoverFEMSolution(X, lf, x);
+
+   // Compute L2 error from the exact solution
+   const double error = x.ComputeL2Error(exsol);
+
+   REQUIRE(error == MFEM_Approx(0.0));
 }
 
 #ifdef MFEM_USE_MPI
@@ -627,7 +855,7 @@ double ErrorSerialParallel(const GridFunction & xser,
    return error;
 }
 
-void TestRandomPRefinement(Mesh & mesh)
+static void TestRandomPRefinement(Mesh & mesh)
 {
    for (int i=0; i<mesh.GetNE(); ++i)
    {
@@ -646,6 +874,57 @@ void TestRandomPRefinement(Mesh & mesh)
    delete solParallel;
    delete fespace;
    delete pfespace;
+}
+
+static void TestSolveParVec(ParFiniteElementSpace &fespace)
+{
+   ParMesh *pmesh = fespace.GetParMesh();
+   const int sdim = pmesh->SpaceDimension();
+
+   // Exact solution and RHS for the mass-matrix problem E = f
+   VectorFunctionCoefficient exsol(sdim, exact_sln_vec);
+
+   // No boundary conditions
+   Array<int> ess_attr(pmesh->bdr_attributes.Max());
+   ess_attr = 0;
+
+   Array<int> ess_tdof_list;
+   fespace.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+   ParGridFunction x(&fespace);
+   x = 0.0;
+   x.ProjectBdrCoefficient(exsol, ess_attr);
+
+   // Assemble the linear form
+   ParLinearForm lf(&fespace);
+   lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(exsol));
+   lf.Assemble();
+
+   // Assemble the bilinear form
+   ParBilinearForm bf(&fespace);
+   bf.AddDomainIntegrator(new VectorFEMassIntegrator());
+   bf.Assemble();
+
+   OperatorPtr A;
+   Vector B, X;
+   bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+   // Solve
+   HypreBoomerAMG prec;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-30);
+   cg.SetMaxIter(100);
+   cg.SetPrintLevel(1);
+   cg.SetPreconditioner(prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+
+   bf.RecoverFEMSolution(X, lf, x);
+
+   // Compute L2 error from the exact solution
+   const double error = x.ComputeL2Error(exsol);
+
+   REQUIRE(error == MFEM_Approx(0.0));
 }
 
 #endif  // MFEM_USE_MPI
