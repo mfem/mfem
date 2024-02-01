@@ -92,6 +92,7 @@ private:
       amg->SetPrintLevel(-1);
 
       CGSolver* pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->iterative_mode = false;
       pcg->SetPrintLevel(-1);
       pcg->SetMaxIter(10);
       pcg->SetRelTol(sqrt(1e-4));

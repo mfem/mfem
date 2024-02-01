@@ -202,9 +202,12 @@ void MultigridBase::Cycle(int level) const
          add(1.0, *X(level, j), -1.0, *R_[j], *R_[j]);
       }
       GetProlongationAtLevel(level - 1)->ArrayMultTranspose(R_, X_);
-      for (int j = 0; j < nrhs; ++j)
+      if (cycleType != CycleType::VCYCLE)
       {
-         *Y(level - 1, j) = 0.0;
+         for (int j = 0; j < nrhs; ++j)
+         {
+            *Y(level - 1, j) = 0.0;
+         }
       }
    }
 

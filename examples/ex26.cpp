@@ -83,6 +83,7 @@ private:
       opr.SetOperatorOwner(false);
 
       CGSolver* pcg = new CGSolver();
+      pcg->iterative_mode = false;
       pcg->SetPrintLevel(-1);
       pcg->SetMaxIter(200);
       pcg->SetRelTol(sqrt(1e-4));
