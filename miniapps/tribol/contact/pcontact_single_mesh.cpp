@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 10;
    bool enable_tribol = false;
-
+   int linsolver = 2; // PCG  - AMG
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -54,6 +54,8 @@ int main(int argc, char *argv[])
                   "Interior Point Solver maximum number of iterations.");
    args.AddOption(&relax_type, "-rt", "--relax-type",
                   "Selection of Smoother for AMG");
+   args.AddOption(&linsolver, "-ls", "--linear-solver",
+                  "Selection of inner linear solver: 0: mumps, 1: mumps-reduced, 2: PCG-AMG-reduced");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -95,22 +97,10 @@ int main(int argc, char *argv[])
 
    ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part.GetData());
 
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int visport = 19916;
-
-      socketstream mesh_sock(vishost, visport);
-      mesh_sock.precision(8);
-      mesh_sock << "parallel " << num_procs << " " << myid << "\n"
-                << "mesh\n" << *pmesh << flush;
-   }
-
    for (int i = 0; i<pref; i++)
    {
       pmesh->UniformRefinement();
    }
-
 
    MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
 
@@ -131,7 +121,6 @@ int main(int argc, char *argv[])
    optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(optimizer_maxit);
 
-   int linsolver = 2;
    optimizer.SetLinearSolver(linsolver);
    optimizer.SetLinearSolveTol(linsolvertol);
    optimizer.SetLinearSolveRelaxType(relax_type);
@@ -151,10 +140,14 @@ int main(int argc, char *argv[])
       mfem::out << " Final Energy objective         = " << Efinal << endl;
       mfem::out << " Global number of dofs          = " << gndofs << endl;
       mfem::out << " Global number of constraints   = " << numconstr << endl;
-      mfem::out << " Optimizer number of iterations = " << CGiterations.Size() << endl
-                ;
-      mfem::out << " CG iteration numbers           = " ;
-      CGiterations.Print(mfem::out, CGiterations.Size());
+      mfem::out << " Optimizer number of iterations = " <<
+                optimizer.GetNumIterations() << endl;
+      if (linsolver == 2)
+      {
+         mfem::out << " CG iteration numbers           = " ;
+         CGiterations.Print(mfem::out, CGiterations.Size());
+      }
+
    }
 
    // MFEM_VERIFY(optimizer.GetConverged(),

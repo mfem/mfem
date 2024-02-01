@@ -609,6 +609,7 @@ void ParContactProblemTribol::SetupTribol()
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
    J = new HypreParMatrix(*(HypreParMatrix *)(&A_blk->GetBlock(1,0)));
+
    Vector gap;
    tribol::getMfemGap(coupling_scheme_id, gap);
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
@@ -968,12 +969,75 @@ void ParContactProblemSingleMesh::SetupTribol()
    // Return contact contribution to the tangent stiffness matrix
    auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
    
-   M = new HypreParMatrix(*(HypreParMatrix *)(&A_blk->GetBlock(1,0)));
+   HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
+   // HypreParMatrix * diag = (HypreParMatrix *)(&A_blk->GetBlock(1,1));
+
+   // mfem::out << "diag size = " << diag->Height() << " x " << diag->Width() << endl;
+   // diag->PrintMatlab(mfem::out);
+
+   int h = Mfull->Height();
+   SparseMatrix merged;
+   Mfull->MergeDiagAndOffd(merged);
+   Array<int> nonzero_rows;
+   // mfem::out << "M height = " << M->Height() << endl;
+   // mfem::out << "merged height = " << merged.Height() << endl;
+   // mfem::out << "merged width = " << merged.Width() << endl;
+   for (int i = 0; i<h; i++)
+   {
+      if (!merged.RowIsEmpty(i))
+      {
+         nonzero_rows.Append(i);
+      }
+   }
+
+   int hnew = nonzero_rows.Size();
+   SparseMatrix P(hnew,h);
+
+   for (int i = 0; i<hnew; i++)
+   {
+      int col = nonzero_rows[i];
+      P.Set(i,col,1.0);
+   }
+   P.Finalize();
+
+   SparseMatrix * reduced_merged = Mult(P,merged);
+
+   int rows[2];
+   int cols[2];
+   cols[0] = Mfull->ColPart()[0];
+   cols[1] = Mfull->ColPart()[1];
+   int nrows = reduced_merged->Height();
+
+   int row_offset;
+   MPI_Scan(&nrows,&row_offset,1,MPI_INT,MPI_SUM,Mfull->GetComm());
+
+   row_offset-=nrows;
+   rows[0] = row_offset;
+   rows[1] = row_offset+nrows;
+   int glob_nrows;
+   MPI_Allreduce(&nrows, &glob_nrows,1,MPI_INT,MPI_SUM,Mfull->GetComm());
+
+
+   int glob_ncols = reduced_merged->Width();
+   M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
+                          glob_ncols, reduced_merged->GetI(), reduced_merged->GetJ(),
+                          reduced_merged->GetData(), rows,cols); 
+
+
    Vector gap;
    tribol::getMfemGap(coupling_scheme_id, gap);
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
-   gapv.SetSize(P_submesh.Width());
-   P_submesh.MultTranspose(gap,gapv);
+   Vector gap_true;
+   gap_true.SetSize(P_submesh.Width());
+   P_submesh.MultTranspose(gap,gap_true);
+
+   gapv.SetSize(nrows);
+   for (int i = 0; i<nrows; i++)
+   {
+      gapv[i] = gap_true[nonzero_rows[i]];
+   }
+
+
    constraints_starts.SetSize(2);
    constraints_starts[0] = M->RowPart()[0];
    constraints_starts[1] = M->RowPart()[1];
@@ -991,7 +1055,6 @@ void ParContactProblemSingleMesh::DdE(const Vector &d, Vector &gradE)
    gradE.SetSize(K->Height());
    K->Mult(d, gradE);
    gradE.Add(-1.0, *B); 
-   // gradE.Print();
 }
 
 HypreParMatrix* ParContactProblemSingleMesh::DddE(const Vector &d)

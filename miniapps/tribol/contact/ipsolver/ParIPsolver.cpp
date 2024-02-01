@@ -172,7 +172,8 @@ void ParInteriorPointSolver::Mult(const BlockVector &x0, BlockVector &xf)
    {
       if(iAmRoot)
       {
-         cout << "interior-point solve step " << jOpt << endl;
+         std::cout << "\n" << std::string(50,'-') << endl;
+         std::cout << "interior-point solve step " << jOpt << endl;
       }
       // A-2. Check convergence of overall optimization problem
       printOptimalityError = false;
@@ -353,6 +354,10 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
    //          [H_(m,u)  W_(m,m)   J_m^T]
    //          [ J_u      J_m       0  ]]
 
+   //    Ak = [[K    0     Jᵀ ]   [u]    [bᵤ]
+   //          [0    D    -I  ]   [m]  = [bₘ]      
+   //          [J   -I     0  ]]  [λ]  = [bₗ ]
+
    Ak.SetBlock(0, 0, Huu);                         Ak.SetBlock(0, 2, JuT);
                            Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
@@ -363,6 +368,7 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
 // determine the search direction
 void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat, double mu, bool socSolve)
 {
+   iter++;
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml); 
    BlockVector b(block_offsetsuml); b = 0.0;
@@ -439,6 +445,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
       HypreParMatrix * Huuloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 0)));
       HypreParMatrix * Juloc  = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(2, 0)));
+      
       HypreParMatrix * JuTloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(0, 2)));
       HypreParMatrix *JuTDJu   = RAP(Wmmloc, Juloc);     // Ju^T D Ju
       HypreParMatrix *Areduced = ParAdd(Huuloc, JuTDJu);  // Huu + Ju^T D Ju
@@ -487,24 +494,34 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          amg.SetRelaxType(relax_type);
          int n;
 
-
-         // CGSolver AreducedSolver(MPI_COMM_WORLD);
-	      // AreducedSolver.SetOperator(*Areduced);
-         // AreducedSolver.SetRelTol(linSolveTol);
-         // AreducedSolver.SetMaxIter(1000);
-         // AreducedSolver.SetPreconditioner(amg);
-	      // AreducedSolver.SetPrintLevel(3);
-         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         // n = AreducedSolver.GetNumIterations();
-
-         HyprePCG AreducedSolver(*Areduced);
-         AreducedSolver.SetTol(linSolveTol);
+         if (iAmRoot)
+         {
+            std::cout << "\n" << std::string(50,'-') << endl;
+            mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
+            std::cout << std::string(50,'-') << endl;
+         }
+         CGSolver AreducedSolver(MPI_COMM_WORLD);
+	      AreducedSolver.SetOperator(*Areduced);
+         AreducedSolver.SetRelTol(linSolveTol);
          AreducedSolver.SetMaxIter(1000);
          AreducedSolver.SetPreconditioner(amg);
-	      AreducedSolver.SetPrintLevel(2);
-         // AreducedSolver.SetResidualConvergenceOptions();
+	      AreducedSolver.SetPrintLevel(3);
          AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
-         AreducedSolver.GetNumIterations(n);
+
+         if (iAmRoot)
+         {
+            std::cout << std::string(50,'-') << "\n" << endl;
+         }
+         n = AreducedSolver.GetNumIterations();
+
+         // HyprePCG AreducedSolver(*Areduced);
+         // AreducedSolver.SetTol(linSolveTol);
+         // AreducedSolver.SetMaxIter(1000);
+         // AreducedSolver.SetPreconditioner(amg);
+	      // AreducedSolver.SetPrintLevel(1);
+         // // AreducedSolver.SetResidualConvergenceOptions();
+         // AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         // AreducedSolver.GetNumIterations(n);
 
          cgnum_iterations.Append(n);
 

@@ -18,6 +18,7 @@ protected:
     QPOptParContactProblemSingleMesh* problem = nullptr;
     double OptTol;
     int  max_iter;
+    int  iter=0;
     double mu_k; // \mu_k
     Vector lk, zlk;
 
@@ -81,6 +82,7 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
+    int GetNumIterations() {return iter;}
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
     double phi(const BlockVector &, double);
