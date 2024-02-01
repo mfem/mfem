@@ -2316,6 +2316,11 @@ public:
          int os = 0;
          var = FindEdgeDofVar(index, edof, os);
       }
+      else if (varOrder && entity == 2)
+      {
+         int os = 0;
+         var = FindFaceDofVar(index, edof, os);
+      }
 
       rows.emplace_back(entity, index, edof, group, row, var);
    }
@@ -2419,24 +2424,6 @@ void NeighborRowMessage::Encode(int rank)
             {
                ind = fec->DofOrderForOrientation(Geometry::SEGMENT, eo);
             }
-
-            if ((edof = ind[edof - osvar]) < 0)
-            {
-               edof = -1 - edof;
-               s = -1;
-            }
-
-            edof += osvar;
-         }
-         else if (ent == 2 && varOrder)
-         {
-            int var = 0;
-            int osvar = 0;
-            const int order = FindFaceOrder(ri.index, edof, osvar, var);
-
-            Geometry::Type geom = pncmesh->GetFaceGeometry(ri.index);
-            const int fo = pncmesh->GetFaceOrientation(ri.index);
-            const int *ind = fec->GetDofOrdering(geom, order, fo);
 
             if ((edof = ind[edof - osvar]) < 0)
             {
@@ -2577,7 +2564,19 @@ void NeighborRowMessage::Decode(int rank)
          {
             geom = pncmesh->GetFaceGeometry(id.index);
             const int fo = pncmesh->GetFaceOrientation(id.index);
-            ind = fec->DofOrderForOrientation(geom, fo);
+            if (varOrder)
+            {
+               MFEM_ASSERT(geom == Geometry::SQUARE,
+                           "Only quadrilateral faces are supported in "
+                           "variable-order spaces");
+
+               const int order = FindFaceOrder(id.index, edof, osvar, var);
+               ind = fec->GetDofOrdering(geom, order, fo);
+            }
+            else
+            {
+               ind = fec->DofOrderForOrientation(geom, fo);
+            }
          }
          // Tri faces with second order basis have dofs that must be processed
          // in pairs, as the doftransformation is not diagonal.
