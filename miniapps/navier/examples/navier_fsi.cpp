@@ -10,7 +10,7 @@ using namespace navier;
 class MeshLaplacian
 {
 public:
-   MeshLaplacian(FiniteElementSpace &fes, Array<int> &ess_bdr) :
+   MeshLaplacian(ParFiniteElementSpace &fes, Array<int> &ess_bdr) :
       laplacian_form(&fes),
       b(fes.GetVSize()),
       ess_bdr(ess_bdr),
@@ -27,26 +27,26 @@ public:
       cg.SetPreconditioner(pc);
    }
 
-   void Solve(GridFunction &x)
+   void Solve(ParGridFunction &x)
    {
       b = 0.0;
 
       laplacian_form.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-      cg.SetOperator(A);
+      cg.SetOperator(*A);
       cg.Mult(B, X);
 
       laplacian_form.RecoverFEMSolution(X, b, x);
    }
 
-   BilinearForm laplacian_form;
+   ParBilinearForm laplacian_form;
    Vector b;
    Array<int> &ess_bdr;
    CGSolver cg;
    Array<int> ess_tdof_list;
    Vector X, B;
-   SparseMatrix A;
-   GSSmoother pc;
+   OperatorPtr A;
+   OperatorJacobiSmoother pc;
 };
 
 // Assuming mesh with polynomial order equal to destination space in H1 and
@@ -184,10 +184,11 @@ class Elasticity : public SecondOrderTimeDependentOperator
 {
 public:
    Elasticity(ParMesh &mesh, const int polynomial_order, const double density,
-              Array<int> &ess_bdr, const double lambda, const double mu) :
+              Array<int> &ess_bdr, Array<int> &neumann_bdr, const double lambda, const double mu) :
       mesh(mesh),
       dim(mesh.Dimension()),
       ess_bdr(ess_bdr),
+      neumann_bdr(neumann_bdr),
       fec(polynomial_order),
       fes(&mesh, &fec, dim, Ordering::byVDIM),
       Mform(&fes),
@@ -286,9 +287,9 @@ public:
    void SetBodyTraction(const ParGridFunction &traction_gf)
    {
       fcoeff.reset(new VectorGridFunctionCoefficient(&traction_gf));
-      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(1.0, *fcoeff));
+      scaled_fcoeff.reset(new ScalarVectorProductCoefficient(-1.0, *fcoeff));
       Fform.reset(new ParLinearForm(&fes));
-      Fform->AddDomainIntegrator(new VectorDomainLFIntegrator(*scaled_fcoeff));
+      Fform->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*scaled_fcoeff), neumann_bdr);
       Fform->Assemble();
       Fform->ParallelAssemble(F);
    }
@@ -306,6 +307,7 @@ public:
    ParMesh &mesh;
    const int dim;
    Array<int> &ess_bdr;
+   Array<int> &neumann_bdr;
    Array<int> ess_tdof_list;
    H1_FECollection fec;
    ParFiniteElementSpace fes;
@@ -409,10 +411,14 @@ int main(int argc, char *argv[])
    mesh.SetCurvature(polynomial_order, false, dim, Ordering::byNODES);
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   pmesh.SetAttributes();
+   pmesh.EnsureNodes();
 
    Array<int> fluid_domain_attributes(1);
    fluid_domain_attributes[0] = 1;
    auto fluid_mesh = ParSubMesh::CreateFromDomain(pmesh, fluid_domain_attributes);
+   fluid_mesh.SetAttributes();
+   fluid_mesh.EnsureNodes();
 
    // Create the flow solver.
    NavierSolver navier(&fluid_mesh, polynomial_order, kinematic_viscosity, fluid_density);
@@ -421,11 +427,12 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
    ParGridFunction *p_gf = navier.GetCurrentPressure();
    ParGridFunction *nu_gf = navier.GetVariableViscosity();
-   GridFunction *w_gf = navier.GetCurrentMeshVelocity();
-   GridFunction fluid_mesh_nodes_old(*fluid_mesh.GetNodes());
+   ParGridFunction *w_gf = navier.GetCurrentMeshVelocity();
+   ParGridFunction fluid_mesh_nodes_old(*static_cast<ParGridFunction *>(fluid_mesh.GetNodes()));
 
    ParGridFunction sigmaN_gf(u_gf->ParFESpace());
-   GridFunction fluid_mesh_dx_gf(fluid_mesh.GetNodes()->FESpace());
+   sigmaN_gf = 0.;
+   ParGridFunction fluid_mesh_dx_gf(static_cast<ParGridFunction *>(fluid_mesh.GetNodes())->ParFESpace());
 
    VectorGridFunctionCoefficient fluid_mesh_dx_coef(&fluid_mesh_dx_gf);
 
@@ -508,6 +515,8 @@ int main(int argc, char *argv[])
    Array<int> solid_domain_attributes(1);
    solid_domain_attributes[0] = 2;
    auto solid_mesh = ParSubMesh::CreateFromDomain(pmesh, solid_domain_attributes);
+   solid_mesh.SetAttributes();
+   solid_mesh.EnsureNodes();
 
    Array<int> solid_fluid_interface_attr(solid_mesh.bdr_attributes.Max());
    solid_fluid_interface_attr = 0;
@@ -518,7 +527,7 @@ int main(int argc, char *argv[])
    solid_ess_bdr[6] = 1;
 
    Elasticity elasticity(solid_mesh, polynomial_order, solid_density,
-                         solid_ess_bdr, solid_lambda, solid_mu);
+                         solid_ess_bdr, solid_fluid_interface_attr, solid_lambda, solid_mu);
 
    Vector solid_displacement;
    ParGridFunction solid_displacement_gf(&elasticity.fes);
@@ -545,7 +554,8 @@ int main(int argc, char *argv[])
    Array<int> fluid_mesh_laplacian_ess_bdr(fluid_mesh.bdr_attributes.Max());
    fluid_mesh_laplacian_ess_bdr = 1;
 
-   MeshLaplacian fluid_mesh_laplacian(*fluid_mesh.GetNodes()->FESpace(),
+   MeshLaplacian fluid_mesh_laplacian(*static_cast<ParGridFunction *>
+                                          (fluid_mesh.GetNodes())->ParFESpace(),
                                       fluid_mesh_laplacian_ess_bdr);
 
    ParaViewDataCollection pvdc_solid("solid_output", &solid_mesh);
@@ -814,10 +824,20 @@ int main(int argc, char *argv[])
       fluid_mesh.FindPoints(points, elem_ids, ips);
       double p_probe = p_gf->GetValue(elem_ids[0], ips[0]);
 
+      point(0) = 0.6;
+      point(1) = 0.2;
+      points.SetCol(0, point);
+      solid_mesh.FindPoints(points, elem_ids, ips);
+
+      solid_displacement_gf.GetVectorValue(elem_ids[0], ips[0], val);
+
+      double disp_x = val(0);
+      double disp_y = val(1);
+
       if (Mpi::Root())
       {
-         printf("%d %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %d log\n",
-                step, time, dt, -lift, -drag, -lift2, -drag2, cfl, val.Norml2(), p_probe,
+         printf("%d %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %1.8E %d log\n",
+                step, time, dt, -lift, -drag, -lift2, -drag2, cfl, val.Norml2(), p_probe, disp_x, disp_y,
                 retry_step);
       }
 
