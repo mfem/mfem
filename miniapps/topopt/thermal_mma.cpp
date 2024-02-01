@@ -41,6 +41,7 @@
 #include <fstream>
 #include "topopt.hpp"
 #include "helper.hpp"
+#include "MMA_serial.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -72,6 +73,7 @@ int main(int argc, char *argv[])
    double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
    double K = 1.0;
+   double mv = 0.2;
 
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
@@ -111,21 +113,18 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::HeatSink:
-         if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         if (filter_radius < 0) { filter_radius = 0.1; }
+         if (vol_fraction < 0) { vol_fraction = 0.2; }
          mesh = mesh.MakeCartesian2D(4, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0,
                                      1.0);
          mesh.MarkBoundary(
-         [](const Vector &x) {return std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5; },
-         1);
-         mesh.MarkBoundary(
-         [](const Vector &x) {return !(std::fabs(x[0]-0.5) < 0.25 && x[1] > 0.5); },
-         2);
+         [](const Vector &x) {return std::fabs(x[0] - 0.5) < 0.25 && x[1] > 0.5; },
+         5);
          mesh.SetAttributes();
-         ess_bdr.SetSize(1, 2);
-         ess_bdr_filter.SetSize(2);
+         ess_bdr.SetSize(1, 5);
          ess_bdr = 0;
-         ess_bdr(0, 0) = 1;
+         ess_bdr(0, 4) = 1;
+         ess_bdr_filter.SetSize(2);
          ess_bdr_filter = 0;
 
          vforce_cf.reset(new ConstantCoefficient(1.0));
@@ -194,14 +193,13 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   LatentDesignDensity density(control_fes, filter, vol_fraction,
-                               FermiDiracEntropy, inv_sigmoid, sigmoid);
+   PrimalDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,
                                              density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(diffusion.GetLinearForm(), diffusion, density, false,
-                         true);
+                         false);
 
    GridFunction &u = optprob.GetState();
    GridFunction &rho_filter = density.GetFilteredDensity();
@@ -253,59 +251,49 @@ int main(int argc, char *argv[])
       pd->SetTime(0);
       pd->Save();
    }
-
    // 11. Iterate
    GridFunction &grad(optprob.GetGradient());
-   GridFunction &psi(density.GetGridFunction());
-   GridFunction old_grad(&control_fes), old_psi(&control_fes);
+   GridFunction &rho(density.GetGridFunction());
+   GridFunction old_rho(&control_fes), dv(&control_fes);
+   for (int i=0; i<mesh.GetNE(); i++) { dv[i] = mesh.GetElementVolume(i); }
 
    LinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    mfem::out << "\n"
              << "Initialization Done." << "\n"
-             << "Start Projected Mirror Descent Step." << "\n" << std::endl;
+             << "Start Method of Moving Asymptotes Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
-          stationarityError(infinity()), stationarityError_bregman(infinity());
-   int num_reeval(0);
+   double volume(density.ComputeVolume()), stationarityError(infinity());
    double old_compliance;
 
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
-   logger.Append(std::string("Re-evel"), num_reeval);
-   logger.Append(std::string("Step Size"), step_size);
-   logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
    optprob.UpdateGradient();
+   MMA mma(rho.Size(), 1);
+   GridFunction lower(rho), upper(rho);
    bool converged = false;
    for (int k = 0; k < max_it; k++)
    {
-      // Step 1. Compute Step size
-      if (k == 0) { step_size = 1.0; }
-      else
-      {
-         diff_rho_form.Assemble();
-         old_psi -= psi;
-         old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
-      }
-
-      // Step 2. Store old data
+      // Store old data
       old_compliance = compliance;
-      old_psi = psi;
-      old_grad = grad;
+      // Step and upate gradient
 
-      // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
-      compliance = optprob.GetValue();
-      volume = density.GetVolume();
+      lower = rho; lower -= mv; lower.ApplyMap([](double x){return std::max(0.0, x);});
+      upper = rho; upper += mv; upper.ApplyMap([](double x){return std::min(1.0, x);});
+      double con = density.GetVolume()  - (density.GetDomainVolume()*vol_fraction);
+
+      out << con << std::endl;
+      mma.Update(rho, grad, con, dv, lower, upper);
+      volume = density.ComputeVolume();
+      compliance = optprob.Eval();
       optprob.UpdateGradient();
 
       // Step 4. Visualization
@@ -333,8 +321,7 @@ int main(int argc, char *argv[])
       }
 
       // Check convergence
-      stationarityError = density.StationarityErrorL2(grad);
-      stationarityError_bregman = density.StationarityError(grad);
+      stationarityError = density.StationarityError(grad);
 
       logger.Print();
 
@@ -358,7 +345,7 @@ int main(int argc, char *argv[])
       solfile2 << filename_prefix.str() << "-" << ref_levels << "-f.gf";
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);
