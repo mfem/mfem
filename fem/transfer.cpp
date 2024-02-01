@@ -1796,6 +1796,14 @@ void TensorProductPRefinementTransferOperator::Mult(const Vector& x,
       {
          case 0x23:
             SmemProlongation3D<2,3>(NE, localL, localH, B, mask); break;
+         case 0x24:
+            SmemProlongation3D<2,4>(NE, localL, localH, B, mask); break;
+         case 0x35:
+            SmemProlongation3D<3,5>(NE, localL, localH, B, mask); break;
+         case 0x46:
+            SmemProlongation3D<4,6>(NE, localL, localH, B, mask); break;
+         case 0x47:
+            SmemProlongation3D<4,7>(NE, localL, localH, B, mask); break;
          default:
             Prolongation3D(NE, D1D, Q1D, localL, localH, B, mask); break;
       }
@@ -1830,6 +1838,14 @@ void TensorProductPRefinementTransferOperator::MultTranspose(const Vector& x,
       {
          case 0x23:
             SmemProlongationTranspose3D<2,3>(NE, localH, localL, Bt, mask); break;
+         case 0x24:
+            SmemProlongationTranspose3D<2,4>(NE, localL, localH, B, mask); break;
+         case 0x35:
+            SmemProlongationTranspose3D<3,5>(NE, localL, localH, B, mask); break;
+         case 0x46:
+            SmemProlongationTranspose3D<4,6>(NE, localL, localH, B, mask); break;
+         case 0x47:
+            SmemProlongationTranspose3D<4,7>(NE, localL, localH, B, mask); break;
          default:
             ProlongationTranspose3D(NE, D1D, Q1D, localH, localL, Bt, mask); break;
       }
