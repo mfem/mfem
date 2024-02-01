@@ -1128,7 +1128,7 @@ IMAGE_PATH             =
 # Allow the use of standard LaTeX formulas in MFEM comments by replacing
 # $$...$$ with \f[...\f] and $...$ with \f$...\f$ before running Doxygen.
 # The refgular expression ((?:.|\n)+?) is a lazy match for one or more
-# characters, include newline. If presetn, Doxygen-style LaTeX commands
+# characters, include newline. If present, Doxygen-style LaTeX commands
 # such as \f$, \f[, etc., are left unchanged.
 
 INPUT_FILTER           = perl -0777 -pe 's/\$\$((?:.|\n)+?)\$\$/\\f[\1\\f]/g; s/(?<!\\f)\$((?:.|\n)+?)\$/\\f\$\1\\f\$/g'
