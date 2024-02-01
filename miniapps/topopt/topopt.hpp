@@ -43,8 +43,9 @@ inline double der_simp(const double x, const double rho_0,
 
 inline double FermiDiracEntropy(const double x)
 {
+   const double y = 1.0-x;
    return (x < 1e-13 ? 0 : x*std::log(x))
-          + (x > 1 - 1e-13 ? 0 : (1 - x)*std::log(1 - x));
+          + (y < 1e-13 ? 0 : y*std::log(y));
 }
 
 inline double ShannonEntropy(const double x)
@@ -65,6 +66,7 @@ protected:
    Array2D<int> ess_bdr; // Component-wise essential boundary marker
    Array<int> ess_tdof_list;
    bool symmetric;
+   bool iterative_mode;
 #ifdef MFEM_USE_MPI
    bool parallel; // Flag for ParFiniteElementSpace
    MPI_Comm comm;
@@ -93,6 +95,7 @@ public:
 
    bool isParallel() { return parallel; }
    bool isSymmetric() { return symmetric; }
+   void SetIterativeMode(bool flag=true) {iterative_mode = flag;};
 protected:
    /// @brief Get true dofs related to the boundaries in @ess_bdr
    /// @return True dof list
@@ -496,6 +499,7 @@ protected:
    void SolveSystem(GridFunction &x) override
    {
       EllipticSolver solver(*a, *b, ess_bdr);
+      solver.SetIterativeMode();
       bool converged = solver.Solve(x, AisStationary, BisStationary);
       if (!converged)
       {
@@ -564,6 +568,7 @@ protected:
    void SolveSystem(GridFunction &x) override
    {
       EllipticSolver solver(*a, *b, ess_bdr);
+      solver.SetIterativeMode();
       bool converged = solver.Solve(x, AisStationary, BisStationary);
       if (!converged)
       {

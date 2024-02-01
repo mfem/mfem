@@ -22,7 +22,7 @@ EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
 
 EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
                                Array2D<int> &ess_bdr):
-   a(a), b(b), ess_bdr(ess_bdr), ess_tdof_list(0), symmetric(false)
+   a(a), b(b), ess_bdr(ess_bdr), ess_tdof_list(0), symmetric(false), iterative_mode(false)
 {
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(a.FESpace());
@@ -169,6 +169,7 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
    cg->SetPreconditioner(*M);
    cg->SetOperator(*A);
    cg->Mult(B, X);
+   cg->iterative_mode = true;
    a.RecoverFEMSolution(X, b, x);
    bool converged = cg->GetConverged();
 #endif
@@ -1045,6 +1046,7 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
    rhoForm->AddDomainIntegrator(new DomainLFIntegrator(rho));
 
    EllipticSolver solver(*filter, *rhoForm, ess_bdr);
+   solver.SetIterativeMode();
    bool converged = solver.Solve(frho, true, false);
 
    if (!converged)
