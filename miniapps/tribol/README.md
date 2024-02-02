@@ -39,10 +39,15 @@ provided in the Tribol repo. This will use uberenv and spack to build
 dependencies (and their dependencies) mostly automatically. To simplify Axom's
 dependencies, the following spack spec is recommended:
 `^axom~shared~examples~tools~raja~umpire`. Furthermore, the version of MFEM
-built by spack should match the version of MFEM you are using.  For instance, if
+built by spack should match the version of MFEM you are using. For instance, if
 you are tracking the latest `master` branch, the following spack spec is
-recommended: `^mfem@develop`. After building Tribol, issue the command `make
-install` to simplify building and linking in MFEM.
+recommended: `^mfem@develop`. It's important to keep the version of MFEM Tribol
+uses in sync with the version the Tribol miniapp is using. If the MFEM version
+falls out of sync, the code will likely still compile, but will not run
+correctly. The easiest way to ensure the version of MFEM used by both Tribol and
+the miniapp are in sync are to use the same MFEM library for both, though this
+is outside the scope of this guide. After building Tribol, issue the command
+`make install` to simplify building and linking in MFEM.
 
 For the Tribol MFEM miniapps to successfully build and link, the MFEM build must
 be aware of the locations of not only Tribol, but also its dependencies Axom and
