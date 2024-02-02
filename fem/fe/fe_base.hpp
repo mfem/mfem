@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -158,7 +158,12 @@ public:
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
           are used to describe the "closed" and "open" 1D basis functions. */
-      TENSOR
+      TENSOR,
+
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is the
+          same as TENSOR, but the sizes of B and G are the same as FULL.*/
+      LEXICOGRAPHIC_FULL
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -708,6 +713,9 @@ public:
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
+private:
+   /// Create and cache the LEXICOGRAPHIC_FULL DofToQuad maps.
+   void CreateLexicographicFullMap(const IntegrationRule &ir) const;
 protected:
    Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
@@ -725,6 +733,9 @@ public:
    NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -1249,12 +1260,7 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const override
-   {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
-   }
+                                 DofToQuad::Mode mode) const override;
 
    void SetMapType(const int map_type_) override;
 
@@ -1297,15 +1303,15 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
+      return (mode == DofToQuad::TENSOR) ?
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
                                      DofToQuad::Mode mode) const
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }
