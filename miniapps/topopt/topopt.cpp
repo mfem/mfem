@@ -168,8 +168,8 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
    cg->SetPrintLevel(0);
    cg->SetPreconditioner(*M);
    cg->SetOperator(*A);
+   cg->iterative_mode = iterative_mode;
    cg->Mult(B, X);
-   cg->iterative_mode = true;
    a.RecoverFEMSolution(X, b, x);
    bool converged = cg->GetConverged();
 #endif
@@ -223,6 +223,7 @@ bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
    cg->SetPrintLevel(0);
    cg->SetPreconditioner(*M);
    cg->SetOperator(*A);
+   cg->iterative_mode = iterative_mode;
    cg->Mult(B, X);
    a.RecoverFEMSolution(X, *f, x);
    bool converged = cg->GetConverged();
