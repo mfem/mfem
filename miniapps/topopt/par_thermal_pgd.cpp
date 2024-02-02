@@ -1,4 +1,4 @@
-// Thermal Compliance minimization with projected mirror descent in parallel
+// Thermal Compliance minimization with projected Gradient descent in parallel
 //
 //                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
 //
@@ -15,27 +15,16 @@
 //
 //              Update is done by
 //
-//              ρ_new = sigmoid(ψ_new) = sigmoid(ψ_cur - α ∇F(ρ_cur) + c)
+//              ρ_new = clip((0,1), ρ_cur - α ∇F(ρ_cur) + c)
 //
 //              where c is a constant volume correction. The step size α is
 //              determined by a generalized Barzilai-Borwein method with
 //              Armijo condition check
 //
-//              BB:        α_init = |(δψ, δρ) / (δ∇F(ρ), δρ)|
+//              BB:        α_init = |(δρ, δρ) / (δ∇F(ρ), δρ)|
 //
 //              Armijo:   F(ρ(α)) ≤ F(ρ_cur) + c_1 (∇F(ρ_cur), ρ(α) - ρ_cur)
-//                        with ρ(α) = sigmoid(ψ_cur - α∇F(ρ_cur) + c)
-//
-//
-// [1] Andreassen, E., Clausen, A., Schevenels, M., Lazarov, B. S., & Sigmund, O.
-//    (2011). Efficient topology optimization in MATLAB using 88 lines of
-//    code. Structural and Multidisciplinary Optimization, 43(1), 1-16.
-// [2] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints.
-//     arXiv:2307.12444 [math.NA]
-// [3] Lazarov, B. S., & Sigmund, O. (2011). Filters in topology optimization
-//     based on Helmholtz‐type differential equations. International Journal
-//     for Numerical Methods in Engineering, 86(6), 765-781.
+//                        with ρ(α) = clip(ρ_cur - α∇F(ρ_cur) + c)
 
 #include "mfem.hpp"
 #include <iostream>
@@ -77,7 +66,7 @@ int main(int argc, char *argv[])
    double tol_compliance = 5e-05;
 
    ostringstream filename_prefix;
-   filename_prefix << "PMD-";
+   filename_prefix << "PGD-";
 
    int problem = ThermalProblem::HeatSink;
 
@@ -121,7 +110,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
       mfem::out << "\n"
-                << "Thermal Compliance Minimization with Projected Mirror Descent.\n"
+                << "Thermal Compliance Minimization with Projected Gradient Descent.\n"
                 << "Problem: " << filename_prefix.str() << "\n"
                 << "The number of elements: " << num_el << "\n"
                 << "Order: " << order << "\n"
@@ -172,8 +161,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   LatentDesignDensity density(control_fes, filter, vol_fraction,
-                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
+   PrimalDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,
@@ -203,7 +191,7 @@ int main(int argc, char *argv[])
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
          sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PMD "
+                   << "window_title 'Design density r(ρ̃) - PGD "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
@@ -215,7 +203,7 @@ int main(int argc, char *argv[])
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
          sout_r << "solution\n" << *pmesh << *rho_gf
-                << "window_title 'Raw density ρ - PMD "
+                << "window_title 'Raw density ρ - PGD "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -228,7 +216,7 @@ int main(int argc, char *argv[])
       pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
-      pd->RegisterField("psi", &density.GetGridFunction());
+      pd->RegisterField("rho", &density.GetGridFunction());
       pd->RegisterField("frho", &rho_filter);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -240,22 +228,22 @@ int main(int argc, char *argv[])
 
    // 11. Iterate
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
+   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
+   ParGridFunction old_grad(&control_fes), old_rho(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
-                << "Start Projected Mirror Descent Step." << "\n" << std::endl;
+                << "Start Projected Gradient Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
-          stationarityError(infinity()), stationarityError_bregman(infinity());
+          stationarityError(infinity());
    int num_reeval(0);
    double old_compliance;
 
@@ -265,7 +253,6 @@ int main(int argc, char *argv[])
    logger.Append(std::string("Stationarity"), stationarityError);
    logger.Append(std::string("Re-evel"), num_reeval);
    logger.Append(std::string("Step Size"), step_size);
-   logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
@@ -278,18 +265,18 @@ int main(int argc, char *argv[])
       else
       {
          diff_rho_form.Assemble();
-         old_psi -= psi;
+         old_rho -= rho;
          old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
+         step_size = std::fabs(diff_rho_form(old_rho)  / diff_rho_form(old_grad));
       }
 
       // Step 2. Store old data
       old_compliance = compliance;
-      old_psi = psi;
+      old_rho = rho;
       old_grad = grad;
 
       // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
+      num_reeval = Step_Armijo(optprob, old_rho, grad, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
@@ -323,8 +310,7 @@ int main(int argc, char *argv[])
       }
 
       // Check convergence
-      stationarityError = density.StationarityErrorL2(grad);
-      stationarityError_bregman = density.StationarityError(grad);
+      stationarityError = density.StationarityError(grad);
 
       logger.Print();
 
@@ -350,7 +336,7 @@ int main(int argc, char *argv[])
                par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);
