@@ -56,7 +56,6 @@ int main(int argc, char *argv[])
    bool paraview = true;
    double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
-   double mv = 0.2;
 
    ostringstream filename_prefix;
    filename_prefix << "MMA-";
@@ -227,9 +226,7 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
    ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction old_rho(&control_fes), dv(&control_fes);
-   for (int i=0; i<pmesh->GetNE(); i++) { dv[i] = pmesh->GetElementVolume(i); }
-   dv *= 1.0 / (density.GetDomainVolume()*vol_fraction);
+   ParGridFunction old_rho(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
@@ -262,7 +259,13 @@ int main(int argc, char *argv[])
    }
    bool converged = false;
    density.ComputeVolume();
-   ParGridFunction lower(rho), upper(rho);
+   ParGridFunction lower(rho), upper(rho), ograd(rho), dv(&control_fes);
+   for (int i=0; i<pmesh->GetNE(); i++) { dv[i] = pmesh->GetElementVolume(i); }
+   dv *= 1.0 / (density.GetDomainVolume()*vol_fraction);
+   ParBilinearForm mass(&control_fes);
+   mass.AddDomainIntegrator(new MassIntegrator());
+   mass.Assemble();
+   double mv = 0.2;
    for (int k = 0; k < max_it; k++)
    {
       // Store old data
@@ -273,7 +276,8 @@ int main(int argc, char *argv[])
       upper = rho; upper += mv; upper.Clip(0, 1);
       double con = density.GetVolume()  / (density.GetDomainVolume()*vol_fraction) -
                    1.0;
-      mma->Update(rho, grad, &con, &dv, lower, upper);
+      mass.Mult(grad, ograd);
+      mma->Update(rho, ograd, &con, &dv, lower, upper);
       volume = density.ComputeVolume();
       compliance = optprob.Eval();
       optprob.UpdateGradient();
