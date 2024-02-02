@@ -27,7 +27,9 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   Mpi::Init();
+   const char *petscrc_file = "";
+   mfem::Mpi::Init();
+   mfem::MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
@@ -87,8 +89,6 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
-   const char *petscrc_file = "";
-   mfem::MFEMInitializePetsc(NULL,NULL,petscrc_file,NULL);
 
 
    std::unique_ptr<Mesh> mesh;
@@ -253,12 +253,12 @@ int main(int argc, char *argv[])
    logger.Print();
 
    optprob.UpdateGradient();
-   std::unique_ptr<NativeMMA> mma;
+   NativeMMA *mma;
    {
       double a=0.0;
       double c=1000.0;
       double d=0.0;
-      mma.reset(new mfem::NativeMMA(pmesh->GetComm(), 1, grad,&a,&c,&d));
+      mma = new mfem::NativeMMA(pmesh->GetComm(), 1, grad,&a,&c,&d);
    }
    bool converged = false;
    density.ComputeVolume();
@@ -341,7 +341,8 @@ int main(int argc, char *argv[])
       sol_ofs2.precision(8);
       sol_ofs2 << density.GetFilteredDensity();
    }
+   delete mma; // explicitly delete mma before finalize petsc
    mfem::MFEMFinalizePetsc();
-   MPI_Finalize();
+   mfem::Mpi::Finalize();
    return 0;
 }
