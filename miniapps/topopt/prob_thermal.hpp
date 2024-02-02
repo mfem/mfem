@@ -33,12 +33,12 @@ void GetThermalProblem(const ThermalProblem problem,
       case ThermalProblem::HeatSink:
       {
          if (filter_radius < 0) { filter_radius = 5e-02; }
-         if (vol_fraction < 0) { vol_fraction = 0.5; }
+         if (vol_fraction < 0) { vol_fraction = 0.35; }
 
          *mesh = Mesh::MakeCartesian2D(4, 4, mfem::Element::Type::QUADRILATERAL, true,
                                        1.0,
                                        1.0);
-         mesh->MarkBoundary([](const Vector &x) {return std::fabs(x[0] - 0.5) < 0.25 && x[1] > 0.5; }, 5);
+         mesh->MarkBoundary([](const Vector &x) {return std::fabs(x[0] - 0.5) < 0.25 && x[1] > 1-1e-03; }, 5);
          ess_bdr.SetSize(1, 5);
          ess_bdr_filter.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;
