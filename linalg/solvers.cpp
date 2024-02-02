@@ -498,30 +498,34 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       MFEM_ABORT("Chebyshev smoother requires operator");
    }
 
-   z = x;
-
-   y.UseDevice(true);
-   y = 0.0;
-
-   for (int k = 0; k < order; ++k)
+   // for k = 0, perform:
+   //    r = D^{-1} x
+   //    y = C_0 r
+   const double C_0 = coeffs[0];
+   auto Dinv = dinv.Read();
+   auto X = x.Read();
+   auto R0 = residual.Write();
+   auto Y0 = y.Write();
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
    {
-      // Apply
-      if (k > 0)
-      {
-         oper->Mult(residual, z);
-      }
+      Y0[i] = C_0 * (R0[i] = Dinv[i] * X[i]);
+   });
 
-      // Scale residual by inverse diagonal and add weighted contribution to y
-      const int n = N;
-      auto Dinv = dinv.Read();
-      auto C = coeffs.Read();
+   for (int k = 1; k < order; ++k)
+   {
+      // Apply: z = A r
+      oper->Mult(residual, z);
+
+      // Scale residual by inverse diagonal and add weighted contribution to y:
+      //   r = D^{-1} z
+      //   y += C_k r
+      const double C_k = coeffs[k];
       auto Z = z.Read();
       auto R = residual.Write();
       auto Y = y.ReadWrite();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
       {
-         R[i] = Dinv[i]*Z[i];
-         Y[i] += C[k] * R[i];
+         Y[i] += C_k * (R[i] = Dinv[i] * Z[i]);
       });
    }
 }
