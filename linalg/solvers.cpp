@@ -307,25 +307,29 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    MFEM_ASSERT(x.Size() == Width(), "invalid input vector");
    MFEM_ASSERT(y.Size() == Height(), "invalid output vector");
 
+   auto DI = dinv.Read();
+   auto X = x.Read();
    if (iterative_mode)
    {
       MFEM_VERIFY(oper, "iterative_mode == true requires the forward operator");
       oper->Mult(y, residual);  // r = A y
-      subtract(x, residual, residual); // r = x - A y
+      auto R = residual.Read();
+      auto Y = y.ReadWrite();
+      // y += D^{-1} (x - A y)
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y[i] += DI[i] * (X[i] - R[i]);
+      });
    }
    else
    {
-      residual = x;
-      y.UseDevice(true);
-      y = 0.0;
+      auto Y = y.Write();
+      // y = D^{-1} x
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Y[i] = DI[i] * X[i];
+      });
    }
-   auto DI = dinv.Read();
-   auto R = residual.Read();
-   auto Y = y.ReadWrite();
-   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
-   {
-      Y[i] += DI[i] * R[i];
-   });
 }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
