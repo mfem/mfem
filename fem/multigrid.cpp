@@ -158,7 +158,7 @@ void MultigridBase::SmoothingStep(int level, bool zero, bool transpose) const
       for (int j = 0; j < nrhs; ++j)
       {
          // *R_[j] = *X(level, j) - *R_[j]
-         subtract(*X(level, j), *R_[j], R_[j]);
+         subtract(*X(level, j), *R_[j], *R_[j]);
       }
       if (transpose)
       {

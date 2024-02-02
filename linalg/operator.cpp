@@ -50,19 +50,19 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 {
-   z.SetSize(y.Size());
-   z.UseDevice(true);
-   Mult(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   Mult(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const double a) const
 {
-   z.SetSize(y.Size());
-   z.UseDevice(true);
-   MultTranspose(x, z);
-   y.Add(a, z);
+   z_am.SetSize(y.Size());
+   z_am.UseDevice(true);
+   MultTranspose(x, z_am);
+   y.Add(a, z_am);
 }
 
 void Operator::ArrayMult(const Array<const Vector *> &X,
