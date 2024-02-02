@@ -44,7 +44,6 @@
 //               mpirun -n 2 ContactPatchTest -r 3
 
 #include "mfem.hpp"
-#include "general/error.hpp"
 
 #include "axom/slic.hpp"
 
@@ -276,8 +275,8 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    std::unique_ptr<mfem::STRUMPACKRowLocMatrix> A_strumpk(new
                                                           mfem::STRUMPACKRowLocMatrix(*A_hyprePar));
-   mfem::STRUMPACKSolver solver(0, nullptr, MPI_COMM_WORLD);
-   solver.SetKrylovSolver(strumpack::KrylovSolver::Direct);
+   mfem::STRUMPACKSolver solver(MPI_COMM_WORLD);
+   solver.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
    solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
    solver.SetPrintFactorStatistics(true);
    solver.SetPrintSolveStatistics(true);
