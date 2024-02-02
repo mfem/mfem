@@ -346,6 +346,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
    coeffs(order),
    ess_tdof_list(ess_tdofs),
    residual(N),
+   z(order > 1 ? N : 0),
    oper(&oper_) { Setup(); }
 
 #ifdef MFEM_USE_MPI
@@ -367,6 +368,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
      coeffs(order),
      ess_tdof_list(ess_tdofs),
      residual(N),
+     z(order > 1 ? N : 0),
      oper(&oper_)
 {
    OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
@@ -410,6 +412,7 @@ void OperatorChebyshevSmoother::Setup()
 {
    // Invert diagonal
    residual.UseDevice(true);
+   z.UseDevice(true);
    auto D = diag.Read();
    auto X = dinv.Write();
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
