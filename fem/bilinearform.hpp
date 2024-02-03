@@ -138,8 +138,8 @@ protected:
    void AllocMat();
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P^t A P\f$ where \f$ A \f$ is the
-       internal sparse matrix and \f$ P \f$ is the conforming prolongation
+       assembly process by performing $ P^t A P $ where $ A $ is the
+       internal sparse matrix and $ P $ is the conforming prolongation
        matrix of the trial/test FE space. After this call the
        BilinearForm becomes an operator on the conforming FE space. */
    void ConformingAssemble();
@@ -811,19 +811,19 @@ public:
    /// Matrix multiplication: $ y = M x $
    virtual void Mult(const Vector & x, Vector & y) const;
 
-   /// Add the matrix vector multiple to a vector:  \f$ y += a M x \f$
+   /// Add the matrix vector multiple to a vector:  $ y += a M x $
    virtual void AddMult(const Vector & x, Vector & y,
                         const double a = 1.0) const;
 
-   /// Matrix transpose vector multiplication:  \f$ y = M^T x \f$
+   /// Matrix transpose vector multiplication:  $ y = M^T x $
    virtual void MultTranspose(const Vector & x, Vector & y) const;
 
-   /// Add the matrix transpose vector multiplication:  \f$ y += a M^T x \f$
+   /// Add the matrix transpose vector multiplication:  $ y += a M^T x $
    virtual void AddMultTranspose(const Vector & x, Vector & y,
                                  const double a = 1.0) const;
 
    /** @brief Returns a pointer to (approximation) of the matrix inverse:
-       \f$ M^{-1} \f$ (currently unimplemented and returns NULL)*/
+       $ M^{-1} $ (currently unimplemented and returns NULL)*/
    virtual MatrixInverse *Inverse() const;
 
    /** @brief  Finalizes the matrix initialization if the ::AssemblyLevel is
@@ -936,8 +936,8 @@ public:
    { return test_fes->GetRestrictionMatrix(); }
 
    /** @brief For partially conforming trial and/or test FE spaces, complete the
-       assembly process by performing \f$ P2^t A P1 \f$ where \f$ A \f$ is the
-       internal sparse matrix; \f$ P1 \f$ and \f$ P2 \f$ are the conforming
+       assembly process by performing $ P2^t A P1 $ where $ A $ is the
+       internal sparse matrix; $ P1 $ and $ P2 $ are the conforming
        prolongation matrices of the trial and test FE spaces, respectively.
        After this call the MixedBilinearForm becomes an operator on the
        conforming FE spaces. */
