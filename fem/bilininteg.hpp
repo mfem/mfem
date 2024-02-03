@@ -3278,9 +3278,9 @@ public:
 class LDGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Vector *beta = nullptr;
+   const Vector *beta = nullptr;
 public:
-   LDGTraceIntegrator(Vector *b=nullptr) { beta = b; }
+   LDGTraceIntegrator(const Vector *b=nullptr) { beta = b; }
    void AssembleFaceMatrix(const FiniteElement &tr_fe1,
                            const FiniteElement &tr_fe2,
                            const FiniteElement &te_fe1, const FiniteElement &te_fe2,
