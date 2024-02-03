@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,14 +105,14 @@ public:
  *  We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
  *  lambda_min is the smallest eigenvalue of the following problem
  *                M_T x = lambda * D_T x.
- *  alpha is a parameter that is stricly between 0 and 1.
+ *  alpha is a parameter that is strictly between 0 and 1.
  *
  *  For more details, see:
  *  1. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix F.3),
  *     Springer, 2008.
  *  2. James H. Bramble and Joseph E. Pasciak.
  *     A Preconditioning Technique for Indefinite Systems Resulting From Mixed
- *     Approximations of Elliptic Problems. Mathematics of Computation, 50:1–17, 1988.
+ *     Approximations of Elliptic Problems. Mathematics of Computation, 50:1-17, 1988.
  */
 class BramblePasciakSolver : public DarcySolver
 {
