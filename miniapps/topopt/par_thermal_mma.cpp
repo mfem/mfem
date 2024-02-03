@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    // Volume fraction. Use problem-dependent default value if not provided.
    // See switch statements below
    double vol_fraction = -1;
-   int max_it = 2e2;
+   int max_it = 5e2;
    double rho_min = 1e-06;
    double exponent = 3.0;
    double K=1.0;

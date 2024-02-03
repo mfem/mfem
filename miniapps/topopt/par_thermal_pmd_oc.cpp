@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction old_d(&control_fes), old_psi(&control_fes);
+   ParGridFunction old_psi(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
-      
+
       // Step 4. Visualization
       if (glvis_visualization)
       {
