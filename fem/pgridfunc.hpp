@@ -44,7 +44,7 @@ protected:
    Vector send_data;
 
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
-                              Array<int> &attr);
+                              const Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
@@ -256,16 +256,17 @@ public:
 
    // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              Array<int> &attr) override
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
 
    // Only the values in the master are guaranteed to be correct!
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr) override
+   void ProjectBdrCoefficient(Coefficient *coeff[],
+                              const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
    // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                     Array<int> &bdr_attr) override;
+                                     const Array<int> &bdr_attr) override;
 
    double ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
