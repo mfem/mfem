@@ -22,7 +22,8 @@ EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
 
 EllipticSolver::EllipticSolver(BilinearForm &a, LinearForm &b,
                                Array2D<int> &ess_bdr):
-   a(a), b(b), ess_bdr(ess_bdr), ess_tdof_list(0), symmetric(false), iterative_mode(false)
+   a(a), b(b), ess_bdr(ess_bdr), ess_tdof_list(0), symmetric(false),
+   iterative_mode(false)
 {
 #ifdef MFEM_USE_MPI
    auto pfes = dynamic_cast<ParFiniteElementSpace*>(a.FESpace());
@@ -230,6 +231,145 @@ bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
 #endif
 
    return converged;
+}
+
+
+
+void IsoElasticityIntegrator::VectorGradToVoigt(DenseMatrix &vals,
+                                                DenseMatrix &voigt)
+{
+   const int dim = vals.NumCols();
+   const int dof = vals.NumRows();
+   const int vdof = vals.NumRows()*dim;
+   // Initialize voigt with 0s
+   voigt.SetSize(vdof, dim*(dim+1)/2);
+   voigt = 0.0;
+
+   double *ptr_vals(vals.GetData()), *ptr_voigt(voigt.GetData());
+
+   Vector src(ptr_vals, dof), trg(ptr_voigt, dof);
+   // diagonal
+   for (int i=0; i<dim; i++)
+   {
+      trg.SetData(ptr_voigt + vdof*i + dof*i);
+      src.SetData(ptr_vals + dof*i);
+      trg = src;
+   }
+
+   if (dim == 1) { return; }
+   // upward
+   int voigt_idx=dim - 1;
+   for (int i=1; i<dim; i++)
+   {
+      voigt_idx++;
+      // Right column
+      trg.SetData(ptr_voigt + vdof*voigt_idx + dof*(dim - i - 1));
+      src.SetData(ptr_vals + dof*(dim - 1));
+      trg = src;
+      // Bottom row
+      trg.SetData(ptr_voigt + vdof*voigt_idx + dof*(dim - 1));
+      src.SetData(ptr_vals + dof*(dim - i - 1));
+      trg += src;
+   }
+
+   if (dim == 2) { return; } // no additional for 2D
+   // remainder
+   voigt_idx++;
+   // ∂_y V_1
+   trg.SetData(ptr_voigt + vdof*voigt_idx);
+   src.SetData(ptr_vals + dof*1);
+   trg = src;
+   // ∂_x V_2
+   trg.SetData(ptr_voigt + vdof*voigt_idx + dof);
+   src.SetData(ptr_vals);
+   trg += src;
+}
+
+
+
+void IsoStrainEnergyDensityCoefficient::VectorGradToVoigt(DenseMatrix &grad,
+                                                          Vector &voigt)
+{
+   const int dim = grad.NumCols();
+   MFEM_ASSERT(dim < 4 && dim > 0, "Dimension should be between 1 and 3.");
+   // Initialize voigt with 0s
+   voigt.SetSize(dim*(dim+1)/2);
+   if (dim == 1)
+   {
+      voigt(0) = grad(0, 0); return;
+   }
+   else if (dim == 2)
+   {
+      voigt(0) = grad(0, 0); voigt(1) = grad(1, 1);
+      voigt(2) = grad(0, 1) + grad(1, 0); return;
+   }
+   else
+   {
+      voigt(0) = grad(0, 0); voigt(1) = grad(1, 1); voigt(2) = grad(2, 2);
+      voigt(3) = grad(2, 1) + grad(1, 2); voigt(4) = grad(2, 0) + grad(0, 2);
+      voigt(5) = grad(0, 1) + grad(1, 0);
+   }
+}
+
+
+void IsoElasticityIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Tr, DenseMatrix &elmat)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   int vdof = dim*dof;
+   double w, nu_, E_;
+
+   MFEM_ASSERT(dim == Tr.GetSpaceDim(), "");
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape(dof, dim); C(dim*(dim+1)/2); CVt(dim*(dim+1)/2, vdof);
+#else
+   dshape.SetSize(dof, dim); C.SetSize(dim*(dim+1)/2);
+   CVt.SetSize(dim*(dim+1)/2, vdof);
+#endif
+
+   elmat.SetSize(dof * dim);
+   elmat = 0.0;
+   C = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * Tr.OrderGrad(&el); // correct order?
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   for (int i = 0; i < ir -> GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      el.CalcPhysDShape(Tr, dshape);
+      VectorGradToVoigt(dshape, vshape);
+      w = ip.weight * Tr.Weight();
+      E_ = E->Eval(Tr, ip);
+      nu_ = nu->Eval(Tr, ip);
+
+      for (int i=0; i<dim; i++)
+      {
+         for (int j=0; j<i; j++)
+         {
+            C(i, j) = nu_;
+         }
+         C(i, i) = 1.0 - nu_;
+         for (int j=i + 1; j<dim; j++)
+         {
+            C(i, j) = nu_;
+         }
+      }
+      for (int i=dim; i < dim*(dim+1)/2; i++)
+      {
+         C(i, i) = 0.5 * (1.0 - 2*nu_);
+      }
+      MultABt(C, vshape, CVt);
+      AddMult_a(w * E_ / ((1.0 + nu_)*(1.0 - 2*nu_)), vshape, CVt, elmat);
+   }
 }
 
 DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
@@ -867,6 +1007,50 @@ double StrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
    return -dphys_dfrho.Eval(T, ip) * density;
 }
 
+double IsoStrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
+                                               const IntegrationPoint &ip)
+{
+   double E_ = E.Eval(T, ip);
+   double nu_ = nu.Eval(T, ip);
+   double density = 0.0;
+   const int dim = T.GetSpaceDim();
+   C.SetSize(dim*(dim+1)/2);
+   C = 0.0;
+
+   for (int i=0; i<dim; i++)
+   {
+      for (int j=0; j<i; j++)
+      {
+         C(i, j) = nu_;
+      }
+      C(i, i) = 1.0 - nu_;
+      for (int j=i + 1; j<dim; j++)
+      {
+         C(i, j) = nu_;
+      }
+   }
+   for (int i=dim; i < dim*(dim+1)/2; i++)
+   {
+      C(i, i) = 0.5 * (1.0 - 2*nu_);
+   }
+
+   if (&u2 == &u1)
+   {
+      u1.GetVectorGradient(T, grad1);
+      VectorGradToVoigt(grad1, voigt1);
+      density = C.InnerProduct(voigt1, voigt1);
+   }
+   else
+   {
+      u1.GetVectorGradient(T, grad1);
+      VectorGradToVoigt(grad1, voigt1);
+      u2.GetVectorGradient(T, grad2);
+      VectorGradToVoigt(grad1, voigt2);
+      density = C.InnerProduct(voigt1, voigt2);
+   }
+   return -dphys_dfrho.Eval(T, ip) * density;
+}
+
 double ThermalEnergyDensityCoefficient::Eval(ElementTransformation &T,
                                              const IntegrationPoint &ip)
 {
@@ -890,15 +1074,14 @@ double ThermalEnergyDensityCoefficient::Eval(ElementTransformation &T,
 ParametrizedElasticityEquation::ParametrizedElasticityEquation(
    FiniteElementSpace &fes, GridFunction &filtered_density,
    DensityProjector &projector,
-   Coefficient &lambda, Coefficient &mu, VectorCoefficient &f,
+   Coefficient &E, Coefficient &nu, VectorCoefficient &f,
    Array2D<int> &ess_bdr):
    ParametrizedLinearEquation(fes, filtered_density, projector, ess_bdr),
-   lambda(lambda), mu(mu), filtered_density(filtered_density),
-   phys_lambda(lambda, projector.GetPhysicalDensity(filtered_density)),
-   phys_mu(mu, projector.GetPhysicalDensity(filtered_density)),
+   E(E), nu(nu), filtered_density(filtered_density),
+   phys_E(E, projector.GetPhysicalDensity(filtered_density)),
    f(f)
 {
-   a->AddDomainIntegrator(new ElasticityIntegrator(phys_lambda, phys_mu));
+   a->AddDomainIntegrator(new IsoElasticityIntegrator(phys_E, nu));
    b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
    SetLinearFormStationary();
 }

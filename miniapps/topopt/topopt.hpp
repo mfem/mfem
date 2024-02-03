@@ -57,7 +57,36 @@ inline double exp_d(const double x) {return std::exp(x);}
 // log double type
 inline double log_d(const double x) {return std::log(x);}
 
-// Elasticity solver
+// Gradient to symmetric gradient in Voigt notation
+/** Integrator for the isotropic linear elasticity form:
+    a(u,v) = (Cu : ϵ(v))
+    where ϵ(v) = (1/2) (grad(v) + grad(v)^T).
+    This is a 'Vector' integrator, i.e. defined for FE spaces
+    using multiple copies of a scalar FE space. */
+class IsoElasticityIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *E, *nu;
+   int ia;
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape; // scalar gradient
+   DenseMatrix vshape; // Voigt notation of symmetric gradient
+   DenseMatrix C; // elasticity matrix in Voigt notation
+   DenseMatrix CVt;
+#endif
+   void VectorGradToVoigt(DenseMatrix &vals, DenseMatrix &voigt);
+
+public:
+   IsoElasticityIntegrator(Coefficient &E, Coefficient &nu, int ia=3): E(&E),
+      nu(&nu) {}
+
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+};
+
+// Elliptic Bilinear Solver
 class EllipticSolver
 {
 protected:
@@ -474,7 +503,81 @@ public:
    double Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
+
+/// @brief Strain energy density coefficient
+class IsoStrainEnergyDensityCoefficient : public Coefficient
+{
+protected:
+   Coefficient &E;
+   Coefficient &nu;
+   GridFunction &u1; // displacement
+   GridFunction &u2; // dual-displacement
+   Coefficient &dphys_dfrho;
+   DenseMatrix grad1, grad2; // auxiliary matrix, used in Eval
+   Vector voigt1, voigt2; // Voigt notation of symmetric gradient
+   DenseMatrix C;
+
+   void VectorGradToVoigt(DenseMatrix &grad, Vector &voigt);
+public:
+   IsoStrainEnergyDensityCoefficient(Coefficient &E, Coefficient &nu,
+                                     GridFunction &u, DensityProjector &projector, GridFunction &frho)
+      : E(E), nu(nu),  u1(u),  u2(u),
+        dphys_dfrho(projector.GetDerivative(frho))
+   { }
+   IsoStrainEnergyDensityCoefficient(Coefficient &E, Coefficient &nu,
+                                     GridFunction &u1, GridFunction &u2, DensityProjector &projector,
+                                     GridFunction &frho)
+      : E(E), nu(nu),  u1(u1),  u2(u2),
+        dphys_dfrho(projector.GetDerivative(frho))
+   { }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
 class ParametrizedElasticityEquation : public ParametrizedLinearEquation
+{
+public:
+protected:
+   Coefficient &E;
+   Coefficient &nu;
+   GridFunction &filtered_density;
+   ProductCoefficient phys_E;
+   VectorCoefficient &f;
+private:
+
+public:
+   ParametrizedElasticityEquation(FiniteElementSpace &fes,
+                                  GridFunction &filtered_density,
+                                  DensityProjector &projector,
+                                  Coefficient &E, Coefficient &nu,
+                                  VectorCoefficient &f, Array2D<int> &ess_bdr);
+   std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
+                                           GridFunction &dual_solution, GridFunction &frho) override
+   { return std::unique_ptr<Coefficient>(new IsoStrainEnergyDensityCoefficient(E, nu, u, dual_solution, projector, frho)); }
+protected:
+   void SolveSystem(GridFunction &x) override
+   {
+      EllipticSolver solver(*a, *b, ess_bdr);
+      solver.SetIterativeMode();
+      bool converged = solver.Solve(x, AisStationary, BisStationary);
+      if (!converged)
+      {
+#ifdef MFEM_USE_MPI
+         if (!Mpi::IsInitialized() || Mpi::Root())
+         {
+            out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
+                std::endl;
+         }
+#else
+         out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
+             std::endl;
+#endif
+      }
+   }
+private:
+};
+
+class ParametrizedCompliantMechanismEquation : public ParametrizedLinearEquation
 {
 public:
 protected:
@@ -487,11 +590,14 @@ protected:
 private:
 
 public:
-   ParametrizedElasticityEquation(FiniteElementSpace &fes,
-                                  GridFunction &filtered_density,
-                                  DensityProjector &projector,
-                                  Coefficient &lambda, Coefficient &mu,
-                                  VectorCoefficient &f, Array2D<int> &ess_bdr);
+   ParametrizedCompliantMechanismEquation(FiniteElementSpace &fes,
+                                          GridFunction &filtered_density,
+                                          DensityProjector &projector,
+                                          Coefficient &lambda, Coefficient &mu,
+                                          VectorCoefficient &input_d, VectorCoefficient &output_d,
+                                          double &input_spring, double &output_spring,
+                                          int &input_bdr_idx, int &outputbdr_idx,
+                                          Array2D<int> &ess_bdr);
    std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
                                            GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new StrainEnergyDensityCoefficient(lambda, mu, u, dual_solution, projector, frho)); }

@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
    int max_it = 2e2;
    double rho_min = 1e-06;
    double exponent = 3.0;
-   double lambda = 1.0;
-   double mu = 1.0;
+   double E = 1.0;
+   double nu = 0.3;
    double c1 = 1e-04;
    bool glvis_visualization = true;
    bool save = false;
@@ -98,9 +98,9 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
-   args.AddOption(&lambda, "-lambda", "--lambda",
+   args.AddOption(&E, "-E", "--E",
                   "Lamé constant λ.");
-   args.AddOption(&mu, "-mu", "--mu",
+   args.AddOption(&nu, "-nu", "--nu",
                   "Lamé constant μ.");
    args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
@@ -181,9 +181,9 @@ int main(int argc, char *argv[])
    LatentDesignDensity density(control_fes, filter, vol_fraction,
                                FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
-   ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
+   ConstantCoefficient E_cf(E), nu_cf(nu);
    ParametrizedElasticityEquation elasticity(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
+                                             density.GetFilteredDensity(), simp_rule, E_cf, nu_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
