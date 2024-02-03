@@ -158,6 +158,24 @@ public:
    virtual void SetOperator(const Operator &op) { }
 };
 
+/// Wrapper for the block-diagonal-preconditioned MINRES defined in ex5p.cpp
+class BDPMinresSolver : public DarcySolver
+{
+   BlockOperator op_;
+   BlockDiagonalPreconditioner prec_;
+   OperatorPtr BT_;
+   OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
+   MINRESSolver solver_;
+   Array<int> ess_zero_dofs_;
+public:
+   BDPMinresSolver(const HypreParMatrix& M, const HypreParMatrix& B,
+                   IterSolveParameters param);
+   virtual void Mult(const Vector & x, Vector & y) const;
+   virtual void SetOperator(const Operator &op) { }
+   void SetEssZeroDofs(const Array<int>& dofs) { dofs.Copy(ess_zero_dofs_); }
+   virtual int GetNumIterations() const { return solver_.GetNumIterations(); }
+};
+
 /// Divergence free solver.
 /** Divergence free solver.
     The basic idea of the solver is to exploit a multilevel decomposition of
