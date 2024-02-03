@@ -17,8 +17,8 @@
 // positions while maintaining a valid mesh with good quality.
 //
 // Sample runs:
-//   mpirun -np 4 -rs 1 tmop-tangent -m square01.mesh -o 1 -gS 1 -k outputFileName -visit
-//   mpirun -np 4 -rs 1 tmop-tangent -m rectangle01.mesh -o 1 -gS 1 -k outputFileName -visit
+//   mpirun -np 4 tmop-tangent -rs 1 -m square01.mesh -o 1 -gS 1 -k outputFileName -visit
+//   mpirun -np 4 tmop-tangent -rs 1 -m rectangle01.mesh -o 1 -gS 1 -k outputFileName -visit
 // NOTE: Need to change the width, depth and coordinates of the center in the Square.cpp file depending on the geometry.
 
 #include "mfem.hpp"

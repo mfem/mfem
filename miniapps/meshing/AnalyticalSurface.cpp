@@ -63,17 +63,17 @@ void AnalyticalSurface::ConvertPhysicalCoordinatesToParametric(ParGridFunction &
          dist = 0.0;
          dist(0) = distance_gf(j_x);
          dist(1) = distance_gf(j_y);
-         dist(2) = (dim == 2) ? 0.0 : distance_gf(j_z);
-         if ( std::find(touchedNodes.begin(), touchedNodes.end(), j_x) == touchedNodes.end() )
+	 if (dim == 3) { dist(2) = distance_gf(j_z); }
+	 if ( std::find(touchedNodes.begin(), touchedNodes.end(), j_x) == touchedNodes.end() )
          {
             coordsX[0] = coord(j_x);
             coordsX[1] = coord(j_y);
-            coordsX[2] = (dim == 2) ? 0.0 : coord(j_z);
-            geometry->GetTFromX(coordsT, coordsX, j_x, dist);
+	    if (dim == 3) { coordsX[2] = coord(j_z); }
+	    geometry->GetTFromX(coordsT, coordsX, j_x, dist);
             coord(j_x) = coordsT[0];
             coord(j_y) = coordsT[1];
-            coord(j_z) = (dim == 2) ? 0.0 : coordsT[2];
-            touchedNodes.push_back(j_x);
+	    if (dim == 3) { coord(j_z) = coordsT[2]; }
+	    touchedNodes.push_back(j_x);
          }
       }
    }
@@ -101,17 +101,17 @@ void AnalyticalSurface::ConvertParametricCoordinatesToPhysical(ParGridFunction &
          dist = 0.0;
          dist(0) = distance_gf(j_x);
          dist(1) = distance_gf(j_y);
-         dist(2) = (dim == 2) ? 0.0 : distance_gf(j_z);
+         if (dim == 3) { dist(2) = distance_gf(j_z); }
          if ( std::find(touchedNodes.begin(), touchedNodes.end(), j_x) == touchedNodes.end() )
          {
             coordsT[0] = coord(j_x);
             coordsT[1] = coord(j_y);
-            coordsT[2] = (dim == 2) ? 0.0 : coord(j_z);
-            geometry->GetXFromT(coordsX, coordsT, j_x, dist);
+	    if (dim == 3) { coordsT[2] = coord(j_z); }
+	    geometry->GetXFromT(coordsX, coordsT, j_x, dist);
             coord(j_x) = coordsX[0];
             coord(j_y) = coordsX[1];
-            coord(j_z) = (dim == 2) ? 0.0 : coordsT[2];
-            touchedNodes.push_back(j_x);
+            if (dim == 3) { coord(j_z) = coordsX[2]; }
+	    touchedNodes.push_back(j_x);
          }
       }
    }
