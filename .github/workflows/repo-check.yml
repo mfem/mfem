@@ -71,7 +71,7 @@ jobs:
           steps.copyright.outcome != 'success' ||
           steps.license.outcome != 'success' ||
           steps.release.outcome != 'success' ||
-          steps.mathoutcome != 'success'
+          steps.math.outcome != 'success'
         run: |
           if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
             echo "copyright check failed, unroll log for details"
