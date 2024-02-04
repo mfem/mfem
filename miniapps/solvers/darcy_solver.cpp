@@ -30,7 +30,8 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
                      [ M  B^T ] [u] = [f]
                      [ B   0  ] [p] = [g]
 */
-BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
+                                 const HypreParMatrix& B,
                                  IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
