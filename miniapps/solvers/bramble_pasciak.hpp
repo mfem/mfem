@@ -94,26 +94,31 @@ public:
 
 /// Bramble-Pasciak Solver for Darcy equation.
 /** Bramble-Pasciak Solver for Darcy equation.
- *  The basic idea is to precondition the mass matrix M with a s.p.d. matrix Q
- *  such that M - Q remains s.p.d. Then we can transform the block operator into a
- *  s.p.d. operator under a modified inner product.
- *  In particular, this enable us to implement modified versions of CG iterations,
- *  that rely on efficient applications of the required transformations.
- *
- *  We offer a mass preconditioner based on a rescalling of the diagonal of the
- *  element mass matrices M_T.
- *  We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
- *  lambda_min is the smallest eigenvalue of the following problem
- *                M_T x = lambda * D_T x.
- *  alpha is a parameter that is strictly between 0 and 1.
- *
- *  For more details, see:
- *  1. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix F.3),
- *     Springer, 2008.
- *  2. James H. Bramble and Joseph E. Pasciak.
- *     A Preconditioning Technique for Indefinite Systems Resulting From Mixed
- *     Approximations of Elliptic Problems. Mathematics of Computation, 50:1-17, 1988.
- */
+
+    The basic idea is to precondition the mass matrix M with a s.p.d. matrix Q
+    such that M - Q remains s.p.d. Then we can transform the block operator into
+    a s.p.d. operator under a modified inner product. In particular, this enable
+    us to implement modified versions of CG iterations, that rely on efficient
+    applications of the required transformations.
+
+    We offer a mass preconditioner based on a rescalling of the diagonal of the
+    element mass matrices M_T.
+
+    We consider Q_T := alpha * lambda_min * D_T, where D_T := diag(M_T), and
+    lambda_min is the smallest eigenvalue of the following problem
+
+                       M_T x = lambda * D_T x.
+
+    Alpha is a parameter that is strictly between 0 and 1.
+
+    For more details, see:
+
+    1. P. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix
+       F.3), Springer, 2008.
+
+    2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
+       Systems Resulting From Mixed Approximations of Elliptic Problems,
+       Mathematics of Computation, 50:1–17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
@@ -148,13 +153,11 @@ public:
       const BPSParameters &param);
 
    /// Assemble a preconditioner for the mass matrix
-   /** Mass preconditioner corresponds to a local re-scaling
-    * based on the smallest eigenvalue of the generalized
-    * eigenvalue problem locally on each element T:
-    *         M_T x_T = lambda_T diag(M_T) x_T
-    * and we set Q_T = alpha * min(lambda_T) * diag(M_T),
-    * 0 < alpha < 1.
-   */
+   /** Mass preconditioner corresponds to a local re-scaling based on the
+       smallest eigenvalue of the generalized eigenvalue problem locally on each
+       element T:
+                                M_T x_T = lambda_T diag(M_T) x_T.
+       We set Q_T = alpha * min(lambda_T) * diag(M_T), 0 < alpha < 1. */
    static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
                                                       double alpha = 0.5);
 
