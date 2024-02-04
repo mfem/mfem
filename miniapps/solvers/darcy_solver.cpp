@@ -29,7 +29,7 @@ void SetOptions(IterativeSolver& solver, const IterSolveParameters& param)
 /** Wrapper for assembling the discrete Darcy problem (ex5p)
                      [ M  B^T ] [u] = [f]
                      [ B   0  ] [p] = [g]
-**/
+*/
 BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
                                  IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
