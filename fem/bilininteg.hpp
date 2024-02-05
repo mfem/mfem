@@ -300,7 +300,6 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
       bfi->AssemblePA(fes);
@@ -3084,6 +3083,7 @@ public:
    /// lifetime of this integrator.
    ElasticityComponentIntegrator(ElasticityIntegrator &parent_, int i_, int j_);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
