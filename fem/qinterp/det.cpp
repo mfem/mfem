@@ -307,15 +307,15 @@ void TensorDeterminants(const int NE,
    {
       switch (id)
       {
-         case 0x222: return Det2D<2,2>(NE,B,G,X,Y,2);
-         case 0x223: return Det2D<2,3>(NE,B,G,X,Y,2);
-         case 0x224: return Det2D<2,4>(NE,B,G,X,Y,2);
-         case 0x226: return Det2D<2,6>(NE,B,G,X,Y,2);
-         case 0x234: return Det2D<3,4>(NE,B,G,X,Y,2);
-         case 0x236: return Det2D<3,6>(NE,B,G,X,Y,2);
-         case 0x244: return Det2D<4,4>(NE,B,G,X,Y,2);
-         case 0x246: return Det2D<4,6>(NE,B,G,X,Y,2);
-         case 0x256: return Det2D<5,6>(NE,B,G,X,Y,2);
+         case 0x222: return Det2D<2,2>(NE,B,G,X,Y);
+         case 0x223: return Det2D<2,3>(NE,B,G,X,Y);
+         case 0x224: return Det2D<2,4>(NE,B,G,X,Y);
+         case 0x226: return Det2D<2,6>(NE,B,G,X,Y);
+         case 0x234: return Det2D<3,4>(NE,B,G,X,Y);
+         case 0x236: return Det2D<3,6>(NE,B,G,X,Y);
+         case 0x244: return Det2D<4,4>(NE,B,G,X,Y);
+         case 0x246: return Det2D<4,6>(NE,B,G,X,Y);
+         case 0x256: return Det2D<5,6>(NE,B,G,X,Y);
          default:
          {
             const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
