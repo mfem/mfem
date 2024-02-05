@@ -43,7 +43,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # It's easier to reference named variables than indexes of the matrix
       - name: Set Environment
