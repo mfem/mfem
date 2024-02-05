@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -650,18 +650,23 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR(std::ostream &out) const;
 
    /// Prints a sparse matrix to stream out in CSR format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR2(std::ostream &out) const;
 
    /// Print various sparse matrix statistics.

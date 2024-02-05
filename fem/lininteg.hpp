@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -728,7 +728,7 @@ private:
 
 public:
    VectorQuadratureLFIntegrator(VectorQuadratureFunctionCoefficient &vqfc,
-                                const IntegrationRule *ir)
+                                const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), vqfc(vqfc)
    {
       if (ir)
@@ -760,7 +760,7 @@ private:
 
 public:
    QuadratureLFIntegrator(QuadratureFunctionCoefficient &qfc,
-                          const IntegrationRule *ir)
+                          const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), qfc(qfc)
    {
       if (ir)
