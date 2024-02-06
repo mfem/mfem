@@ -256,9 +256,10 @@ int main(int argc, char *argv[])
    logger.Print();
 
    optprob.UpdateGradient();
-   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes), inv_dv(&control_fes);
-   for (int i=0; i<pmesh->GetNE(); i++) { inv_dv[i] = pmesh->GetElementVolume(i); }
-   inv_dv.Reciprocal();
+   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes);
+   ParBilinearForm inv_mass(&control_fes);
+   inv_mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator));
+   inv_mass.Assemble();
    bool converged = false;
    for (int k = 0; k < max_it; k++)
    {
@@ -266,9 +267,8 @@ int main(int argc, char *argv[])
       old_compliance = compliance;
 
       B = grad;
-      B.Neg();
-      B *= inv_dv;
-      B.Sqrt();
+      inv_mass.Mult(grad, B);
+      B.ApplyMap([](double x){return std::sqrt(-x); });
       lower = rho;
       lower -= mv; lower.Clip(0, 1);
       upper = rho;
