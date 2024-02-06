@@ -238,7 +238,6 @@ void FindPointsInMesh(ParMesh & pmesh, const Array<int> & gvert, Array<int> & s_
    finder.SetDistanceToleranceForPointsFoundOnBoundary(0.5);
 
    const double bb_t = 0.5;
-   mfem::out << "mesh->GetNE() = " << mesh->GetNE() << endl;
    MFEM_VERIFY(mesh->GetNE(), "FindPointsGSLIB does not support empty partition");
    finder.Setup(*mesh, bb_t);
 

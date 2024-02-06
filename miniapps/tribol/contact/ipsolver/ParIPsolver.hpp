@@ -62,8 +62,9 @@ protected:
 
     bool saveLogBarrierIterates = false;
 
-    int linSolver;
-    double linSolveTol;
+    int linSolver=0;
+    double linSolveAbsTol = 1e-12;
+    double linSolveRelTol = 1e-6;
     int relax_type = 8;
 public:
     // ParInteriorPointSolver(QPOptParContactProblem*);
@@ -94,7 +95,8 @@ public:
     void SetBarrierParameter(double);    
     void SaveLogBarrierHessianIterates(bool);
     void SetLinearSolver(int);
-    void SetLinearSolveTol(double);
+    void SetLinearSolveAbsTol(double);
+    void SetLinearSolveRelTol(double);
     void SetLinearSolveRelaxType(int);
     void SetFiniteElementSpace(ParFiniteElementSpace * pfes_)
     {

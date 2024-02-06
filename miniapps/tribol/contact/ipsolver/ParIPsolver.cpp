@@ -77,8 +77,6 @@ ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemSingleMesh 
    lk.SetSize(dimC);  lk  = 0.0;
    zlk.SetSize(dimM); zlk = 0.0;
 
-   linSolver = 0;
-   linSolveTol = 1.e-8;
    MyRank = Mpi::WorldRank();
    iAmRoot = MyRank == 0 ? true : false;
 }
@@ -481,16 +479,9 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       }
       else
       {
-         HypreBoomerAMG amg(*Areduced);
+         HypreBoomerAMG amg;
          amg.SetPrintLevel(0);
-         // if (pfes)
-         // {
-         //    amg.SetElasticityOptions(pfes);
-         // }
-         // else
-         // {
-            amg.SetSystemsOptions(3,false);
-         // }
+         amg.SetSystemsOptions(3,false);
          amg.SetRelaxType(relax_type);
          int n;
 
@@ -500,13 +491,43 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             mfem::out << std::string(20,' ') << "PCG SOLVER" << endl;
             std::cout << std::string(50,'-') << endl;
          }
+
          CGSolver AreducedSolver(MPI_COMM_WORLD);
-	      AreducedSolver.SetOperator(*Areduced);
-         AreducedSolver.SetRelTol(linSolveTol);
-         AreducedSolver.SetMaxIter(1000);
-         AreducedSolver.SetPreconditioner(amg);
+         AreducedSolver.SetRelTol(linSolveRelTol);
+         // AreducedSolver.SetAbsTol(linSolveAbsTol);
+         AreducedSolver.SetMaxIter(2000);
 	      AreducedSolver.SetPrintLevel(3);
-         AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         AreducedSolver.SetPreconditioner(amg);
+         bool diagscale = false;
+         // bool diagscale = true;
+         if (diagscale)
+         {
+            Vector diag;
+            Areduced->GetDiag(diag);
+            for (int i = 0; i<diag.Size(); i++)
+            {
+               diag(i) = 1./sqrt(diag(i));
+            }
+            SparseMatrix Sd(diag);
+            HypreParMatrix Hd(Areduced->GetComm(),Areduced->GetGlobalNumRows(),Areduced->RowPart(), &Sd);
+            HypreParMatrix *DAD = RAP(Areduced, &Hd);
+            Vector Db(breduced.Size());
+            Vector Dx(Xhat.GetBlock(0));
+            Hd.Mult(breduced,Db);
+            AreducedSolver.SetPreconditioner(amg);
+   	      AreducedSolver.SetOperator(*DAD);
+            AreducedSolver.Mult(Db, Dx );
+            Hd.Mult(Dx,Xhat.GetBlock(0));
+            delete DAD;
+         }
+         else
+         {
+   	      AreducedSolver.SetOperator(*Areduced);
+            AreducedSolver.SetPreconditioner(amg);
+            AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
+         }
+
+         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
 
          if (iAmRoot)
          {
@@ -862,9 +883,13 @@ void ParInteriorPointSolver::SetLinearSolver(int LinSolver)
    linSolver = LinSolver;
 }
 
-void ParInteriorPointSolver::SetLinearSolveTol(double Tol)
+void ParInteriorPointSolver::SetLinearSolveAbsTol(double Tol)
 {
-  linSolveTol = Tol;
+  linSolveAbsTol = Tol;
+}
+void ParInteriorPointSolver::SetLinearSolveRelTol(double Tol)
+{
+  linSolveRelTol = Tol;
 }
 
 void ParInteriorPointSolver::SetLinearSolveRelaxType(int relax_type_)

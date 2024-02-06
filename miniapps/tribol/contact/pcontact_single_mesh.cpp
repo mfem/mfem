@@ -3,7 +3,7 @@
 // Compile with: make pcontact_driver
 // sample run
 // mpirun -np 6 ./pcontact_driver -sr 2 -pr 2
-
+// mpirun -np 8 ./pcontact_single_mesh -ls 2 -sr 5 -omaxit 20  -otol 1e-6 -tribol -rt 18
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -28,7 +28,8 @@ int main(int argc, char *argv[])
    Array<int> m_attr;
    bool visualization = true;
    bool paraview = false;
-   double linsolvertol = 1e-6;
+   double linsolverrtol = 1e-6;
+   double linsolveratol = 1e-12;
    int relax_type = 8;
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 10;
@@ -43,8 +44,10 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
-   args.AddOption(&linsolvertol, "-stol", "--solver-tol",
-                  "Linear Solver Tolerance.");
+   args.AddOption(&linsolverrtol, "-srtol", "--solver-rel-tol",
+                  "Linear Solver Relative Tolerance.");
+   args.AddOption(&linsolveratol, "-satol", "--solver-abs-tol",
+                  "Linear Solver Abs Tolerance.");
    args.AddOption(&enable_tribol, "-tribol", "--tribol", "-no-tribol",
                   "--no-tribol",
                   "Enable or disable Tribol interface.");
@@ -122,7 +125,8 @@ int main(int argc, char *argv[])
    optimizer.SetMaxIter(optimizer_maxit);
 
    optimizer.SetLinearSolver(linsolver);
-   optimizer.SetLinearSolveTol(linsolvertol);
+   optimizer.SetLinearSolveRelTol(linsolverrtol);
+   optimizer.SetLinearSolveAbsTol(linsolveratol);
    optimizer.SetLinearSolveRelaxType(relax_type);
    ParGridFunction x = prob->GetDisplacementGridFunction();
    Vector x0 = x.GetTrueVector();
