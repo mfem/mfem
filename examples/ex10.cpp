@@ -156,6 +156,11 @@ void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This example is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-quad.mesh";
    int ref_levels = 2;
@@ -204,10 +209,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-#ifdef MFEM_USE_SINGLE
-   MFEM_ABORT("This example is not supported in single precision.");
-#endif
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.

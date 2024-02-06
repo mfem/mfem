@@ -126,6 +126,11 @@ void display_banner(ostream & os);
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This miniapp is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    Mpi::Init();
    Hypre::Init();
 
@@ -200,10 +205,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
-#ifdef MFEM_USE_SINGLE
-   MFEM_ABORT("This miniapp is not supported in single precision.");
-#endif
 
    // Read the (serial) mesh from the given mesh file on all processors.  We can
    // handle triangular, quadrilateral, tetrahedral, hexahedral, surface and

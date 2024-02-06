@@ -137,4 +137,8 @@ typedef double real_t;
 #define MFEM_DEPRECATED
 #endif
 
+// Return value for main function in examples that should be skipped by testing
+// in some case. This return value prevents failures in testing.
+#define MFEM_SKIP_RETURN_VALUE 242
+
 #endif
