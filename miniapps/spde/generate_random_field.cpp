@@ -52,6 +52,11 @@ enum TopologicalSupport { kParticles, kOctetTruss };
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This miniapp is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 0. Initialize MPI.
    Mpi::Init(argc, argv);
    Hypre::Init();
@@ -147,10 +152,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
-#ifdef MFEM_USE_SINGLE
-   MFEM_ABORT("This miniapp is not supported in single precision.");
-#endif
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);

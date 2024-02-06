@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
 #ifdef HYPRE_USING_GPU
    cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this miniapp\n"
         << "is NOT supported with the GPU version of hypre.\n\n";
-   return 242;
+   return MFEM_SKIP_RETURN_VALUE;
 #endif
 
    // Initialize MPI and HYPRE.

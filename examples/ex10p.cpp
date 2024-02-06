@@ -162,6 +162,11 @@ void visualize(ostream &os, ParMesh *mesh,
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This example is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
@@ -228,10 +233,6 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
-
-#ifdef MFEM_USE_SINGLE
-   MFEM_ABORT("This example is not supported in single precision.");
-#endif
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle triangular, quadrilateral, tetrahedral and hexahedral meshes

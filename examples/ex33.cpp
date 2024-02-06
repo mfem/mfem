@@ -86,6 +86,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+#ifdef MFEM_USE_SINGLE
+   cout << "This example is not supported in single precision.\n\n";
+   return MFEM_SKIP_RETURN_VALUE;
+#endif
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -117,10 +122,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
-#ifdef MFEM_USE_SINGLE
-   MFEM_ABORT("This example is not supported in single precision.");
-#endif
 
    Array<real_t> coeffs, poles;
    int progress_steps = 1;
