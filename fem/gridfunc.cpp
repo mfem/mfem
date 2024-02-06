@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2059,7 +2059,7 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
 }
 
 void GridFunction::AccumulateAndCountBdrValues(
-   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
+   Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr,
    Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
@@ -2201,7 +2201,7 @@ static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
 }
 
 void GridFunction::AccumulateAndCountBdrTangentValues(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr,
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
    const FiniteElement *fe;
@@ -2577,7 +2577,7 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
 }
 
 void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                                         Array<int> &attr)
+                                         const Array<int> &attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
@@ -2594,7 +2594,8 @@ void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
 #endif
 }
 
-void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
+                                         const Array<int> &attr)
 {
    Array<int> values_counter;
    // this->HostReadWrite(); // done inside the next call
@@ -2624,7 +2625,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
 #if 0
    // implementation for the case when the face dofs are integrals of the
@@ -2699,7 +2700,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
 }
 
 void GridFunction::ProjectBdrCoefficientTangent(
-   VectorCoefficient &vcoeff, Array<int> &bdr_attr)
+   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
@@ -2747,7 +2748,8 @@ double GridFunction::ComputeL2Error(
       for (j = 0; j < ir->GetNPoints(); j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-         fe->CalcShape(ip, shape);
+         transf->SetIntPoint(&ip);
+         fe->CalcPhysShape(*transf, shape);
          for (d = 0; d < fes->GetVDim(); d++)
          {
             a = 0;
@@ -2760,7 +2762,6 @@ double GridFunction::ComputeL2Error(
                {
                   a -= (*this)(-1-vdofs[fdof*d+k]) * shape(k);
                }
-            transf->SetIntPoint(&ip);
             a -= exsol[d]->Eval(*transf, ip);
             error += ip.weight * transf->Weight() * a * a;
          }
