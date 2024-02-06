@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -314,7 +314,8 @@ void SaddleSchwarzSmoother::Mult(const Vector & x, Vector & y) const
    blk_y.GetBlock(1) -= coarse_l2_projection;
 }
 
-BDPMinresSolver::BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
+                                 const HypreParMatrix& B,
                                  IterSolveParameters param)
    : DarcySolver(M.NumRows(), B.NumRows()), op_(offsets_), prec_(offsets_),
      BT_(B.Transpose()), solver_(M.GetComm())
@@ -360,8 +361,8 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
 
    for (int l = data.P_l2.size(); l >= 0; --l)
    {
-      auto& M_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
-      auto& B_f = static_cast<HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
+      auto& M_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
+      auto& B_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
 
       if (l == 0)
       {
@@ -586,7 +587,7 @@ void DivFreeSolver::Mult(const Vector & x, Vector & y) const
       ch.Clear();
       ch.Start();
 
-      auto M = dynamic_cast<HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
+      auto& M = dynamic_cast<const HypreParMatrix&>(ops_.Last()->GetBlock(0, 0));
       M.Mult(-1.0, correction.GetBlock(0), 1.0, resid.GetBlock(0));
       SolvePotential(resid.GetBlock(0), correction.GetBlock(1));
       blk_y.GetBlock(1) += correction.GetBlock(1);

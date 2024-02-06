@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -690,7 +690,7 @@ void ParGridFunction::GroupCommunicatorOp(int op)
 }
 
 void ParGridFunction::ProjectBdrCoefficient(
-   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
@@ -744,7 +744,7 @@ void ParGridFunction::ProjectBdrCoefficient(
 }
 
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                                   Array<int> &bdr_attr)
+                                                   const Array<int> &bdr_attr)
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
@@ -776,7 +776,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    {
       MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
                   bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
-                  "internal error");
+                  "internal error: " << pfes->GetLocalTDofNumber(i) << ' ' << bool(
+                     values_counter[i]));
    }
 #endif
 }

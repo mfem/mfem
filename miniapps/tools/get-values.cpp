@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@
 // reduced by specifying the desired field names with -fn. The -fn option
 // takes a space separated list of field names surrounded by quotes.  Field
 // names containing spaces, such as "Field 1" and "Field 2", can be entered as:
-//    get-values -fn "Field\ 1 Field\ 2"
+//   > get-values -fn "Field\ 1 Field\ 2"
 //
 // By default the data is written to standard out.  This can be overwritten
 // with the -o [filename] option.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -5154,6 +5154,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
                               const FiniteElementSpace &x_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
 
    Ordering::Type ordering = x_fes.GetOrdering();
 

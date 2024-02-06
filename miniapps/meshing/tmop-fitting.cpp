@@ -751,9 +751,8 @@ int main (int argc, char *argv[])
    {
       int res = std::max(1, rs_levels);
       //SPLIT TYPE == 1 - 12 TETS, 2 = 24 TETS
-      mesh = new Mesh(Mesh::MakeHexTo24or12TetMesh(2*res,2*res,2*res,
-                                                   1.0, 1.0, 1.0,
-                                                   custom_split_mesh)); //24tet
+      mesh = new Mesh(Mesh::MakeCartesian3DWith24TetsPerHex(2*res,2*res,2*res,
+                                                            1.0, 1.0, 1.0));
    }
    else if (custom_split_mesh == 0)
    {
@@ -769,11 +768,11 @@ int main (int argc, char *argv[])
       //SPLIT TYPE == -1 => 1 quad to 4 tris
       if (custom_split_mesh == -1)
       {
-         mesh = new Mesh(Mesh::MakeQuadTo4TriMesh(2*res,2*res, 1.0, 1.0));
+         mesh = new Mesh(Mesh::MakeCartesian2DWith4TrisPerQuad(2*res,2*res, 1.0, 1.0));
       }
       else   //1 quad to 5 quads
       {
-         mesh = new Mesh(Mesh::MakeQuadTo5QuadMesh(2*res,2*res, 1.0, 1.0));
+         mesh = new Mesh(Mesh::MakeCartesian2DWith5QuadsPerQuad(2*res,2*res, 1.0, 1.0));
 
       }
    }
