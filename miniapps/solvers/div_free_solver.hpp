@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -190,7 +190,7 @@ class BDPMinresSolver : public DarcySolver
    MINRESSolver solver_;
    Array<int> ess_zero_dofs_;
 public:
-   BDPMinresSolver(HypreParMatrix& M, HypreParMatrix& B,
+   BDPMinresSolver(const HypreParMatrix& M, const HypreParMatrix& B,
                    IterSolveParameters param);
    virtual void Mult(const Vector & x, Vector & y) const;
    virtual void SetOperator(const Operator &op) { }

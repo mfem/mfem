@@ -102,7 +102,7 @@ real_t proj(GridFunction &psi, real_t target_volume, real_t tol=1e-12,
    return int_sigmoid_psi.Sum();
 }
 
-/**
+/*
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
  * ---------------------------------------------------------------

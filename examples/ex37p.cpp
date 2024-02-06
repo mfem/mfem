@@ -109,7 +109,7 @@ real_t proj(ParGridFunction &psi, real_t target_volume, real_t tol=1e-12,
    return material_volume;
 }
 
-/**
+/*
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
  * ---------------------------------------------------------------
