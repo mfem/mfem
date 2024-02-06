@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -91,8 +91,6 @@ protected:
    /// orientations for each face (from nbr processor)
    std::unique_ptr<Table> face_nbr_el_ori;
 
-   IsoparametricTransformation FaceNbrTransformation;
-
    // glob_elem_offset + local element number defines a global element numbering
    mutable long long glob_elem_offset;
    mutable long glob_offset_sequence;
@@ -151,12 +149,16 @@ protected:
                     const std::unique_ptr<STable3D> &shared_faces,
                     int elem, int start, int end, const int fverts[][N]);
 
-   void GetFaceNbrElementTransformation(
-      int i, IsoparametricTransformation *ElTr);
-
    void GetGhostFaceTransformation(
-      FaceElementTransformations* FETr, Element::Type face_type,
-      Geometry::Type face_geom);
+      FaceElementTransformations &FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const;
+   void GetGhostFaceTransformation(
+      FaceElementTransformations *FElTr, Element::Type face_type,
+      Geometry::Type face_geom) const
+   {
+      MFEM_ASSERT(FElTr, "Missing FaceElementTransformations object!");
+      GetGhostFaceTransformation(*FElTr, face_type, face_geom);
+   }
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -489,6 +491,10 @@ public:
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
 
+   /** Return true if the face is interior or shared. In parallel, this
+       method only works if the face neighbor data is exchanged. */
+   inline bool FaceIsTrueInterior(int FaceNo) const { return Mesh::FaceIsTrueInterior(FaceNo); }
+
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();
 
@@ -549,13 +555,20 @@ public:
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetFaceElementTransformations(
-      int FaceNo,
-      int mask = 31) override;
+   FaceElementTransformations *
+   GetFaceElementTransformations(int FaceNo, int mask = 31) override;
 
-   /// Get the FaceElementTransformations for the given shared face (edge 2D)
-   /// using the shared face index @a sf. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not.
+   /// @brief Variant of GetFaceElementTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetFaceElementTransformations(int FaceNo,
+                                      FaceElementTransformations &FElTr,
+                                      IsoparametricTransformation &ElTr1,
+                                      IsoparametricTransformation &ElTr2,
+                                      int mask = 31) const override;
+
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the shared face index @a sf. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///
@@ -565,9 +578,17 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
 
-   /// Get the FaceElementTransformations for the given shared face (edge 2D)
-   /// using the face index @a FaceNo. @a fill2 specify if the information
-   /// for elem2 of the face should be computed or not.
+   /// @brief Variant of GetSharedFaceTransformations using a user allocated
+   /// FaceElementTransformations object.
+   void GetSharedFaceTransformations(int sf,
+                                     FaceElementTransformations &FElTr,
+                                     IsoparametricTransformation &ElTr1,
+                                     IsoparametricTransformation &ElTr2,
+                                     bool fill2 = true) const;
+
+   /// @brief Get the FaceElementTransformations for the given shared face
+   /// (edge 2D) using the face index @a FaceNo. @a fill2 specify if the
+   /// information for elem2 of the face should be computed or not.
    /// In the returned object, 1 and 2 refer to the local and the neighbor
    /// elements, respectively.
    ///
@@ -577,20 +598,30 @@ public:
    FaceElementTransformations *
    GetSharedFaceTransformationsByLocalIndex(int FaceNo, bool fill2 = true);
 
-   /// Returns a pointer to the transformation defining the i-th face neighbor.
+   /// @brief Variant of GetSharedFaceTransformationsByLocalIndex using a user
+   /// allocated FaceElementTransformations object.
+   void GetSharedFaceTransformationsByLocalIndex(int FaceNo,
+                                                 FaceElementTransformations &FElTr,
+                                                 IsoparametricTransformation &ElTr1,
+                                                 IsoparametricTransformation &ElTr2,
+                                                 bool fill2 = true) const;
+
+   /// @brief Returns a pointer to the transformation defining the i-th face
+   /// neighbor.
+   ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, the returned object should NOT be deleted by the caller.
-   ElementTransformation *GetFaceNbrElementTransformation(int i)
-   {
-      GetFaceNbrElementTransformation(i, &FaceNbrTransformation);
+   ElementTransformation *GetFaceNbrElementTransformation(int FaceNo);
 
-      return &FaceNbrTransformation;
-   }
+   /// @brief Variant of GetFaceNbrElementTransformation using a user allocated
+   /// IsoparametricTransformation object.
+   void GetFaceNbrElementTransformation(int FaceNo,
+                                        IsoparametricTransformation &ElTr) const;
 
    /// Get the size of the i-th face neighbor element relative to the reference
    /// element.
-   double GetFaceNbrElementSize(int i, int type=0);
+   double GetFaceNbrElementSize(int i, int type = 0);
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;
