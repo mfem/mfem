@@ -3137,6 +3137,10 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    const ParGridFunction &s_bg_hess,
    ParGridFunction &s0_hess, AdaptivityEvaluator &ahe)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
@@ -3236,6 +3240,8 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSet(ParGridFunction &s0)
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
    //Remap back to the current mesh right away
    GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
+   MFEM_VERIFY(s0.Size() == nodes->Size()/s0.FESpace()->GetMesh()->Dimension(),
+               "Gridfunction and mesh nodes must be in the same space.");
    surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
                                        nodes->FESpace()->GetOrdering());
    s0 = *surf_fit_gf;
@@ -3573,11 +3579,12 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
+         double w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                    1.0 / surf_fit_dof_count[scalar_dof_id];
 
          if (surf_fit_gf)
          {
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      sigma_e(s) * sigma_e(s);
+            energy += w * sigma_e(s) * sigma_e(s);
          }
          if (surf_fit_pos)
          {
@@ -3588,8 +3595,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                pos(d) = PMatI(s, d);
                pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
             }
-            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
+            energy += w * surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
       }
    }
@@ -4584,6 +4590,9 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
 
       targetC->ComputeElementTargets(i, *fe, ir, x_vals, Jtr);
 
+      ElementTransformation *Tpr = NULL;
+      if (surf_fit_gf) { Tpr = fes->GetMesh()->GetElementTransformation(i); }
+
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
@@ -4603,6 +4612,8 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
       // Normalization of the surface fitting term.
       if (surf_fit_gf)
       {
+         const IntegrationRule &ir_s =
+            surf_fit_gf->FESpace()->GetFE(i)->GetNodes();
          Array<int> dofs;
          Vector sigma_e;
          surf_fit_gf->FESpace()->GetElementDofs(i, dofs);
@@ -4611,7 +4622,11 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
          {
             if ((*surf_fit_marker)[dofs[s]] == true)
             {
-               surf_fit_gf_energy += sigma_e(s) * sigma_e(s);
+               const IntegrationPoint &ip_s = ir_s.IntPoint(s);
+               Tpr->SetIntPoint(&ip_s);
+               surf_fit_gf_energy += surf_fit_coeff->Eval(*Tpr, ip_s) *
+                                     sigma_e(s) * sigma_e(s) *
+                                     1.0/surf_fit_dof_count[dofs[s]];
             }
          }
       }

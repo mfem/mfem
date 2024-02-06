@@ -1986,6 +1986,10 @@ protected:
    double ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
+   /// Remaps the internal surface fitting gridfunction object at provided
+   /// locations.
+   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering = Ordering::byNODES);
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
@@ -2103,7 +2107,6 @@ public:
                              AdaptivityEvaluator &ae);
 
 #ifdef MFEM_USE_MPI
-   /// Parallel support for surface fitting to the zero level set of a function.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae,
@@ -2165,12 +2168,14 @@ public:
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
 
-   void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
+   void UpdateSurfaceFittingCoefficient(Coefficient &coeff)
+   {
+      surf_fit_coeff = &coeff;
+   };
 
+   /// Remap the surface fitting level-set function to the provided GridFunction
+   /// Assumes @a s0 and mesh nodes share the same finite element space.
    void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
-
-   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
-                                           int new_x_ordering = Ordering::byNODES);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
