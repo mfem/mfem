@@ -420,7 +420,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    if (surf_fit_max_threshold > 0.0)
    {
       GetSurfaceFittingError(x_out_loc, avg_surf_fit_err, max_surf_fit_err);
-      if (max_surf_fit_err < surf_fit_max_threshold)
+      if (max_surf_fit_err < surf_fit_max_threshold &&
+          surf_fit_converge_based_on_error)
       {
          if (print_options.iterations)
          {
@@ -921,21 +922,26 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // does not decrease sufficiently.
       SaveSurfaceFittingWeight();
 
-      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
+      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
+          fitweights.Max() < weights_max_limit &&
+          (surf_fit_converge_based_on_error ||
+           surf_fit_err_max > surf_fit_max_threshold))
       {
-         if (fitweights.Max() < weights_max_limit && min_det > min_detJ_threshold)
+         //      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
+         //      {
+         //         if (fitweights.Max() < weights_max_limit && min_det > min_detJ_threshold)
+         //         {
+         if (print_options.iterations)
          {
-            if (print_options.iterations)
-            {
-               //               mfem::out << norm_ratio << " " << fitweights.Max() <<  " " <<
-               //                         surf_fit_scale_factor <<
-               //                         " morm ratio-max weight-factor\n";
-            }
-            double scale_factor = std::min(surf_fit_scale_factor,
-                                           weights_max_limit/fitweights.Max());
-            UpdateSurfaceFittingWeight(scale_factor);
-            adapt_inc_count += 1;
+            //               mfem::out << norm_ratio << " " << fitweights.Max() <<  " " <<
+            //                         surf_fit_scale_factor <<
+            //                         " morm ratio-max weight-factor\n";
          }
+         double scale_factor = std::min(surf_fit_scale_factor,
+                                        weights_max_limit/fitweights.Max());
+         UpdateSurfaceFittingWeight(scale_factor);
+         adapt_inc_count += 1;
+         //         }
       }
       else
       {

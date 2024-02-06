@@ -600,6 +600,7 @@ int main (int argc, char *argv[])
    const char *bg_ls_file = "NULL";
    bool output_final_mesh    = false;
    bool conforming_amr       = false;
+   bool conv_residual        = false;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -729,7 +730,9 @@ int main (int argc, char *argv[])
    args.AddOption(&conforming_amr, "-camr", "--camr", "-no-c-amr",
                   "--no-c-amr",
                   "Enable or disable conforming amr.");
-
+   args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
+                  "--resid",
+                  "Enable residual based convergence.");
    args.Parse();
    if (!args.Good())
    {
@@ -870,7 +873,8 @@ int main (int argc, char *argv[])
    }
    if (int_amr_iters > 0)
    {
-      mesh->EnsureNCMesh(conforming_amr ? false : true);
+      mesh->EnsureNCMesh(true);
+      //      mesh->EnsureNCMesh(conforming_amr ? false : true);
       if (conforming_amr)
       {
          mesh->FinalizeTopology(); // According to the documentation this is necessary but
@@ -1021,7 +1025,7 @@ int main (int argc, char *argv[])
             for (int d = 0; d < dim; d++)
             {
                double length_d = p_max(d) - p_min(d),
-                      extra_d = 0.2 * length_d;
+                      extra_d = 0.0 * length_d;
                if (surf_ls_type == 11) { extra_d = 0.1*length_d; }
                x_bg(i + d*num_nodes) = p_min(d) - extra_d +
                                        x_bg(i + d*num_nodes) * (length_d + 2*extra_d);
@@ -1342,7 +1346,7 @@ int main (int argc, char *argv[])
             {
                surf_fit_gf0.ProjectCoefficient(*ls_coeff);
             }
-         }
+         } //comment out for gresho 2d with amr case
          if (!pmesh->Conforming())
          {
             pmesh->Rebalance();
@@ -1356,7 +1360,7 @@ int main (int argc, char *argv[])
             {
                SetMaterialGridFunction(pmesh, surf_fit_gf0, mat, pgl_el_num,
                                        material, custom_material, surf_ls_type,
-                                       custom_split_mesh);
+                                       false);
             }
             else
             {
@@ -1375,7 +1379,7 @@ int main (int argc, char *argv[])
             // Adapt attributes for marking such that if all but 1 face of an element
             // are marked, the element attribute is switched.
             MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
-            if (adapt_marking && custom_split_mesh == 0)
+            if (adapt_marking && (custom_split_mesh == 0 || amr_remarking))
             {
                ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
                MakeGridFunctionWithNumberOfInterfaceFaces(pmesh, mat, NumFaces);
@@ -1396,6 +1400,7 @@ int main (int argc, char *argv[])
                MFEM_VERIFY(matcheck, "Not all children at the interface have same material.");
             }
          }
+         //      } //uncomment for gresho amr 2D
       }
       neglob_preamr = neglob;
       neglob = pmesh->GetGlobalNE();
@@ -2150,6 +2155,10 @@ int main (int argc, char *argv[])
    if (worst_skew > 0.0)
    {
       solver.SetWorstSkewnessLimit(worst_skew*M_PI/180.0);
+   }
+   if (conv_residual)
+   {
+      solver.SetFittingConvergenceBasedOnResidual();
    }
 
    StopWatch TimeSolver;

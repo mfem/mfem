@@ -148,6 +148,7 @@ protected:
    mutable int max_adapt_inc_count = 10;
    mutable double weights_max_limit = 1e20;
    mutable double worst_skewness = 0.0;
+   bool surf_fit_converge_based_on_error = true;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -271,6 +272,10 @@ public:
    void SetWorstSkewnessLimit(double limit)
    {
       worst_skewness = limit;
+   }
+   void SetFittingConvergenceBasedOnResidual()
+   {
+      surf_fit_converge_based_on_error = false;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
