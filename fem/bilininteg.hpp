@@ -308,6 +308,10 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+   virtual void AssembleFaceMatrix(const FiniteElement &tr_el1, const FiniteElement &tr_el2, 
+                                   const FiniteElement &te_el1, const FiniteElement &te_el2, 
+                                   FaceElementTransformations &Trans, 
+                                   DenseMatrix &elmat); 
 
    using BilinearFormIntegrator::AssemblePA;
 

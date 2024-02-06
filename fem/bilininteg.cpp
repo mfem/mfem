@@ -251,6 +251,15 @@ void TransposeIntegrator::AssembleFaceMatrix (
    elmat.Transpose (bfi_elmat);
 }
 
+void TransposeIntegrator::AssembleFaceMatrix (
+   const FiniteElement &tr_el1, const FiniteElement &tr_el2, 
+   const FiniteElement &te_el1, const FiniteElement &te_el2, 
+   FaceElementTransformations &Trans, DenseMatrix &elmat) 
+{
+   bfi -> AssembleFaceMatrix(tr_el1, tr_el2, te_el1, te_el2, Trans, bfi_elmat); 
+   elmat.Transpose(bfi_elmat); 
+}
+
 void LumpedIntegrator::SetIntRule(const IntegrationRule *ir)
 {
    IntRule = ir;
