@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -892,14 +892,14 @@ public:
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
    { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -922,10 +922,12 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+
+   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+   ~ConstrainedOperator() override { if (own_A) { delete A; } }
 };
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on

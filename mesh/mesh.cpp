@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,7 +81,7 @@ void Mesh::GetElementCenter(int i, Vector &center)
    eltransf->Transform(Geometries.GetCenter(geom), center);
 }
 
-double Mesh::GetElementSize(ElementTransformation *T, int type)
+double Mesh::GetElementSize(ElementTransformation *T, int type) const
 {
    DenseMatrix J(spaceDim, Dim);
 
@@ -353,7 +353,8 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
 }
 
 
-void Mesh::GetElementTransformation(int i, IsoparametricTransformation *ElTr)
+void Mesh::GetElementTransformation(int i,
+                                    IsoparametricTransformation *ElTr) const
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
@@ -392,7 +393,7 @@ ElementTransformation *Mesh::GetElementTransformation(int i)
 }
 
 void Mesh::GetElementTransformation(int i, const Vector &nodes,
-                                    IsoparametricTransformation *ElTr)
+                                    IsoparametricTransformation *ElTr) const
 {
    ElTr->Attribute = GetAttribute(i);
    ElTr->ElementNo = i;
@@ -435,7 +436,8 @@ void Mesh::GetElementTransformation(int i, const Vector &nodes,
    }
 }
 
-void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
+void Mesh::GetBdrElementTransformation(int i,
+                                       IsoparametricTransformation* ElTr) const
 {
    ElTr->Attribute = GetBdrAttribute(i);
    ElTr->ElementNo = i; // boundary element number
@@ -473,22 +475,23 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          int elem_id, face_info;
          GetBdrElementAdjacentElement2(i, elem_id, face_info);
 
+         IntegrationPointTransformation Loc1;
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
-                                    FaceElemTr.Loc1.Transf, face_info);
-         // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
+                                    Loc1.Transf, face_info);
 
          Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
             Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
          MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
                      "Mesh requires nodal Finite Element.");
+
          IntegrationRule eir(face_el->GetDof());
-         FaceElemTr.Loc1.Transf.ElementNo = elem_id;
-         FaceElemTr.Loc1.Transf.mesh = this;
-         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
-         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
-         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
+         Loc1.Transf.ElementNo = elem_id;
+         Loc1.Transf.mesh = this;
+         Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         Loc1.Transform(face_el->GetNodes(), eir);
+         Nodes->GetVectorValues(Loc1.Transf, eir, pm);
 
          ElTr->SetFE(face_el);
       }
@@ -501,7 +504,8 @@ ElementTransformation *Mesh::GetBdrElementTransformation(int i)
    return &BdrTransformation;
 }
 
-void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
+void Mesh::GetFaceTransformation(int FaceNo,
+                                 IsoparametricTransformation *FTr) const
 {
    FTr->Attribute = (Dim == 1) ? 1 : faces[FaceNo]->GetAttribute();
    FTr->ElementNo = FaceNo;
@@ -545,15 +549,14 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
       }
       else // L2 Nodes (e.g., periodic mesh), go through the volume of Elem1
       {
-         FaceInfo &face_info = faces_info[FaceNo];
-
+         const FaceInfo &face_info = faces_info[FaceNo];
          Geometry::Type face_geom = GetFaceGeometry(FaceNo);
          Element::Type  face_type = GetFaceElementType(FaceNo);
 
+         IntegrationPointTransformation Loc1;
          GetLocalFaceTransformation(face_type,
                                     GetElementType(face_info.Elem1No),
-                                    FaceElemTr.Loc1.Transf, face_info.Elem1Inf);
-         // NOTE: FaceElemTr.Loc1 is overwritten here -- used as a temporary
+                                    Loc1.Transf, face_info.Elem1Inf);
 
          face_el = Nodes->FESpace()->GetTraceElement(face_info.Elem1No,
                                                      face_geom);
@@ -561,11 +564,11 @@ void Mesh::GetFaceTransformation(int FaceNo, IsoparametricTransformation *FTr)
                      "Mesh requires nodal Finite Element.");
 
          IntegrationRule eir(face_el->GetDof());
-         FaceElemTr.Loc1.Transf.ElementNo = face_info.Elem1No;
-         FaceElemTr.Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
-         FaceElemTr.Loc1.Transf.mesh = this;
-         FaceElemTr.Loc1.Transform(face_el->GetNodes(), eir);
-         Nodes->GetVectorValues(FaceElemTr.Loc1.Transf, eir, pm);
+         Loc1.Transf.ElementNo = face_info.Elem1No;
+         Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         Loc1.Transf.mesh = this;
+         Loc1.Transform(face_el->GetNodes(), eir);
+         Nodes->GetVectorValues(Loc1.Transf, eir, pm);
 
          FTr->SetFE(face_el);
       }
@@ -578,7 +581,8 @@ ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
    return &FaceTransformation;
 }
 
-void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
+void Mesh::GetEdgeTransformation(int EdgeNo,
+                                 IsoparametricTransformation *EdTr) const
 {
    if (Dim == 2)
    {
@@ -646,7 +650,7 @@ ElementTransformation *Mesh::GetEdgeTransformation(int EdgeNo)
 
 
 void Mesh::GetLocalPtToSegTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    const IntegrationRule *SegVert;
    DenseMatrix &locpm = Transf.GetPointMat();
@@ -661,7 +665,7 @@ void Mesh::GetLocalPtToSegTransformation(
 }
 
 void Mesh::GetLocalSegToTriTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    const int *tv, *so;
    const IntegrationRule *TriVert;
@@ -681,7 +685,7 @@ void Mesh::GetLocalSegToTriTransformation(
 }
 
 void Mesh::GetLocalSegToQuadTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    const int *qv, *so;
    const IntegrationRule *QuadVert;
@@ -701,7 +705,7 @@ void Mesh::GetLocalSegToQuadTransformation(
 }
 
 void Mesh::GetLocalTriToTetTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
    Transf.Reset();
@@ -725,7 +729,7 @@ void Mesh::GetLocalTriToTetTransformation(
 }
 
 void Mesh::GetLocalTriToWdgTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
    Transf.Reset();
@@ -751,7 +755,7 @@ void Mesh::GetLocalTriToWdgTransformation(
 }
 
 void Mesh::GetLocalTriToPyrTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
 
@@ -776,7 +780,7 @@ void Mesh::GetLocalTriToPyrTransformation(
 }
 
 void Mesh::GetLocalQuadToHexTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
    Transf.Reset();
@@ -798,7 +802,7 @@ void Mesh::GetLocalQuadToHexTransformation(
 }
 
 void Mesh::GetLocalQuadToWdgTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
    Transf.Reset();
@@ -822,7 +826,7 @@ void Mesh::GetLocalQuadToWdgTransformation(
 }
 
 void Mesh::GetLocalQuadToPyrTransformation(
-   IsoparametricTransformation &Transf, int i)
+   IsoparametricTransformation &Transf, int i) const
 {
    DenseMatrix &locpm = Transf.GetPointMat();
 
@@ -900,8 +904,9 @@ void Mesh::DeleteGeometricFactors()
    face_geom_factors.SetSize(0);
 }
 
-void Mesh::GetLocalFaceTransformation(
-   int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
+void Mesh::GetLocalFaceTransformation(int face_type, int elem_type,
+                                      IsoparametricTransformation &Transf,
+                                      int info) const
 {
    switch (face_type)
    {
@@ -968,47 +973,58 @@ void Mesh::GetLocalFaceTransformation(
 FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
                                                                 int mask)
 {
-   FaceInfo &face_info = faces_info[FaceNo];
+   GetFaceElementTransformations(FaceNo, FaceElemTr, Transformation,
+                                 Transformation2, mask);
+   return &FaceElemTr;
+}
+
+void Mesh::GetFaceElementTransformations(int FaceNo,
+                                         FaceElementTransformations &FElTr,
+                                         IsoparametricTransformation &ElTr1,
+                                         IsoparametricTransformation &ElTr2,
+                                         int mask) const
+{
+   const FaceInfo &face_info = faces_info[FaceNo];
 
    int cmask = 0;
-   FaceElemTr.SetConfigurationMask(cmask);
-   FaceElemTr.Elem1 = NULL;
-   FaceElemTr.Elem2 = NULL;
+   FElTr.SetConfigurationMask(cmask);
+   FElTr.Elem1 = NULL;
+   FElTr.Elem2 = NULL;
 
    // setup the transformation for the first element
-   FaceElemTr.Elem1No = face_info.Elem1No;
+   FElTr.Elem1No = face_info.Elem1No;
    if (mask & FaceElementTransformations::HAVE_ELEM1)
    {
-      GetElementTransformation(FaceElemTr.Elem1No, &Transformation);
-      FaceElemTr.Elem1 = &Transformation;
+      GetElementTransformation(FElTr.Elem1No, &ElTr1);
+      FElTr.Elem1 = &ElTr1;
       cmask |= 1;
    }
 
    //  setup the transformation for the second element
    //     return NULL in the Elem2 field if there's no second element, i.e.
    //     the face is on the "boundary"
-   FaceElemTr.Elem2No = face_info.Elem2No;
+   FElTr.Elem2No = face_info.Elem2No;
    if ((mask & FaceElementTransformations::HAVE_ELEM2) &&
-       FaceElemTr.Elem2No >= 0)
+       FElTr.Elem2No >= 0)
    {
 #ifdef MFEM_DEBUG
       if (NURBSext && (mask & FaceElementTransformations::HAVE_ELEM1))
       { MFEM_ABORT("NURBS mesh not supported!"); }
 #endif
-      GetElementTransformation(FaceElemTr.Elem2No, &Transformation2);
-      FaceElemTr.Elem2 = &Transformation2;
+      GetElementTransformation(FElTr.Elem2No, &ElTr2);
+      FElTr.Elem2 = &ElTr2;
       cmask |= 2;
    }
 
    // setup the face transformation
    if (mask & FaceElementTransformations::HAVE_FACE)
    {
-      GetFaceTransformation(FaceNo, &FaceElemTr);
+      GetFaceTransformation(FaceNo, &FElTr);
       cmask |= 16;
    }
    else
    {
-      FaceElemTr.SetGeometryType(GetFaceGeometry(FaceNo));
+      FElTr.SetGeometryType(GetFaceGeometry(FaceNo));
    }
 
    // setup Loc1 & Loc2
@@ -1017,42 +1033,86 @@ FaceElementTransformations *Mesh::GetFaceElementTransformations(int FaceNo,
    {
       int elem_type = GetElementType(face_info.Elem1No);
       GetLocalFaceTransformation(face_type, elem_type,
-                                 FaceElemTr.Loc1.Transf, face_info.Elem1Inf);
+                                 FElTr.Loc1.Transf, face_info.Elem1Inf);
       cmask |= 4;
    }
    if ((mask & FaceElementTransformations::HAVE_LOC2) &&
-       FaceElemTr.Elem2No >= 0)
+       FElTr.Elem2No >= 0)
    {
       int elem_type = GetElementType(face_info.Elem2No);
       GetLocalFaceTransformation(face_type, elem_type,
-                                 FaceElemTr.Loc2.Transf, face_info.Elem2Inf);
+                                 FElTr.Loc2.Transf, face_info.Elem2Inf);
 
       // NC meshes: prepend slave edge/face transformation to Loc2
       if (Nonconforming() && IsSlaveFace(face_info))
       {
-         ApplyLocalSlaveTransformation(FaceElemTr, face_info, false);
+         ApplyLocalSlaveTransformation(FElTr, face_info, false);
       }
       cmask |= 8;
    }
 
-   FaceElemTr.SetConfigurationMask(cmask);
+   FElTr.SetConfigurationMask(cmask);
 
    // This check can be useful for internal debugging, however it will fail on
    // periodic boundary faces, so we keep it disabled in general.
 #if 0
 #ifdef MFEM_DEBUG
-   double dist = FaceElemTr.CheckConsistency();
+   double dist = FElTr.CheckConsistency();
    if (dist >= 1e-12)
    {
       mfem::out << "\nInternal error: face id = " << FaceNo
                 << ", dist = " << dist << '\n';
-      FaceElemTr.CheckConsistency(1); // print coordinates
+      FElTr.CheckConsistency(1); // print coordinates
       MFEM_ABORT("internal error");
    }
 #endif
 #endif
+}
 
-   return &FaceElemTr;
+FaceElementTransformations *Mesh::GetInteriorFaceTransformations(int FaceNo)
+{
+   GetInteriorFaceTransformations(FaceNo, FaceElemTr, Transformation,
+                                  Transformation2);
+   return (FaceElemTr.geom == Geometry::INVALID) ? nullptr : &FaceElemTr;
+}
+
+void Mesh::GetInteriorFaceTransformations(int FaceNo,
+                                          FaceElementTransformations &FElTr,
+                                          IsoparametricTransformation &ElTr1,
+                                          IsoparametricTransformation &ElTr2) const
+{
+   if (faces_info[FaceNo].Elem2No < 0)
+   {
+      FElTr.SetGeometryType(Geometry::INVALID);
+      return;
+   }
+   GetFaceElementTransformations(FaceNo, FElTr, ElTr1, ElTr2);
+}
+
+FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
+{
+   GetBdrFaceTransformations(BdrElemNo, FaceElemTr, Transformation,
+                             Transformation2);
+   return (FaceElemTr.geom == Geometry::INVALID) ? nullptr : &FaceElemTr;
+}
+
+void Mesh::GetBdrFaceTransformations(int BdrElemNo,
+                                     FaceElementTransformations &FElTr,
+                                     IsoparametricTransformation &ElTr1,
+                                     IsoparametricTransformation &ElTr2) const
+{
+   // Check if the face is interior, shared, or nonconforming.
+   int fn = GetBdrElementFaceIndex(BdrElemNo);
+   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
+   {
+      FElTr.SetGeometryType(Geometry::INVALID);
+      return;
+   }
+   GetFaceElementTransformations(fn, FElTr, ElTr1, ElTr2, 21);
+   FElTr.Attribute = boundary[BdrElemNo]->GetAttribute();
+   FElTr.ElementNo = BdrElemNo;
+   FElTr.ElementType = ElementTransformation::BDR_FACE;
+   FElTr.mesh = this;
 }
 
 bool Mesh::IsSlaveFace(const FaceInfo &fi) const
@@ -1061,7 +1121,7 @@ bool Mesh::IsSlaveFace(const FaceInfo &fi) const
 }
 
 void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
-                                         const FaceInfo &fi, bool is_ghost)
+                                         const FaceInfo &fi, bool is_ghost) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix composition;
@@ -1097,24 +1157,6 @@ void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
       // the parent side.
       LT.SetPointMat(composition);
    }
-}
-
-FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
-{
-   FaceElementTransformations *tr;
-   int fn = GetBdrElementFaceIndex(BdrElemNo);
-
-   // Check if the face is interior, shared, or nonconforming.
-   if (FaceIsTrueInterior(fn) || faces_info[fn].NCFace >= 0)
-   {
-      return NULL;
-   }
-   tr = GetFaceElementTransformations(fn, 21);
-   tr->Attribute = boundary[BdrElemNo]->GetAttribute();
-   tr->ElementNo = BdrElemNo;
-   tr->ElementType = ElementTransformation::BDR_FACE;
-   tr->mesh = this;
-   return tr;
 }
 
 Mesh::FaceInformation Mesh::GetFaceInformation(int f) const
@@ -1413,6 +1455,7 @@ Geometry::Type Mesh::GetFaceGeometry(int Face) const
          }
          // ghost face
          const int nc_face_id = faces_info[Face].NCFace;
+
          MFEM_ASSERT(nc_face_id >= 0, "parent ghost faces are not supported");
          return faces[nc_faces_info[nc_face_id].MasterFace]->GetGeometryType();
    }
@@ -2047,9 +2090,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
-   for (int i = 0; i < boundary.Size(); i++)
+   for (auto &b : boundary)
    {
-      FreeElement(boundary[i]);
+      FreeElement(b);
    }
 
    if (Dim == 3)
@@ -2060,9 +2103,9 @@ void Mesh::GenerateBoundaryElements()
 
    // count the 'NumOfBdrElements'
    NumOfBdrElements = 0;
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (const auto &fi : faces_info)
    {
-      if (faces_info[i].Elem2No < 0) { NumOfBdrElements++; }
+      if (fi.Elem2No < 0) { ++NumOfBdrElements; }
    }
 
    // Add the boundary elements
@@ -4828,7 +4871,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    MakeRefined_(*orig_mesh, ref_factors, ref_type);
 }
 
-void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> ref_factors,
+void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
                         int ref_type)
 {
    SetEmpty();
@@ -6683,22 +6726,22 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
             {
                // swap vertices 0 and 1 so that we don't change the marked edge:
                // (0,1,2) -> (1,0,2)
-               mfem::Swap<int>(bv[0], bv[1]);
+               mfem::Swap(bv[0], bv[1]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[1], be[2]);
+                  mfem::Swap(be[1], be[2]);
                }
                break;
             }
             case Element::QUADRILATERAL:
             {
-               mfem::Swap<int>(bv[0], bv[2]);
+               mfem::Swap(bv[0], bv[2]);
                if (bel_to_edge)
                {
                   int *be = bel_to_edge->GetRow(i);
-                  mfem::Swap<int>(be[0], be[1]);
-                  mfem::Swap<int>(be[2], be[3]);
+                  mfem::Swap(be[0], be[1]);
+                  mfem::Swap(be[2], be[3]);
                }
                break;
             }
@@ -7503,26 +7546,27 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
 
 void Mesh::GenerateFaces()
 {
-   int i, nfaces = GetNumFaces();
+   int nfaces = GetNumFaces();
 
-   for (i = 0; i < faces.Size(); i++)
+   for (auto &f : faces)
    {
-      FreeElement(faces[i]);
+      FreeElement(f);
    }
 
    // (re)generate the interior faces and the info for them
    faces.SetSize(nfaces);
    faces_info.SetSize(nfaces);
-   for (i = 0; i < nfaces; i++)
+   for (int i = 0; i < nfaces; ++i)
    {
       faces[i] = NULL;
       faces_info[i].Elem1No = -1;
       faces_info[i].NCFace = -1;
    }
-   for (i = 0; i < NumOfElements; i++)
+
+   Array<int> v;
+   for (int i = 0; i < NumOfElements; ++i)
    {
-      const int *v = elements[i]->GetVertices();
-      const int *ef;
+      elements[i]->GetVertices(v);
       if (Dim == 1)
       {
          AddPointFaceElement(0, v[0], i);
@@ -7530,7 +7574,7 @@ void Mesh::GenerateFaces()
       }
       else if (Dim == 2)
       {
-         ef = el_to_edge->GetRow(i);
+         const int * const ef = el_to_edge->GetRow(i);
          const int ne = elements[i]->GetNEdges();
          for (int j = 0; j < ne; j++)
          {
@@ -7540,7 +7584,7 @@ void Mesh::GenerateFaces()
       }
       else
       {
-         ef = el_to_face->GetRow(i);
+         const int * const ef = el_to_face->GetRow(i);
          switch (GetElementType(i))
          {
             case Element::TETRAHEDRON:
@@ -7606,9 +7650,9 @@ void Mesh::GenerateNCFaceInfo()
 {
    MFEM_VERIFY(ncmesh, "missing NCMesh.");
 
-   for (int i = 0; i < faces_info.Size(); i++)
+   for (auto &x : faces_info)
    {
-      faces_info[i].NCFace = -1;
+      x.NCFace = -1;
    }
 
    const NCMesh::NCList &list =
@@ -7620,9 +7664,8 @@ void Mesh::GenerateNCFaceInfo()
    int nfaces = GetNumFaces();
 
    // add records for master faces
-   for (int i = 0; i < list.masters.Size(); i++)
+   for (const NCMesh::Master &master : list.masters)
    {
-      const NCMesh::Master &master = list.masters[i];
       if (master.index >= nfaces) { continue; }
 
       FaceInfo &master_fi = faces_info[master.index];
@@ -7634,10 +7677,8 @@ void Mesh::GenerateNCFaceInfo()
    }
 
    // add records for slave faces
-   for (int i = 0; i < list.slaves.Size(); i++)
+   for (const NCMesh::Slave &slave : list.slaves)
    {
-      const NCMesh::Slave &slave = list.slaves[i];
-
       if (slave.index < 0 || // degenerate slave face
           slave.index >= nfaces || // ghost slave
           slave.master >= nfaces) // has ghost master
@@ -7728,7 +7769,7 @@ STable3D *Mesh::GetFacesTable()
 
 STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 {
-   int i, *v;
+   Array<int> v;
    STable3D *faces_tbl;
 
    if (el_to_face != NULL)
@@ -7737,9 +7778,9 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    }
    el_to_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
    faces_tbl = new STable3D(NumOfVertices);
-   for (i = 0; i < NumOfElements; i++)
+   for (int i = 0; i < NumOfElements; i++)
    {
-      v = elements[i]->GetVertices();
+      elements[i]->GetVertices(v);
       switch (GetElementType(i))
       {
          case Element::TETRAHEDRON:
@@ -7803,9 +7844,10 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    el_to_face->Finalize();
    NumOfFaces = faces_tbl->NumberOfElements();
    be_to_face.SetSize(NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
+
+   for (int i = 0; i < NumOfBdrElements; i++)
    {
-      v = boundary[i]->GetVertices();
+      boundary[i]->GetVertices(v);
       switch (GetBdrElementType(i))
       {
          case Element::TRIANGLE:
@@ -10883,7 +10925,7 @@ int Mesh::FindCoarseElement(int i)
    return coarse;
 }
 
-const CoarseFineTransformations& Mesh::GetRefinementTransforms()
+const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
 {
    MFEM_VERIFY(GetLastOperation() == Mesh::REFINE, "");
 

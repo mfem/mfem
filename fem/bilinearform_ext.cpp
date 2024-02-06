@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -255,9 +255,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
    if ( Device::Allows(Backend::CEED_MASK) ) { return; }
-   ElementDofOrdering ordering = UsesTensorBasis(*a->FESpace())?
-                                 ElementDofOrdering::LEXICOGRAPHIC:
-                                 ElementDofOrdering::NATIVE;
+   ElementDofOrdering ordering = GetEVectorOrdering(*a->FESpace());
    elem_restrict = trial_fes->GetElementRestriction(ordering);
    if (elem_restrict)
    {
