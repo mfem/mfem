@@ -405,21 +405,18 @@ public:
        details, see the PETSc Manual.*/
    virtual void ImplicitMult(const Vector &x, const Vector &k, Vector &y) const;
 
-   /** @brief Perform the action of the operator: @a y = k = f(@a x, t), where
-       k solves the algebraic equation F(@a x, k, t) = G(@a x, t) and t is the
-       current time. */
+   /** @brief Perform the action of the explicit part of the operator, G:
+       @a y = G(@a x, t) where t is the current time.
+
+       For solving an ordinary differential equation of the form
+       \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
+       the following:
+       1. F(x,k,t) = k and G(x,t) = inv(M) g(x,t)
+       2. F(x,k,t) = M k and G(x,t) = g(x,t)
+       This function then computes one of the following:
+       1. @a y = inv(M) g(@a x, t)
+       2. @a y = g(@a x, t) */
    virtual void Mult(const Vector &x, Vector &y) const;
-
-   /** @brief Solve the equation: @a k = f(@a x + @a dt @a k, t), for the
-       unknown @a k at the current time t.
-
-       For general F and G, the equation for @a k becomes:
-       F(@a x + @a dt @a k, @a k, t) = G(@a x + @a dt @a k, t).
-
-       The input vector @a x corresponds to time index (or cycle) n, while the
-       currently set time, #t, and the result vector @a k correspond to time
-       index n+1. The time step @a dt corresponds to the time interval between
-       cycles n and n+1.
 
        This method allows for the abstract implementation of some time
        integration methods, including diagonal implicit Runge-Kutta (DIRK)
