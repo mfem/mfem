@@ -350,14 +350,14 @@ protected:
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
-   /** @brief Construct a "square" TimeDependentOperator y = f(x,t), where x and
-       y have the same dimension @a n. */
+   /** @brief Construct a "square" TimeDependentOperator F(x,k,t) = G(x,t),
+       where x and k have the same dimension @a n. */
    explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
                                   Type type_ = EXPLICIT)
       : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
-   /** @brief Construct a TimeDependentOperator y = f(x,t), where x and y have
-       dimensions @a w and @a h, respectively. */
+   /** @brief Construct a TimeDependentOperator F(x,k,t) = G(x,t), where x and k
+       have dimensions @a w and @a h, respectively. */
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
 
@@ -381,8 +381,8 @@ public:
    /** The evaluation mode is a switch that allows time-stepping methods to
        request evaluation of separate components/terms of the time-dependent
        operator. For example, IMEX methods typically assume additive split of
-       the operator: f(x,t) = f1(x,t) + f2(x,t) and they rely on the ability to
-       evaluate the two terms separately.
+       the operator: G(x,t) = G1(x,t) + G2(x,t) and they rely on the ability to
+       evaluate F(x,k,t) = G1(x,t) and F(x,k,t) = G2(x,t) separately.
 
        Generally, setting the evaluation mode should affect the behavior of all
        evaluation-related methods in the class, such as Mult(), ImplicitSolve(),
