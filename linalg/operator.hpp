@@ -418,12 +418,25 @@ public:
        2. @a y = g(@a x, t) */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-       This method allows for the abstract implementation of some time
-       integration methods, including diagonal implicit Runge-Kutta (DIRK)
-       methods and the backward Euler method in particular.
+   /** @brief Solve for unknown @a k at current time t that satisfies
+       F(@a x + @a gamma @a k, @a k, t) = G(@a x + @a gamma @a k, t).
+
+       For solving an ordinary differential equation of the form
+       \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
+       the following:
+       1. F(x,k,t) = k and G(x,t) = inv(M) g(x,t)
+       2. F(x,k,t) = M k and G(x,t) = g(x,t)
+       In either case, this function solves for @a k in
+       M @a k = g(@a x + @a gamma @a k, t). To see how @a k can be useful,
+       consider a diagonally implicit Runge-Kutta (DIRK) method defined by
+       \f$ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i \f$ where
+       \f$ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j \big) \f$.
+       A DIRK integrator can use @a k from this function, with @a x set to
+       \f$ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j \f$ and @a gamma set to
+       \f$ a_{ii} \Delta t \f$, for \f$ k_i \f$.
 
        If not re-implemented, this method simply generates an error. */
-   virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
+   virtual void ImplicitSolve(const double gamma, const Vector &x, Vector &k);
 
    /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
        given @a x, @a k, and the currently set time.
