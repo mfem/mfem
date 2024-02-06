@@ -326,7 +326,7 @@ class TimeDependentOperator : public Operator
 public:
    enum Type
    {
-      EXPLICIT,   ///< This type assumes F(x,k,t) = k, i.e. k = f(x,t) = G(x,t).
+      EXPLICIT,   ///< This type assumes F(x,k,t) is linear in k.
       IMPLICIT,   ///< This is the most general type, no assumptions on F and G.
       HOMOGENEOUS ///< This type assumes that G(x,t) = 0.
    };
@@ -336,11 +336,11 @@ public:
    {
       /** Normal evaluation. */
       NORMAL,
-      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
-          first term, f1. */
+      /** Assuming additive split, G(x,t) = G1(x,t) + G2(x,t), evaluate with
+          F(x,k,t) = G1(x,t). */
       ADDITIVE_TERM_1,
-      /** Assuming additive split, f(x,t) = f1(x,t) + f2(x,t), evaluate the
-          second term, f2. */
+      /** Assuming additive split, G(x,t) = G1(x,t) + G2(x,t), evaluate with
+          F(x,k,t) = G2(x,t). */
       ADDITIVE_TERM_2
    };
 
