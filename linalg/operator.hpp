@@ -309,10 +309,18 @@ public:
 
 
 /// Base abstract class for first order time dependent operators.
-/** Operator of the form: (x,t) -> f(x,t), where k = f(x,t) generally solves the
+/** Operator of the form: (x,t) -> k(x,t), where k generally solves the
     algebraic equation F(x,k,t) = G(x,t). The functions F and G represent the
-    _implicit_ and _explicit_ parts of the operator, respectively. For explicit
-    operators, F(x,k,t) = k, so f(x,t) = G(x,t). */
+    _implicit_ and _explicit_ parts of the operator, respectively.
+
+    A common use for this class is representing a differential algebraic
+    equation of the form \f$ F(y,\frac{dy}{dt},t) = G(y,t) \f$. As an example,
+    consider an ordinary differential equation of the form
+    \f$ M \frac{dy}{dt} = g(y,t) \f$: F and G are defined as one of the
+    following:
+    1. F(x,k,t) = k and G(x,t) = inv(M) x
+    2. F(x,k,t) = M k and G(x,t) = g(x,t)
+    */
 class TimeDependentOperator : public Operator
 {
 public:
