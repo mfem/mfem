@@ -107,7 +107,7 @@ double proj(ParGridFunction &psi, double target_volume, double tol=1e-12,
    return material_volume;
 }
 
-/**
+/*
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
  * ---------------------------------------------------------------
