@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -490,6 +490,10 @@ public:
 
    void GenerateOffsets(int N, HYPRE_BigInt loc_sizes[],
                         Array<HYPRE_BigInt> *offsets[]) const;
+
+   /** Return true if the face is interior or shared. In parallel, this
+       method only works if the face neighbor data is exchanged. */
+   inline bool FaceIsTrueInterior(int FaceNo) const { return Mesh::FaceIsTrueInterior(FaceNo); }
 
    void ExchangeFaceNbrData();
    void ExchangeFaceNbrNodes();

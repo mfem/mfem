@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -166,7 +166,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
    E_To_Q_Map->PhysDerivatives(x, QVec);
 
    const int numPoints = ir.GetNPoints();
-   const int numEls = lambda.Size()/numPoints;
+   const int numEls = fespace.GetNE();
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
@@ -246,7 +246,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
 
    // Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(QVec.Read(), numPoints, d, qSize, numEls);
-   const auto G = Reshape(maps.G.Read(), numPoints, d, numEls);
+   const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto yDev = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
    mfem::forall_2D(numEls, qSize, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -324,7 +324,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    //Reduce quadrature function to an E-Vector
    const auto QRead = Reshape(QVec.Read(), numPoints, d, d, d, numEls);
    auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
-   const auto G = Reshape(maps.G.Read(), numPoints, d, numEls);
+   const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    mfem::forall_2D(numEls, d, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(i, y, nDofs)
