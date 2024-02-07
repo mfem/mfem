@@ -189,8 +189,6 @@ protected:
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
 
-   void SaveSurfaceFittingWeight() const;
-
    /// Get the surface fitting weight for all the TMOP integrators.
    void GetSurfaceFittingWeight(Array<double> &weights) const;
    ///@}

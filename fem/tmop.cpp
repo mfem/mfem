@@ -2959,8 +2959,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                     *s0.FESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-
-   SaveSurfaceFittingWeight();
 }
 
 void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
@@ -3014,8 +3012,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
    surf_fit_gf_bg = false;
-
-   SaveSurfaceFittingWeight();
 
    // Unify marker array across processor boundaries
    {
@@ -3231,8 +3227,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
          surf_fit_marker_dof_index.Append(i);
       }
    }
-
-   SaveSurfaceFittingWeight();
 }
 
 void TMOP_Integrator::ReMapSurfaceFittingLevelSet(ParGridFunction &s0)
@@ -4523,16 +4517,6 @@ double TMOP_Integrator::GetSurfaceFittingWeight()
       return cf->constant;
    }
    return 0.0;
-}
-
-void TMOP_Integrator::SaveSurfaceFittingWeight()
-{
-   if (surf_fit_coeff)
-   {
-      auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-      MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
-      last_active_surf_fit_const = cf->constant;
-   }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)

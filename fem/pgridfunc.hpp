@@ -268,10 +268,6 @@ public:
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      const Array<int> &bdr_attr) override;
 
-   // Perform group communicator operations.
-   // op=0 (Sum), 1 (Min), 2 (Max), 3 (BitOR)
-   virtual void GroupCommunicatorOp(int op);
-
    double ComputeL1Error(Coefficient *exsol[],
                          const IntegrationRule *irs[] = NULL) const override
    {

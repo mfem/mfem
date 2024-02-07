@@ -1790,7 +1790,6 @@ protected:
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
-   double last_active_surf_fit_const;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2161,21 +2160,6 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
-                                double &err_avg, double &err_max);
-   bool IsSurfaceFittingEnabled()
-   {
-      return surf_fit_gf != NULL || surf_fit_pos != NULL;
-   }
-
-   void UpdateSurfaceFittingCoefficient(Coefficient &coeff)
-   {
-      surf_fit_coeff = &coeff;
-   };
-
-   /// Remap the surface fitting level-set function to the provided GridFunction
-   /// Assumes @a s0 and mesh nodes share the same finite element space.
-   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -2255,15 +2239,33 @@ public:
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 
+   // Methods related to surface fitting
+
+   /// Get avg and max surface fitting errors.
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                double &err_avg, double &err_max);
+
+   /// Check if surface fitting is enabled
+   bool IsSurfaceFittingEnabled()
+   {
+      return surf_fit_gf != NULL || surf_fit_pos != NULL;
+   }
+
+   /// Update surface fitting coefficient
+   void UpdateSurfaceFittingCoefficient(Coefficient &coeff)
+   {
+      surf_fit_coeff = &coeff;
+   };
+
+   /// Remap the surface fitting level-set function to the provided GridFunction
+   /// Assumes @a s0 and mesh nodes share the same finite element space.
+   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
+
    /// Update the surface fitting weight as surf_fit_coeff *= factor;
    void UpdateSurfaceFittingWeight(double factor);
 
    /// Get the surface fitting weight.
    double GetSurfaceFittingWeight();
-
-   double GetLastActiveSurfaceFittingWeight() { return last_active_surf_fit_const; };
-
-   void SaveSurfaceFittingWeight();
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
