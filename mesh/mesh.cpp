@@ -902,6 +902,8 @@ void Mesh::DeleteGeometricFactors()
       delete face_geom_factors[i];
    }
    face_geom_factors.SetSize(0);
+
+   ++nodes_sequence;
 }
 
 void Mesh::GetLocalFaceTransformation(int face_type, int elem_type,
@@ -1489,6 +1491,7 @@ void Mesh::Init()
    nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
+   nodes_sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
    NURBSext = NULL;
@@ -4092,6 +4095,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Create the new Mesh instance without a record of its refinement history
    sequence = 0;
+   nodes_sequence = 0;
    last_operation = Mesh::NONE;
 
    // Duplicate the elements
