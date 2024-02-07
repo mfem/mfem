@@ -220,9 +220,8 @@ int main(int argc, char *argv[])
       pd->RegisterField("state", &u);
       pd->RegisterField("rho", &density.GetGridFunction());
       pd->RegisterField("frho", &rho_filter);
-      pd->SetLevelsOfDetail(order);
+      pd->SetLevelsOfDetail(order + 3);
       pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0);
       pd->Save();

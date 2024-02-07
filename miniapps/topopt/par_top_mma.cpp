@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
    // Volume fraction. Use problem-dependent default value if not provided.
    // See switch statements below
    double vol_fraction = -1;
-   int max_it = 2e2;
+   int max_it = 2e3;
    double rho_min = 1e-06;
    double exponent = 3.0;
    double E = 1.0;
@@ -165,9 +165,9 @@ int main(int argc, char *argv[])
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          false);
 
-   ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
-   ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
-                                 (&density.GetFilteredDensity());
+   ParGridFunction &u = dynamic_cast<ParGridFunction&>(optprob.GetState());
+   ParGridFunction &rho_filter = dynamic_cast<ParGridFunction&>
+                                 (density.GetFilteredDensity());
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -238,9 +238,9 @@ int main(int argc, char *argv[])
                 << "Start Method of Moving Assymptote Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double volume(density.GetDomainVolume()*vol_fraction),
-          stationarityError(infinity());
+   double volume(density.ComputeVolume()), stationarityError(infinity());
    double old_compliance;
+   double target_volume = volume;
 
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
@@ -255,16 +255,18 @@ int main(int argc, char *argv[])
       double a=0.0;
       double c=1000.0;
       double d=0.0;
-      mma = new mfem::NativeMMA(pmesh->GetComm(), 1, grad,&a,&c,&d);
+      mma = new mfem::NativeMMA(pmesh->GetComm(), 1, grad, &a, &c, &d);
    }
    bool converged = false;
    density.ComputeVolume();
-   ParGridFunction lower(rho), upper(rho), ograd(rho), dv(&control_fes);
-   for (int i=0; i<pmesh->GetNE(); i++) { dv[i] = pmesh->GetElementVolume(i); }
-   dv *= 1.0 / (density.GetDomainVolume()*vol_fraction);
+   ParGridFunction lower(rho), upper(rho), ograd(rho), one(&control_fes),
+                   dv(&control_fes);
    ParBilinearForm mass(&control_fes);
    mass.AddDomainIntegrator(new MassIntegrator());
    mass.Assemble();
+   one = 1.0;
+   mass.Mult(one, dv);
+   dv /= target_volume;
    double mv = 0.2;
    for (int k = 0; k < max_it; k++)
    {
@@ -274,13 +276,16 @@ int main(int argc, char *argv[])
 
       lower = rho; lower -= mv; lower.Clip(0, 1);
       upper = rho; upper += mv; upper.Clip(0, 1);
-      double con = density.GetVolume()  / (density.GetDomainVolume()*vol_fraction) -
-                   1.0;
+      double con = density.GetVolume() / target_volume - 1.0;
       mass.Mult(grad, ograd);
       mma->Update(rho, ograd, &con, &dv, lower, upper);
       volume = density.ComputeVolume();
       compliance = optprob.Eval();
       optprob.UpdateGradient();
+
+      // Check convergence
+      stationarityError = density.StationarityError(grad);
+      logger.Print();
 
       // Step 4. Visualization
       if (glvis_visualization)
@@ -309,11 +314,6 @@ int main(int argc, char *argv[])
          pd->SetTime(k);
          pd->Save();
       }
-
-      // Check convergence
-      stationarityError = density.StationarityError(grad);
-
-      logger.Print();
 
       if (stationarityError < tol_stationarity &&
           std::fabs(old_compliance - compliance) < tol_compliance)
