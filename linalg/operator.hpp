@@ -926,7 +926,7 @@ public:
 
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
 
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
     *  TODO - Generalize to allow constraining rows and columns differently.
