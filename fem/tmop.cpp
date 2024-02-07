@@ -3228,6 +3228,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
       }
    }
 }
+#endif
 
 void TMOP_Integrator::ReMapSurfaceFittingLevelSet(GridFunction &s0)
 {
@@ -3350,7 +3351,6 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
    }
 }
-#endif
 
 void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
                                               double &err_avg, double &err_max)
