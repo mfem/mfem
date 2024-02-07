@@ -314,10 +314,9 @@ public:
     _implicit_ and _explicit_ parts of the operator, respectively.
 
     A common use for this class is representing a differential algebraic
-    equation of the form \f$ F(y,\frac{dy}{dt},t) = G(y,t) \f$. As an example,
-    consider an ordinary differential equation of the form
-    \f$ M \frac{dy}{dt} = g(y,t) \f$: F and G are defined as one of the
-    following:
+    equation of the form \f$ F(y,\frac{dy}{dt},t) = G(y,t) \f$. Consider an
+    ordinary differential equation of the form \f$ M \frac{dy}{dt} = g(y,t) \f$,
+    where F and G are defined as one of the following:
     1. F(x,k,t) = k and G(x,t) = inv(M) x
     2. F(x,k,t) = M k and G(x,t) = g(x,t)
     */
@@ -350,13 +349,13 @@ protected:
    EvalMode eval_mode; ///< Current evaluation mode.
 
 public:
-   /** @brief Construct a "square" TimeDependentOperator F(x,k,t) = G(x,t),
-       where x and k have the same dimension @a n. */
+   /** @brief Construct a "square" TimeDependentOperator (x,t) -> k(x,t), where
+       x and k have the same dimension @a n. */
    explicit TimeDependentOperator(int n = 0, double t_ = 0.0,
                                   Type type_ = EXPLICIT)
       : Operator(n) { t = t_; type = type_; eval_mode = NORMAL; }
 
-   /** @brief Construct a TimeDependentOperator F(x,k,t) = G(x,t), where x and k
+   /** @brief Construct a TimeDependentOperator (x,t) -> k(x,t), where x and k
        have dimensions @a w and @a h, respectively. */
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; eval_mode = NORMAL; }
@@ -413,10 +412,11 @@ public:
        the following:
        1. F(x,k,t) = k and G(x,t) = inv(M) g(x,t)
        2. F(x,k,t) = M k and G(x,t) = g(x,t)
+
        This function then computes one of the following:
        1. @a y = inv(M) g(@a x, t)
        2. @a y = g(@a x, t) */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Solve for unknown @a k at current time t that satisfies
        F(@a x + @a gamma @a k, @a k, t) = G(@a x + @a gamma @a k, t).
@@ -426,11 +426,12 @@ public:
        the following:
        1. F(x,k,t) = k and G(x,t) = inv(M) g(x,t)
        2. F(x,k,t) = M k and G(x,t) = g(x,t)
+
        In either case, this function solves for @a k in
        M @a k = g(@a x + @a gamma @a k, t). To see how @a k can be useful,
        consider a diagonally implicit Runge-Kutta (DIRK) method defined by
        \f$ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i \f$ where
-       \f$ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j \big) \f$.
+       \f$ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j, t + c_i \Delta t \big) \f$.
        A DIRK integrator can use @a k from this function, with @a x set to
        \f$ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j \f$ and @a gamma set to
        \f$ a_{ii} \Delta t \f$, for \f$ k_i \f$.
@@ -458,9 +459,11 @@ public:
        the following:
        1. F(x,k,t) = k and G(x,t) = inv(M) g(x,t)
        2. F(x,k,t) = M k and G(x,t) = g(x,t)
+
        This function performs setup to solve \f$ A x = b \f$ where A is either
        1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
        2. A(@a y,t) = M - @a gamma J(@a y,t)
+
        with J = dg/dy (or a reasonable approximation thereof).
 
        @param[in]  y     The state at which A(@a y,t) should be evaluated.
