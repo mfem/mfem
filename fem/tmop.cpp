@@ -3229,7 +3229,7 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    }
 }
 
-void TMOP_Integrator::ReMapSurfaceFittingLevelSet(ParGridFunction &s0)
+void TMOP_Integrator::ReMapSurfaceFittingLevelSet(GridFunction &s0)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
    //Remap back to the current mesh right away

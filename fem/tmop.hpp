@@ -2259,7 +2259,7 @@ public:
 
    /// Remap the surface fitting level-set function to the provided GridFunction
    /// Assumes @a s0 and mesh nodes share the same finite element space.
-   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
+   void ReMapSurfaceFittingLevelSet(GridFunction &s0);
 
    /// Update the surface fitting weight as surf_fit_coeff *= factor;
    void UpdateSurfaceFittingWeight(double factor);
