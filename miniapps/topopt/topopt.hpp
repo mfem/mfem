@@ -175,6 +175,7 @@ class DesignDensity
 public:
 protected:
    std::unique_ptr<GridFunction> x_gf;
+   std::unique_ptr<GridFunction> tmp_gf;
    std::unique_ptr<GridFunction> frho;
    std::unique_ptr<Coefficient> rho_cf;
    DensityFilter &filter;
@@ -203,7 +204,7 @@ public:
    DensityFilter &GetFilter() { return filter; }
 
    virtual void Project() = 0;
-   virtual double StationarityError(GridFunction &grad) = 0;
+   virtual double StationarityError(const GridFunction &grad) = 0;
    virtual double ComputeVolume() = 0;
    virtual std::unique_ptr<Coefficient> GetDensityDiffCoeff(
       GridFunction &other_gf) = 0;
@@ -252,13 +253,13 @@ public:
    SigmoidDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                         double vol_frac);
    void Project() override;
-   double StationarityError(GridFunction &grad) override
+   double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
    };
-   double StationarityError(GridFunction &grad, bool useL2norm);
+   double StationarityError(const GridFunction &grad, bool useL2norm);
    double StationarityErrorL2(GridFunction &grad);
-   double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
+   double ComputeBregmanDivergence(GridFunction &p, GridFunction &q,
                                    double log_tol=1e-13);
    double ComputeVolume() override
    {
@@ -289,13 +290,13 @@ public:
    ExponentialDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                             double vol_frac);
    void Project() override;
-   double StationarityError(GridFunction &grad) override
+   double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
    };
-   double StationarityError(GridFunction &grad, bool useL2norm);
+   double StationarityError(const GridFunction &grad, bool useL2norm);
    double StationarityErrorL2(GridFunction &grad);
-   double ComputeBregmanDivergence(GridFunction *p, GridFunction *q,
+   double ComputeBregmanDivergence(GridFunction &p, GridFunction &q,
                                    double log_tol=1e-13);
    double ComputeVolume() override
    {
@@ -334,13 +335,13 @@ public:
                        std::function<double(double)> dual2primal,
                        bool clip_lower=false, bool clip_upper=false);
    void Project() override;
-   double StationarityError(GridFunction &grad) override
+   double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
    };
-   double StationarityError(GridFunction &grad, bool useL2norm);
+   double StationarityError(const GridFunction &grad, bool useL2norm);
    double StationarityErrorL2(GridFunction &grad);
-   double ComputeBregmanDivergence(GridFunction *p, GridFunction *q);
+   double ComputeBregmanDivergence(GridFunction &p, GridFunction &q);
    double ComputeVolume() override
    {
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
@@ -369,7 +370,7 @@ public:
    PrimalDesignDensity(FiniteElementSpace &fes, DensityFilter& filter,
                        double vol_frac);
    void Project() override;
-   double StationarityError(GridFunction &grad) override;
+   double StationarityError(const GridFunction &grad) override;
    double ComputeVolume() override
    {
       current_volume = zero_gf->ComputeL1Error(*rho_cf);
@@ -554,53 +555,6 @@ public:
    std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
                                            GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new IsoStrainEnergyDensityCoefficient(E, nu, u, dual_solution, projector, frho)); }
-protected:
-   void SolveSystem(GridFunction &x) override
-   {
-      EllipticSolver solver(*a, *b, ess_bdr);
-      solver.SetIterativeMode();
-      bool converged = solver.Solve(x, AisStationary, BisStationary);
-      if (!converged)
-      {
-#ifdef MFEM_USE_MPI
-         if (!Mpi::IsInitialized() || Mpi::Root())
-         {
-            out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
-                std::endl;
-         }
-#else
-         out << "ParametrizedElasticityEquation::SolveSystem Failed to Converge." <<
-             std::endl;
-#endif
-      }
-   }
-private:
-};
-
-class ParametrizedCompliantMechanismEquation : public ParametrizedLinearEquation
-{
-public:
-protected:
-   Coefficient &lambda;
-   Coefficient &mu;
-   GridFunction &filtered_density;
-   ProductCoefficient phys_lambda;
-   ProductCoefficient phys_mu;
-   VectorCoefficient &f;
-private:
-
-public:
-   ParametrizedCompliantMechanismEquation(FiniteElementSpace &fes,
-                                          GridFunction &filtered_density,
-                                          DensityProjector &projector,
-                                          Coefficient &lambda, Coefficient &mu,
-                                          VectorCoefficient &input_d, VectorCoefficient &output_d,
-                                          double &input_spring, double &output_spring,
-                                          int &input_bdr_idx, int &outputbdr_idx,
-                                          Array2D<int> &ess_bdr);
-   std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
-                                           GridFunction &dual_solution, GridFunction &frho) override
-   { return std::unique_ptr<Coefficient>(new StrainEnergyDensityCoefficient(lambda, mu, u, dual_solution, projector, frho)); }
 protected:
    void SolveSystem(GridFunction &x) override
    {

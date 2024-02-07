@@ -379,6 +379,7 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
      vol_tol(volume_tolerance)
 {
    x_gf.reset(MakeGridFunction(&fes));
+   tmp_gf.reset(MakeGridFunction(&fes));
    {
       Mesh * mesh = fes.GetMesh();
       domain_volume = 0.0;
@@ -458,7 +459,7 @@ SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
 void SigmoidDesignDensity::Project()
 {
    ComputeVolume();
-   if (std::fabs(current_volume - target_volume) > vol_tol)
+   if (current_volume > target_volume)
    {
       double inv_sig_vol_fraction = inv_sigmoid(target_volume_fraction);
       double c_l = inv_sig_vol_fraction - x_gf->Max();
@@ -478,42 +479,41 @@ void SigmoidDesignDensity::Project()
       {
          dc *= 0.5;
          ComputeVolume();
-         if (fabs(current_volume - target_volume) < vol_tol) { break; }
+         if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
       }
    }
 }
 
-double SigmoidDesignDensity::StationarityError(GridFunction &grad,
+double SigmoidDesignDensity::StationarityError(const GridFunction &grad,
                                                bool useL2norm)
 {
-   std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
-   *x_gf_backup = *x_gf;
+   *tmp_gf = *x_gf;
    double volume_backup = current_volume;
    *x_gf -= grad;
    Project();
    double d;
    if (useL2norm)
    {
-      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*x_gf_backup);
+      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*tmp_gf);
       d = zero_gf->ComputeL2Error(*rho_diff);
    }
    else
    {
-      d = ComputeBregmanDivergence(x_gf.get(), x_gf_backup.get());
+      d = ComputeBregmanDivergence(*x_gf, *tmp_gf);
    }
    // Restore solution and recompute volume
-   *x_gf = *x_gf_backup;
+   *x_gf = *tmp_gf;
    current_volume = volume_backup;
    return d;
 }
-double SigmoidDesignDensity::ComputeBregmanDivergence(GridFunction *p,
-                                                      GridFunction *q, double epsilon)
+double SigmoidDesignDensity::ComputeBregmanDivergence(GridFunction &p,
+                                                      GridFunction &q, double epsilon)
 {
    // Define safe x*log(x) to avoid log(0)
    const double log_eps = std::log(epsilon);
    auto safe_xlogy = [epsilon, log_eps](double x, double y) {return x < epsilon ? 0.0 : y < epsilon ? x*log_eps : x*std::log(y); };
-   MappedPairGridFunctionCoeffitient Dh(p, q, [safe_xlogy](double x, double y)
+   MappedPairGridFunctionCoeffitient Dh(&p, &q, [safe_xlogy](double x, double y)
    {
       const double p = sigmoid(x);
       const double q = sigmoid(y);
@@ -547,7 +547,7 @@ double SigmoidDesignDensity::StationarityErrorL2(GridFunction &grad)
    {
       c = 0.5 * (c_l + c_r);
       double vol = zero_gf->ComputeL1Error(projected_rho);
-      if (fabs(vol - target_volume) < vol_tol) { break; }
+      if (std::fabs(vol - target_volume) < vol_tol) { break; }
 
       if (vol > target_volume) { c_r = c; }
       else { c_l = c; }
@@ -572,7 +572,7 @@ ExponentialDesignDensity::ExponentialDesignDensity(FiniteElementSpace &fes,
 void ExponentialDesignDensity::Project()
 {
    ComputeVolume();
-   if (std::fabs(current_volume - target_volume) > vol_tol)
+   if (current_volume > target_volume)
    {
       double log_vol_fraction = std::log(target_volume_fraction);
       double c_l = log_vol_fraction - x_gf->Max();
@@ -593,43 +593,42 @@ void ExponentialDesignDensity::Project()
       {
          dc *= 0.5;
          current_volume = zero_gf->ComputeL1Error(projected_rho);
-         if (fabs(current_volume - target_volume) < vol_tol) { break; }
+         if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
       }
       x_gf->Clip(-infinity(), 0.0);
    }
 }
 
-double ExponentialDesignDensity::StationarityError(GridFunction &grad,
+double ExponentialDesignDensity::StationarityError(const GridFunction &grad,
                                                    bool useL2norm)
 {
-   std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
-   *x_gf_backup = *x_gf;
+   *tmp_gf = *x_gf;
    double volume_backup = current_volume;
    *x_gf -= grad;
    Project();
    double d;
    if (useL2norm)
    {
-      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*x_gf_backup);
+      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*tmp_gf);
       d = zero_gf->ComputeL2Error(*rho_diff);
    }
    else
    {
-      d = ComputeBregmanDivergence(x_gf.get(), x_gf_backup.get());
+      d = ComputeBregmanDivergence(*x_gf, *tmp_gf);
    }
    // Restore solution and recompute volume
-   *x_gf = *x_gf_backup;
+   *x_gf = *tmp_gf;
    current_volume = volume_backup;
    return d;
 }
-double ExponentialDesignDensity::ComputeBregmanDivergence(GridFunction *p,
-                                                          GridFunction *q, double epsilon)
+double ExponentialDesignDensity::ComputeBregmanDivergence(GridFunction &p,
+                                                          GridFunction &q, double epsilon)
 {
    // Define safe x*log(x) to avoid log(0)
    const double log_eps = std::log(epsilon);
    auto safe_xlogy = [epsilon, log_eps](double x, double y) {return x < epsilon ? 0.0 : y < epsilon ? x*log_eps : x*std::log(y); };
-   MappedPairGridFunctionCoeffitient Dh(p, q, [safe_xlogy](double x, double y)
+   MappedPairGridFunctionCoeffitient Dh(&p, &q, [safe_xlogy](double x, double y)
    {
       const double p = std::exp(x);
       const double q = std::exp(y);
@@ -662,7 +661,7 @@ double ExponentialDesignDensity::StationarityErrorL2(GridFunction &grad)
    {
       c = 0.5 * (c_l + c_r);
       double vol = zero_gf->ComputeL1Error(projected_rho);
-      if (fabs(vol - target_volume) < vol_tol) { break; }
+      if (std::fabs(vol - target_volume) < vol_tol) { break; }
 
       if (vol > target_volume) { c_r = c; }
       else { c_l = c; }
@@ -691,7 +690,7 @@ LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
 void LatentDesignDensity::Project()
 {
    ComputeVolume();
-   if (std::fabs(current_volume - target_volume) > vol_tol)
+   if (current_volume > target_volume)
    {
       double latent_vol_fraction = p2d(target_volume_fraction);
       double c_l = latent_vol_fraction - x_gf->Max();
@@ -728,7 +727,7 @@ void LatentDesignDensity::Project()
       {
          dc *= 0.5;
          current_volume = zero_gf->ComputeL1Error(projected_rho);
-         if (fabs(current_volume - target_volume) < vol_tol) { break; }
+         if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
       }
       if (clip_lower || clip_upper)
@@ -739,33 +738,32 @@ void LatentDesignDensity::Project()
    }
 }
 
-double LatentDesignDensity::StationarityError(GridFunction &grad,
+double LatentDesignDensity::StationarityError(const GridFunction &grad,
                                               bool useL2norm)
 {
-   std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
-   *x_gf_backup = *x_gf;
+   *tmp_gf = *x_gf;
    double volume_backup = current_volume;
    *x_gf -= grad;
    Project();
    double d;
    if (useL2norm)
    {
-      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*x_gf_backup);
+      std::unique_ptr<Coefficient> rho_diff = GetDensityDiffCoeff(*tmp_gf);
       d = zero_gf->ComputeL2Error(*rho_diff);
    }
    else
    {
-      d = ComputeBregmanDivergence(x_gf.get(), x_gf_backup.get());
+      d = ComputeBregmanDivergence(*x_gf, *tmp_gf);
    }
    // Restore solution and recompute volume
-   *x_gf = *x_gf_backup;
+   *x_gf = *tmp_gf;
    current_volume = volume_backup;
    return d;
 }
-double LatentDesignDensity::ComputeBregmanDivergence(GridFunction *p,
-                                                     GridFunction *q)
+double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
+                                                     GridFunction &q)
 {
-   MappedPairGridFunctionCoeffitient Dh(p, q, [this](double x, double y)
+   MappedPairGridFunctionCoeffitient Dh(&p, &q, [this](double x, double y)
    {
       double p = d2p(x); double q = d2p(y);
       return h(p) - h(q) - y*(p-q);
@@ -797,7 +795,7 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
    {
       c = 0.5 * (c_l + c_r);
       double vol = zero_gf->ComputeL1Error(projected_rho);
-      if (fabs(vol - target_volume) < vol_tol) { break; }
+      if (std::fabs(vol - target_volume) < vol_tol) { break; }
 
       if (vol > target_volume) { c_r = c; }
       else { c_l = c; }
@@ -819,7 +817,7 @@ PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
 void PrimalDesignDensity::Project()
 {
    ComputeVolume();
-   if (std::fabs(current_volume - target_volume) > vol_tol)
+   if (current_volume > target_volume)
    {
       double c_l = target_volume_fraction - x_gf->Max();
       double c_r = target_volume_fraction - x_gf->Min();
@@ -839,18 +837,17 @@ void PrimalDesignDensity::Project()
       {
          dc *= 0.5;
          current_volume = zero_gf->ComputeL1Error(projected_rho);
-         if (fabs(current_volume - target_volume) < vol_tol) { break; }
+         if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
       }
       x_gf->ProjectCoefficient(projected_rho);
    }
 }
 
-double PrimalDesignDensity::StationarityError(GridFunction &grad)
+double PrimalDesignDensity::StationarityError(const GridFunction &grad)
 {
    // Back up current status
-   std::unique_ptr<GridFunction> x_gf_backup(MakeGridFunction(x_gf->FESpace()));
-   *x_gf_backup = *x_gf;
+   *tmp_gf = *x_gf;
    double volume_backup = current_volume;
 
    // Project ρ + grad
@@ -858,10 +855,10 @@ double PrimalDesignDensity::StationarityError(GridFunction &grad)
    Project();
 
    // Compare the updated density and the original density
-   double d = x_gf_backup->ComputeL2Error(*rho_cf);
+   double d = tmp_gf->ComputeL2Error(*rho_cf);
 
    // Restore solution and recompute volume
-   *x_gf = *x_gf_backup;
+   *x_gf = *tmp_gf;
    current_volume = volume_backup;
    return d;
 }
