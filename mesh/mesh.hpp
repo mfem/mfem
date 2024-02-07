@@ -1481,7 +1481,7 @@ public:
        the face info with inverted orientation. It does @b not return
        information corresponding to a second adjacent face. This function is
        deprecated, use Geometry::GetInverseOrientation, Mesh::EncodeFaceInfo,
-       Mesh::DecodeFaceInfoOrientaiton, and Mesh::DecodeFaceInfoLocalIndex
+       Mesh::DecodeFaceInfoOrientation, and Mesh::DecodeFaceInfoLocalIndex
        instead.
 
        @sa GetBdrElementAdjacentElement() */
@@ -1955,7 +1955,7 @@ public:
    };
 
    /// Given a "face info int", return the face orientation. @sa FaceInfo.
-   static int DecodeFaceInfoOrientaiton(int info) { return info%64; }
+   static int DecodeFaceInfoOrientation(int info) { return info%64; }
 
    /// Given a "face info int", return the local face index. @sa FaceInfo.
    static int DecodeFaceInfoLocalIndex(int info) { return info/64; }

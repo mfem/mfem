@@ -478,7 +478,7 @@ void Mesh::GetBdrElementTransformation(int i,
          face_info = EncodeFaceInfo(
                         DecodeFaceInfoLocalIndex(face_info),
                         Geometry::GetInverseOrientation(
-                           face_geom, DecodeFaceInfoOrientaiton(face_info))
+                           face_geom, DecodeFaceInfoOrientation(face_info))
                      );
 
          IntegrationPointTransformation Loc1;
