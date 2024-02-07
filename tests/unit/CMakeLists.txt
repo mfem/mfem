@@ -44,6 +44,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_operator.cpp
   linalg/test_vector.cpp
   mesh/test_face_orientations.cpp
+  mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
