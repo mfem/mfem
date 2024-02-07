@@ -645,13 +645,6 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
    }
 }
 
-void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
-                                  const double a) const
-{
-   Mult(x, w);
-   y.Add(a, w);
-}
-
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
    constexpr bool transpose = false;
@@ -662,6 +655,13 @@ void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    constexpr bool transpose = true;
    ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
+                                  const double a) const
+{
+   Mult(x, w);
+   y.Add(a, w);
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(

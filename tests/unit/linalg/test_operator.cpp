@@ -97,8 +97,8 @@ TEST_CASE("ConstrainedOperator", "[ConstrainedOperator][Operator]")
    REQUIRE(constrained_mult_application(A, list, x, y_true_transpose,
                                         true) == MFEM_Approx(0.0));
    // DIAG_ZERO checks
-   Vector y_true_zero({0., 9783.932185967293, 3579.7299142176153, 0., 1344.7657848396123});
-   Vector y_true_zero_transpose({0, 5723.696294059853, 7877.828900340113, 0., 2883.1173002839714});
+   Vector y_true_zero({0.0, 9783.932185967293, 3579.7299142176153, 0.0, 1344.7657848396123});
+   Vector y_true_zero_transpose({0.0, 5723.696294059853, 7877.828900340113, 0.0, 2883.1173002839714});
    REQUIRE(constrained_mult_application(A, list, x, y_true_zero, false,
                                         Operator::DiagonalPolicy::DIAG_ZERO) == MFEM_Approx(0.0));
    REQUIRE(constrained_mult_application(A, list, x, y_true_zero_transpose, true,
