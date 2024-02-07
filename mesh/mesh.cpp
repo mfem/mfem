@@ -475,7 +475,8 @@ void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
          Geometry::Type face_geom = GetBdrElementGeometry(i);
          face_info = EncodeFaceInfo(
                         DecodeFaceInfoLocalIndex(face_info),
-                        Geometry::GetInverseOrientation(face_geom, DecodeFaceInfoOrientaiton(face_info))
+                        Geometry::GetInverseOrientation(
+                           face_geom, DecodeFaceInfoOrientaiton(face_info))
                      );
 
          GetLocalFaceTransformation(GetBdrElementType(i),

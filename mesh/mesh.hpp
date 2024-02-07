@@ -1904,7 +1904,8 @@ public:
 
    /// @brief Given @a local_face_index and @a orientation, return the
    /// corresponding encoded "face info int". @sa FaceInfo.
-   static int EncodeFaceInfo(int local_face_index, int orientation) { return orientation + local_face_index*64; }
+   static int EncodeFaceInfo(int local_face_index, int orientation)
+   { return orientation + local_face_index*64; }
 
    /// @name More advanced entity information access methods
    /// @{

@@ -124,8 +124,8 @@ void BuildVdofToVdofMap(const FiniteElementSpace& subfes,
                parent_element_ids[i], parent_volel_id, face_info);
             face_info = Mesh::EncodeFaceInfo(
                            Mesh::DecodeFaceInfoLocalIndex(face_info),
-                           Geometry::GetInverseOrientation(face_geom,
-                                                           Mesh::DecodeFaceInfoOrientaiton(face_info)));
+                           Geometry::GetInverseOrientation(
+                              face_geom, Mesh::DecodeFaceInfoOrientaiton(face_info)));
             pm->GetLocalFaceTransformation(
                pm->GetBdrElementType(parent_element_ids[i]),
                pm->GetElementType(parent_volel_id),
