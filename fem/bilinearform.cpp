@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -434,6 +434,10 @@ void BilinearForm::Assemble(int skip_zeros)
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
+         // Set both doftrans (potentially needed to assemble the element
+         // matrix) and vdofs, which is also needed when the element matrices
+         // are pre-assembled.
+         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -441,7 +445,6 @@ void BilinearForm::Assemble(int skip_zeros)
          else
          {
             const int elem_attr = fes->GetMesh()->GetAttribute(i);
-            doftrans = fes->GetElementVDofs(i, vdofs);
             eltrans = fes->GetElementTransformation(i);
 
             elmat.SetSize(0);
@@ -1074,7 +1077,8 @@ void BilinearForm::EliminateEssentialBCFromDofs(
 void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
                                                  DiagonalPolicy dpolicy)
 {
-   MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
+   MFEM_ASSERT(ess_dofs.Size() == height,
+               "incorrect dof Array size: " << ess_dofs.Size() << ' ' << height);
 
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)
@@ -1086,7 +1090,8 @@ void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
 void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
                                                      double value)
 {
-   MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
+   MFEM_ASSERT(ess_dofs.Size() == height,
+               "incorrect dof Array size: " << ess_dofs.Size() << ' ' << height);
 
    for (int i = 0; i < ess_dofs.Size(); i++)
       if (ess_dofs[i] < 0)
@@ -1580,9 +1585,10 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          ftr = mesh->GetBdrFaceTransformations(i);
          if (ftr)
          {
-            trial_fes->GetFaceVDofs(ftr->ElementNo, trial_vdofs);
+            const int iface = mesh->GetBdrElementFaceIndex(i);
+            trial_fes->GetFaceVDofs(iface, trial_vdofs);
             test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
-            trial_face_fe = trial_fes->GetFaceElement(ftr->ElementNo);
+            trial_face_fe = trial_fes->GetFaceElement(iface);
             test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
