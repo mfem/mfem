@@ -476,6 +476,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const DofToQuad::Mode mode =
       use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
    const GeometricFactors *geom = nullptr;
    if (eval_flags & PHYSICAL_DERIVATIVES)
    {
@@ -483,6 +484,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
    }
 
+   MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
+               (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");
@@ -534,7 +537,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       const int nd = maps.ndof;
       const int nq = maps.nqpt;
-      const int dim = maps.FE->GetDim();
 
       void (*mult)(const int NE,
                    const int vdim,
