@@ -256,7 +256,8 @@ template <Geometry::Type GEOM>
 int GetInverseOrientation_(int orientation)
 {
    using geom_t = Geometry::Constants<GEOM>;
-   MFEM_ASSERT(orientation < geom_t::NumOrient, "Invalid orientation");
+   MFEM_ASSERT(0 <= orientation && orientation < geom_t::NumOrient,
+               "Invalid orientation");
    return geom_t::InvOrient[orientation];
 }
 
