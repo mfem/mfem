@@ -208,4 +208,114 @@ void GetElasticityProblem(const ElasticityProblem problem,
    }
 
 }
+
+enum CompliantMechanismProblem
+{
+   ForceInverter,
+   ForceInverter3
+};
+
+void GetCompliantMechanismProblem(const CompliantMechanismProblem problem,
+                                  double &filter_radius, double &vol_fraction,
+                                  std::unique_ptr<Mesh> &mesh,
+                                  int &idx_in, int &idx_out,
+                                  double &k_in, double &k_out,
+                                  std::unique_ptr<VectorCoefficient> &t_in, Vector &d_out,
+                                  Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter,
+                                  std::string &prob_name, int ref_levels, int par_ref_levels=-1)
+{
+#ifndef MFEM_USE_MPI
+   if (par_ref_levels >= 0)
+   {
+      MFEM_ABORT("Tried to refine in parallel in serial code.");
+   }
+#else
+   if (!Mpi::IsInitialized() && par_ref_levels >= 0)
+   {
+      MFEM_ABORT("Tried to refine in parallel without initializing MPI");
+   }
+#endif
+   mesh.reset(new Mesh);
+   switch (problem)
+   {
+      case CompliantMechanismProblem::ForceInverter:
+      {
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.3; }
+
+         *mesh = Mesh::MakeCartesian2D(2, 1, mfem::Element::Type::QUADRILATERAL, true,
+                                       2.0,
+                                       1.0);
+         //                        X-Roller (3)
+         //               ---------------------------------
+         //  INPUT (6) -> |                               | <- output (5)
+         //               -                               -
+         //               |                               |
+         //               |                               | 
+         //               -                               |
+         //  FIXED (7)  X |                               |
+         //               ---------------------------------
+         ess_bdr.SetSize(3, 7);
+         ess_bdr_filter.SetSize(7);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(2, 3 - 1) = 1; // Top - x-roller -> y direction fixed
+         ess_bdr(0, 7 - 1) = 1; // Left Bottom - Fixed
+         ess_bdr_filter[5 - 1] = 1; 
+         ess_bdr_filter[6 - 1] = 1; 
+         ess_bdr_filter[7 - 1] = 1; 
+         prob_name = "ForceInverter";
+         
+
+         double h = std::pow(2.0, -(ref_levels + std::max(0.0, 0.0 + par_ref_levels)));
+         idx_in = 6 - 1; idx_out = 5 - 1;
+         k_in = 0.01/h; k_out = 0.1/h;
+         Vector traction(2); traction[0] = 1.0; traction[1] = 0.0;
+         t_in.reset(new VectorConstantCoefficient(traction));
+         d_out.SetSize(2); d_out[0] = -1.0; d_out[1] = 0.0;
+
+      } break;
+      default:
+         mfem_error("Undefined problem.");
+   }
+
+   // 3. Refine the mesh->
+   for (int lev = 0; lev < ref_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
+#ifdef MFEM_USE_MPI
+   if (Mpi::IsInitialized() && par_ref_levels >= 0)
+   {
+      ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+      mesh->Clear();
+      mesh.reset(pmesh);
+      for (int lev=0; lev<par_ref_levels; lev++)
+      {
+         mesh->UniformRefinement();
+      }
+   }
+#endif
+   switch (problem)
+   {
+      case CompliantMechanismProblem::ForceInverter:
+      {
+         double h = std::pow(2.0, -(ref_levels + std::max(0.0, 0.0 + par_ref_levels)));
+         mesh->MarkBoundary([h](const Vector &x)
+         {
+            return (x[0] > 2.0 - 0.1*h) && (x[1] > 1.0 - h); // Output - Right, Top h
+         }, 5);
+         mesh->MarkBoundary([h](const Vector &x)
+         {
+            return (x[0] < 0.0 + 0.1*h) && (x[1] > 1.0 - h); // Input - Left, Top h
+         }, 6);
+         mesh->MarkBoundary([h](const Vector &x)
+         {
+            return (x[0] < 0.0 + 0.1*h) && (x[1] < 0.0 + h); // Fixed - Left, Bottom h
+         }, 7);
+      } break;
+      default:
+         mfem_error("Undefined problem.");
+   }
+   mesh->SetAttributes();
+}
 }

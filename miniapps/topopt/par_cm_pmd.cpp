@@ -1,17 +1,20 @@
-// Compliancemi minimization with projected mirror descent in parallel
+// Compliancemi Mechanism with projected mirror descent in parallel
 //
-//                  minimize F(ρ) = ∫_Ω f⋅u dx over ρ ∈ L¹(Ω)
+//                  minimize F(ρ) = ∫_{Γ_out} d⋅u dx over ρ ∈ L¹(Ω)
 //
 //                  subject to
 //
-//                    -Div(r(ρ̃)Cε(u)) = f       in Ω + BCs
-//                    -ϵ²Δρ̃ + ρ̃ = ρ             in Ω + Neumann BCs
-//                    0 ≤ ρ ≤ 1                 in Ω
+//                    -Div(r(ρ̃)Cε(u))   = 0       in Ω
+//                    Cε(u):n + k_in  u = t       on Γ_in
+//                    Cε(u):n + k_out u = 0       on Γ_out
+//                    -ϵ²Δρ̃ + ρ̃ = ρ               in Ω + Neumann BCs
+//                    0 ≤ ρ ≤ 1                   in Ω
 //                    ∫_Ω ρ dx = θ vol(Ω)
 //
 //              Here, r(ρ̃) = ρ₀ + ρ̃³ (1-ρ₀) is the solid isotropic material
 //              penalization (SIMP) law, C is the elasticity tensor for an
-//              isotropic linearly elastic material, ϵ > 0 is the design
+//              isotropic linearly elastic material, k_* are spring constants,
+//              Γ_* are input/output ports, ϵ > 0 is the design
 //              length scale, and 0 < θ < 1 is the volume fraction.
 //
 //              Update is done by
@@ -69,8 +72,8 @@ int main(int argc, char *argv[])
    int max_it = 2e2;
    double rho_min = 1e-06;
    double exponent = 3.0;
-   double lambda = 1.0;
-   double mu = 1.0;
+   double E = 1.0;
+   double nu = 0.3;
    double c1 = 1e-04;
    bool glvis_visualization = true;
    bool save = false;
@@ -81,7 +84,7 @@ int main(int argc, char *argv[])
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
 
-   int problem = ElasticityProblem::Cantilever;
+   int problem = CompliantMechanismProblem::ForceInverter;
 
    OptionsParser args(argc, argv);
    args.AddOption(&seq_ref_levels, "-rs", "--seq-refine",
@@ -89,7 +92,7 @@ int main(int argc, char *argv[])
    args.AddOption(&par_ref_levels, "-rp", "--par-refine",
                   "Number of times to refine the parallel mesh uniformly.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem number: 0) Cantilever, 1) MBB, 2) LBracket.");
+                  "Problem number: 0) ForceInverter, 1) ForceInverter3.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
    args.AddOption(&filter_radius, "-fr", "--filter-radius",
@@ -98,9 +101,9 @@ int main(int argc, char *argv[])
                   "Maximum number of gradient descent iterations.");
    args.AddOption(&vol_fraction, "-vf", "--volume-fraction",
                   "Volume fraction for the material density.");
-   args.AddOption(&lambda, "-lambda", "--lambda",
+   args.AddOption(&E, "-E", "--E",
                   "Lamé constant λ.");
-   args.AddOption(&mu, "-mu", "--mu",
+   args.AddOption(&nu, "-nu", "--nu",
                   "Lamé constant μ.");
    args.AddOption(&rho_min, "-rmin", "--rho-min",
                   "Minimum of density coefficient.");
@@ -114,12 +117,16 @@ int main(int argc, char *argv[])
    std::unique_ptr<Mesh> mesh;
    Array2D<int> ess_bdr;
    Array<int> ess_bdr_filter;
-   std::unique_ptr<VectorCoefficient> vforce_cf;
+   double k_in, k_out;
+   int idx_in, idx_out;
+   std::unique_ptr<VectorCoefficient> t_in;
+   Vector d_out;
    std::string prob_name;
-   GetElasticityProblem((ElasticityProblem)problem, filter_radius, vol_fraction,
-                        mesh, vforce_cf,
-                        ess_bdr, ess_bdr_filter,
-                        prob_name, seq_ref_levels, par_ref_levels);
+   GetCompliantMechanismProblem((CompliantMechanismProblem)problem, filter_radius,
+                                vol_fraction,
+                                mesh, idx_in, idx_out, k_in, k_out, t_in, d_out,
+                                ess_bdr, ess_bdr_filter,
+                                prob_name, seq_ref_levels, par_ref_levels);
    filename_prefix << prob_name << "-" << seq_ref_levels + par_ref_levels;
    int dim = mesh->Dimension();
    const int num_el = mesh->GetNE();
@@ -127,7 +134,7 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
       mfem::out << "\n"
-                << "Compliance Minimization with Projected Mirror Descent.\n"
+                << "Compliance Mechanism with Projected Mirror Descent.\n"
                 << "Problem: " << filename_prefix.str() << "\n"
                 << "The number of elements: " << num_el << "\n"
                 << "Order: " << order << "\n"
@@ -181,15 +188,32 @@ int main(int argc, char *argv[])
    LatentDesignDensity density(control_fes, filter, vol_fraction,
                                FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
-   ConstantCoefficient lambda_cf(lambda), mu_cf(mu);
+   ConstantCoefficient E_cf(E), nu_cf(nu);
+   Vector zero_d(pmesh->SpaceDimension()); zero_d = 0.0;
+   VectorConstantCoefficient zero_cf(zero_d);
    ParametrizedElasticityEquation elasticity(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, lambda_cf, mu_cf, *vforce_cf, ess_bdr);
-   TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
-                         true);
+                                             density.GetFilteredDensity(), simp_rule, E_cf, nu_cf, zero_cf, ess_bdr);
+   d_out.Neg();
+   VectorConstantCoefficient d_out_cf(d_out);
+   ConstantCoefficient k_in_cf(k_in), k_out_cf(k_out);
+   Array<int> bdr_in(ess_bdr_filter.Size()), bdr_out(ess_bdr_filter.Size());
+   bdr_in = 0; bdr_in[idx_in] = 1; bdr_out = 0; bdr_out[idx_out] = 1;
+   elasticity.GetBilinearForm().AddBdrFaceIntegrator(new VectorBdrMassIntegrator(
+                                                        k_in_cf, dim), bdr_in);
+   elasticity.GetBilinearForm().AddBdrFaceIntegrator(new VectorBdrMassIntegrator(
+                                                        k_out_cf, dim), bdr_out);
+   elasticity.GetLinearForm().AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(
+                                                      *t_in), bdr_in);
+   elasticity.SetLinearFormStationary();
+   ParLinearForm obj(&state_fes);
+   obj.AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(d_out_cf), bdr_out);
+   obj.Assemble();
+   TopOptProblem optprob(obj, elasticity, density, true, true);
 
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
                                  (&density.GetFilteredDensity());
+   rho_filter = 1.0;
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
