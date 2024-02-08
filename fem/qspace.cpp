@@ -37,6 +37,24 @@ void QuadratureSpaceBase::ConstructIntRules(int dim)
    }
 }
 
+namespace
+{
+
+void ScaleByQuadratureWeights(Vector &weights, const IntegrationRule &ir)
+{
+   const int N = weights.Size();
+   const int n = ir.Size();
+   double *d_weights = weights.ReadWrite();
+   const double *d_w = ir.GetWeights().Read();
+
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_weights[i] *= d_w[i%n];
+   });
+}
+
+} // anonymous namespace
+
 void QuadratureSpaceBase::ConstructWeights() const
 {
    // First get the Jacobian determinants (without the quadrature weight
@@ -47,15 +65,7 @@ void QuadratureSpaceBase::ConstructWeights() const
 
    // Then scale by the quadrature weights.
    const IntegrationRule &ir = GetIntRule(0);
-   const int N = size;
-   const int n = ir.Size();
-   double *d_weights = weights.ReadWrite();
-   const double *d_w = ir.GetWeights().Read();
-
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
-   {
-      d_weights[i] *= d_w[i%n];
-   });
+   ScaleByQuadratureWeights(weights, ir);
 }
 
 const Vector &QuadratureSpaceBase::GetWeights() const
