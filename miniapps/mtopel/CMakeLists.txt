@@ -141,10 +141,10 @@ add_mfem_miniapp(mtop_bra2D
      ${PARADIFF_COMMON_FILES}
      LIBRARIES mfem)
 
-add_mfem_miniapp(mtop_bra2DIS
-     MAIN mtop_bra2DIS.cpp
-     ${PARADIFF_COMMON_FILES}
-     LIBRARIES mfem)
+#add_mfem_miniapp(mtop_bra2DIS
+#     MAIN mtop_bra2DIS.cpp
+#     ${PARADIFF_COMMON_FILES}
+#     LIBRARIES mfem)
 
 
 add_mfem_miniapp(mtop_bridge2d
@@ -159,6 +159,11 @@ add_mfem_miniapp(mtop_rf
 
 add_mfem_miniapp(mtop_diff
         MAIN mtop_diff.cpp
+        ${PARADIFF_COMMON_FILES}
+        LIBRARIES mfem)
+
+add_mfem_miniapp(mtop_mat_diff
+        MAIN mtop_mat_diff.cpp
         ${PARADIFF_COMMON_FILES}
         LIBRARIES mfem)
 

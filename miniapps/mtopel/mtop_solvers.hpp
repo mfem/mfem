@@ -3,6 +3,7 @@
 
 #include "mfem.hpp"
 #include "mtop_filters.hpp"
+#include "mtop_coefficients.hpp"
 
 namespace mfem {
 
@@ -1366,32 +1367,38 @@ public:
         projection=true;
     }
 
+    virtual
     ~DiffusionMaterial()
     {
         delete loc_eta;
     }
 
+    virtual
     void SetDens(ParGridFunction* dens_)
     {
         dens=dens_;
     }
 
+    virtual
     void SetDens(Coefficient* coef_)
     {
         coef=coef_;
     }
 
+    virtual
     void SetProjParam(Coefficient& eta_, double beta_)
     {
         eta=&eta_;
         beta=beta_;
     }
 
+    virtual
     void SetProjection(bool pr=true)
     {
         projection=pr;
     }
 
+    virtual
     void SetProjParam(double eta_, double beta_)
     {
         delete loc_eta;
@@ -1400,12 +1407,14 @@ public:
         beta=beta_;
     }
 
+    virtual
     void SetEMaxMin(double Emin_,double Emax_)
     {
         Dmax=Emax_;
         Dmin=Emin_;
     }
 
+    virtual
     void SetPenal(double pp_)
     {
         pp=pp_;
@@ -1488,6 +1497,143 @@ private:
 
 };
 
+
+class RndProjection:public Coefficient
+{
+public:
+    RndProjection(){}
+
+    virtual
+    void AddRandField(mfem::RandFieldCoefficient* rf, double min_, double max_)
+    {
+        co.push_back(rf);
+        vmax.push_back(max_);
+        vmin.push_back(min_);
+    }
+
+    double clamp(double value_, double min_, double max_)
+    {
+        return std::max(min_, std::min(max_,value_));
+    }
+
+    double threshold(double value, double lower_bound, double upper_bound)
+    {
+       return (value >= lower_bound && value <= upper_bound) ? 1.0 : 0.0;
+    }
+
+    virtual
+    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        double result = 0.0;
+        for (size_t i = 0; i < co.size(); i++)
+        {
+            double value = co[i]->Eval(T, ip);
+            result += threshold(value, vmin[i], vmax[i]);
+        }
+        return clamp(result, 0.0, 1.0);
+    }
+
+
+private:
+    std::vector<mfem::RandFieldCoefficient*> co;
+    std::vector<double> vmax;
+    std::vector<double> vmin;
+};
+
+class RndDiffusionMaterial: public DiffusionMaterial
+{
+public:
+    RndDiffusionMaterial(int dim):DiffusionMaterial(dim)
+    {
+
+        lDmin=1e-3;
+        DiffusionMaterial::SetEMaxMin(0.0,1.0-lDmin);
+
+    }
+
+    virtual
+    void AddRandField(mfem::RandFieldCoefficient* rf, double min_, double max_)
+    {
+        rp.AddRandField(rf,min_,max_);
+    }
+
+
+    virtual
+    ~RndDiffusionMaterial()
+    {
+
+    }
+
+    virtual
+    void SetEMaxMin(double Emin_,double Emax_)
+    {
+        lDmin=Emin_;
+        DiffusionMaterial::SetEMaxMin(0.0,Emax_-Emin_);
+    }
+
+
+    virtual
+    void Eval(DenseMatrix& m,
+              ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        DiffusionMaterial::Eval(m,T,ip);
+        //compute the RF contributions
+        double tv=1.0-rp.Eval(T,ip);
+        m*=tv;
+
+        int hh=m.Size();
+        for(int i=0;i<hh;i++){
+            m(i,i)=m(i,i)+lDmin;
+        }
+    }
+
+    virtual
+    void Grad(DenseMatrix& m,
+              ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        DiffusionMaterial::Grad(m,T,ip);
+        //compute the RF contributions
+        double tv=1.0-rp.Eval(T,ip);
+        m*=tv;
+    }
+
+    virtual
+    Coefficient* GetRndProj()
+    {
+        return &rp;
+    }
+
+
+private:
+    RndProjection rp;
+    double lDmin;
+
+};
+
+
+class MatrixElementCoefficient:public Coefficient
+{
+public:
+    MatrixElementCoefficient(MatrixCoefficient* co_, int i_, int j_)
+    {
+        co=co_;
+        i=i_;
+        j=j_;
+    }
+
+    virtual
+    double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+    {
+        DenseMatrix mm(co->GetWidth());
+        co->Eval(mm,T,ip);
+        return mm(i,j);
+    }
+
+private:
+    MatrixCoefficient* co;
+    int i,j;
+
+};
 
 class ComplianceDiffIntegrator:public NonlinearFormIntegrator
 {

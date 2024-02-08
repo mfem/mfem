@@ -14,6 +14,7 @@
 
 namespace mfem {
 
+namespace iprtsam{
 //evaluates [ n ]
 //over      [ k ]
 inline
@@ -71,6 +72,10 @@ void Natural2CombNum(unsigned int ind, std::vector<int>& vv)
     }
 }
 
+
+
+
+}//end importance sampling
 
 class RiskMeasures{
 public:
