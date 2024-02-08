@@ -77,7 +77,7 @@ public:
         gf->SetScale(1.0);
         gf->Sample(seed);
 
-        mat->AddRandField(gf,0.0,0.5);
+        mat->AddRandField(gf,1.0,1.5);
 
         af=new mfem::RandFieldCoefficient(pmesh_,vorder);
         af->SetCorrelationLen(0.025, 1.0, 0.2);
