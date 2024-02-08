@@ -34,6 +34,22 @@ double circle_level_set(const Vector &x)
    }
 }
 
+double squircle_level_set(const Vector &x)
+{
+   const int dim = x.Size();
+   if (dim == 2)
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
+   }
+   else
+   {
+      const double xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+      return std::pow(xc, 4.0) + std::pow(yc, 4.0) +
+             std::pow(zc, 4.0) - std::pow(0.24, 4.0);
+   }
+}
+
 double in_circle(const Vector &x, const Vector &x_center, double radius)
 {
    Vector x_current = x;
@@ -183,23 +199,24 @@ double csg_cubecylsph(const Vector &x)
    return in_return_val;
 }
 
-#ifdef MFEM_USE_MPI
+// Generic class to store pointers to finite element spaces and gridfunctions,
+// and update them post h-refinement.
 class HRefUpdater
 {
 protected:
-   Array<ParGridFunction *> pgridfuncarr;
-   Array<ParFiniteElementSpace *> pfespacearr;
+   Array<GridFunction *> gridfuncarr;
+   Array<FiniteElementSpace *> fespacearr;
 
 public:
    HRefUpdater() {}
 
-   void AddGridFunctionForUpdate(ParGridFunction *pgf_)
+   void AddGridFunctionForUpdate(GridFunction *gf_)
    {
-      pgridfuncarr.Append(pgf_);
+      gridfuncarr.Append(gf_);
    }
-   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_)
+   void AddFESpaceForUpdate(FiniteElementSpace *fes_)
    {
-      pfespacearr.Append(pfes_);
+      fespacearr.Append(fes_);
    }
 
    void Update();
@@ -208,19 +225,21 @@ public:
 void HRefUpdater::Update()
 {
    // Update FESpace
-   for (int i = 0; i < pfespacearr.Size(); i++)
+   for (int i = 0; i < fespacearr.Size(); i++)
    {
-      pfespacearr[i]->Update();
+      fespacearr[i]->Update();
    }
    // Update GF
-   for (int i = 0; i < pgridfuncarr.Size(); i++)
+   for (int i = 0; i < gridfuncarr.Size(); i++)
    {
-      pgridfuncarr[i]->Update();
-      pgridfuncarr[i]->SetTrueVector();
-      pgridfuncarr[i]->SetFromTrueVector();
+      gridfuncarr[i]->Update();
+      gridfuncarr[i]->SetTrueVector();
+      gridfuncarr[i]->SetFromTrueVector();
    }
 }
 
+#ifdef MFEM_USE_MPI
+// Take a given list of elements and appends element neighbors to the list.
 void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
 {
    mfem::L2_FECollection l2fec(0, pmesh.Dimension());
@@ -263,9 +282,11 @@ void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
    intel.Unique();
 }
 
-// Type = 0, elements on either side of interface.
-// Type = 1, face/edge indices
-// Type = 2, dofs (requires corresponding fespace)
+// Get material interface elements, face/edge numbers, or DOF indices based on
+// user parameter "type".
+// type = 0, elements on either side of interface.
+// type = 1, face/edge indices
+// type = 2, dofs (requires corresponding fespace)
 void GetMaterialInterfaceEntities(ParMesh *pmesh, ParGridFunction &mat,
                                   Array<int> &intelf,
                                   int type = 0,
@@ -355,6 +376,8 @@ void GetMaterialInterfaceEntities(ParMesh *pmesh, ParGridFunction &mat,
    if (dofspace) { delete surf_fit_dofs_gf; }
 }
 
+// Set boundary attributes to 1/2/3 if the boundary element is parallel to x/y/z.
+// Otherwise sets the attribute to 4.
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
    const int dim = pmesh->Dimension();
@@ -649,6 +672,7 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    distance_s.SetFromTrueVector();
 }
 
+// Set material function based on element attribute or using level-set function.
 void SetMaterialGridFunction(ParMesh *pmesh, ParGridFunction &mat,
                              ParGridFunction &surf_fit_gf0,
                              bool material, bool adapt_marking)
@@ -678,8 +702,7 @@ void SetMaterialGridFunction(ParMesh *pmesh, ParGridFunction &mat,
    pmesh->ExchangeFaceNbrData();
 }
 
-// loops over all the faces. For parents faces, checks wether the children across
-// that face have same material
+// Check whether all children across a parent face have the same material.
 int CheckMaterialConsistency(ParMesh *pmesh, ParGridFunction &mat)
 {
    mat.ExchangeFaceNbrData();
@@ -725,15 +748,12 @@ int CheckMaterialConsistency(ParMesh *pmesh, ParGridFunction &mat)
    return global_pass;
 }
 
-void GetBoundaryElements(ParMesh *pmesh,
-                         Array<int> &bel,
-                         int attr)
+void GetBoundaryElements(ParMesh *pmesh, Array<int> &bel, int attr)
 {
    bel.SetSize(0);
+   int el, info;
    for (int f = 0; f < pmesh->GetNBE(); f++ )
    {
-      int el;
-      int info;
       pmesh->GetBdrElementAdjacentElement(f, el, info);
       if (pmesh->GetBdrAttribute(f) == attr)
       {
