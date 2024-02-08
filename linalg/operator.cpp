@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -481,7 +481,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
    MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   // typically z and w are large vectors, so store them on the device
+   // typically z and w are large vectors, so use the device (GPU) to perform
+   // operations on them
    z.SetSize(height, mem_type); z.UseDevice(true);
    w.SetSize(height, mem_type); w.UseDevice(true);
 }
@@ -591,6 +592,13 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
+                                  const double a) const
+{
+   Mult(x, w);
+   y.Add(a, w);
+}
+
 RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
@@ -625,9 +633,7 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
       d_w[id] = d_x[id];
    });
 
-   // A.AddMult(w, b, -1.0); // if available to all Operators
-   A->Mult(w, z);
-   b -= z;
+   A->AddMult(w, b, -1.0);
 
    const int test_csz = test_constraints.Size();
    auto test_idx = test_constraints.Read();
