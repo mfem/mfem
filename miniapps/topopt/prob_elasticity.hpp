@@ -131,7 +131,7 @@ void GetElasticityProblem(const ElasticityProblem problem,
       case ElasticityProblem::Torsion3:
       {
          if (filter_radius < 0) { filter_radius = 0.05; }
-         if (vol_fraction < 0) { vol_fraction = 0.01; }
+         if (vol_fraction < 0) { vol_fraction = 0.1; }
 
          // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
          *mesh = Mesh::MakeCartesian3D(6, 5, 5, mfem::Element::Type::HEXAHEDRON, 1.2,
