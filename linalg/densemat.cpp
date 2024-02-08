@@ -4457,17 +4457,15 @@ DenseTensor &DenseTensor::operator+=(const DenseTensor &m)
 
 DenseTensor &DenseTensor::operator-=(const DenseTensor &m)
 {
-   for (int k = 0; k < SizeK(); k++)
-   {
-      for (int j = 0; j < SizeJ(); j++)
-      {
-         for (int i = 0; i < SizeI(); i++)
-         {
-            (*this)(i, j, k) -= m(i, j, k);
-         }
-      }
-   }
+   MFEM_ASSERT(SizeI() == m.SizeI() && SizeJ() == m.SizeJ() &&
+               SizeK() == m.SizeK(),
+               "incompatible tensor sizes.");
 
+   int s = SizeI() * SizeJ() * SizeK();
+   for (int i = 0; i < s; i++)
+   {
+      tdata[i] -= m.tdata[i];
+   }
    return *this;
 }
 
