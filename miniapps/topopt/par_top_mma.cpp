@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
    ParGridFunction &u = dynamic_cast<ParGridFunction&>(optprob.GetState());
    ParGridFunction &rho_filter = dynamic_cast<ParGridFunction&>
                                  (density.GetFilteredDensity());
+   rho_filter = 0.0; // boundary condition
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
