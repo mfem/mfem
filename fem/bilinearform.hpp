@@ -779,8 +779,8 @@ protected:
    /// Entries are not owned.
    Array<Array<int>*> boundary_trace_face_integs_marker;
 
-   DenseMatrix elemmat;
-   Array<int>  trial_vdofs, test_vdofs;
+   mutable DenseMatrix elemmat;
+   mutable Array<int>  trial_vdofs, test_vdofs;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -978,10 +978,10 @@ public:
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
    /// Compute the face element matrix of the given face element
-   void ComputeFaceElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeFaceElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Compute the boundary face element matrix of the given boundary element
-   void ComputeBdrFaceElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeBdrFaceElementMatrix(int i, DenseMatrix &elmat) const;
 
    /// Assemble the given element matrix
    /** The element matrix @a elmat is assembled for the element @a i, i.e.
