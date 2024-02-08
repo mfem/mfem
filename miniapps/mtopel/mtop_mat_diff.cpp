@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    double rel_tol = 1e-7;
    double abs_tol = 1e-15;
-   double fradius = 0.05;
+   double fradius = 0.02;
    double corr_len_x = 0.2;
    double corr_len_y = 0.2;
    double corr_len_z = 0.2;
@@ -650,17 +650,21 @@ int main(int argc, char *argv[])
 
       for(int i=1;i<max_it;i++){
 
-          if(i<10){
+          if(i<20){
               vobj->SetProjection(0.5,2.0);
               sink->SetDensity(vdens,0.5,8.0,1.0);
               sink->SetSIMP(true);
-          }else if(i<300){
+          }else if(i<100){
               vobj->SetProjection(0.5,2.0);
               sink->SetDensity(vdens,0.5,2.0,3.0);
               sink->SetSIMP(true);
-          }else{
+          }else if(i<200){
               vobj->SetProjection(0.5,2.0);
               sink->SetDensity(vdens,0.5,2.0,4.0);
+              sink->SetSIMP(true);
+          }else{
+              vobj->SetProjection(0.5,2.0);
+              sink->SetDensity(vdens,0.5,2.0,5.0);
               sink->SetSIMP(true);
           }
 
