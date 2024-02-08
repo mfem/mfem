@@ -1084,9 +1084,10 @@ double IsoStrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
       u1.GetVectorGradient(T, grad1);
       VectorGradToVoigt(grad1, voigt1);
       u2.GetVectorGradient(T, grad2);
-      VectorGradToVoigt(grad1, voigt2);
+      VectorGradToVoigt(grad2, voigt2);
       density = C.InnerProduct(voigt1, voigt2);
    }
+   density *= E_ / ((1.0 + nu_)*(1.0 - 2*nu_));
    return -dphys_dfrho.Eval(T, ip) * density;
 }
 
