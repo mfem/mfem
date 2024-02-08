@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
+                                           density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(diffusion.GetLinearForm(), diffusion, density, false,
                          false);
 
@@ -286,8 +286,8 @@ int main(int argc, char *argv[])
       old_compliance = compliance;
       // Step and upate gradient
 
-      lower = rho; lower -= mv; lower.ApplyMap([](double x){return std::max(0.0, x);});
-      upper = rho; upper += mv; upper.ApplyMap([](double x){return std::min(1.0, x);});
+      lower = rho; lower -= mv; lower.ApplyMap([](double x) {return std::max(0.0, x);});
+      upper = rho; upper += mv; upper.ApplyMap([](double x) {return std::min(1.0, x);});
       double con = density.GetVolume()  - (density.GetDomainVolume()*vol_fraction);
 
       out << con << std::endl;

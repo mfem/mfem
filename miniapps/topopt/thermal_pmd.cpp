@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 
    ConstantCoefficient K_cf(K);
    ParametrizedDiffusionEquation diffusion(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
+                                           density.GetFilteredDensity(), simp_rule, K_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(diffusion.GetLinearForm(), diffusion, density, false,
                          true);
 

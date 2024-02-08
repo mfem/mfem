@@ -38,7 +38,8 @@ void GetThermalProblem(const ThermalProblem problem,
          *mesh = Mesh::MakeCartesian2D(4, 4, mfem::Element::Type::QUADRILATERAL, true,
                                        1.0,
                                        1.0);
-         mesh->MarkBoundary([](const Vector &x) {return std::fabs(x[0] - 0.5) < 0.25 && x[1] > 1-1e-03; }, 5);
+         mesh->MarkBoundary([](const Vector &x) {return std::fabs(x[0] - 0.5) < 0.25 && x[1] > 1-1e-03; },
+         5);
          ess_bdr.SetSize(1, 5);
          ess_bdr_filter.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;

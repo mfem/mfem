@@ -249,7 +249,8 @@ int main(int argc, char *argv[])
    logger.Print();
 
    optprob.UpdateGradient();
-   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes), inv_dv(&control_fes);
+   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes),
+                   inv_dv(&control_fes);
    for (int i=0; i<pmesh->GetNE(); i++) { inv_dv[i] = pmesh->GetElementVolume(i); }
    inv_dv.Reciprocal();
    bool converged = false;

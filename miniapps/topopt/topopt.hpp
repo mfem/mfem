@@ -139,10 +139,12 @@ private:
    const int oa, ob;
 public:
    VectorBdrDirectionalMassIntegrator(
-      Coefficient &k, VectorCoefficient &d, const int vdim, const int oa=2, const int ob=0):
+      Coefficient &k, VectorCoefficient &d, const int vdim, const int oa=2,
+      const int ob=0):
       BilinearFormIntegrator(NULL), k(k), d(d), vdim(vdim), oa(oa), ob(ob) {}
    VectorBdrDirectionalMassIntegrator(
-      Coefficient &k, VectorCoefficient &d, const int vdim, const IntegrationRule *ir):
+      Coefficient &k, VectorCoefficient &d, const int vdim,
+      const IntegrationRule *ir):
       BilinearFormIntegrator(ir), k(k), d(d), vdim(vdim), oa(0), ob(0) {}
 
    void AssembleFaceMatrix(const FiniteElement &el1,

@@ -416,10 +416,11 @@ void VectorBdrMassIntegrator::AssembleFaceMatrix(const FiniteElement &el,
 }
 
 
-void VectorBdrDirectionalMassIntegrator::AssembleFaceMatrix(const FiniteElement &el,
-                                                 const FiniteElement &dummy,
-                                                 FaceElementTransformations &Tr,
-                                                 DenseMatrix &elmat)
+void VectorBdrDirectionalMassIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el,
+   const FiniteElement &dummy,
+   FaceElementTransformations &Tr,
+   DenseMatrix &elmat)
 {
    int dof = el.GetDof();
    Vector shape(dof), d_val(vdim);
@@ -453,7 +454,7 @@ void VectorBdrDirectionalMassIntegrator::AssembleFaceMatrix(const FiniteElement 
       elmat_scalar *= val;
       for (int row = 0; row < vdim; row++)
       {
-         for(int col = 0; col < vdim; col++)
+         for (int col = 0; col < vdim; col++)
          {
             elmat.AddMatrix(d_val(row)*d_val(col), elmat_scalar, dof*row, dof*col);
          }

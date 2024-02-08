@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 
       B = grad;
       inv_mass.Mult(grad, B);
-      B.ApplyMap([](double x){return std::sqrt(-x); });
+      B.ApplyMap([](double x) {return std::sqrt(-x); });
       lower = rho;
       lower -= mv; lower.Clip(0, 1);
       upper = rho;

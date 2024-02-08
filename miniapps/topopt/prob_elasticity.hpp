@@ -224,9 +224,9 @@ enum CompliantMechanismProblem
 void GetCompliantMechanismProblem(const CompliantMechanismProblem problem,
                                   double &filter_radius, double &vol_fraction,
                                   std::unique_ptr<Mesh> &mesh,
-                                  double &k_in, double &k_out, 
+                                  double &k_in, double &k_out,
                                   Vector &d_in, Vector &d_out,
-                                  std::unique_ptr<VectorCoefficient> &t_in, 
+                                  std::unique_ptr<VectorCoefficient> &t_in,
                                   Array<int> &bdr_in, Array<int> &bdr_out,
                                   Array2D<int> &ess_bdr, Array<int> &ess_bdr_filter,
                                   std::string &prob_name, int ref_levels, int par_ref_levels=-1)
@@ -258,7 +258,7 @@ void GetCompliantMechanismProblem(const CompliantMechanismProblem problem,
          //  INPUT (6) -> |                               | <- output (5)
          //               -                               -
          //               |                               |
-         //               |                               | 
+         //               |                               |
          //               -                               |
          //  FIXED (7)  X |                               |
          //               ---------------------------------
@@ -273,7 +273,7 @@ void GetCompliantMechanismProblem(const CompliantMechanismProblem problem,
          bdr_out[5 - 1] = 1;
          // ess_bdr_filter[5] = 1; ess_bdr_filter[6] = 1; ess_bdr_filter[7] = 1;
          prob_name = "ForceInverter";
-         
+
 
          double h = std::pow(2.0, -(ref_levels + std::max(0.0, 0.0 + par_ref_levels)));
          k_in = 0.1/h; k_out = 0.1/h;
