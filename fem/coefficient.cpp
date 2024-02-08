@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1568,7 +1568,7 @@ double ComputeGlobalLpNorm(double p, VectorCoefficient &coeff, ParMesh &pmesh,
 #endif
 
 VectorQuadratureFunctionCoefficient::VectorQuadratureFunctionCoefficient(
-   QuadratureFunction &qf)
+   const QuadratureFunction &qf)
    : VectorCoefficient(qf.GetVDim()), QuadF(qf), index(0) { }
 
 void VectorQuadratureFunctionCoefficient::SetComponent(int index_, int length_)
@@ -1622,7 +1622,7 @@ void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 }
 
 QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
-   QuadratureFunction &qf) : QuadF(qf)
+   const QuadratureFunction &qf) : QuadF(qf)
 {
    MFEM_VERIFY(qf.GetVDim() == 1, "QuadratureFunction's vdim must be 1");
 }
