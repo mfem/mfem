@@ -186,8 +186,7 @@ int main(int argc, char *argv[])
    SIMPProjector simp_rule(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
-   LatentDesignDensity density(control_fes, filter, vol_fraction,
-                               FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
+   PrimalDesignDensity density(control_fes, filter, vol_fraction);
 
    ConstantCoefficient E_cf(E), nu_cf(nu);
    Vector zero_d(pmesh->SpaceDimension()); zero_d = 0.0;
@@ -210,7 +209,7 @@ int main(int argc, char *argv[])
    ParLinearForm obj(&state_fes);
    obj.AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(neg_d_out_cf), bdr_out);
    obj.Assemble();
-   TopOptProblem optprob(obj, elasticity, density, true, true);
+   TopOptProblem optprob(obj, elasticity, density, true, false);
 
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
@@ -235,7 +234,7 @@ int main(int argc, char *argv[])
          sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
          sout_SIMP.precision(8);
          sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
-                   << "window_title 'Design density r(ρ̃) - PMD "
+                   << "window_title 'Design density r(ρ̃) - OC "
                    << problem << "'\n"
                    << "keys Rjl***************\n"
                    << flush;
@@ -247,7 +246,7 @@ int main(int argc, char *argv[])
          sout_r << "parallel " << num_procs << " " << myid << "\n";
          sout_r.precision(8);
          sout_r << "solution\n" << *pmesh << *rho_gf
-                << "window_title 'Raw density ρ - PMD "
+                << "window_title 'Raw density ρ - OC "
                 << problem << "'\n"
                 << "keys Rjl***************\n"
                 << flush;
@@ -260,11 +259,10 @@ int main(int argc, char *argv[])
       pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
-      pd->RegisterField("psi", &density.GetGridFunction());
+      pd->RegisterField("rho", &density.GetGridFunction());
       pd->RegisterField("frho", &rho_filter);
-      pd->SetLevelsOfDetail(order);
+      pd->SetLevelsOfDetail(order + 3);
       pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
       pd->SetCycle(0);
       pd->SetTime(0);
       pd->Save();
@@ -272,59 +270,71 @@ int main(int argc, char *argv[])
 
    // 11. Iterate
    ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
+   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
-   ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
+   ParGridFunction old_rho(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
-   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
+   std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_rho));
    diff_rho_form.AddDomainIntegrator(new DomainLFIntegrator(*diff_rho));
 
    if (Mpi::Root())
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
-                << "Start Projected Mirror Descent Step." << "\n" << std::endl;
+                << "Start Optimality Criteria Method." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
-          stationarityError(infinity()), stationarityError_bregman(infinity());
-   int num_reeval(0);
+   double volume(density.GetDomainVolume()*vol_fraction),
+          stationarityError(infinity());
    double old_compliance;
 
    TableLogger logger;
    logger.Append(std::string("Volume"), volume);
    logger.Append(std::string("Compliance"), compliance);
    logger.Append(std::string("Stationarity"), stationarityError);
-   logger.Append(std::string("Re-evel"), num_reeval);
-   logger.Append(std::string("Step Size"), step_size);
-   logger.Append(std::string("Stationarity-Bregman"), stationarityError_bregman);
    logger.SaveWhenPrint(filename_prefix.str());
    logger.Print();
 
    optprob.UpdateGradient();
+   ParGridFunction B(&control_fes), lower(&control_fes), upper(&control_fes);
+   ParBilinearForm inv_mass(&control_fes);
+   inv_mass.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator));
+   inv_mass.Assemble();
    bool converged = false;
+   double mv = 0.2;
    for (int k = 0; k < max_it; k++)
    {
-      // Step 1. Compute Step size
-      if (k == 0) { step_size = 1.0; }
-      else
-      {
-         diff_rho_form.Assemble();
-         old_psi -= psi;
-         old_grad -= grad;
-         step_size = std::fabs(diff_rho_form(old_psi)  / diff_rho_form(old_grad));
-      }
-
-      // Step 2. Store old data
+      // Store old data
       old_compliance = compliance;
-      old_psi = psi;
-      old_grad = grad;
 
-      // Step 3. Step and upate gradient
-      num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size,
-                               std::min(k+1, 20));
-      compliance = optprob.GetValue();
-      volume = density.GetVolume();
+      B = grad;
+      inv_mass.Mult(grad, B);
+      B.ApplyMap([](double x) {return std::pow(std::max(-x, 1e-06), 0.3); });
+      lower = rho;
+      lower -= mv; lower.Clip(0, 1);
+      upper = rho;
+      upper += mv; upper.Clip(0, 1);
+      double l1(0.0), l2(1e09);
+      old_rho = rho;
+      while ((l2 - l1) > 1e-5)
+      {
+         double lmid = 0.5*(l1 + l2);
+         rho = old_rho;
+         rho *= B;
+         rho *= 1.0 / std::sqrt(lmid);
+         rho.Clip(lower, upper);
+         volume = density.ComputeVolume();
+         if (volume > density.GetDomainVolume()*vol_fraction)
+         {
+            l1 = lmid;
+         }
+         else
+         {
+            l2 = lmid;
+         }
+      }
+      // Eval and update gradient
+      compliance = optprob.Eval();
       optprob.UpdateGradient();
 
       // Step 4. Visualization
@@ -356,8 +366,7 @@ int main(int argc, char *argv[])
       }
 
       // Check convergence
-      stationarityError = density.StationarityErrorL2(grad);
-      stationarityError_bregman = density.StationarityError(grad);
+      stationarityError = density.StationarityError(grad);
 
       logger.Print();
 
@@ -378,12 +387,14 @@ int main(int argc, char *argv[])
    {
       ostringstream solfile, solfile2;
       solfile << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-              par_ref_levels << "-0." << setfill('0') << setw(6) << myid;
+              par_ref_levels <<
+              "-0." << setfill('0') << setw(6) << myid;
       solfile2 << filename_prefix.str() << "-" << seq_ref_levels << "-" <<
-               par_ref_levels << "-f." << setfill('0') << setw(6) << myid;
+               par_ref_levels <<
+               "-f." << setfill('0') << setw(6) << myid;
       ofstream sol_ofs(solfile.str().c_str());
       sol_ofs.precision(8);
-      sol_ofs << psi;
+      sol_ofs << rho;
 
       ofstream sol_ofs2(solfile2.str().c_str());
       sol_ofs2.precision(8);

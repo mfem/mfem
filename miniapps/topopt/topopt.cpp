@@ -415,6 +415,53 @@ void VectorBdrMassIntegrator::AssembleFaceMatrix(const FiniteElement &el,
 
 }
 
+
+void VectorBdrDirectionalMassIntegrator::AssembleFaceMatrix(const FiniteElement &el,
+                                                 const FiniteElement &dummy,
+                                                 FaceElementTransformations &Tr,
+                                                 DenseMatrix &elmat)
+{
+   int dof = el.GetDof();
+   Vector shape(dof), d_val(vdim);
+
+   elmat.SetSize(dof*vdim);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+   }
+
+   DenseMatrix elmat_scalar(dof);
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+      double val = k.Eval(Tr, ip)*Tr.Face->Weight() * ip.weight;
+      d.Eval(d_val, Tr, ip);
+
+      el.CalcShape(eip, shape);
+      MultVVt(shape, elmat_scalar);
+      elmat_scalar *= val;
+      for (int row = 0; row < vdim; row++)
+      {
+         for(int col = 0; col < vdim; col++)
+         {
+            elmat.AddMatrix(d_val(row)*d_val(col), elmat_scalar, dof*row, dof*col);
+         }
+      }
+   }
+
+}
+
 DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                              double target_volume_fraction,
                              double volume_tolerance)

@@ -130,6 +130,26 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 };
+class VectorBdrDirectionalMassIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient &k;
+   VectorCoefficient &d;
+   const int vdim;
+   const int oa, ob;
+public:
+   VectorBdrDirectionalMassIntegrator(
+      Coefficient &k, VectorCoefficient &d, const int vdim, const int oa=2, const int ob=0):
+      BilinearFormIntegrator(NULL), k(k), d(d), vdim(vdim), oa(oa), ob(ob) {}
+   VectorBdrDirectionalMassIntegrator(
+      Coefficient &k, VectorCoefficient &d, const int vdim, const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), k(k), d(d), vdim(vdim), oa(0), ob(0) {}
+
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+};
 
 // Elliptic Bilinear Solver
 class EllipticSolver
@@ -186,8 +206,10 @@ private:
 
 public:
    DensityFilter(FiniteElementSpace &fes):fes(fes) {};
-   virtual void Apply(const GridFunction &rho, GridFunction &frho, bool apply_bdr=true) const = 0;
-   virtual void Apply(Coefficient &rho, GridFunction &frho, bool apply_bdr=true) const = 0;
+   virtual void Apply(const GridFunction &rho, GridFunction &frho,
+                      bool apply_bdr=true) const = 0;
+   virtual void Apply(Coefficient &rho, GridFunction &frho,
+                      bool apply_bdr=true) const = 0;
    FiniteElementSpace &GetFESpace() {return fes;};
 protected:
 private:
@@ -204,12 +226,14 @@ private:
 
 public:
    HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr);
-   void Apply(const GridFunction &rho, GridFunction &frho, bool apply_bdr=true) const override
+   void Apply(const GridFunction &rho, GridFunction &frho,
+              bool apply_bdr=true) const override
    {
       GridFunctionCoefficient rho_cf(&rho);
       Apply(rho_cf, frho, apply_bdr);
    }
-   void Apply(Coefficient &rho, GridFunction &frho, bool apply_bdr=true) const override;
+   void Apply(Coefficient &rho, GridFunction &frho,
+              bool apply_bdr=true) const override;
 protected:
 private:
 };
