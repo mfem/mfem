@@ -178,7 +178,20 @@ int main(int argc, char *argv[])
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
                                  (&density.GetFilteredDensity());
-   rho_filter = 0.0;
+   {
+      // Apply Filter material boundary, ess_bdr_filter == 1
+      Array<int> material_bdr(ess_bdr_filter);
+      for (auto &val : material_bdr) {val = val == 1;}
+      ConstantCoefficient one_cf(1.0);
+      rho_filter.ProjectBdrCoefficient(one_cf, material_bdr);
+      // Apply Filter void boundary, ess_bdr_filter == -1
+      Array<int> void_bdr(ess_bdr_filter);
+      for (auto &val : void_bdr) {val = val == -1;}
+      ConstantCoefficient zero_cf(0.0);
+      rho_filter.ProjectBdrCoefficient(zero_cf, void_bdr);
+      // Update ess_bdr_filter so that it is either 0 or 1.
+      for (auto &val : ess_bdr_filter) {val = val != 0; }
+   }
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;

@@ -137,11 +137,13 @@ void GetElasticityProblem(const ElasticityProblem problem,
          *mesh = Mesh::MakeCartesian3D(6, 5, 5, mfem::Element::Type::HEXAHEDRON, 1.2,
                                        1.0,
                                        1.0);
-         ess_bdr.SetSize(4, 7);
-         ess_bdr_filter.SetSize(7);
+         ess_bdr.SetSize(4, 8);
+         ess_bdr_filter.SetSize(8);
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(0, 6) = 1;
-
+         ess_bdr_filter = -1; // all boundaries void
+         ess_bdr_filter[6] = 0; // left circle is free
+         ess_bdr_filter[7] = 0; // right circle is free
          const Vector center({0.0, 0.5, 0.5});
          vforce_cf.reset(new VectorFunctionCoefficient(3, [center](const Vector &x,
                                                                    Vector &f)
@@ -201,6 +203,10 @@ void GetElasticityProblem(const ElasticityProblem problem,
             Vector center({0.0, 0.5, 0.5});
             mesh->MarkBoundary([center](const Vector &x) { return (center.DistanceTo(x) < 0.2); },
             7);
+            // Right center: Torsion
+            center[0] = 1.2;
+            mesh->MarkBoundary([center](const Vector &x) { return (center.DistanceTo(x) < 0.2); },
+            8);
          } break;
       }
       default:
