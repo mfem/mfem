@@ -141,9 +141,9 @@ protected:
    mutable double surf_fit_err_avg_prvs = 10000.0;
    mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
-   double surf_fit_max_threshold = -1.0;
+   double surf_fit_max_threshold = 1e-10;
    double surf_fit_rel_change_threshold = 0.001;
-   double surf_fit_scale_factor = 0.0;
+   double surf_fit_scale_factor = 1.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
    mutable double weights_max_limit = 1e20;
