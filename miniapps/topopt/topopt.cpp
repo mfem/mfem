@@ -372,6 +372,49 @@ void IsoElasticityIntegrator::AssembleElementMatrix(
    }
 }
 
+
+void VectorBdrMassIntegrator::AssembleFaceMatrix(const FiniteElement &el,
+                                                 const FiniteElement &dummy,
+                                                 FaceElementTransformations &Tr,
+                                                 DenseMatrix &elmat)
+{
+   int dof = el.GetDof();
+   Vector shape(dof);
+
+   elmat.SetSize(dof*vdim);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+   }
+
+   DenseMatrix elmat_scalar(dof);
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      // Access the neighboring element's integration point
+      const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+
+      double val = k.Eval(*Tr.Face, ip)*Tr.Face->Weight() * ip.weight;
+
+      el.CalcShape(eip, shape);
+      MultVVt(shape, elmat_scalar);
+      elmat_scalar *= val;
+      for (int row = 0; row < vdim; row++)
+      {
+         elmat.AddSubMatrix(dof*row, elmat_scalar);
+      }
+   }
+
+}
+
 DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                              double target_volume_fraction,
                              double volume_tolerance)
@@ -1218,14 +1261,15 @@ HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
    filter->AddDomainIntegrator(new MassIntegrator());
    filter->Assemble();
 }
-void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho) const
+void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
+                            bool apply_bdr) const
 {
    MFEM_ASSERT(frho.FESpace() != filter->FESpace(),
                "Filter is initialized with finite element space different from the given filtered density.");
    std::unique_ptr<LinearForm> rhoForm(MakeLinearForm(frho.FESpace()));
    rhoForm->AddDomainIntegrator(new DomainLFIntegrator(rho));
-
-   EllipticSolver solver(*filter, *rhoForm, ess_bdr);
+   Array<int> empty_bdr(ess_bdr); empty_bdr = 0;
+   EllipticSolver solver(*filter, *rhoForm, apply_bdr ? ess_bdr : empty_bdr);
    solver.SetIterativeMode();
    bool converged = solver.Solve(frho, true, false);
 

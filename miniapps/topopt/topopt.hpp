@@ -65,7 +65,7 @@ inline double log_d(const double x) {return std::log(x);}
     using multiple copies of a scalar FE space. */
 class IsoElasticityIntegrator : public BilinearFormIntegrator
 {
-protected:
+private:
    Coefficient *E, *nu;
    int ia;
 private:
@@ -88,7 +88,7 @@ public:
 
 class L2ProjectionLFIntegrator : public LinearFormIntegrator
 {
-protected:
+private:
    const GridFunction *gf;
    Vector gf_val, Mv;
    InverseIntegrator inv_mass;
@@ -110,6 +110,25 @@ public:
       inv_mass.AssembleElementVector(el, Tr, Mv, elvect);
    }
    void SetGridFunction(const GridFunction &new_gf) {gf = &new_gf; }
+};
+class VectorBdrMassIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient &k;
+   const int vdim;
+   const int oa, ob;
+public:
+   VectorBdrMassIntegrator(
+      Coefficient &k, const int vdim, const int oa=2, const int ob=0):
+      BilinearFormIntegrator(NULL), k(k), vdim(vdim), oa(oa), ob(ob) {}
+   VectorBdrMassIntegrator(
+      Coefficient &k, const int vdim, const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), k(k), vdim(vdim), oa(0), ob(0) {}
+
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
 };
 
 // Elliptic Bilinear Solver
@@ -167,8 +186,8 @@ private:
 
 public:
    DensityFilter(FiniteElementSpace &fes):fes(fes) {};
-   virtual void Apply(const GridFunction &rho, GridFunction &frho) const = 0;
-   virtual void Apply(Coefficient &rho, GridFunction &frho) const = 0;
+   virtual void Apply(const GridFunction &rho, GridFunction &frho, bool apply_bdr=true) const = 0;
+   virtual void Apply(Coefficient &rho, GridFunction &frho, bool apply_bdr=true) const = 0;
    FiniteElementSpace &GetFESpace() {return fes;};
 protected:
 private:
@@ -185,12 +204,12 @@ private:
 
 public:
    HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr);
-   void Apply(const GridFunction &rho, GridFunction &frho) const override
+   void Apply(const GridFunction &rho, GridFunction &frho, bool apply_bdr=true) const override
    {
       GridFunctionCoefficient rho_cf(&rho);
-      Apply(rho_cf, frho);
+      Apply(rho_cf, frho, apply_bdr);
    }
-   void Apply(Coefficient &rho, GridFunction &frho) const override;
+   void Apply(Coefficient &rho, GridFunction &frho, bool apply_bdr=true) const override;
 protected:
 private:
 };
@@ -443,6 +462,7 @@ public:
    virtual std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
                                                    GridFunction &lambda, GridFunction &frho) = 0;
    FiniteElementSpace *FESpace() { return a->FESpace(); }
+   BilinearForm &GetBilinearForm() {return *a;}
    LinearForm &GetLinearForm() {return *b;}
 protected:
    virtual void SolveSystem(GridFunction &x) = 0;
