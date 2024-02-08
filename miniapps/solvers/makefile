@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,8 +24,11 @@ MFEM_LIB_FILE = mfem_is_not_built
 BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
+LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
+LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
+
 SEQ_MINIAPPS = lor_solvers
-PAR_MINIAPPS = block-solvers plor_solvers
+PAR_MINIAPPS = block-solvers plor_solvers lor_elast
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -53,6 +56,9 @@ plor_solvers.o: $(SRC)lor_mms.hpp
 block-solvers: $(BLOCK_SOLVERS_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(BLOCK_SOLVERS_OBJ) $(MFEM_LIBS)
 
+lor_elast: $(LOR_ELAST_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(LOR_ELAST_OBJ) $(MFEM_LIBS)
+
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
@@ -73,6 +79,13 @@ lor_solvers-test-seq: lor_solvers
 plor_solvers-test-par: plor_solvers
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel LOR solvers miniapp,-fe n\
 	  -m ../../data/fichera.mesh)
+lor_elast-test-par: lor_elast-tri lor_elast-hex
+lor_elast-tri: lor_elast
+	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 2 -ca -pa -ss\
+	  -m ../../data/beam-tri.mesh -o 2)
+lor_elast-hex: lor_elast
+	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 1 -pa -o 2\
+	  -m ../../data/beam-hex.mesh)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
