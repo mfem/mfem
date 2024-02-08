@@ -1862,7 +1862,8 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
-void MixedBilinearForm::ComputeFaceElementMatrix(int i, DenseMatrix &elmat)
+void MixedBilinearForm::ComputeFaceElementMatrix(int i,
+                                                 DenseMatrix &elmat) const
 {
    FaceElementTransformations *ftr;
    Mesh *mesh = test_fes -> GetMesh();
@@ -1918,7 +1919,8 @@ void MixedBilinearForm::ComputeFaceElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
-void MixedBilinearForm::ComputeBdrFaceElementMatrix(int i, DenseMatrix &elmat)
+void MixedBilinearForm::ComputeBdrFaceElementMatrix(int i,
+                                                    DenseMatrix &elmat) const
 {
    FaceElementTransformations *ftr;
    Mesh *mesh = test_fes -> GetMesh();
