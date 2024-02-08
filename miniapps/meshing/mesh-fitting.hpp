@@ -184,6 +184,177 @@ double csg_cubecylsph(const Vector &x)
 }
 
 #ifdef MFEM_USE_MPI
+class HRefUpdater
+{
+protected:
+   Array<ParGridFunction *> pgridfuncarr;
+   Array<ParFiniteElementSpace *> pfespacearr;
+
+public:
+   HRefUpdater() {}
+
+   void AddGridFunctionForUpdate(ParGridFunction *pgf_)
+   {
+      pgridfuncarr.Append(pgf_);
+   }
+   void AddFESpaceForUpdate(ParFiniteElementSpace *pfes_)
+   {
+      pfespacearr.Append(pfes_);
+   }
+
+   void Update();
+};
+
+void HRefUpdater::Update()
+{
+   // Update FESpace
+   for (int i = 0; i < pfespacearr.Size(); i++)
+   {
+      pfespacearr[i]->Update();
+   }
+   // Update GF
+   for (int i = 0; i < pgridfuncarr.Size(); i++)
+   {
+      pgridfuncarr[i]->Update();
+      pgridfuncarr[i]->SetTrueVector();
+      pgridfuncarr[i]->SetFromTrueVector();
+   }
+}
+
+void ExtendRefinementListToNeighbors(ParMesh &pmesh, Array<int> &intel)
+{
+   mfem::L2_FECollection l2fec(0, pmesh.Dimension());
+   mfem::ParFiniteElementSpace l2fespace(&pmesh, &l2fec);
+   mfem::ParGridFunction el_to_refine(&l2fespace);
+   const int quad_order = 4;
+
+   el_to_refine = 0.0;
+
+   for (int i = 0; i < intel.Size(); i++)
+   {
+      el_to_refine(intel[i]) = 1.0;
+   }
+
+   mfem::H1_FECollection lhfec(1, pmesh.Dimension());
+   mfem::ParFiniteElementSpace lhfespace(&pmesh, &lhfec);
+   mfem::ParGridFunction lhx(&lhfespace);
+
+   el_to_refine.ExchangeFaceNbrData();
+   GridFunctionCoefficient field_in_dg(&el_to_refine);
+   lhx.ProjectDiscCoefficient(field_in_dg, GridFunction::ARITHMETIC);
+
+   IntegrationRules irRules = IntegrationRules(0, Quadrature1D::GaussLobatto);
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      Array<int> dofs;
+      Vector x_vals;
+      lhfespace.GetElementDofs(e, dofs);
+      const IntegrationRule &ir =
+         irRules.Get(pmesh.GetElementGeometry(e), quad_order);
+      lhx.GetValues(e, ir, x_vals);
+      double max_val = x_vals.Max();
+      if (max_val > 0)
+      {
+         intel.Append(e);
+      }
+   }
+
+   intel.Sort();
+   intel.Unique();
+}
+
+// Type = 0, elements on either side of interface.
+// Type = 1, face/edge indices
+// Type = 2, dofs (requires corresponding fespace)
+void GetMaterialInterfaceEntities(ParMesh *pmesh, ParGridFunction &mat,
+                                  Array<int> &intelf,
+                                  int type = 0,
+                                  ParFiniteElementSpace *dofspace = NULL)
+{
+   intelf.SetSize(0);
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+
+   if (type == 2)
+   {
+      MFEM_VERIFY(dofspace, "dof list requires fepsace");
+   }
+
+   ParGridFunction *surf_fit_dofs_gf = NULL;
+   if (dofspace)
+   {
+      surf_fit_dofs_gf = new ParGridFunction(dofspace);
+      *surf_fit_dofs_gf = 0.0;
+   }
+
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      Array<int> els;
+      //if there is more than 1 element across the face.
+      if (nbrs.Size() > 1)
+      {
+         matvals.SetSize(nbrs.Size());
+         for (int j = 0; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j) = mat(nbrs[j]);
+               els.Append(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j) = vec(0);
+            }
+         }
+         if (matvals(0) != matvals(1))
+         {
+            if (type == 0) { intelf.Append(els); }
+            else if (type == 1) { intelf.Append(f); }
+            else if (type == 2)
+            {
+               Array<int> dofs;
+               dofspace->GetFaceDofs(f, dofs);
+               Vector vals(dofs.Size());
+               vals = 1.0;
+               surf_fit_dofs_gf->SetSubVector(dofs, vals);
+            }
+         }
+      }
+   }
+
+   if (type == 2)
+   {
+      // unify across procesor boundaries
+      surf_fit_dofs_gf->ExchangeFaceNbrData();
+      {
+         GroupCommunicator &gcomm = surf_fit_dofs_gf->ParFESpace()->GroupComm();
+         Array<double> gf_array(surf_fit_dofs_gf->GetData(), surf_fit_dofs_gf->Size());
+         gcomm.Reduce<double>(gf_array, GroupCommunicator::Max);
+         gcomm.Bcast(gf_array);
+         surf_fit_dofs_gf->ExchangeFaceNbrData();
+      }
+
+      for (int i = 0; i < surf_fit_dofs_gf->Size(); i++)
+      {
+         if ((*surf_fit_dofs_gf)(i) > 0.0)
+         {
+            intelf.Append(i);
+         }
+      }
+   }
+   if (dofspace) { delete surf_fit_dofs_gf; }
+}
+
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
    const int dim = pmesh->Dimension();
@@ -476,5 +647,98 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
+}
+
+void SetMaterialGridFunction(ParMesh *pmesh, ParGridFunction &mat,
+                             ParGridFunction &surf_fit_gf0,
+                             bool material, bool adapt_marking)
+{
+   for (int i = 0; i < pmesh->GetNE(); i++)
+   {
+      if (material)
+      {
+         mat(i) = pmesh->GetAttribute(i)-1;
+      }
+      else
+      {
+         mat(i) = material_id(i, surf_fit_gf0);
+         pmesh->SetAttribute(i, mat(i) + 1);
+      }
+   }
+   mat.ExchangeFaceNbrData();
+   pmesh->SetAttributes();
+
+   // Adapt attributes for marking such that if all but 1 face of an element
+   // are marked, the element attribute is switched.
+   if (adapt_marking)
+   {
+      ModifyAttributeForMarkingDOFS(pmesh, mat, 0);
+      ModifyAttributeForMarkingDOFS(pmesh, mat, 1);
+   }
+   pmesh->ExchangeFaceNbrData();
+}
+
+// loops over all the faces. For parents faces, checks wether the children across
+// that face have same material
+int CheckMaterialConsistency(ParMesh *pmesh, ParGridFunction &mat)
+{
+   mat.ExchangeFaceNbrData();
+   const int NElem = pmesh->GetNE();
+   MFEM_VERIFY(mat.Size() == NElem, "Material GridFunction should be a piecewise"
+               "constant function over the mesh.");
+   int matcheck = 1;
+   int pass = 1;
+   for (int f = 0; f < pmesh->GetNumFaces(); f++ )
+   {
+      Array<int> nbrs;
+      pmesh->GetFaceAdjacentElements(f,nbrs);
+      Vector matvals;
+      Array<int> vdofs;
+      Vector vec;
+      //if there is more than 1 element across the face.
+      matvals.SetSize(nbrs.Size()-1);
+      if (nbrs.Size() > 2)
+      {
+         for (int j = 1; j < nbrs.Size(); j++)
+         {
+            if (nbrs[j] < NElem)
+            {
+               matvals(j-1) = mat(nbrs[j]);
+            }
+            else
+            {
+               const int Elem2NbrNo = nbrs[j] - NElem;
+               mat.ParFESpace()->GetFaceNbrElementVDofs(Elem2NbrNo, vdofs);
+               mat.FaceNbrData().GetSubVector(vdofs, vec);
+               matvals(j-1) = vec(0);
+            }
+         }
+         double minv = matvals.Min(),
+                maxv = matvals.Max();
+         matcheck = minv == maxv;
+      }
+      if (matcheck == 0) { pass = 0; break; }
+   }
+   int global_pass = pass;
+   MPI_Allreduce(&pass, &global_pass, 1, MPI_INT, MPI_MIN,
+                 pmesh->GetComm());
+   return global_pass;
+}
+
+void GetBoundaryElements(ParMesh *pmesh,
+                         Array<int> &bel,
+                         int attr)
+{
+   bel.SetSize(0);
+   for (int f = 0; f < pmesh->GetNBE(); f++ )
+   {
+      int el;
+      int info;
+      pmesh->GetBdrElementAdjacentElement(f, el, info);
+      if (pmesh->GetBdrAttribute(f) == attr)
+      {
+         bel.Append(el);
+      }
+   }
 }
 #endif

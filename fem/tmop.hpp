@@ -1985,8 +1985,8 @@ protected:
    double ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
-   /// Remaps the internal surface fitting gridfunction object at provided
-   /// locations.
+   // Remaps the internal surface fitting gridfunction object at provided
+   // locations.
    void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
                                            int new_x_ordering = Ordering::byNODES);
 public:
@@ -2240,7 +2240,6 @@ public:
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 
    // Methods related to surface fitting
-
    /// Get avg and max surface fitting errors.
    void GetSurfaceFittingErrors(const Vector &pos,
                                 double &err_avg, double &err_max);
@@ -2250,12 +2249,6 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
-
-   /// Update surface fitting coefficient
-   void UpdateSurfaceFittingCoefficient(Coefficient &coeff)
-   {
-      surf_fit_coeff = &coeff;
-   };
 
    /// Remap the surface fitting level-set function to the provided GridFunction
    /// Assumes @a s0 and mesh nodes share the same finite element space.

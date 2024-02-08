@@ -3345,6 +3345,7 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
+
    }
    else
    {
