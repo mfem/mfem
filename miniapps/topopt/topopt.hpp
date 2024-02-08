@@ -86,6 +86,32 @@ public:
                                       DenseMatrix &);
 };
 
+class L2ProjectionLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   const GridFunction *gf;
+   Vector gf_val, Mv;
+   InverseIntegrator inv_mass;
+   MixedScalarMassIntegrator mass;
+   DenseMatrix M;
+
+public:
+   L2ProjectionLFIntegrator(const GridFunction &gf): LinearFormIntegrator(),
+      gf(&gf), inv_mass(new MassIntegrator), mass() {}
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect)
+   {
+      const FiniteElement &el_source = *(gf->FESpace()->GetFE(Tr.ElementNo));
+      gf->GetElementDofValues(Tr.ElementNo, gf_val);
+      mass.AssembleElementMatrix2(el_source, el, Tr, M);
+      Mv.SetSize(M.NumCols());
+      M.Mult(gf_val, Mv);
+      inv_mass.AssembleElementVector(el, Tr, Mv, elvect);
+   }
+   void SetGridFunction(const GridFunction &new_gf) {gf = &new_gf; }
+};
+
 // Elliptic Bilinear Solver
 class EllipticSolver
 {
@@ -119,7 +145,7 @@ public:
    /// @param b_Assembled If true, skip assembly of RHS (linearform)
    /// @return convergence flag
    bool Solve(GridFunction &x, bool A_assembled=false, bool b_Assembled=false);
-   bool SolveTranspose(GridFunction &x, LinearForm *f, bool A_assembled=false,
+   bool SolveTranspose(GridFunction &x, LinearForm &f, bool A_assembled=false,
                        bool b_Assembled=false);
 
    bool isParallel() { return parallel; }
@@ -433,8 +459,8 @@ protected:
    std::shared_ptr<GridFunction> gradF;
    std::shared_ptr<GridFunction> gradF_filter;
    std::shared_ptr<GridFunction> state, dual_solution;
-   std::unique_ptr<BilinearForm> filter_to_density;
-   std::unique_ptr<LinearForm> gradF_filter_form;
+   L2ProjectionLFIntegrator *L2projector; // not owned
+   std::unique_ptr<LinearForm> filter_to_density;
    std::unique_ptr<Coefficient> dEdfrho;
    const bool solve_dual;
    const bool apply_projection;

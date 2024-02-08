@@ -178,16 +178,16 @@ bool EllipticSolver::Solve(GridFunction &x, bool A_assembled,
    return converged;
 }
 
-bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
+bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm &f,
                                     bool A_assembled, bool f_Assembled)
 {
    OperatorPtr A;
    Vector B, X;
 
    if (!A_assembled) { a.Assemble(); }
-   if (!f_Assembled) { f->Assemble(); }
+   if (!f_Assembled) { f.Assemble(); }
 
-   a.FormLinearSystem(ess_tdof_list, x, *f, A, X, B, true);
+   a.FormLinearSystem(ess_tdof_list, x, f, A, X, B, true);
 
 #ifdef MFEM_USE_SUITESPARSE
    UMFPackSolver umf_solver;
@@ -226,7 +226,7 @@ bool EllipticSolver::SolveTranspose(GridFunction &x, LinearForm *f,
    cg->SetOperator(*A);
    cg->iterative_mode = iterative_mode;
    cg->Mult(B, X);
-   a.RecoverFEMSolution(X, *f, x);
+   a.RecoverFEMSolution(X, f, x);
    bool converged = cg->GetConverged();
 #endif
 
@@ -932,10 +932,11 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
    {
       gradF_filter.reset(MakeGridFunction(density.FESpace_filter()));
       *gradF_filter = 0.0;
-      filter_to_density.reset(MakeBilinearForm(density.FESpace()));
-      filter_to_density->AddDomainIntegrator(new InverseIntegrator(
-                                                new MassIntegrator));
-      filter_to_density->Assemble();
+
+      L2projector = new L2ProjectionLFIntegrator(*gradF_filter);
+      filter_to_density.reset(MakeLinearForm(density.FESpace()));
+      filter_to_density->SetData(gradF->GetData());
+      filter_to_density->AddDomainIntegrator(L2projector);
    }
 
 #ifdef MFEM_USE_MPI
@@ -970,11 +971,9 @@ void TopOptProblem::UpdateGradient()
    density.GetFilter().Apply(*dEdfrho, *gradF_filter);
    if (gradF_filter != gradF)
    {
-      std::unique_ptr<LinearForm> tmp(MakeLinearForm(gradF->FESpace()));
-      GridFunctionCoefficient gradF_filter_cf(gradF_filter.get());
-      tmp->AddDomainIntegrator(new DomainLFIntegrator(gradF_filter_cf));
-      tmp->Assemble();
-      filter_to_density->Mult(*tmp, *gradF);
+      filter_to_density->SetData(gradF->GetData());
+      L2projector->SetGridFunction(*gradF_filter);
+      filter_to_density->Assemble();
    }
 }
 
