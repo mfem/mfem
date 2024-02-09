@@ -260,7 +260,6 @@ public:
 
    void ProjectBdrCoefficient(Coefficient *coeff[],
                               const Array<int> &attr) override
-
    { ProjectBdrCoefficient(coeff, NULL, attr); }
 
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
