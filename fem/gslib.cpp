@@ -1337,7 +1337,24 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 }
 
 
-GSLIBGroupCommunicator::GSLIBGroupCommunicator(MPI_Comm comm_)
+GSOPGSLIB::GSOPGSLIB()
+{
+   gsl_comm = new gslib::comm;
+   cr       = new gslib::crystal;
+#ifdef MFEM_USE_MPI
+   int initialized;
+   MPI_Initialized(&initialized);
+   if (!initialized) { MPI_Init(NULL, NULL); }
+   MPI_Comm comm = MPI_COMM_WORLD;
+   comm_init(gsl_comm, comm);
+#else
+   comm_init(gsl_comm, 0);
+#endif
+   crystal_init(cr, gsl_comm);
+}
+
+#ifdef MFEM_USE_MPI
+GSOPGSLIB::GSOPGSLIB(MPI_Comm comm_)
    : cr(NULL), gsl_comm(NULL)
 {
    gsl_comm = new gslib::comm;
@@ -1345,20 +1362,21 @@ GSLIBGroupCommunicator::GSLIBGroupCommunicator(MPI_Comm comm_)
    comm_init(gsl_comm, comm_);
    crystal_init(cr, gsl_comm);
 }
+#endif
 
-void GSLIBGroupCommunicator::FreeData()
+void GSOPGSLIB::FreeData()
 {
    crystal_free(cr);
    gslib_gs_free(gsl_data);
 }
 
-GSLIBGroupCommunicator::~GSLIBGroupCommunicator()
+GSOPGSLIB::~GSOPGSLIB()
 {
    delete gsl_comm;
    delete cr;
 }
 
-void GSLIBGroupCommunicator::Setup(Array<long long> &ids)
+void GSOPGSLIB::Setup(Array<long long> &ids)
 {
    num_ids = ids.Size();
    gsl_data = gslib_gs_setup(ids.GetData(),
@@ -1367,7 +1385,7 @@ void GSLIBGroupCommunicator::Setup(Array<long long> &ids)
                              gslib::gs_crystal_router, 1);
 }
 
-void GSLIBGroupCommunicator::GOP(Vector &senddata, OpType op)
+void GSOPGSLIB::GOP(Vector &senddata, OpType op)
 {
    MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
    if (op == OpType::ADD)

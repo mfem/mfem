@@ -310,7 +310,7 @@ public:
 /// where the values have been compared across all processors based on the integer
 /// identifier.
 /// GSLIB also supports max, sum, and multiplication operation.
-class GSLIBGroupCommunicator
+class GSOPGSLIB
 {
 protected:
    struct gslib::crystal *cr;             // gslib's internal data
@@ -319,9 +319,13 @@ protected:
    int num_ids;
 
 public:
-   GSLIBGroupCommunicator(MPI_Comm comm_);
+   GSOPGSLIB();
 
-   virtual ~GSLIBGroupCommunicator();
+#ifdef MFEM_USE_MPI
+   GSOPGSLIB(MPI_Comm comm_);
+#endif
+
+   virtual ~GSOPGSLIB();
 
    // Same ids get grouped together. id == 0 does not participate.
    virtual void Setup(Array<long long> &ids);
