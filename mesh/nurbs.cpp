@@ -39,6 +39,7 @@ KnotVector::KnotVector(int Order_, int NCP)
    Order = Order_;
    NumOfControlPoints = NCP;
    knot.SetSize(NumOfControlPoints + Order + 1);
+   NumOfElements = 0;
 
    knot = -1.;
 }
@@ -129,27 +130,35 @@ void KnotVector::Print(std::ostream &os) const
    knot.Print(os, knot.Size());
 }
 
-
 void KnotVector::PrintFunctions(std::ostream &os, int samples) const
 {
+   MFEM_VERIFY(GetNE(), "Elements not counted. Use GetElements().");
+
    Vector shape(Order+1);
 
    double x, dx = 1.0/double (samples - 1);
 
-   for (int i = 0; i <GetNE() ; i++)
+   /* @a cnt is a counter including elements between repeated knots if
+      present. This is required for usage of CalcShape. */
+   int cnt = 0;
+
+   for (int e = 0; e < GetNE(); e++, cnt++)
    {
+      // Avoid printing shapes between repeated knots
+      if (!isElement(cnt)) { e--; continue; }
+
       for (int j = 0; j <samples; j++)
       {
          x =j*dx;
-         os<< x + i;
+         os<< x + e;
 
-         CalcShape ( shape, i, x);
+         CalcShape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcDShape ( shape, i, x);
+         CalcDShape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
 
-         CalcD2Shape ( shape, i, x);
+         CalcD2Shape ( shape, cnt, x);
          for (int d = 0; d < Order+1; d++) { os<<"\t"<<shape[d]; }
          os<<endl;
       }
@@ -2146,7 +2155,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
    if (p2g0.ny() != p2g1.ny()) { compatible = false; }
 
    if (kv0[0]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
-   if (kv0[1]->GetNKS() != kv1[0]->GetNKS()) { compatible = false; }
+   if (kv0[1]->GetNKS() != kv1[1]->GetNKS()) { compatible = false; }
 
    if (kv0[0]->GetOrder() != kv1[0]->GetOrder()) { compatible = false; }
    if (kv0[1]->GetOrder() != kv1[1]->GetOrder()) { compatible = false; }
@@ -2157,7 +2166,7 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
       mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
 
       mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[1]->GetNKS()<<endl;
 
       mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
       mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
@@ -4374,7 +4383,7 @@ Table *ParNURBSExtension::Get1DGlobalElementDofTable()
             Connection conn(el,0);
             for (int ii = 0; ii <= ord0; ii++)
             {
-               conn.to = p2g(i+ii);
+               conn.to = DofMap(p2g(i+ii));
                gel_dof_list.Append(conn);
             }
             el++;
@@ -4412,7 +4421,7 @@ Table *ParNURBSExtension::Get2DGlobalElementDofTable()
                   {
                      for (int ii = 0; ii <= ord0; ii++)
                      {
-                        conn.to = p2g(i+ii,j+jj);
+                        conn.to = DofMap(p2g(i+ii,j+jj));
                         gel_dof_list.Append(conn);
                      }
                   }
@@ -4460,7 +4469,7 @@ Table *ParNURBSExtension::Get3DGlobalElementDofTable()
                            {
                               for (int ii = 0; ii <= ord0; ii++)
                               {
-                                 conn.to = p2g(i+ii,j+jj,k+kk);
+                                 conn.to = DofMap(p2g(i+ii,j+jj,k+kk));
                                  gel_dof_list.Append(conn);
                               }
                            }
