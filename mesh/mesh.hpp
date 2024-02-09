@@ -950,7 +950,8 @@ public:
 
    int AddBdrPoint(int v, int attr = 1);
 
-   void GenerateBoundaryElements();
+   virtual void GenerateBoundaryElements();
+
    /// Finalize the construction of a triangular Mesh.
    void FinalizeTriMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
