@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -383,6 +383,10 @@ protected:
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
                      Geometry::Type master_geom = Geometry::INVALID,
                      int variant = 0) const;
+   /// Helper to get vertex, edge or face VDOFs (entity=0,1,2 resp.).
+   int GetEntityVDofs(int entity, int index, Array<int> &dofs,
+                      Geometry::Type master_geom = Geometry::INVALID,
+                      int variant = 0) const;
 
    // Get degenerate face DOFs: see explanation in method implementation.
    int GetDegenerateFaceDofs(int index, Array<int> &dofs,
@@ -1346,6 +1350,10 @@ inline bool UsesTensorBasis(const FiniteElementSpace& fes)
    return !mixed &&
           dynamic_cast<const mfem::TensorBasisElement *>(fes.GetFE(0))!=nullptr;
 }
+
+/// @brief Return LEXICOGRAPHIC if mesh contains only one topology and the elements are tensor
+/// elements, otherwise, return NATIVE.
+ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes);
 
 }
 

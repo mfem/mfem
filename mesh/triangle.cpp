@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -188,10 +188,13 @@ void Triangle::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 void Triangle::GetVertices(Array<int> &v) const
 {
    v.SetSize(3);
-   for (int i = 0; i < 3; i++)
-   {
-      v[i] = indices[i];
-   }
+   std::copy(indices, indices + 3, v.begin());
+}
+
+void Triangle::SetVertices(const Array<int> &v)
+{
+   MFEM_ASSERT(v.Size() == 3, "!");
+   std::copy(v.begin(), v.end(), indices);
 }
 
 } // namespace mfem
