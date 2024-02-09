@@ -156,7 +156,7 @@ int main (int argc, char *argv[])
                   "-no-dist","--no-comp-dist",
                   "Compute distance from 0 level set or not.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
-                  "1 - Circle (DEFAULT), 2 - Squircle, 3 - Butterfly.");
+                  "1 - Circle (DEFAULT), 2 - reactor level-set, 3 - squircle.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
                   "0 - Interface (DEFAULT), otherwise Boundary attribute.");
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr", "--modify-boundary-attribute",
@@ -215,7 +215,7 @@ int main (int argc, char *argv[])
    {
       ls_coeff = new FunctionCoefficient(reactor);
    }
-   else if (surf_ls_type == 3) //Circle
+   else if (surf_ls_type == 3) //squircle
    {
       ls_coeff = new FunctionCoefficient(squircle_level_set);
    }
