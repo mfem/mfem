@@ -537,6 +537,7 @@ int main(int argc, char *argv[])
    
    if (geom == geom_type::square)
    {
+      fsolv->AddBC(1,0.0);
       fsolv->AddBC(2,1.0);
    }
    else
@@ -658,14 +659,14 @@ int main(int argc, char *argv[])
               vobj->SetProjection(0.5,2.0);
               sink->SetDensity(vdens,0.5,2.0,3.0);
               sink->SetSIMP(true);
-          }else if(i<200){
-              vobj->SetProjection(0.5,2.0);
-              sink->SetDensity(vdens,0.5,2.0,4.0);
-              sink->SetSIMP(true);
           }else{
-              vobj->SetProjection(0.5,2.0);
-              sink->SetDensity(vdens,0.5,2.0,5.0);
-              sink->SetSIMP(true);
+              //vobj->SetProjection(0.5,2.0);
+              //sink->SetDensity(vdens,0.5,2.0,5.0);
+              //sink->SetSIMP(true);
+
+              vobj->SetProjection(0.3,8.0);
+              sink->SetDensity(vdens,0.7,8.0,1.0);
+              sink->SetSIMP(false);
           }
 
           vol=vobj->Eval(vdens);
