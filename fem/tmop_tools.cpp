@@ -419,7 +419,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    double avg_init_fit_err, max_init_fit_err = 0.0;
    GetSurfaceFittingError(x_out_loc, avg_init_fit_err, max_init_fit_err);
    // Check for convergence based on fitting error
-   if (surf_fit_converge_based_on_error &&
+   if (surf_fit_max_threshold > 0.0 &&
+       surf_fit_converge_based_on_error &&
        max_init_fit_err < surf_fit_max_threshold)
    {
       if (print_options.iterations)
@@ -464,7 +465,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    bool x_out_ok = false;
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
-   double norm_out = 0.0;
    double avg_fit_err, max_fit_err = 0.0;
 
    const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
@@ -522,7 +522,8 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
       // Ensure sufficient decrease in fitting error if we are trying to
       // converge based on error.
-      if (surf_fit_converge_based_on_error &&
+      if (surf_fit_max_threshold > 0.0 &&
+          surf_fit_converge_based_on_error &&
           max_fit_err >= 1.2*max_init_fit_err)
       {
          if (print_options.iterations)
@@ -556,7 +557,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
-      norm_out = Norm(r);
+      double norm_out = Norm(r);
 
       if (norm_out > 1.2*norm_in)
       {
@@ -610,7 +611,7 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (x_out_ok == false) { scale = 0.0; }
 
-   if (surf_fit_scale_factor > 1.0) { update_surf_fit_coeff = true; }
+   if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;
 
    return scale;

@@ -141,9 +141,9 @@ protected:
    mutable double surf_fit_err_avg_prvs = 10000.0;
    mutable double surf_fit_err_avg, surf_fit_err_max;
    mutable bool update_surf_fit_coeff = false;
-   double surf_fit_max_threshold = 1e-10;
+   double surf_fit_max_threshold = -1.0;
    double surf_fit_rel_change_threshold = 0.001;
-   double surf_fit_scale_factor = 1.0;
+   double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
    mutable double weights_max_limit = 1e20;
@@ -226,14 +226,25 @@ public:
    /// (ii) surface fitting weight.
    virtual void ProcessNewState(const Vector &x) const;
 
-   /** @name Methods for adaptive surface fitting weight. (Experimental) */
+   /** @name Methods for adaptive surface fitting weight and controlling the
+       convergence of the solver. (Experimental) */
    /// Enable/Disable adaptive surface fitting weight.
    /// The weight is modified after each TMOPNewtonSolver iteration as:
-   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if relative change in
-   /// max surface fitting error < @a surf_fit_rel_change_threshold.
-   /// The solver terminates if the maximum surface fitting error does
-   /// not sufficiently decrease for @a max_adapt_inc_count consecutive
-   /// solver iterations or if the max error falls below @a surf_fit_max_threshold.
+   /// w_{k+1} = w_{k} * @a surf_fit_scale_factor if (a) relative change in
+   /// max surface fitting error < @a surf_fit_rel_change_threshold, (b) the
+   /// fitting weight is below the maximum limit, and (c) the error is above the
+   /// user-specified threshold.
+   /// There are three termination modes.
+   /// (i) Error based: Maximum fitting error reaches the prescribed threshold.
+   /// This is enabled by default, but requires user to specify @a surf_fit_max_threshold.
+   /// (ii) Residual based: based on the norm of the gradient of the TMOP
+   /// objective. This requires user to use "SetFittingConvergenceBasedOnResidual".
+   /// This method is usually used with a reasonable value for @a weights_max_limit.
+   /// (iii) when the maximum surface fitting error does not sufficiently
+   /// decrease for @a max_adapt_inc_count consecutive solver iterations. This
+   /// typically occurs when the mesh cannot align with the level-set without
+   /// degrading element quality. This mode is only active with adaptive surface
+   /// fitting.
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
@@ -255,10 +266,6 @@ public:
    {
       surf_fit_max_threshold = max_error;
    }
-   void SetMinimumDeterminantThreshold(double threshold)
-   {
-      min_detJ_threshold = threshold;
-   }
    void SetMaximumFittingWeightLimit(double weight)
    {
       weights_max_limit = weight;
@@ -266,6 +273,12 @@ public:
    void SetFittingConvergenceBasedOnResidual()
    {
       surf_fit_converge_based_on_error = false;
+   }
+
+   /// Set minimum determinant enforced during line-search.
+   void SetMinimumDeterminantThreshold(double threshold)
+   {
+      min_detJ_threshold = threshold;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const
