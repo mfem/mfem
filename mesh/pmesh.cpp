@@ -969,6 +969,9 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
       pncmesh->GetConformingSharedStructures(*this);
    }
 
+   // Assume FinalizeTopology() has been called in Loader
+   FinalizeParTopo();
+
    Finalize(refine, fix_orientation);
 
    EnsureParNodes();
@@ -3188,6 +3191,44 @@ int ParMesh::GetNFbyType(FaceType type) const
 {
    const_cast<ParMesh*>(this)->ExchangeFaceNbrData();
    return Mesh::GetNFbyType(type);
+}
+
+void ParMesh::GenerateBoundaryElements()
+{
+   for (auto &b : boundary)
+   {
+      FreeElement(b);
+   }
+
+   if (Dim == 3)
+   {
+      delete bel_to_edge;
+      bel_to_edge = NULL;
+   }
+
+   // count the 'NumOfBdrElements'
+   NumOfBdrElements = 0;
+   for (int i = 0; i < faces_info.Size(); i++)
+   {
+      const auto &fi = faces_info[i];
+      if (fi.Elem2No >= 0) { continue; }
+      if (sedge_ledge.Find(i) < 0) { ++NumOfBdrElements; }
+   }
+
+   // Add the boundary elements
+   boundary.SetSize(NumOfBdrElements);
+   be_to_face.SetSize(NumOfBdrElements);
+   for (int i = 0, j = 0; i < faces_info.Size(); i++)
+   {
+      if (faces_info[i].Elem2No >= 0) { continue; }
+      if (sedge_ledge.Find(i) < 0)
+      {
+         boundary[j] = faces[i]->Duplicate(this);
+         be_to_face[j++] = i;
+      }
+   }
+
+   // Note: in 3D, 'bel_to_edge' is destroyed but it's not updated.
 }
 
 // shift cyclically 3 integers a, b, c, so that the smallest of
