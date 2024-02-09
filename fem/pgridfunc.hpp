@@ -254,7 +254,7 @@ public:
 
    // Perform group communicator operations.
    // op=0 (Sum), 1 (Min), 2 (Max), 3 (BitOR)
-   virtual void GroupCommunicatorOp(int op);
+   virtual void GroupCommunicatorOp(int op) override;
 
    using GridFunction::ProjectBdrCoefficient;
 

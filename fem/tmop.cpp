@@ -3421,8 +3421,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                     *s0.FESpace());
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
-
-   SaveSurfaceFittingWeight();
 }
 
 void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
@@ -3462,6 +3460,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    ParMesh *pmesh = s0.ParFESpace()->GetParMesh();
    MFEM_VERIFY(pmesh->GetNodes()->Size() == dim*s0.Size(),
                "Mesh and level-set polynomial order must be the same.");
+
    delete surf_fit_gf;
    ParGridFunction *surf_fit_gf_dummy = new ParGridFunction(s0);
    surf_fit_gf = surf_fit_gf_dummy;
@@ -3476,8 +3475,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval->SetInitialField
    (*surf_fit_gf->FESpace()->GetMesh()->GetNodes(), *surf_fit_gf);
    surf_fit_gf_bg = false;
-
-   SaveSurfaceFittingWeight();
 
    //Unify marker array across processor boundaries
    {
@@ -3582,20 +3579,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    *surf_fit_hess = 0.0;
 }
 
-void TMOP_Integrator::DisableSurfaceFitting()
-{
-   delete surf_fit_gf;
-   surf_fit_gf = NULL;
-   surf_fit_gf_bg = false;
-   delete surf_fit_grad;
-   surf_fit_grad = NULL;
-   delete surf_fit_hess;
-   surf_fit_hess = NULL;
-   delete surf_fit_gf_l2;
-   delete surf_fit_grad_l2;
-   delete surf_fit_hess_l2;
-}
-
 void TMOP_Integrator::EnableSurfaceFittingFromSource(
    const ParGridFunction &s_bg, ParGridFunction &s0,
    Array<bool> &smarker, Coefficient &coeff, AdaptivityEvaluator &ae,
@@ -3604,6 +3587,10 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    const ParGridFunction &s_bg_hess,
    ParGridFunction &s0_hess, AdaptivityEvaluator &ahe)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
@@ -3686,15 +3673,16 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
          surf_fit_marker_dof_index.Append(i);
       }
    }
-
-   SaveSurfaceFittingWeight();
 }
+#endif
 
-void TMOP_Integrator::ReMapSurfaceFittingLevelSet(ParGridFunction &s0)
+void TMOP_Integrator::ReMapSurfaceFittingLevelSet(GridFunction &s0)
 {
    MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
    //Remap back to the current mesh right away
    GridFunction *nodes = s0.FESpace()->GetMesh()->GetNodes();
+   MFEM_VERIFY(s0.Size() == nodes->Size()/s0.FESpace()->GetMesh()->Dimension(),
+               "Gridfunction and mesh nodes must be in the same space.");
    surf_fit_eval->ComputeAtNewPosition(*nodes, *surf_fit_gf,
                                        nodes->FESpace()->GetOrdering());
    s0 = *surf_fit_gf;
@@ -3803,13 +3791,13 @@ void TMOP_Integrator::ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
             }
          }
       }
+
    }
    else
    {
       surf_fit_eval->ComputeAtNewPosition(new_x, *surf_fit_gf, new_x_ordering);
    }
 }
-#endif
 
 void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
                                               double &err_avg, double &err_max)
@@ -4997,16 +4985,6 @@ double TMOP_Integrator::GetSurfaceFittingWeight()
       return cf->constant;
    }
    return 0.0;
-}
-
-void TMOP_Integrator::SaveSurfaceFittingWeight()
-{
-   if (surf_fit_coeff)
-   {
-      auto cf = dynamic_cast<ConstantCoefficient *>(surf_fit_coeff);
-      MFEM_VERIFY(cf, "Dynamic weight works only with a ConstantCoefficient.");
-      last_active_surf_fit_const = cf->constant;
-   }
 }
 
 void TMOP_Integrator::EnableNormalization(const GridFunction &x)

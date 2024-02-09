@@ -563,7 +563,6 @@ int main (int argc, char *argv[])
    int solver_type       = 0;
    int solver_iter       = 20;
    double solver_rtol    = 1e-10;
-   int solver_art_type   = 0;
    int lin_solver        = 2;
    int max_lin_iter      = 100;
    bool move_bnd         = true;
@@ -573,6 +572,7 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    double surface_fit_adapt = 0.0;
    double surface_fit_threshold = -10;
+   double surf_fit_const_max = 1e20;
    bool adapt_marking     = false;
    bool surf_bg_mesh     = false;
    bool comp_dist     = false;
@@ -584,15 +584,12 @@ int main (int argc, char *argv[])
    int amr_iters         = 0;
    int int_amr_iters     = 0;
    int deactivation_layers = 0;
-   bool twopass            = false;
-   bool mu_linearization  = false;
    int custom_split_mesh = 0;
    bool custom_material   = false;
    int jobid  = 0;
    double surf_inc_trigger_rel_thresold = 0.01;
    double surf_fit_const_max = 1e20;
    double surf_fit_min_det_threshold = 0.0;
-   bool normalization    = false;
    double worst_skew = 0.0;
    bool amr_remarking = false;
    int ref_int_neighbors   = 0;
@@ -601,6 +598,7 @@ int main (int argc, char *argv[])
    bool output_final_mesh    = false;
    bool conforming_amr       = false;
    bool conv_residual        = false;
+   int exceptions            = 0;
 
    // 2. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -633,11 +631,6 @@ int main (int argc, char *argv[])
                   "Maximum number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
-   args.AddOption(&solver_art_type, "-art", "--adaptive-rel-tol",
-                  "Type of adaptive relative linear solver tolerance:\n\t"
-                  "0: None (default)\n\t"
-                  "1: Eisenstat-Walker type 1\n\t"
-                  "2: Eisenstat-Walker type 2");
    args.AddOption(&lin_solver, "-ls", "--lin-solver",
                   "Linear solver:\n\t"
                   "0: l1-Jacobi\n\t"
@@ -689,13 +682,6 @@ int main (int argc, char *argv[])
                   "Number of amr iterations around interface on mesh");
    args.AddOption(&deactivation_layers, "-deact", "--deact-layers",
                   "Number of layers of elements around the interface to consider for TMOP solver");
-   args.AddOption(&twopass, "-twopass", "--twopass", "-no-twopass",
-                  "--no-twopass",
-                  "Enable 2nd pass for smoothing volume elements when some elements"
-                  "are deactivated in 1st pass with surface fitting.");
-   args.AddOption(&mu_linearization, "-mulin", "--mu-linearization", "-no-mulin",
-                  "--no-mu-linearization",
-                  "Linearized form of metric.");
    args.AddOption(&custom_split_mesh, "-ctot", "--custom_split_mesh",
                   "Split Mesh Into Tets/Tris/Quads for consistent materials");
    args.AddOption(&custom_material, "-cus-mat", "--custom-material",
@@ -710,9 +696,6 @@ int main (int argc, char *argv[])
                   "Max surface fitting weight allowed");
    args.AddOption(&surf_fit_min_det_threshold, "-sfcjac", "--surf-fit-jac",
                   "Threshold on minimum determinant for deciding how long surf fit const can be increased");
-   args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
-                  "--no-normalization",
-                  "Make all terms in the optimization functional unitless.");
    args.AddOption(&worst_skew, "-skewmax", "--skew-max",
                   "worst skewness in degrees.. between 90 and 180");
    args.AddOption(&amr_remarking, "-remark", "--re-mark", "-no-remark",
@@ -733,6 +716,8 @@ int main (int argc, char *argv[])
    args.AddOption(&conv_residual, "-resid", "--resid", "-no-resid",
                   "--resid",
                   "Enable residual based convergence.");
+   args.AddOption(&exceptions, "-exc", "--exc",
+                  "Exceptions for certain cases");
    args.Parse();
    if (!args.Good())
    {
@@ -1311,17 +1296,19 @@ int main (int argc, char *argv[])
                   surf_fit_fes.GetElementDofs(e, dofs);
                   surf_fit_mat_gf_temp.GetSubVector(dofs, datavec);
                   //optional for run for paper
-                  //    if (surf_ls_type == 3)
-                  //    {
-                  //        Vector center(pmesh->Dimension());
-                  //        pmesh->GetElementCenter(e, center);
-                  //        if (center(0) >= 0.375 && center(0) <= 0.625) {
-                  //        datavec = 0.0;
-                  //        }
-                  //        if (center(1) >= 0.375 && center(1) <= 0.625) {
-                  //        datavec = 0.0;
-                  //        }
-                  //    }
+                  if (surf_ls_type == 3 && exceptions == 1)
+                  {
+                     Vector center(pmesh->Dimension());
+                     pmesh->GetElementCenter(e, center);
+                     if (center(0) >= 0.375 && center(0) <= 0.625)
+                     {
+                        datavec = 0.0;
+                     }
+                     if (center(1) >= 0.375 && center(1) <= 0.625)
+                     {
+                        datavec = 0.0;
+                     }
+                  }
                   if (datavec.Max() == 1.0) { refinements.Append(e); }
                }
             }
@@ -1637,12 +1624,6 @@ int main (int argc, char *argv[])
          if (myid == 0) { cout << "Unknown metric_id: " << metric_id << endl; }
          return 3;
    }
-   if (mu_linearization)
-   {
-      metric->EnableLinearization();
-      //       metric->EnablePartialLinearization();
-   }
-
 
    if (metric_id > 0 && metric_id < 300)
    {
@@ -1947,12 +1928,6 @@ int main (int argc, char *argv[])
    }
 
 
-   if (normalization)
-   {
-      surf_fit_coeff.constant   = 1.0;
-      tmop_integ->ParEnableNormalization(x0);
-      surf_fit_coeff.constant  = surface_fit_const;
-   }
 
    Vector integrated_face_error(fitting_face_list.Size());
    double tot_init_integ_error = 0.0;
@@ -2130,11 +2105,6 @@ int main (int argc, char *argv[])
       solver.SetAdaptiveSurfaceFittingScalingFactor(surface_fit_adapt);
       solver.SetAdaptiveSurfaceFittingRelativeChangeThreshold(
          surf_inc_trigger_rel_thresold);
-      solver.SetTerminationWithMaxSurfaceFittingError(solver_rtol*surf_fit_err_max);
-      if (surface_fit_adapt == 1.0)
-      {
-         solver.SetMaxNumberofIncrementsForAdaptiveFitting(std::abs(solver_iter));
-      }
    }
    if (surface_fit_threshold > 0)
    {
@@ -2151,10 +2121,6 @@ int main (int argc, char *argv[])
       solver.SetMinimumDeterminantThreshold(surf_fit_min_det_threshold*tauval);
    }
    solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
-   if (worst_skew > 0.0)
-   {
-      solver.SetWorstSkewnessLimit(worst_skew*M_PI/180.0);
-   }
    if (conv_residual)
    {
       solver.SetFittingConvergenceBasedOnResidual();
@@ -2172,116 +2138,50 @@ int main (int argc, char *argv[])
    int NewtonIters = 0;
    int PrecIters = 0;
 
-   if (solver_iter < 0)
+   solver.SetMaxIter(solver_iter);
+   solver.SetRelTol(solver_rtol);
+   solver.SetAbsTol(0.0);
+   if (solver_art_type > 0)
    {
-      for (int iter = 0; iter < -solver_iter; iter++)
-      {
-         solver.SetMaxIter(1);
-         //           solver.SetRelTol(solver_rtol);
-         solver.SetAbsTol(solver_rtol);
-         solver.SetAbsTol(0.0);
-         if (solver_art_type > 0)
-         {
-            solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-         }
-         solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-         solver.SetOperator(a);
-         TimeSolver.Start();
-         solver.Mult(b, psub_x->GetTrueVector());
-         TimeSolver.Stop();
-         psub_x->SetFromTrueVector();
-
-         solvertime += TimeSolver.RealTime();
-         vectortime += solver.GetAssembleElementVectorTime(),
-                       gradtime   += solver.GetAssembleElementGradTime(),
-                                     prectime   += solver.GetPrecMultTime(),
-                                                   processnewstatetime += solver.GetProcessNewStateTime(),
-                                                                          scalefactortime += solver.GetComputeScalingTime();
-         NewtonIters += 1;
-         PrecIters += solver.GetTotalNumberOfLinearIterations();
-
-
-         {
-            tauval = GetMinDet(psubmesh, psub_pfespace, irules, quad_order);
-            if (myid == 0)
-            { cout << "Minimum det(J) of the mesh is " << tauval << endl; }
-         }
-
-         if (surface_fit_const > 0.0)
-         {
-            tmop_integ->ReMapSurfaceFittingLevelSet(psub_surf_fit_gf0);
-         }
-
-         if (deactivation_layers > 0)
-         {
-            auto tmap1 = ParSubMesh::CreateTransferMap(*psub_x, x);
-            tmap1.Transfer(*psub_x, x);
-
-            auto tmap2 = ParSubMesh::CreateTransferMap(psub_surf_fit_gf0, surf_fit_gf0);
-            tmap2.Transfer(psub_surf_fit_gf0, surf_fit_gf0);
-         }
-
-         if (surface_fit_const > 0.0)
-         {
-            DataCollection *dc = NULL;
-            dc = new VisItDataCollection("Optimized_"+std::to_string(jobid), pmesh);
-            dc->RegisterField("mat", &mat);
-            dc->RegisterField("level-set", &surf_fit_gf0);
-            dc->RegisterField("Marker", &surf_fit_mat_gf);
-            dc->SetCycle(iter+1);
-            dc->SetTime(iter+1);
-            dc->Save();
-            delete dc;
-         }
-      }
+      solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
    }
-   else
+   solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
+   solver.SetOperator(a);
+   TimeSolver.Start();
+   solver.Mult(b, psub_x->GetTrueVector());
+   TimeSolver.Stop();
+   psub_x->SetFromTrueVector();
+
+   solvertime = TimeSolver.RealTime();
+   vectortime = solver.GetAssembleElementVectorTime(),
+   gradtime   = solver.GetAssembleElementGradTime(),
+   prectime   = solver.GetPrecMultTime(),
+   processnewstatetime = solver.GetProcessNewStateTime(),
+   scalefactortime = solver.GetComputeScalingTime();
+   NewtonIters = solver.GetNumIterations();
+   PrecIters = solver.GetTotalNumberOfLinearIterations();
+
+   if (surface_fit_const > 0.0)
    {
-      solver.SetMaxIter(solver_iter);
-      solver.SetRelTol(solver_rtol);
-      solver.SetAbsTol(0.0);
-      if (solver_art_type > 0)
-      {
-         solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
-      }
-      solver.SetPrintLevel(verbosity_level >= 1 ? 1 : -1);
-      solver.SetOperator(a);
-      TimeSolver.Start();
-      solver.Mult(b, psub_x->GetTrueVector());
-      TimeSolver.Stop();
-      psub_x->SetFromTrueVector();
+      tmop_integ->ReMapSurfaceFittingLevelSet(psub_surf_fit_gf0);
+   }
+   {
+      tauval = GetMinDet(psubmesh, psub_pfespace, irules, quad_order);
+      if (myid == 0)
+      { cout << "Minimum det(J) of the optimized mesh is " << tauval << endl; }
+   }
+   {
+      skewval = GetWorstSkewness(psubmesh, psub_pfespace, irules, quad_order);
+      if (myid == 0)
+      { cout << "Worst skewness of the optimized mesh is " << skewval*180.0/M_PI << endl; }
+   }
+   if (deactivation_layers > 0)
+   {
+      auto tmap1 = ParSubMesh::CreateTransferMap(*psub_x, x);
+      tmap1.Transfer(*psub_x, x);
 
-      solvertime = TimeSolver.RealTime();
-      vectortime = solver.GetAssembleElementVectorTime(),
-      gradtime   = solver.GetAssembleElementGradTime(),
-      prectime   = solver.GetPrecMultTime(),
-      processnewstatetime = solver.GetProcessNewStateTime(),
-      scalefactortime = solver.GetComputeScalingTime();
-      NewtonIters = solver.GetNumIterations();
-      PrecIters = solver.GetTotalNumberOfLinearIterations();
-
-      if (surface_fit_const > 0.0)
-      {
-         tmop_integ->ReMapSurfaceFittingLevelSet(psub_surf_fit_gf0);
-      }
-      {
-         tauval = GetMinDet(psubmesh, psub_pfespace, irules, quad_order);
-         if (myid == 0)
-         { cout << "Minimum det(J) of the optimized mesh is " << tauval << endl; }
-      }
-      {
-         skewval = GetWorstSkewness(psubmesh, psub_pfespace, irules, quad_order);
-         if (myid == 0)
-         { cout << "Worst skewness of the optimized mesh is " << skewval*180.0/M_PI << endl; }
-      }
-      if (deactivation_layers > 0)
-      {
-         auto tmap1 = ParSubMesh::CreateTransferMap(*psub_x, x);
-         tmap1.Transfer(*psub_x, x);
-
-         auto tmap2 = ParSubMesh::CreateTransferMap(psub_surf_fit_gf0, surf_fit_gf0);
-         tmap2.Transfer(psub_surf_fit_gf0, surf_fit_gf0);
-      }
+      auto tmap2 = ParSubMesh::CreateTransferMap(psub_surf_fit_gf0, surf_fit_gf0);
+      tmap2.Transfer(psub_surf_fit_gf0, surf_fit_gf0);
    }
 
    if (myid == 0)
@@ -2298,6 +2198,7 @@ int main (int argc, char *argv[])
    // Compute the final energy of the functional.
    const double fin_energy = a.GetParGridFunctionEnergy(*psub_x);
    double fin_metric_energy = fin_energy;
+   surface_fit_const = tmop_integ->GetSurfaceFittingWeight();
    if (surface_fit_const > 0.0)
    {
       surf_fit_coeff.constant  = 0.0;
@@ -2327,18 +2228,15 @@ int main (int argc, char *argv[])
       vis_tmop_metric_p(mesh_poly_deg, *metric, target_c2, *pmesh, title, 600);
    }
 
-   if (surface_fit_const > 0.0)
+   tmop_integ->GetSurfaceFittingErrors(*psub_x, surf_fit_err_avg,
+                                       surf_fit_err_max);
+   if (myid == 0)
    {
-      tmop_integ->GetSurfaceFittingErrors(*psub_x, surf_fit_err_avg,
-                                          surf_fit_err_max);
-      if (myid == 0)
-      {
-         std::cout << "Avg fitting error: " << surf_fit_err_avg << std::endl
-                   << "Max fitting error: " << surf_fit_err_max << std::endl;
-         std::cout << "Last active surface fitting constant: " <<
-                   tmop_integ->GetLastActiveSurfaceFittingWeight() <<
-                   std::endl;
-      }
+      std::cout << "Avg fitting error: " << surf_fit_err_avg << std::endl
+                << "Max fitting error: " << surf_fit_err_max << std::endl;
+      std::cout << "Last active surface fitting constant: " <<
+                tmop_integ->GetSurfaceFittingWeight() <<
+                std::endl;
    }
 
    if (surface_fit_const > 0.0)
@@ -2391,7 +2289,7 @@ int main (int argc, char *argv[])
                 << "Final avg fitting error: " << surf_fit_err_avg << endl
                 << "Final max fitting error: " << surf_fit_err_max << endl
                 << "Initial fitting weight: " << surface_fit_const << endl
-                << "Final fitting weight: " << tmop_integ->GetLastActiveSurfaceFittingWeight()
+                << "Final fitting weight: " << tmop_integ->GetSurfaceFittingWeight()
                 << endl
                 << "Surface fit scaling factor: " << surface_fit_adapt << endl
                 << "Surface fit termination threshold: " << surface_fit_threshold << endl
@@ -2430,7 +2328,7 @@ int main (int argc, char *argv[])
                 init_metric_energy << "," << fin_metric_energy << "," <<
                 init_surf_fit_err_avg << "," << init_surf_fit_err_max << "," <<
                 surf_fit_err_avg << "," << surf_fit_err_max << "," <<
-                surface_fit_const << "," << tmop_integ->GetLastActiveSurfaceFittingWeight() <<
+                surface_fit_const << "," << tmop_integ->GetSurfaceFittingWeight() <<
                 "," <<
                 surface_fit_adapt << "," << surface_fit_threshold << "," <<
                 surf_inc_trigger_rel_thresold << "," << surf_fit_const_max << "," <<

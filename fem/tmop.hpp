@@ -1911,12 +1911,9 @@ protected:
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
-   GridFunction *surf_fit_gf_l2, *surf_fit_grad_l2, *surf_fit_hess_l2;
    AdaptivityEvaluator *surf_fit_eval_bg_grad, *surf_fit_eval_bg_hess;
    Array<int> surf_fit_dof_count;
    Array<int> surf_fit_marker_dof_index;
-   Array<double> surf_fit_weight_scale;
-   double last_active_surf_fit_const;
 
    DiscreteAdaptTC *discr_tc;
 
@@ -2116,6 +2113,9 @@ protected:
    double ComputeUntanglerMaxMuBarrier(const Vector &x,
                                        const FiniteElementSpace &fes);
 
+
+   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
+                                           int new_x_ordering = Ordering::byNODES);
 public:
    /** @param[in] m    TMOP_QualityMetric for r-adaptivity (not owned).
        @param[in] tc   Target-matrix construction algorithm to use (not owned).
@@ -2133,7 +2133,6 @@ public:
         surf_fit_limiter(NULL), surf_fit_pos(NULL),
         surf_fit_normal(1.0),
         surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
-        surf_fit_gf_l2(NULL), surf_fit_grad_l2(NULL), surf_fit_hess_l2(NULL),
         surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
         fdflag(false), dxscale(1.0e3), fd_call_flag(false), exact_action(false)
@@ -2273,7 +2272,6 @@ public:
                                        const ParGridFunction &s_bg_hess,
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
-   void DisableSurfaceFitting();
 #endif
    /** @brief Fitting of certain DOFs to given positions in physical space.
 
@@ -2290,19 +2288,6 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
-   void GetSurfaceFittingErrors(const Vector &pos,
-                                double &err_avg, double &err_max);
-   bool IsSurfaceFittingEnabled()
-   {
-      return surf_fit_gf != NULL || surf_fit_pos != NULL;
-   }
-
-   void UpdateSurfaceFittingCoefficient(Coefficient &coeff) { surf_fit_coeff = &coeff;};
-
-   void ReMapSurfaceFittingLevelSet(ParGridFunction &s0);
-
-   void ReMapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
-                                           int new_x_ordering = Ordering::byNODES);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
@@ -2382,15 +2367,25 @@ public:
    /** @brief Flag to control if exact action of Integration is effected. */
    void SetExactActionFlag(bool flag_) { exact_action = flag_; }
 
+
+
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                double &err_avg, double &err_max);
+
+
+   bool IsSurfaceFittingEnabled()
+   {
+      return surf_fit_gf != NULL || surf_fit_pos != NULL;
+   }
+
+
+   void ReMapSurfaceFittingLevelSet(GridFunction &s0);
+
    /// Update the surface fitting weight as surf_fit_coeff *= factor;
    void UpdateSurfaceFittingWeight(double factor);
 
    /// Get the surface fitting weight.
    double GetSurfaceFittingWeight();
-
-   double GetLastActiveSurfaceFittingWeight() { return last_active_surf_fit_const; };
-
-   void SaveSurfaceFittingWeight();
 
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency

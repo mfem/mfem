@@ -146,8 +146,7 @@ protected:
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
-   mutable double weights_max_limit = 1e20;
-   mutable double worst_skewness = 0.0;
+   mutable double fit_weight_max_limit = 1e20;
    bool surf_fit_converge_based_on_error = true;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
@@ -192,8 +191,6 @@ protected:
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
-
-   void SaveSurfaceFittingWeight() const;
 
    /// Get the surface fitting weight for all the TMOP integrators.
    void GetSurfaceFittingWeight(Array<double> &weights) const;
@@ -267,11 +264,7 @@ public:
    }
    void SetMaximumFittingWeightLimit(double weight)
    {
-      weights_max_limit = weight;
-   }
-   void SetWorstSkewnessLimit(double limit)
-   {
-      worst_skewness = limit;
+      fit_weight_max_limit = weight;
    }
    void SetFittingConvergenceBasedOnResidual()
    {
