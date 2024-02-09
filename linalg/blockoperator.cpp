@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,12 +45,12 @@ BlockOperator::BlockOperator(const Array<int> & row_offsets_,
    op = static_cast<Operator *>(NULL);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, double c)
+void BlockOperator::SetDiagonalBlock(int iblock, const Operator *opt, double c)
 {
    SetBlock(iblock, iblock, opt, c);
 }
 
-void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, double c)
+void BlockOperator::SetBlock(int iRow, int iCol, const Operator *opt, double c)
 {
    if (owns_blocks && op(iRow, iCol))
    {

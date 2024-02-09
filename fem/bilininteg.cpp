@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2949,16 +2949,16 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 
    dshape.SetSize(dof, dim);
-   dshapedxt.SetSize(dof, dim);
-   // pelmat.SetSize(dim);
+   dshapedxt.SetSize(dof, sdim);
+   pelmat.SetSize(dof);
 
-   elvect.SetSize(dim*dof);
+   elvect.SetSize(vdim*dof);
 
    // NOTE: DenseMatrix is in column-major order. This is consistent with
    // vectors ordered byNODES. In the resulting DenseMatrix, each column
    // corresponds to a particular vdim.
-   DenseMatrix mat_in(elfun.GetData(), dof, dim);
-   DenseMatrix mat_out(elvect.GetData(), dof, dim);
+   DenseMatrix mat_in(elfun.GetData(), dof, vdim);
+   DenseMatrix mat_out(elvect.GetData(), dof, vdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
