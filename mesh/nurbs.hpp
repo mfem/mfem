@@ -296,10 +296,6 @@ protected:
    void ConnectBoundaries1D(int bnd0, int bnd1);
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
-   //   int DofMap(int dof) const
-   //   {
-   //      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
-   //   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
