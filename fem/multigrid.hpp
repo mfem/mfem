@@ -170,8 +170,16 @@ protected:
    Array<BilinearForm*> bfs;
 
 public:
-   /// @brief Construct an empty geometric multigrid object for the given finite
+   /// @brief Deprecated.
+   ///
+   /// Construct an empty geometric multigrid object for the given finite
    /// element space hierarchy @a fespaces_.
+   ///
+   /// @deprecated Use GeometricMultigrid::GeometricMultigrid(const
+   /// FiniteElementSpaceHierarchy&, const Array<int>&) instead. This version
+   /// constructs prolongation and restriction operators without eliminated
+   /// essential boundary conditions.
+   MFEM_DEPRECATED
    GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_);
 
    /// @brief Construct a geometric multigrid object for the given finite
