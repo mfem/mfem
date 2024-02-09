@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -81,7 +81,7 @@ public:
    /** If the element transformation belongs to a mesh, this will point to the
        containing Mesh object. ElementNo will be the number of the element in
        this Mesh. This will be NULL if the element does not belong to a mesh. */
-   class Mesh *mesh;
+   const Mesh *mesh;
 
    ElementTransformation();
 
@@ -170,12 +170,13 @@ public:
    virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
+                             const double phys_tol = 1e-15) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -233,7 +234,7 @@ protected:
    // Parameters of the inversion algorithms:
    const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
-   int qpts_type; // Quadrature1D type for the initial guess type
+   GeometryRefiner refiner; // geometry refiner for initial guess
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
    int solver_type; // solution strategy to use
    int max_iter; // max. number of Newton iterations
@@ -276,7 +277,7 @@ public:
       : T(Trans),
         ip0(NULL),
         init_guess_type(Center),
-        qpts_type(Quadrature1D::OpenHalfUniform),
+        refiner(Quadrature1D::OpenHalfUniform),
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
@@ -301,7 +302,7 @@ public:
    { ip0 = &init_ip; SetInitialGuessType(GivenPoint); }
 
    /// Set the Quadrature1D type used for the `Closest*` initial guess types.
-   void SetInitGuessPointsType(int q_type) { qpts_type = q_type; }
+   void SetInitGuessPointsType(int q_type) { refiner.SetType(q_type); }
 
    /// Set the relative order used for the `Closest*` initial guess types.
    /** The number of points in each spatial direction is given by the formula
@@ -361,7 +362,7 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape,d2shape;
+   DenseMatrix dshape, d2shape;
    Vector shape;
 
    const FiniteElement *FElem;
@@ -442,14 +443,16 @@ public:
    virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
+                             const double phys_rel_tol = 1e-15)
    {
       InverseElementTransformation inv_tr(this);
+      inv_tr.SetPhysicalRelTol(phys_rel_tol);
       return inv_tr.Transform(v, ip);
    }
 
