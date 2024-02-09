@@ -292,10 +292,12 @@ public:
 class SIMPProjector : public DensityProjector
 {
 private:
-   const double k, rho0;
+   double k, rho0;
    std::unique_ptr<MappedGridFunctionCoefficient> phys_density, dphys_dfrho;
 public:
    SIMPProjector(const double k, const double rho0);
+   void SetPower(int new_k) {k = new_k;}
+   void SetMin(double new_rho0) {rho0 = new_rho0;}
    Coefficient &GetPhysicalDensity(GridFunction &frho) override;
    Coefficient &GetDerivative(GridFunction &frho) override;
 };
@@ -303,10 +305,13 @@ public:
 class ThresholdProjector : public DensityProjector
 {
 private:
-   const double beta, eta;
+   double beta, eta, rho0, k;
    std::unique_ptr<MappedGridFunctionCoefficient> phys_density, dphys_dfrho;
 public:
-   ThresholdProjector(const double beta, const double eta);
+   ThresholdProjector(const double beta, const double eta, const double k, const double rho0);
+   void SetThresholdParameters(double new_beta, double new_eta){beta = new_beta; eta = new_eta; }
+   void SetPower(int new_k) {k = new_k;}
+   void SetMin(double new_rho0) {rho0 = new_rho0;}
    Coefficient &GetPhysicalDensity(GridFunction &frho) override;
    Coefficient &GetDerivative(GridFunction &frho) override;
 };

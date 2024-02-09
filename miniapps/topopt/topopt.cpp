@@ -491,12 +491,12 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
    target_volume = domain_volume * target_volume_fraction;
 }
 
-SIMPProjector::SIMPProjector(const double k, const double rho0):k(k), rho0(rho0)
+SIMPProjector::SIMPProjector(const double k_, const double rho0_):k(k_), rho0(rho0_)
 {
    phys_density.reset(new MappedGridFunctionCoefficient(
-   nullptr, [rho0, k](double x) {return simp(x, rho0, k);}));
+   nullptr, [this](double x) {return simp(x, rho0, k);}));
    dphys_dfrho.reset(new MappedGridFunctionCoefficient(
-   nullptr, [rho0, k](double x) {return der_simp(x, rho0, k);}));
+   nullptr, [this](double x) {return der_simp(x, rho0, k);}));
 }
 Coefficient &SIMPProjector::GetPhysicalDensity(GridFunction &frho)
 {
@@ -509,21 +509,26 @@ Coefficient &SIMPProjector::GetDerivative(GridFunction &frho)
    return *dphys_dfrho;
 }
 
-ThresholdProjector::ThresholdProjector(const double beta,
-                                       const double eta):beta(beta), eta(eta)
+ThresholdProjector::ThresholdProjector(
+   const double beta_, const double eta_, const double k_, const double rho0_)
+   :beta(beta_), eta(eta_), k(k_), rho0(rho0_)
 {
-   const double c1 = std::tanh(beta*eta);
-   const double c2 = std::tanh(beta*(1-eta));
-   const double inv_denominator = 1.0 / (c1 + c2);
    phys_density.reset(new MappedGridFunctionCoefficient(
-                         nullptr, [c1, c2, beta, eta](double x)
+                         nullptr, [this](double x)
    {
-      return (c1 + std::tanh(beta*(x - eta))) / (c1 + c2);
+      const double c1 = std::tanh(beta*eta);
+      const double c2 = std::tanh(beta*(1-eta));
+      const double rho_projected = (c1 + std::tanh(beta*(x - eta))) / (c1 + c2);
+      return simp(rho_projected, rho0, k);
    }));
    dphys_dfrho.reset(new MappedGridFunctionCoefficient(
-                        nullptr, [c1, c2, beta, eta](double x)
+                        nullptr, [this](double x)
    {
-      return beta*std::pow(1.0/std::cosh(beta*(x - eta)), 2.0) / (c1 + c2);
+      const double c1 = std::tanh(beta*eta);
+      const double c2 = std::tanh(beta*(1-eta));
+      const double rho_projected = (c1 + std::tanh(beta*(x - eta))) / (c1 + c2);
+      const double rho_dproj = beta*std::pow(1.0/std::cosh(beta*(x - eta)), 2.0) / (c1 + c2);
+      return der_simp(rho_projected, rho0, k)*rho_dproj;
    }));
 }
 Coefficient &ThresholdProjector::GetPhysicalDensity(GridFunction &frho)
