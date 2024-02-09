@@ -183,7 +183,8 @@ int main(int argc, char *argv[])
    }
 
    // 5. Set the initial guess for ρ.
-   SIMPProjector simp_rule(exponent, rho_min);
+   // ThresholdProjector densityProjector(3, 1.0, exponent, rho_min);
+   SIMPProjector densityProjector(4, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
                           ess_bdr_filter);
    LatentDesignDensity density(control_fes, filter, vol_fraction,
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
    Vector zero_d(pmesh->SpaceDimension()); zero_d = 0.0;
    VectorConstantCoefficient zero_cf(zero_d);
    ParametrizedElasticityEquation elasticity(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, E_cf, nu_cf, zero_cf, ess_bdr);
+                                             density.GetFilteredDensity(), densityProjector, E_cf, nu_cf, zero_cf, ess_bdr);
    VectorConstantCoefficient d_in_cf(d_in), d_out_cf(d_out);
    d_out.Neg();
    VectorConstantCoefficient neg_d_out_cf(d_out);
@@ -226,7 +227,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       designDensity_gf.reset(new ParGridFunction(&filter_fes));
       rho_gf.reset(new ParGridFunction(&filter_fes));
-      designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+      designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
@@ -332,7 +333,7 @@ int main(int argc, char *argv[])
       {
          if (sout_SIMP.is_open())
          {
-            designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+            designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                                     density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
             sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
