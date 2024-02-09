@@ -3206,13 +3206,23 @@ void ParMesh::GenerateBoundaryElements()
       bel_to_edge = NULL;
    }
 
+   const Array<int> *s2l_face;
+   if (Dim == 1) { s2l_face = &svert_lvert; }
+   else if (Dim == 2) { s2l_face = &sedge_ledge; }
+   else { s2l_face = &sface_lface; }
+
+   // mark the shared local elements
+   Array<bool> l2s_marker(GetNumFaces());
+   l2s_marker = false;
+   for (int l : *s2l_face) { l2s_marker[l] = true; }
+
    // count the 'NumOfBdrElements'
    NumOfBdrElements = 0;
    for (int i = 0; i < faces_info.Size(); i++)
    {
       const auto &fi = faces_info[i];
-      if (fi.Elem2No >= 0) { continue; }
-      if (sedge_ledge.Find(i) < 0) { ++NumOfBdrElements; }
+      if (fi.Elem2No < 0 && !l2s_marker[i])
+      { ++NumOfBdrElements; }
    }
 
    // Add the boundary elements
@@ -3220,8 +3230,7 @@ void ParMesh::GenerateBoundaryElements()
    be_to_face.SetSize(NumOfBdrElements);
    for (int i = 0, j = 0; i < faces_info.Size(); i++)
    {
-      if (faces_info[i].Elem2No >= 0) { continue; }
-      if (sedge_ledge.Find(i) < 0)
+      if (faces_info[i].Elem2No < 0 && !l2s_marker[i])
       {
          boundary[j] = faces[i]->Duplicate(this);
          be_to_face[j++] = i;
