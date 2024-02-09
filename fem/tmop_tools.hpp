@@ -146,7 +146,7 @@ protected:
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
-   mutable double weights_max_limit = 1e20;
+   mutable double fit_weight_max_limit = 1e20;
    bool surf_fit_converge_based_on_error = true;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
@@ -235,16 +235,17 @@ public:
    /// fitting weight is below the maximum limit, and (c) the error is above the
    /// user-specified threshold.
    /// There are three termination modes.
-   /// (i) Error based: Maximum fitting error reaches the prescribed threshold.
-   /// This is enabled by default, but requires user to specify @a surf_fit_max_threshold.
-   /// (ii) Residual based: based on the norm of the gradient of the TMOP
-   /// objective. This requires user to use "SetFittingConvergenceBasedOnResidual".
-   /// This method is usually used with a reasonable value for @a weights_max_limit.
-   /// (iii) when the maximum surface fitting error does not sufficiently
+   /// (i) Residual based: based on the norm of the gradient of the TMOP
+   /// objective. This method is best used with a reasonable value for
+   /// @a fit_weight_max_limit when the adaptive surface fitting scheme is used.
+   /// The residual mode is always active for the Newton solver, but the user
+   /// can terminate early based on the fitting error.
+   /// (ii) Error based: Maximum fitting error reaches the user-prescribed
+   /// threshold, @a surf_fit_max_threshold.
+   /// (iii) When the maximum surface fitting error does not sufficiently
    /// decrease for @a max_adapt_inc_count consecutive solver iterations. This
    /// typically occurs when the mesh cannot align with the level-set without
-   /// degrading element quality. This mode is only active with adaptive surface
-   /// fitting.
+   /// degrading element quality. [only active with adaptive surface fitting.]
    void EnableAdaptiveSurfaceFitting()
    {
       surf_fit_scale_factor = 10.0;
@@ -268,11 +269,11 @@ public:
    }
    void SetMaximumFittingWeightLimit(double weight)
    {
-      weights_max_limit = weight;
+      fit_weight_max_limit = weight;
    }
-   void SetFittingConvergenceBasedOnResidual()
+   void SetFittingConvergenceBasedOnError(bool mode)
    {
-      surf_fit_converge_based_on_error = false;
+      surf_fit_converge_based_on_error = mode;
    }
 
    /// Set minimum determinant enforced during line-search.

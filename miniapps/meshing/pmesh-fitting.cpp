@@ -140,7 +140,7 @@ int main (int argc, char *argv[])
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
-                  "Enable or disable adaptive surface fitting.");
+                  "Scaling factor for surface fitting weight.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Set threshold for surface fitting. TMOP solver will"
                   "terminate when max surface fitting error is below this limit");
@@ -840,10 +840,7 @@ int main (int argc, char *argv[])
    {
       solver.SetTerminationWithMaxSurfaceFittingError(surface_fit_threshold);
    }
-   if (conv_residual)
-   {
-      solver.SetFittingConvergenceBasedOnResidual();
-   }
+   solver.SetFittingConvergenceBasedOnError(!conv_residual);
    solver.SetMaximumFittingWeightLimit(surf_fit_const_max);
 
    // Provide all integration rules in case of a mixed mesh.

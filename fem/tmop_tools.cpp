@@ -826,11 +826,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
       // does not decrease sufficiently and we are below the maximum weight
       // and the fitting error threshold.
       if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
-          fitweights.Max() < weights_max_limit &&
+          fitweights.Max() < fit_weight_max_limit &&
           surf_fit_err_max > surf_fit_max_threshold)
       {
          double scale_factor = std::min(surf_fit_scale_factor,
-                                        weights_max_limit/fitweights.Max());
+                                        fit_weight_max_limit/fitweights.Max());
          UpdateSurfaceFittingWeight(scale_factor);
          adapt_inc_count += 1;
       }
