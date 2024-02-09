@@ -23,6 +23,7 @@ struct comm;
 struct findpts_data_2;
 struct findpts_data_3;
 struct crystal;
+struct gs_data;
 }
 
 namespace mfem
@@ -288,6 +289,48 @@ public:
                     const GridFunction &field_in, Vector &field_out,
                     int point_pos_ordering = Ordering::byNODES);
    using FindPointsGSLIB::Interpolate;
+};
+
+/// Given an array of integers on each rank, this class can do gather-scatter
+/// operations based on the integer values. This can be used to do gather-scatter
+/// operations on shared dofs across processor boundaries (where the integer
+/// would correspond to the true DOF index), or similar operations.
+/// For example, consider a vector:
+/// [0.3, 0.4, 0.25] on rank1,
+/// [0.6, 0.1] on rank 2,
+/// [0.4, 0.3, 0.7, 0.] on rank 3.
+/// Consider a corresponding Array<int>:
+/// [1, 2, 3] on rank 1,
+/// [3, 2] on rank 2,
+/// [1, 2, 1, 3] on rank 3.
+/// A gather-scatter "minimum" operation would return the vector
+/// [0.3, 0.1, 0.] on rank 1,
+/// [0., 0.1] on rank 2,
+/// [0.3, 0.1, 0.3, 0] on rank 3,
+/// where the values have been compared across all processors based on the integer
+/// identifier.
+/// GSLIB also supports max, sum, and multiplication operation.
+class GSLIBGroupCommunicator
+{
+protected:
+   struct gslib::crystal *cr;             // gslib's internal data
+   struct gslib::comm *gsl_comm;          // gslib's internal data
+   struct gslib::gs_data *gsl_data;
+   int num_ids;
+
+public:
+   GSLIBGroupCommunicator(MPI_Comm comm_);
+
+   virtual ~GSLIBGroupCommunicator();
+
+   // Same ids get grouped together. id == 0 does not participate.
+   virtual void Setup(Array<long long> &ids);
+
+   // supported operation types
+   enum OpType {ADD, MUL, MIN, MAX};
+   virtual void GOP(Vector &senddata, OpType op);
+
+   virtual void FreeData();
 };
 
 } // namespace mfem

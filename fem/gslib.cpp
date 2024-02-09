@@ -1337,6 +1337,62 @@ void OversetFindPointsGSLIB::Interpolate(const Vector &point_pos,
 }
 
 
+GSLIBGroupCommunicator::GSLIBGroupCommunicator(MPI_Comm comm_)
+   : cr(NULL), gsl_comm(NULL)
+{
+   gsl_comm = new gslib::comm;
+   cr      = new gslib::crystal;
+   comm_init(gsl_comm, comm_);
+   crystal_init(cr, gsl_comm);
+}
+
+void GSLIBGroupCommunicator::FreeData()
+{
+   crystal_free(cr);
+   gslib_gs_free(gsl_data);
+}
+
+GSLIBGroupCommunicator::~GSLIBGroupCommunicator()
+{
+   delete gsl_comm;
+   delete cr;
+}
+
+void GSLIBGroupCommunicator::Setup(Array<long long> &ids)
+{
+   num_ids = ids.Size();
+   gsl_data = gslib_gs_setup(ids.GetData(),
+                             ids.Size(),
+                             gsl_comm, 0,
+                             gslib::gs_crystal_router, 1);
+}
+
+void GSLIBGroupCommunicator::GOP(Vector &senddata, OpType op)
+{
+   MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
+   if (op == OpType::ADD)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_add, 0, gsl_data, 0);
+   }
+   else if (op == OpType::MUL)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_mul, 0, gsl_data, 0);
+   }
+   else if (op == OpType::MAX)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_max, 0, gsl_data, 0);
+   }
+   else if (op == OpType::MIN)
+   {
+      gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_min, 0, gsl_data, 0);
+   }
+   else
+   {
+      MFEM_ABORT("Invalid GS_OP operation.");
+   }
+}
+
+
 } // namespace mfem
 
 #endif // MFEM_USE_GSLIB
