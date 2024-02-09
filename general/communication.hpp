@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -570,8 +570,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) {}
-   virtual void Decode(int rank) {}
+   virtual void Encode(int rank) = 0;
+   virtual void Decode(int rank) = 0;
 };
 
 
