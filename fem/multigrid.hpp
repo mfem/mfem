@@ -118,7 +118,7 @@ public:
 
 private:
    /// Application of a multigrid cycle at particular level
-   void Cycle(int level) const;
+   void Cycle(int level, bool zero) const;
 
    /// Application of a pre-/post-smoothing step at particular level
    void SmoothingStep(int level, bool zero, bool transpose) const;
