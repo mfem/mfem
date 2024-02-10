@@ -155,23 +155,17 @@ void FiniteElementSpace::SetElementOrder(int i, int p)
    MFEM_ASSERT(!elem_order.Size() || elem_order.Size() == GetNE(),
                "Internal error");
 
-   if (elem_order.Size()) // already a variable-order space
-   {
-      if (elem_order[i] != p)
-      {
-         elem_order[i] = p;
-         orders_changed = true;
-         elems_pref.insert(i);
-      }
-   }
-   else // convert space to variable-order space
+   const bool change = elem_order.Size() == 0 || elem_order[i] != p;
+   if (elem_order.Size() == 0)  // convert space to variable-order space
    {
       elem_order.SetSize(GetNE());
       elem_order = fec->GetOrder();
+   }
 
+   if (change)
+   {
       elem_order[i] = p;
       orders_changed = true;
-
       elems_pref.insert(i);
    }
 
@@ -2591,16 +2585,28 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
       }
 
       // propagate from slave faces(+edges) to master faces(+edges)
+      const int numFaces = mesh->GetNumFaces();
+
       const NCMesh::NCList &face_list = mesh->ncmesh->GetFaceList();
+
       for (const NCMesh::Master &master : face_list.masters)
       {
          VarOrderBits slave_orders = 0;
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             const NCMesh::Slave &slave = face_list.slaves[i];
+
             if (slave.index >= 0)
             {
                slave_orders |= face_orders[slave.index];
+
+               // TODO: since we skip ghost faces here, are there cases where
+               // propagation of orders in parallel requires an outer iteration
+               // in ParFiniteElementSpace with communication?
+               if (slave.index >= numFaces)
+               {
+                  continue;  // Skip ghost faces
+               }
 
                mesh->GetFaceEdges(slave.index, E, ori);
                for (int j = 0; j < E.Size(); j++)
@@ -3445,15 +3451,21 @@ void FiniteElementSpace::GetTrueTransferOperator(
 void FiniteElementSpace::UpdateElementOrders()
 {
    const CoarseFineTransformations &cf_tr = mesh->GetRefinementTransforms();
+   const int baseOrder = fec->GetOrder();
 
    Array<char> new_order(mesh->GetNE());
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:
       {
+         elems_pref.clear();
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             new_order[i] = elem_order[cf_tr.embeddings[i].parent];
+            if (new_order[i] > baseOrder)
+            {
+               elems_pref.insert(i);
+            }
          }
          break;
       }
