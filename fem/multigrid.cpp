@@ -229,7 +229,14 @@ void MultigridBase::Cycle(int level, bool zero) const
    // Prolongate and add
    {
       Array<Vector *> Y_lm1(Y[level - 1], nrhs), Y_l(Y[level], nrhs);
-      GetProlongationAtLevel(level - 1)->ArrayAddMult(Y_lm1, Y_l);
+      if (preSmoothingSteps == 0 && zero)
+      {
+         GetProlongationAtLevel(level - 1)->ArrayMult(Y_lm1, Y_l);
+      }
+      else
+      {
+         GetProlongationAtLevel(level - 1)->ArrayAddMult(Y_lm1, Y_l);
+      }
    }
 
    // Post-smooth
