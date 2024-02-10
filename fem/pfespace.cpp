@@ -1815,7 +1815,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 
    const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
 
-   int order, base;
+   int base;
    if (IsVariableOrder())
    {
       const int face = face_id.index;
@@ -1826,16 +1826,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       nf = beg[variant+1] - base;
 
       base -= nfdofs;
-
-      order = var_face_orders[var_face_dofs.GetI()[face] + variant];
-      if (nfv == 3)
-      {
-         MFEM_ASSERT(fec->GetNumDof(Geometry::TRIANGLE, order) == nf, "");
-      }
-      else
-      {
-         MFEM_ASSERT(fec->GetNumDof(Geometry::SQUARE, order) == nf, "");
-      }
 
       int allne = 0;
       for (int i = 0; i < nfv; i++)
@@ -1849,7 +1839,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    }
    else
    {
-      order = fec->GetOrder();
       base = nf_quad * ghost_face_index;
       // TODO: why nf_quad and never nf_tri? Is it because only quad faces are
       // supported for NCMesh? If so, why even have nf_tri?
