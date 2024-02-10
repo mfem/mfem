@@ -47,6 +47,12 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    NRanks = parent.GetNRanks();
    MyRank = parent.GetMyRank();
 
+   // This violation of const-ness may be justified in this instance because
+   // the exchange of face neighbor information only establishes or updates
+   // derived information without altering the primary mesh information,
+   // i.e., the topology, geometry, or region attributes.
+   const_cast<ParMesh&>(parent).ExchangeFaceNbrData();
+
    if (from == SubMesh::From::Domain)
    {
       InitMesh(parent.Dimension(), parent.SpaceDimension(), 0, 0, 0);
@@ -330,6 +336,60 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       if (!el_to_edge) { el_to_edge = new Table; }
       NumOfEdges = GetElementToEdgeTable(*el_to_edge);
+   }
+
+   if (Dim > 1 && from == SubMesh::From::Domain)
+   {
+      RT_FECollection fec_rt(0, Dim);
+      ParFiniteElementSpace parent_fes_rt(const_cast<ParMesh*>(&parent),
+                                          &fec_rt);
+
+      ParGridFunction parent_bdr_attr_gf(&parent_fes_rt);
+      parent_bdr_attr_gf = 0.0;
+      Array<int> vdofs;
+      DofTransformation doftrans;
+      int dof, face_idx, faceEl1, faceEl2, faceInf1, faceInf2;
+      double sign, w;
+      // Copy boundary attribute numbers into local portion of a parallel
+      // grid function
+      for (int i=0; i<parent.GetNBE(); i++)
+      {
+         face_idx = parent.GetBdrElementFaceIndex(i);
+         parent.GetFaceElements(face_idx, &faceEl1, &faceEl2);
+         parent.GetFaceInfos(face_idx, &faceInf1, &faceInf2);
+         parent_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
+         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
+         w = (faceEl2 < 0 && faceInf2 >= 0) ? 2.0 : 1.0;
+         parent_bdr_attr_gf[dof] = sign * w * parent.GetBdrAttribute(i);
+      }
+
+      Vector parent_bdr_attr(parent_fes_rt.GetTrueVSize());
+
+      // Compute the average of the attribute numbers
+      parent_bdr_attr_gf.ParallelAverage(parent_bdr_attr);
+      // Distribute boundary attributes to neighboring processors
+      parent_bdr_attr_gf.Distribute(parent_bdr_attr);
+
+      ParFiniteElementSpace submesh_fes_rt(this,
+                                           &fec_rt);
+
+      ParGridFunction submesh_bdr_attr_gf(&submesh_fes_rt);
+
+      auto transfer_map = ParSubMesh::CreateTransferMap(parent_bdr_attr_gf,
+                                                        submesh_bdr_attr_gf);
+      transfer_map.Transfer(parent_bdr_attr_gf, submesh_bdr_attr_gf);
+
+      int attr;
+      for (int i=0; i<NumOfBdrElements; i++)
+      {
+         submesh_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
+         dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
+         attr = (int)std::round(std::abs(submesh_bdr_attr_gf[dof]));
+         if (attr != 0)
+         {
+            SetBdrAttribute(i, attr);
+         }
+      }
    }
 
    SetAttributes();
