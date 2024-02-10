@@ -1840,9 +1840,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       int allne = 0;
       for (int i = 0; i < nfv; i++)
       {
-         MFEM_ASSERT(E[i] >= 0, "TODO: remove this");
-         const int* beg = var_edge_dofs.GetRow(E[i]);
-         ne = beg[variant+1] - beg[variant];
+         const int* ebeg = var_edge_dofs.GetRow(E[i]);
+         ne = ebeg[variant+1] - ebeg[variant];
          allne += ne;
       }
 
