@@ -4822,7 +4822,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -4933,7 +4933,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 
       // optional
       os <<
-         "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+         "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
          "# POINT       = 0\n"
          "# SEGMENT     = 1\n"
          "# TRIANGLE    = 2\n"

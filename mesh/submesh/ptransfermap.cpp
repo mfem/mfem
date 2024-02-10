@@ -192,7 +192,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, dst,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(dst);
+      CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
@@ -225,7 +225,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, z_,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(z_);
+      CommunicateSharedVdofs(z_);
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
