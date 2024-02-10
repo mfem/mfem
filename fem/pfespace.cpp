@@ -135,7 +135,22 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 // ghost data in parallel.
 void ParFiniteElementSpace::CommunicateGhostOrder(Array<int> & prefdata)
 {
-   if (!orders_changed || NRanks == 1)
+   // Check whether h-refinement was done.
+   const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
+                     mesh->GetSequence() != mesh_sequence;
+   if (href && mesh->GetSequence() != mesh_sequence + 1)
+   {
+      MFEM_ABORT("Error in update sequence. Space needs to be updated after "
+                 "each mesh modification.");
+   }
+
+   if (href)
+   {
+      // Update elems_pref and elem_orders
+      FiniteElementSpace::UpdateElementOrders();
+   }
+
+   if ((!orders_changed && !href) || NRanks == 1)
    {
       return;
    }
@@ -1731,11 +1746,39 @@ void ParFiniteElementSpace::GetGhostVertexDofs(const MeshId &id,
    }
 }
 
+static const char* msg_orders_changed =
+   "Element orders changed, you need to Update() the space first.";
+
 void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
                                              Array<int> &dofs) const
 {
-   int nv = fec->DofForGeometry(Geometry::POINT);
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
+   int order, ne, base;
+   if (IsVariableOrder())
+   {
+      const int edge = edge_id.index;
+      const int* beg = var_edge_dofs.GetRow(edge);
+      const int* end = var_edge_dofs.GetRow(edge + 1);
+      const int variant = 0;  // TODO: allow for other variants?
+
+      base = beg[variant];
+      ne = beg[variant+1] - base;
+
+      base -= nedofs;
+
+      order = var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
+      MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, order) == ne, "");
+   }
+   else
+   {
+      order = fec->GetOrder();
+      ne = fec->GetNumDof(Geometry::SEGMENT, order);
+      base = (edge_id.index - pncmesh->GetNEdges())*ne;
+   }
+
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+
    dofs.SetSize(2*nv + ne);
 
    int V[2], ghost = pncmesh->GetNVertices();
@@ -1750,7 +1793,7 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
       }
    }
 
-   int k = ndofs + ngvdofs + (edge_id.index - pncmesh->GetNEdges())*ne;
+   int k = ndofs + ngvdofs + base;
    for (int j = 0; j < ne; j++)
    {
       dofs[2*nv + j] = k++;
@@ -1760,6 +1803,8 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
    int nfv, V[4], E[4], Eo[4];
    nfv = pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
 
@@ -1769,13 +1814,57 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    int nf_quad = fec->DofForGeometry(Geometry::SQUARE);
    int nf = (nfv == 3) ? nf_tri : nf_quad;
 
-   dofs.SetSize(nfv*(nv + ne) + nf);
+   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
+
+   int order, base;
+   if (IsVariableOrder())
+   {
+      const int face = face_id.index;
+      const int* beg = var_face_dofs.GetRow(face);
+      const int* end = var_face_dofs.GetRow(face + 1);
+      const int variant = 0;  // TODO: allow for other variants?
+
+      base = beg[variant];
+      nf = beg[variant+1] - base;
+
+      base -= nfdofs;
+
+      order = var_face_orders[var_face_dofs.GetI()[face] + variant];
+      if (nfv == 3)
+      {
+         MFEM_ASSERT(fec->GetNumDof(Geometry::TRIANGLE, order) == nf, "");
+      }
+      else
+      {
+         MFEM_ASSERT(fec->GetNumDof(Geometry::SQUARE, order) == nf, "");
+      }
+
+      int allne = 0;
+      for (int i = 0; i < nfv; i++)
+      {
+         MFEM_ASSERT(E[i] >= 0, "TODO: remove this");
+         const int* beg = var_edge_dofs.GetRow(E[i]);
+         ne = beg[variant+1] - beg[variant];
+         allne += ne;
+      }
+
+      dofs.SetSize(nfv*nv + allne + nf);
+   }
+   else
+   {
+      order = fec->GetOrder();
+      base = nf_quad * ghost_face_index;
+      // TODO: why nf_quad and never nf_tri? Is it because only quad faces are
+      // supported for NCMesh? If so, why even have nf_tri?
+
+      dofs.SetSize(nfv*(nv + ne) + nf);
+   }
 
    int offset = 0;
    for (int i = 0; i < nfv; i++)
    {
-      int ghost = pncmesh->GetNVertices();
-      int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      const int ghost = pncmesh->GetNVertices();
+      const int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
       for (int j = 0; j < nv; j++)
       {
          dofs[offset++] = first + j;
@@ -1784,20 +1873,44 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 
    for (int i = 0; i < nfv; i++)
    {
-      int ghost = pncmesh->GetNEdges();
-      int first = (E[i] < ghost) ? nvdofs + E[i]*ne
-                  /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
-      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
-      for (int j = 0; j < ne; j++)
+      const int ghost = pncmesh->GetNEdges();
+      if (IsVariableOrder())
       {
-         dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
-                          /*         */ : (-1 - (first + (-1 - ind[j])));
+         constexpr int variant = 0;
+         const int* beg = var_edge_dofs.GetRow(E[i]);
+         int ebase = beg[variant];
+         ne = beg[variant+1] - ebase;
+
+         MFEM_ASSERT(ebase == FindEdgeDof(E[i], ne), "sanity check?");
+
+         const int first = (E[i] < ghost) ? nvdofs + ebase
+                           /*          */ : ndofs + ngvdofs + ebase - nedofs;
+
+         const int edge_order = var_edge_orders[var_edge_dofs.GetI()[E[i]] + variant];
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, edge_order, Eo[i]);
+
+         MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, edge_order) == ne, "");
+
+         for (int j = 0; j < ne; j++)
+         {
+            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                             /*         */ : (-1 - (first + (-1 - ind[j])));
+         }
+      }
+      else
+      {
+         const int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                           /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+         for (int j = 0; j < ne; j++)
+         {
+            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                             /*         */ : (-1 - (first + (-1 - ind[j])));
+         }
       }
    }
 
-   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
-   int first = ndofs + ngvdofs + ngedofs + nf_quad*ghost_face_index;
-
+   const int first = ndofs + ngvdofs + ngedofs + base;
    for (int j = 0; j < nf; j++)
    {
       dofs[offset++] = first + j;
@@ -1962,7 +2075,7 @@ int ParFiniteElementSpace::PackDofVar(int entity, int index, int edof,
          }
          else // ghost face
          {
-            return nvdofs + nedofs + FirstFaceDof(index) - nfdofs + edof;
+            return ndofs + ngvdofs + ngedofs + FirstFaceDof(index) - nfdofs + edof;
          }
    }
 }
@@ -2857,7 +2970,17 @@ int ParFiniteElementSpace
 
             if (master_dofs.Size() == 0) { continue; }
 
-            const FiniteElement * const fe = fec->FiniteElementForGeometry(mf.Geom());
+            const FiniteElement *fe = fec->FiniteElementForGeometry(mf.Geom());
+
+            if (IsVariableOrder())
+            {
+               int mfOrder = -1;
+               if (entity == 1) { mfOrder = GetEdgeOrder(mf.index); }
+               else if (entity == 2) { mfOrder = GetFaceOrder(mf.index); }
+
+               if (entity != 0) { fe = fec->GetFE(mf.Geom(), mfOrder); }
+            }
+
             if (fe == nullptr) { continue; }
 
             switch (mf.Geom())
@@ -2874,12 +2997,14 @@ int ParFiniteElementSpace
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               constexpr int variant = 0; // TODO parallel var-order
-               GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
-               if (!slave_dofs.Size()) { continue; }
+               constexpr int variant = 0;
+               int q = GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
+               if (q < 0) { break; }
 
                list.OrientedPointMatrix(sf, T.GetPointMat());
-               fe->GetLocalInterpolation(T, I);
+
+               const auto *slave_fe = fec->GetFE(mf.Geom(), q);
+               slave_fe->GetTransferMatrix(*fe, T, I);
 
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
@@ -2890,7 +3015,8 @@ int ParFiniteElementSpace
       // Variable order spaces: enforce minimum rule on conforming edges/faces
       if (IsVariableOrder())
       {
-         // TODO: This code is identical to FiniteElementSpace::BuildConformingInterpolation().
+         // TODO: This code is identical to
+         // FiniteElementSpace::BuildConformingInterpolation().
          // Can this be refactored to avoid duplication?
          IsoparametricTransformation T;
          DenseMatrix I;
@@ -3916,11 +4042,14 @@ void ParFiniteElementSpace::Update(bool want_transform)
       Swap(dof_offsets, old_dof_offsets);
    }
 
-   Destroy();
+   Destroy();  // Does not clear elems_pref or elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
    Array<int> prefdata;
-   if (orders_changed) { CommunicateGhostOrder(prefdata); }
+   // We call CommunicateGhostOrder whether h- or p-refinement is done, in the
+   // variable order case.
+   if (variableOrder) { CommunicateGhostOrder(prefdata); }
+
    FiniteElementSpace::Construct(&prefdata);
    Construct();
 
@@ -4030,19 +4159,20 @@ void ParFiniteElementSpace::ApplyGhostElementOrdersToEdgesAndFaces(
    Array<int> gelem;
    pncmesh->GetGhostElements(gelem);
 
-   if (ghost_elem_order.Size() == 0)
+   // This flag is true if ghost_elem_order is unset (size 0) or if h-refinement
+   // has been done since the last space update.
+   const bool reset_ghost_elems = ghost_elem_order.Size() <
+                                  pncmesh->TotalNumElements();
+
+   MFEM_VERIFY(ghost_elem_order.Size() <= pncmesh->TotalNumElements() &&
+               ngelem <= gelem.Size(),
+               "h-refinement is supported, but not h-derefinement");
+
+   if (reset_ghost_elems)
    {
-      // TODO: just make it of size ngelem (below)?
       ghost_elem_order.SetSize(pncmesh->TotalNumElements());
       ghost_elem_order = fec->GetOrder();
       ngelem = gelem.Size();
-   }
-   else
-   {
-      // TODO: This verifies that ghost_elem_order can persist after h-refinements?
-      // Does TotalNumElements change with h-ref? What about gelem?
-      MFEM_VERIFY(ghost_elem_order.Size() == pncmesh->TotalNumElements(), "");
-      MFEM_VERIFY(ngelem == gelem.Size(), "");
    }
 
    const int npref = prefdata ? prefdata->Size() / 2 : 0;

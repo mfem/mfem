@@ -351,7 +351,7 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
    SECTION("Quad mesh")
    {
       // 2-by-2 element quad mesh
-      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+      Mesh mesh = MakeCartesianMesh(2, 2);
       mesh.EnsureNCMesh();
 
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -374,13 +374,24 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       // DOFs for vertices + edges + elements = 9 + 12 + 4 = 25
       REQUIRE(fespace.GlobalTrueVSize() == 25);
 
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      if (rank == 0) { fespace.SetElementOrder(0, 4); }
+      fespace.Update(false);
+
+      Array<Refinement> refs;
+      if (rank == 0) { refs.Append(Refinement(0)); }
+      pmesh.GeneralRefinement(refs);
+      fespace.Update(false);
+
       TestSolvePar(fespace);
    }
 
    SECTION("Hex mesh")
    {
       // 2^3 element hex mesh
-      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+      Mesh mesh = MakeCartesianMesh(2, 3);
       mesh.EnsureNCMesh();
 
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -401,6 +412,17 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
 
       // DOFs for vertices + edges + faces + elements = 27 + 54 + 36 + 8 = 125
       REQUIRE(fespace.GlobalTrueVSize() == 125);
+
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      if (rank == 0) { fespace.SetElementOrder(0, 4); }
+      fespace.Update(false);
+
+      Array<Refinement> refs;
+      if (rank == 0) { refs.Append(Refinement(0)); }
+      pmesh.GeneralRefinement(refs);
+      fespace.Update(false);
 
       TestSolvePar(fespace);
    }
@@ -479,9 +501,7 @@ TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
 {
 
    int dimension = GENERATE(2, 3);
-   Mesh mesh = dimension == 2 ? Mesh::MakeCartesian2D(4, 4,
-                                                      Element::QUADRILATERAL) :
-               Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
+   Mesh mesh = MakeCartesianMesh(4, dimension);
    TestRandomPRefinement(mesh);
 }
 #endif  // MFEM_USE_MPI
