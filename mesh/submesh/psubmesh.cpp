@@ -269,7 +269,6 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
       boundary.SetSize(NumOfBdrElements);
       be_to_face.SetSize(NumOfBdrElements);
       Array<int> parent_face_to_be = parent.GetFaceToBdrElMap();
-      int max_bdr_attr = parent.bdr_attributes.Max();
 
       for (int i = 0, j = 0; i < num_codim_1; i++)
       {
@@ -288,7 +287,7 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                }
                else
                {
-                  boundary[j]->SetAttribute(max_bdr_attr + 1);
+                  boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE + 1);
                }
             }
             else
@@ -296,6 +295,49 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
                boundary[j]->SetAttribute(SubMesh::GENERATED_ATTRIBUTE);
             }
             ++j;
+         }
+      }
+
+      if (from == SubMesh::From::Domain && Dim >= 2)
+      {
+         // Search for and count interior boundary elements
+         int InteriorBdrElems = 0;
+         for (int i=0; i<parent.GetNBE(); i++)
+         {
+            const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+            const int submeshFaceIdx =
+               parent_to_submesh_face_ids_[parentFaceIdx];
+
+            if (submeshFaceIdx == -1) { continue; }
+            if (GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
+
+            InteriorBdrElems++;
+         }
+
+         if (InteriorBdrElems > 0)
+         {
+            const int OldNumOfBdrElements = NumOfBdrElements;
+            NumOfBdrElements += InteriorBdrElems;
+            boundary.SetSize(NumOfBdrElements);
+            be_to_face.SetSize(NumOfBdrElements);
+
+            // Search for and transfer interior boundary elements
+            for (int i=0, j = OldNumOfBdrElements; i<parent.GetNBE(); i++)
+            {
+               const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
+               const int submeshFaceIdx =
+                  parent_to_submesh_face_ids_[parentFaceIdx];
+
+               if (submeshFaceIdx == -1) { continue; }
+               if (GetFaceInformation(submeshFaceIdx).IsBoundary())
+               { continue; }
+
+               boundary[j] = faces[submeshFaceIdx]->Duplicate(this);
+               be_to_face[j] = submeshFaceIdx;
+               boundary[j]->SetAttribute(parent.GetBdrAttribute(i));
+
+               ++j;
+            }
          }
       }
    }
