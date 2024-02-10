@@ -340,26 +340,38 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
    if (Dim > 1 && from == SubMesh::From::Domain)
    {
+      // Order 0 Raviart-Thomas space will have precisely 1 DoF per face.
+      // We can use this DoF to communicate boundary attribute numbers.
       RT_FECollection fec_rt(0, Dim);
       ParFiniteElementSpace parent_fes_rt(const_cast<ParMesh*>(&parent),
                                           &fec_rt);
 
       ParGridFunction parent_bdr_attr_gf(&parent_fes_rt);
       parent_bdr_attr_gf = 0.0;
+
       Array<int> vdofs;
       DofTransformation doftrans;
-      int dof, face_idx, faceEl1, faceEl2, faceInf1, faceInf2;
+      int dof, faceIdx;
       double sign, w;
+
       // Copy boundary attribute numbers into local portion of a parallel
       // grid function
       for (int i=0; i<parent.GetNBE(); i++)
       {
-         face_idx = parent.GetBdrElementFaceIndex(i);
-         parent.GetFaceElements(face_idx, &faceEl1, &faceEl2);
-         parent.GetFaceInfos(face_idx, &faceInf1, &faceInf2);
+         faceIdx = parent.GetBdrElementFaceIndex(i);
+         const FaceInformation &faceInfo = parent.GetFaceInformation(faceIdx);
          parent_fes_rt.GetBdrElementDofs(i, vdofs, doftrans);
          dof = ParFiniteElementSpace::DecodeDof(vdofs[0], sign);
-         w = (faceEl2 < 0 && faceInf2 >= 0) ? 2.0 : 1.0;
+
+         // Shared interior boundary elements are not duplicated across
+         // processor boundaries but ParGridFunction::ParallelAverage will
+         // assume both processors contribute to the averaged DoF value. So,
+         // we multiply shared boundary values by 2 so that the average
+         // produces the desired value.
+         w = faceInfo.IsShared() ? 2.0 : 1.0;
+
+         // The DoF sign is needed to ensure that non-shared interior
+         // boundary values sum properly rather than canceling.
          parent_bdr_attr_gf[dof] = sign * w * parent.GetBdrAttribute(i);
       }
 
@@ -375,10 +387,14 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
 
       ParGridFunction submesh_bdr_attr_gf(&submesh_fes_rt);
 
+      // Transfer the averaged boundary attribute values to the submesh
       auto transfer_map = ParSubMesh::CreateTransferMap(parent_bdr_attr_gf,
                                                         submesh_bdr_attr_gf);
       transfer_map.Transfer(parent_bdr_attr_gf, submesh_bdr_attr_gf);
 
+      // Extract the boundary attribute numbers from the local portion
+      // of the ParGridFunction and set the corresponding boundary element
+      // attributes.
       int attr;
       for (int i=0; i<NumOfBdrElements; i++)
       {
