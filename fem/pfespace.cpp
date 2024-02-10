@@ -1759,7 +1759,6 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
    {
       const int edge = edge_id.index;
       const int* beg = var_edge_dofs.GetRow(edge);
-      const int* end = var_edge_dofs.GetRow(edge + 1);
       const int variant = 0;  // TODO: allow for other variants?
 
       base = beg[variant];
@@ -1821,7 +1820,6 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    {
       const int face = face_id.index;
       const int* beg = var_face_dofs.GetRow(face);
-      const int* end = var_face_dofs.GetRow(face + 1);
       const int variant = 0;  // TODO: allow for other variants?
 
       base = beg[variant];
