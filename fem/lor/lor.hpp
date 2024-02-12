@@ -75,7 +75,7 @@ protected:
    /// Constructs the local DOF (ldof) permutation. In parallel this is used as
    /// an intermediate step in computing the DOF permutation (see
    /// ConstructDofPermutation and GetDofPermutation).
-   void ConstructLocalDofPermutation(Array<int> &perm_) const;
+   void ConstructLocalDofPermutation() const;
 
    /// Construct the permutation that maps LOR DOFs to high-order DOFs. See
    /// GetDofPermutation.
