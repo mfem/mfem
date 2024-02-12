@@ -291,25 +291,29 @@ public:
    using FindPointsGSLIB::Interpolate;
 };
 
-/// Given an array of integers on each rank, this class can do gather-scatter
-/// operations based on the integer values. This can be used to do gather-scatter
-/// operations on shared dofs across processor boundaries (where the integer
-/// would correspond to the true DOF index), or similar operations.
-/// For example, consider a vector:
+/// Class for gather-scatter (gs) operations on Vectors based on corresponding
+/// global identifiers. This functionality is useful for gs-ops on
+/// DOF values across processor boundary, where the global identifier would be
+/// the corresponding true DOF index. Operations currently supported are
+/// min, max, sum, and multiplication.
+/// For example, consider a vector, v:
 /// [0.3, 0.4, 0.25] on rank1,
 /// [0.6, 0.1] on rank 2,
 /// [0.4, 0.3, 0.7, 0.] on rank 3.
-/// Consider a corresponding Array<int>:
+/// Consider a corresponding Array<int>, a:
 /// [1, 2, 3] on rank 1,
 /// [3, 2] on rank 2,
 /// [1, 2, 1, 3] on rank 3.
-/// A gather-scatter "minimum" operation would return the vector
+/// A gather-scatter "minimum" operation, done as follows:
+/// /// GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD);
+/// gs.Setup(a);
+/// gs.GOP(v, GSOpType::Min)
+/// would return:
 /// [0.3, 0.1, 0.] on rank 1,
 /// [0., 0.1] on rank 2,
 /// [0.3, 0.1, 0.3, 0] on rank 3,
 /// where the values have been compared across all processors based on the integer
 /// identifier.
-/// GSLIB also supports max, sum, and multiplication operation.
 class GSOPGSLIB
 {
 protected:
@@ -331,8 +335,8 @@ public:
    virtual void Setup(Array<long long> &ids);
 
    // supported operation types
-   enum OpType {ADD, MUL, MIN, MAX};
-   virtual void GOP(Vector &senddata, OpType op);
+   enum GSOpType {ADD, MUL, MIN, MAX};
+   virtual void GSOP(Vector &senddata, GSOpType op);
 
    virtual void FreeData();
 };

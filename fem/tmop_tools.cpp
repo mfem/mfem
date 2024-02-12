@@ -848,37 +848,54 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
 {
    double min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
-   if (!NE) { return min_detJ; }
    Array<int> xdofs;
    DenseMatrix Jpr(dim);
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
+   if (NE > 0)
    {
-      for (int i = 0; i < NE; i++)
+      if (dim == 1 || mixed_mesh || UsesTensorBasis(fes) == false)
       {
-         const int dof = fes.GetFE(i)->GetDof();
-         DenseMatrix dshape(dof, dim), pos(dof, dim);
-         Vector posV(pos.Data(), dof * dim);
-
-         fes.GetElementVDofs(i, xdofs);
-         x_loc.GetSubVector(xdofs, posV);
-
-         const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
-         const int nsp = irule.GetNPoints();
-         for (int j = 0; j < nsp; j++)
+         for (int i = 0; i < NE; i++)
          {
-            fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
-            MultAtB(pos, dshape, Jpr);
-            min_detJ = std::min(min_detJ, Jpr.Det());
+            const int dof = fes.GetFE(i)->GetDof();
+            DenseMatrix dshape(dof, dim), pos(dof, dim);
+            Vector posV(pos.Data(), dof * dim);
+
+            fes.GetElementVDofs(i, xdofs);
+            x_loc.GetSubVector(xdofs, posV);
+
+            const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
+            const int nsp = irule.GetNPoints();
+            for (int j = 0; j < nsp; j++)
+            {
+               fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
+               MultAtB(pos, dshape, Jpr);
+               min_detJ = std::min(min_detJ, Jpr.Det());
+            }
+
+            const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
+            for (int j = 0; j < ir2.GetNPoints(); j++)
+            {
+               fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
+               MultAtB(pos, dshape, Jpr);
+               min_detJ = std::min(min_detJ, Jpr.Det());
+            }
          }
       }
-   }
-   else
-   {
-      min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
-                 dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
+      else
+      {
+         min_detJ = dim == 2 ? MinDetJpr_2D(&fes, x_loc) :
+                    dim == 3 ? MinDetJpr_3D(&fes, x_loc) : 0.0;
+      }
    }
    double min_detT_all = min_detJ;
+
+   if (fes.GetMesh()->GetNE() > 0)
+   {
+      const DenseMatrix &Wideal =
+         Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
+      min_detT_all /= Wideal.Det();
+   }
 #ifdef MFEM_USE_MPI
    if (parallel)
    {
@@ -887,9 +904,6 @@ double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,
                     p_nlf->ParFESpace()->GetComm());
    }
 #endif
-   const DenseMatrix &Wideal =
-      Geometries.GetGeomToPerfGeomJac(fes.GetFE(0)->GetGeomType());
-   min_detT_all /= Wideal.Det();
 
    return min_detT_all;
 }

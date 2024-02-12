@@ -1372,6 +1372,7 @@ void GSOPGSLIB::FreeData()
 
 GSOPGSLIB::~GSOPGSLIB()
 {
+   comm_free(gsl_comm);
    delete gsl_comm;
    delete cr;
 }
@@ -1385,31 +1386,30 @@ void GSOPGSLIB::Setup(Array<long long> &ids)
                              gslib::gs_crystal_router, 1);
 }
 
-void GSOPGSLIB::GOP(Vector &senddata, OpType op)
+void GSOPGSLIB::GSOP(Vector &senddata, GSOpType op)
 {
    MFEM_VERIFY(senddata.Size() == num_ids,"Incompatible setup and GOP operation.");
-   if (op == OpType::ADD)
+   if (op == GSOpType::ADD)
    {
       gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_add, 0, gsl_data, 0);
    }
-   else if (op == OpType::MUL)
+   else if (op == GSOpType::MUL)
    {
       gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_mul, 0, gsl_data, 0);
    }
-   else if (op == OpType::MAX)
+   else if (op == GSOpType::MAX)
    {
       gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_max, 0, gsl_data, 0);
    }
-   else if (op == OpType::MIN)
+   else if (op == GSOpType::MIN)
    {
       gslib_gs(senddata.GetData(), gslib::gs_double, gslib::gs_min, 0, gsl_data, 0);
    }
    else
    {
-      MFEM_ABORT("Invalid GS_OP operation.");
+      MFEM_ABORT("Invalid GSOpType operation.");
    }
 }
-
 
 } // namespace mfem
 
