@@ -3282,6 +3282,8 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 
       // TODO: maybe introduce Mesh::NODE_REORDER operation and FESpace::
       // NodeReorderMatrix and do Nodes->Update() instead of DoNodeReorder?
+
+      UpdatedTopology();
    }
 
    // check and fix boundary element orientation

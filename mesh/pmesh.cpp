@@ -969,9 +969,6 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
       pncmesh->GetConformingSharedStructures(*this);
    }
 
-   // Assume FinalizeTopology() has been called in Loader
-   FinalizeParTopo();
-
    Finalize(refine, fix_orientation);
 
    EnsureParNodes();
@@ -1128,6 +1125,9 @@ void ParMesh::LoadSharedEntities(istream &input)
          group_squad.GetJ()[i] = i;
       }
    }
+
+   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
+   FinalizeParTopo();
 }
 
 ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
@@ -1528,9 +1528,6 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
    meshgen = meshgen_save;
    // Note: if Mesh::Finalize() calls MarkTetMeshForRefinement() then the
    //       shared_trias have been rotated as necessary.
-
-   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
-   FinalizeParTopo();
 }
 
 int ParMesh::GetLocalElementNum(long long global_element_num) const
