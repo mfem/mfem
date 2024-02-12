@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -769,6 +769,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   const double alpha, beta;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   SumOperator(
+      const Operator *A, const double alpha,
+      const Operator *B, const double beta,
+      bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+
+   virtual ~SumOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
@@ -892,14 +914,14 @@ public:
                        DiagonalPolicy diag_policy = DIAG_ONE);
 
    /// Returns the type of memory in which the solution and temporaries are stored.
-   virtual MemoryClass GetMemoryClass() const { return mem_class; }
+   MemoryClass GetMemoryClass() const override { return mem_class; }
 
    /// Set the diagonal policy for the constrained operator.
    void SetDiagonalPolicy(const DiagonalPolicy diag_policy_)
    { diag_policy = diag_policy_; }
 
    /// Diagonal of A, modified according to the used DiagonalPolicy.
-   virtual void AssembleDiagonal(Vector &diag) const;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
@@ -922,10 +944,19 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+
+   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
+
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Implementation of Mult or MultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
-   virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
+   ~ConstrainedOperator() override { if (own_A) { delete A; } }
 };
 
 /** @brief Rectangular Operator for imposing essential boundary conditions on
