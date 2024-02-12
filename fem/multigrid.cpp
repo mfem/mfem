@@ -274,26 +274,42 @@ GeometricMultigrid::GeometricMultigrid(
    const Array<int> &ess_bdr)
    : fespaces(fespaces_)
 {
-   const int nlevels = fespaces.GetNumLevels();
-   ownedProlongations.SetSize(nlevels - 1);
-   ownedProlongations = true;
-
-   essentialTrueDofs.SetSize(nlevels);
-   prolongations.SetSize(nlevels - 1);
-   for (int level = 0; level < nlevels; ++level)
+   bool have_ess_bdr = false;
+   for (int i = 0; i < ess_bdr.Size(); i++)
    {
-      essentialTrueDofs[level] = new Array<int>;
-      fespaces.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
-         ess_bdr, *essentialTrueDofs[level]);
+      if (ess_bdr[i]) { have_ess_bdr = true; break; }
    }
 
+   const int nlevels = fespaces.GetNumLevels();
+   ownedProlongations.SetSize(nlevels - 1);
+   ownedProlongations = have_ess_bdr;
+
+   if (have_ess_bdr)
+   {
+      essentialTrueDofs.SetSize(nlevels);
+      for (int level = 0; level < nlevels; ++level)
+      {
+         essentialTrueDofs[level] = new Array<int>;
+         fespaces.GetFESpaceAtLevel(level).GetEssentialTrueDofs(
+            ess_bdr, *essentialTrueDofs[level]);
+      }
+   }
+
+   prolongations.SetSize(nlevels - 1);
    for (int level = 0; level < nlevels - 1; ++level)
    {
-      prolongations[level] = new RectangularConstrainedOperator(
-         fespaces.GetProlongationAtLevel(level),
-         *essentialTrueDofs[level],
-         *essentialTrueDofs[level + 1]
-      );
+      if (have_ess_bdr)
+      {
+         prolongations[level] = new RectangularConstrainedOperator(
+            fespaces.GetProlongationAtLevel(level),
+            *essentialTrueDofs[level],
+            *essentialTrueDofs[level + 1]
+         );
+      }
+      else
+      {
+         prolongations[level] = fespaces.GetProlongationAtLevel(level);
+      }
    }
 }
 

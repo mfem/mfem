@@ -185,6 +185,10 @@ public:
    /// @brief Construct a geometric multigrid object for the given finite
    /// element space hierarchy @a fespaces_, where @a ess_bdr is a list of
    /// mesh boundary element attributes that define the essential DOFs.
+   ///
+   /// If @a ess_bdr is empty, or all its entries are 0, then no essential
+   /// boundary conditions are imposed and the protected array essentialTrueDofs
+   /// remains empty.
    GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_,
                       const Array<int> &ess_bdr);
 
