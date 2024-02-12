@@ -65,6 +65,7 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0,
    p0[i] = lagrangeCoeff[i] * u0;
    p1[i] = 2.0 * lagrangeCoeff[i] * u1;
 }
+
 static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0,
                                                                     dfloat x, dlong i,
                                                                     const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
@@ -1805,46 +1806,40 @@ static void FindPointsLocal3D_Kernel(const int npt,
    });
 }
 
-void FindPointsGSLIB::FindPointsLocal(const Vector &point_pos,
-                                      int point_pos_ordering,
-                                      Array<int> &gsl_code_dev_l,
-                                      Array<int> &gsl_elem_dev_l,
-                                      Vector &gsl_ref_l,
-                                      Vector &gsl_dist_l,
-                                      int npt)
+void FindPointsGSLIB::FindPointsLocal3(const Vector &point_pos,
+                                       int point_pos_ordering,
+                                       Array<int> &gsl_code_dev_l,
+                                       Array<int> &gsl_elem_dev_l,
+                                       Vector &gsl_ref_l,
+                                       Vector &gsl_dist_l,
+                                       int npt)
 {
    if (npt == 0) { return; }
-   if (dim == 3)
-   {
-      FindPointsLocal3D_Kernel(npt, DEV.tol,
-                               point_pos.Read(), point_pos_ordering,
-                               DEV.o_x.Read(),
-                               DEV.o_y.Read(),
-                               DEV.o_z.Read(),
-                               DEV.o_wtend_x.Read(),
-                               DEV.o_wtend_y.Read(),
-                               DEV.o_wtend_z.Read(),
-                               DEV.o_c.Read(),
-                               DEV.o_A.Read(),
-                               DEV.o_min.Read(),
-                               DEV.o_max.Read(),
-                               DEV.hash_n,
-                               DEV.o_hashMin.Read(),
-                               DEV.o_hashFac.Read(),
-                               DEV.o_offset.ReadWrite(),
-                               gsl_code_dev_l.Write(),
-                               gsl_elem_dev_l.Write(),
-                               gsl_ref_l.Write(),
-                               gsl_dist_l.Write(),
-                               DEV.gll1d.ReadWrite(),
-                               DEV.lagcoeff.Read(),
-                               DEV.info.ReadWrite(),
-                               DEV.dof1d);
-   }
-   else
-   {
-      MFEM_ABORT("Device implementation only for 3D yet.");
-   }
+   MFEM_VERIFY(dim == 3,"Function for 3D only");
+   FindPointsLocal3D_Kernel(npt, DEV.tol,
+                            point_pos.Read(), point_pos_ordering,
+                            DEV.o_x.Read(),
+                            DEV.o_y.Read(),
+                            DEV.o_z.Read(),
+                            DEV.o_wtend_x.Read(),
+                            DEV.o_wtend_y.Read(),
+                            DEV.o_wtend_z.Read(),
+                            DEV.o_c.Read(),
+                            DEV.o_A.Read(),
+                            DEV.o_min.Read(),
+                            DEV.o_max.Read(),
+                            DEV.hash_n,
+                            DEV.o_hashMin.Read(),
+                            DEV.o_hashFac.Read(),
+                            DEV.o_offset.ReadWrite(),
+                            gsl_code_dev_l.Write(),
+                            gsl_elem_dev_l.Write(),
+                            gsl_ref_l.Write(),
+                            gsl_dist_l.Write(),
+                            DEV.gll1d.ReadWrite(),
+                            DEV.lagcoeff.Read(),
+                            DEV.info.ReadWrite(),
+                            DEV.dof1d);
 }
 
 

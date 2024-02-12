@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../gslib.hpp"
-#include "findpts_3.hpp"
+#include "findpts_2.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/kernels.hpp"
 #include "../../linalg/dinvariants.hpp"
@@ -39,7 +39,7 @@ static MFEM_HOST_DEVICE void lagrange_eval(dfloat *p0, dfloat x,
    p0[i] = lagrangeCoeff[i] * p_i;
 }
 
-static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
+static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
                                       dlong *const el,
                                       dfloat *const r,
                                       dfloat *const int_out,
@@ -55,22 +55,20 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
    const int p_Nq = dof1Dsol;
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
-   const int p_Np = p_Nq*p_Nq*p_Nq;
+   const int p_Np = p_Nq*p_Nq;
    const int p_Nq_max = 12;
    //    mfem::forall_1D(npt, dof1Dsol, [=] MFEM_HOST_DEVICE (int i)
    mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED dfloat wtr[p_Nq_max];
       MFEM_SHARED dfloat wts[p_Nq_max];
-      MFEM_SHARED dfloat wtt[p_Nq_max];
       MFEM_SHARED dfloat sums[p_Nq_max];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,p_Nq)
       {
-         lagrange_eval(wtr, r[3 * i + 0], j, p_Nq, gll1D, lagcoeff);
-         lagrange_eval(wts, r[3 * i + 1], j, p_Nq, gll1D, lagcoeff);
-         lagrange_eval(wtt, r[3 * i + 2], j, p_Nq, gll1D, lagcoeff);
+         lagrange_eval(wtr, r[2 * i + 0], j, p_Nq, gll1D, lagcoeff);
+         lagrange_eval(wts, r[2 * i + 1], j, p_Nq, gll1D, lagcoeff);
       }
       MFEM_SYNC_THREAD;
 
@@ -84,12 +82,7 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
             dfloat sum_j = 0;
             for (dlong k = 0; k < p_Nq; ++k)
             {
-               dfloat sum_k = 0;
-               for (dlong l = 0; l < p_Nq; ++l)
-               {
-                  sum_k += gf_in[elemOffset + j + k * p_Nq + l * p_Nq * p_Nq] * wtt[l];
-               }
-               sum_j += wts[k] * sum_k;
+               sum_j += gf_in[elemOffset + j + k * p_Nq] * wts[k];
             }
             sums[j] = wtr[j] * sum_j;
          }
@@ -112,7 +105,7 @@ static void InterpolateLocal3D_Kernel(const dfloat *const gf_in,
    });
 }
 
-void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
+void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,
                                         Array<int> &gsl_elem_dev_l,
                                         Vector &gsl_ref_l,
                                         Vector &field_out,
@@ -120,21 +113,15 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
                                         int nel, int dof1Dsol)
 {
    const int gf_offset = field_in.Size()/ncomp;
-   if (dim == 3)
-   {
-      InterpolateLocal3D_Kernel(field_in.Read(),
-                                gsl_elem_dev_l.ReadWrite(),
-                                gsl_ref_l.ReadWrite(),
-                                field_out.Write(),
-                                npt, ncomp, nel, dof1Dsol, gf_offset,
-                                DEV.gll1dsol.ReadWrite(),
-                                DEV.lagcoeffsol.ReadWrite(),
-                                DEV.info.ReadWrite());
-   }
-   else
-   {
-      MFEM_ABORT("Device implementation only for 3D yet.");
-   }
+   MFEM_VERIFY(dim == 2,"Kernel for 2D only.");
+   InterpolateLocal2D_Kernel(field_in.Read(),
+                             gsl_elem_dev_l.ReadWrite(),
+                             gsl_ref_l.ReadWrite(),
+                             field_out.Write(),
+                             npt, ncomp, nel, dof1Dsol, gf_offset,
+                             DEV.gll1dsol.ReadWrite(),
+                             DEV.lagcoeffsol.ReadWrite(),
+                             DEV.info.ReadWrite());
 }
 
 
