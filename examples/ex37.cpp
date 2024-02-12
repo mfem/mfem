@@ -102,7 +102,7 @@ double proj(GridFunction &psi, double target_volume, double tol=1e-12,
    return int_sigmoid_psi.Sum();
 }
 
-/**
+/*
  * ---------------------------------------------------------------
  *                      ALGORITHM PREAMBLE
  * ---------------------------------------------------------------
