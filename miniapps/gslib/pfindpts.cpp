@@ -46,7 +46,14 @@
 //    mpirun -np 2 pfindpts -m ../../data/inline-pyramid.mesh -o 1 -mo 1
 //    mpirun -np 2 pfindpts -m ../../data/tinyzoo-3d.mesh -o 1 -mo 1
 
-// make pfindpts -j && mpirun -np 5 pfindpts -m ../../data/inline-hex.mesh -d debug -rs 2 -mo 3 -o 3 -ji 0.01 -nc 2 -po 1 -gfo 1 -eo 1
+// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 2 -mo 3 -o 3 -ji 0.01 -nc 2 -po 1 -gfo 1 -eo 1
+// quads, third-order mesh, second-order gridfunction
+// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 2 -ji 0.01 -nc 2 -eo 2 -po 1 -gfo 1 -et 0 -vis -dim 2
+// hex
+// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 2 -ji 0.0 -nc 2 -eo 2 -po 1 -gfo 1 -et 0 -vis -dim 3
+// tets
+// make pfindpts -j && mpirun -np 5 pfindpts -d debug -rs 0 -mo 3 -o 3 -ji 0.0 -nc 2 -eo 2 -po 1 -gfo 1 -et 1 -vis -dim 3
+
 #include "mfem.hpp"
 #include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
@@ -80,7 +87,7 @@ int main (int argc, char *argv[])
    Hypre::Init();
 
    // Set the method's default parameters.
-   const char *mesh_file = "../../data/rt-2d-q3.mesh";
+   const char *mesh_file = "NULL";
    int order             = 3;
    int mesh_poly_deg     = 3;
    int rs_levels         = 0;
@@ -99,6 +106,8 @@ int main (int argc, char *argv[])
    int jobid             = 0;
    int npt               = 100; //points per proc
    int nx                = 6; //points per proc
+   int dim               = 3;
+   int etype             = 0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -145,6 +154,10 @@ int main (int argc, char *argv[])
                   "# points per proc");
    args.AddOption(&nx, "-nx", "--nx",
                   "# of elements in x(is multipled by rs)");
+   args.AddOption(&dim, "-dim", "--dim",
+                  "Dimension");
+   args.AddOption(&etype, "-et", "--et",
+                  "element type: 0 - quad/hex, 1 - triangle/tetrahedron");
    args.Parse();
    if (!args.Good())
    {
@@ -167,13 +180,34 @@ int main (int argc, char *argv[])
    // Initialize and refine the starting mesh.
    //    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    int nex = nx*std::pow(2, rs_levels);
-   const int etype = 0;
-   Mesh *mesh = new Mesh(Mesh::MakeCartesian3D(nex, nex, nex, etype == 0 ?
+   Mesh *mesh = NULL;
+   if (strcmp(mesh_file,"NULL") != 0)
+   {
+      mesh = new Mesh(mesh_file, 1, 1, false);
+      for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+      dim = mesh->Dimension();
+   }
+   else
+   {
+      if (dim == 2)
+      {
+         mesh = new Mesh(Mesh::MakeCartesian2D(nex, nex, etype == 0 ?
+                                               Element::QUADRILATERAL :
+                                               Element::TRIANGLE));
+
+      }
+      else if (dim == 3)
+      {
+         mesh = new Mesh(Mesh::MakeCartesian3D(nex, nex, nex, etype == 0 ?
                                                Element::HEXAHEDRON :
                                                Element::TETRAHEDRON));
+      }
+      else
+      {
+         MFEM_ABORT("Only 2D and 3D supported at the moment.");
+      }
+   }
 
-   //    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int dim = mesh->Dimension();
    if (myid == 0)
    {
       cout << "Mesh curvature of the original mesh: ";
@@ -380,7 +414,42 @@ int main (int argc, char *argv[])
    vxyz.SetSize(pts_cnt * dim);
    vxyz.Randomize(myid+1);
    //    std::cout << " k10 done setup vxyz" << std::endl;
-   //    vxyz = 0.1;
+
+   //   //check interior
+   //   vxyz(0) = 0.4;
+   //   vxyz(1) = 0.3;
+
+   //   // check edge 0
+   //   vxyz(0) = -0.006;
+   //   vxyz(1) = 0.37;
+
+   //   // check edge 1
+   //   vxyz(0) = 1.006;
+   //   vxyz(1) = 0.37;
+
+   //   // check edge 2
+   //   vxyz(0) = 0.37;
+   //   vxyz(1) = -0.006;
+
+   ////   // check edge 3
+   ////   vxyz(0) = 0.37;
+   ////   vxyz(1) = 1.006;
+
+   //   // check pt 0
+   //   vxyz(0) = -0.003;
+   //   vxyz(1) = -0.002;
+
+   //   // check pt 1
+   //   vxyz(0) = 1.003;
+   //   vxyz(1) = -0.002;
+
+   ////   // check pt 2
+   ////   vxyz(0) = -0.003;
+   ////   vxyz(1) = 1.002;
+
+   //////   // check pt 3
+   //////   vxyz(0) = 1.003;
+   //////   vxyz(1) = 1.002;
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -394,6 +463,7 @@ int main (int argc, char *argv[])
    FindPointsGSLIB finder(MPI_COMM_WORLD);
    //    std::cout << " k10 do finder setup" << std::endl;
    finder.Setup(pmesh);
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
    //    std::cout << " k10 do findpts" << std::endl;
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);
@@ -419,23 +489,29 @@ int main (int argc, char *argv[])
          notfound++;
          if (point_ordering == 0)
          {
-            std::cout << "Pt xyz: " << vxyz(i) << " " << vxyz(i + pts_cnt) <<  " " <<
-                      vxyz(i+2*pts_cnt) << " k10\n";
+            std::cout << "Pt xyz: " << vxyz(i) << " " <<
+                      vxyz(i + pts_cnt) <<  " " <<
+                      (dim == 3 ? vxyz(i+2*pts_cnt) : 0) << " k10\n";
          }
          else
          {
-            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " << vxyz(i*dim+1) <<  " " <<
-                      vxyz(i*dim+2) << " k10\n";
+            std::cout << "Pt xyz: " << vxyz(i*dim+0) << " " <<
+                      vxyz(i*dim+1) <<  " " <<
+                      (dim == 3 ?  vxyz(i*dim+2)  : 0) << " k10\n";
          }
-         std::cout << "FPT DEV: " << c1 << " " << e1 << " " << dist1(i) << " " <<
-                   ref1(0) << " " << ref1(1) << " " << ref1(2) << " " <<
+         std::cout << "FPT DEV (c1,e1,dist1,r,s,t,proc): " << c1 << " " << e1 << " " <<
+                   dist1(i) << " " <<
+                   ref1(0) << " " << ref1(1) << " " <<
+                   (dim == 3 ? ref1(2) : 0) << " " <<
                    proc_out1[i] << " k10\n";
       }
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
    Vector info0    = finder.GetInfo();
-   //    info0.Print();
+   info0.HostReadWrite();
+   //   info0.Print();
+   //   MFEM_ABORT(" ");
    //    vxyz.Print();
    //    ref_rst0.Print();
    //    dist1.Print();
@@ -484,7 +560,6 @@ int main (int argc, char *argv[])
                   fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_err  = std::max(max_err, err);
             max_dist = std::max(max_dist, dist_p_out(i));
-            // std::cout << exact_val(j) << " " << interp_vals[i + j*pts_cnt] << " k10" << std::endl;
             if (code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
