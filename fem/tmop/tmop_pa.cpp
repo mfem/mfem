@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -174,6 +174,42 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
    // Compute PA.Jtr for all elements
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
+}
+
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x_loc)
+{
+   // Both are constant or not specified.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
+
+   // Coefficients are always evaluated on the CPU for now.
+   PA.MC.HostWrite();
+   PA.C0.HostWrite();
+
+   const IntegrationRule &ir = *PA.ir;
+   auto T = new IsoparametricTransformation;
+   for (int e = 0; e < PA.ne; ++e)
+   {
+      // Uses the node positions in x_loc.
+      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+
+      if (PA.MC.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.MC(q + e * PA.nq) = metric_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+
+      if (PA.C0.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   delete T;
 }
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)

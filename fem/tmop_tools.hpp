@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -68,6 +68,11 @@ public:
                                      Vector &new_field,
                                      int new_nodes_ordering = Ordering::byNODES);
 
+   const FindPointsGSLIB *GetFindPointsGSLIB() const
+   {
+      return finder;
+   }
+
    ~InterpolatorFP()
    {
       finder->FreeData();
@@ -129,8 +134,7 @@ protected:
    int solver_type;
    bool parallel;
 
-   // Minimum detJ.
-   // Line search step is rejected if min(detJ) <= min_detJ_threshold
+   // Line search step is rejected if min(detJ) <= min_detJ_threshold.
    double min_detJ_threshold = 0.0;
 
    // Surface fitting variables.
@@ -142,8 +146,8 @@ protected:
    double surf_fit_scale_factor = 0.0;
    mutable int adapt_inc_count = 0;
    mutable int max_adapt_inc_count = 10;
-   mutable double weights_max_limit = 1e20;
-   mutable double worst_skewness = 0.0;
+   mutable double fit_weight_max_limit = 1e20;
+   bool surf_fit_converge_based_on_error = true;
 
    // Minimum determinant over the whole mesh. Used for mesh untangling.
    double *min_det_ptr = nullptr;
@@ -168,14 +172,8 @@ protected:
       return ir;
    }
 
-   void UpdateDiscreteTC(const TMOP_Integrator &ti, const Vector &x_new,
-                         int x_ordering = Ordering::byNODES) const;
-
    double ComputeMinDet(const Vector &x_loc,
                         const FiniteElementSpace &fes) const;
-
-   Vector ComputeWorstSkew(const Vector &x_loc,
-                           const FiniteElementSpace &fes) const;
 
    double MinDetJpr_2D(const FiniteElementSpace*, const Vector&) const;
    double MinDetJpr_3D(const FiniteElementSpace*, const Vector&) const;
@@ -185,12 +183,11 @@ protected:
    /// Get the average and maximum surface fitting error at the marked nodes.
    /// If there is more than 1 TMOP integrator, we get the maximum of the
    /// average and maximum error over all integrators.
-   virtual void GetSurfaceFittingError(double &err_avg, double &err_max) const;
+   virtual void GetSurfaceFittingError(const Vector &x_loc,
+                                       double &err_avg, double &err_max) const;
 
    /// Update surface fitting weight as surf_fit_weight *= factor.
    void UpdateSurfaceFittingWeight(double factor) const;
-
-   void SaveSurfaceFittingWeight() const;
 
    /// Get the surface fitting weight for all the TMOP integrators.
    void GetSurfaceFittingWeight(Array<double> &weights) const;
@@ -258,17 +255,19 @@ public:
    {
       surf_fit_max_threshold = max_error;
    }
+   void SetMaximumFittingWeightLimit(double weight)
+   {
+      fit_weight_max_limit = weight;
+   }
+   void SetFittingConvergenceBasedOnError(bool mode)
+   {
+      surf_fit_converge_based_on_error = mode;
+   }
+
+   /// Set minimum determinant enforced during line-search.
    void SetMinimumDeterminantThreshold(double threshold)
    {
       min_detJ_threshold = threshold;
-   }
-   void SetMaximumFittingWeightLimit(double weight)
-   {
-      weights_max_limit = weight;
-   }
-   void SetWorstSkewnessLimit(double limit)
-   {
-      worst_skewness = limit;
    }
 
    virtual void Mult(const Vector &b, Vector &x) const

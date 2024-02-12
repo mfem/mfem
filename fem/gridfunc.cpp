@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,7 +26,6 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
-
 
 namespace mfem
 {
@@ -397,8 +396,6 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
 {
    Array<int> vdofs;
 
-   int k;
-
    DofTransformation * doftrans = fes->GetElementVDofs(i, vdofs);
    const FiniteElement *FElem = fes->GetFE(i);
    const IntegrationRule *ElemVert =
@@ -419,7 +416,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
       Vector shape(dof);
       if (FElem->GetMapType() == FiniteElement::VALUE)
       {
-         for (k = 0; k < n; k++)
+         for (int k = 0; k < n; k++)
          {
             FElem->CalcShape(ElemVert->IntPoint(k), shape);
             nval[k] = shape * (&loc_data[dof * vdim]);
@@ -428,7 +425,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
       else
       {
          ElementTransformation *Tr = fes->GetElementTransformation(i);
-         for (k = 0; k < n; k++)
+         for (int k = 0; k < n; k++)
          {
             Tr->SetIntPoint(&ElemVert->IntPoint(k));
             FElem->CalcPhysShape(*Tr, shape);
@@ -440,7 +437,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    {
       ElementTransformation *Tr = fes->GetElementTransformation(i);
       DenseMatrix vshape(dof, FElem->GetDim());
-      for (k = 0; k < n; k++)
+      for (int k = 0; k < n; k++)
       {
          Tr->SetIntPoint(&ElemVert->IntPoint(k));
          FElem->CalcVShape(*Tr, vshape);
@@ -1442,21 +1439,13 @@ void GridFunction::GetDerivative(int comp, int der_comp,
    }
 }
 
-
 void GridFunction::GetVectorGradientHat(
    ElementTransformation &T, DenseMatrix &gh) const
 {
-   int elNo = T.ElementNo;
-   const FiniteElement *FElem = fes->GetFE(elNo);
+   const FiniteElement *FElem = fes->GetFE(T.ElementNo);
    int dim = FElem->GetDim(), dof = FElem->GetDof();
-   Array<int> vdofs;
-   DofTransformation * doftrans = fes->GetElementVDofs(elNo, vdofs);
    Vector loc_data;
-   GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   GetElementDofValues(T.ElementNo, loc_data);
    // assuming scalar FE
    int vdim = fes->GetVDim();
    DenseMatrix dshape(dof, dim);
@@ -1661,6 +1650,7 @@ void GridFunction::GetGradient(ElementTransformation &T, Vector &grad) const
          const FiniteElement *fe = fes->GetFE(T.ElementNo);
          MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE,
                      "invalid FE map type");
+         MFEM_ASSERT(fes->GetVDim() == 1, "Defined for scalar functions.");
          int spaceDim = fes->GetMesh()->SpaceDimension();
          int dim = fe->GetDim(), dof = fe->GetDof();
          DenseMatrix dshape(dof, dim);
@@ -1729,13 +1719,8 @@ void GridFunction::GetGradients(ElementTransformation &tr,
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
-   Array<int> dofs;
-   DofTransformation * doftrans = fes->GetElementDofs(elNo, dofs);
-   GetSubVector(dofs, lval);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(lval);
-   }
+
+   GetElementDofValues(tr.ElementNo, lval);
    grad.SetSize(fe->GetDim(), ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
@@ -2029,10 +2014,10 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
 }
 
 
-void GridFunction::CountZones(Array<int> &zones_per_vdof) const
+void GridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
 {
-   zones_per_vdof.SetSize(fes->GetVSize());
-   zones_per_vdof = 0;
+   elem_per_vdof.SetSize(fes->GetVSize());
+   elem_per_vdof = 0;
    Array<int> vdofs;
 
    for (int i = 0; i < fes->GetNE(); i++)
@@ -2041,7 +2026,7 @@ void GridFunction::CountZones(Array<int> &zones_per_vdof) const
       // Accumulate values in all dofs, count the zones.
       for (int j = 0; j < vdofs.Size(); j++)
       {
-         zones_per_vdof[vdofs[j]]++;
+         elem_per_vdof[vdofs[j]]++;
       }
    }
 }
@@ -2414,7 +2399,11 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
                                      loc_mass);
             vals.SetSize(fe->GetDof());
             fe->ProjectDelta(j, vals);
-            fes->GetElementVDofs(i, vdofs);
+            const DofTransformation* const doftrans = fes->GetElementVDofs(i, vdofs);
+            if (doftrans)
+            {
+               doftrans->TransformPrimal(vals);
+            }
             SetSubVector(vdofs, vals);
             loc_mass_vals.SetSize(vals.Size());
             loc_mass.Mult(vals, loc_mass_vals);
@@ -2768,7 +2757,11 @@ void GridFunction::ProjectBdrCoefficientNormal(
          CalcOrtho(T->Jacobian(), nor);
          lvec(j) = (vc * nor);
       }
-      fes->GetBdrElementDofs(i, dofs);
+      const DofTransformation* const doftrans = fes->GetBdrElementDofs(i, dofs);
+      if (doftrans)
+      {
+         doftrans->TransformPrimal(lvec);
+      }
       SetSubVector(dofs, lvec);
    }
 #endif
@@ -4044,11 +4037,19 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
       {
          if (with_subdomains && ufes->GetAttribute(i) != s) { continue; }
 
-         ufes->GetElementVDofs(i, udofs);
-         ffes->GetElementVDofs(i, fdofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(i, udofs);
+         const DofTransformation* const ftrans = ffes->GetElementVDofs(i, fdofs);
 
          u.GetSubVector(udofs, ul);
          flux.GetSubVector(fdofs, fla);
+         if (utrans)
+         {
+            utrans->InvTransformPrimal(ul);
+         }
+         if (ftrans)
+         {
+            ftrans->InvTransformPrimal(fla);
+         }
 
          Transf = ufes->GetElementTransformation(i);
          blfi.ComputeElementFlux(*ufes->GetFE(i), *Transf, ul,
@@ -4343,8 +4344,12 @@ double LSZZErrorEstimator(BilinearFormIntegrator &blfi,  // input
                                                     flux_order));
          int num_integration_pts = ir->GetNPoints();
 
-         ufes->GetElementVDofs(ielem, udofs);
+         const DofTransformation* const utrans = ufes->GetElementVDofs(ielem, udofs);
          u.GetSubVector(udofs, ul);
+         if (utrans)
+         {
+            utrans->InvTransformPrimal(ul);
+         }
          Transf = ufes->GetElementTransformation(ielem);
          FiniteElement *dummy = nullptr;
          blfi.ComputeElementFlux(*ufes->GetFE(ielem), *Transf, ul,

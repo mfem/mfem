@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -155,7 +155,7 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_nodes,
 
    double t = 0.0;
    bool last_step = false;
-   for (int ti = 1; !last_step; ti++)
+   while (!last_step)
    {
       if (t + dt >= 1.0)
       {
@@ -416,20 +416,20 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 #endif
 
    double scale = 1.0;
-   double avg_surf_fit_err, max_surf_fit_err = 0.0;
-   if (surf_fit_max_threshold > 0.0)
+   double avg_init_fit_err, max_init_fit_err = 0.0;
+   GetSurfaceFittingError(x_out_loc, avg_init_fit_err, max_init_fit_err);
+   // Check for convergence based on fitting error
+   if (surf_fit_max_threshold > 0.0 &&
+       surf_fit_converge_based_on_error &&
+       max_init_fit_err < surf_fit_max_threshold)
    {
-      GetSurfaceFittingError(avg_surf_fit_err, max_surf_fit_err);
-      if (max_surf_fit_err < surf_fit_max_threshold)
+      if (print_options.iterations)
       {
-         if (print_options.iterations)
-         {
-            mfem::out << "TMOPNewtonSolver converged "
-                      "based on the surface fitting error.\n";
-         }
-         scale = 0.0;
-         return scale;
+         mfem::out << "TMOPNewtonSolver converged "
+                   "based on the surface fitting error.\n";
       }
+      scale = 0.0;
+      return scale;
    }
    if (adapt_inc_count >= max_adapt_inc_count)
    {
@@ -448,17 +448,14 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    const double min_detT_in = ComputeMinDet(x_out_loc, *fes);
    const bool untangling = (min_detT_in <= 0.0) ? true : false;
    const double untangle_factor = 1.5;
-   if (print_options.iterations)
-   {
-      mfem::out << "Min det of input mesh in line search: = " <<
-                min_detT_in  << std::endl;
-   }
    if (untangling)
    {
       // Needed for the line search below. The untangling metrics see this
       // reference to detect deteriorations.
       MFEM_VERIFY(min_det_ptr != NULL, " Initial mesh was valid, but"
                   " intermediate mesh is invalid. Contact TMOP Developers.");
+      MFEM_VERIFY(min_detJ_threshold == 0.0,
+                  "This setup is not supported. Contact TMOP Developers.");
       *min_det_ptr = untangle_factor * min_detT_in;
    }
 
@@ -468,17 +465,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
    bool x_out_ok = false;
    double energy_out = 0.0, min_detT_out;
    const double norm_in = Norm(r);
+   double avg_fit_err, max_fit_err = 0.0;
 
-   const double detJ_factor = (solver_type == 1) ? 0.1 : 0.25;
+   const double detJ_factor = (solver_type == 1) ? 0.25 : 0.5;
    compute_metric_quantile_flag = false;
    // TODO:
    // - Customized line search for worst-quality optimization.
    // - What is the Newton exit criterion for worst-quality optimization?
-
-   double scale_save = 0.0;
-   double norm_out = 0.0;
-   double avg_fit_err, max_fit_err = 0.0;
-
 
    // Perform the line search.
    for (int i = 0; i < 12; i++)
@@ -499,9 +492,9 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
       // Check the changes in detJ.
       min_detT_out = ComputeMinDet(x_out_loc, *fes);
-      if (untangling == false && min_detT_out <= 1.0*min_detJ_threshold)
+      if (untangling == false && min_detT_out <= min_detJ_threshold)
       {
-         // No untangling, and detJ got negative -- no good.
+         // No untangling, and detJ got negative (or small) -- no good.
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " " << min_detT_out <<
@@ -518,20 +511,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
          }
          scale *= detJ_factor; continue;
       }
-      if (worst_skewness > 0.0)
-      {
-         Vector worst_skew = ComputeWorstSkew(x_out_loc, *fes);
-         if (worst_skew(0) > worst_skewness)
-         {
-            if (print_options.iterations)
-            {
-               mfem::out << "Scale = " << scale << " Worst skewness breached.\n";
-               mfem::out << worst_skew(0)*180.0/M_PI << " " << worst_skewness*180.0/M_PI <<
-                         std::endl;
-            }
-            scale *= detJ_factor; continue;
-         }
-      }
 
       // Skip the energy and residual checks when we're untangling. The
       // untangling metrics change their denominators, which can affect the
@@ -541,19 +520,19 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
       // Check the changes in total energy.
       ProcessNewState(x_out);
 
-      if (surf_fit_max_threshold > 0.0)
-      {
-         GetSurfaceFittingError(avg_fit_err, max_fit_err);
-      }
-      if (surf_fit_max_threshold > 0.0 && max_fit_err >= 1.2*max_surf_fit_err)
+      GetSurfaceFittingError(x_out_loc, avg_fit_err, max_fit_err);
+      // Ensure sufficient decrease in fitting error if we are trying to
+      // converge based on error.
+      if (surf_fit_max_threshold > 0.0 &&
+          surf_fit_converge_based_on_error &&
+          max_fit_err >= 1.2*max_init_fit_err)
       {
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale <<  " " <<
-                      max_fit_err << " " << max_surf_fit_err << " Surf fit err increased.\n";
+                      max_fit_err << " " << max_init_fit_err << " Surf fit err increased.\n";
          }
-         //         scale *= std::min(0.25, max_surf_fit_err/max_fit_err); continue;
-         scale *= 0.25; continue;
+         scale *= 0.5; continue;
       }
 
       if (serial)
@@ -574,56 +553,25 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
             mfem::out << "Scale = " << scale << " Increasing energy: "
                       << energy_in << " --> " << energy_out << '\n';
          }
-         //         scale *= std::min(0.25, energy_in/energy_out); continue;
-         scale *= 0.25; continue;
+         scale *= 0.5; continue;
       }
 
       // Check the changes in the Newton residual.
       oper->Mult(x_out, r);
       if (have_b) { r -= b; }
-      norm_out = Norm(r);
+      double norm_out = Norm(r);
 
-      if (norm_out > 1.1*norm_in)
+      if (norm_out > 1.2*norm_in)
       {
          if (print_options.iterations)
          {
             mfem::out << "Scale = " << scale << " Norm increased: "
                       << norm_in << " --> " << norm_out << '\n';
          }
-         //         scale *= std::min(0.25, norm_in/norm_out); continue;
-         scale *= 0.25; continue;
-      }
-      else if (norm_out > 1.0*norm_in)
-      {
-         if (scale_save > 0.0)
-         {
-            if (print_options.iterations)
-            {
-               mfem::out << "Scale = " << scale << " Norm increase accepted: "
-                         << norm_in << " --> " << norm_out << '\n';
-            }
-            x_out_ok = true; break;
-         }
-         else
-         {
-            if (print_options.iterations)
-            {
-               mfem::out << "Scale = " << scale << " Norm increased: "
-                         << norm_in << " --> " << norm_out << '\n';
-            }
-            scale_save = scale;
-            scale *= 0.25; continue;
-         }
+         scale *= 0.5; continue;
       }
       else
-      {
-         if (print_options.iterations)
-         {
-            mfem::out << "Scale = " << scale << " Norm decreased: "
-                      << norm_in << " --> " << norm_out << '\n';
-         }
-         x_out_ok = true; break;
-      }
+      { x_out_ok = true; break; }
    } // end line search
 
    if (untangling)
@@ -654,6 +602,13 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
                    << energy_in << " --> " << energy_out << " or "
                    << (energy_in - energy_out) / energy_in * 100.0
                    << "% with " << scale << " scaling.\n";
+         if (max_init_fit_err > 0.0)
+         {
+            mfem::out << "Max surf fit error changed: "
+                      << max_init_fit_err << " --> " << max_fit_err << " or "
+                      << (max_init_fit_err - max_fit_err) / max_init_fit_err * 100.0
+                      << "% with " << scale << " scaling.\n";
+         }
       }
    }
 
@@ -661,17 +616,6 @@ double TMOPNewtonSolver::ComputeScalingFactor(const Vector &x,
 
    if (surf_fit_scale_factor > 0.0) { update_surf_fit_coeff = true; }
    compute_metric_quantile_flag = true;
-
-   if (print_options.iterations)
-   {
-      mfem::out << "Line search info energy/norm/mindet in and out: " << " " <<
-                energy_in << " " << energy_out << " " <<
-                norm_in << " " << norm_out << " " <<
-                min_detT_in << " " << min_detT_out << std::endl;
-      mfem::out << "Line search info avg/max fitting error in and out: " << " " <<
-                avg_surf_fit_err << " " << max_surf_fit_err << " " <<
-                avg_fit_err << " " << max_fit_err << " " << std::endl;
-   }
 
    return scale;
 }
@@ -696,31 +640,6 @@ void TMOPNewtonSolver::UpdateSurfaceFittingWeight(double factor) const
          for (int j = 0; j < ati.Size(); j++)
          {
             ati[j]->UpdateSurfaceFittingWeight(factor);
-         }
-      }
-   }
-}
-
-void TMOPNewtonSolver::SaveSurfaceFittingWeight() const
-{
-   const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
-   const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
-   TMOP_Integrator *ti  = NULL;
-   TMOPComboIntegrator *co = NULL;
-   for (int i = 0; i < integs.Size(); i++)
-   {
-      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti)
-      {
-         ti->SaveSurfaceFittingWeight();
-      }
-      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co)
-      {
-         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-         for (int j = 0; j < ati.Size(); j++)
-         {
-            ati[j]->SaveSurfaceFittingWeight();
          }
       }
    }
@@ -759,7 +678,8 @@ void TMOPNewtonSolver::GetSurfaceFittingWeight(Array<double> &weights) const
    }
 }
 
-void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
+void TMOPNewtonSolver::GetSurfaceFittingError(const Vector &x_loc,
+                                              double &err_avg,
                                               double &err_max) const
 {
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
@@ -777,7 +697,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
       {
          if (ti->IsSurfaceFittingEnabled())
          {
-            ti->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+            ti->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
             err_avg = std::fmax(err_avg_loc, err_avg);
             err_max = std::fmax(err_max_loc, err_max);
          }
@@ -790,7 +710,7 @@ void TMOPNewtonSolver::GetSurfaceFittingError(double &err_avg,
          {
             if (ati[j]->IsSurfaceFittingEnabled())
             {
-               ati[j]->GetSurfaceFittingErrors(err_avg_loc, err_max_loc);
+               ati[j]->GetSurfaceFittingErrors(x_loc, err_avg_loc, err_max_loc);
                err_avg = std::fmax(err_avg_loc, err_avg);
                err_max = std::fmax(err_max_loc, err_max);
             }
@@ -830,89 +750,51 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    }
 
    Vector x_loc;
-   double min_det;
-   // Get array with surface fitting weights.
-   Array<double> fitweights;
-   GetSurfaceFittingWeight(fitweights);
+   const FiniteElementSpace *x_fes = nullptr;
    if (parallel)
    {
 #ifdef MFEM_USE_MPI
       const ParNonlinearForm *pnlf =
          dynamic_cast<const ParNonlinearForm *>(oper);
-      const ParFiniteElementSpace *pfesc = pnlf->ParFESpace();
-      x_loc.SetSize(pfesc->GetVSize());
-      pfesc->GetProlongationMatrix()->Mult(x, x_loc);
-      min_det = ComputeMinDet(x_loc, *pfesc);
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
-         {
-            ti->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
-            ti->ComputeFDh(x_loc, *pfesc);
-            if (compute_metric_quantile_flag)
-            {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-            }
-            UpdateDiscreteTC(*ti, x_loc, pfesc->GetOrdering());
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, pfesc->GetOrdering());
-               ati[j]->ComputeFDh(x_loc, *pfesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *pfesc);
-               }
-               UpdateDiscreteTC(*ati[j], x_loc, pfesc->GetOrdering());
-            }
-         }
-      }
+
+      x_fes = pnlf->ParFESpace();
+      x_loc.SetSize(x_fes->GetVSize());
+      x_fes->GetProlongationMatrix()->Mult(x, x_loc);
 #endif
    }
    else
    {
-      const FiniteElementSpace *fesc = nlf->FESpace();
+      x_fes = nlf->FESpace();
       const Operator *P = nlf->GetProlongation();
       if (P)
       {
          x_loc.SetSize(P->Height());
          P->Mult(x,x_loc);
       }
-      else
+      else { x_loc = x; }
+   }
+
+   for (int i = 0; i < integs.Size(); i++)
+   {
+      ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
+      if (ti)
       {
-         x_loc = x;
-      }
-      for (int i = 0; i < integs.Size(); i++)
-      {
-         ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-         if (ti)
+         ti->UpdateAfterMeshPositionChange(x_loc, *x_fes);
+         if (compute_metric_quantile_flag)
          {
-            ti->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
-            ti->ComputeFDh(x_loc, *fesc);
+            ti->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
+         }
+      }
+      co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
+      if (co)
+      {
+         Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
+         for (int j = 0; j < ati.Size(); j++)
+         {
+            ati[j]->UpdateAfterMeshPositionChange(x_loc, *x_fes);
             if (compute_metric_quantile_flag)
             {
-               ti->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-            }
-            UpdateDiscreteTC(*ti, x_loc, fesc->GetOrdering());
-         }
-         co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-         if (co)
-         {
-            Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
-            for (int j = 0; j < ati.Size(); j++)
-            {
-               ati[j]->UpdateAfterMeshPositionChange(x_loc, fesc->GetOrdering());
-               ati[j]->ComputeFDh(x_loc, *fesc);
-               if (compute_metric_quantile_flag)
-               {
-                  ati[j]->ComputeUntangleMetricQuantiles(x_loc, *fesc);
-               }
-               UpdateDiscreteTC(*ati[j], x_loc, fesc->GetOrdering());
+               ati[j]->ComputeUntangleMetricQuantiles(x_loc, *x_fes);
             }
          }
       }
@@ -922,11 +804,14 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
    // adaptive surface fitting is enabled. The idea is to increase the
    // coefficient if the surface fitting error does not sufficiently
    // decrease between subsequent TMOPNewtonSolver iterations.
-
    if (update_surf_fit_coeff)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(surf_fit_err_avg, surf_fit_err_max);
+      GetSurfaceFittingError(x_loc, surf_fit_err_avg, surf_fit_err_max);
+
+      // Get array with surface fitting weights.
+      Array<double> fitweights;
+      GetSurfaceFittingWeight(fitweights);
 
       if (print_options.iterations)
       {
@@ -937,175 +822,28 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &x) const
                    fitweights.Min() << " " << fitweights.Max() << "\n";
       }
 
-      bool max_for_threshold = false;
       double change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_avg;
       double rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
-      if (max_for_threshold)
-      {
-         change_surf_fit_err = surf_fit_err_avg_prvs-surf_fit_err_max;
-         rel_change_surf_fit_err = change_surf_fit_err/surf_fit_err_avg_prvs;
-      }
 
       // Increase the surface fitting coefficient if the surface fitting error
-      // does not decrease sufficiently.
-      SaveSurfaceFittingWeight();
-
-      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold)
+      // does not decrease sufficiently and we are below the maximum weight
+      // and the fitting error threshold.
+      if (rel_change_surf_fit_err < surf_fit_rel_change_threshold &&
+          fitweights.Max() < fit_weight_max_limit &&
+          surf_fit_err_max > surf_fit_max_threshold)
       {
-         if (fitweights.Max() < weights_max_limit && min_det > min_detJ_threshold)
-         {
-            if (print_options.iterations)
-            {
-               //               mfem::out << norm_ratio << " " << fitweights.Max() <<  " " <<
-               //                         surf_fit_scale_factor <<
-               //                         " morm ratio-max weight-factor\n";
-            }
-            double scale_factor = std::min(surf_fit_scale_factor,
-                                           weights_max_limit/fitweights.Max());
-            UpdateSurfaceFittingWeight(scale_factor);
-            adapt_inc_count += 1;
-         }
+         double scale_factor = std::min(surf_fit_scale_factor,
+                                        fit_weight_max_limit/fitweights.Max());
+         UpdateSurfaceFittingWeight(scale_factor);
+         adapt_inc_count += 1;
       }
       else
       {
          adapt_inc_count = 0;
       }
       surf_fit_err_avg_prvs = surf_fit_err_avg;
-      if (max_for_threshold)
-      {
-         surf_fit_err_avg_prvs = surf_fit_err_max;
-      }
       update_surf_fit_coeff = false;
    }
-}
-
-void TMOPNewtonSolver::UpdateDiscreteTC(const TMOP_Integrator &ti,
-                                        const Vector &x_new,
-                                        int x_ordering) const
-{
-   const bool update_flag = true;
-   DiscreteAdaptTC *discrtc = ti.GetDiscreteAdaptTC();
-   if (discrtc)
-   {
-      discrtc->UpdateTargetSpecification(x_new, update_flag, x_ordering);
-      if (ti.GetFDFlag())
-      {
-         double dx = ti.GetFDh();
-         discrtc->UpdateGradientTargetSpecification(x_new, dx, update_flag, x_ordering);
-         discrtc->UpdateHessianTargetSpecification(x_new, dx, update_flag, x_ordering);
-      }
-   }
-}
-
-double GetWorstJacobianSkewness(DenseMatrix &J)
-{
-   double size;
-   double skew = -100000;
-   const int dim = J.Size();
-   if (dim == 2)
-   {
-      Vector col1, col2;
-      J.GetColumn(0, col1);
-      J.GetColumn(1, col2);
-
-      skew = std::atan2(J.Det(), col1 * col2);
-      skew = std::fabs(skew);
-   }
-   else
-   {
-      Vector skewv(dim);
-      Vector col1, col2, col3;
-      J.GetColumn(0, col1);
-      J.GetColumn(1, col2);
-      J.GetColumn(2, col3);
-      double len1 = col1.Norml2(),
-             len2 = col2.Norml2(),
-             len3 = col3.Norml2();
-
-      Vector col1unit = col1,
-             col2unit = col2,
-             col3unit = col3;
-      col1unit *= 1.0/len1;
-      col2unit *= 1.0/len2;
-      col3unit *= 1.0/len3;
-
-      Vector crosscol12, crosscol13, crosscol23;
-      col1.cross3D(col2, crosscol12);
-      col1.cross3D(col3, crosscol13);
-      col2.cross3D(col3, crosscol23);
-      skewv(0) = std::atan2(crosscol12.Norml2(),col1*col2);
-      skewv(1) = std::atan2(crosscol13.Norml2(),col1*col3);
-      skewv(2) = std::atan2(col1*crosscol23,crosscol12*crosscol13);
-      for (int d = 0; d < dim; d++)
-      {
-         skew = std::max(skew, std::fabs(skewv(d)));
-      }
-   }
-
-   return skew;
-}
-
-Vector TMOPNewtonSolver::ComputeWorstSkew(const Vector &x_loc,
-                                          const FiniteElementSpace &fes) const
-{
-   double skewmax = -1000;
-   double skewmin = 1000;
-   const Mesh *mesh = fes.GetMesh();
-   const int NE = mesh->GetNE();
-   const int dim = mesh->Dimension();
-   DenseMatrix Jac(dim);
-   Array<int> xdofs;
-   for (int i = 0; i < NE; i++)
-   {
-
-      const int dof = fes.GetFE(i)->GetDof();
-      DenseMatrix dshape(dof, dim), pos(dof, dim);
-      Vector posV(pos.Data(), dof * dim);
-      const int gt = fes.GetFE(i)->GetGeomType();
-
-      fes.GetElementVDofs(i, xdofs);
-      x_loc.GetSubVector(xdofs, posV);
-
-      const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
-      const int nsp = irule.GetNPoints();
-      for (int j = 0; j < nsp; j++)
-      {
-         fes.GetFE(i)->CalcDShape(irule.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jac);
-         double skew_q = GetWorstJacobianSkewness(Jac);
-         //         skewmax = std::max(skewmax, skew_q);
-         //         skewmin = std::min(skewmin, skew_q);
-      }
-
-      const IntegrationRule &ir2 = fes.GetFE(i)->GetNodes();
-      for (int j = 0; j < ir2.GetNPoints(); j++)
-      {
-         fes.GetFE(i)->CalcDShape(ir2.IntPoint(j), dshape);
-         MultAtB(pos, dshape, Jac);
-         double skew_q = GetWorstJacobianSkewness(Jac);
-         skewmax = std::max(skewmax, skew_q);
-         skewmin = std::min(skewmin, skew_q);
-      }
-   }
-
-   double skewmax_all = skewmax;
-   double skewmin_all = skewmin;
-
-#ifdef MFEM_USE_MPI
-   if (parallel)
-   {
-      auto p_nlf = dynamic_cast<const ParNonlinearForm *>(oper);
-      MPI_Allreduce(&skewmax, &skewmax_all, 1, MPI_DOUBLE, MPI_MAX,
-                    p_nlf->ParFESpace()->GetComm());
-      MPI_Allreduce(&skewmin, &skewmin_all, 1, MPI_DOUBLE, MPI_MIN,
-                    p_nlf->ParFESpace()->GetComm());
-   }
-#endif
-
-   Vector skewall(2);
-   skewall(0) = skewmax_all;
-   skewall(1) = skewmin_all;
-   return skewall;
 }
 
 double TMOPNewtonSolver::ComputeMinDet(const Vector &x_loc,

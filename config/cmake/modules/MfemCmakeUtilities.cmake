@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -397,9 +397,9 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
               break()
             endif()
           endforeach()
-          if (${Required} AND NOT ${ReqPack}_FOUND)
+          if (Required AND NOT ${ReqPack}_FOUND)
             message(FATAL_ERROR " *** Required package ${ReqPack} not found."
-              "Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
+              " Checked target names: ${ReqPack} ${${ReqPack}_TARGET_NAMES}")
           endif()
         endif()
       endif()
@@ -465,14 +465,18 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
           endif()
           get_target_property(IsImported ${TargetName} IMPORTED)
           if (IsImported)
+            get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
+            # message(STATUS "${ReqPack} imported configs: ${ImpConfigs}")
             set(ImportConfig ${${ReqPack}_IMPORT_CONFIG})
             if (NOT ImportConfig)
               set(ImportConfig RELEASE)
+              list(FIND ImpConfigs ${ImportConfig} _Index)
+              if (_Index EQUAL -1)
+                list(GET ImpConfigs 0 ImportConfig)
+              endif()
             endif()
             set(ImportConfigSuffix "_${ImportConfig}")
-            get_target_property(ImpConfigs ${TargetName} IMPORTED_CONFIGURATIONS)
-            list(FIND ImpConfigs ${ImportConfig} _Index)
-            if ((_Index EQUAL -1) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
+            if ((NOT ImportConfig) OR ("${ImportConfig}" STREQUAL "NO_CONFIG"))
               set(ImportConfig "NO_CONFIG")
               set(ImportConfigSuffix "")
               # message(FATAL_ERROR " *** ${ReqPack}: configuration "
@@ -490,7 +494,8 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
           else()
             # Set _Pack_LIBS from the target properties for ImportConfig
             foreach (_prop IMPORTED_LOCATION${ImportConfigSuffix}
-                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix})
+                IMPORTED_LINK_INTERFACE_LIBRARIES${ImportConfigSuffix}
+                INTERFACE_LINK_LIBRARIES)
               get_target_property(_value ${TargetName} ${_prop})
               if (_value)
                 list(APPEND _Pack_LIBS ${_value})
@@ -741,6 +746,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       list(APPEND CompileOpts "-isystem \"${SysDir}\"")
     endforeach()
   endif()
+  set(AddInterfaceLinkLibs TRUE)
   if ("${type}" STREQUAL "STATIC_LIBRARY")
     get_target_property(Location ${tgt} LOCATION)
     if (Location)
@@ -762,18 +768,7 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
       message(STATUS " *** Warning: [${tgt}] LOCATION not defined!")
     endif()
   elseif ("${type}" STREQUAL "INTERFACE_LIBRARY")
-    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
-    if (Libs)
-      foreach(Lib ${Libs})
-        if (NOT (TARGET ${Lib}))
-          list(APPEND LinkOpts "${Lib}")
-        else()
-          mfem_get_target_options(${Lib} COpts LOpts)
-          list(APPEND CompileOpts ${COpts})
-          list(APPEND LinkOpts ${LOpts})
-        endif()
-      endforeach()
-    endif()
+    # The INTERFACE_LINK_LIBRARIES property is handled below.
     # Other properties we may need to handle:
     # INTERFACE_LINK_DEPENDS
     # INTERFACE_LINK_DIRECTORIES
@@ -781,6 +776,26 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
   else()
     message(STATUS " *** Warning: [${tgt}] uses target type '${type}'"
       " which is not supported!")
+    set(AddInterfaceLinkLibs FALSE)
+  endif()
+  if (AddInterfaceLinkLibs)
+    get_target_property(Libs ${tgt} INTERFACE_LINK_LIBRARIES)
+    # message(STATUS "${tgt}[INTERFACE_LINK_LIBRARIES]: ${Libs}")
+    if (Libs)
+      foreach(Lib ${Libs})
+        if (NOT (TARGET ${Lib}))
+          # message(STATUS "Lib = ${Lib}")
+          # Filter-out generator expressions
+          if (NOT ("${Lib}" MATCHES "^\\$"))
+            list(APPEND LinkOpts "${Lib}")
+          endif()
+        else()
+          mfem_get_target_options(${Lib} COpts LOpts)
+          list(APPEND CompileOpts ${COpts})
+          list(APPEND LinkOpts ${LOpts})
+        endif()
+      endforeach()
+    endif()
   endif()
 
   # Other potentially relevant properties:
@@ -803,6 +818,9 @@ function(mfem_get_target_options Target CompileOptsVar LinkOptsVar)
 
   set(${CompileOptsVar} "${CompileOpts}" PARENT_SCOPE)
   set(${LinkOptsVar} "${LinkOpts}" PARENT_SCOPE)
+
+  # message(STATUS "${tgt}[CompileOpts]: ${CompileOpts}")
+  # message(STATUS "${tgt}[LinkOpts]: ${LinkOpts}")
 
 endfunction(mfem_get_target_options)
 
