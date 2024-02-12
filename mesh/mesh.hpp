@@ -533,6 +533,9 @@ protected:
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
 
+   /// Used in Finalize() after the topology changes
+   virtual void UpdatedTopology() { }
+
    void Loader(std::istream &input, int generate_edges = 0,
                std::string parse_tag = "");
 
