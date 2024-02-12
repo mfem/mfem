@@ -248,7 +248,7 @@ TEST_CASE("HypreParMatrixBlocksRectangular",
       blockOper.SetBlock(0, 2, BT, 3.14);
       blockOper.SetBlock(1, 2, MW);
 
-      Array2D<HypreParMatrix*> hBlocks(2,3);
+      Array2D<const HypreParMatrix*> hBlocks(2,3);
       hBlocks = NULL;
       hBlocks(0, 0) = MR;
       hBlocks(0, 1) = BT;
