@@ -3017,7 +3017,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    }
 }
 
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*> &blocks,
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*>
+                                          &blocks,
                                           Array2D<double> *blockCoeff)
 {
    const int numBlockRows = blocks.NumRows();
