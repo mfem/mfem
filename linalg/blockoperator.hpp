@@ -139,7 +139,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetDiagonalBlock to fill the BlockOperator
+ * - Use SetDiagonalBlock to fill the BlockDiagonalPreconditioner
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
  * If a block is not set, it is assumed to be an identity block.
@@ -209,7 +209,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetBlock() to fill the BlockOperator
+ * - Use SetBlock() to fill the BlockLowerTriangularOperator
  * - Diagonal blocks of the preconditioner should approximate the inverses of
  *   the diagonal block of the matrix
  * - Off-diagonal blocks of the preconditioner should match/approximate those of
@@ -223,7 +223,7 @@ private:
 class BlockLowerTriangularPreconditioner : public Solver
 {
 public:
-   //! Constructor for BlockLowerTriangularPreconditioners with the same
+   //! Constructor for BlockLowerTriangularPreconditioner%s with the same
    //! block-structure for rows and columns.
    /**
     *  @param offsets  Offsets that mark the start of each row/column block
