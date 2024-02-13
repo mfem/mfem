@@ -1126,7 +1126,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         *code_i = converged_internal ? CODE_INTERNAL : CODE_BORDER;
                         *dist2_i = fpt->dist2;
                      }
-                     if (j < 3)
+                     if (j < dim)
                      {
                         r_i[j] = fpt->r[j];
                      }
