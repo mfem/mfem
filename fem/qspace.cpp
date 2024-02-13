@@ -70,6 +70,7 @@ void QuadratureSpaceBase::ConstructWeights() const
 
 const Vector &QuadratureSpaceBase::GetWeights() const
 {
+   if (GetNE() == 0) { return weights; }
    if (weights.Size() == 0 || nodes_sequence != mesh.GetNodesSequence())
    {
       ConstructWeights();
