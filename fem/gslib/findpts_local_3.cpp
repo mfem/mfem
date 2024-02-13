@@ -1028,10 +1028,12 @@ static void FindPointsLocal3D_Kernel(const int npt,
 #define p_innerSize 32
    const int dim = 3;
    const dlong p_NE = p_Nr*p_Nr*p_Nr;
+   const int pMax = 8;
    mfem::forall_2D(npt, p_innerSize, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int size1 = MAX_CONST(4,p_Nr + 1) * (3 * 3 + 2 * 3) + 3 * 2 * p_Nr + 5;
-      const int size2 = MAX_CONST(p_Nr *p_Nr * 6, p_Nr * 3 * 3);
+      constexpr int size1 = MAX_CONST(4, pMax + 1) *
+                            (3 * 3 + 2 * 3) + 3 * 2 * pMax + 5;
+      constexpr int size2 = MAX_CONST(pMax *pMax * 6, pMax * 3 * 3);
       MFEM_SHARED dfloat r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
