@@ -6,8 +6,9 @@
 //
 //            (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u, n), [[v]]>_F = 0.
 //
-// This operator is designed for explicit time stepping methods. Specifically, the
-// function DGHyperbolicConservationLaws::Mult implements the following transformation:
+// This operator is designed for explicit time stepping methods. Specifically,
+// the function DGHyperbolicConservationLaws::Mult implements the following
+// transformation:
 //
 //                             u ↦ M⁻¹(-DF(u) + NF(u))
 //
@@ -16,8 +17,8 @@
 // leveraging the block-diagonal structure of the DG mass matrix. Additionally,
 // the flux-related terms are computed using the HyperbolicFormIntegrator.
 //
-// The maximum characteristic speed is determined for each time step. For more details,
-// refer to the documentation of DGHyperbolicConservationLaws::Mult.
+// The maximum characteristic speed is determined for each time step. For more
+// details, refer to the documentation of DGHyperbolicConservationLaws::Mult.
 //
 
 #include <functional>
@@ -69,6 +70,7 @@ public:
    void Update();
 
 };
+
 //////////////////////////////////////////////////////////////////
 ///        HYPERBOLIC CONSERVATION LAWS IMPLEMENTATION         ///
 //////////////////////////////////////////////////////////////////
@@ -235,10 +237,12 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
    {
       case 1: // fast moving vortex
          return VectorFunctionCoefficient(
-                   4, GetMovingVortexInit(0.2, 0.5, 1. / 5., gas_constant, specific_heat_ratio));
+                   4, GetMovingVortexInit(0.2, 0.5, 1. / 5., gas_constant,
+                                          specific_heat_ratio));
       case 2: // slow moving vortex
          return VectorFunctionCoefficient(
-                   4, GetMovingVortexInit(0.2, 0.05, 1. / 50., gas_constant, specific_heat_ratio));
+                   4, GetMovingVortexInit(0.2, 0.05, 1. / 50., gas_constant,
+                                          specific_heat_ratio));
       case 3: // moving sine wave
          return VectorFunctionCoefficient(4, [](const Vector &x, Vector &y)
          {
@@ -274,4 +278,5 @@ VectorFunctionCoefficient EulerInitialCondition(const int problem,
          MFEM_ABORT("Problem Undefined");
    }
 }
-}
+
+} // namespace mfem

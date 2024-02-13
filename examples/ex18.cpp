@@ -16,8 +16,9 @@
 //
 //                (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u,n), [[v]]>_F = 0
 //
-//               where (⋅,⋅)_T is volume integration, and <⋅,⋅>_F is face integration,
-//               F is the Euler flux function, and F̂ is the numerical flux.
+//               where (⋅,⋅)_T is volume integration, and <⋅,⋅>_F is face
+//               integration, F is the Euler flux function, and F̂ is the
+//               numerical flux.
 //
 //               Specifically, it solves for an exact solution of the equations
 //               whereby a vortex is transported by a uniform flow. Since all
@@ -74,7 +75,8 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use. If not provided, then a periodic square mesh will be used.");
+                  "Mesh file to use. If not provided, then a periodic square"
+                  " mesh will be used.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See, EulerInitialCondition.");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -152,7 +154,8 @@ int main(int argc, char *argv[])
    //    functions to a file. This can be opened with GLVis with the -gc option.
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
-                                                        specific_heat_ratio, gas_constant);
+                                                        specific_heat_ratio,
+                                                        gas_constant);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
 
@@ -179,9 +182,9 @@ int main(int argc, char *argv[])
    //    flux divergence, and assemble the corresponding mass matrix.
    EulerFlux flux(dim, specific_heat_ratio);
    RusanovFlux numericalFlux(flux);
-   DGHyperbolicConservationLaws euler(vfes,
-                                      std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
-                                                                                   numericalFlux, IntOrderOffset)));
+   DGHyperbolicConservationLaws euler(
+      vfes, std::unique_ptr<HyperbolicFormIntegrator>(
+         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)));
 
    // Visualize the density
    socketstream sout;
@@ -271,7 +274,7 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m euler.mesh -g euler-1-final.gf".
+   //    "glvis -m euler-mesh-final.mesh -g euler-1-final.gf".
    {
       ostringstream mesh_name;
       mesh_name << "euler-mesh-final.mesh";

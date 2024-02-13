@@ -31,12 +31,14 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 #ifdef MFEM_THREAD_SAFE
    // Local storages for element integration
 
-   Vector shape(dof); // shape function value at an integration point
-   DenseMatrix dshape(dof,
-                      el.GetDim()); // derivative of shape function at an integration point
-   Vector state(num_equations); // state value at an integration point
-   DenseMatrix flux(num_equations,
-                    el.GetDim()); // flux value at an integration point
+   // shape function value at an integration point
+   Vector shape(dof);
+   // derivative of shape function at an integration point
+   DenseMatrix dshape(dof, el.GetDim());
+   // state value at an integration point
+   Vector state(num_equations);
+   // flux value at an integration point
+   DenseMatrix flux(num_equations, el.GetDim());
 #else
    // resize shape and gradient shape storage
    shape.SetSize(dof);
@@ -53,8 +55,8 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 
    // obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Tr,
-                                                            IntOrderOffset);
+   const IntegrationRule *ir = IntRule ? IntRule :
+                               &GetRule(el, Tr, IntOrderOffset);
    // loop over interation points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -87,20 +89,22 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 #ifdef MFEM_THREAD_SAFE
    // Local storages for element integration
 
-   Vector shape1(
-      dof1);  // shape function value at an integration point - first elem
-   Vector shape2(
-      dof2);  // shape function value at an integration point - second elem
-   Vector nor(el1.GetDim());     // normal vector (usually not a unit vector)
-   Vector state1(
-      num_equations);  // state value at an integration point - first elem
-   Vector state2(
-      num_equations);  // state value at an integration point - second elem
-   Vector fluxN1(
-      num_equations);  // flux dot n value at an integration point - first elem
-   Vector fluxN2(
-      num_equations);  // flux dot n value at an integration point - second elem
-   Vector fluxN(num_equations);   // hat(F)(u,x)
+   // shape function value at an integration point - first elem
+   Vector shape1(dof1);
+   // shape function value at an integration point - second elem
+   Vector shape2(dof2);
+   // normal vector (usually not a unit vector)
+   Vector nor(el1.GetDim());
+   // state value at an integration point - first elem
+   Vector state1(num_equations);
+   // state value at an integration point - second elem
+   Vector state2(num_equations);
+   // flux dot n value at an integration point - first elem
+   Vector fluxN1(num_equations);
+   // flux dot n value at an integration point - second elem
+   Vector fluxN2(num_equations);
+   // hat(F)(u,x)
+   Vector fluxN(num_equations);
 #else
    shape1.SetSize(dof1);
    shape2.SetSize(dof2);
@@ -119,8 +123,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 
    // obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el1, el2, Tr,
-                                                            IntOrderOffset);
+   const IntegrationRule *ir = IntRule ? IntRule :
+                               &GetRule(el1, el2, Tr, IntOrderOffset);
    // loop over integration points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -139,8 +143,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       // Get the normal vector and the flux on the face
       if (nor.Size() == 1)  // if 1D, use 1 or -1.
       {
-         // This assume the 1D integration point is in (0,1). This may not work if
-         // this chages.
+         // This assume the 1D integration point is in (0,1). This may not work
+         // if this chages.
          nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
       }
       else
@@ -193,7 +197,8 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
 
 double FluxFunction::ComputeFluxDotN(const Vector &U,
                                      const Vector &normal,
-                                     FaceElementTransformations &Tr, Vector &FUdotN) const
+                                     FaceElementTransformations &Tr,
+                                     Vector &FUdotN) const
 {
    double val = ComputeFlux(U, Tr, flux);
    flux.Mult(normal, FUdotN);
@@ -275,7 +280,8 @@ double ShallowWaterFlux::ComputeFlux(const Vector &U,
 
 double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
                                          const Vector &normal,
-                                         FaceElementTransformations &Tr, Vector &FUdotN) const
+                                         FaceElementTransformations &Tr,
+                                         Vector &FUdotN) const
 {
    const int dim = normal.Size();
    const double height = U(0);
@@ -350,7 +356,8 @@ double EulerFlux::ComputeFlux(const Vector &U,
 
 double EulerFlux::ComputeFluxDotN(const Vector &x,
                                   const Vector &normal,
-                                  FaceElementTransformations &Tr, Vector &FUdotN) const
+                                  FaceElementTransformations &Tr,
+                                  Vector &FUdotN) const
 {
    const int dim = normal.Size();
 
@@ -390,4 +397,4 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
    return speed + sound;
 }
 
-}
+} // namespace mfem

@@ -23,10 +23,11 @@ Discretization improvements
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
 - Added a new nonlinear integrator, `HyperbolicFormIntegrator`. This implements 
-- both element-wise weak divergence and face-wise numerical flux for a general 
+  both element-wise weak divergence and face-wise numerical flux for a general
   system of hyperbolic conservation laws. To use this integrator for a specific
   flux function, users can define a derived class of `FluxFunction`. Currently,
-  advection, Burgers', shallow-water, Euler equations (see, Example 18) are available.
+  advection, Burgers', shallow-water, Euler equations (see, Example 18) are
+  available.
 
 GPU support
 ----------------------------

@@ -117,7 +117,6 @@ examples/port_mesh.*
 examples/port_mode.*
 
 examples/euler-*
-examples/euler.mesh
 
 examples/amgx/ex1
 examples/amgx/ex1p

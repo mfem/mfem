@@ -14,46 +14,50 @@
 #define MFEM_HYPERBOLIC
 
 #include "nonlinearform.hpp"
+
 namespace mfem
 {
-//                            MFEM Hyperbolic Conservation Laws
-//
-// Description:  This file contains general hyperbolic conservation element/face
-//               form integrators.
-//
-//               HyperbolicFormIntegrator and RiemannSolver are defined.
-//               HyperbolicFormIntegrator is a @a NonlinearFormIntegrator that
-//               implements element weak divergence and interface flux
-//
-//                   ∫_T F(u):∇v,   ∫_e F̂(u)⋅[[v]]
-//
-//               Here, @a T is an element, @a e is an edge, and [[⋅]] is jump.
-//               This form integrator is coupled with @a RiemannSolver that implements
-//               the numerical flux F̂. For RiemannSolver, the Rusanov flux, also known
-//               as local Lax-Friedrichs flux, is provided.
-//
-//               To implement a specific hyperbolic conservation laws, users can
-//               create derived classes from @a FluxFunction with overloaded
-//               @a ComputeFlux. One can optionally overload @a ComputeFluxDotN to avoid
-//               creating dense matrix when computing normal flux. Several example equations
-//               are also defined including: advection, Burgers', shallow water, and Euler
-//               equations. User can control the quadrature rule by either providing the
-//               integration rule, or integration order offset.
-//               See, @a HyperbolicFormIntegrator::GetRule
-//
-//               At each call of @a HyperbolicFormIntegrator::AssembleElementVector
-//               @a HyperbolicFormIntegrator::AssembleFaceVector,
-//               the maximum characteristic speed will be updated. This will not be
-//               reinitialized automatically. To reinitialize, use
-//               @a HyperbolicFormIntegrator::ResetMaxCharSpeed. See, @a ex18.hpp.
-//               @note To avoid communication overhead, we update the maximum characteristic
-//               speed within each process. Use a proper MPI routine to gather the information.
-//
 
-
+//                     MFEM Hyperbolic Conservation Laws
+//
+// Description:
+//
+//    This file contains general hyperbolic conservation element/face form
+//    integrators.
+//
+//    HyperbolicFormIntegrator and RiemannSolver are defined.
+//    HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
+//    element weak divergence and interface flux
+//
+//       ∫_T F(u):∇v,   ∫_e F̂(u)⋅[[v]]
+//
+//    Here, T is an element, e is an edge, and [[⋅]] is jump. This form
+//    integrator is coupled with RiemannSolver that implements the numerical
+//    flux F̂. For RiemannSolver, the Rusanov flux, also known as local
+//    Lax-Friedrichs flux, is provided.
+//
+//    To implement a specific hyperbolic conservation laws, users can create
+//    derived classes from FluxFunction with overloaded ComputeFlux. One can
+//    optionally overload ComputeFluxDotN to avoid creating dense matrix when
+//    computing normal flux. Several example equations are also defined
+//    including: advection, Burgers', shallow water, and Euler equations. Users
+//    can control the quadrature rule by either providing the integration rule,
+//    or integration order offset. See, HyperbolicFormIntegrator::GetRule.
+//
+//    At each call of HyperbolicFormIntegrator::AssembleElementVector
+//    HyperbolicFormIntegrator::AssembleFaceVector, the maximum characteristic
+//    speed will be updated. This will not be reinitialized automatically.
+//    To reinitialize, use HyperbolicFormIntegrator::ResetMaxCharSpeed. See,
+//    ex18.hpp.
+//
+//    Note: To avoid communication overhead, we update the maximum
+//    characteristic speed within each process. Use a proper MPI routine to
+//    gather the information.
+//
 
 /**
- * @brief Abstract class for hyperbolic flux for a system of hyperbolic conservation laws
+ * @brief Abstract class for hyperbolic flux for a system of hyperbolic
+ * conservation laws
  *
  */
 class FluxFunction
@@ -94,7 +98,8 @@ public:
     * @return double maximum (normal) characteristic velocity
     */
    virtual double ComputeFluxDotN(const Vector &state, const Vector &normal,
-                                  FaceElementTransformations &Tr, Vector &fluxDotN) const;
+                                  FaceElementTransformations &Tr,
+                                  Vector &fluxDotN) const;
 
    /**
     * @brief Compute flux Jacobian. Optionally overloaded in the derived class
@@ -104,7 +109,8 @@ public:
     * @param Tr element information
     * @param J flux Jacobian, J(i,j,d) = dF_{id} / u_j
     */
-   virtual void ComputeFluxJacobian(const Vector &state, ElementTransformation &Tr,
+   virtual void ComputeFluxJacobian(const Vector &state,
+                                    ElementTransformation &Tr,
                                     DenseTensor &J) const
    {
       MFEM_ABORT("Not Implemented.");
@@ -117,8 +123,8 @@ private:
 
 
 /**
- * @brief Abstract class for numerical flux for a system of hyperbolic conservation laws
- * on a face with states, fluxes and characteristic speed
+ * @brief Abstract class for numerical flux for a system of hyperbolic
+ * conservation laws on a face with states, fluxes and characteristic speed
  *
  */
 class RiemannSolver
@@ -158,9 +164,9 @@ class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 private:
    // The maximum characterstic speed, updated during element/face vector assembly
    double max_char_speed;
-   const RiemannSolver &rsolver;    // Numerical flux that maps F(u±,x) to hat(F)
+   const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
-   const int IntOrderOffset;  // 2*p + IntOrderOffset will be used for quadrature
+   const int IntOrderOffset; // 2*p + IntOrderOffset will be used for quadrature
 #ifndef MFEM_THREAD_SAFE
    // Local storages for element integration
    Vector shape;              // shape function value at an integration point
@@ -216,7 +222,8 @@ public:
     * @param[in] test_fe test finite element space
     * @param[in] Tr Face element trasnformation for Jacobian order
     * @param[in] IntOrderOffset_ integration order offset
-    * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() + IntOrderOffset
+    * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() +
+    *    IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -340,6 +347,7 @@ public:
    double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
 };
+
 class BurgersFlux : public FluxFunction
 {
 public:
@@ -400,8 +408,10 @@ public:
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFluxDotN(const Vector &state, const Vector &normal,
-                          FaceElementTransformations &Tr, Vector &fluxN) const override;
+                          FaceElementTransformations &Tr,
+                          Vector &fluxN) const override;
 };
+
 class EulerFlux : public FluxFunction
 {
 private:
@@ -441,8 +451,10 @@ public:
     * @return double maximum characteristic speed, |u| + √(γp/ρ)
     */
    double ComputeFluxDotN(const Vector &x, const Vector &normal,
-                          FaceElementTransformations &Tr, Vector &fluxN) const override;
+                          FaceElementTransformations &Tr,
+                          Vector &fluxN) const override;
 };
-}
 
-#endif
+} // namespace mfem
+
+#endif // MFEM_HYPERBOLIC
