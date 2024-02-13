@@ -56,11 +56,12 @@ static void InterpolateLocal2D_Kernel(const dfloat *const gf_in,
    const int Nfields = ncomp;
    const int fieldOffset = gf_offset;
    const int p_Np = p_Nq*p_Nq;
+   const int pMax = 12;
    mfem::forall_2D(npt, dof1Dsol, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      MFEM_SHARED dfloat wtr[p_Nq];
-      MFEM_SHARED dfloat wts[p_Nq];
-      MFEM_SHARED dfloat sums[p_Nq];
+      MFEM_SHARED dfloat wtr[pMax];
+      MFEM_SHARED dfloat wts[pMax];
+      MFEM_SHARED dfloat sums[pMax];
 
       // Evaluate basis functions at the reference space coordinates
       MFEM_FOREACH_THREAD(j,x,p_Nq)
