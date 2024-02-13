@@ -1637,7 +1637,7 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in,
       spt = (evalSrcPt_t *)src.ptr;
 
       // Copy to host vector
-      Array<int> gsl_elem_temp(n);
+      gsl_elem_temp.SetSize(n);
       gsl_elem_temp.HostWrite();
 
       gsl_ref_temp.SetSize(n*dim);
@@ -1711,9 +1711,6 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in,
    //finished evaluating points received from other processors.
 }
 
-// todo: does not currently work on GPU for simplices when mesh and field_in order
-// are different because we only split the integration rule for splitting using
-// mesh order.
 void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
                                   Vector &field_out)
 {
@@ -1726,7 +1723,10 @@ void FindPointsGSLIB::Interpolate(const GridFunction &field_in,
 
    setupSW.Clear();
    setupSW.Start();
-   if (Device::IsEnabled() && field_in.UseDevice())
+   if (Device::IsEnabled() && field_in.UseDevice() &&
+       mesh->GetNumGeometries(dim) == 1 && mesh->GetNE() > 0 &&
+       (mesh->GetElementType(0) == Element::QUADRILATERAL ||
+        mesh->GetElementType(0) == Element::HEXAHEDRON))
    {
       MFEM_VERIFY(fec_h1,"Only h1 functions supported on device right now.");
       MFEM_VERIFY(fec_h1->GetBasisType() == BasisType::GaussLobatto,
