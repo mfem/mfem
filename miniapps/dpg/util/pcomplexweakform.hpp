@@ -42,10 +42,10 @@ protected:
    BlockMatrix * R = nullptr;
 
    ComplexOperator * p_mat = nullptr;
-   BlockOperator * p_mat_r = nullptr;
-   BlockOperator * p_mat_i = nullptr;
-   BlockOperator * p_mat_e_r = nullptr;
-   BlockOperator * p_mat_e_i = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat_r = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat_i = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat_e_r = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat_e_i = nullptr;
 
    void BuildProlongation();
 

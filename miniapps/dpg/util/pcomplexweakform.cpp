@@ -41,10 +41,10 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
 {
    if (!P) { BuildProlongation(); }
 
-   p_mat_r = new BlockOperator(tdof_offsets);
-   p_mat_i = new BlockOperator(tdof_offsets);
-   p_mat_e_r = new BlockOperator(tdof_offsets);
-   p_mat_e_i = new BlockOperator(tdof_offsets);
+   p_mat_r = new TBlockOperator<HypreParMatrix>(tdof_offsets);
+   p_mat_i = new TBlockOperator<HypreParMatrix>(tdof_offsets);
+   p_mat_e_r = new TBlockOperator<HypreParMatrix>(tdof_offsets);
+   p_mat_e_i = new TBlockOperator<HypreParMatrix>(tdof_offsets);
    p_mat_r->owns_blocks = 1;
    p_mat_i->owns_blocks = 1;
    p_mat_e_r->owns_blocks = 1;
