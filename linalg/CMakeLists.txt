@@ -51,6 +51,7 @@ list(APPEND HDRS
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp
+  tblockoperator.hpp
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
