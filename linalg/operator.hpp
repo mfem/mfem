@@ -769,6 +769,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   const double alpha, beta;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   SumOperator(
+      const Operator *A, const double alpha,
+      const Operator *B, const double beta,
+      bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+
+   virtual ~SumOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
@@ -925,6 +947,13 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
+
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Implementation of Mult or MultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }
