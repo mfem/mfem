@@ -3017,20 +3017,6 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
    }
 }
 
-HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
-                                          Array2D<double> *blockCoeff)
-{
-   Array2D<const HypreParMatrix*> constBlocks(blocks.NumRows(), blocks.NumCols());
-   for (int i = 0; i < blocks.NumRows(); ++i)
-   {
-      for (int j = 0; j < blocks.NumCols(); ++j)
-      {
-         constBlocks(i, j) = blocks(i, j);
-      }
-   }
-   return HypreParMatrixFromBlocks(constBlocks, blockCoeff);
-}
-
 HypreParMatrix * HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*>
                                           &blocks,
                                           Array2D<double> *blockCoeff)
@@ -3268,6 +3254,20 @@ HypreParMatrix * HypreParMatrixFromBlocks(Array2D<const HypreParMatrix*>
                                 rowStarts2.data(),
                                 colStarts2.data());
    }
+}
+
+HypreParMatrix * HypreParMatrixFromBlocks(Array2D<HypreParMatrix*> &blocks,
+                                          Array2D<double> *blockCoeff)
+{
+   Array2D<const HypreParMatrix*> constBlocks(blocks.NumRows(), blocks.NumCols());
+   for (int i = 0; i < blocks.NumRows(); ++i)
+   {
+      for (int j = 0; j < blocks.NumCols(); ++j)
+      {
+         constBlocks(i, j) = blocks(i, j);
+      }
+   }
+   return HypreParMatrixFromBlocks(constBlocks, blockCoeff);
 }
 
 void EliminateBC(const HypreParMatrix &A, const HypreParMatrix &Ae,
