@@ -18,7 +18,7 @@
 namespace mfem
 {
 
-ConstBlockOperator::ConstBlockOperator(const Array<int> & offsets)
+BlockConstOperator::BlockConstOperator(const Array<int> & offsets)
    : Operator(offsets.Last()),
      owns_blocks(0),
      nRowBlocks(offsets.Size() - 1),
@@ -31,7 +31,7 @@ ConstBlockOperator::ConstBlockOperator(const Array<int> & offsets)
    op = static_cast<const Operator *>(NULL);
 }
 
-ConstBlockOperator::ConstBlockOperator(const Array<int> & row_offsets_,
+BlockConstOperator::BlockConstOperator(const Array<int> & row_offsets_,
                                        const Array<int> & col_offsets_)
    : Operator(row_offsets_.Last(), col_offsets_.Last()),
      owns_blocks(0),
@@ -45,13 +45,13 @@ ConstBlockOperator::ConstBlockOperator(const Array<int> & row_offsets_,
    op = static_cast<const Operator *>(NULL);
 }
 
-void ConstBlockOperator::SetDiagonalBlock(int iblock, const Operator *opt,
+void BlockConstOperator::SetDiagonalBlock(int iblock, const Operator *opt,
                                           double c)
 {
    SetBlock(iblock, iblock, opt, c);
 }
 
-void ConstBlockOperator::SetBlock(int iRow, int iCol, const Operator *opt,
+void BlockConstOperator::SetBlock(int iRow, int iCol, const Operator *opt,
                                   double c)
 {
    if (owns_blocks && op(iRow, iCol))
@@ -67,7 +67,7 @@ void ConstBlockOperator::SetBlock(int iRow, int iCol, const Operator *opt,
 }
 
 // Operator application
-void ConstBlockOperator::Mult (const Vector & x, Vector & y) const
+void BlockConstOperator::Mult (const Vector & x, Vector & y) const
 {
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
@@ -98,7 +98,7 @@ void ConstBlockOperator::Mult (const Vector & x, Vector & y) const
 }
 
 // Action of the transpose operator
-void ConstBlockOperator::MultTranspose (const Vector & x, Vector & y) const
+void BlockConstOperator::MultTranspose (const Vector & x, Vector & y) const
 {
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
@@ -128,7 +128,7 @@ void ConstBlockOperator::MultTranspose (const Vector & x, Vector & y) const
    }
 }
 
-ConstBlockOperator::~ConstBlockOperator()
+BlockConstOperator::~BlockConstOperator()
 {
    if (owns_blocks)
    {

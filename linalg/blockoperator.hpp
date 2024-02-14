@@ -20,41 +20,41 @@
 namespace mfem
 {
 
-//! @class ConstBlockOperator
+//! @class BlockConstOperator
 /**
  * \brief A class to handle Block systems in a matrix-free implementation.
  *
  * Usage:
  * - Use one of the constructors to define the block structure.
- * - Use SetDiagonalBlock or SetBlock to fill the ConstBlockOperator
+ * - Use SetDiagonalBlock or SetBlock to fill the BlockConstOperator
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
  * If a block is not set, it is assumed to be a zero block.
  */
-class ConstBlockOperator : public Operator
+class BlockConstOperator : public Operator
 {
 public:
-   //! Constructor for ConstBlockOperator%s with the same block-structure for rows and
+   //! Constructor for BlockConstOperator%s with the same block-structure for rows and
    //! columns.
    /**
     *  offsets: offsets that mark the start of each row/column block (size
     *  nRowBlocks+1).
     */
-   ConstBlockOperator(const Array<int> & offsets);
-   //! Constructor for general ConstBlockOperator%s.
+   BlockConstOperator(const Array<int> & offsets);
+   //! Constructor for general BlockConstOperator%s.
    /**
     *  row_offsets: offsets that mark the start of each row block (size
     *  nRowBlocks+1).  col_offsets: offsets that mark the start of each column
     *  block (size nColBlocks+1).
     */
-   ConstBlockOperator(const Array<int> & row_offsets,
+   BlockConstOperator(const Array<int> & row_offsets,
                       const Array<int> & col_offsets);
 
    /// Copy assignment is not supported
-   ConstBlockOperator &operator=(const ConstBlockOperator &) = delete;
+   BlockConstOperator &operator=(const BlockConstOperator &) = delete;
 
    /// Move assignment is not supported
-   ConstBlockOperator &operator=(ConstBlockOperator &&) = delete;
+   BlockConstOperator &operator=(BlockConstOperator &&) = delete;
 
    //! Add block op in the block-entry (iblock, iblock).
    /**
@@ -103,9 +103,9 @@ public:
    /// Action of the transpose operator
    virtual void MultTranspose (const Vector & x, Vector & y) const;
 
-   virtual ~ConstBlockOperator();
+   virtual ~BlockConstOperator();
 
-   //! Controls the ownership of the blocks: if nonzero, ConstBlockOperator will
+   //! Controls the ownership of the blocks: if nonzero, BlockConstOperator will
    //! delete all blocks that are set (non-NULL); the default value is zero.
    int owns_blocks;
 
@@ -142,7 +142,7 @@ protected:
  *
  * If a block is not set, it is assumed to be a zero block.
  */
-class BlockOperator : public ConstBlockOperator
+class BlockOperator : public BlockConstOperator
 {
 public:
    //! Constructor for BlockOperator%s with the same block-structure for rows and
@@ -152,16 +152,16 @@ public:
     *  nRowBlocks+1).
     */
    BlockOperator(const Array<int> & offsets)
-      : ConstBlockOperator(offsets) { }
+      : BlockConstOperator(offsets) { }
 
-   //! Constructor for general ConstBlockOperator%s.
+   //! Constructor for general BlockOperator%s.
    /**
     *  row_offsets: offsets that mark the start of each row block (size
     *  nRowBlocks+1).  col_offsets: offsets that mark the start of each column
     *  block (size nColBlocks+1).
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets)
-      : ConstBlockOperator(row_offsets, col_offsets) { }
+      : BlockConstOperator(row_offsets, col_offsets) { }
 
    /// Copy assignment is not supported
    BlockOperator &operator=(const BlockOperator &) = delete;
@@ -176,7 +176,7 @@ public:
     * c: optional scalar multiple for this block.
     */
    void SetDiagonalBlock(int iblock, Operator *op, double c = 1.0)
-   { ConstBlockOperator::SetDiagonalBlock(iblock, op, c); }
+   { BlockConstOperator::SetDiagonalBlock(iblock, op, c); }
 
    //! Add a block op in the block-entry (iblock, jblock).
    /**
@@ -185,7 +185,7 @@ public:
     * c: optional scalar multiple for this block.
     */
    void SetBlock(int iRow, int iCol, Operator *op, double c = 1.0)
-   { ConstBlockOperator::SetBlock(iRow, iCol, op, c); }
+   { BlockConstOperator::SetBlock(iRow, iCol, op, c); }
 
    //! Return a reference to block i,j
    Operator & GetBlock(int i, int j)

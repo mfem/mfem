@@ -44,7 +44,7 @@ public:
 /// Wrapper for the block-diagonal-preconditioned MINRES employed in ex5p.cpp
 class BDPMinresSolver : public DarcySolver
 {
-   ConstBlockOperator op_;
+   BlockConstOperator op_;
    BlockDiagonalPreconditioner prec_;
    OperatorPtr BT_;
    OperatorPtr S_;   // S_ = B diag(M)^{-1} B^T
