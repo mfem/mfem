@@ -50,6 +50,8 @@ Miscellaneous
   IntegrationRules IntRules, RefinedIntRules, GeometryRefiner
   GlobGeometryRefiner, and FiniteElement::dof2quad_array.
 
+- Added TBlockOperator for generic handling of block-structured operators.
+
 
 Version 4.6, released on September 27, 2023
 ===========================================
