@@ -319,15 +319,15 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
      blk_Ps_(ops_.Size()-1), smoothers_(ops_.Size())
 {
    ops_offsets_.back().MakeRef(DarcySolver::offsets_);
-   ops_.Last() = new BlockOperator(ops_offsets_.back());
-   ops_.Last()->SetBlock(0, 0, const_cast<HypreParMatrix*>(&M));
-   ops_.Last()->SetBlock(1, 0, const_cast<HypreParMatrix*>(&B));
-   ops_.Last()->SetBlock(0, 1, BT_.Ptr());
+   ops_.Last() = new TBlockOperator<const HypreParMatrix>(ops_offsets_.back());
+   ops_.Last()->SetBlock(0, 0, &M);
+   ops_.Last()->SetBlock(1, 0, &B);
+   ops_.Last()->SetBlock(0, 1, BT_.As<HypreParMatrix>());
 
    for (int l = data.P_l2.size(); l >= 0; --l)
    {
-      auto& M_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(0, 0));
-      auto& B_f = static_cast<const HypreParMatrix&>(ops_[l]->GetBlock(1, 0));
+      auto& M_f = ops_[l]->GetBlock(0, 0);
+      auto& B_f = ops_[l]->GetBlock(1, 0);
 
       if (l == 0)
       {
@@ -378,11 +378,12 @@ DivFreeSolver::DivFreeSolver(const HypreParMatrix &M, const HypreParMatrix& B,
       ops_offsets_[l-1][1] = M_c->NumRows();
       ops_offsets_[l-1][2] = M_c->NumRows() + B_c->NumRows();
 
-      blk_Ps_[l-1] = new BlockOperator(ops_offsets_[l], ops_offsets_[l-1]);
+      blk_Ps_[l-1] = new TBlockOperator<const HypreParMatrix>(ops_offsets_[l],
+                                                              ops_offsets_[l-1]);
       blk_Ps_[l-1]->SetBlock(0, 0, &P_hdiv_l);
       blk_Ps_[l-1]->SetBlock(1, 1, &P_l2_l);
 
-      ops_[l-1] = new BlockOperator(ops_offsets_[l-1]);
+      ops_[l-1] = new TBlockOperator<const HypreParMatrix>(ops_offsets_[l-1]);
       ops_[l-1]->SetBlock(0, 0, M_c);
       ops_[l-1]->SetBlock(1, 0, B_c);
       ops_[l-1]->SetBlock(0, 1, B_c->Transpose());

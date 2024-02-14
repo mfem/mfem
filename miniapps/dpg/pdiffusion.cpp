@@ -374,35 +374,34 @@ int main(int argc, char *argv[])
       OperatorPtr Ah;
       a->FormLinearSystem(ess_tdof_list,x,Ah,X,B);
 
-      BlockOperator * A = Ah.As<BlockOperator>();
+      auto * A = Ah.As<TBlockOperator<HypreParMatrix>>();
 
       BlockDiagonalPreconditioner M(A->RowOffsets());
       M.owns_blocks = 1;
       int skip = 0;
       if (!static_cond)
       {
-         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
+         HypreBoomerAMG * amg0 = new HypreBoomerAMG(A->GetBlock(0,0));
+         HypreBoomerAMG * amg1 = new HypreBoomerAMG(A->GetBlock(1,1));
          amg0->SetPrintLevel(0);
          amg1->SetPrintLevel(0);
          M.SetDiagonalBlock(0,amg0);
          M.SetDiagonalBlock(1,amg1);
          skip=2;
       }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
-                                                                               skip));
+      HypreBoomerAMG * amg2 = new HypreBoomerAMG(A->GetBlock(skip, skip));
       amg2->SetPrintLevel(0);
       M.SetDiagonalBlock(skip,amg2);
       HypreSolver * prec;
       if (dim == 2)
       {
          // AMS preconditioner for 2D H(div) (trace) space
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
+         prec = new HypreAMS(A->GetBlock(skip+1,skip+1), hatsigma_fes);
       }
       else
       {
          // ADS preconditioner for 3D H(div) (trace) space
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
+         prec = new HypreADS(A->GetBlock(skip+1,skip+1), hatsigma_fes);
       }
       M.SetDiagonalBlock(skip+1,prec);
 

@@ -55,7 +55,7 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
    HypreParMatrix * PtAP_i = nullptr;
    for (int i = 0; i < nblocks; i++)
    {
-      HypreParMatrix * Pi = (HypreParMatrix*)(&P->GetBlock(i,i));
+      HypreParMatrix * Pi = &P->GetBlock(i,i);
       for (int j = 0; j<nblocks; j++)
       {
          if (m_r->IsZeroBlock(i,j)) { continue; }
@@ -78,7 +78,7 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
          }
          else
          {
-            HypreParMatrix * Pj = (HypreParMatrix*)(&P->GetBlock(j,j));
+            HypreParMatrix * Pj = &P->GetBlock(j,j);
             A_r = new HypreParMatrix(trial_pfes[i]->GetComm(), trial_pfes[i]->GlobalVSize(),
                                      trial_pfes[j]->GlobalVSize(), trial_pfes[i]->GetDofOffsets(),
                                      trial_pfes[j]->GetDofOffsets(), &m_r->GetBlock(i,j));
@@ -104,7 +104,7 @@ void ParComplexDPGWeakForm::ParallelAssemble(BlockMatrix *m_r,
 
 void ParComplexDPGWeakForm::BuildProlongation()
 {
-   P = new BlockOperator(dof_offsets, tdof_offsets);
+   P = new TBlockOperator<HypreParMatrix>(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
    P->owns_blocks = 0;
    R->owns_blocks = 0;

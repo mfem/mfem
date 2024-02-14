@@ -820,8 +820,8 @@ int main(int argc, char *argv[])
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
 
-      BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-      BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
+      auto * BlockA_r = dynamic_cast<TBlockOperator<HypreParMatrix>*>(&Ahc->real());
+      auto * BlockA_i = dynamic_cast<TBlockOperator<HypreParMatrix>*>(&Ahc->imag());
 
       int num_blocks = BlockA_r->NumRowBlocks();
       Array<int> tdof_offsets(2*num_blocks+1);
@@ -853,12 +853,10 @@ int main(int argc, char *argv[])
 
       if (!static_cond)
       {
-         HypreBoomerAMG * solver_E = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(0,0));
+         HypreBoomerAMG * solver_E = new HypreBoomerAMG(BlockA_r->GetBlock(0,0));
          solver_E->SetPrintLevel(0);
          solver_E->SetSystemsOptions(dim);
-         HypreBoomerAMG * solver_H = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(1,1));
+         HypreBoomerAMG * solver_H = new HypreBoomerAMG(BlockA_r->GetBlock(1,1));
          solver_H->SetPrintLevel(0);
          solver_H->SetSystemsOptions(dim);
          M.SetDiagonalBlock(0,solver_E);
@@ -868,20 +866,17 @@ int main(int argc, char *argv[])
       }
 
       HypreSolver * solver_hatH = nullptr;
-      HypreAMS * solver_hatE = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip,
-                                                                                 skip),
+      HypreAMS * solver_hatE = new HypreAMS(BlockA_r->GetBlock(skip, skip),
                                             hatE_fes);
       solver_hatE->SetPrintLevel(0);
       if (dim == 2)
       {
-         solver_hatH = new HypreBoomerAMG((HypreParMatrix &)BlockA_r->GetBlock(skip+1,
-                                                                               skip+1));
+         solver_hatH = new HypreBoomerAMG(BlockA_r->GetBlock(skip+1, skip+1));
          dynamic_cast<HypreBoomerAMG*>(solver_hatH)->SetPrintLevel(0);
       }
       else
       {
-         solver_hatH = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
-                                    hatH_fes);
+         solver_hatH = new HypreAMS(BlockA_r->GetBlock(skip+1,skip+1), hatH_fes);
          dynamic_cast<HypreAMS*>(solver_hatH)->SetPrintLevel(0);
       }
 

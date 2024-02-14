@@ -70,7 +70,7 @@ class ComplexBlockStaticCondensation
    BlockOperator * pS_i = nullptr;
    BlockOperator * pS_e_i = nullptr;
    // Block HypreParMatrix for Prolongation
-   BlockOperator * pP = nullptr;
+   TBlockOperator<HypreParMatrix> * pP = nullptr;
 #endif
 
    bool Parallel() const { return parallel; }

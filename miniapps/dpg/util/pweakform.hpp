@@ -37,7 +37,7 @@ protected:
    void FillEssTdofLists(const Array<int> & ess_tdof_list);
 
    // Block operator of HypreParMatrix
-   BlockOperator * P = nullptr; // Block Prolongation
+   TBlockOperator<HypreParMatrix> * P = nullptr; // Block Prolongation
    BlockMatrix * R = nullptr; // Block Restriction
 
    // Block operator of HypreParMatrix
