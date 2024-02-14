@@ -65,8 +65,8 @@ class BlockStaticCondensation
    BlockMatrix * R = nullptr; // Block Restriction
 
 #ifdef MFEM_USE_MPI
-   BlockOperator * pS = nullptr;
-   BlockOperator * pS_e = nullptr;
+   TBlockOperator<HypreParMatrix> * pS = nullptr;
+   TBlockOperator<HypreParMatrix> * pS_e = nullptr;
    TBlockOperator<HypreParMatrix> * pP = nullptr;
 #endif
 
@@ -152,10 +152,10 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   BlockOperator &GetParallelSchurMatrix() { return *pS; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrix() { return *pS; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelSchurMatrixElim() { return *pS_e; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrixElim() { return *pS_e; }
 
    void ParallelAssemble(BlockMatrix *m);
 #endif

@@ -65,10 +65,10 @@ class ComplexBlockStaticCondensation
    BlockMatrix * R = nullptr; // Block Restriction
 
 #ifdef MFEM_USE_MPI
-   BlockOperator * pS_r = nullptr;
-   BlockOperator * pS_e_r = nullptr;
-   BlockOperator * pS_i = nullptr;
-   BlockOperator * pS_e_i = nullptr;
+   TBlockOperator<HypreParMatrix> * pS_r = nullptr;
+   TBlockOperator<HypreParMatrix> * pS_e_r = nullptr;
+   TBlockOperator<HypreParMatrix> * pS_i = nullptr;
+   TBlockOperator<HypreParMatrix> * pS_e_i = nullptr;
    // Block HypreParMatrix for Prolongation
    TBlockOperator<HypreParMatrix> * pP = nullptr;
 #endif
@@ -179,12 +179,12 @@ public:
 
 #ifdef MFEM_USE_MPI
    /// Return the parallel Schur complement matrix.
-   BlockOperator &GetParallelSchurMatrix_r() { return *pS_r; }
-   BlockOperator &GetParallelSchurMatrix_i() { return *pS_i; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrix_r() { return *pS_r; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrix_i() { return *pS_i; }
 
    /// Return the eliminated part of the parallel Schur complement matrix.
-   BlockOperator &GetParallelSchurMatrixElim_r() { return *pS_e_r; }
-   BlockOperator &GetParallelSchurMatrixElim_i() { return *pS_e_i; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrixElim_r() { return *pS_e_r; }
+   TBlockOperator<HypreParMatrix> &GetParallelSchurMatrixElim_i() { return *pS_e_i; }
 
    void ParallelAssemble(BlockMatrix *m_r, BlockMatrix*m_i);
 #endif

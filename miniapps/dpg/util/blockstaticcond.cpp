@@ -571,8 +571,8 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
 {
    if (!pP) { BuildParallelProlongation(); }
 
-   pS = new BlockOperator(rtdof_offsets);
-   pS_e = new BlockOperator(rtdof_offsets);
+   pS = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
+   pS_e = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
    pS->owns_blocks = 1;
    pS_e->owns_blocks = 1;
    HypreParMatrix * A = nullptr;
@@ -865,7 +865,7 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
       for (int j = 0; j<rblocks; j++)
       {
          if (!ess_tdofs[j]->Size()) { continue; }
-         HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
+         HypreParMatrix *Ah = &pS->GetBlock(j,j);
          Vector diag;
          Ah->GetDiag(diag);
          for (int i = 0; i < ess_tdofs[j]->Size(); i++)

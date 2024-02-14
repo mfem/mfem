@@ -618,10 +618,10 @@ void ComplexBlockStaticCondensation::ParallelAssemble(BlockMatrix *m_r,
 
    if (!pP) { BuildParallelProlongation(); }
 
-   pS_r = new BlockOperator(rtdof_offsets);
-   pS_e_r = new BlockOperator(rtdof_offsets);
-   pS_i = new BlockOperator(rtdof_offsets);
-   pS_e_i = new BlockOperator(rtdof_offsets);
+   pS_r = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
+   pS_e_r = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
+   pS_i = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
+   pS_e_i = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
    pS_r->owns_blocks = 1;
    pS_i->owns_blocks = 1;
    pS_e_r->owns_blocks = 1;
