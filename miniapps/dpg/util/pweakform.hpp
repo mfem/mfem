@@ -41,8 +41,8 @@ protected:
    BlockMatrix * R = nullptr; // Block Restriction
 
    // Block operator of HypreParMatrix
-   BlockOperator * p_mat = nullptr;
-   BlockOperator * p_mat_e = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat = nullptr;
+   TBlockOperator<HypreParMatrix> * p_mat_e = nullptr;
 
    void BuildProlongation();
 

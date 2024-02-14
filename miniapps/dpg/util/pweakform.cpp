@@ -39,8 +39,8 @@ void ParDPGWeakForm::ParallelAssemble(BlockMatrix *m)
 {
    if (!P) { BuildProlongation(); }
 
-   p_mat = new BlockOperator(tdof_offsets);
-   p_mat_e = new BlockOperator(tdof_offsets);
+   p_mat = new TBlockOperator<HypreParMatrix>(tdof_offsets);
+   p_mat_e = new TBlockOperator<HypreParMatrix>(tdof_offsets);
    p_mat->owns_blocks = 1;
    p_mat_e->owns_blocks = 1;
    HypreParMatrix * A = nullptr;
