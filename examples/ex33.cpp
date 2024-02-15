@@ -110,13 +110,6 @@ int main(int argc, char *argv[])
    args.AddOption(&verification, "-ver", "--verification", "-no-ver",
                   "--no-verification",
                   "Use sinusoidal function (f) for analytic comparison.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
 
    Array<double> coeffs, poles;
    int progress_steps = 1;
