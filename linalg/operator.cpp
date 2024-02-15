@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -366,6 +366,44 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const double dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
+SumOperator::SumOperator(const Operator *A, const double alpha,
+                         const Operator *B, const double beta,
+                         bool ownA, bool ownB)
+   : Operator(A->Height(), A->Width()),
+     A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),
+     z(A->Height())
+{
+   MFEM_VERIFY(A->Width() == B->Width(),
+               "incompatible Operators: different widths\n"
+               << "A->Width() = " << A->Width()
+               << ", B->Width() = " << B->Width() );
+   MFEM_VERIFY(A->Height() == B->Height(),
+               "incompatible Operators: different heights\n"
+               << "A->Height() = " << A->Height()
+               << ", B->Height() = " << B->Height() );
+
+   {
+      const Solver* SolverA = dynamic_cast<const Solver*>(A);
+      const Solver* SolverB = dynamic_cast<const Solver*>(B);
+      if (SolverA)
+      {
+         MFEM_VERIFY(!(SolverA->iterative_mode),
+                     "Operator A of a SumOperator should not be in iterative mode");
+      }
+      if (SolverB)
+      {
+         MFEM_VERIFY(!(SolverB->iterative_mode),
+                     "Operator B of a SumOperator should not be in iterative mode");
+      }
+   }
+
+}
+
+SumOperator::~SumOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+}
 
 ProductOperator::ProductOperator(const Operator *A, const Operator *B,
                                  bool ownA, bool ownB)
@@ -543,12 +581,20 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    });
 }
 
-void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
+void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
+                                          const bool transpose) const
 {
    const int csz = constraint_list.Size();
    if (csz == 0)
    {
-      A->Mult(x, y);
+      if (transpose)
+      {
+         A->MultTranspose(x, y);
+      }
+      else
+      {
+         A->Mult(x, y);
+      }
       return;
    }
 
@@ -560,7 +606,14 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    auto d_z = z.ReadWrite();
    mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i) { d_z[idx[i]] = 0.0; });
 
-   A->Mult(z, y);
+   if (transpose)
+   {
+      A->MultTranspose(z, y);
+   }
+   else
+   {
+      A->Mult(z, y);
+   }
 
    auto d_x = x.Read();
    // Use read+write access - we are modifying sub-vector of y
@@ -589,6 +642,25 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
          mfem_error("ConstrainedOperator::Mult #2");
          break;
    }
+}
+
+void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = false;
+   ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool transpose = true;
+   ConstrainedMult(x, y, transpose);
+}
+
+void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
+                                  const double a) const
+{
+   Mult(x, w);
+   y.Add(a, w);
 }
 
 RectangularConstrainedOperator::RectangularConstrainedOperator(
@@ -625,9 +697,7 @@ void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
       d_w[id] = d_x[id];
    });
 
-   // A.AddMult(w, b, -1.0); // if available to all Operators
-   A->Mult(w, z);
-   b -= z;
+   A->AddMult(w, b, -1.0);
 
    const int test_csz = test_constraints.Size();
    auto test_idx = test_constraints.Read();

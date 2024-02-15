@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,8 @@
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/util.hpp"
+#include "qfunction.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -39,8 +41,6 @@ public:
    // base class NonlinearFormIntegrator, except that not all assembly levels
    // make sense for the action of the nonlinear operator (but they all make
    // sense for its Jacobian).
-
-   using NonlinearFormIntegrator::AssemblePA;
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
@@ -280,7 +280,7 @@ private:
    DenseMatrix bfi_elmat;
 
 public:
-   TransposeIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
+   TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
    virtual void SetIntRule(const IntegrationRule *ir);
@@ -299,8 +299,6 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-
-   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
@@ -2042,8 +2040,8 @@ protected:
 };
 
 /** Class for integrating the bilinear form \f$a(u,v) := (Q \nabla u, v)\f$ where \f$Q\f$ is a
-    scalar coefficient, and \f$v\f$ is a vector with components \f$v_i\f$ in the same (\f$H^1\f$) space
-    as \f$u\f$.
+    scalar coefficient, \f$u\f$ is in (\f$H^1\f$), and \f$v\f$ is a vector with components
+    \f$v_i\f$ in (\f$H^1\f$) or (\f$L^2\f$).
 
     See also MixedVectorGradientIntegrator when \f$v\f$ is in \f$H\f$(curl). */
 class GradientIntegrator : public BilinearFormIntegrator
@@ -2228,10 +2226,9 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2294,10 +2291,9 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
@@ -2331,7 +2327,6 @@ public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -2364,10 +2359,9 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2781,7 +2775,6 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -2989,6 +2982,8 @@ public:
     using multiple copies of a scalar FE space. */
 class ElasticityIntegrator : public BilinearFormIntegrator
 {
+   friend class ElasticityComponentIntegrator;
+
 protected:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
@@ -3000,6 +2995,22 @@ private:
    Vector divshape;
 #endif
 
+   // PA extension
+
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int vdim, ndofs;
+   const FiniteElementSpace *fespace;   ///< Not owned.
+
+   std::unique_ptr<QuadratureSpace> q_space;
+   /// Coefficients projected onto q_space
+   std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
+   /// Workspace vector
+   std::unique_ptr<QuadratureFunction> q_vec;
+
+   /// Set up the quadrature space and project lambda and mu coefficients
+   void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
+
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
    { lambda = &l; mu = &m; }
@@ -3008,9 +3019,18 @@ public:
    ElasticityIntegrator(Coefficient &m, double q_l, double q_m)
    { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
-   virtual void AssembleElementMatrix(const FiniteElement &,
-                                      ElementTransformation &,
-                                      DenseMatrix &);
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      DenseMatrix &elmat);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssembleDiagonalPA(Vector &diag);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 
    /** Compute the stress corresponding to the local displacement @a \f$u\f$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric
@@ -3040,6 +3060,38 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+};
+
+/// @brief Integrator that computes the PA action of one of the blocks in an
+/// ElasticityIntegrator, considering the elasticity operator as a dim x dim
+/// block operator.
+class ElasticityComponentIntegrator : public BilinearFormIntegrator
+{
+   ElasticityIntegrator &parent;
+   const int i_block;
+   const int j_block;
+
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   const FiniteElementSpace *fespace;   ///< Not owned.
+
+public:
+   /// @brief Given an ElasticityIntegrator, create an integrator that
+   /// represents the \f$(i,j)\f$th component block.
+   ///
+   /// @note The parent ElasticityIntegrator must remain valid throughout the
+   /// lifetime of this integrator.
+   ElasticityComponentIntegrator(ElasticityIntegrator &parent_, int i_, int j_);
+
+   using BilinearFormIntegrator::AssemblePA;
+   virtual void AssemblePA(const FiniteElementSpace &fes);
+
+   virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                           const bool add = true);
+
+   virtual void AddMultPA(const Vector &x, Vector &y) const;
+
+   virtual void AddMultTransposePA(const Vector &x, Vector &y) const;
 };
 
 /** Integrator for the DG form:
@@ -3102,8 +3154,6 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-
-   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
@@ -3502,12 +3552,6 @@ public:
    { nd_fe.ProjectGrad(h1_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
-
-   /** @brief Setup method for PA data.
-
-       @param[in] trial_fes   \f$H^1\f$ Lagrange space
-       @param[in] test_fes    \f$H\f$(curl) Nedelec space
-    */
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
@@ -3540,7 +3584,6 @@ public:
    { ran_fe.Project(dom_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
