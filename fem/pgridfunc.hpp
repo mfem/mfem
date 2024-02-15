@@ -28,6 +28,11 @@ namespace mfem
 /// Compute a global Lp norm from the local Lp norms computed by each processor
 double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
 
+/* HDG */
+/* Compute the mean of a coefficient in parallel */
+double GlobalMean(double loc_mean, MPI_Comm comm);
+
+
 /// Class for parallel grid function
 class ParGridFunction : public GridFunction
 {
@@ -242,6 +247,12 @@ public:
    using GridFunction::ProjectCoefficient;
    void ProjectCoefficient(Coefficient &coeff) override;
 
+   /* HDG */
+   using GridFunction::ProjectCoefficientSkeleton;
+   void ProjectCoefficientSkeleton(Coefficient &coeff);
+   using GridFunction::ProjectCoefficientSkeletonBdr;
+   void ProjectCoefficientSkeletonBdr(Coefficient &coeff);
+
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on
        a continuous finite element space. The values in shared dofs are
@@ -331,6 +342,29 @@ public:
       return GlobalLpNorm(2.0, GridFunction::ComputeDivError(exdiv,irs),
                           pfes->GetComm());
    }
+
+   /* HDG */
+   double ComputeMean(const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalMean(GridFunction::ComputeMean(irs), pfes->GetComm());
+   }
+
+   double ComputeL2ErrorMinusMean(Coefficient &exsol, const double mean,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return ComputeLpErrorMinusMean(2.0, exsol, mean, NULL, irs);
+   }
+
+   /* UW */
+   double ComputeLpErrorMinunMean(const double p, Coefficient &exsol,
+                                  const double mean,
+                                  Coefficient *weight = NULL,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return GlobalLpNorm(p, GridFunction::ComputeLpErrorMinusMean(
+                             p, exsol, mean, weight, irs), pfes->GetComm());
+   }
+
 
    /// Returns the Face Jumps error for L2 elements
    double ComputeDGFaceJumpError(Coefficient *exsol,

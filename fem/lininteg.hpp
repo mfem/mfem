@@ -57,7 +57,6 @@ public:
    virtual ~LinearFormIntegrator() { }
 };
 
-
 /// Abstract class for integrators that support delta coefficients
 class DeltaLFIntegrator : public LinearFormIntegrator
 {
