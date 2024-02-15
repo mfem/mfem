@@ -678,7 +678,7 @@ double ComputeIntegrateErrorBG(const FiniteElementSpace* fes,
 {
    double error = 0.0;
    const FiniteElement *fe = fes->GetFaceElement(el);  // Face el
-   int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 3;
+   int intorder = 2*ls_bg->FESpace()->GetMaxElementOrder() + 5;
    const IntegrationRule *ir = &(IntRules.Get(fe->GetGeomType(), intorder));
 
    FaceElementTransformations *transf =
@@ -873,7 +873,7 @@ double InterfaceElementOrderReduction(const Mesh *mesh,
    smesh->GetElementTransformation(0, seltrans);
    seltrans->GetPointMat().Transpose(IntVals);
 
-   const int int_order = 2*el_order + 3;
+   const int int_order = 2*el_order + 5;
    const IntegrationRule *ir = &(IntRulesLo.Get(geom, int_order));
 
    // Coordinates of the quadrature points in the physical space
@@ -980,11 +980,9 @@ double InterfaceElementOrderReduction2(const Mesh *mesh,
 
    DenseMatrix elemvecMat = transf->GetPointMat();
    elemvecMat.Transpose();
-   //   elemvecMat.Print();
 
    DenseMatrix IntVals(I3.Height(), elemvecMat.Width());
    Mult(I3, elemvecMat, IntVals);
-   //   IntVals.Print();
 
    const TensorBasisElement *tbe =
       dynamic_cast<const TensorBasisElement *>(feInt2);

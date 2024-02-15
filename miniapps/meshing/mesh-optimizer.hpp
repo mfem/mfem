@@ -450,6 +450,75 @@ int material_id(int el_id, const GridFunction &g)
    return 0.0;
 }
 
+int material_id2(int el_id, const GridFunction &g)
+{
+   const FiniteElementSpace *fes = g.FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   Vector g_vals;
+   const IntegrationRule &ir =
+      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+
+   double integral = 0.0;
+   g.GetValues(el_id, ir, g_vals);
+   ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
+   int approach = 1;
+   if (approach == 0)   // integral based
+   {
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr->SetIntPoint(&ip);
+         integral += ip.weight * g_vals(q) * Tr->Weight();
+      }
+      return (integral > 0.0) ? 1.0 : 0.0;
+   }
+   else if (approach == 1)   // minimum value based
+   {
+      double minval = g_vals.Min();
+      double maxval = g_vals.Max();
+      //      return maxval > 0.0 ? 1.0 : 0.0;
+      return minval < 0.0 ? 0.0 : 1.0;
+   }
+   return 0.0;
+}
+
+int material_id3(int el_id, const GridFunction &g)
+{
+   const FiniteElementSpace *fes = g.FESpace();
+   const FiniteElement *fe = fes->GetFE(el_id);
+   Vector g_vals, g_vals2;
+   const IntegrationRule &ir =
+      IntRules.Get(fe->GetGeomType(), fes->GetOrder(el_id) + 2);
+   const IntegrationRule &ir2 = fe->GetNodes();
+
+   double integral = 0.0;
+   g.GetValues(el_id, ir, g_vals);
+   g.GetValues(el_id, ir2, g_vals2);
+   ElementTransformation *Tr = fes->GetMesh()->GetElementTransformation(el_id);
+   int approach = 1;
+   if (approach == 0)   // integral based
+   {
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr->SetIntPoint(&ip);
+         integral += ip.weight * g_vals(q) * Tr->Weight();
+      }
+      return (integral > 0.0) ? 1.0 : 0.0;
+   }
+   else if (approach == 1)   // minimum value based
+   {
+      double minval = g_vals.Min();
+      double maxval = g_vals.Max();
+      minval = std::fmin(minval, g_vals2.Min());
+      maxval = std::fmax(maxval, g_vals2.Max());
+      //      return maxval > 0.0 ? 1.0 : 0.0;
+      return minval <= 0.0 ? 0.0 : 1.0;
+      //      return maxval <= 0 ? 0.0 : 1.0;
+   }
+   return 0.0;
+}
+
 void DiffuseField(GridFunction &field, int smooth_steps)
 {
    // Setup the Laplacian operator

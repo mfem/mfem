@@ -78,7 +78,8 @@ double in_circle(const Vector &x, const Vector &x_center, double radius)
 double in_trapezium(const Vector &x, double a, double b, double l)
 {
    double phi_t = x(1) + (a-b)*x(0)/l - a;
-   return (phi_t <= 0.0) ? 1.0 : -1.0;
+   return -phi_t;
+   //   return (phi_t <= 0.0) ? 1.0 : -1.0;
 }
 
 double in_parabola(const Vector &x, double h, double k, double t)
@@ -541,6 +542,43 @@ void ModifyBoundaryAttributesForNodeMovement(Mesh *mesh, GridFunction &x)
    }
 }
 
+class HRefUpdater
+{
+protected:
+   Array<GridFunction *> gridfuncarr;
+   Array<FiniteElementSpace *> fespacearr;
+
+public:
+   HRefUpdater() {}
+
+   void AddGridFunctionForUpdate(GridFunction *gf_)
+   {
+      gridfuncarr.Append(gf_);
+   }
+   void AddFESpaceForUpdate(FiniteElementSpace *fes_)
+   {
+      fespacearr.Append(fes_);
+   }
+
+   void Update();
+};
+
+void HRefUpdater::Update()
+{
+   // Update FESpace
+   for (int i = 0; i < fespacearr.Size(); i++)
+   {
+      fespacearr[i]->Update();
+   }
+   // Update GF
+   for (int i = 0; i < gridfuncarr.Size(); i++)
+   {
+      gridfuncarr[i]->Update();
+      gridfuncarr[i]->SetTrueVector();
+      gridfuncarr[i]->SetFromTrueVector();
+   }
+}
+
 #ifdef MFEM_USE_MPI
 void ModifyBoundaryAttributesForNodeMovement(ParMesh *pmesh, ParGridFunction &x)
 {
@@ -805,7 +843,8 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
                                        ParGridFunction &distance_s,
                                        const int nDiffuse = 2,
                                        const int pLapOrder = 5,
-                                       const int pLapNewton = 50)
+                                       const int pLapNewton = 50,
+                                       const int solver_type = 0)
 {
    mfem::H1_FECollection h1fec(distance_s.ParFESpace()->FEColl()->GetOrder(),
                                pmesh.Dimension());
@@ -817,7 +856,18 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
 
    //Now determine distance
    const double dx = AvgElementSize(pmesh);
-   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
+   DistanceSolver *dist_solver = NULL;
+   if (solver_type == 0)
+   {
+      dist_solver = new PLapDistanceSolver(pLapOrder, pLapNewton);
+   }
+   else
+   {
+      dist_solver = new NormalizationDistanceSolver();
+   }
+   dist_solver->print_level.Summary();
+   //   PLapDistanceSolver dist_solver(pLapOrder, pLapNewton);
+   //   NormalizationDistanceSolver dist_solver;
 
    ParFiniteElementSpace pfes_s(*distance_s.ParFESpace());
 
@@ -828,13 +878,14 @@ void ComputeScalarDistanceFromLevelSet(ParMesh &pmesh,
    filter.Filter(ls_coeff, filt_gf);
    GridFunctionCoefficient ls_filt_coeff(&filt_gf);
 
-   dist_solver.ComputeScalarDistance(ls_filt_coeff, &distance_s);
+   dist_solver->ComputeScalarDistance(ls_filt_coeff, &distance_s);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
 
    DiffuseField(distance_s, nDiffuse);
    distance_s.SetTrueVector();
    distance_s.SetFromTrueVector();
+   delete dist_solver;
 }
 #endif
 
@@ -876,7 +927,7 @@ void OptimizeMeshWithAMRAroundZeroLevelSet(Mesh &mesh,
          double min_val = x_vals.Min();
          double max_val = x_vals.Max();
          // If the zero level set cuts the elements, mark it for refinement
-         if (min_val < 0 && max_val >= 0)
+         if (min_val <= 0 && max_val >= 0)
          {
             el_to_refine(e) = 1.0;
          }
