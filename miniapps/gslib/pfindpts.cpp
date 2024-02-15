@@ -216,27 +216,6 @@ int main (int argc, char *argv[])
       cout << endl;
    }
 
-   // {
-   //     Vector a1(4);
-   //     a1 = 1.5;
-   //     Vector a2;
-   //     a2.UseDevice(true);
-   //     // a2.SetDataAndSize(a1.GetData(), 4);
-   //     a2.MakeRef(a1, 0, 4);
-
-   //     auto pa2 = a2.ReadWrite();
-
-   //     mfem::forall(4, [=] MFEM_HOST_DEVICE (int i) { pa2[i] *= 3.0; });
-
-   //     a2.HostReadWrite();
-
-   //     for (int i = 0; i < 4;i++)
-   //     {
-   //         std::cout << i << " " << a2(i) << " k10ia2\n";
-   //     }
-   // }
-
-
    // Mesh bounding box (for the full serial mesh).
    Vector pos_min, pos_max;
    MFEM_VERIFY(mesh_poly_deg > 0, "The order of the mesh must be positive.");
@@ -403,7 +382,6 @@ int main (int argc, char *argv[])
          sout << flush;
       }
    }
-   //    std::cout << " k10about to setup vxyz" << std::endl;
 
    // Generate equidistant points in physical coordinates over the whole mesh.
    // Note that some points might be outside, if the mesh is not a box. Note
@@ -413,43 +391,6 @@ int main (int argc, char *argv[])
    vxyz.UseDevice(!cpu_mode);
    vxyz.SetSize(pts_cnt * dim);
    vxyz.Randomize(myid+1);
-   //    std::cout << " k10 done setup vxyz" << std::endl;
-
-   //   //check interior
-   //   vxyz(0) = 0.4;
-   //   vxyz(1) = 0.3;
-
-   //   // check edge 0
-   //   vxyz(0) = -0.006;
-   //   vxyz(1) = 0.37;
-
-   //   // check edge 1
-   //   vxyz(0) = 1.006;
-   //   vxyz(1) = 0.37;
-
-   //   // check edge 2
-   //   vxyz(0) = 0.37;
-   //   vxyz(1) = -0.006;
-
-   ////   // check edge 3
-   ////   vxyz(0) = 0.37;
-   ////   vxyz(1) = 1.006;
-
-   //   // check pt 0
-   //   vxyz(0) = -0.003;
-   //   vxyz(1) = -0.002;
-
-   //   // check pt 1
-   //   vxyz(0) = 1.003;
-   //   vxyz(1) = -0.002;
-
-   ////   // check pt 2
-   ////   vxyz(0) = -0.003;
-   ////   vxyz(1) = 1.002;
-
-   //////   // check pt 3
-   //////   vxyz(0) = 1.003;
-   //////   vxyz(1) = 1.002;
 
    if ( (myid != 0) && (search_on_rank_0) )
    {
@@ -461,13 +402,10 @@ int main (int argc, char *argv[])
    Vector interp_vals(pts_cnt*vec_dim);
 
    FindPointsGSLIB finder(MPI_COMM_WORLD);
-   //    std::cout << " k10 do finder setup" << std::endl;
    finder.Setup(pmesh);
    finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
-   //    std::cout << " k10 do findpts" << std::endl;
    finder.FindPoints(vxyz, point_ordering);
    MPI_Barrier(MPI_COMM_WORLD);
-   //    std::cout << myid << " K10 done findpoints" << std::endl;
 
    Array<unsigned int> code_out1    = finder.GetCode();
    Array<unsigned int> el_out1    = finder.GetGSLIBElem();
@@ -578,8 +516,6 @@ int main (int argc, char *argv[])
    MPI_Allreduce(MPI_IN_PLACE, &max_dist, 1, MPI_DOUBLE, MPI_MAX,
                  pfespace.GetComm());
    MPI_Allreduce(MPI_IN_PLACE, &err, 1, MPI_DOUBLE, MPI_SUM, pfespace.GetComm());
-   //         MPI_Allreduce(MPI_IN_PLACE, &npt_on_faces, 1, MPI_INT, MPI_SUM,
-   //                       pfespace.GetComm());
 
 
    if (myid == 0)
@@ -592,7 +528,6 @@ int main (int argc, char *argv[])
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
            << "\nPoints on faces:      " << face_pts
-           //                    << "\nPoints put on faces:  " << npt_on_faces
            << "\nMax interp error:     " << max_err
            << "\nMax dist (of found):  " << max_dist
            //                    << "\nTotal Time:  " << FindPointsSW.RealTime()
@@ -622,7 +557,6 @@ int main (int argc, char *argv[])
            found_away << "," <<
            not_found << "," <<
            face_pts << "," <<
-           //           npt_on_faces << "," <<
            max_err << "," <<
            max_dist << "," <<
            finder.setup_split_time << "," <<
