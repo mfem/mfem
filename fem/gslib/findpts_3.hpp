@@ -44,25 +44,6 @@ struct findptsElementGPT_t
    dfloat x[pDIM], jac[pDIM * pDIM], hes[18];
 };
 
-//struct findptsElementData_t {
-//  dlong npt_max;
-//  findptsElementPoint_t *p;
-//  dlong n[pDIM];
-//  dfloat *z[pDIM];
-//  void *lag[pDIM];
-//  dfloat *lag_data[pDIM];
-//  dfloat *wtend[pDIM];
-
-//  const dfloat *x[pDIM];
-//  dlong side_init;
-//  dlong *sides;
-//  findptsElementGFace_t face[2 * pDIM];
-//  findptsElementGEdge_t edge[2 * 2 * pDIM];
-//  findptsElementGPT_t pt[1 << pDIM];
-
-//  dfloat *work;
-//};
-
 struct dbl_range_t
 {
    dfloat min, max;
