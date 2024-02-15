@@ -945,8 +945,6 @@ public:
        the vectors, and "_i" -- the rest of the entries. */
    void Mult(const Vector &x, Vector &y) const override;
 
-   void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
-
    void MultTranspose(const Vector &x, Vector &y) const override;
 
    /** @brief Implementation of Mult or MultTranspose.
@@ -971,7 +969,6 @@ protected:
    Array<int> trial_constraints, test_constraints;
    Operator *A;
    bool own_A;
-   mutable Vector z, w;
    MemoryClass mem_class;
 
 public:
