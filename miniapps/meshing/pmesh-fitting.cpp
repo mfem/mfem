@@ -39,7 +39,7 @@
 //  Surface fitting with weight adaptation and termination based on fitting error:
 //    mpirun -np 4 pmesh-fitting -o 2 -mid 2 -tid 1 -ni 100 -vl 2 -sfc 10 -rtol 1e-20 -st 0 -sfa 10.0 -sft 1e-5
 //  Surface fitting with weight adaptation, max weight, and convergence based on residual.
-//    mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -ni 100 -vl 2 -sfc 10 -rtol 1e-10 -st 0 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1  -marking -mod-bndr-attr -samriter 1 -slstype 3 -resid -sfcmax 1000
+//  * mpirun -np 4 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -mid 2 -tid 4 -ni 100 -vl 2 -sfc 10 -rtol 1e-10 -st 0 -sfa 10.0 -sft 1e-5 -bgamriter 3 -sbgmesh -ae 1  -marking -mod-bndr-attr -samriter 1 -slstype 3 -resid -sfcmax 1000
 //  Fitting to Fischer-Tropsch reactor like domain (requires GSLIB):
 //  * mpirun -np 6 pmesh-fitting -m ../../data/inline-tri.mesh -o 2 -rs 4 -mid 2 -tid 1 -vl 2 -sfc 100 -rtol 1e-12 -ni 100 -li 40 -ae 1 -bnd -sbgmesh -slstype 2 -smtype 0 -sfa 10.0 -sft 1e-4 -bgamriter 5 -dist -mod-bndr-attr
 
