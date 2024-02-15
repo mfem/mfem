@@ -2102,21 +2102,21 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   using KernelType = void(*)(const int, const bool, const Array<double>&,
+   using KernelType = std::function<void(*)(const int, const bool, const Array<double>&,
                               const Array<double>&, const Array<double>&,
                               const Array<double>&,
                               const Vector&, const Vector&,
-                              Vector&, const int, const int);
+                              Vector&, const int, const int)>;
 
-   using DiagonalKernelType = void(*)(const int, const bool, const Array<double>&,
+   using DiagonalKernelType = std::function<void(*)(const int, const bool, const Array<double>&,
                                       const Array<double>&, const Vector&, Vector&,
-                                      const int, const int);
+                                      const int, const int)>;
 
    // Shared memory and non shared memory implementations of non-diagonal diffusion kernels have different
    // signatures. The first template argument refers to the signature of the non shared memory kernel type.
    // The second refers to the shared memory kernel signature.
-   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType>;
-   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType>;
+   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType, internal::KernelTypeList<int, int, int>, internal::KernelTypeList<int, int>>;
+   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType, internal::KernelTypeList<int, int, int>, internal::KernelTypeList<int, int>>;
 
    struct Kernels
    {
@@ -2291,8 +2291,11 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
-      kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
+      if constexpr (DIM == 2) {
+         kernels.apply.AddSpecialization2D<D1D, Q1D>();
+      } else {
+         kernels.diag.AddSpecialization3D<DIM, D1D, Q1D>();
+      }
    }
 };
 
