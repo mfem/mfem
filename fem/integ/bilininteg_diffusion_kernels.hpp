@@ -1215,10 +1215,10 @@ DiffusionIntegrator::KernelType
 DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
 
 template<>
-template<int T_D1D, int T_Q1D>
+template<typename... KernelParameters>
 inline
 DiffusionIntegrator::KernelType
-DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
+DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<KernelParameters...>; }
 
 template<>
 inline
