@@ -136,7 +136,8 @@ int main (int argc, char *argv[])
    args.AddOption(&verbosity_level, "-vl", "--verbosity-level",
                   "Set the verbosity level - 0, 1, or 2.");
    args.AddOption(&adapt_eval, "-ae", "--adaptivity-evaluator",
-                  "0 - Advection based (DEFAULT), 1 - GSLIB.");
+                  "0 - Advection based (DEFAULT), 1 - GSLIB. Note that use of "
+                  "background mesh via surf_bg_mesh option enforces GSLIB.");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
@@ -242,7 +243,9 @@ int main (int argc, char *argv[])
    AdaptivityEvaluator *remap_from_bg = NULL;
    if (surf_bg_mesh)
    {
-      MFEM_VERIFY(adapt_eval,"Background mesh requires GSLIB.");
+#ifndef MFEM_USE_GSLIB
+      MFEM_ABORT("Background mesh requires GSLIB.");
+#endif
       Mesh *mesh_surf_fit_bg = NULL;
       if (dim == 2)
       {
@@ -634,11 +637,11 @@ int main (int argc, char *argv[])
 
    // Set AdaptivityEvaluators for transferring information from initial
    // mesh to current mesh as it moves during adaptivity.
-   if (adapt_eval == 0)
+   if (adapt_eval == 0 && !surf_bg_mesh)
    {
       adapt_surface = new AdvectorCG;
    }
-   else if (adapt_eval == 1)
+   else if (surf_bg_mesh)
    {
 #ifdef MFEM_USE_GSLIB
       adapt_surface = new InterpolatorFP;
