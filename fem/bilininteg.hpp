@@ -52,7 +52,7 @@ public:
 
    /// Method defining partial assembly on NURBS patches.
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the method AddMultNURBSPA(). */
+       used later in the method AdbdMultNURBSPA(). */
    virtual void AssembleNURBSPA(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
@@ -2372,6 +2372,9 @@ public:
       volumetric element information (e.g. volumetric deformation). */
 class BoundaryMassIntegrator : public MassIntegrator
 {
+protected:
+   int nf;
+
 public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
@@ -2538,6 +2541,9 @@ public:
       volumetric element information (e.g. volumetric deformation). */
 class BoundaryVectorMassIntegrator : public VectorMassIntegrator
 {
+protected:
+   int nf;
+
 public:
    /// The given MatrixCoefficient fully couples the vector components, i.e.,
    /// the local (dof x vdim) matrices have no zero blocks.
@@ -2550,6 +2556,9 @@ public:
                            const FiniteElement &el2,
                            FaceElementTransformations &Tr,
                            DenseMatrix &elmat) override;
+
+   void AssemblePABoundaryFaces(const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 };
 
 

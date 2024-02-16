@@ -197,6 +197,25 @@ void gradf1(const Vector &x, Vector &u)
    if (x.Size() >= 3) { u(2) = 4*pow(x(2), 3); }
 }
 
+void f_matrix(const Vector &x, DenseMatrix &M)
+{
+   M(0,0) = x(0);
+   if (x.Size() >= 2)
+   {
+      M(1,1) = x(1);
+      M(0,1) = x(0) * x(1);
+      M(1,0) = x(0) * x(1) * 2;
+   }
+   if (x.Size() >= 3)
+   {
+      M(2,2) = x(2);
+      M(0,2) = x(0) * x(1) * x(2);
+      M(2,0) = x(0) * x(1) * x(2) * 3;
+      M(1,2) = x(1) * x(2);
+      M(2,1) = x(1) * x(2) * 2;
+   }
+}
+
 double pa_gradient_testnd(int dim,
                           double (*f1)(const Vector &),
                           void (*gradf1)(const Vector &, Vector &))
@@ -652,6 +671,42 @@ TEST_CASE("PA Boundary Mass", "[PartialAssembly], [CUDA]")
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.AddBoundaryIntegrator(new MassIntegrator(coeff));
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   y_fa -= y_pa;
+
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("PA BoundaryVectorMassIntegrator",
+          "[PartialAssembly] [BoundaryVectorMassIntegrator] [CUDA]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+
+   auto fname = GENERATE("../../data/star.mesh", "../../data/star-q3.mesh",
+                         "../../data/fichera.mesh", "../../data/fichera-q3.mesh");
+   auto order = !all_tests ? 2 : GENERATE(1, 2, 3);
+
+   Mesh mesh(fname);
+   int dim = mesh.Dimension();
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   MatrixFunctionCoefficient mat_coeff(dim, f_matrix);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.AddBdrFaceIntegrator(new BoundaryVectorMassIntegrator(mat_coeff));
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   blf_pa.AddBdrFaceIntegrator(new BoundaryVectorMassIntegrator(mat_coeff));
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
