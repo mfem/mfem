@@ -44,9 +44,8 @@ void GetElasticityProblem(const ElasticityProblem problem,
                                        1.0);
          ess_bdr.SetSize(3, 4);
          ess_bdr_filter.SetSize(4);
-         ess_bdr = 0; ess_bdr_filter = 1;
+         ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(0, 3) = 1;
-         ess_bdr_filter[3] = 0;
          const Vector center({2.9, 0.5});
          vforce_cf.reset(new VectorFunctionCoefficient(2, [center](const Vector &x,
                                                                    Vector &f)
