@@ -162,11 +162,10 @@ void visualize(ostream &os, ParMesh *mesh,
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/beam-quad.mesh";
@@ -223,7 +222,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -263,7 +261,6 @@ int main(int argc, char *argv[])
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
          delete mesh;
-         MPI_Finalize();
          return 3;
    }
 
@@ -354,6 +351,11 @@ int main(int argc, char *argv[])
          vis_w.precision(8);
          visualize(vis_w, pmesh, &x_gf, &w_gf, "Elastic energy density", true);
       }
+      if (myid == 0)
+      {
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
+      }
    }
 
    double ee0 = oper.ElasticEnergy(x_gf);
@@ -433,8 +435,6 @@ int main(int argc, char *argv[])
    // 12. Free the used memory.
    delete ode_solver;
    delete pmesh;
-
-   MPI_Finalize();
 
    return 0;
 }

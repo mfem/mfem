@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,17 @@ const DenseMatrix &ElementTransformation::EvalAdjugateJ()
    if (dFdx.Width() > 0) { CalcAdjugate(dFdx, adjJ); }
    EvalState |= ADJUGATE_MASK;
    return adjJ;
+}
+
+const DenseMatrix &ElementTransformation::EvalTransAdjugateJ()
+{
+   MFEM_ASSERT((EvalState & TRANS_ADJUGATE_MASK) == 0, "");
+   Jacobian();
+   adjJT.SetSize(dFdx.Height(), dFdx.Width());
+   if (dFdx.Width() == dFdx.Height()) { CalcAdjugateTranspose(dFdx, adjJT); }
+   else { AdjugateJacobian(); adjJT.Transpose(adjJ); }
+   EvalState |= TRANS_ADJUGATE_MASK;
+   return adjJT;
 }
 
 const DenseMatrix &ElementTransformation::EvalInverseJ()
@@ -344,15 +355,11 @@ int InverseElementTransformation::Transform(const Vector &pt,
          }
          else
          {
-            const int old_type = GlobGeometryRefiner.GetType();
-            GlobGeometryRefiner.SetType(qpts_type);
-            RefinedGeometry &RefG =
-               *GlobGeometryRefiner.Refine(T->GetGeometryType(), order);
+            RefinedGeometry &RefG = *refiner.Refine(T->GetGeometryType(), order);
             int closest_idx = (init_guess_type == ClosestPhysNode) ?
                               FindClosestPhysPoint(pt, RefG.RefPts) :
                               FindClosestRefPoint(pt, RefG.RefPts);
             ip0 = &RefG.RefPts.IntPoint(closest_idx);
-            GlobGeometryRefiner.SetType(old_type);
          }
          break;
       }
@@ -481,6 +488,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
+   MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
 

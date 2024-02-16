@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "../general/forall.hpp"
 #include "../general/table.hpp"
 #include "../general/sort_pairs.hpp"
+#include "../general/backends.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -201,6 +202,7 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph,
 {
    if (mat.Finalized())
    {
+      mat.HostReadI();
       const int nnz = mat.I[height];
       if (copy_graph)
       {
@@ -290,6 +292,12 @@ SparseMatrix::SparseMatrix(const Vector &v)
    }
 
    InitGPUSparse();
+}
+
+void SparseMatrix::OverrideSize(int height_, int width_)
+{
+   height = height_;
+   width = width_;
 }
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
@@ -455,25 +463,112 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
-   const int * Ip=HostReadI();
-   HostReadWriteJ();
-   HostReadWriteData();
-
-   Array<Pair<int,double> > row;
-   for (int j = 0, i = 0; i < height; i++)
+#ifdef MFEM_USE_CUDA_OR_HIP
+   if ( Device::Allows( Backend::CUDA_MASK ))
    {
-      int end = Ip[i+1];
-      row.SetSize(end - j);
-      for (int k = 0; k < row.Size(); k++)
+#if defined(MFEM_USE_CUDA)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+      csru2csrInfo_t sortInfoA;
+
+      cusparseMatDescr_t matA_descr;
+      cusparseCreateMatDescr( &matA_descr );
+      cusparseSetMatIndexBase( matA_descr, CUSPARSE_INDEX_BASE_ZERO );
+      cusparseSetMatType( matA_descr, CUSPARSE_MATRIX_TYPE_GENERAL );
+
+      cusparseCreateCsru2csrInfo( &sortInfoA );
+
+      cusparseDcsru2csr_bufferSizeExt( handle, n, m, nnzA, d_a_sorted, d_ia,
+                                       d_ja_sorted, sortInfoA,
+                                       &pBufferSizeInBytes);
+
+      CuMemAlloc( &pBuffer, pBufferSizeInBytes );
+
+      cusparseDcsru2csr( handle, n, m, nnzA, matA_descr, d_a_sorted, d_ia,
+                         d_ja_sorted, sortInfoA, pBuffer);
+
+      // The above call is (at least in some cases) asynchronous, so we need to
+      // wait for it to finish before we can free device temporaries.
+      MFEM_STREAM_SYNC;
+
+      cusparseDestroyCsru2csrInfo( sortInfoA );
+      cusparseDestroyMatDescr( matA_descr );
+
+      CuMemFree( pBuffer );
+#endif
+   }
+   else if ( Device::Allows( Backend::HIP_MASK ))
+   {
+#if defined(MFEM_USE_HIP)
+      size_t pBufferSizeInBytes = 0;
+      void *pBuffer = NULL;
+      int *P = NULL;
+
+      const int n = Height();
+      const int m = Width();
+      const int nnzA = J.Capacity();
+      double * d_a_sorted = ReadWriteData();
+      const int * d_ia = ReadI();
+      int * d_ja_sorted = ReadWriteJ();
+
+      hipsparseMatDescr_t descrA;
+      hipsparseCreateMatDescr( &descrA );
+      // FIXME: There is not in-place version of csr sort in hipSPARSE currently, so we make
+      //        a temporary copy of the data for gthr, sort that, and then copy the sorted values
+      //        back to the array being returned. Where there is an in-place version available,
+      //        we should use it.
+      Array< double > a_tmp( nnzA );
+      double *d_a_tmp = a_tmp.Write();
+
+      hipsparseXcsrsort_bufferSizeExt(handle, n, m, nnzA, d_ia, d_ja_sorted,
+                                      &pBufferSizeInBytes);
+
+      HipMemAlloc( &pBuffer, pBufferSizeInBytes );
+      HipMemAlloc( (void**)&P, nnzA * sizeof(int) );
+
+      hipsparseCreateIdentityPermutation(handle, nnzA, P);
+      hipsparseXcsrsort(handle, n, m, nnzA, descrA, d_ia, d_ja_sorted, P, pBuffer);
+
+      hipsparseDgthr(handle, nnzA, d_a_sorted, d_a_tmp, P,
+                     HIPSPARSE_INDEX_BASE_ZERO);
+
+      A.CopyFrom( a_tmp.GetMemory(), nnzA );
+      hipsparseDestroyMatDescr( descrA );
+
+      HipMemFree( pBuffer );
+      HipMemFree( P );
+#endif
+   }
+   else
+#endif // MFEM_USE_CUDA_OR_HIP
+   {
+      const int * Ip=HostReadI();
+      HostReadWriteJ();
+      HostReadWriteData();
+
+      Array<Pair<int,double> > row;
+      for (int j = 0, i = 0; i < height; i++)
       {
-         row[k].one = J[j+k];
-         row[k].two = A[j+k];
-      }
-      row.Sort();
-      for (int k = 0; k < row.Size(); k++, j++)
-      {
-         J[j] = row[k].one;
-         A[j] = row[k].two;
+         int end = Ip[i+1];
+         row.SetSize(end - j);
+         for (int k = 0; k < row.Size(); k++)
+         {
+            row[k].one = J[j+k];
+            row[k].two = A[j+k];
+         }
+         row.Sort();
+         for (int k = 0; k < row.Size(); k++, j++)
+         {
+            J[j] = row[k].one;
+            A[j] = row[k].two;
+         }
       }
    }
    isSorted = true;
@@ -584,7 +679,7 @@ void SparseMatrix::GetDiag(Vector & d) const
    const auto AA = this->ReadData();
    auto dd = d.Write();
 
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       const int begin = II[i];
       const int end = II[i+1];
@@ -778,7 +873,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    else
    {
       // Native version
-      MFEM_FORALL(i, height,
+      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
       {
          double d = 0.0;
          const int end = d_I[i+1];
@@ -842,15 +937,13 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AddMult(x, y, a);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = a * x[i];
@@ -899,7 +992,7 @@ void SparseMatrix::PartMult(
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.Write();
-   MFEM_FORALL(i, n,
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
    {
       const int r = d_rows[i];
       const int end = d_I[r + 1];
@@ -944,7 +1037,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
    auto d_J = Read(J, nnz);
    auto d_x = Read(x.GetMemory(), x.Size());
    auto d_y = Write(y.GetMemory(), y.Size());
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       bool d_yi = false;
       const int end = d_I[i+1];
@@ -1020,7 +1113,7 @@ void SparseMatrix::AbsMult(const Vector &x, Vector &y) const
    auto d_A = Read(A, nnz);
    auto d_x = x.Read();
    auto d_y = y.ReadWrite();
-   MFEM_FORALL(i, height,
+   mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
    {
       double d = 0.0;
       const int end = d_I[i+1];
@@ -1057,15 +1150,13 @@ void SparseMatrix::AbsMultTranspose(const Vector &x, Vector &y) const
       return;
    }
 
+   EnsureMultTranspose();
    if (At)
    {
       At->AbsMult(x, y);
    }
    else
    {
-      MFEM_VERIFY(!Device::Allows(~Backend::CPU_MASK), "transpose action with "
-                  "this backend is not enabled; see EnsureMultTranspose() for "
-                  "details.");
       for (int i = 0; i < height; i++)
       {
          const double xi = x[i];
@@ -1254,7 +1345,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if ((i-1) != aux->Column) { continue; }
 
             bool found = false;
-            double found_val;
+            double found_val = 0.0; // init to suppress gcc warning
             for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == (i-1))
@@ -1290,7 +1381,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
             if (i != aux->Column) { continue; }
 
             bool found = false;
-            double found_val;
+            double found_val = 0.0; // init to suppress gcc warning
             for (RowNode *other = Rows[aux->Column]; other != NULL; other = other->Prev)
             {
                if (other->Column == i)
@@ -1496,8 +1587,9 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   if (A != NULL)  // matrix is finalized
+   if (Finalized())
    {
+      HostReadI();
       return I[height];
    }
    else
@@ -1675,6 +1767,7 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
             if (aux->Column == col)
             {
                aux->Value = 0.0;
+               break;
             }
          }
       }
@@ -1764,6 +1857,9 @@ void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
+   HostReadWriteI();
+   HostReadWriteJ();
+   HostReadWriteData();
 
    if (Rows == NULL)
    {
@@ -2217,6 +2313,49 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
    }
 }
 
+void SparseMatrix::EliminateBC(const Array<int> &ess_dofs,
+                               DiagonalPolicy diag_policy)
+{
+   const int n_ess_dofs = ess_dofs.Size();
+   const auto ess_dofs_d = ess_dofs.Read();
+   const auto dI = ReadI();
+   const auto dJ = ReadJ();
+   auto dA = ReadWriteData();
+
+   mfem::forall(n_ess_dofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int idof = ess_dofs_d[i];
+      for (int j=dI[idof]; j<dI[idof+1]; ++j)
+      {
+         const int jdof = dJ[j];
+         if (jdof != idof)
+         {
+            dA[j] = 0.0;
+            for (int k=dI[jdof]; k<dI[jdof+1]; ++k)
+            {
+               if (dJ[k] == idof)
+               {
+                  dA[k] = 0.0;
+                  break;
+               }
+            }
+         }
+         else
+         {
+            if (diag_policy == DiagonalPolicy::DIAG_ONE)
+            {
+               dA[j] = 1.0;
+            }
+            else if (diag_policy == DiagonalPolicy::DIAG_ZERO)
+            {
+               dA[j] = 0.0;
+            }
+            // else (diag_policy == DiagonalPolicy::DIAG_KEEP)
+         }
+      }
+   });
+}
+
 void SparseMatrix::SetDiagIdentity()
 {
    for (int i = 0; i < height; i++)
@@ -2495,7 +2634,7 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
    const auto bp = b.Read(use_dev);
    auto xp = x.Write(use_dev);
 
-   MFEM_FORALL_SWITCH(use_dev, i, H,
+   mfem::forall_switch(use_dev, H, [=] MFEM_HOST_DEVICE (int i)
    {
       const int end = Ip[i+1];
       for (int j = Ip[i]; true; j++)
@@ -2534,7 +2673,7 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
    const auto Jp = Read(J, J.Capacity(), useDevice);
    const auto Ap = Read(A, J.Capacity(), useDevice);
 
-   MFEM_FORALL_SWITCH(useDevice, i, height,
+   mfem::forall_switch(useDevice, height, [=] MFEM_HOST_DEVICE (int i)
    {
       double resi = bp[i], norm = 0.0;
       for (int j = Ip[i]; j < Ip[i+1]; j++)
@@ -3005,7 +3144,7 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
-               << B.height << ", B.width = " << width);
+               << B.height << ", B.width = " << B.width);
 
    for (int i = 0; i < height; i++)
    {
@@ -3155,16 +3294,35 @@ void SparseMatrix::PrintMatlab(std::ostream & os) const
 {
    os << "% size " << height << " " << width << "\n";
    os << "% Non Zeros " << NumNonZeroElems() << "\n";
+
    int i, j;
    ios::fmtflags old_fmt = os.flags();
    os.setf(ios::scientific);
    std::streamsize old_prec = os.precision(14);
 
-   for (i = 0; i < height; i++)
+   if (A == NULL)
    {
-      for (j = I[i]; j < I[i+1]; j++)
+      RowNode *nd;
+      for (i = 0; i < height; i++)
       {
-         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
+         {
+            os << i+1 << " " << nd->Column+1 << " " << nd->Value << '\n';
+         }
+      }
+   }
+   else
+   {
+      // HostRead forces synchronization
+      HostReadI();
+      HostReadJ();
+      HostReadData();
+      for (i = 0; i < height; i++)
+      {
+         for (j = I[i]; j < I[i+1]; j++)
+         {
+            os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         }
       }
    }
    // Write a zero entry at (m,n) to make sure MATLAB doesn't shrink the matrix
@@ -3184,11 +3342,30 @@ void SparseMatrix::PrintMM(std::ostream & os) const
       << "% Generated by MFEM" << '\n';
 
    os << height << " " << width << " " << NumNonZeroElems() << '\n';
-   for (i = 0; i < height; i++)
+
+   if (A == NULL)
    {
-      for (j = I[i]; j < I[i+1]; j++)
+      RowNode *nd;
+      for (i = 0; i < height; i++)
       {
-         os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         for (nd = Rows[i], j = 0; nd != NULL; nd = nd->Prev, j++)
+         {
+            os << i+1 << " " << nd->Column+1 << " " << nd->Value << '\n';
+         }
+      }
+   }
+   else
+   {
+      // HostRead forces synchronization
+      HostReadI();
+      HostReadJ();
+      HostReadData();
+      for (i = 0; i < height; i++)
+      {
+         for (j = I[i]; j < I[i+1]; j++)
+         {
+            os << i+1 << " " << J[j]+1 << " " << A[j] << '\n';
+         }
       }
    }
    os.precision(old_prec);
@@ -3203,6 +3380,10 @@ void SparseMatrix::PrintCSR(std::ostream & os) const
 
    os << height << '\n';  // number of rows
 
+   // HostRead forces synchronization
+   HostReadI();
+   HostReadJ();
+   HostReadData();
    for (i = 0; i <= height; i++)
    {
       os << I[i]+1 << '\n';
@@ -3228,6 +3409,10 @@ void SparseMatrix::PrintCSR2(std::ostream & os) const
    os << height << '\n'; // number of rows
    os << width << '\n';  // number of columns
 
+   // HostRead forces synchronization
+   HostReadI();
+   HostReadJ();
+   HostReadData();
    for (i = 0; i <= height; i++)
    {
       os << I[i] << '\n';
@@ -3380,9 +3565,9 @@ SparseMatrix *Transpose (const SparseMatrix &A)
    m      = A.Height(); // number of rows of A
    n      = A.Width();  // number of columns of A
    nnz    = A.NumNonZeroElems();
-   A_i    = A.GetI();
-   A_j    = A.GetJ();
-   A_data = A.GetData();
+   A_i    = A.HostReadI();
+   A_j    = A.HostReadJ();
+   A_data = A.HostReadData();
 
    At_i = Memory<int>(n+1);
    At_j = Memory<int>(nnz);

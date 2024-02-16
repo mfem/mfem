@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,10 @@
 # CONTRIBUTING.md for details.
 
 # The variable CMAKE_CXX_STANDARD and related were introduced in CMake v3.1
-cmake_minimum_required(VERSION 3.1)
+# Version 3.8 fixes the handling of CMAKE_CXX_STANDARD for try_compile.
+# Version 3.8 or newer is required for direct CUDA support.
+cmake_minimum_required(VERSION 3.8)
+message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
@@ -22,8 +25,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
-message(STATUS "(optional) USER_CONFIG = ${USER_CONFIG}")
-include("${USER_CONFIG}" OPTIONAL)
+include("${USER_CONFIG}" OPTIONAL RESULT_VARIABLE USER_CONFIG_LOADED)
+if (USER_CONFIG_LOADED)
+  set(USER_CONFIG_LOADED "LOADED")
+endif()
+message(STATUS "Loading USER_CONFIG = ${USER_CONFIG} (${USER_CONFIG_LOADED})")
 include("${CMAKE_CURRENT_SOURCE_DIR}/config/defaults.cmake")
 
 # Allow overwriting of the compiler by setting CXX/MPICXX on the command line or
@@ -51,7 +57,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.3.1)
+set(${PROJECT_NAME}_VERSION 4.6.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -66,8 +72,7 @@ set(XSDK_ENABLE_C OFF)
 set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
-if (CMAKE_VERSION VERSION_LESS 3.2 OR
-    MFEM_USE_CONDUIT OR
+if (MFEM_USE_CONDUIT OR
     MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
    # This seems to be needed by:
@@ -77,11 +82,17 @@ if (CMAKE_VERSION VERSION_LESS 3.2 OR
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-if (MFEM_USE_GINKGO AND ("${CMAKE_CXX_STANDARD}" LESS "14"))
+# SUNDIALS, STRUMPACK, Ginkgo, RAJA and Umpire require C++14:
+if ((MFEM_USE_SUNDIALS OR
+     MFEM_USE_STRUMPACK OR
+     MFEM_USE_GINKGO OR
+     MFEM_USE_RAJA OR
+     MFEM_USE_UMPIRE) AND
+    ("${CMAKE_CXX_STANDARD}" LESS "14"))
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
@@ -99,17 +110,12 @@ if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
       message(FATAL_ERROR " *** MFEM_USE_HIP cannot be combined with MFEM_USE_CUDA.")
    endif()
-   # MFEM_USE_CUDA requires CMake 3.8 or newer (for direct CUDA support)
-   cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
    # Use ${CMAKE_CXX_COMPILER} as the cuda host compiler.
    if (NOT CMAKE_CUDA_HOST_COMPILER)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD 11)
-   if (MFEM_USE_GINKGO)
-     set(CMAKE_CUDA_STANDARD 14)
-   endif()
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
    set(CMAKE_CUDA_EXTENSIONS OFF)
    set(CUDA_FLAGS "--expt-extended-lambda")
@@ -132,10 +138,10 @@ if (MFEM_USE_CUDA)
       set(CUDA_FLAGS "-ccbin=${CMAKE_CXX_COMPILER} ${CUDA_FLAGS}")
       set(CMAKE_CUDA_HOST_LINK_LAUNCHER ${CMAKE_CXX_COMPILER})
    endif()
-   set(CMAKE_CUDA_FLAGS "${CUDA_FLAGS}" CACHE STRING
-       "CUDA flags set for MFEM" FORCE)
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
+   find_package(CUDAToolkit REQUIRED)
    set(CUSPARSE_FOUND TRUE)
-   set(CUSPARSE_LIBRARIES "cusparse")
+   get_target_property(CUSPARSE_LIBRARIES CUDA::cusparse LOCATION)
 endif()
 
 if (XSDK_ENABLE_C)
@@ -180,6 +186,23 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
+# Shared build on Windows
+if (WIN32 AND BUILD_SHARED_LIBS)
+  # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON CACHE BOOL
+      "Automatically export symbols for shared Windows DLL build")
+  # Place all .dll and .exe files in the same sub-directory, 'bin/<config>', of
+  # the build directory, so that the .exe files can find the .dll files at
+  # runtime:
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+  # Note: CMake tests are run from the build-tree sub-directory where the test
+  # is defined, e.g. <build-dir>/tests/unit, so hard coded paths to meshes still
+  # work fine.
+  # Not strictly necessary:
+  # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+  # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+endif()
+
 # AMD HIP
 if (MFEM_USE_HIP)
   if (HIP_ARCH)
@@ -193,15 +216,35 @@ if (MFEM_USE_HIP)
   find_package(HIPSPARSE REQUIRED)
 endif()
 
+# OpenMP
+if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
+  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
+    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
+  endif()
+  find_package(OpenMP REQUIRED)
+  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
+  if(APPLE)
+    # On macOS, the compiler needs additional help to find the <omp.h> header.
+    # See issue #2642 for more information.
+    set(OPENMP_INCLUDE_DIRS ${OpenMP_CXX_INCLUDE_DIRS})
+  endif(APPLE)
+  if (OPENMP_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    if (MFEM_USE_CUDA)
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
+    endif()
+  endif()
+endif()
+
 # MPI -> hypre; PETSc (optional)
 if (MFEM_USE_MPI)
   find_package(MPI REQUIRED)
   set(MPI_CXX_INCLUDE_DIRS ${MPI_CXX_INCLUDE_PATH})
   if (MFEM_MPIEXEC)
-    set(MPIEXEC ${MFEM_MPIEXEC})
+    string(REPLACE " " ";" MPIEXEC ${MFEM_MPIEXEC})
   endif()
   if (MFEM_MPIEXEC_NP)
-    set(MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
+    string(REPLACE " " ";" MPIEXEC_NUMPROC_FLAG ${MFEM_MPIEXEC_NP})
   endif()
   # Parallel MFEM depends on hypre
   find_package(HYPRE REQUIRED)
@@ -258,20 +301,6 @@ if (MFEM_USE_LAPACK)
   find_package(LAPACK REQUIRED)
 endif()
 
-# OpenMP
-if (MFEM_USE_OPENMP OR MFEM_USE_LEGACY_OPENMP)
-  if (NOT MFEM_THREAD_SAFE AND MFEM_USE_LEGACY_OPENMP)
-    message(FATAL_ERROR " *** MFEM_USE_LEGACY_OPENMP requires MFEM_THREAD_SAFE=ON.")
-  endif()
-  find_package(OpenMP REQUIRED)
-  set(OPENMP_LIBRARIES ${OpenMP_CXX_LIBRARIES})
-  if(APPLE)
-    # On macOS, the compiler needs additional help to find the <omp.h> header.
-    # See issue #2642 for more information.
-    include_directories(${OpenMP_CXX_INCLUDE_DIRS})
-  endif(APPLE)
-endif()
-
 # SuiteSparse (before SUNDIALS which may depend on KLU)
 if (MFEM_USE_SUITESPARSE)
   find_package(SuiteSparse REQUIRED
@@ -287,12 +316,10 @@ if (MFEM_USE_SUNDIALS)
   if (MFEM_USE_CUDA)
     list(APPEND SUNDIALS_COMPONENTS NVector_Cuda)
   endif()
+  if (MFEM_USE_HIP)
+    list(APPEND SUNDIALS_COMPONENTS NVector_Hip)
+  endif()
   find_package(SUNDIALS REQUIRED ${SUNDIALS_COMPONENTS})
-endif()
-
-# Mesquite
-if (MFEM_USE_MESQUITE)
-  find_package(Mesquite REQUIRED)
 endif()
 
 # SuperLU_DIST can only be enabled in parallel
@@ -308,6 +335,7 @@ endif()
 if (MFEM_USE_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
+    set(MFEM_MUMPS_VERSION ${MUMPS_VERSION})
   else()
     message(FATAL_ERROR " *** MUMPS requires that MPI be enabled.")
   endif()
@@ -379,6 +407,21 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# Moonolith
+if(MFEM_USE_MOONOLITH)
+  find_package(ParMoonolith REQUIRED)
+  if(ParMoonolith_FOUND)
+    get_target_property(
+      MOONOLITH_INCLUDE_DIRS ParMoonolith::par_moonolith
+      INTERFACE_INCLUDE_DIRECTORIES)
+    set(MOONOLITH_FOUND TRUE)
+    set(MOONOLITH_LIBRARIES ParMoonolith::par_moonolith)
+    message(
+      STATUS
+      "MOONOLITH_LIBRARIES=${MOONOLITH_LIBRARIES}, MOONOLITH_INCLUDE_DIRS=${MOONOLITH_INCLUDE_DIRS}")
+  endif()
+endif()
+
 # HiOp optimizer
 if (MFEM_USE_HIOP)
   find_package(HIOP REQUIRED)
@@ -416,20 +459,36 @@ if (MFEM_USE_CALIPER)
   find_package(Caliper REQUIRED)
 endif()
 
+# Algoim
+if (MFEM_USE_ALGOIM)
+  find_package(Algoim REQUIRED)
+endif()
+
 # ADIOS2 for parallel I/O
 if (MFEM_USE_ADIOS2)
    find_package(ADIOS2 REQUIRED)
 endif()
 
+# MKL CPardiso
 if (MFEM_USE_MKL_CPARDISO)
   if (MFEM_USE_MPI)
    find_package(MKL_CPARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64 MKL_MPI_WRAPPER)
   endif()
 endif()
 
+# MKL Pardiso
+if (MFEM_USE_MKL_PARDISO)
+   find_package(MKL_PARDISO REQUIRED MKL_SEQUENTIAL MKL_LP64)
+endif()
+
 # PARELAG
 if (MFEM_USE_PARELAG)
    find_package(PARELAG REQUIRED)
+endif()
+
+# Enzyme
+if (MFEM_USE_ENZYME)
+   find_package(ENZYME REQUIRED)
 endif()
 
 # MFEM_TIMER_TYPE
@@ -450,16 +509,29 @@ if (NOT DEFINED MFEM_TIMER_TYPE)
   endif()
 endif()
 
+# Without this, CMake 3.21.1 (and 3.20.2) run into CMake Errors like the following:
+# CMake Error at config/cmake/modules/MfemCmakeUtilities.cmake:60 (add_library):
+#   Target "mfem" links to target "Threads::Threads" but the target was not
+#   found.  Perhaps a find_package() call is missing for an IMPORTED target, or
+#   an ALIAS target is missing?
+# Call Stack (most recent call first):
+#   CMakeLists.txt:474 (mfem_add_library)
+#
+# NOTE: We need to figure out which TPL library adds the dependency on
+#       "Threads::Threads" and call the next line only when that TPL library is
+#       enabled.  -V. Dobrev
+find_package(Threads REQUIRED)
+
 # List all possible libraries in order of dependencies.
 # [METIS < SuiteSparse]:
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE BLAS LAPACK SuperLUDist METIS SuiteSparse SUNDIALS
-    PETSC SLEPC MESQUITE MUMPS STRUMPACK AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
+set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
+    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
-    ADIOS2 CUSPARSE MKL_CPARDISO AMGX CALIPER CODIPACK BENCHMARK PARELAG
-    MPI_CXX HIP HIPSPARSE)
+    ADIOS2 CUSPARSE MKL_CPARDISO MKL_PARDISO AMGX CALIPER CODIPACK
+    BENCHMARK PARELAG MPI_CXX HIP HIPSPARSE MOONOLITH BLITZ ALGOIM ENZYME)
 
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -471,19 +543,13 @@ foreach(TPL IN LISTS MFEM_TPLS)
     list(APPEND TPL_INCLUDE_DIRS ${${TPL}_INCLUDE_DIRS})
   endif()
 endforeach(TPL)
+list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_LIBRARIES)
+list(REVERSE TPL_LIBRARIES)
 list(REMOVE_DUPLICATES TPL_INCLUDE_DIRS)
 # message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
-include_directories(${TPL_INCLUDE_DIRS})
 
-if (OPENMP_FOUND)
-  message(STATUS "MFEM: using package OpenMP")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  if (MFEM_USE_CUDA)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=${OpenMP_CXX_FLAGS}")
-  endif()
-endif()
-
+message(STATUS "MFEM shared library: BUILD_SHARED_LIBS = ${BUILD_SHARED_LIBS}")
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
@@ -496,6 +562,11 @@ message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 set(SOURCES "")
 set(HEADERS "")
 set(MFEM_SOURCE_DIRS general linalg mesh fem)
+
+if(MFEM_USE_MOONOLITH)
+  set(MFEM_SOURCE_DIRS ${MFEM_SOURCE_DIRS} fem/moonolith)
+endif()
+
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
@@ -526,6 +597,27 @@ target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
+if (MSVC)
+  target_compile_options(mfem PUBLIC "/wd4819")
+endif()
+message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
+target_include_directories(mfem
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    # The INSTALL_INTERFACE is handled below
+    ${TPL_INCLUDE_DIRS})
+if (MFEM_USE_MPI)
+  if (MPI_CXX_COMPILE_FLAGS)
+    separate_arguments(MPI_CXX_COMPILE_ARGS UNIX_COMMAND
+      "${MPI_CXX_COMPILE_FLAGS}")
+    target_compile_options(mfem PUBLIC ${MPI_CXX_COMPILE_ARGS})
+  endif()
+  if (MPI_CXX_LINK_FLAGS)
+    target_link_libraries(mfem PUBLIC ${MPI_CXX_LINK_FLAGS})
+  endif()
+endif()
+
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
@@ -537,6 +629,7 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
+set(MFEM_SHARED_BUILD ${BUILD_SHARED_LIBS})
 configure_file(
   "${PROJECT_SOURCE_DIR}/config/cmake/config.hpp.in"
   "${PROJECT_BINARY_DIR}/config/_config.hpp")
@@ -547,16 +640,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
   foreach(Header mfem.hpp mfem-performance.hpp)
     message(STATUS
       "Writing substitute header --> \"${Header}\"")
-    file(WRITE "${PROJECT_BINARY_DIR}/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/${Header}.tmp"
 "// Auto-generated file.
 #define MFEM_CONFIG_FILE \"${PROJECT_BINARY_DIR}/config/_config.hpp\"
 #include \"${PROJECT_SOURCE_DIR}/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/${Header}.tmp"
+    )
+
     # This version will be installed in the top include directory:
-    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    file(WRITE "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
 "// Auto-generated file.
 #include \"mfem/${Header}\"
 ")
+
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}"
+    )
+    execute_process(COMMAND ${CMAKE_COMMAND} -E remove
+      "${PROJECT_BINARY_DIR}/InstallHeaders/${Header}.tmp"
+    )
+
   endforeach()
 endif()
 
@@ -648,11 +759,17 @@ add_subdirectory(doc)
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 set(INSTALL_INCLUDE_DIR include
   CACHE PATH "Relative path for installing header files.")
+set(INSTALL_BIN_DIR bin
+  CACHE PATH "Relative path for installing the binaries.")
 set(INSTALL_LIB_DIR lib
   CACHE PATH "Relative path for installing the library.")
 # other options: "share/mfem/cmake", "lib/mfem/cmake"
 set(INSTALL_CMAKE_DIR lib/cmake/mfem
   CACHE PATH "Relative path for installing cmake config files.")
+
+target_include_directories(mfem BEFORE
+  PUBLIC
+    $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
 # The 'install' target will not depend on 'all'.
 # set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
@@ -662,7 +779,9 @@ set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME Development)
 # Install the library
 install(TARGETS ${PROJECT_NAME}
   EXPORT ${PROJECT_NAME_UC}Targets
-  DESTINATION ${INSTALL_LIB_DIR})
+  RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+  LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+  ARCHIVE DESTINATION ${INSTALL_LIB_DIR})
 
 # Install the master headers
 foreach(Header mfem.hpp mfem-performance.hpp)
@@ -687,7 +806,7 @@ endif()
 if (MFEM_USE_CEED)
   install(DIRECTORY ${MFEM_SOURCE_DIRS}
     DESTINATION ${INSTALL_INCLUDE_DIR}/mfem
-    FILES_MATCHING PATTERN "fem/ceed/*.h")
+    FILES_MATCHING PATTERN "fem/ceed/integrators/*/*.h")
 endif()
 
 # Install ${HEADERS}
@@ -700,10 +819,8 @@ endif()
 
 # Install the configuration header files
 install(FILES ${PROJECT_BINARY_DIR}/config/_config.hpp
-  DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config
-  RENAME config.hpp)
-
-install(FILES ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
+  ${PROJECT_SOURCE_DIR}/config/config.hpp
+  ${PROJECT_SOURCE_DIR}/config/tconfig.hpp
   DESTINATION ${INSTALL_INCLUDE_DIR}/mfem/config)
 
 # Package the whole thing up nicely
@@ -718,14 +835,8 @@ export(TARGETS ${PROJECT_NAME}
 # TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
-# Extract the include directories required to use MFEM
-get_target_property(MFEM_TPL_INCLUDE_DIRS mfem INCLUDE_DIRECTORIES)
-if (NOT MFEM_TPL_INCLUDE_DIRS)
-  set(MFEM_TPL_INCLUDE_DIRS "")
-endif()
-
 # This is the build-tree version
-set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${MFEM_TPL_INCLUDE_DIRS})
+set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfig.cmake
@@ -733,7 +844,7 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
 
 # This is the version that will be installed
-set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${MFEM_TPL_INCLUDE_DIRS})
+set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake

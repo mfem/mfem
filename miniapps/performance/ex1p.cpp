@@ -87,11 +87,10 @@ struct ex1_t
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
 #ifdef MFEM_HPC_EX1_2D
@@ -142,7 +141,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (static_cond && perf && matrix_free)
@@ -152,7 +150,6 @@ int main(int argc, char *argv[])
          cout << "\nStatic condensation can not be used with matrix-free"
               " evaluation!\n" << endl;
       }
-      MPI_Finalize();
       return 2;
    }
    MFEM_VERIFY(perf || !matrix_free,
@@ -236,7 +233,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
                  << "Recompile with suitable 'geom' value." << endl;
          }
          delete mesh;
-         MPI_Finalize();
          return 4;
       }
       else if (!mesh_t::MatchesNodes(*mesh))
@@ -341,7 +337,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
       delete fespace;
       delete fec;
       delete mesh;
-      MPI_Finalize();
       return 5;
    }
 
@@ -570,8 +565,6 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
    if (order > 0) { delete fec; }
    delete pmesh;
    delete pcg;
-
-   MPI_Finalize();
 
    return 0;
 }

@@ -1,4 +1,4 @@
-//                      MFEM Example 29 - Parallel Version
+//                       MFEM Example 29 - Parallel Version
 //
 // Compile with: make ex29p
 //
@@ -63,10 +63,11 @@ void fluxExact(const Vector &x, Vector &f)
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi(argc, argv);
-   int num_procs = mpi.WorldSize();
-   int myid = mpi.WorldRank();
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // 2. Parse command-line options.
    int order = 3;
@@ -127,7 +128,10 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, dim);
    ParFiniteElementSpace fespace(&pmesh, &fec);
    HYPRE_Int total_num_dofs = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
+   if (Mpi::Root())
+   {
+      cout << "Number of unknowns: " << total_num_dofs << endl;
+   }
 
    // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all

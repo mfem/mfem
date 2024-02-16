@@ -324,7 +324,7 @@ void trans(const Vector &x, Vector &r)
    }
    else
    {
-      cout << "side not recognized "
+      cerr << "side not recognized "
            << x[0] << " " << x[1] << " " << x[2] << endl;
    }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,29 +22,107 @@
 #include "globals.hpp"
 #include <mpi.h>
 
-
 namespace mfem
 {
 
-/** @brief A simple convenience class that calls MPI_Init() at construction and
+/** @brief A simple singleton class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
     MPI_COMM_WORLD's rank and size. */
+class Mpi
+{
+public:
+   /// Singleton creation with Mpi::Init(argc, argv).
+   static void Init(int &argc, char **&argv,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   { Init(&argc, &argv, required, provided); }
+   /// Singleton creation with Mpi::Init().
+   static void Init(int *argc = nullptr, char ***argv = nullptr,
+                    int required = default_thread_required,
+                    int *provided = nullptr)
+   {
+      MFEM_VERIFY(!IsInitialized(), "MPI already initialized!");
+      if (required == MPI_THREAD_SINGLE)
+      {
+         int mpi_err = MPI_Init(argc, argv);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = MPI_THREAD_SINGLE; }
+      }
+      else
+      {
+         int mpi_provided;
+         int mpi_err = MPI_Init_thread(argc, argv, required, &mpi_provided);
+         MFEM_VERIFY(!mpi_err, "error in MPI_Init()!");
+         if (provided) { *provided = mpi_provided; }
+      }
+      // The Mpi singleton object below needs to be created after MPI_Init() for
+      // some MPI implementations.
+      Singleton();
+   }
+   /// Finalize MPI (if it has been initialized and not yet already finalized).
+   static void Finalize()
+   {
+      if (IsInitialized() && !IsFinalized()) { MPI_Finalize(); }
+   }
+   /// Return true if MPI has been initialized.
+   static bool IsInitialized()
+   {
+      int mpi_is_initialized;
+      int mpi_err = MPI_Initialized(&mpi_is_initialized);
+      return (mpi_err == MPI_SUCCESS) && mpi_is_initialized;
+   }
+   /// Return true if MPI has been finalized.
+   static bool IsFinalized()
+   {
+      int mpi_is_finalized;
+      int mpi_err = MPI_Finalized(&mpi_is_finalized);
+      return (mpi_err == MPI_SUCCESS) && mpi_is_finalized;
+   }
+   /// Return the MPI rank in MPI_COMM_WORLD.
+   static int WorldRank()
+   {
+      int world_rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+      return world_rank;
+   }
+   /// Return the size of MPI_COMM_WORLD.
+   static int WorldSize()
+   {
+      int world_size;
+      MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+      return world_size;
+   }
+   /// Return true if the rank in MPI_COMM_WORLD is zero.
+   static bool Root() { return WorldRank() == 0; }
+   /// Default level of thread support for MPI_Init_thread.
+   static MFEM_EXPORT int default_thread_required;
+private:
+   /// Initialize the Mpi singleton.
+   static Mpi &Singleton()
+   {
+      static Mpi mpi;
+      return mpi;
+   }
+   /// Finalize MPI.
+   ~Mpi() { Finalize(); }
+   /// Prevent direct construction of objects of this class.
+   Mpi() {}
+};
+
+/** @brief A simple convenience class based on the Mpi singleton class above.
+    Preserved for backward compatibility. New code should use Mpi::Init() and
+    other Mpi methods instead. */
 class MPI_Session
 {
-protected:
-   int world_rank, world_size;
-   void GetRankAndSize();
 public:
-   MPI_Session() { MPI_Init(NULL, NULL); GetRankAndSize(); }
-   MPI_Session(int &argc, char **&argv)
-   { MPI_Init(&argc, &argv); GetRankAndSize(); }
-   ~MPI_Session() { MPI_Finalize(); }
+   MPI_Session() { Mpi::Init(); }
+   MPI_Session(int &argc, char **&argv) { Mpi::Init(argc, argv); }
    /// Return MPI_COMM_WORLD's rank.
-   int WorldRank() const { return world_rank; }
+   int WorldRank() const { return Mpi::WorldRank(); }
    /// Return MPI_COMM_WORLD's size.
-   int WorldSize() const { return world_size; }
+   int WorldSize() const { return Mpi::WorldSize(); }
    /// Return true if WorldRank() == 0.
-   bool Root() const { return world_rank == 0; }
+   bool Root() const { return Mpi::Root(); }
 };
 
 
@@ -154,7 +232,7 @@ public:
    };
 
 protected:
-   GroupTopology &gtopo;
+   const GroupTopology &gtopo;
    Mode mode;
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
@@ -177,7 +255,7 @@ public:
        - initialize the Table reference returned by GroupLDofTable() and then
          call Finalize().
    */
-   GroupCommunicator(GroupTopology &gt, Mode m = byNeighbor);
+   GroupCommunicator(const GroupTopology &gt, Mode m = byNeighbor);
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
@@ -199,7 +277,7 @@ public:
    void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
-   GroupTopology &GetGroupTopology() { return gtopo; }
+   const GroupTopology &GetGroupTopology() { return gtopo; }
 
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
@@ -492,8 +570,8 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode(int rank) {}
-   virtual void Decode(int rank) {}
+   virtual void Encode(int rank) = 0;
+   virtual void Decode(int rank) = 0;
 };
 
 
