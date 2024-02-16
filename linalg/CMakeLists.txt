@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,6 +14,7 @@ list(APPEND SRCS
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
+  complex_densemat.cpp
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
@@ -33,6 +34,7 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  complex_densemat.hpp
   complex_operator.hpp
   constraints.hpp
   densemat.hpp
@@ -52,6 +54,8 @@ list(APPEND HDRS
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
+  tensor.hpp
+  dual.hpp
   vector.hpp
   )
 
@@ -118,6 +122,11 @@ endif()
 if (MFEM_USE_MKL_CPARDISO)
   list(APPEND SRCS cpardiso.cpp)
   list(APPEND HDRS cpardiso.hpp)
+endif()
+
+if (MFEM_USE_MKL_PARDISO)
+  list(APPEND SRCS pardiso.cpp)
+  list(APPEND HDRS pardiso.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

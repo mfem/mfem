@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,10 +45,12 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
 
    if (dim == 1)
    {
-      MFEM_VERIFY(D1D <= MAX_D1D, "Orders higher than " << MAX_D1D-1
+      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D,
+                  "Orders higher than " << DeviceDofQuadLimits::Get().MAX_D1D-1
                   << " are not supported!");
-      MFEM_VERIFY(Q1D <= MAX_Q1D, "Quadrature rules with more than "
-                  << MAX_Q1D << " 1D points are not supported!");
+      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+                  "Quadrature rules with more than "
+                  << DeviceDofQuadLimits::Get().MAX_Q1D << " 1D points are not supported!");
       Values1D<L>(NE, B, X, Y, vdim, D1D, Q1D);
       return;
    }
@@ -67,13 +69,13 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
 
          default:
          {
-            constexpr int MD = MAX_D1D;
-            constexpr int MQ = MAX_Q1D;
+            const int MD = DeviceDofQuadLimits::Get().MAX_D1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_Q1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Values2D<L,0,0,0,0,MD,MQ>(NE,B,X,Y,vdim,D1D,Q1D);
+            Values2D<L>(NE,B,X,Y,vdim,D1D,Q1D);
             return;
          }
       }
@@ -90,15 +92,25 @@ void TensorValues<QVectorLayout::byVDIM>(const int NE,
          case 0x336: return Values3D<L,3,3,6>(NE,B,X,Y);
          case 0x348: return Values3D<L,3,4,8>(NE,B,X,Y);
 
+         // Used for LOR batched assembly
+         case 0x322: return Values3D<L,3,2,2>(NE,B,X,Y);
+         case 0x333: return Values3D<L,3,3,3>(NE,B,X,Y);
+         case 0x344: return Values3D<L,3,4,4>(NE,B,X,Y);
+         case 0x355: return Values3D<L,3,5,5>(NE,B,X,Y);
+         case 0x366: return Values3D<L,3,6,6>(NE,B,X,Y);
+         case 0x377: return Values3D<L,3,7,7>(NE,B,X,Y);
+         case 0x388: return Values3D<L,3,8,8>(NE,B,X,Y);
+         case 0x399: return Values3D<L,3,9,9>(NE,B,X,Y);
+
          default:
          {
-            constexpr int MD = 8;
-            constexpr int MQ = 8;
+            const int MD = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
+            const int MQ = DeviceDofQuadLimits::Get().MAX_INTERP_1D;
             MFEM_VERIFY(D1D <= MD, "Orders higher than " << MD-1
                         << " are not supported!");
             MFEM_VERIFY(Q1D <= MQ, "Quadrature rules with more than "
                         << MQ << " 1D points are not supported!");
-            Values3D<L,0,0,0,MD,MQ>(NE,B,X,Y,vdim,D1D,Q1D);
+            Values3D<L>(NE,B,X,Y,vdim,D1D,Q1D);
             return;
          }
       }

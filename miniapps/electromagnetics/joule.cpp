@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,12 +126,13 @@ int electromagnetics::STATIC_COND        = 0;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   MPI_Session mpi(argc, argv);
-   int myid = mpi.WorldRank();
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    // print the cool banner
-   if (mpi.Root()) { display_banner(cout); }
+   if (Mpi::Root()) { display_banner(cout); }
 
    // 2. Parse command-line options.
    const char *mesh_file = "cylinder-hex.mesh";
@@ -201,13 +202,13 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(cout);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(cout);
    }
@@ -216,7 +217,7 @@ int main(int argc, char *argv[])
    sj_  = sigma;
    wj_  = 2.0*M_PI*freq;
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "\nSkin depth sqrt(2.0/(wj*mj*sj)) = " << sqrt(2.0/(wj_*mj_*sj_))
            << "\nSkin depth sqrt(2.0*dt/(mj*sj)) = " << sqrt(2.0*dt/(mj_*sj_))
@@ -233,7 +234,7 @@ int main(int argc, char *argv[])
    //    We can use the same material maps for both problems.
 
    std::map<int, double> sigmaMap, InvTcondMap, TcapMap, InvTcapMap;
-   double sigmaAir;
+   double sigmaAir = 0.0; // init to suppress gcc warning
    double TcondAir;
    double TcapAir;
    if (strcmp(problem,"rod")==0 || strcmp(problem,"coil")==0)
@@ -360,7 +361,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
       default:
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
@@ -450,7 +451,7 @@ int main(int argc, char *argv[])
    HYPRE_BigInt glob_size_rt = HDivFESpace.GlobalTrueVSize();
    HYPRE_BigInt glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       cout << "Number of Temperature Flux unknowns:  " << glob_size_rt << endl;
       cout << "Number of Temperature unknowns:       " << glob_size_l2 << endl;
@@ -658,7 +659,7 @@ int main(int argc, char *argv[])
       {
          double el = oper.ElectricLosses(E_gf);
 
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             cout << fixed;
             cout << "step " << setw(6) << ti << ",\tt = " << setw(6)

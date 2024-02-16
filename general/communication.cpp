@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,10 @@
 #include "sort_pairs.hpp"
 #include "globals.hpp"
 
+#ifdef MFEM_USE_STRUMPACK
+#include <StrumpackConfig.hpp> // STRUMPACK_USE_PTSCOTCH, etc.
+#endif
+
 #include <iostream>
 #include <map>
 
@@ -34,11 +38,12 @@ using namespace std;
 namespace mfem
 {
 
-void MPI_Session::GetRankAndSize()
-{
-   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-}
+#if defined(MFEM_USE_STRUMPACK) && \
+    (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
+int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
+#else
+int Mpi::default_thread_required = MPI_THREAD_SINGLE;
+#endif
 
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
@@ -347,7 +352,7 @@ const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
 const MPI_Datatype MPITypeMap<double>::mpi_type = MPI_DOUBLE;
 
 
-GroupCommunicator::GroupCommunicator(GroupTopology &gt, Mode m)
+GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    : gtopo(gt), mode(m)
 {
    group_buf_size = 0;

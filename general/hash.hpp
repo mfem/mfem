@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,7 @@
 #include "array.hpp"
 #include "globals.hpp"
 #include <type_traits>
+#include <cstdint>
 
 namespace mfem
 {
@@ -93,6 +94,8 @@ public:
    HashTable(int block_size = 16*1024, int init_hash_size = 32*1024);
    /// @brief Deep copy
    HashTable(const HashTable& other);
+   /// @brief Copy assignment not supported
+   HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
    /** @brief Item accessor with key (or parents) the pair 'p1', 'p2'. Default
@@ -282,7 +285,7 @@ public:
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
 
    /// @brief Return total size of allocated memory (tables plus items), in bytes.
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
    /// @brief Write details of the memory usage to the mfem output stream.
    void PrintMemoryDetail() const;
@@ -332,6 +335,8 @@ public:
 
    iterator begin() { return iterator(Base::begin()); }
    iterator end() { return iterator(); }
+   const_iterator begin() const { return const_iterator(Base::cbegin()); }
+   const_iterator end() const { return const_iterator(); }
 
    const_iterator cbegin() const { return const_iterator(Base::cbegin()); }
    const_iterator cend() const { return const_iterator(); }
@@ -411,7 +416,7 @@ protected:
 
        @param[in] idx The bin/bucket index.
        @param[in] id The index of the item in the BlockArray<T>.
-       @param[in] item The item to insert at the begining of the linked list.
+       @param[in] item The item to insert at the beginning of the linked list.
 
        @warning The method only works with bin 'idx' and does not check the
                 overall fill factor of the hash table. If appropriate,
@@ -873,7 +878,7 @@ void HashTable<T>::Reparent(int id,
 }
 
 template<typename T>
-long HashTable<T>::MemoryUsage() const
+std::size_t HashTable<T>::MemoryUsage() const
 {
    return (mask+1) * sizeof(int) + Base::MemoryUsage() + unused.MemoryUsage();
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,9 +74,8 @@ public:
    inline Array(int asize, MemoryType mt)
       : size(asize) { asize > 0 ? data.New(asize, mt) : data.Reset(mt); }
 
-   /** @brief Creates array using an existing c-array of asize elements;
-       allocsize is set to -asize to indicate that the data will not
-       be deleted. */
+   /** @brief Creates array using an externally allocated pointer @a data_ to
+       @a asize elements. The data pointer will not be deleted by Array. */
    inline Array(T *data_, int asize)
    { data.Wrap(data_, asize, false); size = asize; }
 
@@ -91,6 +90,9 @@ public:
    /// Deep copy from a braced init-list of convertible type
    template <typename CT, int N>
    explicit inline Array(const CT (&values)[N]);
+
+   /// Move constructor ("steals" data from 'src')
+   inline Array(Array<T> &&src) { Swap(src, *this); }
 
    /// Destructor
    inline ~Array() { TypeAssert(); data.Delete(); }
@@ -122,7 +124,7 @@ public:
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
-   /// Return true if the data will be deleted by the array
+   /// Return true if the data will be deleted by the Array
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Changes the ownership of the data
@@ -298,7 +300,7 @@ public:
    inline const T* end() const { return data + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
-   long MemoryUsage() const { return Capacity() * sizeof(T); }
+   std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
 
    /// Shortcut for mfem::Read(a.GetMemory(), a.Size(), on_dev).
    const T *Read(bool on_dev = true) const
@@ -344,7 +346,7 @@ inline bool operator!=(const Array<T> &LHS, const Array<T> &RHS)
 
 
 /// Utility function similar to std::as_const in c++17.
-template <typename T> const T &AsConst(T &a) { return a; }
+template <typename T> const T &AsConst(const T &a) { return a; }
 
 
 template <class T>
@@ -366,6 +368,8 @@ private:
 public:
    Array2D() { M = N = 0; }
    Array2D(int m, int n) : array1d(m*n) { M = m; N = n; }
+
+   Array2D(const Array2D &) = default;
 
    void SetSize(int m, int n) { array1d.SetSize(m*n); M = m; N = n; }
 
@@ -460,6 +464,9 @@ public:
 
    inline const T &operator()(int i, int j, int k) const;
    inline       T &operator()(int i, int j, int k);
+
+   inline void operator=(const T &a)
+   { array1d = a; }
 };
 
 
@@ -473,6 +480,7 @@ class BlockArray
 public:
    BlockArray(int block_size = 16*1024);
    BlockArray(const BlockArray<T> &other); // deep copy
+   BlockArray& operator=(const BlockArray&) = delete; // not supported
    ~BlockArray() { Destroy(); }
 
    /// Allocate and construct a new item in the array, return its index.
@@ -508,7 +516,7 @@ public:
 
    void Swap(BlockArray<T> &other);
 
-   long MemoryUsage() const;
+   std::size_t MemoryUsage() const;
 
 protected:
    template <typename cA, typename cT>
@@ -871,9 +879,8 @@ template <class T>
 inline void Array<T>::MakeRef(const Array &master)
 {
    data.Delete();
-   data = master.data; // note: copies the device flag
    size = master.size;
-   data.ClearOwnerFlags();
+   data.MakeAlias(master.GetMemory(), 0, size);
 }
 
 template <class T>
@@ -1042,10 +1049,9 @@ void BlockArray<T>::Swap(BlockArray<T> &other)
 }
 
 template<typename T>
-long BlockArray<T>::MemoryUsage() const
+std::size_t BlockArray<T>::MemoryUsage() const
 {
-   return blocks.Size()*(mask+1)*sizeof(T) +
-          blocks.MemoryUsage();
+   return (mask+1)*sizeof(T)*blocks.Size() + blocks.MemoryUsage();
 }
 
 template<typename T>

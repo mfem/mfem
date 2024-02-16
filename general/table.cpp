@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -189,6 +189,9 @@ void Table::GetRow(int i, Array<int> &row) const
    MFEM_ASSERT(i >= 0 && i < size, "Row index " << i << " is out of range [0,"
                << size << ')');
 
+   HostReadJ();
+   HostReadI();
+
    row.SetSize(RowSize(i));
    row.Assign(GetRow(i));
 }
@@ -215,7 +218,8 @@ void Table::SetIJ(int *newI, int *newJ, int newsize)
 
 int Table::Push(int i, int j)
 {
-   MFEM_ASSERT( i >=0 && i<size, "Index out of bounds.  i = "<<i);
+   MFEM_ASSERT(i >=0 &&
+               i<size, "Index out of bounds.  i = " << i << " size " << size);
 
    for (int k = I[i], end = I[i+1]; k < end; k++)
    {
@@ -395,7 +399,7 @@ void Table::Swap(Table & other)
    mfem::Swap(J, other.J);
 }
 
-long Table::MemoryUsage() const
+std::size_t Table::MemoryUsage() const
 {
    if (size < 0 || I == NULL) { return 0; }
    return (size+1 + I[size]) * sizeof(int);
