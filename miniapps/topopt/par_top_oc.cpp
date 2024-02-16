@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
    ParametrizedElasticityEquation elasticity(state_fes,
                                              density.GetFilteredDensity(), simp_rule, E_cf, mu_cf, *vforce_cf, ess_bdr);
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
-                         true);
+                         false);
 
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
