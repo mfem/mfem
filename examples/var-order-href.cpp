@@ -158,8 +158,9 @@ int main()
       SparseMatrix Mc;
       Array<int> empty;
       ac.FormSystemMatrix(empty,Mc);
-      UMFPackSolver invMc(Mc);
-      invMc.Mult(truecY,truecX);
+
+      GSSmoother M(Mc);
+      PCG(Mc, M, truecY, truecX, 1, 200, 1e-16, 0.0);
 
       if (P)
       {
@@ -170,7 +171,6 @@ int main()
          cX.MakeRef(truecX,0);
       }
    }
-
 
    {
       socketstream gf2_sock(vishost, visport);
