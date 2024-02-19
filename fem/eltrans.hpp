@@ -170,12 +170,13 @@ public:
    virtual int GetSpaceDim() const = 0;
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
+                             const double phys_tol = 1e-15) = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -442,14 +443,16 @@ public:
    virtual int GetSpaceDim() const { return PointMat.Height(); }
 
    /** @brief Transform a point @a pt from physical space to a point @a ip in
-       reference space. */
+       reference space and optionally can set a solver tolerance using @a phys_tol. */
    /** Attempt to find the IntegrationPoint that is transformed into the given
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip,
+                             const double phys_rel_tol = 1e-15)
    {
       InverseElementTransformation inv_tr(this);
+      inv_tr.SetPhysicalRelTol(phys_rel_tol);
       return inv_tr.Transform(v, ip);
    }
 

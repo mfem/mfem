@@ -42,8 +42,6 @@ public:
    // make sense for the action of the nonlinear operator (but they all make
    // sense for its Jacobian).
 
-   using NonlinearFormIntegrator::AssemblePA;
-
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
        used later in the methods AddMultPA() and AddMultTransposePA(). */
@@ -282,7 +280,7 @@ private:
    DenseMatrix bfi_elmat;
 
 public:
-   TransposeIntegrator (BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
+   TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
    { bfi = bfi_; own_bfi = own_bfi_; }
 
    virtual void SetIntRule(const IntegrationRule *ir);
@@ -301,8 +299,6 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-
-   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePA(const FiniteElementSpace& fes)
    {
@@ -2230,10 +2226,9 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2296,10 +2291,9 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
@@ -2333,7 +2327,6 @@ public:
    BoundaryMassIntegrator(Coefficient &q) : MassIntegrator(q) { }
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
-
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
@@ -2366,10 +2359,9 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
-   using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssembleMF(const FiniteElementSpace &fes);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace&);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -2783,7 +2775,6 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
-   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
@@ -3032,6 +3023,7 @@ public:
                                       ElementTransformation &Tr,
                                       DenseMatrix &elmat);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleDiagonalPA(Vector &diag);
@@ -3091,6 +3083,7 @@ public:
    /// lifetime of this integrator.
    ElasticityComponentIntegrator(ElasticityIntegrator &parent_, int i_, int j_);
 
+   using BilinearFormIntegrator::AssemblePA;
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
@@ -3161,8 +3154,6 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
-
-   using BilinearFormIntegrator::AssemblePA;
 
    virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
 
@@ -3599,7 +3590,6 @@ public:
    { ran_fe.Project(dom_fe, Trans, elmat); }
 
    using BilinearFormIntegrator::AssemblePA;
-
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
