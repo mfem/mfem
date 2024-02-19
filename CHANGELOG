@@ -31,6 +31,10 @@ GPU support
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new block solver in miniapp/solvers for the Darcy problem.
+  The new solver is based on a Bramble-Pasciak preconditioning. User can
+  use and implement their own preconditioner for the mass matrix.
+
 - Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
   and a block diagonal preconditioner using low order refinement. Allows comparison with
   currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
