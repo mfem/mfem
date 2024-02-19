@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,8 +12,8 @@
 if (MFEM_USE_MPI)
   add_mfem_miniapp(block-solvers
     MAIN block-solvers.cpp
-    EXTRA_SOURCES div_free_solver.cpp
-    EXTRA_HEADERS div_free_solver.hpp
+    EXTRA_SOURCES darcy_solver.cpp div_free_solver.cpp bramble_pasciak.cpp
+    EXTRA_HEADERS darcy_solver.hpp div_free_solver.hpp bramble_pasciak.hpp
     LIBRARIES mfem)
 
   add_mfem_miniapp(plor_solvers
@@ -32,13 +32,13 @@ if (MFEM_USE_MPI)
     add_test(NAME block-solvers-constant_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -r 2 -no-vis
+      $<TARGET_FILE:block-solvers> -rs 1 -rp 1 -no-vis
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME block-solvers-anisotropic_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:block-solvers> -r 2
+      $<TARGET_FILE:block-solvers> -rs 1 -rp 1
       -m ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.mesh
       -c ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.coeff
       -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd

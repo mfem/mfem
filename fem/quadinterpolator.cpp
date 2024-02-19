@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -168,7 +168,6 @@ static void Eval2D(const int NE,
    MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 2, "");
    MFEM_VERIFY(ND <= QI::MAX_ND2D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ2D, "");
-   MFEM_VERIFY(VDIM == 2 || !(eval_flags & QI::DETERMINANTS), "");
    MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
                "'geom' must be given (non-null) only when evaluating physical"
                " derivatives");
@@ -277,11 +276,17 @@ static void Eval2D(const int NE,
                   }
                }
             }
-            if (VDIM == 2 && (eval_flags & QI::DETERMINANTS))
+            if (eval_flags & QI::DETERMINANTS)
             {
-               // The check (VDIM == 2) should eliminate this block when VDIM is
-               // known at compile time and (VDIM != 2).
-               det(q,e) = kernels::Det<2>(D);
+               if (VDIM == 2) { det(q,e) = kernels::Det<2>(D); }
+               else
+               {
+                  DeviceTensor<2> j(D, 3, 2);
+                  const double E = j(0,0)*j(0,0) + j(1,0)*j(1,0) + j(2,0)*j(2,0);
+                  const double F = j(0,0)*j(0,1) + j(1,0)*j(1,1) + j(2,0)*j(2,1);
+                  const double G = j(0,1)*j(0,1) + j(1,1)*j(1,1) + j(2,1)*j(2,1);
+                  det(q,e) = sqrt(E*G - F*F);
+               }
             }
          }
       }
@@ -471,6 +476,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const DofToQuad::Mode mode =
       use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
    const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
    const GeometricFactors *geom = nullptr;
    if (eval_flags & PHYSICAL_DERIVATIVES)
    {
@@ -478,6 +484,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
    }
 
+   MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
+               (dim == 2 && vdim == 3), "Invalid dimensions for determinants.");
    MFEM_ASSERT(fespace->GetMesh()->GetNumGeometries(
                   fespace->GetMesh()->Dimension()) == 1,
                "mixed meshes are not supported");
@@ -529,7 +537,6 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    {
       const int nd = maps.ndof;
       const int nq = maps.nqpt;
-      const int dim = maps.FE->GetDim();
 
       void (*mult)(const int NE,
                    const int vdim,
