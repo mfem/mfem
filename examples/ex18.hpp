@@ -52,11 +52,6 @@ private:
    // Compute element-wise weak-divergence matrix
    void ComputeWeakDivergence();
 
-   /// @brief Compute flux for rows of states
-   /// @param state state stored row-wise
-   /// @param Fu flux for each state
-   void ComputeFlux(const DenseMatrix &state, DenseTensor &Fu) const;
-
 public:
    /**
     * @brief Construct a new DGHyperbolicConservationLaws object
@@ -229,35 +224,6 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
       }
    }
    max_char_speed = formIntegrator->GetMaxCharSpeed();
-}
-
-void DGHyperbolicConservationLaws::ComputeFlux(const DenseMatrix &state,
-                                               DenseTensor &Fu) const
-{
-   const int total_dof = state.Height();
-   const int num_equations = state.Width();
-   Vector current_state;
-   DenseMatrix current_flux(num_equations, dim);
-   const FluxFunction &fluxFunction = formIntegrator->GetFluxFunction();
-   int idx = 0;
-   for (int i=0; i<vfes.GetNE(); i++)
-   {
-      auto Tr = vfes.GetElementTransformation(i);
-      int dof = vfes.GetFE(i)->GetDof();
-      for (int j=0; j<dof; j++)
-      {
-         state.GetRow(idx + j, current_state);
-         fluxFunction.ComputeFlux(current_state, *Tr, current_flux);
-         for (int d = 0; d < dim; d++)
-         {
-            for (int k=0; k<num_equations; k++)
-            {
-               Fu(idx + j, d, k) = current_flux(k, d);
-            }
-         }
-      }
-      idx += dof;
-   }
 }
 
 void DGHyperbolicConservationLaws::Update()
