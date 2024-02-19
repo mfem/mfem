@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
    const double gas_constant = 1.0;
 
    string mesh_file = "";
-   int IntOrderOffset = 3;
+   int IntOrderOffset = 1;
    int ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
+   bool preassemble = true;
    int vis_steps = 50;
 
    int precision = 8;
@@ -94,6 +95,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&preassemble, "-pa", "--preassemble", "-mf",
+                  "--matrix-free",
+                  "Preassemble weak-divergence assuming F(u) is linear");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.ParseCheck();
@@ -158,7 +162,7 @@ int main(int argc, char *argv[])
                                                         gas_constant);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
-
+   GridFunction mom(&dfes, sol.GetData());
    // Output the initial solution.
    {
       ostringstream mesh_name;
@@ -184,7 +188,7 @@ int main(int argc, char *argv[])
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(
       vfes, std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)));
+         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)), preassemble);
 
    // Visualize the density
    socketstream sout;
@@ -203,7 +207,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         GridFunction mom(&dfes, sol.GetData());
          sout << "solution\n" << mesh << mom;
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light
@@ -263,7 +266,6 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
-            GridFunction mom(&dfes, sol.GetData());
             sout << "solution\n" << mesh << mom << flush;
             sout << "window_title 't = " << t << "'";
          }

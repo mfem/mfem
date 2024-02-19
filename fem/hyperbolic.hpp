@@ -178,8 +178,6 @@ private:
    Vector shape2;  // shape function value at an integration point - second elem
    Vector state1;  // state value at an integration point - first elem
    Vector state2;  // state value at an integration point - second elem
-   Vector fluxN1;  // flux dot n value at an integration point - first elem
-   Vector fluxN2;  // flux dot n value at an integration point - second elem
    Vector nor;     // normal vector, @see CalcOrtho
    Vector fluxN;   // hat(F)(u,x)
 #endif
@@ -210,8 +208,8 @@ public:
                                          const ElementTransformation &Tr,
                                          const int IntOrderOffset_)
    {
-      const int order = 2 * el.GetOrder() + Tr.OrderJ() + IntOrderOffset_;
-      return IntRules.Get(el.GetGeomType(), order);
+      const int order = 2 * el.GetOrder() + Tr.OrderW() + IntOrderOffset_;
+      return IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    /**
@@ -230,9 +228,9 @@ public:
                                          const FaceElementTransformations &Tr,
                                          const int IntOrderOffset_)
    {
-      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderJ() +
+      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderW() +
                         IntOrderOffset_;
-      return IntRules.Get(trial_fe.GetGeomType(), order);
+      return IntRules.Get(Tr.GetGeometryType(), order);
    }
 
    /**
@@ -248,6 +246,8 @@ public:
    {
       return max_char_speed;
    }
+
+   const FluxFunction &GetFluxFunction() {return fluxFunction; }
 
    /**
     * @brief implement (F(u), grad v) with abstract F computed by ComputeFlux
@@ -292,7 +292,13 @@ public:
 class RusanovFlux : public RiemannSolver
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction): RiemannSolver(fluxFunction) {}
+   RusanovFlux(const FluxFunction &fluxFunction): RiemannSolver(fluxFunction)
+   {
+#ifndef MFEM_THREAD_SAFE
+      fluxN1.SetSize(fluxFunction.num_equations);
+      fluxN2.SetSize(fluxFunction.num_equations);
+#endif
+   }
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *

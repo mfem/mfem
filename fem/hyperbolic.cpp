@@ -99,10 +99,6 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    Vector state1(num_equations);
    // state value at an integration point - second elem
    Vector state2(num_equations);
-   // flux dot n value at an integration point - first elem
-   Vector fluxN1(num_equations);
-   // flux dot n value at an integration point - second elem
-   Vector fluxN2(num_equations);
    // hat(F)(u,x)
    Vector fluxN(num_equations);
 #else
@@ -130,7 +126,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.SetAllIntPoints(&ip);  // setDegree face and element int. points
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
 
       // Calculate basis functions on both elements at the face
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
@@ -159,18 +155,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
-      fluxN *= ip.weight;
-      for (int k = 0; k < num_equations; k++)
-      {
-         for (int s = 0; s < dof1; s++)
-         {
-            elvect1_mat(s, k) -= fluxN(k) * shape1(s);
-         }
-         for (int s = 0; s < dof2; s++)
-         {
-            elvect2_mat(s, k) += fluxN(k) * shape2(s);
-         }
-      }
+      AddMult_a_VWt(-ip.weight, shape1, fluxN, elvect1_mat);
+      AddMult_a_VWt(+ip.weight, shape2, fluxN, elvect2_mat);
    }
 }
 
@@ -188,8 +174,6 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    flux.SetSize(num_equations, fluxFunction.dim);
    state1.SetSize(num_equations);
    state2.SetSize(num_equations);
-   fluxN1.SetSize(num_equations);
-   fluxN2.SetSize(num_equations);
    fluxN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
@@ -212,9 +196,6 @@ double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
-#else
-   fluxN1.SetSize(fluxFunction.num_equations);
-   fluxN2.SetSize(fluxFunction.num_equations);
 #endif
    const double speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
    const double speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
