@@ -188,6 +188,7 @@ int main(int argc, char *argv[])
                                                         gas_constant);
    ParGridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
+   ParGridFunction mom(&dfes, sol.GetData());
 
    // Output the initial solution.
    {
@@ -237,7 +238,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         ParGridFunction mom(&dfes, sol.GetData());
          sout << "parallel " << numProcs << " " << myRank << "\n";
          sout.precision(precision);
          sout << "solution\n" << pmesh << mom;
@@ -313,7 +313,6 @@ int main(int argc, char *argv[])
          }
          if (visualization)
          {
-            ParGridFunction mom(&dfes, sol.GetData());
             sout << "parallel " << numProcs << " " << myRank << "\n";
             sout << "solution\n" << pmesh << mom;
             sout << "window_title 't = " << t << "'" << flush;
