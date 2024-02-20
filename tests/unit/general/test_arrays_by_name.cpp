@@ -31,6 +31,24 @@ void FillArraysByName(ArraysByName<int> &abn)
    abn["four"] = a4;
 }
 
+void FillNonUniqueArraysByName(ArraysByName<int> &abn)
+{
+   abn.CreateArray("1 potato");
+   abn.CreateArray("2 potato");
+   abn.CreateArray("3 potato");
+   abn.CreateArray("four");
+
+   Array<int> a3({2.0, 4.0, 6.0, 4.0, 2.0});
+   int ContigData[6] = {4, 3, 3, 2, 1, 1};
+   Array<int> a4(ContigData, 6);
+
+   abn["1 potato"].SetSize(3); abn["1 potato"] = 100;
+   abn["2 potato"].Append(5);  abn["2 potato"].Append(10);
+   abn["2 potato"].Append(5);  abn["2 potato"].Append(10);
+   abn["3 potato"] = a3;
+   abn["four"] = a4;
+}
+
 TEST_CASE("ArraysByName range-based for loop", "[ArraysByName]")
 {
    ArraysByName<int> abn;
@@ -126,4 +144,59 @@ TEST_CASE("ArraysByName Various Methods", "[ArraysByName]")
    REQUIRE(!abn.EntryExists("four"));
    REQUIRE(!abn.EntryExists("5 potato"));
    REQUIRE(abn.Size() == 0);
+}
+
+TEST_CASE("ArraysByName Sort/Unique Methods", "[ArraysByName]")
+{
+   ArraysByName<int> abn;
+
+   FillNonUniqueArraysByName(abn);
+
+   // Verify sizes
+   int i = 1;
+   for (auto a : abn)
+   {
+      REQUIRE(a.second.Size() == i + 2);
+      i++;
+   }
+
+   // Sort entries
+   abn.SortAll();
+
+   // Re-Verify sizes
+   i = 1;
+   for (auto a : abn)
+   {
+      REQUIRE(a.second.Size() == i + 2);
+      i++;
+   }
+
+   // Verify sorting
+   for (auto a : abn)
+   {
+      for (int j=1; j<a.second.Size(); j++)
+      {
+         REQUIRE(a.second[j] >= a.second[j-1]);
+      }
+   }
+
+   // Remove duplicates
+   abn.UniqueAll();
+
+   // Verify new sizes
+   i = 1;
+   for (auto a : abn)
+   {
+      REQUIRE(a.second.Size() == i);
+      i++;
+   }
+
+   // Verify strict sorting
+   for (auto a : abn)
+   {
+      for (int j=1; j<a.second.Size(); j++)
+      {
+         REQUIRE(a.second[j] > a.second[j-1]);
+      }
+   }
 }

@@ -222,7 +222,7 @@ inline void ArraysByName<T>::DeleteArray(const std::string &name)
 template <class T>
 inline void ArraysByName<T>::SortAll()
 {
-   for (auto a : data)
+   for (auto &a : data)
    {
       a.second.Sort();
    }
@@ -231,7 +231,7 @@ inline void ArraysByName<T>::SortAll()
 template <class T>
 inline void ArraysByName<T>::UniqueAll()
 {
-   for (auto a : data)
+   for (auto &a : data)
    {
       a.second.Unique();
    }
