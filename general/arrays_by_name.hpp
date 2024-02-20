@@ -23,6 +23,23 @@
 namespace mfem
 {
 
+/**
+   Container class for storing arrays indexed by strings.
+
+   The Array<T> objects stored within this container must all be based on the
+   same underlying generic type T, which must be a trivial type, see
+   `std::is_trivial`.
+
+   In order to provide some level of protection against typos this class will
+   not create new named arrays when access to unrecognized names is requested.
+   New named arrays must be explicitly created using
+   `ArraysByName<T>::CreateArray()`. To facilitate this behavior and avoid
+   such errors the method `ArraysByName<T>::EntryExists()` is provided.
+
+   This container does not store pointers to pre-existing arrays it will copy
+   or move entries as appropriate from existing Array<T> objects into new
+   Array<T> objects stored within this container.
+*/
 template <class T>
 class ArraysByName
 {
