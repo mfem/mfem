@@ -21,7 +21,7 @@
 namespace mfem
 {
 
-//! @class BlockConstOperator
+//! @typedef BlockConstOperator
 /**
  * \brief A class to handle constant Block systems in a matrix-free implementation.
  *
@@ -32,19 +32,9 @@ namespace mfem
  *
  * If a block is not set, it is assumed to be a zero block.
  */
-class BlockConstOperator : public TBlockOperator<const Operator>
-{
-public:
-   using TBlockOperator::TBlockOperator;
+typedef TBlockOperator<const Operator> BlockConstOperator;
 
-   /// Copy assignment is not supported
-   BlockConstOperator &operator=(const BlockConstOperator &) = delete;
-
-   /// Move assignment is not supported
-   BlockConstOperator &operator=(BlockConstOperator &&) = delete;
-};
-
-//! @class BlockOperator
+//! @typedef BlockOperator
 /**
  * \brief A class to handle Block systems in a matrix-free implementation.
  *
@@ -55,17 +45,7 @@ public:
  *
  * If a block is not set, it is assumed to be a zero block.
  */
-class BlockOperator : public TBlockOperator<Operator>
-{
-public:
-   using TBlockOperator::TBlockOperator;
-
-   /// Copy assignment is not supported
-   BlockOperator &operator=(const BlockOperator &) = delete;
-
-   /// Move assignment is not supported
-   BlockOperator &operator=(BlockOperator &&) = delete;
-};
+typedef TBlockOperator<Operator> BlockOperator;
 
 //! @class BlockDiagonalPreconditioner
 /**
