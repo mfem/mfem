@@ -34,6 +34,8 @@ namespace mfem
  */
 typedef TBlockOperator<const Operator> BlockConstOperator;
 
+extern template class TBlockOperator<const Operator>;
+
 //! @typedef BlockOperator
 /**
  * \brief A class to handle Block systems in a matrix-free implementation.
@@ -46,6 +48,8 @@ typedef TBlockOperator<const Operator> BlockConstOperator;
  * If a block is not set, it is assumed to be a zero block.
  */
 typedef TBlockOperator<Operator> BlockOperator;
+
+extern template class TBlockOperator<Operator>;
 
 //! @class BlockDiagonalPreconditioner
 /**

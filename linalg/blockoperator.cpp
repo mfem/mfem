@@ -18,6 +18,9 @@
 namespace mfem
 {
 
+template class TBlockOperator<const Operator>;
+template class TBlockOperator<Operator>;
+
 BlockDiagonalPreconditioner::BlockDiagonalPreconditioner(
    const Array<int> & offsets_):
    Solver(offsets_.Last()),
