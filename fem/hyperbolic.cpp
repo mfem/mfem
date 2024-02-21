@@ -369,7 +369,7 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
    // sound speed, √(γ p / ρ)
    const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = std::fabs(momentum * normal / normal.Norml2()) / density;
+   const double speed = std::fabs(normal_velocity) / std::sqrt(normal*normal);
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }
