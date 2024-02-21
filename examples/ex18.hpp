@@ -45,7 +45,6 @@ private:
    mutable double max_char_speed;
    // auxiliary variable used in Mult
    mutable Vector z;
-   mutable DenseMatrix flux;
 
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
@@ -173,7 +172,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    if (!weakdiv.empty()) // if weak divergence is pre-assembled
    {
       Vector current_state;
-      DenseMatrix flux_; // element flux value. Whose column is ordered by dim.
+      DenseMatrix flux; // element flux value. Whose column is ordered by dim.
       DenseMatrix current_flux; // node flux value.
       const FluxFunction &fluxFunction = formIntegrator->GetFluxFunction();
       DenseMatrix current_zmat, current_ymat, current_xmat;
@@ -186,11 +185,11 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
          vfes.GetElementVDofs(i, vdofs);
          x.GetSubVector(vdofs, xval);
          current_xmat.UseExternalData(xval.GetData(), dof, num_equations);
-         flux_.SetSize(num_equations, dim*dof);
+         flux.SetSize(num_equations, dim*dof);
          for (int j=0; j<dof; j++)
          {
             current_xmat.GetRow(j, current_state);
-            current_flux.UseExternalData(flux_.GetData() + num_equations*dim*j,
+            current_flux.UseExternalData(flux.GetData() + num_equations*dim*j,
                                          num_equations, dof);
             fluxFunction.ComputeFlux(current_state, *Tr, current_flux);
          }
@@ -198,7 +197,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
          current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
          // Recalling that weakdiv is reordered by dim, we can apply
          // weak-divergence to the transpose of flux.
-         mfem::AddMult_a_ABt(1.0, weakdiv[i], flux_, current_zmat);
+         mfem::AddMult_a_ABt(1.0, weakdiv[i], flux, current_zmat);
          current_ymat.SetSize(dof, num_equations);
          mfem::Mult(invmass[i], current_zmat, current_ymat);
          y.SetSubVector(vdofs, current_ymat.GetData());
