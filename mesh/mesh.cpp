@@ -906,6 +906,8 @@ void Mesh::DeleteGeometricFactors()
       delete face_geom_factors[i];
    }
    face_geom_factors.SetSize(0);
+
+   ++nodes_sequence;
 }
 
 void Mesh::GetLocalFaceTransformation(int face_type, int elem_type,
@@ -1493,6 +1495,7 @@ void Mesh::Init()
    nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
+   nodes_sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
    NURBSext = NULL;
@@ -2587,6 +2590,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    {
       // To force FE space update, we need to increase 'sequence':
       sequence++;
+      nodes_sequence++;
       last_operation = Mesh::NONE;
       nodes_fes->Update(false); // want_transform = false
       Nodes->Update(); // just needed to update Nodes->sequence
@@ -2973,6 +2977,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    }
    // To force FE space update, we need to increase 'sequence':
    sequence++;
+   nodes_sequence++;
    last_operation = Mesh::NONE;
    fes->Update(false); // want_transform = false
    Nodes->Update(); // just needed to update Nodes->sequence
@@ -4096,6 +4101,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Create the new Mesh instance without a record of its refinement history
    sequence = 0;
+   nodes_sequence = 0;
    last_operation = Mesh::NONE;
 
    // Duplicate the elements
@@ -5744,6 +5750,7 @@ void Mesh::UpdateNURBS()
 
    Nodes->FESpace()->Update();
    Nodes->Update();
+   NodesUpdated();
    NURBSext->SetCoordsFromPatches(*Nodes);
 
    if (NumOfVertices != NURBSext->GetNV())
@@ -10132,11 +10139,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    last_operation = Mesh::REFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 double Mesh::AggregateError(const Array<double> &elem_error,
@@ -10338,6 +10341,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
       mfem::Swap(CoarseFineTr, other.CoarseFineTr);
 
       mfem::Swap(sequence, other.sequence);
+      mfem::Swap(nodes_sequence, other.nodes_sequence);
       mfem::Swap(last_operation, other.last_operation);
    }
 }
