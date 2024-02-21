@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
-   bool preassemble = false;
+   bool preassemble = true;
    int vis_steps = 50;
 
    int precision = 8;

@@ -208,7 +208,7 @@ public:
                                          const ElementTransformation &Tr,
                                          const int IntOrderOffset_)
    {
-      const int order = 2 * el.GetOrder() + Tr.OrderW() + IntOrderOffset_;
+      const int order = 2 * el.GetOrder() + Tr.OrderJ() + IntOrderOffset_;
       return IntRules.Get(Tr.GetGeometryType(), order);
    }
 

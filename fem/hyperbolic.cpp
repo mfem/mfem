@@ -234,7 +234,6 @@ double ShallowWaterFlux::ComputeFlux(const Vector &U,
                                      ElementTransformation &Tr,
                                      DenseMatrix &FU) const
 {
-   const int dim = U.Size() - 1;
    const double height = U(0);
    const Vector h_vel(U.GetData() + 1, dim);
 
@@ -264,7 +263,6 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
                                          FaceElementTransformations &Tr,
                                          Vector &FUdotN) const
 {
-   const int dim = normal.Size();
    const double height = U(0);
    const Vector h_vel(U.GetData() + 1, dim);
 
@@ -289,15 +287,14 @@ double EulerFlux::ComputeFlux(const Vector &U,
                               ElementTransformation &Tr,
                               DenseMatrix &FU) const
 {
-   const int dim = U.Size() - 2;
-
    // 1. Get states
    const double density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
    const double energy = U(1 + dim);             // E, internal energy ρe
-   // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
+   const double kinetic_energy = 0.5 * (momentum*momentum) / density;
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const double pressure = (specific_heat_ratio - 1.0) *
-                           (energy - 0.5 * (momentum * momentum) / density);
+                           (energy - kinetic_energy);
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
@@ -329,7 +326,7 @@ double EulerFlux::ComputeFlux(const Vector &U,
    // sound speed, √(γ p / ρ)
    const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = std::sqrt(momentum * momentum) / density;
+   const double speed = std::sqrt(2.0 * kinetic_energy / density);
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }
@@ -340,15 +337,14 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
                                   FaceElementTransformations &Tr,
                                   Vector &FUdotN) const
 {
-   const int dim = normal.Size();
-
    // 1. Get states
    const double density = x(0);                  // ρ
    const Vector momentum(x.GetData() + 1, dim);  // ρu
    const double energy = x(1 + dim);             // E, internal energy ρe
+   const double kinetic_energy = 0.5 * (momentum*momentum) / density;
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const double pressure = (specific_heat_ratio - 1.0) *
-                           (energy - 0.5 * (momentum * momentum) / density);
+                           (energy - kinetic_energy);
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
