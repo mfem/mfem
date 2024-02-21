@@ -202,7 +202,7 @@ double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
    // NOTE: nor in general is not a unit normal
    const double maxE = std::max(speed1, speed2);
    // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
-   const double scaledMaxE = maxE*sqrt(nor*nor);
+   const double scaledMaxE = maxE*std::sqrt(nor*nor);
    for (int i=0; i<state1.Size(); i++)
    {
       flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
@@ -277,7 +277,7 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
    }
 
    const double sound = std::sqrt(g * height);
-   const double vel = std::fabs(h_vel * normal / normal.Norml2()) / height;
+   const double vel = std::fabs(normal_vel) / std::sqrt(normal*normal);
 
    return vel + sound;
 }
