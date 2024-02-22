@@ -429,7 +429,11 @@ public:
        3. F(u,k,t) = M k - g(u,t)
        Regardless of the choice of F and G, this function solves for @a k in
        M @a k = g(@a u + @a gamma @a k, t). To see how @a k can be useful,
-       consider a diagonally implicit Runge-Kutta (DIRK) method defined by
+       consider backward Euler $ y(t + \Delta t) = y(t) + \Delta t k_0 $
+       where $ M k_0 = g \big( y(t) + \Delta t k_0 \big) $. A backward Euler
+       integrator can use @a k from this function, with @a u set to $ y(t) $ and
+       @a gamma set to $ \Delta t$, for $k_0$. Generalizing further, consider a
+       diagonally implicit Runge-Kutta (DIRK) method defined by
        $ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i $ where
        $ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j, t + c_i \Delta t \big) $.
        A DIRK integrator can use @a k from this function, with @a u set to
