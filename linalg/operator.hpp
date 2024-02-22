@@ -476,7 +476,7 @@ public:
 
        Presently, this method is used by SUNDIALS ODE solvers, for more
        details, see the SUNDIALS User Guides. */
-   virtual int SUNImplicitSetup(const Vector &y, const Vector &G,
+   virtual int SUNImplicitSetup(const Vector &y, const Vector &v,
                                 int jok, int *jcur, double gamma);
 
    /** @brief Solve the ODE linear system A @a x = @a b, where A is defined by
