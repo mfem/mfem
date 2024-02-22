@@ -938,7 +938,7 @@ Mesh* ReflectHighOrderMesh(Mesh & mesh, Vector origin, Vector normal)
 
          mfem::Swap(rv[0], rv[2]);  // Fix the orientation
 
-         const Geometry::Type orig_geom = mesh.GetBdrElementBaseGeometry(i);
+         const Geometry::Type orig_geom = mesh.GetBdrElementGeometry(i);
          Element *rbe = reflected->NewElement(orig_geom);
          rbe->SetVertices(v);
          reflected->AddBdrElement(rbe);
