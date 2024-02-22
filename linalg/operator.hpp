@@ -326,7 +326,7 @@ class TimeDependentOperator : public Operator
 public:
    enum Type
    {
-      EXPLICIT,   ///< This type assumes F(u,k,t) is linear in k.
+      EXPLICIT,   ///< This type assumes F(u,k,t) = k.
       IMPLICIT,   ///< This is the most general type, no assumptions on F and G.
       HOMOGENEOUS ///< This type assumes that G(u,t) = 0.
    };
@@ -336,11 +336,11 @@ public:
    {
       /** Normal evaluation. */
       NORMAL,
-      /** Assuming additive split, G(u,t) = G1(u,t) + G2(u,t), evaluate with
-          F(u,k,t) = G1(u,t). */
+      /** Assuming additive split, k(u,t) = k1(u,t) + k2(u,t), evaluate the
+          first term, k1. */
       ADDITIVE_TERM_1,
-      /** Assuming additive split, G(u,t) = G1(u,t) + G2(u,t), evaluate with
-          F(u,k,t) = G2(u,t). */
+      /** Assuming additive split, k(u,t) = k1(u,t) + k2(u,t), evaluate the
+          second term, k2. */
       ADDITIVE_TERM_2
    };
 
@@ -381,8 +381,8 @@ public:
    /** The evaluation mode is a switch that allows time-stepping methods to
        request evaluation of separate components/terms of the time-dependent
        operator. For example, IMEX methods typically assume additive split of
-       the operator: G(u,t) = G1(u,t) + G2(u,t) and they rely on the ability to
-       evaluate F(u,k,t) = G1(u,t) and F(u,k,t) = G2(u,t) separately.
+       the operator: k(u,t) = k1(u,t) + k2(u,t) and they rely on the ability to
+       evaluate the two terms separately.
 
        Generally, setting the evaluation mode should affect the behavior of all
        evaluation-related methods in the class, such as Mult(), ImplicitSolve(),
