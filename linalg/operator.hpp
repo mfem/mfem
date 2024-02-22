@@ -405,18 +405,17 @@ public:
        details, see the PETSc Manual.*/
    virtual void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const;
 
-   /** @brief Perform the action of the explicit part of the operator, G:
-       @a v = G(@a u, t) where t is the current time.
+   /** @brief Solve for unknown @a k at current time t that satisfies
+       F(@a u, @a k, t) = G(@a u, t).
 
        For solving an ordinary differential equation of the form
        \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
        the following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
-
-       This function then computes one of the following:
-       1. @a v = inv(M) g(@a u, t)
-       2. @a v = g(@a u, t) */
+       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+       Regardless of the choice of F and G, this function computes
+       @a k = inv(M) g(@a u, t) */
    virtual void Mult(const Vector &u, Vector &v) const override;
 
    /** @brief Solve for unknown @a k at current time t that satisfies
@@ -427,8 +426,8 @@ public:
        the following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
-
-       In either case, this function solves for @a k in
+       3. F(u,k,t) = M k - g(u,t)
+       Regardless of the choice of F and G, this function solves for @a k in
        M @a k = g(@a u + @a gamma @a k, t). To see how @a k can be useful,
        consider a diagonally implicit Runge-Kutta (DIRK) method defined by
        \f$ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i \f$ where
@@ -440,7 +439,7 @@ public:
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const double gamma, const Vector &u, Vector &k);
 
-   /** @brief Return an Operator representing (dF/dk @a shift + dF/dx) at the
+   /** @brief Return an Operator representing (dF/dk @a shift + dF/du) at the
        given @a u, @a k, and the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
@@ -448,7 +447,7 @@ public:
    virtual Operator& GetImplicitGradient(const Vector &u, const Vector &k,
                                          double shift) const;
 
-   /** @brief Return an Operator representing dG/dx at the given point @a u and
+   /** @brief Return an Operator representing dG/du at the given point @a u and
        the currently set time.
 
        Presently, this method is used by some PETSc ODE solvers, for more
@@ -460,15 +459,15 @@ public:
        the following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
-
+       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
        This function performs setup to solve \f$ A x = b \f$ where A is either
        1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
        2. A(@a y,t) = M - @a gamma J(@a y,t)
-
+       3. A(@a y,t) = M - @a gamma J(@a y,t)
        with J = dg/dy (or a reasonable approximation thereof).
 
        @param[in]  y     The state at which A(@a y,t) should be evaluated.
-       @param[in]  G     The value of G(@a y,t).
+       @param[in]  v     The value of inv(M) g(y,t) for 1 or g(y,t) for 2 & 3.
        @param[in]  jok   Flag indicating if the Jacobian should be updated.
        @param[out] jcur  Flag to signal if the Jacobian was updated.
        @param[in]  gamma The scaled time step value.
