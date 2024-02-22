@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    args.AddOption(&preassembleWeakDiv, "-ea", "--element-assembly-divergence",
                   "-mf", "--matrix-free-divergence",
                   "Weak divergence assembly level\n"
-                  "    ea - Element assembly with linearized F\n"
+                  "    ea - Element assembly with interpolated F\n"
                   "    mf - Nonlinear assembly in matrix-free manner");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
