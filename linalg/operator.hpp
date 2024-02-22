@@ -314,8 +314,8 @@ public:
     _implicit_ and _explicit_ parts of the operator, respectively.
 
     A common use for this class is representing a differential algebraic
-    equation of the form \f$ F(y,\frac{dy}{dt},t) = G(y,t) \f$. Consider an
-    ordinary differential equation of the form \f$ M \frac{dy}{dt} = g(y,t) \f$,
+    equation of the form $ F(y,\frac{dy}{dt},t) = G(y,t) $. Consider an
+    ordinary differential equation of the form $ M \frac{dy}{dt} = g(y,t) $,
     where F and G are defined as one of the following:
     1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
     2. F(u,k,t) = M k and G(u,t) = g(u,t)
@@ -409,8 +409,8 @@ public:
        F(@a u, @a k, t) = G(@a u, t).
 
        For solving an ordinary differential equation of the form
-       \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
-       the following:
+       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of the
+       following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
        3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
@@ -422,19 +422,19 @@ public:
        F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
 
        For solving an ordinary differential equation of the form
-       \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
-       the following:
+       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of the
+       following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
        3. F(u,k,t) = M k - g(u,t)
        Regardless of the choice of F and G, this function solves for @a k in
        M @a k = g(@a u + @a gamma @a k, t). To see how @a k can be useful,
        consider a diagonally implicit Runge-Kutta (DIRK) method defined by
-       \f$ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i \f$ where
-       \f$ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j, t + c_i \Delta t \big) \f$.
+       $ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i $ where
+       $ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j, t + c_i \Delta t \big) $.
        A DIRK integrator can use @a k from this function, with @a u set to
-       \f$ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j \f$ and @a gamma set to
-       \f$ a_{ii} \Delta t \f$, for \f$ k_i \f$.
+       $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
+       $ a_{ii} \Delta t $, for $ k_i $.
 
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const double gamma, const Vector &u, Vector &k);
@@ -455,12 +455,12 @@ public:
    virtual Operator& GetExplicitGradient(const Vector &u) const;
 
    /** @brief For solving an ordinary differential equation of the form
-       \f$ M \frac{dy}{dt} = g(y,t) \f$, recall F and G are defined as one of
+       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of
        the following:
        1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
        2. F(u,k,t) = M k and G(u,t) = g(u,t)
        3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
-       This function performs setup to solve \f$ A x = b \f$ where A is either
+       This function performs setup to solve $ A x = b $ where A is either
        1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
        2. A(@a y,t) = M - @a gamma J(@a y,t)
        3. A(@a y,t) = M - @a gamma J(@a y,t)
@@ -493,7 +493,7 @@ public:
    virtual int SUNImplicitSolve(const Vector &b, Vector &x, double tol);
 
    /** @brief Setup the mass matrix in the ODE system
-       \f$ M \frac{dy}{dt} = g(y,t) \f$ .
+       $ M \frac{dy}{dt} = g(y,t) $ .
 
        If not re-implemented, this method simply generates an error.
 
@@ -604,13 +604,13 @@ public:
    virtual void QuadratureSensitivityMult(const Vector &y, const Vector &yB,
                                           Vector &qBdot) const {}
 
-   /** @brief Setup the ODE linear system \f$ A(x,t) = (I - gamma J) \f$ or
-       \f$ A = (M - gamma J) \f$, where \f$ J(x,t) = \frac{df}{dt(x,t)} \f$.
+   /** @brief Setup the ODE linear system $ A(x,t) = (I - gamma J) $ or
+       $ A = (M - gamma J) $, where $ J(x,t) = \frac{df}{dt(x,t)} $.
 
        @param[in]  t     The current time
-       @param[in]  x     The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  xB    The state at which \f$A(x,xB,t)\f$ should be evaluated.
-       @param[in]  fxB   The current value of the ODE rhs function, \f$f(x,t)\f$.
+       @param[in]  x     The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  xB    The state at which $A(x,xB,t)$ should be evaluated.
+       @param[in]  fxB   The current value of the ODE rhs function, $f(x,t)$.
        @param[in]  jokB   Flag indicating if the Jacobian should be updated.
        @param[out] jcurB  Flag to signal if the Jacobian was updated.
        @param[in]  gammaB The scaled time step value.
@@ -629,7 +629,7 @@ public:
       return (-1);
    }
 
-   /** @brief Solve the ODE linear system \f$ A(x,xB,t) xB = b \f$ as setup by
+   /** @brief Solve the ODE linear system $ A(x,xB,t) xB = b $ as setup by
        the method SUNImplicitSetup().
 
        @param[in]      b   The linear system right-hand side.
@@ -799,6 +799,28 @@ public:
    { A.Mult(x, y); }
 };
 
+/// General linear combination operator: x -> a A(x) + b B(x).
+class SumOperator : public Operator
+{
+   const Operator *A, *B;
+   const double alpha, beta;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   SumOperator(
+      const Operator *A, const double alpha,
+      const Operator *B, const double beta,
+      bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { z.SetSize(A->Height()); A->Mult(x, z); B->Mult(x, y); add(alpha, z, beta, y, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
+
+   virtual ~SumOperator();
+};
 
 /// General product operator: x -> (A*B)(x) = A(B(x)).
 class ProductOperator : public Operator
@@ -955,6 +977,13 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 
    void AddMult(const Vector &x, Vector &y, const double a = 1.0) const override;
+
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Implementation of Mult or MultTranspose.
+    *  TODO - Generalize to allow constraining rows and columns differently.
+   */
+   void ConstrainedMult(const Vector &x, Vector &y, const bool transpose) const;
 
    /// Destructor: destroys the unconstrained Operator, if owned.
    ~ConstrainedOperator() override { if (own_A) { delete A; } }
