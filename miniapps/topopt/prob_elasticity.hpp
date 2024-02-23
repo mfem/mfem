@@ -11,7 +11,10 @@ enum ElasticityProblem
    MBB,
    LBracket,
    Cantilever3,
-   Torsion3
+   Torsion3,
+   MBB_selfloading, // below this, everything should be self-loading case
+   Arch2,
+   SelfLoading3
 };
 
 void GetElasticityProblem(const ElasticityProblem problem,
@@ -126,7 +129,6 @@ void GetElasticityProblem(const ElasticityProblem problem,
          }));
          prob_name = "Cantilever3";
       } break;
-
       case ElasticityProblem::Torsion3:
       {
          if (filter_radius < 0) { filter_radius = 0.05; }
@@ -163,6 +165,65 @@ void GetElasticityProblem(const ElasticityProblem problem,
          }));
          prob_name = "Torsion3";
       } break;
+      case ElasticityProblem::MBB_selfloading:
+      {
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.1; }
+
+         *mesh = Mesh::MakeCartesian2D(2, 1, mfem::Element::Type::QUADRILATERAL, true,
+                                       2.0,
+                                       1.0);
+         ess_bdr.SetSize(3, 5);
+         ess_bdr_filter.SetSize(5);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
+         ess_bdr(2, 4) = 1; // right-bottom : x-roller -> y fixed
+         const Vector zero({0.0, 0.0});
+         vforce_cf.reset(new VectorConstantCoefficient(zero));
+         prob_name = "MBB_selfloading";
+      } break;
+      case ElasticityProblem::Arch2:
+      {
+         if (filter_radius < 0) { filter_radius = 5e-02; }
+         if (vol_fraction < 0) { vol_fraction = 0.1; }
+
+         *mesh = Mesh::MakeCartesian2D(1, 1, mfem::Element::Type::QUADRILATERAL, true,
+                                       1.0,
+                                       1.0);
+         ess_bdr.SetSize(3, 5);
+         ess_bdr_filter.SetSize(5);
+         ess_bdr = 0; ess_bdr_filter = 0;
+         ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
+         ess_bdr(0, 4) = 1; // right-bottom : pin
+         // const Vector center({0.05, 0.95});
+         // vforce_cf.reset(new VectorFunctionCoefficient(2, [center](const Vector &x,
+         //                                                           Vector &f)
+         // {
+         //    f = 0.0;
+         //    if (x.DistanceTo(center) < 0.05) { f(1) = -1.0; }
+         // }));
+         const Vector zero({0.0, 0.0});
+         vforce_cf.reset(new VectorConstantCoefficient(zero));
+         prob_name = "Arch2";
+      } break;
+      case ElasticityProblem::SelfLoading3:
+      {
+         if (filter_radius < 0) { filter_radius = 0.1; }
+         if (vol_fraction < 0) { vol_fraction = 0.07; }
+
+         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
+         *mesh = Mesh::MakeCartesian3D(2, 2, 1, mfem::Element::Type::HEXAHEDRON,
+                                       2.0, 2.0, 1.0);
+         ess_bdr.SetSize(4, 7);
+         ess_bdr_filter.SetSize(7);
+         ess_bdr(2, 2) = 1;// front - y-roller plane
+         ess_bdr(1, 2) = 1;// left - x-roller plane
+         ess_bdr(0, 6) = 1;// corner - pin
+
+         const Vector zero({0.0, 0.0, 0.0});
+         vforce_cf.reset(new VectorConstantCoefficient(zero));
+         prob_name = "SelfLoading3";
+      } break;
 
       default:
          mfem_error("Undefined problem.");
@@ -195,6 +256,20 @@ void GetElasticityProblem(const ElasticityProblem problem,
             5);
          } break;
       }
+      case ElasticityProblem::MBB_selfloading:
+      {
+         {
+            mesh->MarkBoundary([](const Vector &x) {return ((x(0) > (2 - std::pow(2, -5))) && (x(1) < 1e-10)); },
+            5);
+         } break;
+      }
+      case ElasticityProblem::Arch2:
+      {
+         {
+            mesh->MarkBoundary([](const Vector &x) {return ((x(0) > (1 - std::pow(2, -5))) && (x(1) < 1e-10)); },
+            5);
+         } break;
+      }
       case ElasticityProblem::Torsion3:
       {
          {
@@ -206,6 +281,15 @@ void GetElasticityProblem(const ElasticityProblem problem,
             center[0] = 1.2;
             mesh->MarkBoundary([center](const Vector &x) { return (center.DistanceTo(x) < 0.2); },
             8);
+         } break;
+      }
+      case ElasticityProblem::SelfLoading3:
+      {
+         {
+            // left center: Dirichlet
+            Vector center({0.0, 0.5, 0.5});
+            mesh->MarkBoundary([](const Vector &x) { return (x[0] > 2.0 - std::pow(2, -5)) && (x[1] > 2.0 - std::pow(2, -5)) && (x[2] < 1e-10); },
+            7);
          } break;
       }
       default:

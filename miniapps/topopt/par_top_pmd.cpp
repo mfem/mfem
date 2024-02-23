@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    // Volume fraction. Use problem-dependent default value if not provided.
    // See switch statements below
    double vol_fraction = -1;
-   int max_it = 2e2;
+   int max_it = 2e3;
    double rho_min = 1e-06;
    double exponent = 3.0;
    double E = 1.0;
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
    H1_FECollection filter_fec(order, dim); // space for ρ̃
    L2_FECollection control_fec(order-1, dim,
                                BasisType::GaussLobatto); // space for ψ
-   ParFiniteElementSpace state_fes(pmesh.get(), &state_fec,dim);
+   ParFiniteElementSpace state_fes(pmesh.get(), &state_fec,dim, Ordering::byNODES);
    ParFiniteElementSpace filter_fes(pmesh.get(), &filter_fec);
    ParFiniteElementSpace control_fes(pmesh.get(), &control_fec);
 
@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
                                  (&density.GetFilteredDensity());
+   rho_filter = density.GetDomainVolume()*vol_fraction;
    {
       // Apply Filter material boundary, ess_bdr_filter == 1
       Array<int> material_bdr(ess_bdr_filter);
@@ -203,6 +204,36 @@ int main(int argc, char *argv[])
       rho_filter.ProjectBdrCoefficient(zero_cf, void_bdr);
       // Update ess_bdr_filter so that it is either 0 or 1.
       for (auto &val : ess_bdr_filter) {val = val != 0; }
+   }
+
+   std::unique_ptr<ParGridFunction> gradH1_selfload;
+   std::unique_ptr<ParLinearForm> projected_grad_selfload;
+   std::unique_ptr<ScalarVectorProductCoefficient> self_weight;
+   std::unique_ptr<VectorConstantCoefficient> gravity;
+   std::unique_ptr<VectorGridFunctionCoefficient> u_cf;
+   std::unique_ptr<GridFunctionCoefficient> rho_filter_cf;
+   std::unique_ptr<InnerProductCoefficient> ug;
+   if (problem >= ElasticityProblem::MBB_selfloading)
+   {
+      Vector g(dim); g = 0.0; g(dim - 1) = -1.0;
+      gravity.reset(new VectorConstantCoefficient(g));
+      rho_filter_cf.reset(new GridFunctionCoefficient(&rho_filter));
+      u_cf.reset(new VectorGridFunctionCoefficient(&u));
+      self_weight.reset(new ScalarVectorProductCoefficient(*rho_filter_cf, *gravity));
+      ug.reset(new InnerProductCoefficient(*gravity, *u_cf));
+
+      elasticity.GetLinearForm().AddDomainIntegrator(new VectorDomainLFIntegrator(
+                                                        *self_weight));
+      elasticity.SetLinearFormStationary(false);
+      elasticity.GetLinearForm().Assemble();
+
+      gradH1_selfload.reset(new ParGridFunction(&filter_fes));
+      *gradH1_selfload = 0.0;
+
+      projected_grad_selfload.reset(new ParLinearForm(&control_fes));
+      projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
+                                                      *gradH1_selfload));
+      density.SetVolumeConstraintType(-1);
    }
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -311,8 +342,14 @@ int main(int argc, char *argv[])
       // Step 3. Step and upate gradient
       num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size);
       compliance = optprob.GetValue();
-      volume = density.GetVolume();
+      volume = density.GetVolume() / density.GetDomainVolume();
       optprob.UpdateGradient();
+      if (problem >= ElasticityProblem::MBB_selfloading)
+      {
+         filter.Apply(*ug, *gradH1_selfload);
+         projected_grad_selfload->Assemble();
+         grad.Add(2.0, *projected_grad_selfload);
+      }
 
       // Step 4. Visualization
       if (glvis_visualization)
@@ -348,7 +385,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < tol_stationarity &&
+      if (stationarityError_bregman < tol_stationarity &&
           std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
