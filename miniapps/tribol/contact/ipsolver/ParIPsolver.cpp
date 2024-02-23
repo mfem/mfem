@@ -19,7 +19,7 @@ ParInteriorPointSolver::ParInteriorPointSolver(QPOptParContactProblemSingleMesh 
 
    sMax     = 1.e2;
    kSig     = 1.e10;   // control deviation from primal Hessian
-   tauMin   = 0.8;     // control rate at which iterates can approach the boundary
+   tauMin   = 0.99;     // control rate at which iterates can approach the boundary
    eta      = 1.e-4;   // backtracking constant
    thetaMin = 1.e-4;   // allowed violation of the equality constraints
 
@@ -481,6 +481,16 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
       {
          HypreBoomerAMG amg;
          amg.SetPrintLevel(0);
+         if (pfes)
+         {
+            amg.SetElasticityOptions(pfes);
+         }
+         else
+         {
+            amg.SetSystemsOptions(3,false);
+         }
+
+
          amg.SetSystemsOptions(3,false);
          amg.SetRelaxType(relax_type);
          int n;
@@ -494,14 +504,22 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
          CGSolver AreducedSolver(MPI_COMM_WORLD);
          AreducedSolver.SetRelTol(linSolveRelTol);
-         // AreducedSolver.SetAbsTol(linSolveAbsTol);
-         AreducedSolver.SetMaxIter(2000);
+         AreducedSolver.SetMaxIter(5000);
 	      AreducedSolver.SetPrintLevel(3);
          AreducedSolver.SetPreconditioner(amg);
+
+         Vector x_nocontact;
+         {
+            x_nocontact.SetSize(Xhat.GetBlock(0).Size());
+            x_nocontact = Xhat.GetBlock(0);
+         }
+
          bool diagscale = false;
-         // bool diagscale = true;
+
          if (diagscale)
          {
+            // Ax = b
+            // D^-1/2 A D^-1/2 y = D^-1/2 b, where x = D^-1/2 y
             Vector diag;
             Areduced->GetDiag(diag);
             for (int i = 0; i<diag.Size(); i++)
@@ -527,13 +545,43 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
             AreducedSolver.Mult(breduced, Xhat.GetBlock(0));
          }
 
-         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
-
+         n = AreducedSolver.GetNumIterations();
+         // Check how AMG performs without contact
+         if (nocontact)
+         {
+            HypreBoomerAMG amg_nocontact(*Huuloc);
+            amg_nocontact.SetPrintLevel(0);
+            if (pfes)
+            {
+               amg_nocontact.SetElasticityOptions(pfes);
+            }
+            else
+            {
+               amg_nocontact.SetSystemsOptions(3,false);
+            }
+            amg_nocontact.SetRelaxType(relax_type);
+            CGSolver ElasticitySolver(MPI_COMM_WORLD);
+            ElasticitySolver.SetRelTol(linSolveRelTol);
+            ElasticitySolver.SetMaxIter(5000);
+	         ElasticitySolver.SetPrintLevel(3);
+   	      ElasticitySolver.SetOperator(*Huuloc);
+            ElasticitySolver.SetPreconditioner(amg_nocontact);
+            ElasticitySolver.Mult(breduced, x_nocontact);
+            int m = ElasticitySolver.GetNumIterations();
+            cgnum_iterations_nocontact.Append(m);
+         }
          if (iAmRoot)
          {
             std::cout << std::string(50,'-') << "\n" << endl;
          }
-         n = AreducedSolver.GetNumIterations();
+         if (!AreducedSolver.GetConverged())
+         {
+            if (iAmRoot)
+            {
+               cgnum_iterations.Print(mfem::out, cgnum_iterations.Size());
+            }
+         }
+         MFEM_VERIFY(AreducedSolver.GetConverged(), "PCG solver did not converge");
 
          // HyprePCG AreducedSolver(*Areduced);
          // AreducedSolver.SetTol(linSolveTol);
@@ -573,7 +621,8 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
 void ParInteriorPointSolver::lineSearch(BlockVector& X0, BlockVector& Xhat, double mu)
 {
-   double tau  = max(tauMin, 1.0 - mu);
+   // double tau  = max(tauMin, 1.0 - mu);
+   double tau  = tauMin;
    Vector u0   = X0.GetBlock(0);
    Vector m0   = X0.GetBlock(1);
    Vector l0   = X0.GetBlock(2);

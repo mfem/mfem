@@ -52,6 +52,7 @@ protected:
     HypreParMatrix * JmT = nullptr;
 
     Array<int> cgnum_iterations;
+    Array<int> cgnum_iterations_nocontact;
     ParFiniteElementSpace *pfes = nullptr;
     
     int jOpt;
@@ -66,6 +67,7 @@ protected:
     double linSolveAbsTol = 1e-12;
     double linSolveRelTol = 1e-6;
     int relax_type = 8;
+    bool nocontact = false;
 public:
     // ParInteriorPointSolver(QPOptParContactProblem*);
     // ParInteriorPointSolver(QPOptParContactProblemTribol*);
@@ -83,6 +85,7 @@ public:
     double E(const BlockVector &, const Vector &, const Vector &, bool);
     bool GetConverged() const;
     Array<int> & GetCGIterNumbers() {return cgnum_iterations;}
+    Array<int> & GetCGNoContactIterNumbers() {return cgnum_iterations_nocontact;}
     int GetNumIterations() {return iter;}
     // TO DO: include Hessian of Lagrangian
     double theta(const BlockVector &);
@@ -98,9 +101,13 @@ public:
     void SetLinearSolveAbsTol(double);
     void SetLinearSolveRelTol(double);
     void SetLinearSolveRelaxType(int);
-    void SetFiniteElementSpace(ParFiniteElementSpace * pfes_)
+    void SetElasticityOptions(ParFiniteElementSpace * pfes_)
     {
         pfes = pfes_;
+    }
+    void EnableNoContactSolve()
+    {
+        nocontact = true;
     }
     virtual ~ParInteriorPointSolver();
 };

@@ -20,7 +20,8 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
    // 1. Parse command-line options.
-   const char *mesh_file = "meshes/merged.mesh";
+   // const char *mesh_file = "meshes/merged.mesh";
+   const char *mesh_file = "meshes/merged_new.mesh";
    int order = 1;
    int sref = 0;
    int pref = 0;
@@ -35,6 +36,8 @@ int main(int argc, char *argv[])
    int optimizer_maxit = 10;
    bool enable_tribol = false;
    int linsolver = 2; // PCG  - AMG
+   bool elast = false;
+   bool nocontact = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -51,6 +54,12 @@ int main(int argc, char *argv[])
    args.AddOption(&enable_tribol, "-tribol", "--tribol", "-no-tribol",
                   "--no-tribol",
                   "Enable or disable Tribol interface.");
+   args.AddOption(&elast, "-elast", "--elast", "-no-elast",
+                  "--no-elast",
+                  "Enable or disable AMG Elasticity options.");
+   args.AddOption(&nocontact, "-nocontact", "--nocontact", "-no-nocontact",
+                  "--no-nocontact",
+                  "Enable or disable AMG solve with no contact for testing.");
    args.AddOption(&optimizer_tol, "-otol", "--optimizer-tol",
                   "Interior Point Solver Tolerance.");
    args.AddOption(&optimizer_maxit, "-omaxit", "--optimizer-maxit",
@@ -123,11 +132,18 @@ int main(int argc, char *argv[])
    ParInteriorPointSolver optimizer(&qpopt);
    optimizer.SetTol(optimizer_tol);
    optimizer.SetMaxIter(optimizer_maxit);
-
    optimizer.SetLinearSolver(linsolver);
    optimizer.SetLinearSolveRelTol(linsolverrtol);
    optimizer.SetLinearSolveAbsTol(linsolveratol);
    optimizer.SetLinearSolveRelaxType(relax_type);
+   if (nocontact)
+   {
+      optimizer.EnableNoContactSolve();
+   }
+   if (elast)
+   {
+      optimizer.SetElasticityOptions(prob->GetFESpace());
+   }
    ParGridFunction x = prob->GetDisplacementGridFunction();
    Vector x0 = x.GetTrueVector();
    int ndofs = x0.Size();
@@ -140,16 +156,22 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       mfem::out << endl;
-      mfem::out << " Initial Energy objective       = " << Einitial << endl;
-      mfem::out << " Final Energy objective         = " << Efinal << endl;
-      mfem::out << " Global number of dofs          = " << gndofs << endl;
-      mfem::out << " Global number of constraints   = " << numconstr << endl;
-      mfem::out << " Optimizer number of iterations = " <<
+      mfem::out << " Initial Energy objective        = " << Einitial << endl;
+      mfem::out << " Final Energy objective          = " << Efinal << endl;
+      mfem::out << " Global number of dofs           = " << gndofs << endl;
+      mfem::out << " Global number of constraints    = " << numconstr << endl;
+      mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
       if (linsolver == 2)
       {
-         mfem::out << " CG iteration numbers           = " ;
+         mfem::out << " CG iteration numbers            = " ;
          CGiterations.Print(mfem::out, CGiterations.Size());
+      }
+      if (nocontact)
+      {
+         Array<int> & CGNoContactIterations = optimizer.GetCGNoContactIterNumbers();
+         mfem::out << " CG no Contact iteration numbers = " ;
+         CGNoContactIterations.Print(mfem::out, CGNoContactIterations.Size());
       }
 
    }
@@ -173,7 +195,12 @@ int main(int argc, char *argv[])
 
       if (paraview)
       {
-         ParaViewDataCollection paraview_dc("QPContactBodyTribol", pmesh);
+         std::ostringstream paraview_file_name;
+         paraview_file_name << "QPContactBody"
+                            <<"_Tribol_" << (int)enable_tribol
+                            << "_par_ref_" << pref
+                            << "_ser_ref_" << sref;
+         ParaViewDataCollection paraview_dc(paraview_file_name.str(), pmesh);
          paraview_dc.SetPrefixPath("ParaView");
          paraview_dc.SetLevelsOfDetail(1);
          paraview_dc.SetDataFormat(VTKFormat::BINARY);
