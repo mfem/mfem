@@ -80,10 +80,14 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 # Remove built-in rule
 %: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -c -o $@ $(MFEM_LIBS)
+
+%: $(SRC)%.o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(filter $^,$(wildcard *.o)) -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
@@ -94,6 +98,7 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
+ex5: darcyform.o
 ex18: $(SRC)ex18.hpp
 ex33: $(SRC)ex33.hpp
 ex37: $(SRC)ex37.hpp

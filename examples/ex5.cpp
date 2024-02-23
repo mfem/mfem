@@ -36,6 +36,7 @@
 //               We recommend viewing examples 1-4 before viewing this example.
 
 #include "mfem.hpp"
+#include "darcyform.hpp"
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -55,7 +56,9 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "";
+   int nx = 0;
+   int ny = 0;
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -64,6 +67,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&nx, "-nx", "--ncells-x",
+                  "Number of cells in x.");
+   args.AddOption(&ny, "-ny", "--ncells-y",
+                  "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -89,21 +96,35 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   if (ny <= 0)
+   {
+      ny = nx;
+   }
+
+   Mesh *mesh = NULL;
+   if (strlen(mesh_file) > 0)
+   {
+      mesh = new Mesh(mesh_file, 1, 1);
+   }
+   else
+   {
+      mesh = new Mesh(Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL));
+   }
+
    int dim = mesh->Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   {
+   /*{
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }
+   }*/
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
@@ -113,14 +134,17 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
 
+   DarcyForm *darcy = new DarcyForm(R_space, W_space);
+
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   Array<int> block_offsets(3); // number of variables + 1
+   const Array<int> &block_offsets = darcy->GetOffsets();
+   /*(3); // number of variables + 1
    block_offsets[0] = 0;
    block_offsets[1] = R_space->GetVSize();
    block_offsets[2] = W_space->GetVSize();
-   block_offsets.PartialSum();
+   block_offsets.PartialSum();*/
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -167,24 +191,31 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   BilinearForm *mVarf(new BilinearForm(R_space));
-   MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
+   //BilinearForm *mVarf(new BilinearForm(R_space));
+   //MixedBilinearForm *bVarf(new MixedBilinearForm(R_space, W_space));
+   BilinearForm *mVarf = darcy->GetFluxMassForm();
+   MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
 
-   if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+
+   //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
-   mVarf->Assemble();
-   if (!pa) { mVarf->Finalize(); }
+   //mVarf->Assemble();
+   //if (!pa) { mVarf->Finalize(); }
 
-   if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   //if (pa) { bVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-   bVarf->Assemble();
-   if (!pa) { bVarf->Finalize(); }
+   //bVarf->Assemble();
+   //if (!pa) { bVarf->Finalize(); }
 
-   BlockOperator darcyOp(block_offsets);
+   darcy->Assemble();
+   //if (!pa) { darcy->Finalize(); }
 
-   TransposeOperator *Bt = NULL;
+   //BlockOperator darcyOp(block_offsets);
 
-   if (pa)
+   //TransposeOperator *Bt = NULL;
+
+   /*if (pa)
    {
       Bt = new TransposeOperator(bVarf);
 
@@ -202,7 +233,21 @@ int main(int argc, char *argv[])
       darcyOp.SetBlock(0,0, &M);
       darcyOp.SetBlock(0,1, Bt);
       darcyOp.SetBlock(1,0, &B);
-   }
+   }*/
+
+   Array<int> ess_flux_tdofs_list, ess_pot_tdofs_list;
+
+   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
+   bdr_is_ess = 0;
+   bdr_is_ess[3] = -1;
+   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
+
+   OperatorHandle pDarcyOp;
+   Vector X, B;
+   x = 0.;
+   //darcy->FormSystemMatrix(ess_flux_tdofs_list, ess_pot_tdofs_list, pDarcyOp);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, ess_pot_tdofs_list, x, rhs,
+                           pDarcyOp, X, B);
 
    // 10. Construct the operators for preconditioner
    //
@@ -279,11 +324,13 @@ int main(int argc, char *argv[])
    solver.SetAbsTol(atol);
    solver.SetRelTol(rtol);
    solver.SetMaxIter(maxIter);
-   solver.SetOperator(darcyOp);
+   solver.SetOperator(*pDarcyOp);
    solver.SetPreconditioner(darcyPrec);
    solver.SetPrintLevel(1);
-   x = 0.0;
-   solver.Mult(rhs, x);
+
+   solver.Mult(B, X);
+   solver.RecoverFEMSolution(X, rhs, x);
+
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
 
@@ -375,10 +422,11 @@ int main(int argc, char *argv[])
    delete invM;
    delete invS;
    delete S;
-   delete Bt;
+   //delete Bt;
    delete MinvBt;
-   delete mVarf;
-   delete bVarf;
+   //delete mVarf;
+   //delete bVarf;
+   delete darcy;
    delete W_space;
    delete R_space;
    delete l2_coll;
