@@ -18,6 +18,8 @@
 namespace mfem
 {
 
+class DarcyHybridization;
+
 class DarcyForm : public Operator
 {
    Array<int> offsets;
@@ -33,6 +35,8 @@ class DarcyForm : public Operator
    AssemblyLevel assembly;
 
    BlockOperator *block_op;
+
+   DarcyHybridization *hybridization; ///< Owned.
 
    const Operator* ConstructBT(const MixedBilinearForm *B);
    const Operator* ConstructBT(const Operator *opB);
@@ -62,6 +66,18 @@ public:
 
        If used, this method must be called before assembly. */
    void SetAssemblyLevel(AssemblyLevel assembly_level);
+
+   /// Returns the assembly level
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
+   /// Enable hybridization.
+   /** For details see the description for class
+       Hybridization in fem/hybridization.hpp. This method should be called
+       before assembly. */
+   void EnableHybridization(FiniteElementSpace *constr_space,
+                            BilinearFormIntegrator *constr_flux_integ,
+                            BilinearFormIntegrator *constr_pot_integ,
+                            const Array<int> &ess_flux_tdof_list);
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble(int skip_zeros = 1);
@@ -176,6 +192,52 @@ public:
 
    /// Return the type ID of the Operator class.
    Type GetType() const { return MFEM_Block_Operator; }
+};
+
+class DarcyHybridization
+{
+   FiniteElementSpace *fes_u, *fes_p, *fes_c;
+   BilinearFormIntegrator *c_bfi_u, *c_bfi_p;
+
+   BlockMatrix *H;
+
+public:
+   /// Constructor
+   DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                      FiniteElementSpace *fes_c);
+   /// Destructor
+   ~DarcyHybridization();
+
+   /** Set the integrator that will be used to construct the constraint matrix
+       C. The Hybridization object assumes ownership of the integrator, i.e. it
+       will delete the integrator when destroyed. */
+   void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
+                                 BilinearFormIntegrator *c_pot_integ);
+
+   /// Prepare the Hybridization object for assembly.
+   void Init(const Array<int> &ess_flux_tdof_list);
+
+   /// Assemble the element matrix A into the hybridized system matrix.
+   //void AssembleMatrix(int el, const DenseMatrix &A);
+
+   /// Assemble the boundary element matrix A into the hybridized system matrix.
+   //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
+
+   /// Finalize the construction of the hybridized matrix.
+   void Finalize();
+
+   /// Return the serial hybridized matrix.
+   BlockMatrix &GetMatrix() { return *H; }
+
+   /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,
+       b_r, for the hybridized system. */
+   void ReduceRHS(const BlockVector &b, Vector &b_r) const;
+
+   /** Reconstruct the solution of the original system, sol, from solution of
+       the hybridized system, sol_r, and the original r.h.s. vector, b.
+       It is assumed that the vector sol has the right essential b.c. */
+   void ComputeSolution(const BlockVector &b, const Vector &sol_r,
+                        BlockVector &sol) const;
 };
 
 }

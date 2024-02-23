@@ -32,6 +32,8 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_)
    B = NULL;
 
    block_op = new BlockOperator(offsets);
+
+   hybridization = NULL;
 }
 
 BilinearForm* DarcyForm::GetFluxMassForm()
@@ -79,6 +81,25 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    if (B) { B->SetAssemblyLevel(assembly); }
 }
 
+void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
+                                    BilinearFormIntegrator *constr_flux_integ,
+                                    BilinearFormIntegrator *constr_pot_integ,
+                                    const Array<int> &ess_flux_tdof_list)
+{
+   delete hybridization;
+   if (assembly != AssemblyLevel::LEGACY)
+   {
+      delete constr_flux_integ;
+      delete constr_pot_integ;
+      hybridization = NULL;
+      MFEM_WARNING("Hybridization not supported for this assembly level");
+      return;
+   }
+   hybridization = new DarcyHybridization(fes_u, fes_p, constr_space);
+   hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   hybridization->Init(ess_flux_tdof_list);
+}
+
 void DarcyForm::Assemble(int skip_zeros)
 {
    if (M_u) { M_u->Assemble(skip_zeros); }
@@ -109,6 +130,11 @@ void DarcyForm::Finalize(int skip_zeros)
       block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
       block_op->SetBlock(1, 0, B, -1.);
    }
+
+   if (hybridization)
+   {
+      hybridization->Finalize();
+   }
 }
 
 void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
@@ -118,15 +144,26 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
    FormSystemMatrix(ess_flux_tdof_list, A);
 
    //conforming
-   EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
 
-   // A, X and B point to the same data as mat, x and b
-   X_.MakeRef(x, 0, x.Size());
-   B_.MakeRef(b, 0, b.Size());
-   if (!copy_interior)
+   if (hybridization)
    {
-      x.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
-      x.GetBlock(1) = 0.;
+      // Reduction to the Lagrange multipliers system
+      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
+      hybridization->ReduceRHS(b, B_);
+      X_.SetSize(B_.Size());
+      X_ = 0.0;
+   }
+   else
+   {
+      // A, X and B point to the same data as mat, x and b
+      EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
+      X_.MakeRef(x, 0, x.Size());
+      B_.MakeRef(b, 0, b.Size());
+      if (!copy_interior)
+      {
+         x.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
+         x.GetBlock(1) = 0.;
+      }
    }
 }
 
@@ -157,20 +194,35 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       block_op->SetBlock(1, 0, pB.Ptr(), -1.);
    }
 
-   A.Reset(block_op, false);
+   if (hybridization)
+   {
+      A.Reset(&hybridization->GetMatrix(), false);
+   }
+   else
+   {
+      A.Reset(block_op, false);
+   }
 }
 
 void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
                                    BlockVector &x)
 {
-   BlockVector X_b(const_cast<Vector&>(X), offsets);
-   if (M_u)
+   if (hybridization)
    {
-      M_u->RecoverFEMSolution(X_b.GetBlock(0), b.GetBlock(0), x.GetBlock(0));
+      //conforming
+      hybridization->ComputeSolution(b, X, x);
    }
-   if (M_p)
+   else
    {
-      M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
+      BlockVector X_b(const_cast<Vector&>(X), offsets);
+      if (M_u)
+      {
+         M_u->RecoverFEMSolution(X_b.GetBlock(0), b.GetBlock(0), x.GetBlock(0));
+      }
+      if (M_p)
+      {
+         M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
+      }
    }
 }
 
@@ -206,6 +258,8 @@ DarcyForm::~DarcyForm()
    if (B) { delete B; }
 
    delete block_op;
+
+   delete hybridization;
 }
 
 const Operator* DarcyForm::ConstructBT(const MixedBilinearForm *B)
@@ -218,6 +272,51 @@ const Operator* DarcyForm::ConstructBT(const Operator *opB)
 {
    pBt.Reset(new TransposeOperator(opB));
    return pBt.Ptr();
+}
+
+DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
+                                       FiniteElementSpace *fes_p_,
+                                       FiniteElementSpace *fes_c_)
+   : fes_u(fes_u_), fes_p(fes_p_), fes_c(fes_c_)
+{
+   c_bfi_u = NULL;
+   c_bfi_p = NULL;
+
+   H = NULL;
+}
+
+DarcyHybridization::~DarcyHybridization()
+{
+   delete c_bfi_u;
+   delete c_bfi_p;
+
+   delete H;
+}
+
+void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
+                                                  *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
+{
+   delete c_bfi_u;
+   c_bfi_u = c_flux_integ;
+   delete c_bfi_p;
+   c_bfi_p = c_pot_integ;
+}
+
+void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
+{
+}
+
+void DarcyHybridization::Finalize()
+{
+}
+
+void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
+{
+}
+
+void DarcyHybridization::ComputeSolution(const BlockVector &b,
+                                         const Vector &sol_r, BlockVector &sol) const
+{
 }
 
 }
