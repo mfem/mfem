@@ -211,13 +211,19 @@ void GetElasticityProblem(const ElasticityProblem problem,
          if (filter_radius < 0) { filter_radius = 0.1; }
          if (vol_fraction < 0) { vol_fraction = 0.07; }
 
-         // [1: bottom, 2: front, 3: right, 4: back, 5: left, 6: top]
+         // [1: bottom,
+         //  2: front,
+         //  3: right,
+         //  4: back,
+         //  5: left,
+         //  6: top
+         //  7: (1,1,0)]
          *mesh = Mesh::MakeCartesian3D(2, 2, 1, mfem::Element::Type::HEXAHEDRON,
                                        2.0, 2.0, 1.0);
          ess_bdr.SetSize(4, 7);
          ess_bdr_filter.SetSize(7);
-         ess_bdr(2, 2) = 1;// front - y-roller plane
-         ess_bdr(1, 2) = 1;// left - x-roller plane
+         ess_bdr(2, 2 - 1) = 1;// front - y-roller plane
+         ess_bdr(1, 5 - 1) = 1;// left - x-roller plane
          ess_bdr(0, 6) = 1;// corner - pin
 
          const Vector zero({0.0, 0.0, 0.0});
