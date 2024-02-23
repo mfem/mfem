@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
       darcyOp.SetBlock(1,0, &B);
    }*/
 
-   Array<int> ess_flux_tdofs_list, ess_pot_tdofs_list;
+   Array<int> ess_flux_tdofs_list;
 
    /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
    bdr_is_ess = 0;
@@ -245,8 +245,8 @@ int main(int argc, char *argv[])
    OperatorHandle pDarcyOp;
    Vector X, B;
    x = 0.;
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, ess_pot_tdofs_list, pDarcyOp);
-   darcy->FormLinearSystem(ess_flux_tdofs_list, ess_pot_tdofs_list, x, rhs,
+   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, B);
 
    // 10. Construct the operators for preconditioner

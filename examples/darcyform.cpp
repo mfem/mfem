@@ -31,9 +31,6 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_)
    M_p = NULL;
    B = NULL;
 
-   mB_e = NULL;
-   mBt_e = NULL;
-
    block_op = new BlockOperator(offsets);
 }
 
@@ -115,14 +112,13 @@ void DarcyForm::Finalize(int skip_zeros)
 }
 
 void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                                 const Array<int> &ess_pot_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X_, Vector &B_,
                                  int copy_interior)
 {
-   FormSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, A);
+   FormSystemMatrix(ess_flux_tdof_list, A);
 
    //conforming
-   EliminateVDofsInRHS(ess_flux_tdof_list, ess_pot_tdof_list, x, b);
+   EliminateVDofsInRHS(ess_flux_tdof_list, x, b);
 
    // A, X and B point to the same data as mat, x and b
    X_.MakeRef(x, 0, x.Size());
@@ -130,13 +126,15 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
    if (!copy_interior)
    {
       x.GetBlock(0).SetSubVectorComplement(ess_flux_tdof_list, 0.0);
-      x.GetBlock(1).SetSubVectorComplement(ess_pot_tdof_list, 0.0);
+      x.GetBlock(1) = 0.;
    }
 }
 
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                                 const Array<int> &ess_pot_tdof_list, OperatorHandle &A)
+                                 OperatorHandle &A)
 {
+   Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
+
    if (M_u)
    {
       M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
@@ -151,54 +149,9 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
    if (B)
    {
-      if (assembly != AssemblyLevel::LEGACY && assembly != AssemblyLevel::FULL)
-      {
-         B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, pB);
+      B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, pB);
 
-         ConstructBT(pB.Ptr());
-      }
-      else
-      {
-         const SparseMatrix *test_P = fes_p->GetConformingProlongation();
-         const SparseMatrix *trial_P = fes_u->GetConformingProlongation();
-
-         B->Finalize();
-
-         if (test_P && trial_P)
-         {
-            pB.Reset(RAP(*test_P, B->SpMat(), *trial_P));
-         }
-         else if (test_P)
-         {
-            pB.Reset(TransposeMult(*test_P, B->SpMat()));
-         }
-         else if (trial_P)
-         {
-            pB.Reset(mfem::Mult(B->SpMat(), *trial_P));
-         }
-         else
-         {
-            pB.Reset(&B->SpMat(), false);
-         }
-
-         Array<int> ess_flux_tdof_marker, ess_pot_tdof_marker;
-         FiniteElementSpace::ListToMarker(ess_flux_tdof_list, fes_u->GetTrueVSize(),
-                                          ess_flux_tdof_marker);
-         FiniteElementSpace::ListToMarker(ess_pot_tdof_list, fes_p->GetTrueVSize(),
-                                          ess_pot_tdof_marker);
-
-         if (mB_e) { delete mB_e; }
-         mB_e = new SparseMatrix(pB->Height(), pB->Width());
-         pB.As<SparseMatrix>()->EliminateCols(ess_flux_tdof_marker, *mB_e);
-         mB_e->Finalize();
-
-         pBt.Reset(Transpose(*pB.As<SparseMatrix>()));
-
-         if (mBt_e) { delete mBt_e; }
-         mBt_e = new SparseMatrix(pBt->Height(), pBt->Width());
-         pBt.As<SparseMatrix>()->EliminateCols(ess_pot_tdof_marker, *mBt_e);
-         mBt_e->Finalize();
-      }
+      ConstructBT(pB.Ptr());
 
       block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
       block_op->SetBlock(1, 0, pB.Ptr(), -1.);
@@ -222,7 +175,7 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
 }
 
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                                    const Array<int> &vdofs_pot, const BlockVector &x, BlockVector &b)
+                                    const BlockVector &x, BlockVector &b)
 {
    if (B)
    {
@@ -233,17 +186,16 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       }
       else
       {
-         mB_e->AddMult(x.GetBlock(0), b.GetBlock(1));
-         mBt_e->AddMult(x.GetBlock(1), b.GetBlock(0));
+         Array<int> vdofs_flux_marker;
+         FiniteElementSpace::ListToMarker(vdofs_flux, fes_u->GetTrueVSize(),
+                                          vdofs_flux_marker);
+         B->EliminateEssentialBCFromTrialDofs(vdofs_flux_marker, x.GetBlock(0),
+                                              b.GetBlock(1));
       }
    }
    if (M_u)
    {
       M_u->EliminateVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(0));
-   }
-   if (M_p)
-   {
-      M_p->EliminateVDofsInRHS(vdofs_pot, x.GetBlock(1), b.GetBlock(1));
    }
 }
 
@@ -252,9 +204,6 @@ DarcyForm::~DarcyForm()
    if (M_u) { delete M_u; }
    if (M_p) { delete M_p; }
    if (B) { delete B; }
-
-   if (mB_e) { delete mB_e; }
-   if (mBt_e) { delete mBt_e; }
 
    delete block_op;
 }

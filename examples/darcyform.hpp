@@ -28,7 +28,6 @@ class DarcyForm : public Operator
    MixedBilinearForm *B;
 
    OperatorHandle pM_u, pM_p, pB, pBt;
-   SparseMatrix *mB_e, *mBt_e;
 
    /// The assembly level of the form (full, partial, etc.)
    AssemblyLevel assembly;
@@ -97,7 +96,6 @@ public:
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         const Array<int> &ess_pot_tdof_list,
                          BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                          Vector &B, int copy_interior = 0);
 
@@ -110,14 +108,12 @@ public:
        destructor is called. */
    template <typename OpType>
    void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                         const Array<int> &ess_pot_tdof_list,
                          Vector &x, Vector &b,
                          OpType &A, Vector &X, Vector &B,
                          int copy_interior = 0)
    {
       OperatorHandle Ah;
-      FormLinearSystem(ess_flux_tdof_list, ess_pot_tdof_list, x, b, Ah, X, B,
-                       copy_interior);
+      FormLinearSystem(ess_flux_tdof_list, x, b, Ah, X, B, copy_interior);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -125,7 +121,7 @@ public:
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    virtual void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                                 const Array<int> &ess_pot_tdof_list, OperatorHandle &A);
+                                 OperatorHandle &A);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    /** Version of the method FormSystemMatrix() where the system matrix is
@@ -134,11 +130,10 @@ public:
        reference will be invalidated when SetOperatorType(), Update(), or the
        destructor is called. */
    template <typename OpType>
-   void FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                         const Array<int> &ess_pot_tdof_list, OpType &A)
+   void FormSystemMatrix(const Array<int> &ess_flux_tdof_list, OpType &A)
    {
       OperatorHandle Ah;
-      FormSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, Ah);
+      FormSystemMatrix(ess_flux_tdof_list, Ah);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
@@ -156,10 +151,8 @@ public:
 
    /** @brief Use the stored eliminated part of the matrix (see
        EliminateVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
-       @a b; @a vdofs_flux and @a vdofs_pot are lists of DOFs (non-directional,
-       i.e. >= 0). */
+       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                            const Array<int> &vdofs_pot,
                             const BlockVector &x, BlockVector &b);
 
    /// Operator application
