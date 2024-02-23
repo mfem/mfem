@@ -255,6 +255,7 @@ protected:
    double current_volume;
    double domain_volume;
    double vol_tol;
+   int vol_constraint; // 1: max (default), 0: equal, -1: min
 private:
 
    // functions
@@ -273,6 +274,9 @@ public:
       filter.Apply(*rho_cf, *frho);
    }
    DensityFilter &GetFilter() { return filter; }
+   // Set volume constraint, 1: max (default), 0: equal, -1: min
+   void SetVolumeConstraintType(int constraint_type) {vol_constraint = constraint_type;}
+   bool VolumeConstraintViolated();
 
    virtual void Project() = 0;
    virtual double StationarityError(const GridFunction &grad) = 0;

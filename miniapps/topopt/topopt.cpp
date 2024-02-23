@@ -467,7 +467,7 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                              double target_volume_fraction,
                              double volume_tolerance)
    : filter(filter), target_volume_fraction(target_volume_fraction),
-     vol_tol(volume_tolerance)
+     vol_tol(volume_tolerance), vol_constraint(1)
 {
    x_gf.reset(MakeGridFunction(&fes));
    tmp_gf.reset(MakeGridFunction(&fes));
@@ -491,7 +491,24 @@ DesignDensity::DesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
    target_volume = domain_volume * target_volume_fraction;
 }
 
-SIMPProjector::SIMPProjector(const double k_, const double rho0_):k(k_), rho0(rho0_)
+bool DesignDensity::VolumeConstraintViolated()
+{
+   switch (vol_constraint)
+   {
+      case 1: // max
+         return current_volume > target_volume;
+      case 0: // equal
+         return std::fabs(current_volume - target_volume) > vol_tol;
+      case -1:
+         return current_volume < target_volume;
+      default:
+         MFEM_ABORT("Invalid Volume Constraint");
+         return true;
+   }
+}
+
+SIMPProjector::SIMPProjector(const double k_, const double rho0_):k(k_),
+   rho0(rho0_)
 {
    phys_density.reset(new MappedGridFunctionCoefficient(
    nullptr, [this](double x) {return simp(x, rho0, k);}));
@@ -527,7 +544,8 @@ ThresholdProjector::ThresholdProjector(
       const double c1 = std::tanh(beta*eta);
       const double c2 = std::tanh(beta*(1-eta));
       const double rho_projected = (c1 + std::tanh(beta*(x - eta))) / (c1 + c2);
-      const double rho_dproj = beta*std::pow(1.0/std::cosh(beta*(x - eta)), 2.0) / (c1 + c2);
+      const double rho_dproj = beta*std::pow(1.0/std::cosh(beta*(x - eta)),
+                                             2.0) / (c1 + c2);
       return der_simp(rho_projected, rho0, k)*rho_dproj;
    }));
 }
@@ -555,7 +573,7 @@ SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
 void SigmoidDesignDensity::Project()
 {
    ComputeVolume();
-   if (current_volume > target_volume)
+   if (VolumeConstraintViolated())
    {
       double inv_sig_vol_fraction = inv_sigmoid(target_volume_fraction);
       double c_l = inv_sig_vol_fraction - x_gf->Max();
@@ -668,7 +686,7 @@ ExponentialDesignDensity::ExponentialDesignDensity(FiniteElementSpace &fes,
 void ExponentialDesignDensity::Project()
 {
    ComputeVolume();
-   if (current_volume > target_volume)
+   if (VolumeConstraintViolated())
    {
       double log_vol_fraction = std::log(target_volume_fraction);
       double c_l = log_vol_fraction - x_gf->Max();
@@ -786,7 +804,7 @@ LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
 void LatentDesignDensity::Project()
 {
    ComputeVolume();
-   if (current_volume > target_volume)
+   if (VolumeConstraintViolated())
    {
       double latent_vol_fraction = p2d(target_volume_fraction);
       double c_l = latent_vol_fraction - x_gf->Max();
@@ -913,7 +931,7 @@ PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
 void PrimalDesignDensity::Project()
 {
    ComputeVolume();
-   if (current_volume > target_volume)
+   if (VolumeConstraintViolated())
    {
       double c_l = target_volume_fraction - x_gf->Max();
       double c_r = target_volume_fraction - x_gf->Min();
