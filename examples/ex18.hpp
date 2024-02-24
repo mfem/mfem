@@ -169,7 +169,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
    //    If weak divergence is pre-assembled, <F.n(u), [w]>
    nonlinearForm->Mult(x, z);
-   if (!weakdiv.empty()) // if weak divergence is pre-assembled
+   if (!weakdiv.empty()) // if weak divergence is not pre-assembled
    {
       Vector current_state;
       DenseMatrix flux; // element flux value. Whose column is ordered by dim.
