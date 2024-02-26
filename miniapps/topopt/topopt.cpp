@@ -370,6 +370,10 @@ void IsoElasticityIntegrator::AssembleElementMatrix(
       MultABt(C, vshape, CVt);
       AddMult_a(w * E_ / ((1.0 + nu_)*(1.0 - 2*nu_)), vshape, CVt, elmat);
    }
+   if (enforce_symmetricity)
+   {
+      elmat.Symmetrize();
+   }
 }
 
 
@@ -1143,6 +1147,7 @@ double IsoStrainEnergyDensityCoefficient::Eval(ElementTransformation &T,
    {
       C(i, i) = 0.5 * (1.0 - 2*nu_);
    }
+   C.Symmetrize();
 
    if (&u2 == &u1)
    {
@@ -1186,13 +1191,15 @@ ParametrizedElasticityEquation::ParametrizedElasticityEquation(
    FiniteElementSpace &fes, GridFunction &filtered_density,
    DensityProjector &projector,
    Coefficient &E, Coefficient &nu, VectorCoefficient &f,
-   Array2D<int> &ess_bdr):
+   Array2D<int> &ess_bdr, bool enforce_symmetricity):
    ParametrizedLinearEquation(fes, filtered_density, projector, ess_bdr),
    E(E), nu(nu), filtered_density(filtered_density),
    phys_E(E, projector.GetPhysicalDensity(filtered_density)),
    f(f)
 {
-   a->AddDomainIntegrator(new IsoElasticityIntegrator(phys_E, nu));
+   auto elasticity = new IsoElasticityIntegrator(phys_E, nu);
+   elasticity->EnforceSymmetricity(enforce_symmetricity);
+   a->AddDomainIntegrator(elasticity);
    b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
    SetLinearFormStationary();
 }
@@ -1326,11 +1333,24 @@ int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
 }
 
 HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
-                                 const double eps, Array<int> &ess_bdr):DensityFilter(fes),
+                                 const double eps, Array<int> &ess_bdr,
+                                 bool enforce_symmetricity):DensityFilter(fes),
    filter(MakeBilinearForm(&fes)), eps2(eps*eps), ess_bdr(ess_bdr)
 {
-   filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
-   filter->AddDomainIntegrator(new MassIntegrator());
+   if (enforce_symmetricity)
+   {
+      auto diffusion = new ForcedSymmetricDiffusionIntegrator(eps2);
+      diffusion->EnforceSymmetricity(true);
+      auto mass = new ForcedSymmetricMassIntegrator();
+      mass->EnforceSymmetricity(true);
+      filter->AddDomainIntegrator(diffusion);
+      filter->AddDomainIntegrator(mass);
+   }
+   else
+   {
+      filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
+      filter->AddDomainIntegrator(new MassIntegrator());
+   }
    filter->Assemble();
 }
 void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,

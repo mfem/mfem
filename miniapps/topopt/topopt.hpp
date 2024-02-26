@@ -56,7 +56,6 @@ inline double ShannonEntropy(const double x)
 inline double exp_d(const double x) {return std::exp(x);}
 // log double type
 inline double log_d(const double x) {return std::log(x);}
-
 // Gradient to symmetric gradient in Voigt notation
 /** Integrator for the isotropic linear elasticity form:
     a(u,v) = (Cu : ϵ(v))
@@ -74,16 +73,49 @@ private:
    DenseMatrix vshape; // Voigt notation of symmetric gradient
    DenseMatrix C; // elasticity matrix in Voigt notation
    DenseMatrix CVt;
+   bool enforce_symmetricity;
 #endif
    void VectorGradToVoigt(DenseMatrix &vals, DenseMatrix &voigt);
 
 public:
    IsoElasticityIntegrator(Coefficient &E, Coefficient &nu, int ia=3): E(&E),
-      nu(&nu) {}
+      nu(&nu), enforce_symmetricity(false) {}
+
+   void EnforceSymmetricity(bool flag) { enforce_symmetricity = flag; }
 
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+};
+
+class ForcedSymmetricDiffusionIntegrator : public DiffusionIntegrator
+{
+private:
+   bool enforce_symmetricity;
+public:
+   using DiffusionIntegrator::DiffusionIntegrator;
+   void EnforceSymmetricity(bool flag) { enforce_symmetricity = flag; }
+   void AssembleElementMatrix(const FiniteElement &el, ElementTransformation &Tr,
+                              DenseMatrix &elmat) override
+   {
+      DiffusionIntegrator::AssembleElementMatrix(el, Tr, elmat);
+      elmat.Symmetrize();
+   }
+};
+
+class ForcedSymmetricMassIntegrator : public MassIntegrator
+{
+private:
+   bool enforce_symmetricity;
+public:
+   using MassIntegrator::MassIntegrator;
+   void EnforceSymmetricity(bool flag) { enforce_symmetricity = flag; }
+   void AssembleElementMatrix(const FiniteElement &el, ElementTransformation &Tr,
+                              DenseMatrix &elmat) override
+   {
+      MassIntegrator::AssembleElementMatrix(el, Tr, elmat);
+      elmat.Symmetrize();
+   }
 };
 
 class L2ProjectionLFIntegrator : public LinearFormIntegrator
@@ -91,13 +123,13 @@ class L2ProjectionLFIntegrator : public LinearFormIntegrator
 private:
    const GridFunction *gf;
    Vector gf_val, Mv;
-   InverseIntegrator inv_mass;
+   ForcedSymmetricMassIntegrator mass_loc;
    MixedScalarMassIntegrator mass;
    DenseMatrix M;
-
+   DenseMatrix Minv;
 public:
    L2ProjectionLFIntegrator(const GridFunction &gf): LinearFormIntegrator(),
-      gf(&gf), inv_mass(new MassIntegrator), mass() {}
+      gf(&gf), mass_loc(), mass() {}
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect)
@@ -105,9 +137,18 @@ public:
       const FiniteElement &el_source = *(gf->FESpace()->GetFE(Tr.ElementNo));
       gf->GetElementDofValues(Tr.ElementNo, gf_val);
       mass.AssembleElementMatrix2(el_source, el, Tr, M);
-      Mv.SetSize(M.NumCols());
+      const int dof = M.NumCols();
+
+      Mv.SetSize(dof);
       M.Mult(gf_val, Mv);
-      inv_mass.AssembleElementVector(el, Tr, Mv, elvect);
+
+      Minv.SetSize(dof);
+      mass_loc.AssembleElementMatrix(el, Tr, Minv);
+      Minv.Invert();
+      Minv.Symmetrize();
+
+      elvect.SetSize(dof);
+      Minv.Mult(Mv, elvect);
    }
    void SetGridFunction(const GridFunction &new_gf) {gf = &new_gf; }
 };
@@ -171,13 +212,13 @@ public:
    /// @brief Linear solver for elliptic problem with given Essential BC
    /// @param a Bilinear Form
    /// @param b Linear Form
-   /// @param ess_bdr_list Essential boundary marker for boundary attributes
+   /// @param ess_bdr_list Essential boundary marker for boundary attributes]
    EllipticSolver(BilinearForm &a, LinearForm &b, Array<int> &ess_bdr_);
    /// @brief Linear solver for elliptic problem with given component-wise essential BC
    /// ess_bdr[0,:] - All components, ess_bdr[i,:] - ith-direction
    /// @param a Bilinear Form
    /// @param b Linear Form
-   /// @param ess_bdr_list Component-wise essential boundary marker for boundary attributes
+   /// @param ess_bdr_list Component-wise essential boundary marker for boundary attributes, [Row0: all, Row1: x, ...]
    EllipticSolver(BilinearForm &a, LinearForm &b, Array2D<int> &ess_bdr);
 
    /// @brief Solve linear system and return FEM solution in x.
@@ -227,7 +268,7 @@ protected:
 private:
 
 public:
-   HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr);
+   HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr, bool enforce_symmetricity=false);
    void Apply(const GridFunction &rho, GridFunction &frho,
               bool apply_bdr=true) const override
    {
@@ -312,8 +353,9 @@ private:
    double beta, eta, rho0, k;
    std::unique_ptr<MappedGridFunctionCoefficient> phys_density, dphys_dfrho;
 public:
-   ThresholdProjector(const double beta, const double eta, const double k, const double rho0);
-   void SetThresholdParameters(double new_beta, double new_eta){beta = new_beta; eta = new_eta; }
+   ThresholdProjector(const double beta, const double eta, const double k,
+                      const double rho0);
+   void SetThresholdParameters(double new_beta, double new_eta) {beta = new_beta; eta = new_eta; }
    void SetPower(int new_k) {k = new_k;}
    void SetMin(double new_rho0) {rho0 = new_rho0;}
    Coefficient &GetPhysicalDensity(GridFunction &frho) override;
@@ -632,7 +674,7 @@ public:
                                   GridFunction &filtered_density,
                                   DensityProjector &projector,
                                   Coefficient &E, Coefficient &nu,
-                                  VectorCoefficient &f, Array2D<int> &ess_bdr);
+                                  VectorCoefficient &f, Array2D<int> &ess_bdr, bool enforce_symmetricity=false);
    std::unique_ptr<Coefficient> GetdEdfrho(GridFunction &u,
                                            GridFunction &dual_solution, GridFunction &frho) override
    { return std::unique_ptr<Coefficient>(new IsoStrainEnergyDensityCoefficient(E, nu, u, dual_solution, projector, frho)); }
