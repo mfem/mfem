@@ -175,15 +175,17 @@ int main(int argc, char *argv[])
    }
 
    // 5. Set the initial guess for ρ.
-   SIMPProjector simp_rule(exponent, rho_min);
+   // ThresholdProjector densityProjector(0.5, 32, exponent, rho_min);
+   SIMPProjector densityProjector(exponent, rho_min);
    HelmholtzFilter filter(filter_fes, filter_radius/(2.0*sqrt(3.0)),
-                          ess_bdr_filter);
+                          ess_bdr_filter, true);
    LatentDesignDensity density(control_fes, filter, vol_fraction,
                                FermiDiracEntropy, inv_sigmoid, sigmoid, false, false);
 
    ConstantCoefficient E_cf(E), nu_cf(nu);
    ParametrizedElasticityEquation elasticity(state_fes,
-                                             density.GetFilteredDensity(), simp_rule, E_cf, nu_cf, *vforce_cf, ess_bdr);
+                                             density.GetFilteredDensity(), densityProjector, E_cf, nu_cf, *vforce_cf,
+                                             ess_bdr, true);
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
@@ -245,7 +247,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(MPI_COMM_WORLD);
       designDensity_gf.reset(new ParGridFunction(&filter_fes));
       rho_gf.reset(new ParGridFunction(&filter_fes));
-      designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+      designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
       rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
@@ -356,7 +358,7 @@ int main(int argc, char *argv[])
       {
          if (sout_SIMP.is_open())
          {
-            designDensity_gf->ProjectCoefficient(simp_rule.GetPhysicalDensity(
+            designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                                     density.GetFilteredDensity()));
             sout_SIMP << "parallel " << num_procs << " " << myid << "\n";
             sout_SIMP << "solution\n" << *pmesh << *designDensity_gf
@@ -374,8 +376,8 @@ int main(int argc, char *argv[])
       }
       if (paraview)
       {
-         pd->SetCycle(k);
-         pd->SetTime(k);
+         pd->SetCycle(k+1);
+         pd->SetTime(k+1);
          pd->Save();
       }
 
