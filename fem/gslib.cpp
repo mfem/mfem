@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -159,7 +159,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      double * const elx[2] =
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
+      };
       fdata2D = findpts_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
@@ -168,7 +172,11 @@ void FindPointsGSLIB::Setup(Mesh &m, const double bb_t, const double newt_tol,
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
+      };
       fdata3D = findpts_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                 pts_cnt, pts_cnt, npt_max, newt_tol);
    }
@@ -1229,7 +1237,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    {
       unsigned nr[2] = { dof1D, dof1D };
       unsigned mr[2] = { 2*dof1D, 2*dof1D };
-      double * const elx[2] = { &gsl_mesh(0), &gsl_mesh(pts_cnt) };
+      double * const elx[2] =
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
+      };
       fdata2D = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
                                   &u_meshid, &distfint(0));
@@ -1239,7 +1251,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
       unsigned nr[3] = { dof1D, dof1D, dof1D };
       unsigned mr[3] = { 2*dof1D, 2*dof1D, 2*dof1D };
       double * const elx[3] =
-      { &gsl_mesh(0), &gsl_mesh(pts_cnt), &gsl_mesh(2*pts_cnt) };
+      {
+         pts_cnt == 0 ? nullptr : &gsl_mesh(0),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
+         pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
+      };
       fdata3D = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr, bb_t,
                                   pts_cnt, pts_cnt, npt_max, newt_tol,
                                   &u_meshid, &distfint(0));
