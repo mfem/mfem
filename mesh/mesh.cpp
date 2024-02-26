@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -302,7 +302,7 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &os)
       num_bdr_elems_by_geom = 0;
       for (int i = 0; i < GetNBE(); i++)
       {
-         num_bdr_elems_by_geom[GetBdrElementBaseGeometry(i)]++;
+         num_bdr_elems_by_geom[GetBdrElementGeometry(i)]++;
       }
       Array<int> num_faces_by_geom(Geometry::NumGeom);
       num_faces_by_geom = 0;
@@ -473,14 +473,18 @@ void Mesh::GetBdrElementTransformation(int i,
       else // L2 Nodes (e.g., periodic mesh)
       {
          int elem_id, face_info;
-         GetBdrElementAdjacentElement2(i, elem_id, face_info);
+         GetBdrElementAdjacentElement(i, elem_id, face_info);
+         Geometry::Type face_geom = GetBdrElementGeometry(i);
+         face_info = EncodeFaceInfo(
+                        DecodeFaceInfoLocalIndex(face_info),
+                        Geometry::GetInverseOrientation(
+                           face_geom, DecodeFaceInfoOrientation(face_info))
+                     );
 
          IntegrationPointTransformation Loc1;
          GetLocalFaceTransformation(GetBdrElementType(i),
                                     GetElementType(elem_id),
                                     Loc1.Transf, face_info);
-
-         Geometry::Type face_geom = GetBdrElementBaseGeometry(i);
          const FiniteElement *face_el =
             Nodes->FESpace()->GetTraceElement(elem_id, face_geom);
          MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(face_el),
@@ -902,6 +906,8 @@ void Mesh::DeleteGeometricFactors()
       delete face_geom_factors[i];
    }
    face_geom_factors.SetSize(0);
+
+   ++nodes_sequence;
 }
 
 void Mesh::GetLocalFaceTransformation(int face_type, int elem_type,
@@ -1489,6 +1495,7 @@ void Mesh::Init()
    nbBoundaryFaces = -1;
    meshgen = mesh_geoms = 0;
    sequence = 0;
+   nodes_sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
    NURBSext = NULL;
@@ -2583,6 +2590,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    {
       // To force FE space update, we need to increase 'sequence':
       sequence++;
+      nodes_sequence++;
       last_operation = Mesh::NONE;
       nodes_fes->Update(false); // want_transform = false
       Nodes->Update(); // just needed to update Nodes->sequence
@@ -2969,6 +2977,7 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
    }
    // To force FE space update, we need to increase 'sequence':
    sequence++;
+   nodes_sequence++;
    last_operation = Mesh::NONE;
    fes->Update(false); // want_transform = false
    Nodes->Update(); // just needed to update Nodes->sequence
@@ -4092,6 +4101,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Create the new Mesh instance without a record of its refinement history
    sequence = 0;
+   nodes_sequence = 0;
    last_operation = Mesh::NONE;
 
    // Duplicate the elements
@@ -4965,7 +4975,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
    {
       int i, info;
       orig_mesh.GetBdrElementAdjacentElement(el, i, info);
-      Geometry::Type geom = orig_mesh.GetBdrElementBaseGeometry(el);
+      Geometry::Type geom = orig_mesh.GetBdrElementGeometry(el);
       int attrib = orig_mesh.GetBdrAttribute(el);
       int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *refiner.Refine(geom, ref_factors[i]);
@@ -5149,7 +5159,7 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    }
    for (int i=0; i<nbe; ++i)
    {
-      new_nbe += num_subdivisions[orig_mesh.GetBdrElementBaseGeometry(i)];
+      new_nbe += num_subdivisions[orig_mesh.GetBdrElementGeometry(i)];
    }
 
    InitMesh(dim, sdim, nv, new_ne, new_nbe);
@@ -5391,7 +5401,7 @@ void Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    {
       const int *v = orig_mesh.boundary[i]->GetVertices();
       const int attrib = orig_mesh.GetBdrAttribute(i);
-      const Geometry::Type orig_geom = orig_mesh.GetBdrElementBaseGeometry(i);
+      const Geometry::Type orig_geom = orig_mesh.GetBdrElementGeometry(i);
       if (num_subdivisions[orig_geom] == 1)
       {
          Element *be = NewElement(orig_geom);
@@ -5802,6 +5812,7 @@ void Mesh::UpdateNURBS()
 
    Nodes->FESpace()->Update();
    Nodes->Update();
+   NodesUpdated();
    NURBSext->SetCoordsFromPatches(*Nodes);
 
    if (NumOfVertices != NURBSext->GetNV())
@@ -7261,7 +7272,8 @@ void Mesh::GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const
    info = fi.Elem1Inf + ori;
 }
 
-void Mesh::GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const
+void Mesh::GetBdrElementAdjacentElement2(
+   int bdr_el, int &el, int &info) const
 {
    int fid = GetBdrElementFaceIndex(bdr_el);
 
@@ -10189,11 +10201,7 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    last_operation = Mesh::REFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 double Mesh::AggregateError(const Array<double> &elem_error,
@@ -10395,6 +10403,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
       mfem::Swap(CoarseFineTr, other.CoarseFineTr);
 
       mfem::Swap(sequence, other.sequence);
+      mfem::Swap(nodes_sequence, other.nodes_sequence);
       mfem::Swap(last_operation, other.last_operation);
    }
 }
@@ -11313,7 +11322,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -11379,7 +11388,7 @@ void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
    if (!comments.empty()) { os << '\n' << comments << '\n'; }
 
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# SEGMENT     = 1\n"
       "# SQUARE      = 3\n"
       "# CUBE        = 5\n"
@@ -11639,7 +11648,7 @@ void Mesh::PrintVTU(std::ostream &os, int ref, VTKFormat format,
 
    auto get_geom = [&](int i)
    {
-      if (bdr_elements) { return GetBdrElementBaseGeometry(i); }
+      if (bdr_elements) { return GetBdrElementGeometry(i); }
       else { return GetElementBaseGeometry(i); }
    };
 
@@ -12064,7 +12073,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &os,
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -12560,7 +12569,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &os) const
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
