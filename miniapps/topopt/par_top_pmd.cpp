@@ -236,6 +236,7 @@ int main(int argc, char *argv[])
       projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
                                                       *gradH1_selfload));
       density.SetVolumeConstraintType(-1);
+
    }
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -249,7 +250,8 @@ int main(int argc, char *argv[])
       rho_gf.reset(new ParGridFunction(&filter_fes));
       designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
-      rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+      rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+                                     GridFunction::AvgType::ARITHMETIC);
       sout_SIMP.open(vishost, visport);
       if (sout_SIMP.is_open())
       {
@@ -278,10 +280,17 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParaViewDataCollection> pd;
    if (paraview)
    {
+      if (!rho_gf)
+      {
+         rho_gf.reset(new ParGridFunction(&filter_fes));
+         rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+                                        GridFunction::AvgType::ARITHMETIC);
+
+      }
       pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("state", &u);
-      pd->RegisterField("psi", &density.GetGridFunction());
+      pd->RegisterField("rho", rho_gf.get());
       pd->RegisterField("frho", &rho_filter);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -296,6 +305,10 @@ int main(int argc, char *argv[])
    ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
                         (&density.GetGridFunction()));
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
+   if (problem >= ElasticityProblem::MBB_selfloading)
+   {
+      psi = inv_sigmoid(0.5);
+   }
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -354,6 +367,28 @@ int main(int argc, char *argv[])
       }
 
       // Step 4. Visualization
+      if (rho_gf)
+      {
+         rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+                                        GridFunction::AvgType::ARITHMETIC);
+         MappedGridFunctionCoefficient bdr_rho(&psi, [](double x)
+         {
+            return x > 0.0 ? 0.0 : sigmoid(x);
+         });
+         Array<int> bdr(ess_bdr_filter);
+         bdr = 1;
+         for(int i=0; i<bdr.Size(); i++)
+         {
+            for (int j=0; j<ess_bdr.NumRows(); j++)
+            {
+               if (ess_bdr(j, i))
+               {
+                  bdr[i] = 0;
+               }
+            }
+         }
+         rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
+      }
       if (glvis_visualization)
       {
          if (sout_SIMP.is_open())
@@ -367,7 +402,6 @@ int main(int argc, char *argv[])
          }
          if (sout_r.is_open())
          {
-            rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
             sout_r << "parallel " << num_procs << " " << myid << "\n";
             sout_r << "solution\n" << *pmesh << *rho_gf
                    << flush;
