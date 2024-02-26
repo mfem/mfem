@@ -623,32 +623,32 @@ NURBSPatch::NURBSPatch(std::istream &input)
    }
 }
 
-NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_)
+NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim)
 {
    kv.SetSize(2);
    kv[0] = new KnotVector(*kv0);
    kv[1] = new KnotVector(*kv1);
-   init(dim_);
+   init(dim);
 }
 
 NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
-                       const KnotVector *kv2, int dim_)
+                       const KnotVector *kv2, int dim)
 {
    kv.SetSize(3);
    kv[0] = new KnotVector(*kv0);
    kv[1] = new KnotVector(*kv1);
    kv[2] = new KnotVector(*kv2);
-   init(dim_);
+   init(dim);
 }
 
-NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_)
+NURBSPatch::NURBSPatch(Array<const KnotVector *> &kvs, int dim)
 {
-   kv.SetSize(kv_.Size());
+   kv.SetSize(kvs.Size());
    for (int i = 0; i < kv.Size(); i++)
    {
-      kv[i] = new KnotVector(*kv_[i]);
+      kv[i] = new KnotVector(*kvs[i]);
    }
-   init(dim_);
+   init(dim);
 }
 
 NURBSPatch::NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP)

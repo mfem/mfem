@@ -196,8 +196,8 @@ protected:
    int ls; // Number of variables per knot in flattened structure
    int sd; // Stride for data access
 
-   /// Flattens the B-NET in direction @a dir, producing a 1D net.
-   // Returns the number of variables per knot in flattened structure.
+   /** @brief Flattens the B-NET in direction @a dir, producing a 1D net.
+       Returns the number of variables per knot in flattened structure. */
    int SetLoopDirection(int dir);
 
    /** @brief Access function for the effectively 1D flattened net, where @a i
@@ -222,16 +222,15 @@ public:
    /// Constructor using data read from stream @a input.
    NURBSPatch(std::istream &input);
 
-   /// Constructor for a 2D patch.
-   // dim is physical dimension plus 1
-   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_);
+   /// Constructor for a 2D patch. @a dim is the physical dimension plus 1.
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim);
 
    /// Constructor for a 3D patch.
    NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
-              const KnotVector *kv2, int dim_);
+              const KnotVector *kv2, int dim);
 
    /// Constructor for a patch of dimension equal to the size of @a kv.
-   NURBSPatch(Array<const KnotVector *> &kv, int dim_);
+   NURBSPatch(Array<const KnotVector *> &kv, int dim);
 
    /// Copy assignment not supported.
    NURBSPatch& operator=(const NURBSPatch&) = delete;
@@ -250,8 +249,7 @@ public:
 
    /**  @brief Insert any new knots from @a knot in direction @a dir. If the
         order (degree) of @a knot is higher than the current order in direction
-        @a dir, then the order is elevated in that direction to match.
-    */
+        @a dir, then the order is elevated in that direction to match. */
    void KnotInsert(int dir, const KnotVector &knot);
 
    /** @brief Insert knots from @a knot in direction @a dir. If a knot already
@@ -543,7 +541,6 @@ protected:
    void Get3DPatchNets(const Vector &coords, int vdim);
 
    // Patch --> FE translation functions
-   //
 
    /** @brief Return in @a coords the coordinates from each patch. Side effects:
        delete the patches and update the weights from the patches. */
@@ -671,7 +668,7 @@ public:
    /// Return the dof index whilst accounting for periodic boundaries.
    int DofMap(int dof) const
    {
-      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+      return (d_to_d.Size() > 0) ? d_to_d[dof] : dof;
    };
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
@@ -684,6 +681,7 @@ public:
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
    // Mesh generation functions
+
    /// Generate the active mesh elements and return them in @a elements.
    void GetElementTopo   (Array<Element *> &elements) const;
    /// Generate the active mesh boundary elements and return them in @a boundary.
@@ -734,8 +732,7 @@ public:
    const Vector &GetWeights() const { return  weights; }
    Vector       &GetWeights()       { return  weights; }
 
-   // Translation functions: from FE coordinates to IJK patch
-   // format and vice versa
+   // Translation functions between FE coordinates and IJK patch format.
 
    /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
    void ConvertToPatches(const Vector &Nodes);
@@ -755,8 +752,7 @@ public:
 
    /** @brief Call @a DegreeElevate for all KnotVectors of all patches. For each
        KnotVector, the new degree is
-       max(old_degree, min(old_degree + rel_degree, degree)).
-    */
+       max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);
    /** @brief Uniformly refine the entire mesh by calling @a UniformRefinement
        for all patches. */
