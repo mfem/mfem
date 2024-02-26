@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
          });
          Array<int> bdr(ess_bdr_filter);
          bdr = 1;
-         for(int i=0; i<bdr.Size(); i++)
+         for (int i=0; i<bdr.Size(); i++)
          {
             for (int j=0; j<ess_bdr.NumRows(); j++)
             {

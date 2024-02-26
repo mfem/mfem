@@ -268,7 +268,8 @@ protected:
 private:
 
 public:
-   HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr, bool enforce_symmetricity=false);
+   HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr,
+                   bool enforce_symmetricity=false);
    void Apply(const GridFunction &rho, GridFunction &frho,
               bool apply_bdr=true) const override
    {
