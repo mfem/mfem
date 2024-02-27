@@ -430,17 +430,20 @@ public:
        details, see the PETSc Manual.*/
    virtual void ImplicitMult(const Vector &u, const Vector &k, Vector &v) const;
 
-   /** @brief Solve for unknown @a k at current time t that satisfies
+   /** @brief Perform the action of the operator (u,t) -> k(u,t) where t is the
+       current time set by SetTime() and @a k satisfies
        F(@a u, @a k, t) = G(@a u, t).
 
        For solving an ordinary differential equation of the form
-       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of the
-       following:
-       1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
-       2. F(u,k,t) = M k and G(u,t) = g(u,t)
-       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
-       Regardless of the choice of F and G, this function computes
-       @a k = inv(M) g(@a u, t) */
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
+       various ways, e.g.:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
+
+       Regardless of the choice of F and G, this function should always compute
+       @a k = inv(M) g(@a u, t). */
    virtual void Mult(const Vector &u, Vector &v) const override;
 
    /** @brief Solve for unknown @a k at current time t that satisfies
