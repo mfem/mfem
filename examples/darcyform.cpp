@@ -83,7 +83,6 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
                                     BilinearFormIntegrator *constr_flux_integ,
-                                    BilinearFormIntegrator *constr_pot_integ,
                                     const Array<int> &ess_flux_tdof_list)
 {
    MFEM_ASSERT(M_u, "Mass form for the fluxes must be set prior to this call!");
@@ -91,12 +90,25 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    if (assembly != AssemblyLevel::LEGACY)
    {
       delete constr_flux_integ;
-      delete constr_pot_integ;
       hybridization = NULL;
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
    hybridization = new DarcyHybridization(fes_u, fes_p, constr_space);
+   BilinearFormIntegrator *constr_pot_integ = NULL;
+   if (M_p)
+   {
+      auto fbfi = M_p->GetFBFI();
+      if (fbfi->Size())
+      {
+         if (fbfi->Size() > 1)
+         {
+            MFEM_WARNING("Only one face integrator is considered for hybridization");
+         }
+         constr_pot_integ = (*fbfi)[0];
+         fbfi->DeleteFirst(constr_pot_integ);
+      }
+   }
    hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
    hybridization->Init(ess_flux_tdof_list);
    M_u->hybridization = hybridization;

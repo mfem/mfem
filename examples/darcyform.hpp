@@ -76,7 +76,6 @@ public:
        before assembly. */
    void EnableHybridization(FiniteElementSpace *constr_space,
                             BilinearFormIntegrator *constr_flux_integ,
-                            BilinearFormIntegrator *constr_pot_integ,
                             const Array<int> &ess_flux_tdof_list);
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
