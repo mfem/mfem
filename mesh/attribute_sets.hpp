@@ -25,6 +25,9 @@ namespace mfem
 
 class AttributeSets
 {
+private:
+   const int def_width = 10;
+
 public:
    /// Named sets of element attributes
    ArraysByName<int> attr_sets;
@@ -159,6 +162,28 @@ public:
        be modified and no error will occur.
     */
    void RemoveFromBdrAttributeSet(const std::string &set_name, int attr);
+
+   /// @brief Print the contents of the container to an output stream
+   ///
+   /// @note The two types of named attribute sets will be printed with
+   /// hearders "attribute sets" and "bdr_attribute_sets". The array entries
+   /// will contain 10 entries per line. A specific number of entries per line
+   /// can be used by changing the @a width argument.
+   void Print(std::ostream &out = mfem::out, int width = -1) const;
+
+   /// @brief Print the contents of only the domain attribute container
+   ///
+   /// @note The array entries will contain 10 entries per line. A specific
+   /// number of entries per line can be used by changing the @a width argument.
+   void PrintAttributeSets(std::ostream &out = mfem::out,
+                           int width = -1) const;
+
+   /// @brief Print the contents of only the boundary attribute container
+   ///
+   /// @note The array entries will contain 10 entries per line. A specific
+   /// number of entries per line can be used by changing the @a width argument.
+   void PrintBdrAttributeSets(std::ostream &out = mfem::out,
+                              int width = -1) const;
 
    /// @brief Access a named attribute set
    /**

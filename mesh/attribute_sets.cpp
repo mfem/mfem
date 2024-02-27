@@ -148,6 +148,24 @@ void AttributeSets::RemoveFromBdrAttributeSet(const std::string &set_name,
    bdr_attr_set.DeleteFirst(attr);
 }
 
+void AttributeSets::Print(std::ostream &os, int width) const
+{
+   os << "\nattribute_sets\n";
+   PrintAttributeSets(os, width);
+   os << "\nbdr_attribute_sets\n";
+   PrintBdrAttributeSets(os, width);
+}
+
+void AttributeSets::PrintAttributeSets(std::ostream &os, int width) const
+{
+   attr_sets.Print(os, width > 0 ? width : def_width);
+}
+
+void AttributeSets::PrintBdrAttributeSets(std::ostream &os, int width) const
+{
+   bdr_attr_sets.Print(os, width > 0 ? width : def_width);
+}
+
 Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
 {
    return attr_sets[set_name];
