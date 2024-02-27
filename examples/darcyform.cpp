@@ -86,7 +86,8 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
                                     BilinearFormIntegrator *constr_pot_integ,
                                     const Array<int> &ess_flux_tdof_list)
 {
-   delete hybridization;
+   MFEM_ASSERT(M_u, "Mass form for the fluxes must be set prior to this call!");
+   delete M_u->hybridization;
    if (assembly != AssemblyLevel::LEGACY)
    {
       delete constr_flux_integ;
@@ -98,6 +99,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization = new DarcyHybridization(fes_u, fes_p, constr_space);
    hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
    hybridization->Init(ess_flux_tdof_list);
+   M_u->hybridization = hybridization;
 }
 
 void DarcyForm::Assemble(int skip_zeros)
@@ -174,6 +176,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
    if (M_u)
    {
+      //todo: hybridization
       M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
       block_op->SetDiagonalBlock(0, pM_u.Ptr());
    }
@@ -196,7 +199,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
    if (hybridization)
    {
-      A.Reset(&hybridization->GetMatrix(), false);
+      A.Reset(&hybridization->GetBlockMatrix(), false);
    }
    else
    {
@@ -258,8 +261,6 @@ DarcyForm::~DarcyForm()
    if (B) { delete B; }
 
    delete block_op;
-
-   delete hybridization;
 }
 
 const Operator* DarcyForm::ConstructBT(const MixedBilinearForm *B)
@@ -277,9 +278,8 @@ const Operator* DarcyForm::ConstructBT(const Operator *opB)
 DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_)
-   : fes_u(fes_u_), fes_p(fes_p_), fes_c(fes_c_)
+   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_)
 {
-   c_bfi_u = NULL;
    c_bfi_p = NULL;
 
    H = NULL;
@@ -287,7 +287,6 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 
 DarcyHybridization::~DarcyHybridization()
 {
-   delete c_bfi_u;
    delete c_bfi_p;
 
    delete H;
@@ -296,14 +295,10 @@ DarcyHybridization::~DarcyHybridization()
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
                                                   *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
 {
-   delete c_bfi_u;
-   c_bfi_u = c_flux_integ;
+   delete c_bfi;
+   c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
-}
-
-void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
-{
 }
 
 void DarcyHybridization::Finalize()

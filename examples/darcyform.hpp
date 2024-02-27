@@ -194,10 +194,10 @@ public:
    Type GetType() const { return MFEM_Block_Operator; }
 };
 
-class DarcyHybridization
+class DarcyHybridization : public Hybridization
 {
-   FiniteElementSpace *fes_u, *fes_p, *fes_c;
-   BilinearFormIntegrator *c_bfi_u, *c_bfi_p;
+   FiniteElementSpace *fes_p;
+   BilinearFormIntegrator *c_bfi_p;
 
    BlockMatrix *H;
 
@@ -208,14 +208,14 @@ public:
    /// Destructor
    ~DarcyHybridization();
 
+   void SetConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;
+
    /** Set the integrator that will be used to construct the constraint matrix
        C. The Hybridization object assumes ownership of the integrator, i.e. it
        will delete the integrator when destroyed. */
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  BilinearFormIntegrator *c_pot_integ);
 
-   /// Prepare the Hybridization object for assembly.
-   void Init(const Array<int> &ess_flux_tdof_list);
 
    /// Assemble the element matrix A into the hybridized system matrix.
    //void AssembleMatrix(int el, const DenseMatrix &A);
@@ -226,12 +226,21 @@ public:
    /// Finalize the construction of the hybridized matrix.
    void Finalize();
 
+   SparseMatrix &GetMatrix() = delete;
+
    /// Return the serial hybridized matrix.
-   BlockMatrix &GetMatrix() { return *H; }
+   BlockMatrix &GetBlockMatrix() { return *H; }
+
+   void ReduceRHS(const Vector &b, Vector &b_r) const override
+   { MFEM_ABORT("Use BlockVector version instead"); }
 
    /** Perform the reduction of the given r.h.s. vector, b, to a r.h.s vector,
        b_r, for the hybridized system. */
    void ReduceRHS(const BlockVector &b, Vector &b_r) const;
+
+   void ComputeSolution(const Vector &b, const Vector &sol_r,
+                        Vector &sol) const override
+   { MFEM_ABORT("Use BlockVector version instead"); }
 
    /** Reconstruct the solution of the original system, sol, from solution of
        the hybridized system, sol_r, and the original r.h.s. vector, b.
