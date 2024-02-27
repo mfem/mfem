@@ -331,6 +331,24 @@ public:
 class TimeDependentOperator : public Operator
 {
 public:
+   /// Enum used to describe the form of the time-dependent operator.
+   /** The type should be set by classes derived from TimeDependentOperator to
+       describe the form, in terms of the functions F and G, used by the
+       specific derived class. This information can be queried by classes or
+       functions (like time stepping algorithms) to make choices about the
+       algorithm to use, or to ensure that the TimeDependentOperator uses the
+       form expected by the class/function.
+
+       For example, assume that a derived class is implementing the ODE
+       $M \frac{dy}{dt} = g(y,t)$ and chooses to define $F(u,k,t) = M k$ and
+       $G(u,t) = g(u,t)$. Then it cannot use type EXPLICIT, unless $M = I$, or
+       type HOMOGENEOUS, unless $g(u,t) = 0$. If, on the other hand, the derived
+       class chooses to define $F(u,k,t) = k$ and $G(u,t) = M^{-1} g(y,t)$, then
+       the natural choice is to set the type to EXPLICIT, even though setting it
+       to IMPLICIT is also not wrong -- doing so will simply fail to inform
+       methods that query this information that it uses a more specific
+       implementation, EXPLICIT, that may allow the use of algorithms that
+       support only the EXPLICIT type. */
    enum Type
    {
       EXPLICIT,   ///< This type assumes F(u,k,t) = k.
