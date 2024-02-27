@@ -11265,7 +11265,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (set_names)
    {
      os << "\nattribute_sets\n";
-     attribute_sets.attr_sets.Print(os);
+     attribute_sets.PrintAttributeSets(os);
    }
 
    os << "\nboundary\n" << NumOfBdrElements << '\n';
@@ -11277,7 +11277,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (set_names)
    {
      os << "\nbdr_attribute_sets\n";
-     attribute_sets.bdr_attr_sets.Print(os);
+     attribute_sets.PrintBdrAttributeSets(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';

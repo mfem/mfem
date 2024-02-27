@@ -4859,7 +4859,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (set_names)
    {
       os << "\nattribute_sets\n";
-      attribute_sets.attr_sets.Print(os);
+      attribute_sets.PrintAttributeSets(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4894,7 +4894,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (set_names)
    {
       os << "\nbdr_attribute_sets\n";
-      attribute_sets.bdr_attr_sets.Print(os);
+      attribute_sets.PrintBdrAttributeSets(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';
