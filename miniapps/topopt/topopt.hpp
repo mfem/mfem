@@ -41,6 +41,13 @@ inline double der_simp(const double x, const double rho_0,
    return k * std::pow(x, k - 1.0) * (rho_max - rho_0);
 }
 
+/// @brief Derivative of SIMP function, k*(ρ̄ - ρ₀)*x^(k-1)
+inline double der2_simp(const double x, const double rho_0,
+                        const double k, const double rho_max=1.0)
+{
+   return k * (k - 1.0) * std::pow(x, k - 2.0) * (rho_max - rho_0);
+}
+
 inline double FermiDiracEntropy(const double x)
 {
    const double y = 1.0-x;
@@ -130,9 +137,9 @@ private:
 public:
    L2ProjectionLFIntegrator(const GridFunction &gf): LinearFormIntegrator(),
       gf(&gf), mass_loc(), mass() {}
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect)
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
    {
       const FiniteElement &el_source = *(gf->FESpace()->GetFE(Tr.ElementNo));
       gf->GetElementDofValues(Tr.ElementNo, gf_val);
@@ -278,6 +285,7 @@ public:
    }
    void Apply(Coefficient &rho, GridFunction &frho,
               bool apply_bdr=true) const override;
+   BilinearForm& GetBilinearForm() {return *filter; }
 protected:
 private:
 };
@@ -654,6 +662,16 @@ public:
                                      GridFunction &frho)
       : E(E), nu(nu),  u1(u1),  u2(u2),
         dphys_dfrho(projector.GetDerivative(frho))
+   { }
+   IsoStrainEnergyDensityCoefficient(Coefficient &E, Coefficient &nu,
+                                     GridFunction &u1, Coefficient &weight)
+      : E(E), nu(nu),  u1(u1),  u2(u1),
+        dphys_dfrho(weight)
+   { }
+   IsoStrainEnergyDensityCoefficient(Coefficient &E, Coefficient &nu,
+                                     GridFunction &u1, GridFunction &u2, Coefficient &weight)
+      : E(E), nu(nu),  u1(u1),  u2(u2),
+        dphys_dfrho(weight)
    { }
 
    double Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
