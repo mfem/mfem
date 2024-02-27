@@ -58,10 +58,10 @@ public:
    WorkspaceVector(WorkspaceVector &&other);
 
    /// No copy constructor.
-   WorkspaceVector(WorkspaceVector &other) = delete;
+   WorkspaceVector(const WorkspaceVector &other) = delete;
 
    /// Copy assignment: copy contents of vector, not metadata.
-   WorkspaceVector& operator=(WorkspaceVector &other)
+   WorkspaceVector& operator=(const WorkspaceVector &other)
    {
       Vector::operator=(other);
       return *this;
