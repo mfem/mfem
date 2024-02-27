@@ -219,6 +219,9 @@ public:
    /// Assemble the element matrix A into the hybridized system matrix.
    //void AssembleMatrix(int el, const DenseMatrix &A);
 
+   void ComputeAndAssembleFaceMatrix(int face, DenseMatrix &elmat,
+                                     Array<int> &vdofs);
+
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
