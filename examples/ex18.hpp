@@ -180,7 +180,7 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
       Vector xval, zval;
       for (int i=0; i<vfes.GetNE(); i++)
       {
-         auto Tr = vfes.GetElementTransformation(i);
+         ElementTransformation* Tr = vfes.GetElementTransformation(i);
          int dof = vfes.GetFE(i)->GetDof();
          vfes.GetElementVDofs(i, vdofs);
          x.GetSubVector(vdofs, xval);
