@@ -38,6 +38,8 @@ class DarcyForm : public Operator
 
    DarcyHybridization *hybridization; ///< Owned.
 
+   void AssembleHDGFaces(int skip_zeros);
+
    const Operator* ConstructBT(const MixedBilinearForm *B);
    const Operator* ConstructBT(const Operator *opB);
 
@@ -217,7 +219,15 @@ public:
 
 
    /// Assemble the element matrix A into the hybridized system matrix.
-   //void AssembleMatrix(int el, const DenseMatrix &A);
+   void AssembleMatrix(int el, const DenseMatrix &A) override
+   { MFEM_ABORT("Not supported, system part must be specified"); }
+
+   void AssembleFluxMassMatrix(int el, const DenseMatrix &A)
+   { Hybridization::AssembleMatrix(el, A); }
+
+   void AssemblePotMassMatrix(int el, const DenseMatrix &D);
+
+   void AssembleDivMatrix(int el, const DenseMatrix &B);
 
    void ComputeAndAssembleFaceMatrix(int face, DenseMatrix &elmat,
                                      Array<int> &vdofs);

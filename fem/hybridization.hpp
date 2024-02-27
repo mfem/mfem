@@ -82,13 +82,13 @@ protected:
    OperatorHandle pH;
 #endif
 
-   virtual void ConstructC();
+   void ConstructC();
 
    void GetIBDofs(int el, Array<int> &i_dofs, Array<int> &b_dofs) const;
 
    void GetBDofs(int el, int &num_idofs, Array<int> &b_dofs) const;
 
-   virtual void ComputeH();
+   void ComputeH();
 
    // Compute depending on mode:
    // - mode 0: bf = Af^{-1} Rf^t b, where

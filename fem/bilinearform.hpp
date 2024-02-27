@@ -60,7 +60,6 @@ enum class AssemblyLevel
 class BilinearForm : public Matrix
 {
    friend FABilinearFormExtension;
-   friend class DarcyForm;
 
 protected:
    /// Sparse matrix $ M $ to be associated with the form. Owned.
