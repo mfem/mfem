@@ -76,19 +76,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root())
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (Mpi::Root())
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
    // 3. Read the serial mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -241,7 +229,7 @@ int main(int argc, char *argv[])
    //    attributes contained in the set named "ess_name" as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
+   if (attr_sets.BdrAttributeSetExists(ess_name))
    {
       Array<int> ess_bdr_marker;
       pmesh.BdrAttrToMarker(attr_sets.GetBdrAttributeSet(ess_name),
@@ -314,20 +302,8 @@ int main(int argc, char *argv[])
 
    // 15. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      int myid = Mpi::WorldRank();
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh.Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
+   pmesh.Save("mesh");
+   x.Save("sol");
 
    // 16. Send the solution by socket to a GLVis server.
    if (visualization)
