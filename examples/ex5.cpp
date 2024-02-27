@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
    int nx = 0;
    int ny = 0;
    int order = 1;
+   bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -73,6 +74,8 @@ int main(int argc, char *argv[])
                   "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
+                  "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -196,8 +199,6 @@ int main(int argc, char *argv[])
    BilinearForm *mVarf = darcy->GetFluxMassForm();
    MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-
    //if (pa) { mVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(k));
    //mVarf->Assemble();
@@ -207,6 +208,27 @@ int main(int argc, char *argv[])
    bVarf->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    //bVarf->Assemble();
    //if (!pa) { bVarf->Finalize(); }
+
+   //set hybridization / assembly level
+
+   Array<int> ess_flux_tdofs_list;
+   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
+   bdr_is_ess = 0;
+   bdr_is_ess[3] = -1;
+   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
+
+   FiniteElementCollection *trace_coll = NULL;
+   FiniteElementSpace *trace_space = NULL;
+   if (hybridization)
+   {
+      trace_coll = new RT_Trace_FECollection(order, dim, 0);
+      trace_space = new FiniteElementSpace(mesh, trace_coll);
+      darcy->EnableHybridization(trace_space,
+                                 new NormalTraceJumpIntegrator(),
+                                 ess_flux_tdofs_list);
+   }
+
+   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    darcy->Assemble();
    //if (!pa) { darcy->Finalize(); }
@@ -234,13 +256,6 @@ int main(int argc, char *argv[])
       darcyOp.SetBlock(0,1, Bt);
       darcyOp.SetBlock(1,0, &B);
    }*/
-
-   Array<int> ess_flux_tdofs_list;
-
-   /*Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
-   bdr_is_ess = 0;
-   bdr_is_ess[3] = -1;
-   R_space->GetEssentialTrueDofs(bdr_is_ess, ess_flux_tdofs_list);*/
 
    OperatorHandle pDarcyOp;
    Vector X, B;
@@ -429,8 +444,10 @@ int main(int argc, char *argv[])
    delete darcy;
    delete W_space;
    delete R_space;
+   delete trace_space;
    delete l2_coll;
    delete hdiv_coll;
+   delete trace_coll;
    delete mesh;
 
    return 0;
