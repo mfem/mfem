@@ -72,13 +72,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -215,7 +209,7 @@ int main(int argc, char *argv[])
    //    contained in the set named "ess_name" as essential (Dirichlet) and
    //    converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (mesh.bdr_attributes.Size())
+   if (attr_sets.BdrAttributeSetExists(ess_name))
    {
       Array<int> ess_bdr_marker;
       mesh.BdrAttrToMarker(attr_sets.GetBdrAttributeSet(ess_name),
@@ -267,27 +261,23 @@ int main(int argc, char *argv[])
    //     applying any necessary transformations.
    a.Assemble();
 
-   OperatorPtr A;
+   SparseMatrix A;
    Vector B, X;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
-   cout << "Size of linear system: " << A->Height() << endl;
+   cout << "Size of linear system: " << A.Height() << endl;
 
    // 11. Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
-   GSSmoother M((SparseMatrix&)(*A));
-   PCG(*A, M, B, X, 1, 800, 1e-12, 0.0);
+   GSSmoother M(A);
+   PCG(A, M, B, X, 1, 800, 1e-12, 0.0);
 
    // 12. Recover the solution as a finite element grid function.
    a.RecoverFEMSolution(X, b, x);
 
    // 13. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
-   mesh_ofs.precision(8);
-   mesh.Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
-   sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   mesh.Save("refined.mesh");
+   x.Save("sol.gf");
 
    // 14. Send the solution by socket to a GLVis server.
    if (visualization)
