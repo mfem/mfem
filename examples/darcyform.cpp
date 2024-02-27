@@ -117,7 +117,7 @@ void DarcyForm::Assemble(int skip_zeros)
 {
    if (M_u)
    {
-      if(hybridization)
+      if (hybridization)
       {
          DenseMatrix elmat;
 
@@ -130,12 +130,14 @@ void DarcyForm::Assemble(int skip_zeros)
          }
       }
       else
+      {
          M_u->Assemble(skip_zeros);
+      }
    }
 
    if (B)
    {
-      if(hybridization)
+      if (hybridization)
       {
          DenseMatrix elmat;
 
@@ -148,12 +150,14 @@ void DarcyForm::Assemble(int skip_zeros)
          }
       }
       else
+      {
          B->Assemble(skip_zeros);
+      }
    }
 
    if (M_p)
    {
-      if(hybridization)
+      if (hybridization)
       {
          DenseMatrix elmat;
 
@@ -164,11 +168,13 @@ void DarcyForm::Assemble(int skip_zeros)
             M_p->AssembleElementMatrix(i, elmat, skip_zeros);
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
-         
+
          AssembleHDGFaces(skip_zeros);
       }
       else
+      {
          M_p->Assemble(skip_zeros);
+      }
    }
 }
 
@@ -359,7 +365,6 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
    if (boundary_face_integs.Size())
    {
       FaceElementTransformations *tr;
-      const FiniteElement *fe1, *fe2;
 
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
@@ -390,13 +395,8 @@ void DarcyForm::AssembleHDGFaces(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            fe1 = fes_p -> GetFE (tr -> Elem1No);
-            // The fe2 object is really a dummy and not used on the boundaries,
-            // but we can't dereference a NULL pointer, and we don't want to
-            // actually make a fake element.
-            fe2 = fe1;
             if (boundary_face_integs_marker[0] &&
-                  (*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
+                (*boundary_face_integs_marker[0])[bdr_attr-1] == 0)
             { continue; }
 
             int faceno = mesh->GetBdrElementFaceIndex(i);
