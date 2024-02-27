@@ -11,7 +11,6 @@
 
 list(APPEND SRCS
   array.cpp
-  arrays_by_name.cpp
   binaryio.cpp
   cuda.cpp
   device.cpp
