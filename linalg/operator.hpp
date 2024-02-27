@@ -446,28 +446,36 @@ public:
        @a k = inv(M) g(@a u, t). */
    virtual void Mult(const Vector &u, Vector &v) const override;
 
-   /** @brief Solve for unknown @a k at current time t that satisfies
+   /** @brief Solve for the unknown @a k, at the current time t, the following
+       equation:
        F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
 
        For solving an ordinary differential equation of the form
-       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of the
-       following:
-       1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
-       2. F(u,k,t) = M k and G(u,t) = g(u,t)
-       3. F(u,k,t) = M k - g(u,t)
-       Regardless of the choice of F and G, this function solves for @a k in
-       M @a k = g(@a u + @a gamma @a k, t). To see how @a k can be useful,
-       consider the backward Euler method defined by
-       $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
-       $ M k_0 = g \big( y(t) + \Delta t k_0 \big) $. A backward Euler
-       integrator can use @a k from this function, with @a u set to $ y(t) $ and
-       @a gamma set to $ \Delta t$, for $k_0$. Generalizing further, consider a
-       diagonally implicit Runge-Kutta (DIRK) method defined by
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
+       various ways, e.g.:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t)
+
+       Regardless of the choice of F and G, this function should solve for @a k
+       in M @a k = g(@a u + @a gamma @a k, t).
+
+       To see how @a k can be useful, consider the backward Euler method defined
+       by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
+       $ M k_0 = g \big( y(t) + \Delta t k_0, t + \Delta t \big) $. A backward
+       Euler integrator can use @a k from this function for $k_0$, with the call
+       using @a u set to $ y(t) $, @a gamma set to $ \Delta t$, and time set to
+       $t + \Delta t$. See class BackwardEulerSolver.
+
+       Generalizing further, consider a diagonally implicit Runge-Kutta (DIRK)
+       method defined by
        $ y(t + \Delta t) = y(t) + \Delta t \sum_{i=1}^s b_i k_i $ where
-       $ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j, t + c_i \Delta t \big) $.
+       $ M k_i = g \big( y(t) + \Delta t \sum_{j=1}^i a_{ij} k_j,
+                         t + c_i \Delta t \big) $.
        A DIRK integrator can use @a k from this function, with @a u set to
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
-       $ a_{ii} \Delta t $, for $ k_i $.
+       $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const double gamma, const Vector &u, Vector &k);
