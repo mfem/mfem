@@ -1657,7 +1657,7 @@ void Mesh::AttrToMarker(const Array<int> &attrs, Array<int> &marker) const
 
 void Mesh::BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const
 {
-   AttrToMarker(bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 1,
+   AttrToMarker(bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0,
                 attrs, marker);
 }
 

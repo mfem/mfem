@@ -116,8 +116,10 @@ public:
 
    /// @brief Print the contents of the container to an output stream
    ///
-   /// @note By default each array will be printed on its own line. A specific
-   /// number of entries per line can be used by changing the @a width argument.
+   /// @note Each array will be printed on at least three lines; the name on
+   /// one line, the length of the associated array, lastly the array contents
+   /// with @a width entries per line. A specific number of entries per line
+   /// can be used by changing the @a width argument.
    inline void Print(std::ostream &out = mfem::out, int width = -1) const;
 
    /// @brief Load the contents of the container from an input stream
@@ -243,7 +245,7 @@ inline void ArraysByName<T>::Print(std::ostream &os, int width) const
    os << data.size() << '\n';
    for (auto const &it : data)
    {
-      os << '"' << it.first << '"' << ' ' << it.second.Size() << ' ';
+      os << '"' << it.first << '"' << '\n' << it.second.Size() << '\n';
       it.second.Print(os, width > 0 ? width : it.second.Size());
    }
 }
@@ -275,11 +277,8 @@ void ArraysByName<T>::Load(std::istream &in)
          ArrayName = ArrayLine.substr(0,q1-1);
       }
 
-      // Prepare an input stream to read the rest of the line
-      std::istringstream istr;
-      istr.str(ArrayLine.substr(q1+1));
-
-      data[ArrayName].Load(istr, 0);
+      // Ignore the remainder of the line which may contain explanatory comments
+      data[ArrayName].Load(in, 0);
    }
 
 }
