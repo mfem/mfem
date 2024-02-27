@@ -495,16 +495,22 @@ public:
        details, see the PETSc Manual. */
    virtual Operator& GetExplicitGradient(const Vector &u) const;
 
-   /** @brief For solving an ordinary differential equation of the form
-       $ M \frac{dy}{dt} = g(y,t) $, recall F and G are defined as one of
-       the following:
-       1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
-       2. F(u,k,t) = M k and G(u,t) = g(u,t)
-       3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+   /** @brief Setup a linear system as needed by some SUNDIALS ODE solvers.
+
+       For solving an ordinary differential equation of the form
+       $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined as one
+       of the following:
+
+         1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
+         2. F(u,k,t) = M k and G(u,t) = g(u,t)
+         3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
+
        This function performs setup to solve $ A x = b $ where A is either
-       1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
-       2. A(@a y,t) = M - @a gamma J(@a y,t)
-       3. A(@a y,t) = M - @a gamma J(@a y,t)
+
+         1. A(@a y,t) = I - @a gamma inv(M) J(@a y,t)
+         2. A(@a y,t) = M - @a gamma J(@a y,t)
+         3. A(@a y,t) = M - @a gamma J(@a y,t)
+
        with J = dg/dy (or a reasonable approximation thereof).
 
        @param[in]  y     The state at which A(@a y,t) should be evaluated.
