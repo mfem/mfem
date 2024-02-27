@@ -314,13 +314,20 @@ public:
     _implicit_ and _explicit_ parts of the operator, respectively.
 
     A common use for this class is representing a differential algebraic
-    equation of the form $ F(y,\frac{dy}{dt},t) = G(y,t) $. Consider an
-    ordinary differential equation of the form $ M \frac{dy}{dt} = g(y,t) $,
-    where F and G are defined as one of the following:
-    1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t)
-    2. F(u,k,t) = M k and G(u,t) = g(u,t)
-    3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
-    */
+    equation of the form $ F(y,\frac{dy}{dt},t) = G(y,t) $.
+
+    For example, consider an ordinary differential equation of the form
+    $ M \frac{dy}{dt} = g(y,t) $. There are various ways of expressing this ODE
+    as a TimeDependentOperator depending on the choices for F and G. Here are
+    some common choices:
+
+      1. F(u,k,t) = k and G(u,t) = inv(M) g(u,t),
+      2. F(u,k,t) = M k and G(u,t) = g(u,t),
+      3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0.
+
+    Note that depending on the ODE solver, some of the above choices may be
+    preferable to the others.
+*/
 class TimeDependentOperator : public Operator
 {
 public:
