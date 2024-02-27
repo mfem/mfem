@@ -173,7 +173,8 @@ protected:
    double Dot(const Vector &x, const Vector &y) const;
 
    /// Return the 2-norm of @a x
-   double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+   /// Overriding this method in a derived class enables use of a custom norm.
+   virtual double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
 
    /// Monitor both the residual @a r and the solution @a x
    void Monitor(int it, double norm, const Vector& r, const Vector& x,
