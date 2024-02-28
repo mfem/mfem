@@ -44,6 +44,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_operator.cpp
   linalg/test_vector.cpp
   mesh/test_face_orientations.cpp
+  mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
@@ -91,6 +92,7 @@ set(UNIT_TESTS_SRCS
   fem/test_linearform_ext.cpp
   fem/test_lor.cpp
   fem/test_lor_batched.cpp
+  fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
