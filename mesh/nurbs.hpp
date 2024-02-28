@@ -116,7 +116,7 @@ public:
    void CalcD2Shape(Vector &grad2, int i, double xi) const
    { CalcDnShape(grad2, 2, i, xi); }
 
-   /** @brief Gives the locations of the maxima of the knotvector in reference
+   /** @brief Gives the locations of the maxima of the KnotVector in reference
        space. The function gives the knot span @a ks, the coordinate in the
        knot span @a xi, and the coordinate of the maximum in parameter space
        @a u. */
@@ -138,7 +138,7 @@ public:
    void UniformRefinement(Vector &newknots) const;
 
    /** @brief Return a new KnotVector with elevated degree by repeating the
-       endpoints of the knot vector. */
+       endpoints of the KnotVector. */
    /// @note The returned object should be deleted by the caller.
    KnotVector *DegreeElevate(int t) const;
 
@@ -211,7 +211,7 @@ protected:
    /// Deletes own data, takes data from @a np, and deletes np.
    void swap(NURBSPatch *np);
 
-   /// Sets dimensions and allocates data, based on knotvectors.
+   /// Sets dimensions and allocates data, based on KnotVectors.
    /// @a dim is the physical dimension plus 1.
    void init(int dim);
 
@@ -235,10 +235,10 @@ public:
    /// Copy assignment not supported.
    NURBSPatch& operator=(const NURBSPatch&) = delete;
 
-   /// Deletes data and knotvectors.
+   /// Deletes data and KnotVectors.
    ~NURBSPatch();
 
-   /** @brief Writes knotvectors and data to the stream @a os.
+   /** @brief Writes KnotVectors and data to the stream @a os.
 
        The output is formatted for writing a mesh to file. This function is
        called by NURBSExtension::Print. */
@@ -264,16 +264,16 @@ public:
    void DegreeElevate(int t);
 
    /** @brief Uniformly refine the elements in the patch by calling
-       UniformRefinement for each knotvector in each direction. */
+       UniformRefinement for each KnotVector in each direction. */
    void UniformRefinement();
 
    /// Return the number of components stored in the NURBSPatch
    int GetNC() const { return Dim; }
 
-   /// Return the number of knot vectors, which is the patch dimension.
+   /// Return the number of KnotVectors, which is the patch dimension.
    int GetNKV() const { return kv.Size(); }
 
-   /// Return a pointer to the knot vector in direction @a dir.
+   /// Return a pointer to the KnotVector in direction @a dir.
    /// @note The returned object should NOT be deleted by the caller.
    KnotVector *GetKV(int dir) { return kv[dir]; }
 
@@ -305,7 +305,7 @@ public:
    /// Reverse data and knots in direction @a dir.
    void FlipDirection(int dir);
 
-   /// Swap data and knot vectors in directions @a dir1 and @a dir2.
+   /// Swap data and KnotVectors in directions @a dir1 and @a dir2.
    /** @note Direction pairs (0,2) and (2,0) are not supported, resulting in an
        error being thrown. */
    void SwapDirections(int dir1, int dir2);
@@ -321,7 +321,7 @@ public:
    /// Rotate the NURBSPatch, 3D case.
    void Rotate3D(double normal[], double angle);
 
-   /** Elevate knot vectors in all directions to degree (order) @a degree if
+   /** Elevate KnotVectors in all directions to degree (order) @a degree if
        given, otherwise to the maximum current degree among all directions. */
    int MakeUniformDegree(int degree = -1);
 
@@ -354,13 +354,13 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
-   /// Order of knot vectors, see GetOrder() for description.
+   /// Order of KnotVectors, see GetOrder() for description.
    int mOrder;
 
-   /// Orders of all knot vectors
+   /// Orders of all KnotVectors
    Array<int> mOrders;
 
-   /// Number of knot vectors
+   /// Number of KnotVectors
    int NumOfKnotVectors;
 
    /// Global entity counts
@@ -381,13 +381,13 @@ protected:
    /// Whether this object owns patchTopo
    bool own_topo;
 
-   /// Map from edge indices to knot vector indices
+   /// Map from edge indices to KnotVector indices
    Array<int> edge_to_knot;
 
-   /// Set of unique knot vectors
+   /// Set of unique KnotVectors
    Array<KnotVector *> knotVectors;
 
-   /// Comprehensive set of all knot vectors, one for every edge.
+   /// Comprehensive set of all KnotVectors, one for every edge.
    Array<KnotVector *> knotVectorsCompr;
 
    /// Weights for each control point or DOF
@@ -432,16 +432,16 @@ protected:
    /// Array of all patches in the mesh.
    Array<NURBSPatch*> patches;
 
-   /// Return the unsigned index of the knot vector for edge @a edge.
+   /// Return the unsigned index of the KnotVector for edge @a edge.
    inline int KnotInd(int edge) const;
 
-   /// Access function for the knot vector associated with edge @a edge.
+   /// Access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
    inline KnotVector *KnotVec(int edge);
-   /// Const access function for the knot vector associated with edge @a edge.
+   /// Const access function for the KnotVector associated with edge @a edge.
    /// @note The returned object should NOT be deleted by the caller.
    inline const KnotVector *KnotVec(int edge) const;
-   /* brief Const access function for the knot vector associated with edge
+   /* brief Const access function for the KnotVector associated with edge
       @a edge. The output orientation @a okv is set to @a oedge with sign flipped
       if the KnotVector index associated with edge @a edge is negative. */
    inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
@@ -449,12 +449,12 @@ protected:
    /// Throw an error if any patch has an inconsistent edge-to-knot mapping.
    void CheckPatches();
 
-   /// Throw an error if any boundary patch has invalid knot vector orientation.
+   /// Throw an error if any boundary patch has invalid KnotVector orientation.
    void CheckBdrPatches();
 
-   /** @brief Return the directions in @a kvdir of the knotvectors in patch @a p
+   /** @brief Return the directions in @a kvdir of the KnotVectors in patch @a p
        based on the the patch edge orientations. Each entry of @a kvdir is -1 if
-       the knot vector direction is flipped, +1 otherwise. */
+       the KnotVector direction is flipped, +1 otherwise. */
    void CheckKVDirection(int p, Array <int> &kvdir);
 
    /**  @brief Create the comprehensive set of KnotVectors. In 1D, this set is
@@ -573,14 +573,14 @@ public:
    /// Read-in a NURBSExtension from a stream @a input.
    NURBSExtension(std::istream &input);
    /** @brief Create a NURBSExtension with elevated order by repeating the
-       endpoints of the knot vectors and using uniform weights of 1. */
-   /** @note If a knot vector in @a parent already has order greater than or
+       endpoints of the KnotVectors and using uniform weights of 1. */
+   /** @note If a KnotVector in @a parent already has order greater than or
        equal to @a newOrder, it will be used unmodified. */
    NURBSExtension(NURBSExtension *parent, int newOrder);
-   /** @brief Create a NURBSExtension with elevated knot vector orders (by
-       repeating the endpoints of the knot vectors and using uniform weights of
+   /** @brief Create a NURBSExtension with elevated KnotVector orders (by
+       repeating the endpoints of the KnotVectors and using uniform weights of
        1) as given by the array @a newOrders. */
-   /** @a note If a knot vector in @a parent already has order greater than or
+   /** @a note If a KnotVector in @a parent already has order greater than or
        equal to the corresponding entry in @a newOrder, it will be used
        unmodified. */
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
@@ -634,10 +634,10 @@ public:
    /// Return the number of boundary patches.
    int GetNBP()    const { return patchTopo->GetNBE(); }
 
-   /// Read-only access to the orders of all knot vectors.
+   /// Read-only access to the orders of all KnotVectors.
    const Array<int> &GetOrders() const { return mOrders; }
 
-   /** @brief If all knot vector orders are identical, return that number.
+   /** @brief If all KnotVector orders are identical, return that number.
         Otherwise, return NURBSFECollection::VariableOrder. */
    int GetOrder() const { return mOrder; }
 
@@ -677,7 +677,7 @@ public:
    /// Return KnotVectors in @a kv in each dimension for boundary patch @a bp.
    void GetBdrPatchKnotVectors(int bp, Array<const KnotVector *> &kv) const;
 
-   /// Knotvector read-only access function.
+   /// KnotVector read-only access function.
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
    // Mesh generation functions
