@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -158,7 +158,12 @@ public:
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
           are used to describe the "closed" and "open" 1D basis functions. */
-      TENSOR
+      TENSOR,
+
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is the
+          same as TENSOR, but the sizes of B and G are the same as FULL.*/
+      LEXICOGRAPHIC_FULL
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -259,27 +264,27 @@ public:
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
 
-       A reference function \f$ \hat u(\hat x) \f$ can be mapped to a function
-      \f$ u(x) \f$ on a general physical element in following ways:
-       - \f$ x = T(\hat x) \f$ is the image of the reference point \f$ \hat x \f$
-       - \f$ J = J(\hat x) \f$ is the Jacobian matrix of the transformation T
-       - \f$ w = w(\hat x) = det(J) \f$ is the transformation weight factor for square J
-       - \f$ w = w(\hat x) = det(J^t J)^{1/2} \f$ is the transformation weight factor in general
+       A reference function $ \hat u(\hat x) $ can be mapped to a function
+      $ u(x) $ on a general physical element in following ways:
+       - $ x = T(\hat x) $ is the image of the reference point $ \hat x $
+       - $ J = J(\hat x) $ is the Jacobian matrix of the transformation T
+       - $ w = w(\hat x) = det(J) $ is the transformation weight factor for square J
+       - $ w = w(\hat x) = det(J^t J)^{1/2} $ is the transformation weight factor in general
    */
    enum MapType
    {
       UNKNOWN_MAP_TYPE = -1, /**< Used to distinguish an unset MapType variable
                                   from the known values below. */
       VALUE,     /**< For scalar fields; preserves point values
-                          \f$ u(x) = \hat u(\hat x) \f$ */
+                          $ u(x) = \hat u(\hat x) $ */
       INTEGRAL,  /**< For scalar fields; preserves volume integrals
-                          \f$ u(x) = (1/w) \hat u(\hat x) \f$ */
+                          $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
-                          normal component \f$ u(x) = (J/w) \hat u(\hat x) \f$ */
+                          normal component $ u(x) = (J/w) \hat u(\hat x) $ */
       H_CURL     /**< For vector fields; preserves line integrals of the
                           tangential component
-                          \f$ u(x) = J^{-t} \hat u(\hat x) \f$ (square J),
-                          \f$ u(x) = J(J^t J)^{-1} \hat u(\hat x) \f$ (general J) */
+                          $ u(x) = J^{-t} \hat u(\hat x) $ (square J),
+                          $ u(x) = J(J^t J)^{-1} \hat u(\hat x) $ (general J) */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -708,6 +713,9 @@ public:
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
+private:
+   /// Create and cache the LEXICOGRAPHIC_FULL DofToQuad maps.
+   void CreateLexicographicFullMap(const IntegrationRule &ir) const;
 protected:
    Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
@@ -725,6 +733,9 @@ public:
    NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -1249,12 +1260,7 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const override
-   {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
-   }
+                                 DofToQuad::Mode mode) const override;
 
    void SetMapType(const int map_type_) override;
 
@@ -1297,15 +1303,15 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
+      return (mode == DofToQuad::TENSOR) ?
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
                                      DofToQuad::Mode mode) const
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }

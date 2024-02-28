@@ -22,6 +22,23 @@ Discretization improvements
   IntegrationRules through a moment-fitting approach. The cut is specified by
   the zero level set of a Coefficient. See fem/intrules_cut.hpp and Example 38.
 
+GPU support
+----------------------------
+- Added support for full assembly on simplices.
+- Added functionality for BilinearFormIntegrators to use kernels that work for both
+  tensor and unstructured elements.
+- Added partial assembly for linear elasticity. Does not use sum factorization for now.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new block solver in miniapp/solvers for the Darcy problem.
+  The new solver is based on a Bramble-Pasciak preconditioning. User can
+  use and implement their own preconditioner for the mass matrix.
+
+- Added miniapp to demonstrate new elasticity integrator and unstructured element GPU support,
+  and a block diagonal preconditioner using low order refinement. Allows comparison with
+  currently existing legacy mode integrator. See miniapps/solvers/lor_elast.
+
 Miscellaneous
 -------------
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability.

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -45,6 +45,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_operator.cpp
   linalg/test_vector.cpp
   mesh/test_face_orientations.cpp
+  mesh/test_geometric_factors.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_fms.cpp
   mesh/test_mesh.cpp
@@ -92,6 +93,7 @@ set(UNIT_TESTS_SRCS
   fem/test_linearform_ext.cpp
   fem/test_lor.cpp
   fem/test_lor_batched.cpp
+  fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp
