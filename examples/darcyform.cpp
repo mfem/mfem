@@ -427,6 +427,10 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    c_bfi_p = NULL;
 
    H = NULL;
+
+   Bf_data = NULL;
+   Df_data = NULL;
+   Df_ipiv = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -434,6 +438,10 @@ DarcyHybridization::~DarcyHybridization()
    delete c_bfi_p;
 
    delete H;
+
+   delete Bf_data;
+   delete Df_data;
+   delete Df_ipiv;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
@@ -443,6 +451,52 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
    c_bfi = c_flux_integ;
    delete c_bfi_p;
    c_bfi_p = c_pot_integ;
+}
+
+void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
+{
+   if (Ct) { return; }
+
+   Hybridization::Init(ess_flux_tdof_list);
+
+   const int NE = fes->GetNE();
+
+   // Define Bf_offsets, Df_offsets and Df_f_offsets
+   Bf_offsets.SetSize(NE+1);
+   Bf_offsets[0] = 0;
+   Df_offsets.SetSize(NE+1);
+   Df_offsets[0] = 0;
+   Df_f_offsets.SetSize(NE+1);
+   Df_f_offsets[0] = 0;
+   for (int i = 0; i < NE; i++)
+   {
+      int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
+      int d_size = fes_p->GetFE(i)->GetDof();
+      Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
+      Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
+      Df_f_offsets[i+1] = Af_f_offsets[i] + d_size;
+   }
+
+   Bf_data = new double[Bf_offsets[NE]];
+   Df_data = new double[Df_offsets[NE]];
+   Df_ipiv = new int[Df_f_offsets[NE]];
+}
+
+void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
+{
+   const int s = Df_f_offsets[el+1] - Df_f_offsets[el];
+   DenseMatrix D_i(Df_data + Df_offsets[el], s, s);
+
+   D_i = D;
+}
+
+void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
+{
+   const int w = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
+   DenseMatrix B_i(Bf_data + Bf_offsets[el], h, w);
+
+   B_i = B;
 }
 
 void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,

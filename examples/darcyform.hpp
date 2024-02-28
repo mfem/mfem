@@ -202,6 +202,12 @@ class DarcyHybridization : public Hybridization
 
    BlockMatrix *H;
 
+   Array<int> Bf_offsets;
+   double *Bf_data;
+
+   Array<int> Df_offsets, Df_f_offsets;
+   double *Df_data;
+   int *Df_ipiv;
 public:
    /// Constructor
    DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
@@ -217,6 +223,8 @@ public:
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  BilinearFormIntegrator *c_pot_integ);
 
+   /// Prepare the Hybridization object for assembly.
+   void Init(const Array<int> &ess_flux_tdof_list) override;
 
    /// Assemble the element matrix A into the hybridized system matrix.
    void AssembleMatrix(int el, const DenseMatrix &A) override
