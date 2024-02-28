@@ -1624,43 +1624,6 @@ void Mesh::SetAttributes()
    }
 }
 
-// static method
-void Mesh::AttrToMarker(int max_attr, const Array<int> &attrs,
-                        Array<int> &marker)
-{
-   if (attrs.Size() > 0)
-   {
-      MFEM_VERIFY(attrs.Max() <= max_attr, "Invalid attribute number present.");
-   }
-
-   marker.SetSize(max_attr);
-   if (attrs.Size() == 1 && attrs[0] == -1)
-   {
-      marker = 1;
-   }
-   else
-   {
-      marker = 0;
-      for (auto const &attr : attrs)
-      {
-         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-         marker[attr-1] = 1;
-      }
-   }
-}
-
-void Mesh::AttrToMarker(const Array<int> &attrs, Array<int> &marker) const
-{
-   AttrToMarker(attributes.Size() > 0 ? attributes.Max() : 1,
-                attrs, marker);
-}
-
-void Mesh::BdrAttrToMarker(const Array<int> &attrs, Array<int> &marker) const
-{
-   AttrToMarker(bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0,
-                attrs, marker);
-}
-
 void Mesh::InitMesh(int Dim_, int spaceDim_, int NVert, int NElem, int NBdrElem)
 {
    SetEmpty();
@@ -4112,6 +4075,7 @@ void Mesh::Make1D(int n, double sx)
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
+  : attribute_sets(attributes, bdr_attributes)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -4330,6 +4294,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes, bdr_attributes)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -4348,6 +4313,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation)
+ : attribute_sets(attributes, bdr_attributes)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -4383,6 +4349,7 @@ Mesh::Mesh(double *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
+ : attribute_sets(attributes, bdr_attributes)
 {
    if (space_dimension == -1)
    {
@@ -4764,6 +4731,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
+ : attribute_sets(attributes, bdr_attributes)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4906,6 +4874,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
+   : attribute_sets(attributes, bdr_attributes)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -10311,7 +10280,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
    // outside after this method.
 }
 
-Mesh::Mesh(const NCMesh &ncmesh_)
+Mesh::Mesh(const NCMesh &ncmesh_) : attribute_sets(attributes, bdr_attributes)
 {
    Init();
    InitTables();

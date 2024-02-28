@@ -14,6 +14,11 @@
 namespace mfem
 {
 
+AttributeSets::AttributeSets(const Array<int> &attr,
+                             const Array<int> &bdr_attr)
+   : attributes(attr), bdr_attributes(bdr_attr)
+{}
+
 void AttributeSets::Copy(AttributeSets &copy) const
 {
    copy.attr_sets = attr_sets;
@@ -174,6 +179,30 @@ Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
 Array<int> & AttributeSets::GetBdrAttributeSet(const std::string & set_name)
 {
    return bdr_attr_sets[set_name];
+}
+
+Array<int> AttributeSets::GetAttributeSetMarker(const std::string & set_name)
+{
+   return AttrToMarker(attributes.Max(), GetAttributeSet(set_name));
+}
+
+Array<int> AttributeSets::GetBdrAttributeSetMarker(const std::string & set_name)
+{
+   return AttrToMarker(bdr_attributes.Max(), GetBdrAttributeSet(set_name));
+}
+
+Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
+{
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+
+   Array<int> marker(max_attr);
+   marker = 0;
+   for (auto const &attr : attrs)
+   {
+      MFEM_VERIFY(attr > 0, "Attribute number less than one!");
+      marker[attr-1] = 1;
+   }
+   return marker;
 }
 
 } // namespace mfem
