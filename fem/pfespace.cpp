@@ -715,13 +715,10 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    }
 
    // Check for shared triangle faces
-   bool strias   = false;
+   bool strias = false;
+   for (int g = 1; g < pmesh->GetNGroups(); g++)
    {
-      int ngrps = pmesh->GetNGroups();
-      for (int g = 1; g < ngrps; g++)
-      {
-         strias |= pmesh->GroupNTriangles(g);
-      }
+      strias |= pmesh->GroupNTriangles(g);
    }
 
    // Combine results
