@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -296,10 +296,6 @@ protected:
    void ConnectBoundaries1D(int bnd0, int bnd1);
    void ConnectBoundaries2D(int bnd0, int bnd1);
    void ConnectBoundaries3D(int bnd0, int bnd1);
-   int DofMap(int dof) const
-   {
-      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
-   };
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -427,6 +423,15 @@ public:
 
    int GetNTotalDof() const { return NumOfDofs; }
    int GetNDof()      const { return NumOfActiveDofs; }
+
+   /// Returns the local dof number
+   int GetActiveDof(int glob) const { return activeDof[glob]; };
+
+   /// Returns the dof index whilst accounting for periodic boundaries
+   int DofMap(int dof) const
+   {
+      return (d_to_d.Size() > 0 )? d_to_d[dof] : dof;
+   };
 
    /// Returns knotvectors in each dimension for patch @a p.
    void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
