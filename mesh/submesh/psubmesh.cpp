@@ -306,7 +306,9 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
          {
             const int parentFaceIdx = parent.GetBdrElementFaceIndex(i);
             const int submeshFaceIdx =
-               parent_to_submesh_face_ids_[parentFaceIdx];
+               Dim == 3 ?
+               parent_to_submesh_face_ids_[parentFaceIdx] :
+               parent_to_submesh_edge_ids_[parentFaceIdx];
 
             if (submeshFaceIdx == -1) { continue; }
             if (GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
