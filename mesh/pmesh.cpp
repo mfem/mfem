@@ -147,6 +147,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       // Copy attribute and bdr_attribute names
       mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
       GenerateNCFaceInfo();
    }
@@ -186,6 +187,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       // Copy attribute and bdr_attribute names
       mesh.attribute_sets.Copy(attribute_sets);
+      mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
       NumOfEdges = NumOfFaces = 0;
 
@@ -3925,6 +3927,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 
    // Copy attribute and bdr_attribute names
    attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    // now swap the meshes, the second mesh will become the old coarse mesh
    // and this mesh will be the new fine mesh
@@ -3986,6 +3989,7 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
 
    // Copy attribute and bdr_attribute names
    attribute_sets.Copy(mesh2->attribute_sets);
+   bdr_attribute_sets.Copy(mesh2->bdr_attribute_sets);
 
    Mesh::Swap(*mesh2, false);
    delete mesh2;
@@ -4040,6 +4044,7 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 
    // Copy attribute and bdr_attribute names
    attribute_sets.Copy(pmesh2->attribute_sets);
+   bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
    delete pmesh2;
@@ -4831,7 +4836,8 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       }
    }
 
-   bool set_names = attribute_sets.SetsExist();
+   bool set_names = attribute_sets.SetsExist() ||
+                    bdr_attribute_sets.SetsExist();
 
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 
@@ -4859,7 +4865,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (set_names)
    {
       os << "\nattribute_sets\n";
-      attribute_sets.PrintAttributeSets(os);
+      attribute_sets.Print(os);
    }
 
    int num_bdr_elems = NumOfBdrElements;
@@ -4894,7 +4900,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (set_names)
    {
       os << "\nbdr_attribute_sets\n";
-      attribute_sets.PrintBdrAttributeSets(os);
+      bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';

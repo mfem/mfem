@@ -14,20 +14,18 @@
 namespace mfem
 {
 
-AttributeSets::AttributeSets(const Array<int> &attr,
-                             const Array<int> &bdr_attr)
-   : attributes(attr), bdr_attributes(bdr_attr)
+AttributeSets::AttributeSets(const Array<int> &attr)
+   : attributes(attr)
 {}
 
 void AttributeSets::Copy(AttributeSets &copy) const
 {
    copy.attr_sets = attr_sets;
-   copy.bdr_attr_sets = bdr_attr_sets;
 }
 
 bool AttributeSets::SetsExist() const
 {
-   return attr_sets.Size() + bdr_attr_sets.Size() > 0;
+   return attr_sets.Size() > 0;
 }
 
 std::set<std::string> AttributeSets::GetAttributeSetNames() const
@@ -35,19 +33,9 @@ std::set<std::string> AttributeSets::GetAttributeSetNames() const
    return attr_sets.GetNames();
 }
 
-std::set<std::string> AttributeSets::GetBdrAttributeSetNames() const
-{
-   return bdr_attr_sets.GetNames();
-}
-
 bool AttributeSets::AttributeSetExists(const std::string &name) const
 {
    return attr_sets.EntryExists(name);
-}
-
-bool AttributeSets::BdrAttributeSetExists(const std::string &name) const
-{
-   return bdr_attr_sets.EntryExists(name);
 }
 
 Array<int> & AttributeSets::CreateAttributeSet(const std::string &set_name)
@@ -55,19 +43,9 @@ Array<int> & AttributeSets::CreateAttributeSet(const std::string &set_name)
    return attr_sets.CreateArray(set_name);
 }
 
-Array<int> & AttributeSets::CreateBdrAttributeSet(const std::string &set_name)
-{
-   return bdr_attr_sets.CreateArray(set_name);
-}
-
 void AttributeSets::DeleteAttributeSet(const std::string &set_name)
 {
    attr_sets.DeleteArray(set_name);
-}
-
-void AttributeSets::DeleteBdrAttributeSet(const std::string &set_name)
-{
-   bdr_attr_sets.DeleteArray(set_name);
 }
 
 void AttributeSets::SetAttributeSet(const std::string &set_name,
@@ -80,18 +58,6 @@ void AttributeSets::SetAttributeSet(const std::string &set_name,
    attr_sets[set_name] = attr;
    attr_sets[set_name].Sort();
    attr_sets[set_name].Unique();
-}
-
-void AttributeSets::SetBdrAttributeSet(const std::string &set_name,
-                                       const Array<int> &attr)
-{
-   if (!bdr_attr_sets.EntryExists(set_name))
-   {
-      bdr_attr_sets.CreateArray(set_name);
-   }
-   bdr_attr_sets[set_name] = attr;
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
 }
 
 void AttributeSets::AddToAttributeSet(const std::string &set_name, int attr)
@@ -109,21 +75,6 @@ void AttributeSets::AddToAttributeSet(const std::string &set_name,
    attr_sets[set_name].Unique();
 }
 
-void AttributeSets::AddToBdrAttributeSet(const std::string &set_name, int attr)
-{
-   bdr_attr_sets[set_name].Append(attr);
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
-}
-
-void AttributeSets::AddToBdrAttributeSet(const std::string &set_name,
-                                         const Array<int> &attr)
-{
-   bdr_attr_sets[set_name].Append(attr);
-   bdr_attr_sets[set_name].Sort();
-   bdr_attr_sets[set_name].Unique();
-}
-
 void AttributeSets::RemoveFromAttributeSet(const std::string &set_name,
                                            int attr)
 {
@@ -138,37 +89,9 @@ void AttributeSets::RemoveFromAttributeSet(const std::string &set_name,
    attr_set.DeleteFirst(attr);
 }
 
-void AttributeSets::RemoveFromBdrAttributeSet(const std::string &set_name,
-                                              int attr)
-{
-   if (!bdr_attr_sets.EntryExists(set_name))
-   {
-      mfem::err << "Unrecognized boundary attribute set name \"" << set_name
-                << "\" in AttributeSets::RemoveFromBdrAttributeSet"
-                << std::endl;
-   }
-
-   Array<int> &bdr_attr_set = bdr_attr_sets[set_name];
-
-   bdr_attr_set.DeleteFirst(attr);
-}
-
 void AttributeSets::Print(std::ostream &os, int width) const
 {
-   os << "\nattribute_sets\n";
-   PrintAttributeSets(os, width);
-   os << "\nbdr_attribute_sets\n";
-   PrintBdrAttributeSets(os, width);
-}
-
-void AttributeSets::PrintAttributeSets(std::ostream &os, int width) const
-{
    attr_sets.Print(os, width > 0 ? width : def_width);
-}
-
-void AttributeSets::PrintBdrAttributeSets(std::ostream &os, int width) const
-{
-   bdr_attr_sets.Print(os, width > 0 ? width : def_width);
 }
 
 Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
@@ -176,19 +99,9 @@ Array<int> & AttributeSets::GetAttributeSet(const std::string & set_name)
    return attr_sets[set_name];
 }
 
-Array<int> & AttributeSets::GetBdrAttributeSet(const std::string & set_name)
-{
-   return bdr_attr_sets[set_name];
-}
-
 Array<int> AttributeSets::GetAttributeSetMarker(const std::string & set_name)
 {
    return AttrToMarker(attributes.Max(), GetAttributeSet(set_name));
-}
-
-Array<int> AttributeSets::GetBdrAttributeSetMarker(const std::string & set_name)
-{
-   return AttrToMarker(bdr_attributes.Max(), GetBdrAttributeSet(set_name));
 }
 
 Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
