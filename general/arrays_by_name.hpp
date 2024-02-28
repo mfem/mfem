@@ -131,22 +131,24 @@ public:
    /// @brief Sort each named array in the container
    inline void SortAll();
 
-   /// @brief Remove duplicates from each sorted named array
+   /// @brief Remove duplicates from each, previously sorted, named array
    ///
    /// @note Identical entries may exist in multiple arrays but will only occur
    /// at most once in each array.
    inline void UniqueAll();
 
-   /// STL-like begin.  Returns pointer to the first element of the array.
+   /// STL-like begin.  Returns pointer to the first entry of the container.
    iterator begin() { return data.begin(); }
 
-   /// STL-like end.  Returns pointer after the last element of the array.
+   /// STL-like end.  Returns pointer after the last entry of the container.
    iterator end() { return data.end(); }
 
-   /// STL-like begin.  Returns const pointer to the first element of the array.
+   /// STL-like begin.  Returns const pointer to the first entry of the
+   /// container.
    const_iterator begin() const { return data.cbegin(); }
 
-   /// STL-like end.  Returns const pointer after the last element of the array.
+   /// STL-like end.  Returns const pointer after the last entry of the
+   /// container.
    const_iterator end() const { return data.cend(); }
 };
 
