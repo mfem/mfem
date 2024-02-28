@@ -32,9 +32,9 @@ namespace mfem
 
    In order to provide some level of protection against typos this class will
    not create new named arrays when access to unrecognized names is requested.
-   New named arrays must be explicitly created using
-   `ArraysByName<T>::CreateArray()`. To facilitate this behavior and avoid
-   such errors the method `ArraysByName<T>::EntryExists()` is provided.
+   New named arrays must be explicitly created using `CreateArray()`. To
+   facilitate this behavior and avoid such errors the method `EntryExists()` is
+   provided.
 
    This container does not store pointers to pre-existing arrays it will copy
    or move entries as appropriate from existing Array<T> objects into new
