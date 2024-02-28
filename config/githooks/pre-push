@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,6 +21,7 @@ if [[ "${option}" == "--help" ]]; then
   echo "  --copyright"
   echo "  --license"
   echo "  --release"
+  echo "  --math"
   echo "  --style"
   echo "  --history"
   echo ""
@@ -35,8 +36,8 @@ cd $(git rev-parse --show-toplevel)
 # copyright check
 copyright=true
 if [[ "${option}" == "--copyright" || "${option}" == "" ]]; then
-  if git grep -n "^\(#\|//\).*Copyright.*2010-20\(2[^3]\|[^2].\)" > matches.txt; then
-    echo "Please update the following files to Copyright (c) 2010-2023:"
+  if git grep -n "^\(#\|//\).*Copyright.*2010-20\(2[^4]\|[^2].\)" > matches.txt; then
+    echo "Please update the following files to Copyright (c) 2010-2024:"
     cat matches.txt
     copyright=false
   fi
@@ -63,6 +64,18 @@ if [[ "${option}" == "--release" || "${option}" == "" ]]; then
   fi
 fi
 
+# math in doxygen check
+math=true
+if [[ "${option}" == "--math" || "${option}" == "" ]]; then
+  if grep '\\f' -R doc/CodeDocumentation.dox mfem.hpp config general linalg mesh fem examples miniapps | grep -v '\\frac' | grep -v fem/picojson.h | grep -v config/githooks/pre-push > matches.txt
+  then
+    echo "Please use $..$ and \$\$..\$\$ for LaTeX formulas in the following"
+    echo "comments instead of the Doxygen style \f$..\f$, \f[..\f], etc."
+    cat matches.txt
+    math=false
+  fi
+fi
+
 # wrap-up
 code=0
 if ! $copyright ; then
@@ -75,6 +88,10 @@ if ! $license ; then
 fi
 if ! $release ; then
   echo "release check failed, unroll log for details"
+  code=1
+fi
+if ! $math ; then
+  echo "math in doxygen check failed, unroll log for details"
   code=1
 fi
 

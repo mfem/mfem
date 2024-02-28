@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -587,7 +587,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
 
 void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_tdof_list,
-                                              int component)
+                                              int component) const
 {
    Array<int> ess_vdofs, ess_tdofs;
    GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, component);
@@ -2858,12 +2858,12 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       bdr_elem_dof->GetRow(bel, dofs);
 
-      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
       {
          Array<int> Fo;
          bdr_elem_fos -> GetRow (bel, Fo);
          doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -2894,12 +2894,12 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       mesh->GetBdrElementFace(bel, &F, &oF);
 
-      if (DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)])
+      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
       {
          mfem::Array<int> Fo(1);
          Fo[0] = oF;
          doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementBaseGeometry(bel)]);
+            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3221,7 +3221,7 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
          break;
       case 3:
       default:
-         BE = fec->GetFE(mesh->GetBdrElementBaseGeometry(i), order);
+         BE = fec->GetFE(mesh->GetBdrElementGeometry(i), order);
    }
 
    if (NURBSext)
@@ -3712,6 +3712,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    Constructor(m, nurbs_ext, r_fec, vdim, ord);
 
    return r_fec;
+}
+
+ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
+{
+   return UsesTensorBasis(fes)?
+          ElementDofOrdering::LEXICOGRAPHIC:
+          ElementDofOrdering::NATIVE;
 }
 
 } // namespace mfem

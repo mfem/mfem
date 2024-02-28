@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -194,6 +194,14 @@ public:
    ///             int compression_level=0)
    void SaveVTU(const std::string &filename, VTKFormat format=VTKFormat::ASCII,
                 int compression_level=0, const std::string &field_name="u") const;
+
+
+   /// Return the integral of the quadrature function (vdim = 1 only).
+   double Integrate() const;
+
+   /// @brief Integrate the (potentially vector-valued) quadrature function,
+   /// storing the results in @a integrals (length @a vdim).
+   void Integrate(Vector &integrals) const;
 
    virtual ~QuadratureFunction()
    {
