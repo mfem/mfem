@@ -26,6 +26,9 @@ namespace mfem
 class AttributeSets
 {
 private:
+   const Array<int> & attributes;
+   const Array<int> & bdr_attributes;
+
    const int def_width = 10;
 
 public:
@@ -35,7 +38,7 @@ public:
    /// Named sets of boundary attributes
    ArraysByName<int> bdr_attr_sets;
 
-   AttributeSets() {}
+   AttributeSets(const Array<int> &attr, const Array<int> &bdr_attr);
 
    /// @brief Create a copy of the internal data to the provided @a copy.
    void Copy(AttributeSets &copy) const;
@@ -212,6 +215,38 @@ public:
        this reference.
     */
    Array<int> & GetBdrAttributeSet(const std::string & set_name);
+
+   /// @brief Return a marker array corresponding to a named attribute set
+   /**
+       @param[in] set_name The name of the set being accessed
+
+       @note If the named set does not exist an error message will be printed
+       and execution will halt.
+    */
+   Array<int> GetAttributeSetMarker(const std::string & set_name);
+
+   /// @brief Return a marker array corresponding to a named boundary
+   /// attribute set
+   /**
+       @param[in] set_name The name of the set being accessed
+
+       @note If the named set does not exist an error message will be printed
+       and execution will halt.
+    */
+   Array<int> GetBdrAttributeSetMarker(const std::string & set_name);
+
+   /// @brief Prepares a marker array corresponding to an array of element
+   /// attributes
+   /**
+       @param[in] max_attr Number of entries to create in the @a marker array
+       @param[in] attrs    An array of attribute numbers which should be
+                           activated
+
+       The returned marker array will be of size @a max_attr and it will contain
+       only zeroes and ones. Ones indicate which attribute numbers are present
+       in the @a attrs array.
+    */
+   static Array<int> AttrToMarker(int max_attr, const Array<int> &attrs);
 };
 
 } // namespace mfem

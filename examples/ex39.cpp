@@ -211,9 +211,7 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    if (attr_sets.BdrAttributeSetExists(ess_name))
    {
-      Array<int> ess_bdr_marker;
-      mesh.BdrAttrToMarker(attr_sets.GetBdrAttributeSet(ess_name),
-                           ess_bdr_marker);
+      Array<int> ess_bdr_marker = attr_sets.GetBdrAttributeSetMarker(ess_name);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
 
@@ -222,8 +220,7 @@ int main(int argc, char *argv[])
    //    are the basis functions in fespace and 1_s is an indicator function
    //    equal to 1 on the region defined by the named set "source_name" and
    //    zero elsewhere.
-   Array<int> source_marker;
-   mesh.AttrToMarker(attr_sets.GetAttributeSet(source_name), source_marker);
+   Array<int> source_marker = attr_sets.GetAttributeSetMarker(source_name);
 
    LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
@@ -245,10 +242,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient baseCoef(1.0);
    ConstantCoefficient roseCoef(2.0);
 
-   Array<int> base_marker;
-   Array<int> rose_marker;
-   mesh.AttrToMarker(attr_sets.GetAttributeSet("Base"), base_marker);
-   mesh.AttrToMarker(attr_sets.GetAttributeSet("Rose Even"), rose_marker);
+   Array<int> base_marker = attr_sets.GetAttributeSetMarker("Base");
+   Array<int> rose_marker = attr_sets.GetAttributeSetMarker("Rose Even");
 
    // Impose a very small diffusion coefficient across the entire mesh
    a.AddDomainIntegrator(new DiffusionIntegrator(defaultCoef));
