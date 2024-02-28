@@ -477,6 +477,14 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Df_ipiv = new int[Df_f_offsets[NE]];
 }
 
+void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
+{
+   const int s = Af_f_offsets[el+1] - Af_f_offsets[el];
+   DenseMatrix A_i(Af_data + Af_offsets[el], s, s);
+
+   A_i = A;
+}
+
 void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 {
    const int s = Df_f_offsets[el+1] - Df_f_offsets[el];

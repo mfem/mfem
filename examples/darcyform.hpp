@@ -231,8 +231,7 @@ public:
    void AssembleMatrix(int el, const DenseMatrix &A) override
    { MFEM_ABORT("Not supported, system part must be specified"); }
 
-   void AssembleFluxMassMatrix(int el, const DenseMatrix &A)
-   { Hybridization::AssembleMatrix(el, A); }
+   void AssembleFluxMassMatrix(int el, const DenseMatrix &A);
 
    void AssemblePotMassMatrix(int el, const DenseMatrix &D);
 
