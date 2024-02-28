@@ -200,14 +200,15 @@ class DarcyHybridization : public Hybridization
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
 
-   BlockMatrix *H;
-
    Array<int> Bf_offsets;
    double *Bf_data;
 
    Array<int> Df_offsets, Df_f_offsets;
    double *Df_data;
    int *Df_ipiv;
+
+   void ComputeH();
+
 public:
    /// Constructor
    DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
@@ -245,11 +246,6 @@ public:
 
    /// Finalize the construction of the hybridized matrix.
    void Finalize();
-
-   SparseMatrix &GetMatrix() = delete;
-
-   /// Return the serial hybridized matrix.
-   BlockMatrix &GetBlockMatrix() { return *H; }
 
    void ReduceRHS(const Vector &b, Vector &b_r) const override
    { MFEM_ABORT("Use BlockVector version instead"); }

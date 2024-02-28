@@ -245,7 +245,6 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
 
    if (M_u)
    {
-      //todo: hybridization
       M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
       block_op->SetDiagonalBlock(0, pM_u.Ptr());
    }
@@ -269,7 +268,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (hybridization)
    {
       hybridization->Finalize();
-      A.Reset(&hybridization->GetBlockMatrix(), false);
+      A.Reset(&hybridization->GetMatrix(), false);
    }
    else
    {
@@ -426,8 +425,6 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 {
    c_bfi_p = NULL;
 
-   H = NULL;
-
    Bf_data = NULL;
    Df_data = NULL;
    Df_ipiv = NULL;
@@ -436,8 +433,6 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 DarcyHybridization::~DarcyHybridization()
 {
    delete c_bfi_p;
-
-   delete H;
 
    delete Bf_data;
    delete Df_data;
@@ -524,8 +519,14 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
    c_bfi_p->AssembleFaceMatrix(*fe1, *fe2, *ftr, elmat);
 }
 
+void DarcyHybridization::ComputeH()
+{
+
+}
+
 void DarcyHybridization::Finalize()
 {
+   if (!H) { ComputeH(); }
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
