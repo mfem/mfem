@@ -4084,7 +4084,7 @@ void Mesh::Make1D(int n, double sx)
 }
 
 Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
-  : attribute_sets(attributes, bdr_attributes)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
@@ -4160,6 +4160,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Copy attribute and bdr_attribute names
    mesh.attribute_sets.Copy(attribute_sets);
+   mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
    // Deep copy the NURBSExtension.
 #ifdef MFEM_USE_MPI
@@ -4304,7 +4305,7 @@ Mesh Mesh::MakeRefined(Mesh &orig_mesh, const Array<int> &ref_factors,
 
 Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
            bool fix_orientation)
- : attribute_sets(attributes, bdr_attributes)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    // Initialization as in the default constructor
    SetEmpty();
@@ -4323,7 +4324,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 
 Mesh::Mesh(std::istream &input, int generate_edges, int refine,
            bool fix_orientation)
- : attribute_sets(attributes, bdr_attributes)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    SetEmpty();
    Load(input, generate_edges, refine, fix_orientation);
@@ -4359,7 +4360,7 @@ Mesh::Mesh(double *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
- : attribute_sets(attributes, bdr_attributes)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    if (space_dimension == -1)
    {
@@ -4741,7 +4742,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
- : attribute_sets(attributes, bdr_attributes)
+ : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    int      i, j, ie, ib, iv, *v, nv;
    Element *el;
@@ -4884,7 +4885,7 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
 }
 
 Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
-   : attribute_sets(attributes, bdr_attributes)
+   : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Array<int> ref_factors(orig_mesh->GetNE());
    ref_factors = ref_factor;
@@ -10288,7 +10289,8 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
    // outside after this method.
 }
 
-Mesh::Mesh(const NCMesh &ncmesh_) : attribute_sets(attributes, bdr_attributes)
+Mesh::Mesh(const NCMesh &ncmesh_)
+  : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    Init();
    InitTables();
@@ -11207,7 +11209,8 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    }
 
    // serial/parallel conforming mesh format
-   bool set_names = attribute_sets.SetsExist();
+   bool set_names = attribute_sets.SetsExist() ||
+     bdr_attribute_sets.SetsExist();
    os << (!set_names && section_delimiter.empty()
           ? "MFEM mesh v1.0\n" :
 	  (!set_names ? "MFEM mesh v1.2\n" : "MFEM mesh v1.3\n"));
@@ -11243,7 +11246,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (set_names)
    {
      os << "\nattribute_sets\n";
-     attribute_sets.PrintAttributeSets(os);
+     attribute_sets.Print(os);
    }
 
    os << "\nboundary\n" << NumOfBdrElements << '\n';
@@ -11255,7 +11258,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (set_names)
    {
      os << "\nbdr_attribute_sets\n";
-     attribute_sets.PrintBdrAttributeSets(os);
+     bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << NumOfVertices << '\n';

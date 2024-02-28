@@ -92,9 +92,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
 
       MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
 
-      attribute_sets.bdr_attr_sets.Load(input);
-      attribute_sets.bdr_attr_sets.SortAll();
-      attribute_sets.bdr_attr_sets.UniqueAll();
+      bdr_attribute_sets.attr_sets.Load(input);
+      bdr_attribute_sets.attr_sets.SortAll();
+      bdr_attribute_sets.attr_sets.UniqueAll();
    }
 
    skip_comment_lines(input, '#');
@@ -2803,11 +2803,11 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
       // Process boundary attribute set names
       for (auto const &bdr_attr : phys_names_by_dim[Dim-1])
       {
-         if (!attribute_sets.BdrAttributeSetExists(bdr_attr.second))
+         if (!bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
          {
-            attribute_sets.CreateBdrAttributeSet(bdr_attr.second);
+            bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
          }
-         attribute_sets.AddToBdrAttributeSet(bdr_attr.second, bdr_attr.first);
+         bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
       }
 
       // Process element attribute set names
