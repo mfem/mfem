@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -107,6 +107,8 @@ void ParNCMesh::Update()
       entity_owner[i].DeleteAll();
       entity_pmat_group[i].DeleteAll();
       entity_index_rank[i].DeleteAll();
+      entity_conf_group[i].DeleteAll();
+      entity_elem_local[i].DeleteAll();
    }
 
    shared_vertices.Clear();

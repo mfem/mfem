@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -82,6 +82,9 @@ protected:
    // Used for checking during Update operations on objects depending on the
    // Mesh, such as FiniteElementSpace, GridFunction, etc.
    long sequence;
+
+   /// Counter for geometric factor invalidation
+   long nodes_sequence;
 
    Array<Element *> elements;
    // Vertices are only at the corners of elements, where you would expect them
@@ -1475,15 +1478,25 @@ public:
        @sa GetBdrElementAdjacentElement2() */
    void GetBdrElementAdjacentElement(int bdr_el, int &el, int &info) const;
 
-   /** @brief For the given boundary element, bdr_el, return its adjacent
-       element and its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
+   /** @brief Deprecated.
+
+       For the given boundary element, bdr_el, return its adjacent element and
+       its info, i.e. 64*local_bdr_index+inverse_bdr_orientation.
 
        The returned inverse_bdr_orientation is the inverse of the orientation of
        the boundary element relative to the respective face element. In other
        words this is the orientation of the face element relative to the
        boundary element.
 
+       @warning This only differs from GetBdrElementAdjacentElement by returning
+       the face info with inverted orientation. It does @b not return
+       information corresponding to a second adjacent face. This function is
+       deprecated, use Geometry::GetInverseOrientation, Mesh::EncodeFaceInfo,
+       Mesh::DecodeFaceInfoOrientation, and Mesh::DecodeFaceInfoLocalIndex
+       instead.
+
        @sa GetBdrElementAdjacentElement() */
+   MFEM_DEPRECATED
    void GetBdrElementAdjacentElement2(int bdr_el, int &el, int &info) const;
 
    /// @brief Return the local face (codimension-1) index for the given boundary
@@ -1952,6 +1965,17 @@ public:
       operator Mesh::FaceInfo() const;
    };
 
+   /// Given a "face info int", return the face orientation. @sa FaceInfo.
+   static int DecodeFaceInfoOrientation(int info) { return info%64; }
+
+   /// Given a "face info int", return the local face index. @sa FaceInfo.
+   static int DecodeFaceInfoLocalIndex(int info) { return info/64; }
+
+   /// @brief Given @a local_face_index and @a orientation, return the
+   /// corresponding encoded "face info int". @sa FaceInfo.
+   static int EncodeFaceInfo(int local_face_index, int orientation)
+   { return orientation + local_face_index*64; }
+
    /// @name More advanced entity information access methods
    /// @{
 
@@ -2182,6 +2206,13 @@ public:
        It is used for checking proper sequence of Space:: and GridFunction::
        Update() calls. */
    long GetSequence() const { return sequence; }
+
+   /// @brief Return the nodes update counter.
+   ///
+   /// This counter starts at zero, and is incremented every time the geometric
+   /// factors must be recomputed (e.g. on calls to Mesh::Transform,
+   /// Mesh::NodesUpdated, etc.)
+   long GetNodesSequence() const { return nodes_sequence; }
 
    /// @}
 

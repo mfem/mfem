@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -355,8 +355,8 @@ public:
        variable. */
    void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
 
-   /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
-       where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
+   /** Compute $ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) $,
+       where $ \psi_i $ are the basis functions for the FE space of avgs.
        Both FE spaces should be scalar and on the same mesh. */
    void GetElementAverages(GridFunction &avgs) const;
 
@@ -446,11 +446,12 @@ protected:
                                            Array<int> &zones_per_dof);
 
    void AccumulateAndCountBdrValues(Coefficient *coeff[],
-                                    VectorCoefficient *vcoeff, Array<int> &attr,
+                                    VectorCoefficient *vcoeff,
+                                    const Array<int> &attr,
                                     Array<int> &values_counter);
 
    void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
-                                           Array<int> &bdr_attr,
+                                           const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
    // Complete the computation of averages; called e.g. after
@@ -465,7 +466,7 @@ public:
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
        the boundary associated with the boundary attributes marked in the
        @a attr array. */
-   void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
+   void ProjectBdrCoefficient(Coefficient &coeff, const Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
@@ -475,26 +476,27 @@ public:
        DOFs on the boundary associated with the boundary attributes marked in
        the @a attr array. */
    virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                                      Array<int> &attr);
+                                      const Array<int> &attr);
 
    /** @brief Project a set of Coefficient%s on the components of the
        GridFunction, modifying only DOFs on the boundary associated with the
        boundary attributed marked in the @a attr array. */
    /** If a Coefficient pointer in the array @a coeff is NULL, that component
        will not be touched. */
-   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[],
+                                      const Array<int> &attr);
 
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
        'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
-                                    Array<int> &bdr_attr);
+                                    const Array<int> &bdr_attr);
 
    /** @brief Project the tangential components of the given VectorCoefficient
        on the boundary. Only boundary attributes that are marked in @a bdr_attr
        are projected. Assumes ND-type VectorFE GridFunction. */
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                             Array<int> &bdr_attr);
+                                             const Array<int> &bdr_attr);
 
    virtual double ComputeL2Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL,
