@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
 
    // 6a. Display attribute set names contained in the initial mesh
    AttributeSets &attr_sets = pmesh.attribute_sets;
+   AttributeSets &bdr_attr_sets = pmesh.bdr_attribute_sets;
    if (Mpi::Root())
    {
       std::set<string> names = attr_sets.GetAttributeSetNames();
@@ -120,7 +121,7 @@ int main(int argc, char *argv[])
       }
       cout << endl;
 
-      std::set<string> bdr_names = attr_sets.GetBdrAttributeSetNames();
+      std::set<string> bdr_names = bdr_attr_sets.GetAttributeSetNames();
       cout << "Boundary Attribute Set Names: ";
       for (auto const &bdr_set_name : bdr_names)
       {
@@ -177,39 +178,39 @@ int main(int argc, char *argv[])
    }
    // 6c. Define new boundary regions based on existing boundary attribute sets
    {
-      Array<int> & NNE = attr_sets.GetBdrAttributeSet("NNE");
-      Array<int> & NNW = attr_sets.GetBdrAttributeSet("NNW");
-      Array<int> & ENE = attr_sets.GetBdrAttributeSet("ENE");
-      Array<int> & ESE = attr_sets.GetBdrAttributeSet("ESE");
-      Array<int> & SSE = attr_sets.GetBdrAttributeSet("SSE");
-      Array<int> & SSW = attr_sets.GetBdrAttributeSet("SSW");
-      Array<int> & WNW = attr_sets.GetBdrAttributeSet("WNW");
-      Array<int> & WSW = attr_sets.GetBdrAttributeSet("WSW");
+      Array<int> & NNE = bdr_attr_sets.GetAttributeSet("NNE");
+      Array<int> & NNW = bdr_attr_sets.GetAttributeSet("NNW");
+      Array<int> & ENE = bdr_attr_sets.GetAttributeSet("ENE");
+      Array<int> & ESE = bdr_attr_sets.GetAttributeSet("ESE");
+      Array<int> & SSE = bdr_attr_sets.GetAttributeSet("SSE");
+      Array<int> & SSW = bdr_attr_sets.GetAttributeSet("SSW");
+      Array<int> & WNW = bdr_attr_sets.GetAttributeSet("WNW");
+      Array<int> & WSW = bdr_attr_sets.GetAttributeSet("WSW");
 
-      attr_sets.SetBdrAttributeSet("Northern Boundary", NNE);
-      attr_sets.AddToBdrAttributeSet("Northern Boundary", NNW);
+      bdr_attr_sets.SetAttributeSet("Northern Boundary", NNE);
+      bdr_attr_sets.AddToAttributeSet("Northern Boundary", NNW);
 
-      attr_sets.SetBdrAttributeSet("Southern Boundary", SSE);
-      attr_sets.AddToBdrAttributeSet("Southern Boundary", SSW);
+      bdr_attr_sets.SetAttributeSet("Southern Boundary", SSE);
+      bdr_attr_sets.AddToAttributeSet("Southern Boundary", SSW);
 
-      attr_sets.SetBdrAttributeSet("Eastern Boundary", ENE);
-      attr_sets.AddToBdrAttributeSet("Eastern Boundary", ESE);
+      bdr_attr_sets.SetAttributeSet("Eastern Boundary", ENE);
+      bdr_attr_sets.AddToAttributeSet("Eastern Boundary", ESE);
 
-      attr_sets.SetBdrAttributeSet("Western Boundary", WNW);
-      attr_sets.AddToBdrAttributeSet("Western Boundary", WSW);
+      bdr_attr_sets.SetAttributeSet("Western Boundary", WNW);
+      bdr_attr_sets.AddToAttributeSet("Western Boundary", WSW);
 
-      attr_sets.SetBdrAttributeSet("Boundary",
-                                   attr_sets.GetBdrAttributeSet
-                                   ("Northern Boundary"));
-      attr_sets.AddToBdrAttributeSet("Boundary",
-                                     attr_sets.GetBdrAttributeSet
-                                     ("Southern Boundary"));
-      attr_sets.AddToBdrAttributeSet("Boundary",
-                                     attr_sets.GetBdrAttributeSet
-                                     ("Eastern Boundary"));
-      attr_sets.AddToBdrAttributeSet("Boundary",
-                                     attr_sets.GetBdrAttributeSet
-                                     ("Western Boundary"));
+      bdr_attr_sets.SetAttributeSet("Boundary",
+                                    bdr_attr_sets.GetAttributeSet
+                                    ("Northern Boundary"));
+      bdr_attr_sets.AddToAttributeSet("Boundary",
+                                      bdr_attr_sets.GetAttributeSet
+                                      ("Southern Boundary"));
+      bdr_attr_sets.AddToAttributeSet("Boundary",
+                                      bdr_attr_sets.GetAttributeSet
+                                      ("Eastern Boundary"));
+      bdr_attr_sets.AddToAttributeSet("Boundary",
+                                      bdr_attr_sets.GetAttributeSet
+                                      ("Western Boundary"));
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
@@ -229,9 +230,9 @@ int main(int argc, char *argv[])
    //    attributes contained in the set named "ess_name" as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
-   if (attr_sets.BdrAttributeSetExists(ess_name))
+   if (bdr_attr_sets.AttributeSetExists(ess_name))
    {
-      Array<int> ess_bdr_marker = attr_sets.GetBdrAttributeSetMarker(ess_name);
+      Array<int> ess_bdr_marker = bdr_attr_sets.GetAttributeSetMarker(ess_name);
       fespace.GetEssentialTrueDofs(ess_bdr_marker, ess_tdof_list);
    }
 
