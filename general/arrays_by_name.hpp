@@ -36,7 +36,7 @@ namespace mfem
    facilitate this behavior and avoid such errors the method `EntryExists()` is
    provided.
 
-   This container does not store pointers to pre-existing arrays it will copy
+   This container does not store pointers to pre-existing arrays. It will copy
    or move entries as appropriate from existing Array<T> objects into new
    Array<T> objects stored within this container.
 */
@@ -54,19 +54,19 @@ protected:
 
 public:
 
-   /// @brief Default constructor
+   /// Default constructor
    ArraysByName() = default;
 
-   /// @brief Copy constructor: deep copy from @a src
+   /// Copy constructor: deep copy from @a src
    ArraysByName(const ArraysByName &src) = default;
 
-   /// @brief Move constructor
+   /// Move constructor
    ArraysByName(ArraysByName &&src) noexcept = default;
 
-   /// @brief Return the number of named arrays in the container
+   /// Return the number of named arrays in the container
    int Size() const { return data.size(); }
 
-   /// @brief Return an STL set of strings giving the names of the arrays
+   /// Return an STL set of strings giving the names of the arrays
    inline std::set<std::string> GetNames() const;
 
    /// @brief Return true if an array with the given name is present in the
@@ -97,7 +97,7 @@ public:
    /// consider first calling EntryExists.
    inline Array<T> &CreateArray(const std::string &name);
 
-   /// @brief Delete all named arrays from the container
+   /// Delete all named arrays from the container
    inline void DeleteAll();
 
    /// @brief Delete the named array from the container
@@ -108,10 +108,10 @@ public:
    /// consider first calling EntryExists.
    inline void DeleteArray(const std::string &name);
 
-   /// @brief Copy assignment operator: deep copy from 'src'.
+   /// Copy assignment operator: deep copy from 'src'.
    ArraysByName<T> &operator=(const ArraysByName<T> &src) = default;
 
-   /// @brief Move assignment operator
+   /// Move assignment operator
    ArraysByName<T> &operator=(ArraysByName<T> &&src) noexcept = default;
 
    /// @brief Print the contents of the container to an output stream
@@ -128,7 +128,7 @@ public:
    /// DeleteAll if this behavior is needed.
    void Load(std::istream &in);
 
-   /// @brief Sort each named array in the container
+   /// Sort each named array in the container
    inline void SortAll();
 
    /// @brief Remove duplicates from each, previously sorted, named array
@@ -143,11 +143,11 @@ public:
    /// STL-like end.  Returns pointer after the last entry of the container.
    iterator end() { return data.end(); }
 
-   /// STL-like begin.  Returns const pointer to the first entry of the
+   /// @brief STL-like begin.  Returns const pointer to the first entry of the
    /// container.
    const_iterator begin() const { return data.cbegin(); }
 
-   /// STL-like end.  Returns const pointer after the last entry of the
+   /// @brief STL-like end.  Returns const pointer after the last entry of the
    /// container.
    const_iterator end() const { return data.cend(); }
 };

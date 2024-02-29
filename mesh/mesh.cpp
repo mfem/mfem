@@ -11209,7 +11209,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    }
 
    // serial/parallel conforming mesh format
-   bool set_names = attribute_sets.SetsExist() ||
+   const bool set_names = attribute_sets.SetsExist() ||
      bdr_attribute_sets.SetsExist();
    os << (!set_names && section_delimiter.empty()
           ? "MFEM mesh v1.0\n" :

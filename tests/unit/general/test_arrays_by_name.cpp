@@ -21,7 +21,7 @@ void FillArraysByName(ArraysByName<int> &abn)
    abn.CreateArray("3 potato");
    abn.CreateArray("four");
 
-   Array<int> a3({2.0, 4.0, 6.0});
+   Array<int> a3({2, 4, 6});
    int ContigData[4] = {4, 3, 2, 1};
    Array<int> a4(ContigData, 4);
 
@@ -38,7 +38,7 @@ void FillNonUniqueArraysByName(ArraysByName<int> &abn)
    abn.CreateArray("3 potato");
    abn.CreateArray("four");
 
-   Array<int> a3({2.0, 4.0, 6.0, 4.0, 2.0});
+   Array<int> a3({2, 4, 6, 4, 2});
    int ContigData[6] = {4, 3, 3, 2, 1, 1};
    Array<int> a4(ContigData, 6);
 
