@@ -57,9 +57,11 @@ void mfem_backtrace(int mode = 0, int depth = -1);
 /** @brief Function called when an error is encountered. Used by the macros
     MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
 #ifdef MFEM_USE_ENZYME
-__attribute__((enzyme_inactive))
+__attribute__((enzyme_inactive, noreturn))
+#else
+[[noreturn]]
 #endif
-[[noreturn]] void mfem_error(const char *msg = NULL);
+void mfem_error(const char *msg = NULL);
 
 /// Function called by the macro MFEM_WARNING.
 #ifdef MFEM_USE_ENZYME
