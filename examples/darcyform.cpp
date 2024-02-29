@@ -469,11 +469,11 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       int d_size = fes_p->GetFE(i)->GetDof();
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
       Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
-      Df_f_offsets[i+1] = Af_f_offsets[i] + d_size;
+      Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
    }
 
-   Bf_data = new double[Bf_offsets[NE]];
-   Df_data = new double[Df_offsets[NE]];
+   Bf_data = new double[Bf_offsets[NE]]();//init by zeros
+   Df_data = new double[Df_offsets[NE]]();//init by zeros
    Df_ipiv = new int[Df_f_offsets[NE]];
 }
 
@@ -529,7 +529,88 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
 
 void DarcyHybridization::ComputeH()
 {
+   const int skip_zeros = 1;
+   const int NE = fes->GetNE();
+   DenseMatrix AiBt, BAi, Ct_l, AiCt, BAiCt, CAiBt, H_l;
+   Array<int> c_dofs;
 
+   H = new SparseMatrix(Ct->Width());
+
+   for (int el = 0; el < NE; el++)
+   {
+      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      
+      // Decompose A
+      
+      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+
+      LU_A.Factor(a_dofs_size);
+
+      // Construct Schur complement
+      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      DenseMatrix D(Df_data + Df_offsets[el], d_dofs_size, d_dofs_size);
+      AiBt.SetSize(a_dofs_size, d_dofs_size);
+
+      AiBt.Transpose(B);
+      LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+      mfem::AddMult(B, AiBt, D);
+
+      // Decompose Schur complement
+      LUFactors LU_S(D.GetData(), Df_ipiv + Df_f_offsets[el]);
+
+      LU_S.Factor(d_dofs_size);
+
+      // Prepare BA^-1
+      BAi.SetSize(B.Height(), B.Width());
+      BAi = B;
+      LU_A.RightSolve(B.Width(), B.Height(), BAi.GetData());
+
+      // Get C^T
+      const int hat_o = hat_offsets[el  ];
+      const int hat_s = hat_offsets[el+1] - hat_o;
+      MFEM_ASSERT(hat_s == a_dofs_size, "");
+      c_fes->GetElementDofs(el, c_dofs);
+      Ct_l.SetSize(hat_s, c_dofs.Size());
+      Ct_l = 0.;
+      for(int i = 0; i < hat_s; i++)
+      {
+         const int row = hat_o + i;
+         int col = 0;
+         const int ncols = Ct->RowSize(row);
+         const int *cols = Ct->GetRowColumns(row);
+         const double *vals = Ct->GetRowEntries(row);
+         for(int j = 0; j < c_dofs.Size() && col < ncols; j++)
+         {
+            if(cols[col] != c_dofs[j]) { continue; }
+            Ct_l(i,j) = vals[col++];
+         }
+      }
+
+      //-C A^-1 C^T
+      AiCt.SetSize(Ct_l.Height(), Ct_l.Width());
+      AiCt = Ct_l;
+      AiCt.Neg();
+      LU_A.Solve(Ct_l.Height(), Ct_l.Width(), AiCt.GetData());
+
+      H_l.SetSize(c_dofs.Size());
+      mfem::MultAtB(Ct_l, AiCt, H_l);
+
+      //C A^-1 B^T S^-1 B A^-1 C^T
+      BAiCt.SetSize(B.Height(), Ct_l.Width());
+      mfem::Mult(BAi, Ct_l, BAiCt);
+
+      CAiBt.SetSize(Ct_l.Width(), B.Height());
+      mfem::MultAtB(Ct_l, AiBt, CAiBt);
+
+      LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
+
+      mfem::AddMult(CAiBt, BAiCt, H_l);
+
+      H->AddSubMatrix(c_dofs, c_dofs, H_l, skip_zeros);
+   }
+
+   H->Finalize();
 }
 
 void DarcyHybridization::Finalize()
