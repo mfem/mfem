@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -137,7 +137,7 @@ bool LinearForm::SupportsDevice() const
       // Make sure every boundary element corresponds to a boundary face
       for (int be = 0; be < fes->GetNBE(); ++be)
       {
-         const int f = mesh.GetBdrElementEdgeIndex(be);
+         const int f = mesh.GetBdrElementFaceIndex(be);
          const auto face_info = mesh.GetFaceInformation(f);
          if (!face_info.IsBoundary())
          {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,7 +51,7 @@ HypreParMatrix *MakeDiagonalMatrix(Vector &diag,
 
    HYPRE_BigInt global_size = fes.GlobalTrueVSize();
    HYPRE_BigInt *row_starts = fes.GetTrueDofOffsets();
-   HypreParMatrix D(MPI_COMM_WORLD, global_size, row_starts, &diag_spmat);
+   HypreParMatrix D(fes.GetComm(), global_size, row_starts, &diag_spmat);
    return new HypreParMatrix(D); // make a deep copy
 }
 

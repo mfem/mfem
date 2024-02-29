@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1403,7 +1403,7 @@ void maxwell_solution_curlcurl(const Vector & X,
    curlcurlE.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
-      curlcurlE[i] = 0.0;;
+      curlcurlE[i] = 0.0;
    }
    switch (prob)
    {

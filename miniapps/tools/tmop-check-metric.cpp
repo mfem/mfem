@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,9 +16,9 @@
 // This miniapp checks the evaluation, 1st, and 2nd derivatives of a TMOP
 // metric. Works only in serial.
 //
-// Compile with: make check-tmop-metric
+// Compile with: make tmop-check-metric
 //
-// Sample runs:  check-tmop-metric -mid 360
+// Sample runs:  tmop-check-metric -mid 360
 
 #include "mfem.hpp"
 #include <iostream>

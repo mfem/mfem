@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -650,6 +650,7 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
          MFEM_ASSERT(X[i], "Missing Vector in SuperLUSolver::Mult!");
          Vector s(sol_, i * ldx, ldx);
          s = *X[i];
+         sol_.SyncMemory(s);  // Update flags for sol_ if updated on device
       }
    }
 
