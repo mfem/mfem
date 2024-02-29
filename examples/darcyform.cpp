@@ -666,7 +666,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    const int NE = fes->GetNE();
    DenseMatrix Ct_l;
    Vector bu_l, bp_l, b_rl, u_l, p_l;
-   Array<int> a_vdofs, c_dofs;
+   Array<int> u_vdofs, c_dofs;
 
    if (b_r.Size() != H->Height())
    {
@@ -678,20 +678,18 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
    for (int el = 0; el < NE; el++)
    {
+      // Load RHS
+
+      fes->GetElementVDofs(el, u_vdofs);
+      bu.GetSubVector(u_vdofs, bu_l);
+
       // Get C^T
       GetCt(el, Ct_l, c_dofs);
 
-      // Load RHS
-
-      b_rl.SetSize(c_dofs.Size());
-
-      // Get bu
-
-      fes->GetElementVDofs(el, a_vdofs);
-      bu.GetSubVector(a_vdofs, bu_l);
-
       //C (-A^-1 bu + A^-1 B^T S^-1 B A^-1 bu)
       MultInv(el, bu_l, bp_l, u_l, p_l);
+
+      b_rl.SetSize(c_dofs.Size());
       Ct_l.MultTranspose(u_l, b_rl);
 
       b_r.AddElementVector(c_dofs, b_rl);
@@ -701,6 +699,34 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 void DarcyHybridization::ComputeSolution(const BlockVector &b,
                                          const Vector &sol_r, BlockVector &sol) const
 {
+   const int NE = fes->GetNE();
+   DenseMatrix Ct_l;
+   Vector bu_l, bp_l, b_rl, sol_rl, u_l, p_l;
+   Array<int> u_vdofs, c_dofs;
+
+   const Vector &bu = b.GetBlock(0);
+   Vector &u = sol.GetBlock(0);
+
+   for (int el = 0; el < NE; el++)
+   {
+      //Load RHS
+
+      fes->GetElementVDofs(el, u_vdofs);
+      bu.GetSubVector(u_vdofs, bu_l);
+
+      // Get C^T
+      GetCt(el, Ct_l, c_dofs);
+
+      // bu - C^T sol
+
+      sol_r.GetSubVector(c_dofs, sol_rl);
+      Ct_l.AddMult_a(-1., sol_rl, bu_l);
+
+      //(-A^-1 + A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+      MultInv(el, bu_l, bp_l, u_l, p_l);
+
+      u.AddElementVector(u_vdofs, u_l);
+   }
 }
 
 }
