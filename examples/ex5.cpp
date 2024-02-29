@@ -264,104 +264,152 @@ int main(int argc, char *argv[])
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, B);
 
-   // 10. Construct the operators for preconditioner
-   //
-   //                 P = [ diag(M)         0         ]
-   //                     [  0       B diag(M)^-1 B^T ]
-   //
-   //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-   //     pressure Schur Complement
-   SparseMatrix *MinvBt = NULL;
-   Vector Md(mVarf->Height());
+   
 
-   BlockDiagonalPreconditioner darcyPrec(block_offsets);
-   Solver *invM, *invS;
-   SparseMatrix *S = NULL;
-
-   if (pa)
-   {
-      mVarf->AssembleDiagonal(Md);
-      auto Md_host = Md.HostRead();
-      Vector invMd(mVarf->Height());
-      for (int i=0; i<mVarf->Height(); ++i)
-      {
-         invMd(i) = 1.0 / Md_host[i];
-      }
-
-      Vector BMBt_diag(bVarf->Height());
-      bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
-
-      Array<int> ess_tdof_list;  // empty
-
-      invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-      invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
-   }
-   else
-   {
-      SparseMatrix &M(mVarf->SpMat());
-      M.GetDiag(Md);
-      Md.HostReadWrite();
-
-      SparseMatrix &B(bVarf->SpMat());
-      MinvBt = Transpose(B);
-
-      for (int i = 0; i < Md.Size(); i++)
-      {
-         MinvBt->ScaleRow(i, 1./Md(i));
-      }
-
-      S = Mult(B, *MinvBt);
-
-      invM = new DSmoother(M);
-
-#ifndef MFEM_USE_SUITESPARSE
-      invS = new GSSmoother(*S);
-#else
-      invS = new UMFPackSolver(*S);
-#endif
-   }
-
-   invM->iterative_mode = false;
-   invS->iterative_mode = false;
-
-   darcyPrec.SetDiagonalBlock(0, invM);
-   darcyPrec.SetDiagonalBlock(1, invS);
-
-   // 11. Solve the linear system with MINRES.
-   //     Check the norm of the unpreconditioned residual.
    int maxIter(1000);
    real_t rtol(1.e-6);
    real_t atol(1.e-10);
 
-   chrono.Clear();
-   chrono.Start();
-   MINRESSolver solver;
-   solver.SetAbsTol(atol);
-   solver.SetRelTol(rtol);
-   solver.SetMaxIter(maxIter);
-   solver.SetOperator(*pDarcyOp);
-   solver.SetPreconditioner(darcyPrec);
-   solver.SetPrintLevel(1);
-
-   solver.Mult(B, X);
-   solver.RecoverFEMSolution(X, rhs, x);
-
-   if (device.IsEnabled()) { x.HostRead(); }
-   chrono.Stop();
-
-   if (solver.GetConverged())
+   if(hybridization)
    {
-      std::cout << "MINRES converged in " << solver.GetNumIterations()
-                << " iterations with a residual norm of "
-                << solver.GetFinalNorm() << ".\n";
+      // 10. Construct the preconditioner
+      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+
+      // 11. Solve the linear system with GMRES.
+      //     Check the norm of the unpreconditioned residual.
+      chrono.Clear();
+      chrono.Start();
+      GMRESSolver solver;
+      solver.SetAbsTol(atol);
+      solver.SetRelTol(rtol);
+      solver.SetMaxIter(maxIter);
+      solver.SetOperator(*pDarcyOp);
+      solver.SetPreconditioner(prec);
+      solver.SetPrintLevel(1);
+
+      solver.Mult(B, X);
+      darcy->RecoverFEMSolution(X, rhs, x);
+
+      chrono.Stop();
+
+      if (solver.GetConverged())
+      {
+         std::cout << "GMRES converged in " << solver.GetNumIterations()
+                  << " iterations with a residual norm of "
+                  << solver.GetFinalNorm() << ".\n";
+      }
+      else
+      {
+         std::cout << "GMRES did not converge in " << solver.GetNumIterations()
+                  << " iterations. Residual norm is " << solver.GetFinalNorm()
+                  << ".\n";
+      }
+      std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
    }
    else
    {
-      std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                << " iterations. Residual norm is " << solver.GetFinalNorm()
-                << ".\n";
+      // 10. Construct the operators for preconditioner
+      //
+      //                 P = [ diag(M)         0         ]
+      //                     [  0       B diag(M)^-1 B^T ]
+      //
+      //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+      //     pressure Schur Complement
+      SparseMatrix *MinvBt = NULL;
+      Vector Md(mVarf->Height());
+
+      BlockDiagonalPreconditioner darcyPrec(block_offsets);
+      Solver *invM, *invS;
+      SparseMatrix *S = NULL;
+
+      if (pa)
+      {
+         mVarf->AssembleDiagonal(Md);
+         auto Md_host = Md.HostRead();
+         Vector invMd(mVarf->Height());
+         for (int i=0; i<mVarf->Height(); ++i)
+         {
+            invMd(i) = 1.0 / Md_host[i];
+         }
+
+         Vector BMBt_diag(bVarf->Height());
+         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+
+         Array<int> ess_tdof_list;  // empty
+
+         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
+         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+      }
+      else
+      {
+         SparseMatrix &M(mVarf->SpMat());
+         M.GetDiag(Md);
+         Md.HostReadWrite();
+
+         SparseMatrix &B(bVarf->SpMat());
+         MinvBt = Transpose(B);
+
+         for (int i = 0; i < Md.Size(); i++)
+         {
+            MinvBt->ScaleRow(i, 1./Md(i));
+         }
+
+         S = Mult(B, *MinvBt);
+
+         invM = new DSmoother(M);
+
+#ifndef MFEM_USE_SUITESPARSE
+         invS = new GSSmoother(*S);
+#else
+         invS = new UMFPackSolver(*S);
+#endif
+      }
+
+      invM->iterative_mode = false;
+      invS->iterative_mode = false;
+
+      darcyPrec.SetDiagonalBlock(0, invM);
+      darcyPrec.SetDiagonalBlock(1, invS);
+
+      // 11. Solve the linear system with MINRES.
+      //     Check the norm of the unpreconditioned residual.
+
+      chrono.Clear();
+      chrono.Start();
+      MINRESSolver solver;
+      solver.SetAbsTol(atol);
+      solver.SetRelTol(rtol);
+      solver.SetMaxIter(maxIter);
+      solver.SetOperator(*pDarcyOp);
+      solver.SetPreconditioner(darcyPrec);
+      solver.SetPrintLevel(1);
+
+      solver.Mult(B, X);
+      darcy->RecoverFEMSolution(X, rhs, x);
+
+      if (device.IsEnabled()) { x.HostRead(); }
+      chrono.Stop();
+
+      if (solver.GetConverged())
+      {
+         std::cout << "MINRES converged in " << solver.GetNumIterations()
+                  << " iterations with a residual norm of "
+                  << solver.GetFinalNorm() << ".\n";
+      }
+      else
+      {
+         std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+                  << " iterations. Residual norm is " << solver.GetFinalNorm()
+                  << ".\n";
+      }
+      std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+
+      delete invM;
+      delete invS;
+      delete S;
+      //delete Bt;
+      delete MinvBt;
    }
-   std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
    // 12. Create the grid functions u and p. Compute the L2 error norms.
    GridFunction u, p;
@@ -434,11 +482,6 @@ int main(int argc, char *argv[])
    // 17. Free the used memory.
    delete fform;
    delete gform;
-   delete invM;
-   delete invS;
-   delete S;
-   //delete Bt;
-   delete MinvBt;
    //delete mVarf;
    //delete bVarf;
    delete darcy;
