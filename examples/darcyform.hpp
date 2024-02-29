@@ -208,6 +208,7 @@ class DarcyHybridization : public Hybridization
    int *Df_ipiv;
 
    void ComputeH();
+   void GetCt(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p) const;
 

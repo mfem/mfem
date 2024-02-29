@@ -567,25 +567,7 @@ void DarcyHybridization::ComputeH()
       LU_A.RightSolve(B.Width(), B.Height(), BAi.GetData());
 
       // Get C^T
-      const int hat_o = hat_offsets[el  ];
-      const int hat_s = hat_offsets[el+1] - hat_o;
-      MFEM_ASSERT(hat_s == a_dofs_size, "");
-      c_fes->GetElementDofs(el, c_dofs);
-      Ct_l.SetSize(hat_s, c_dofs.Size());
-      Ct_l = 0.;
-      for (int i = 0; i < hat_s; i++)
-      {
-         const int row = hat_o + i;
-         int col = 0;
-         const int ncols = Ct->RowSize(row);
-         const int *cols = Ct->GetRowColumns(row);
-         const double *vals = Ct->GetRowEntries(row);
-         for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
-         {
-            if (cols[col] != c_dofs[j]) { continue; }
-            Ct_l(i,j) = vals[col++];
-         }
-      }
+      GetCt(el, Ct_l, c_dofs);
 
       //-C A^-1 C^T
       AiCt.SetSize(Ct_l.Height(), Ct_l.Width());
@@ -593,7 +575,7 @@ void DarcyHybridization::ComputeH()
       AiCt.Neg();
       LU_A.Solve(Ct_l.Height(), Ct_l.Width(), AiCt.GetData());
 
-      H_l.SetSize(c_dofs.Size());
+      H_l.SetSize(Ct_l.Width());
       mfem::MultAtB(Ct_l, AiCt, H_l);
 
       //C A^-1 B^T S^-1 B A^-1 C^T
@@ -611,6 +593,30 @@ void DarcyHybridization::ComputeH()
    }
 
    H->Finalize();
+}
+
+void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
+                               Array<int> &c_dofs) const
+{
+   const int hat_o = hat_offsets[el  ];
+   const int hat_s = hat_offsets[el+1] - hat_o;
+   MFEM_ASSERT(hat_s == Af_f_offsets[el+1] - Af_f_offsets[el], "");
+   c_fes->GetElementDofs(el, c_dofs);
+   Ct_l.SetSize(hat_s, c_dofs.Size());
+   Ct_l = 0.;
+   for (int i = 0; i < hat_s; i++)
+   {
+      const int row = hat_o + i;
+      int col = 0;
+      const int ncols = Ct->RowSize(row);
+      const int *cols = Ct->GetRowColumns(row);
+      const double *vals = Ct->GetRowEntries(row);
+      for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
+      {
+         if (cols[col] != c_dofs[j]) { continue; }
+         Ct_l(i,j) = vals[col++];
+      }
+   }
 }
 
 void DarcyHybridization::Finalize()
@@ -672,28 +678,8 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
    for (int el = 0; el < NE; el++)
    {
-      const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-
       // Get C^T
-      const int hat_o = hat_offsets[el  ];
-      const int hat_s = hat_offsets[el+1] - hat_o;
-      MFEM_ASSERT(hat_s == a_dofs_size, "");
-      c_fes->GetElementDofs(el, c_dofs);
-      Ct_l.SetSize(hat_s, c_dofs.Size());
-      Ct_l = 0.;
-      for (int i = 0; i < hat_s; i++)
-      {
-         const int row = hat_o + i;
-         int col = 0;
-         const int ncols = Ct->RowSize(row);
-         const int *cols = Ct->GetRowColumns(row);
-         const double *vals = Ct->GetRowEntries(row);
-         for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
-         {
-            if (cols[col] != c_dofs[j]) { continue; }
-            Ct_l(i,j) = vals[col++];
-         }
-      }
+      GetCt(el, Ct_l, c_dofs);
 
       // Load RHS
 
