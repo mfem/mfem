@@ -622,7 +622,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
    const int NE = fes->GetNE();
    DenseMatrix Ct_l;
-   Vector R_l, AiR, b_rl, BAiR, BtSiBAiR;
+   Vector bu_l, Aibu, b_rl, BAibu, BtSiBAibu;
    Array<int> a_vdofs, c_dofs;
 
    if (b_r.Size() != H->Height())
@@ -631,7 +631,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       b_r = 0.;
    }
 
-   const Vector &R = b.GetBlock(0);
+   const Vector &bu = b.GetBlock(0);
 
    for (int el = 0; el < NE; el++)
    {
@@ -672,30 +672,32 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       b_rl.SetSize(c_dofs.Size());
 
-      // Get R
+      // Get bu
 
       fes->GetElementVDofs(el, a_vdofs);
-      R.GetSubVector(a_vdofs, R_l);
+      bu.GetSubVector(a_vdofs, bu_l);
 
-      //-C A^-1 R
-      AiR.SetSize(R_l.Size());
-      AiR = R_l;
-      R_l.Neg();
-      LU_A.Solve(AiR.Size(), 1, AiR.GetData());
+      //-A^-1 bu
+      Aibu.SetSize(bu_l.Size());
+      Aibu = bu_l;
+      bu_l.Neg();
+      LU_A.Solve(Aibu.Size(), 1, Aibu.GetData());
 
-      //C A^-1 B^T S^-1 B A^-1 R
-      BAiR.SetSize(B.Height());
-      B.Mult(AiR, BAiR);
+      //A^-1 B^T S^-1 B A^-1 bu
+      BAibu.SetSize(B.Height());
+      B.Mult(Aibu, BAibu);
 
-      LU_S.Solve(BAiR.Size(), 1, BAiR.GetData());
+      LU_S.Solve(BAibu.Size(), 1, BAibu.GetData());
 
-      BtSiBAiR.SetSize(B.Width());
-      B.MultTranspose(BAiR, BtSiBAiR);
+      BtSiBAibu.SetSize(B.Width());
+      B.MultTranspose(BAibu, BtSiBAibu);
 
-      LU_A.Solve(BtSiBAiR.Size(), 1, BtSiBAiR.GetData());
+      LU_A.Solve(BtSiBAibu.Size(), 1, BtSiBAibu.GetData());
 
-      AiR += BtSiBAiR;
-      Ct_l.MultTranspose(AiR, b_rl);
+      Aibu += BtSiBAibu;
+
+      //C (-A^-1 bu + A^-1 B^T S^-1 B A^-1 bu)
+      Ct_l.MultTranspose(Aibu, b_rl);
 
       b_r.AddElementVector(c_dofs, b_rl);
    }
