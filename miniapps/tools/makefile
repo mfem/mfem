@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -26,7 +26,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
-	check-tmop-metric tmop-metric-magnitude
+	tmop-check-metric tmop-metric-magnitude
 
 PAR_MINIAPPS = nodal-transfer plor-transfer
 
@@ -84,7 +84,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 # Testing: Specific execution options
 # Do not test: display-basis, load-dc, convert-dc, get-values, lor-transfer, plor-transfer
 NO_TEST_APPS = display-basis load-dc convert-dc get-values lor-transfer \
-	plor-transfer check-tmop-metric tmop-metric-magnitude
+	plor-transfer tmop-check-metric tmop-metric-magnitude
 $(foreach app,$(NO_TEST_APPS),$(app)-test-seq $(app)-test-par):
 	@true
 

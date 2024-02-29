@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -373,16 +373,20 @@ public:
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
 class TMOP_Metric_014 : public TMOP_QualityMetric
 {
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
 public:
-   // W = |T-I|^2.
+   // W = |J - I|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1[J-I].
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const double weight, DenseMatrix &A) const;
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -1726,7 +1730,7 @@ class TMOPNewtonSolver;
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
 
-    Represents @f$ \int W(Jpt) dx @f$ over a target zone, where W is the
+    Represents $ \int W(Jpt) dx $ over a target zone, where W is the
     metric's strain energy density function, and Jpt is the Jacobian of the
     target->physical coordinates transformation. The virtual target zone is
     defined by the TargetConstructor. */
@@ -1817,17 +1821,27 @@ protected:
 
    // PA extension
    // ------------
+   // Jtr: all ref->target Jacobians, (dim x dim) Q-Vector as DenseTensor.
+   //      updated when needed, based on Jtr_needs_update.
+   //
    //  E: Q-vector for TMOP-energy
+   //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
    // X0: E-vector for initial nodal coordinates used for limiting.
+   //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
    // C0: Q-Vector for spatial weight used for the limiting term.
+   //     Updated when the mesh nodes change.
    // LD: E-Vector constructed using limiting distance grid function (delta).
+   //     Does not change during the TMOP iteration.
    // H0: Q-Vector for Hessian associated with the limiting term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
+   // MC: Q-Vector for the metric Coefficient.
+   //     Updated when the mesh nodes change.
    //
-   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
-   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
-   //            grid function.
+   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -1846,7 +1860,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1960,6 +1974,9 @@ protected:
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+   // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
+   // new physical positions of the quadrature points.
+   void UpdateCoefficientsPA(const Vector &x_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -2021,7 +2038,7 @@ public:
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) dx @f$.
+          $ \int w1 W(Jpt) dx $.
 
        Note that the Coefficient is evaluated in the physical configuration and
        not in the target configuration which may be undefined. */
@@ -2029,7 +2046,7 @@ public:
 
    /** @brief Limiting of the mesh displacements (general version).
 
-       Adds the term @f$ \int w_0 f(x, x_0, d) dx @f$, where f is a measure of
+       Adds the term $ \int w_0 f(x, x_0, d) dx $, where f is a measure of
        the displacement between x and x_0, given the max allowed displacement d.
 
        @param[in] n0     Original mesh node coordinates (x0 above).
@@ -2048,7 +2065,7 @@ public:
 
    /** @brief Restriction of the node positions to certain regions.
 
-       Adds the term @f$ \int c (z(x) - z_0(x_0))^2 @f$, where z0(x0) is a given
+       Adds the term $ \int c (z(x) - z_0(x_0))^2 $, where z0(x0) is a given
        function on the starting mesh, and z(x) is its image on the new mesh.
        Minimizing this term means that a node at x0 is allowed to move to a
        position x(x0) only if z(x) ~ z0(x0).
@@ -2070,8 +2087,8 @@ public:
        Having a level set function s0(x0) on the starting mesh, and a set of
        marked nodes (or DOFs), we move these nodes to the zero level set of s0.
        If s(x) is the image of s0(x0) on the current mesh, this function adds to
-       the TMOP functional the term @f$ \int c \bar{s}(x))^2 @f$, where
-       @f$\bar{s}(x)@f$ is the restriction of s(x) on the aligned DOFs.
+       the TMOP functional the term $ \int c \bar{s}(x))^2 $, where
+       $\bar{s}(x)$ is the restriction of s(x) on the aligned DOFs.
        Minimizing this term means that a marked node at x0 is allowed to move to
        a position x(x0) only if s(x) ~ 0.
        Such term can be used for surface fitting and tangential relaxation.
@@ -2129,8 +2146,8 @@ public:
        physical space x_t, we move these nodes to the target positions during
        the optimization process.
        This function adds to the TMOP functional the term
-       @f$ \sum_{i \in S} c \frac{1}{2} (x_i - x_{t,i})^2 @f$,
-       where @f$c@f$ corresponds to @a coeff below and is evaluated at the
+       $ \sum_{i \in S} c \frac{1}{2} (x_i - x_{t,i})^2 $,
+       where $c$ corresponds to @a coeff below and is evaluated at the
        DOF locations.
 
        @param[in] pos     The desired positions for the mesh nodes.
