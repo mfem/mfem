@@ -1052,32 +1052,32 @@ inline void SmemPAMassApply3D(const int NE,
 using KernelType = MassIntegrator::KernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 
-template<>
-template<typename... KernelParameters>
+template<int T_D1D, int T_Q1D, int T_NBZ>
+inline
 KernelType MassIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPAMassApply2D<KernelParameters...>; }
 
-template<>
-template<typename... KernelParameters>
+template<int T_D1D, int T_Q1D>
+inline
 KernelType MassIntegrator::ApplyPAKernels::Kernel3D()  { return internal::SmemPAMassApply3D<KernelParameters...>; }
 
-template<>
+inline
 KernelType MassIntegrator::ApplyPAKernels::Fallback2D()  { return internal::PAMassApply2D<0,0>; }
 
-template<>
+inline
 KernelType MassIntegrator::ApplyPAKernels::Fallback3D() { return internal::PAMassApply3D<0,0>; }
 
-template<>
-template<typename... KernelParameters>
+template<int T_D1D, int T_Q1D, int T_NBZ>
+inline
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel2D() { return internal::PAMassAssembleDiagonal2D<KernelParameters...>; }
 
-template<>
-template<typename... KernelParameters>
+template<int T_D1D, int T_Q1D  >
+inline
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel3D() { return internal::PAMassAssembleDiagonal3D<KernelParameters...>; }
 
-template<>
+inline
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PAMassAssembleDiagonal2D<0,0>; }
 
-template<>
+inline
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PAMassAssembleDiagonal3D<0,0>; }
 
 } // namespace mfem

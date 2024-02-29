@@ -36,6 +36,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const bool symm = symmetric;
       const Array<double> &B = maps->B;
       const Array<double> &G = maps->G;
+      // These two arrays are left empty as they are unused in diagonal diffusion
+      // kernels.
       const Vector &Dv = pa_data;
 
       kernels.diag.Run(dim, D1D, Q1D, NE, symm, B, G, Dv, diag, D1D, Q1D);

@@ -90,6 +90,7 @@ if (MFEM_USE_MPI)
     ex35p.cpp
     ex36p.cpp
     ex37p.cpp
+    kernel_specialization.cpp
     )
 endif()
 
@@ -137,7 +138,7 @@ if (MFEM_ENABLE_TESTING)
       ex1 ex3 ex4 ex5 ex6 ex9 ex22 ex24 ex25 ex26 ex34
       # parallel examples with device support:
       ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex22p ex24p ex25p ex26p
-      ex34p ex35p)
+      ex34p ex35p kernel_specialization)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")

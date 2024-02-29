@@ -1208,48 +1208,40 @@ inline void SmemPADiffusionApply3D(const int NE,
 
 } // namespace internal
 
-template<>
 template<int T_D1D, int T_Q1D, int T_NBZ>
 inline
-DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
 DiffusionIntegrator::ApplyPAKernels::Kernel2D() { return internal::SmemPADiffusionApply2D<T_D1D, T_Q1D, T_NBZ>; }
 
-template<>
-template<typename... KernelParameters>
+template<int T_D1D, int T_Q1D>
 inline
-DiffusionIntegrator::KernelType
-DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<KernelParameters...>; }
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
+DiffusionIntegrator::ApplyPAKernels::Kernel3D() { return internal::SmemPADiffusionApply3D<T_D1D, T_Q1D>; }
 
-template<>
 inline
-DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
 DiffusionIntegrator::ApplyPAKernels::Fallback2D() { return internal::PADiffusionApply2D<0,0>; }
 
-template<>
 inline
-DiffusionIntegrator::KernelType
+DiffusionIntegrator::ApplyPAKernels::KernelSignature
 DiffusionIntegrator::ApplyPAKernels::Fallback3D() { return internal::PADiffusionApply3D<0,0>; }
 
-template<>
 template<int T_D1D, int T_Q1D, int T_NBZ>
 inline
-DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
 DiffusionIntegrator::DiagonalPAKernels::Kernel2D() { return internal::SmemPADiffusionDiagonal2D<T_D1D, T_Q1D, T_NBZ>; }
 
-template<>
 template<int T_D1D, int T_Q1D  >
 inline
-DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
 DiffusionIntegrator::DiagonalPAKernels::Kernel3D() { return internal::SmemPADiffusionDiagonal3D<T_D1D, T_Q1D>; }
 
-template<>
 inline
-DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
 DiffusionIntegrator::DiagonalPAKernels::Fallback2D() { return internal::PADiffusionDiagonal2D<0,0>; }
 
-template<>
 inline
-DiffusionIntegrator::DiagonalKernelType
+DiffusionIntegrator::DiagonalPAKernels::KernelSignature
 DiffusionIntegrator::DiagonalPAKernels::Fallback3D() { return internal::PADiffusionDiagonal3D<0,0>; }
 } // namespace mfem
 

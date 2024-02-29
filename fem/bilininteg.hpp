@@ -2102,26 +2102,43 @@ class DiffusionIntegrator: public BilinearFormIntegrator
 {
 public:
 
-   using KernelType = std::function<void(*)(const int, const bool, const Array<double>&,
+   using KernelType = void(*)(const int, const bool, const Array<double>&,
                               const Array<double>&, const Array<double>&,
                               const Array<double>&,
                               const Vector&, const Vector&,
-                              Vector&, const int, const int)>;
+                              Vector&, const int, const int);
 
-   using DiagonalKernelType = std::function<void(*)(const int, const bool, const Array<double>&,
+   using DiagonalKernelType = void(*)(const int, const bool, const Array<double>&,
                                       const Array<double>&, const Vector&, Vector&,
-                                      const int, const int)>;
+                                      const int, const int);
 
-   // Shared memory and non shared memory implementations of non-diagonal diffusion kernels have different
-   // signatures. The first template argument refers to the signature of the non shared memory kernel type.
-   // The second refers to the shared memory kernel signature.
-   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType, internal::KernelTypeList<int, int, int>, internal::KernelTypeList<int, int>>;
-   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType, internal::KernelTypeList<int, int, int>, internal::KernelTypeList<int, int>>;
+   using UserParams = internal::KernelTypeList<int, int>;
+   using KernelParams = internal::KernelTypeList<int, int, int>;
+
+   class ApplyPAKernels :  public ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams> {
+      public:
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   class DiagonalPAKernels : public  DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams> {
+      public:
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
 
    struct Kernels
    {
-      KernelDispatchTable<ApplyPAKernels> apply;
-      KernelDispatchTable<DiagonalPAKernels> diag;
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams> apply;
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams> diag;
       Kernels();
    };
    static Kernels kernels;
@@ -2291,10 +2308,12 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      if constexpr (DIM == 2) {
-         kernels.apply.AddSpecialization2D<D1D, Q1D>();
+      if (DIM == 2) {
+         kernels.apply. template AddSpecialization2D<D1D, Q1D>();
+         kernels.diag. template AddSpecialization2D<D1D, Q1D>();
       } else {
-         kernels.diag.AddSpecialization3D<DIM, D1D, Q1D>();
+         kernels.apply. template AddSpecialization3D<D1D, Q1D>();
+         kernels.diag. template AddSpecialization3D<D1D, Q1D>();
       }
    }
 };
@@ -2325,15 +2344,14 @@ public:
    using DiagonalKernelType =  void(*)(const int, const Array<double>&,
                                        const Vector&, Vector&, const int, const int);
 
-   // The shared memory MassIntegrator kernels have the same signature as the non-shared memory implementations,
-   // so make the two template arguments denoting kernel type identical.
-   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType>;
-   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType>;
-
+   using UserParams = internal::KernelTypeList<int, int>;
+   using KernelParams = internal::KernelTypeList<int, int, int>;
+   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>;
+   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>;
    struct Kernels
    {
-      KernelDispatchTable<ApplyPAKernels> apply;
-      KernelDispatchTable<DiagonalPAKernels> diag;
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams> apply;
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams> diag;
       Kernels();
    };
    static Kernels kernels;
@@ -2388,8 +2406,13 @@ public:
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
    {
-      kernels.apply.AddSpecialization<DIM, D1D, Q1D>();
-      kernels.diag.AddSpecialization<DIM, D1D, Q1D>();
+      if (DIM == 2) {
+         kernels.apply. template AddSpecialization2D<D1D, Q1D>();
+         kernels.diag. template AddSpecialization2D<DIM, D1D, Q1D>();
+      } else {
+         kernels.apply. template AddSpecialization3D<D1D, Q1D>();
+         kernels.diag. template AddSpecialization3D<DIM, D1D, Q1D>();
+      }
    }
 };
 
