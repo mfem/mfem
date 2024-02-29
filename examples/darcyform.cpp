@@ -540,9 +540,9 @@ void DarcyHybridization::ComputeH()
    {
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
       int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      
+
       // Decompose A
-      
+
       LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
 
       LU_A.Factor(a_dofs_size);
@@ -573,16 +573,16 @@ void DarcyHybridization::ComputeH()
       c_fes->GetElementDofs(el, c_dofs);
       Ct_l.SetSize(hat_s, c_dofs.Size());
       Ct_l = 0.;
-      for(int i = 0; i < hat_s; i++)
+      for (int i = 0; i < hat_s; i++)
       {
          const int row = hat_o + i;
          int col = 0;
          const int ncols = Ct->RowSize(row);
          const int *cols = Ct->GetRowColumns(row);
          const double *vals = Ct->GetRowEntries(row);
-         for(int j = 0; j < c_dofs.Size() && col < ncols; j++)
+         for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
          {
-            if(cols[col] != c_dofs[j]) { continue; }
+            if (cols[col] != c_dofs[j]) { continue; }
             Ct_l(i,j) = vals[col++];
          }
       }
@@ -625,7 +625,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    Vector R_l, AiR, b_rl, BAiR, BtSiBAiR;
    Array<int> a_vdofs, c_dofs;
 
-   if(b_r.Size() != H->Height())
+   if (b_r.Size() != H->Height())
    {
       b_r.SetSize(H->Height());
       b_r = 0.;
@@ -637,9 +637,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    {
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
       int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      
+
       // Load LU decomposition of A and Schur complement
-      
+
       LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
       LUFactors LU_S(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
 
@@ -654,16 +654,16 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       c_fes->GetElementDofs(el, c_dofs);
       Ct_l.SetSize(hat_s, c_dofs.Size());
       Ct_l = 0.;
-      for(int i = 0; i < hat_s; i++)
+      for (int i = 0; i < hat_s; i++)
       {
          const int row = hat_o + i;
          int col = 0;
          const int ncols = Ct->RowSize(row);
          const int *cols = Ct->GetRowColumns(row);
          const double *vals = Ct->GetRowEntries(row);
-         for(int j = 0; j < c_dofs.Size() && col < ncols; j++)
+         for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
          {
-            if(cols[col] != c_dofs[j]) { continue; }
+            if (cols[col] != c_dofs[j]) { continue; }
             Ct_l(i,j) = vals[col++];
          }
       }
@@ -693,7 +693,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       B.MultTranspose(BAiR, BtSiBAiR);
 
       LU_A.Solve(BtSiBAiR.Size(), 1, BtSiBAiR.GetData());
-      
+
       AiR += BtSiBAiR;
       Ct_l.MultTranspose(AiR, b_rl);
 

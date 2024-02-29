@@ -264,13 +264,13 @@ int main(int argc, char *argv[])
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, B);
 
-   
+
 
    int maxIter(1000);
    real_t rtol(1.e-6);
    real_t atol(1.e-10);
 
-   if(hybridization)
+   if (hybridization)
    {
       // 10. Construct the preconditioner
       GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
@@ -295,14 +295,14 @@ int main(int argc, char *argv[])
       if (solver.GetConverged())
       {
          std::cout << "GMRES converged in " << solver.GetNumIterations()
-                  << " iterations with a residual norm of "
-                  << solver.GetFinalNorm() << ".\n";
+                   << " iterations with a residual norm of "
+                   << solver.GetFinalNorm() << ".\n";
       }
       else
       {
          std::cout << "GMRES did not converge in " << solver.GetNumIterations()
-                  << " iterations. Residual norm is " << solver.GetFinalNorm()
-                  << ".\n";
+                   << " iterations. Residual norm is " << solver.GetFinalNorm()
+                   << ".\n";
       }
       std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
    }
@@ -393,14 +393,14 @@ int main(int argc, char *argv[])
       if (solver.GetConverged())
       {
          std::cout << "MINRES converged in " << solver.GetNumIterations()
-                  << " iterations with a residual norm of "
-                  << solver.GetFinalNorm() << ".\n";
+                   << " iterations with a residual norm of "
+                   << solver.GetFinalNorm() << ".\n";
       }
       else
       {
          std::cout << "MINRES did not converge in " << solver.GetNumIterations()
-                  << " iterations. Residual norm is " << solver.GetFinalNorm()
-                  << ".\n";
+                   << " iterations. Residual norm is " << solver.GetFinalNorm()
+                   << ".\n";
       }
       std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
 
