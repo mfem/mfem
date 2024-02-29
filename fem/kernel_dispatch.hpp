@@ -32,25 +32,25 @@ class ApplyPAKernelsClassTemplate {};
 template<typename... T>
 class DiagonalPAKernelsClassTemplate {};
 
-template<typename Signature, typename... Params2D, typename... Params3D>
-class ApplyPAKernelsClassTemplate<Signature, internal::KernelTypeList<Params2D...>, internal::KernelTypeList<Params3D...>>
+template<typename Signature, typename... UserParams, typename... KernelParams>
+class ApplyPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>
 {
 private:
    constexpr static int D(int D1D) { return (11 - D1D) / 2; }
 public:
    using KernelSignature = Signature;
-   using KernelArgTypes2D = internal::KernelTypeList<Params2D...>;
-   using KernelArgTypes3D = internal::KernelTypeList<Params3D...>;
+   using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
+   using KernelArgTypes3D = internal::KernelTypeList<KernelParams...>;
 
    constexpr static int NBZ(int D1D, int Q1D)
    {
       return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
    }
 
-   template<Params2D... params>
+   template<KernelParams... params>
    static KernelSignature Kernel2D();
 
-   template<Params3D... params>
+   template<KernelParams... params>
    static KernelSignature Kernel3D();
 
    static KernelSignature Fallback2D();
@@ -58,18 +58,18 @@ public:
    static KernelSignature Fallback3D();
 };
 
-template<typename Signature, typename... Params2D, typename... Params3D>
-class DiagonalPAKernelsClassTemplate<Signature, internal::KernelTypeList<Params2D...>, internal::KernelTypeList<Params3D...>>
+template<typename Signature, typename... UserParams, typename... KernelParams>
+class DiagonalPAKernelsClassTemplate<Signature, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>>
 {
 public:
    using KernelSignature = Signature;
-   using KernelArgTypes2D = internal::KernelTypeList<Params2D...>;
-   using KernelArgTypes3D = internal::KernelTypeList<Params3D...>;
+   using KernelArgTypes2D = internal::KernelTypeList<UserParams...>;
+   using KernelArgTypes3D = internal::KernelTypeList<KernelParams...>;
 
-   template<Params2D... params>
+   template<KernelParams... params>
    static KernelSignature Kernel2D();
 
-   template<Params3D... params>
+   template<KernelParams... params>
    static KernelSignature Kernel3D();
 
    static KernelSignature Fallback2D();
@@ -89,7 +89,7 @@ template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
    std::hash<size_t> h;
-   std::size_t hasher_helper(const std::tuple<KernelParameters...> t, int hashing_index) {
+   std::size_t hasher_helper(const std::tuple<KernelParameters...> t, int hashing_index) const {
       if (hashing_index >= sizeof...(KernelParameters)) {
          return 1;
       }
@@ -111,8 +111,9 @@ struct KernelDispatchKeyHash
 template<typename... T>
 class KernelDispatchTable {};
 
-template <typename ApplyKernelsHelperClass, typename... Params2D, typename... Params3D>
-class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<Params2D...>, internal::KernelTypeList<Params3D...>>
+template <typename ApplyKernelsHelperClass, typename... UserParams, typename... KernelParams>
+class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>> :
+DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
 {
 
    // These typedefs prefent AddSpecialization from compiling unless the provided
@@ -122,8 +123,6 @@ class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<Para
    using Signature = typename ApplyKernelsHelperClass::KernelSignature;
 
 private:
-   static auto lookup_table_2d = DispatchTable<std::tuple<Params2D...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<Params2D...>>{};
-   static auto lookup_table_3d = DispatchTable<std::tuple<Params2D...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<Params2D...>>{};
    // If the type U has member U::NBZ, this overload will be selected, and will
    // return U::NBZ(d1d, q1d).
    template <typename U>
@@ -147,10 +146,10 @@ public:
 
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
-   template<Params2D... params, typename... KernelArgs>
-   void Run2D(KernelArgs... args) {
-      constexpr auto key = std::make_tuple(params...);
-      const auto it = lookup_table_2d.table.find(key);
+   template<typename... KernelArgs>
+   void Run2D(UserParams... params, KernelArgs... args) {
+      auto key = std::make_tuple(2, params...);
+      const auto it = this->table.find(key);
       if (it != this->table.end())
       {
          printf("Specialized.\n");
@@ -162,10 +161,10 @@ public:
       }
    }
 
-   template<Params3D... params, typename... KernelArgs>
-   void Run3D(KernelArgs... args) {
-      constexpr auto key = std::make_tuple(params...);
-      const auto it = lookup_table_3d.table.find(key);
+   template<typename... KernelArgs>
+   void Run3D(UserParams... params, KernelArgs... args) {
+      auto key = std::make_tuple(3, params...);
+      const auto it = this->table.find(key);
       if (it != this->table.end())
       {
          printf("Specialized.\n");
@@ -177,30 +176,48 @@ public:
       }
    }
 
-   template<Params2D... params>
+   template<typename... KernelArgs>
+   void Run(int dim, UserParams... params, KernelArgs... args) {
+      if (dim == 2) {
+         Run2D(params..., args...);
+      } else if (dim == 3) {
+         Run3D(params..., args...);
+      } else {
+         MFEM_ABORT("Only 2 and 3 dimensional kernels exist");
+      }
+
+   }
+
+   void foobar() {
+      printf("here\n");
+   }
+
+   template<UserParams... params>
    void AddSpecialization2D() {
       constexpr int DIM = 2;
       constexpr auto param_tuple = std::make_tuple<params...>;
       // All kernels require at least D1D and Q1D
       static_assert(sizeof...(params) >= 2 &&
             std::is_same<decltype(std::get<0>(param_tuple)), int>::value &&
-            std::is_same<decltype(std::get<1>(param_tuple)), int>::value);
+            std::is_same<decltype(std::get<1>(param_tuple)), int>::value,
+            "All specializations require at least two template parameters");
 
       constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
       constexpr auto key_tuple = std::make_tuple<DIM, params...>;
 
-      lookup_table_2d.table[param_tuple] = ApplyKernelsHelperClass::template Kernel2D<NBZ, params...>();
+      this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel2D<params..., NBZ>();
    }
 
-   template<Params3D... params>
+   template<UserParams... params>
    void AddSpecialization3D() {
       constexpr int DIM = 3;
       constexpr auto param_tuple = std::make_tuple<DIM, params...>;
       static_assert(sizeof...(params) >= 2 &&
             std::is_same<decltype(std::get<0>(param_tuple)), int>::value &&
-            std::is_same<decltype(std::get<1>(param_tuple)), int>::value);
+            std::is_same<decltype(std::get<1>(param_tuple)), int>::value,
+            "All specializations require at least two template parameters");
 
-      lookup_table_3d.table[param_tuple] = ApplyKernelsHelperClass::template Kernel3D<params...>();
+      this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel3D<params...>();
    }
 };
 
