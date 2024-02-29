@@ -166,16 +166,21 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
    formIntegrator->ResetMaxCharSpeed();
-   // 1. Create the vector z with the face terms (F(u), grad v) - <F.n(u), [w]>.
-   //    If weak divergence is pre-assembled, <F.n(u), [w]>
+   // 1. Apply Nonlinear form to obtain an axiliary result
+   //         z = - <F̂(u_h,n), [[v]]>_e
+   //    If weak-divergencee is not preassembled, we also have weak-divergence
+   //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
    nonlinearForm->Mult(x, z);
-   if (!weakdiv.empty()) // if weak divergence is not pre-assembled
+   if (!weakdiv.empty()) // if weak divergence is pre-assembled
    {
-      Vector current_state;
+      // Apply weak divergence to F(u_h), and inverse mass to z_loc + weakdiv_loc
+      Vector current_state; // view of current state at a node
+      DenseMatrix current_flux; // flux of current state
       DenseMatrix flux; // element flux value. Whose column is ordered by dim.
-      DenseMatrix current_flux; // node flux value.
+      DenseMatrix current_xmat; // view of current states in an element, dof x num_eq
+      DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
+      DenseMatrix current_ymat; // view of element result, dof x num_eq
       const FluxFunction &fluxFunction = formIntegrator->GetFluxFunction();
-      DenseMatrix current_zmat, current_ymat, current_xmat;
       Array<int> vdofs;
       Vector xval, zval;
       for (int i=0; i<vfes.GetNE(); i++)
@@ -186,18 +191,20 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
          x.GetSubVector(vdofs, xval);
          current_xmat.UseExternalData(xval.GetData(), dof, num_equations);
          flux.SetSize(num_equations, dim*dof);
-         for (int j=0; j<dof; j++)
+         for (int j=0; j<dof; j++) // compute flux for all nodes in the element
          {
             current_xmat.GetRow(j, current_state);
             current_flux.UseExternalData(flux.GetData() + num_equations*dim*j,
                                          num_equations, dof);
             fluxFunction.ComputeFlux(current_state, *Tr, current_flux);
          }
-         z.GetSubVector(vdofs, zval);
-         current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
+         // Compute weak-divergence and add it to auxiliary result, z
          // Recalling that weakdiv is reordered by dim, we can apply
          // weak-divergence to the transpose of flux.
+         z.GetSubVector(vdofs, zval);
+         current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
          mfem::AddMult_a_ABt(1.0, weakdiv[i], flux, current_zmat);
+         // Apply inverse mass to auxiliary result to obtain the final result
          current_ymat.SetSize(dof, num_equations);
          mfem::Mult(invmass[i], current_zmat, current_ymat);
          y.SetSubVector(vdofs, current_ymat.GetData());
@@ -205,9 +212,11 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      Vector zval;
+      // Apply block inverse mass
+      Vector zval; // z_loc, dof*num_eq
 
-      DenseMatrix current_zmat, current_ymat;
+      DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
+      DenseMatrix current_ymat; // view of element result, dof x num_eq
       Array<int> vdofs;
       for (int i=0; i<vfes.GetNE(); i++)
       {
