@@ -620,6 +620,85 @@ void DarcyHybridization::Finalize()
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
+   const int NE = fes->GetNE();
+   DenseMatrix Ct_l;
+   Vector R_l, AiR, b_rl, BAiR, BtSiBAiR;
+   Array<int> a_vdofs, c_dofs;
+
+   if(b_r.Size() != H->Height())
+   {
+      b_r.SetSize(H->Height());
+      b_r = 0.;
+   }
+
+   const Vector &R = b.GetBlock(0);
+
+   for (int el = 0; el < NE; el++)
+   {
+      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      
+      // Load LU decomposition of A and Schur complement
+      
+      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+      LUFactors LU_S(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+
+      // Load B
+
+      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+
+      // Get C^T
+      const int hat_o = hat_offsets[el  ];
+      const int hat_s = hat_offsets[el+1] - hat_o;
+      MFEM_ASSERT(hat_s == a_dofs_size, "");
+      c_fes->GetElementDofs(el, c_dofs);
+      Ct_l.SetSize(hat_s, c_dofs.Size());
+      Ct_l = 0.;
+      for(int i = 0; i < hat_s; i++)
+      {
+         const int row = hat_o + i;
+         int col = 0;
+         const int ncols = Ct->RowSize(row);
+         const int *cols = Ct->GetRowColumns(row);
+         const double *vals = Ct->GetRowEntries(row);
+         for(int j = 0; j < c_dofs.Size() && col < ncols; j++)
+         {
+            if(cols[col] != c_dofs[j]) { continue; }
+            Ct_l(i,j) = vals[col++];
+         }
+      }
+
+      // Load RHS
+
+      b_rl.SetSize(c_dofs.Size());
+
+      // Get R
+
+      fes->GetElementVDofs(el, a_vdofs);
+      R.GetSubVector(a_vdofs, R_l);
+
+      //-C A^-1 R
+      AiR.SetSize(R_l.Size());
+      AiR = R_l;
+      R_l.Neg();
+      LU_A.Solve(AiR.Size(), 1, AiR.GetData());
+
+      //C A^-1 B^T S^-1 B A^-1 R
+      BAiR.SetSize(B.Height());
+      B.Mult(AiR, BAiR);
+
+      LU_S.Solve(BAiR.Size(), 1, BAiR.GetData());
+
+      BtSiBAiR.SetSize(B.Width());
+      B.MultTranspose(BAiR, BtSiBAiR);
+
+      LU_A.Solve(BtSiBAiR.Size(), 1, BtSiBAiR.GetData());
+      
+      AiR += BtSiBAiR;
+      Ct_l.MultTranspose(AiR, b_rl);
+
+      b_r.AddElementVector(c_dofs, b_rl);
+   }
 }
 
 void DarcyHybridization::ComputeSolution(const BlockVector &b,
