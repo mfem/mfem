@@ -618,11 +618,48 @@ void DarcyHybridization::Finalize()
    if (!H) { ComputeH(); }
 }
 
+void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
+                                 Vector &u, Vector &p) const
+{
+   static Vector BAibu, BtSiBAibu;
+
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   // Load LU decomposition of A and Schur complement
+
+   LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
+   LUFactors LU_S(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
+
+   // Load B
+
+   DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+
+   //-A^-1 bu
+   u.SetSize(bu.Size());
+   u = bu;
+   u.Neg();
+   LU_A.Solve(u.Size(), 1, u.GetData());
+
+   //A^-1 B^T S^-1 B A^-1 bu
+   BAibu.SetSize(B.Height());
+   B.Mult(u, BAibu);
+
+   LU_S.Solve(BAibu.Size(), 1, BAibu.GetData());
+
+   BtSiBAibu.SetSize(B.Width());
+   B.MultTranspose(BAibu, BtSiBAibu);
+
+   LU_A.Solve(BtSiBAibu.Size(), 1, BtSiBAibu.GetData());
+
+   u += BtSiBAibu;
+}
+
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
    const int NE = fes->GetNE();
    DenseMatrix Ct_l;
-   Vector bu_l, Aibu, b_rl, BAibu, BtSiBAibu;
+   Vector bu_l, bp_l, b_rl, u_l, p_l;
    Array<int> a_vdofs, c_dofs;
 
    if (b_r.Size() != H->Height())
@@ -635,17 +672,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
    for (int el = 0; el < NE; el++)
    {
-      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-
-      // Load LU decomposition of A and Schur complement
-
-      LUFactors LU_A(Af_data + Af_offsets[el], Af_ipiv + Af_f_offsets[el]);
-      LUFactors LU_S(Df_data + Df_offsets[el], Df_ipiv + Df_f_offsets[el]);
-
-      // Load B
-
-      DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
+      const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
 
       // Get C^T
       const int hat_o = hat_offsets[el  ];
@@ -677,27 +704,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       fes->GetElementVDofs(el, a_vdofs);
       bu.GetSubVector(a_vdofs, bu_l);
 
-      //-A^-1 bu
-      Aibu.SetSize(bu_l.Size());
-      Aibu = bu_l;
-      bu_l.Neg();
-      LU_A.Solve(Aibu.Size(), 1, Aibu.GetData());
-
-      //A^-1 B^T S^-1 B A^-1 bu
-      BAibu.SetSize(B.Height());
-      B.Mult(Aibu, BAibu);
-
-      LU_S.Solve(BAibu.Size(), 1, BAibu.GetData());
-
-      BtSiBAibu.SetSize(B.Width());
-      B.MultTranspose(BAibu, BtSiBAibu);
-
-      LU_A.Solve(BtSiBAibu.Size(), 1, BtSiBAibu.GetData());
-
-      Aibu += BtSiBAibu;
-
       //C (-A^-1 bu + A^-1 B^T S^-1 B A^-1 bu)
-      Ct_l.MultTranspose(Aibu, b_rl);
+      MultInv(el, bu_l, bp_l, u_l, p_l);
+      Ct_l.MultTranspose(u_l, b_rl);
 
       b_r.AddElementVector(c_dofs, b_rl);
    }

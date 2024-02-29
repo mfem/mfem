@@ -208,6 +208,8 @@ class DarcyHybridization : public Hybridization
    int *Df_ipiv;
 
    void ComputeH();
+   void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
+                Vector &p) const;
 
 public:
    /// Constructor
