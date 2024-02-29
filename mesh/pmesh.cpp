@@ -4836,8 +4836,8 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
       }
    }
 
-   bool set_names = attribute_sets.SetsExist() ||
-                    bdr_attribute_sets.SetsExist();
+   const bool set_names = attribute_sets.SetsExist() ||
+                          bdr_attribute_sets.SetsExist();
 
    os << (!set_names ? "MFEM mesh v1.0\n" : "MFEM mesh v1.3\n");
 

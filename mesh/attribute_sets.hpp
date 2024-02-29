@@ -108,7 +108,6 @@ public:
 
    /// @brief Print the contents of the container to an output stream
    ///
-   ///
    /// @note The array entries will contain 10 entries per line. A specific
    /// number of entries per line can be used by changing the @a width argument.
    void Print(std::ostream &out = mfem::out, int width = -1) const;

@@ -153,7 +153,6 @@ int main(int argc, char *argv[])
       attr_sets.AddToAttributeSet("Rose Odd", Eb);
       attr_sets.AddToAttributeSet("Rose Odd", Wb);
 
-
       // Create a new set consisting of the full compass rose
       Array<int> & Ra = attr_sets.GetAttributeSet("Rose Even");
       Array<int> & Rb = attr_sets.GetAttributeSet("Rose Odd");

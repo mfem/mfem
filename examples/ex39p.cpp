@@ -291,7 +291,6 @@ int main(int argc, char *argv[])
    cg.SetOperator(A);
    cg.Mult(B, X);
 
-
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a.RecoverFEMSolution(X, b, x);
