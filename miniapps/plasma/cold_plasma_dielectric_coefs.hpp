@@ -671,10 +671,10 @@ public:
    virtual ~InverseDielectricTensor() {}
 };
 
-class ConductivityTensor: public MatrixCoefficient, public StixTensorBase
+class SusceptibilityTensor: public MatrixCoefficient, public StixTensorBase
 {
 public:
-   ConductivityTensor(const ParGridFunction & B,
+   SusceptibilityTensor(const ParGridFunction & B,
                     const ParGridFunction & k,
                     const ParGridFunction & nue,
                     const ParGridFunction & nui,
@@ -690,13 +690,13 @@ public:
                     double res_lim,
                     bool realPart);
 
-   ConductivityTensor(StixCoefBase &s)
+   SusceptibilityTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
 
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   virtual ~ConductivityTensor() {}
+   virtual ~SusceptibilityTensor() {}
 };
 
 class SPDDielectricTensor: public MatrixCoefficient, public StixCoefBase
@@ -787,22 +787,21 @@ public:
    POLOIDAL should be done in this special case.
    */
    enum CoordSystem {CARTESIAN_3D, POLOIDAL};
-   enum Type {CONSTANT     =  0,
-              GRADIENT     =  1,
-              TANH         =  2,
-              ELLIPTIC_COS =  3,
-              PARABOLIC    =  4,
-              PEDESTAL     =  5,
-              NUABSORB     =  6,
-              NUE          =  7,
-              NUI          =  8,
-              CMODDEN      =  9,
-              SPARC_RES    = 10,
-              SPARC_DEN    = 11,
-              SPARC_TEMP   = 12,
-              CORE         = 13,
-              SOL          = 14,
-              MIN_TEMP     = 15
+   enum Type {CONSTANT               =  0,
+              GRADIENT               =  1,
+              TANH                   =  2,
+              ELLIPTIC_COS           =  3,
+              PARABOLIC              =  4,
+              PEDESTAL               =  5,
+              NUABSORB               =  6,
+              NUE                    =  7,
+              NUI                    =  8,
+              CMODDEN                =  9,
+              POLOIDAL_H_MODE_DEN    = 10,
+              POLOIDAL_H_MODE_TEMP   = 11,
+              POLOIDAL_CORE          = 12,
+              POLOIDAL_SOL           = 13,
+              POLOIDAL_MIN_TEMP      = 14
              };
 
 private:
@@ -822,7 +821,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[16] = {1, 7, 9, 7, 7, 7, 3, 3, 3, 1, 3, 1, 1, 2, 5, 2};
+   const int np_[15] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 1, 1, 1, 5, 2};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
@@ -854,13 +853,13 @@ class BFieldProfile : public VectorCoefficient
 public:
    /** See PlasmaProfile for documentation. */
    enum CoordSystem {CARTESIAN_3D, POLOIDAL};
-   enum Type {CONSTANT  = 0,
-              B_P       = 1,
-              B_TOPDOWN = 2,
-              B_P_KOHNO = 3,
-              B_EQDSK   = 4,
-              B_SPARC   = 5,
-              B_WHAM    = 6
+   enum Type {CONSTANT         = 0,
+              B_P1             = 1,
+              B_P2             = 2,
+              B_P_KOHNO        = 3,
+              B_EQDSK_TOPDOWN  = 4,
+              B_EQDSK_POLOIDAL = 5,
+              B_WHAM           = 6
              };
 
 private:

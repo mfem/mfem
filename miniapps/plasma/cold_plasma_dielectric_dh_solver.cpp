@@ -447,8 +447,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                          MatrixCoefficient & epsInvReCoef,
                          MatrixCoefficient & epsInvImCoef,
                          MatrixCoefficient & epsAbsCoef,
-                         MatrixCoefficient & sigmaReCoef,
-                         MatrixCoefficient & sigmaImCoef,
+                         MatrixCoefficient & susceptReCoef,
+                         MatrixCoefficient & susceptImCoef,
                          Coefficient & muCoef,
                          Coefficient * etaCoef,
                          VectorCoefficient * kReCoef,
@@ -560,8 +560,8 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
      // epsImCoef_(&epsImCoef),
      epsInvReCoef_(&epsInvReCoef),
      epsInvImCoef_(&epsInvImCoef),
-     sigmaReCoef_(&sigmaReCoef),
-     sigmaImCoef_(&sigmaImCoef),
+     susceptReCoef_(&susceptReCoef),
+     susceptImCoef_(&susceptImCoef),
      // epsAbsCoef_(&epsAbsCoef),
      muCoef_(&muCoef),
      muInvCoef_(muCoef, -1),
@@ -731,11 +731,6 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                                          *negOmegaCoef_) : NULL,
                                        sbc_bdr_marker_);
       }
-      ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
-      SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
-      sheathPowCoef_ = new SheathPower(*sb, *b_hat_, true);
-      if ( myid_ == 0 && logging_ > 0 ) {cout << "Setting Potenial *****************************" << endl;}
-      sheathPowCoef_->SetPotential(*phi_);
       if ( myid_ == 0 && logging_ > 0 ) {cout << "Done Building nxD01_" << endl;}
    }
 
@@ -939,9 +934,9 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
                                    new VectorFEMassIntegrator(*epsInvImCoef_));
 
    m4r_ = new ParBilinearForm(HCurlFESpace_);
-   m4r_->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaReCoef_));
+   m4r_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptReCoef_));
    m4i_ = new ParBilinearForm(HCurlFESpace_);
-   m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaImCoef_));
+   m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
 
    RHSr2_ = new HypreParVector(HCurlFESpace_);
    RHSi2_ = new HypreParVector(HCurlFESpace_);
@@ -1043,14 +1038,15 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    curl_ = new ParDiscreteCurlOperator(HCurlFESpace_, HDivFESpace_);
 
    if (sbcs_->Size() > 0)
-   {
+   {  
       /*
       PlasmaProfile::Type dpt = PlasmaProfile::GRADIENT;
-      Vector dpp(6);
-      dpp[0] = 2e20; dpp[1] = 0; dpp[2] = 0; dpp[3] = 0; dpp[4] = 0; dpp[5] = 100; dpp[6] = 0;
+      Vector dpp(7);
+      dpp[0] = 424.0; dpp[1] = 0; dpp[2] = 0; dpp[3] = 0; dpp[4] = 7848.0; dpp[5] = 0; dpp[6] = 0;
       PlasmaProfile rhoCoef(dpt, dpp);
       phi_->ProjectCoefficient(rhoCoef, rhoCoef);
       */
+
       rectPot_ = new ParGridFunction(H1FESpace_);
       *rectPot_ = 0.0;
       sheath_pow_ = new ParGridFunction(H1FESpace_);
@@ -1058,6 +1054,11 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
 
       Bn_ = new ParGridFunction(L2FESpace_);
       *Bn_ = 0.0;
+
+      ComplexCoefficientByAttr * sbc = (*sbcs_)[0];
+      SheathBase * sb = dynamic_cast<SheathBase*>(sbc->real);
+      sheathPowCoef_ = new SheathPower(*sb, *b_hat_, true);
+      sheathPowCoef_->SetPotential(*phi_);
 
       for (int i=0; i<sbcs_->Size(); i++)
       {
@@ -1831,7 +1832,7 @@ CPDSolverDH::Solve()
           }
           phi_->Distribute(PHI);
       */
-      while (H_iter_ < 2)
+      while (H_iter_ < 200)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -1852,10 +1853,10 @@ CPDSolverDH::Solve()
          const Vector & RHS = schur.GetRHSVector(RHS1, RHS0);
 
          GMRESSolver gmres(MPI_COMM_WORLD);
-         gmres.SetKDim(400);
-         gmres.SetRelTol(1e-7);
-         gmres.SetAbsTol(1e-7);
-         gmres.SetMaxIter(1000);
+         gmres.SetKDim(200);
+         gmres.SetRelTol(1e-5);
+         gmres.SetAbsTol(1e-5);
+         gmres.SetMaxIter(2000);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 
@@ -1894,7 +1895,7 @@ CPDSolverDH::Solve()
          }
          */
          if ( phi_diff < 1e-5) {break;}
-         //if ( H_iter_ > 0) {break;}
+         //if ( H_iter_ > 7) {break;}
       }
       if (myid_ == 0)
       {
@@ -2258,12 +2259,12 @@ CPDSolverDH::GetGlobalDissipation() const
 {
    double global_diss = 0.0;
 
-   // Real sigma*E :
+   // Real suscept*E :
    M4r_->Mult(*Er_,*RHSr2_);
    M4i_->Mult(*Ei_,*TMPr2_);
    *RHSr2_ -= *TMPr2_;
 
-   // Image sigma*E :
+   // Image suscept*E :
    M4r_->Mult(*Ei_,*RHSi2_);
    M4i_->Mult(*Er_,*TMPi2_);
    *RHSi2_ += *TMPi2_;
@@ -2282,12 +2283,6 @@ CPDSolverDH::GetSheathDissipation() const
    M3_->Mult(*PHIi_,*RHSi1_);
 
    sheath_diss = InnerProduct(*PHIr_,*RHSr1_) + InnerProduct(*PHIi_,*RHSi1_);
-   //cout << "InnerProduct 1" << InnerProduct(*PHIr_,*RHSr1_) << endl;
-   //cout << "InnerProduct 2" << InnerProduct(*PHIi_,*RHSi1_) << endl;
-   //cout << "Norm Phir" << PHIr_->Norml2() << endl;
-   //cout << "Norm Phii" << PHIi_->Norml2() << endl;
-   //cout << "Norm RHSr" << RHSr1_->Norml2() << endl;
-   //cout << "Norm RHSi" << RHSi1_->Norml2() << endl;
 
    return 0.5*sheath_diss;
 }
@@ -2426,6 +2421,7 @@ CPDSolverDH::WriteVisItFields(int it)
          S_->ProjectCoefficient(SrCoef_, SiCoef_);
       }
       */
+
       S_->ProjectCoefficient(SrCoef_, SiCoef_);
       if ( StixS_ )
       {

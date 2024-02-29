@@ -178,6 +178,7 @@ complex<double> L_cold_plasma(double omega,
    return val;
 }
 
+
 complex<double> S_cold_plasma(double omega,
                               double kparallel,
                               double Bmag,
@@ -966,10 +967,10 @@ double SheathImpedance::Eval(ElementTransformation &T,
    // Jim's newest parametrization (Myra et al 2017):
    if (isnan(volt_norm)) {volt_norm = 0.0;}
 
+   
    complex<double> zsheath_norm = 1.0 / ytot(w_norm, wci_norm, bn, volt_norm,
                                              masses_[0], masses_[1]);
-
-
+   
    // Jim's old parametrization (Kohno et al 2017):
    //complex<double> zsheath_norm = 1.0 / ftotcmplxANY(w_norm, volt_norm);
 
@@ -1054,7 +1055,7 @@ double SheathPower::Eval(ElementTransformation &T,
                                           volt_norm, masses_[0], masses_[1]) );
 
    double dc_volt_norm = phi0avg(w_norm, volt_norm); // Unitless
-   double sheath_width = 1.0; //debye_length*pow(dc_volt_norm, 0.75); // (Myra 2021 Tutorial)
+   double sheath_width = debye_length*pow(dc_volt_norm, 0.75); // (Myra 2021 Tutorial)
 
    if (isnan(zsheath_norm.real()))
    {
@@ -1073,9 +1074,7 @@ double SheathPower::Eval(ElementTransformation &T,
    double yei_real = 0.0;
    if (zsheath_real != 0.0){yei_real = 1.0 / zsheath_real;}
 
-   if (phi_mag > 1.0){cout << "PHI....." << phi_mag << endl;}
-
-   return yei_real*sheath_width*phi_mag;
+   return yei_real*sheath_width;
 }
 
 StixCoefBase::StixCoefBase(const ParGridFunction & B,
@@ -1679,7 +1678,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    epsilonInv *= 1.0 / epsilon0_;
 }
 
-ConductivityTensor::ConductivityTensor(const ParGridFunction & B,
+SusceptibilityTensor::SusceptibilityTensor(const ParGridFunction & B,
                                    const ParGridFunction & k,
                                    const ParGridFunction & nue,
                                    const ParGridFunction & nui,
@@ -1700,11 +1699,11 @@ ConductivityTensor::ConductivityTensor(const ParGridFunction & B,
                     charges, masses, nuprof, res_lim, realPart)
 {}
 
-void ConductivityTensor::Eval(DenseMatrix &sigma, ElementTransformation &T,
+void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
                             const IntegrationPoint &ip)
 {
-   // Initialize dielectric tensor to appropriate size
-   sigma.SetSize(3); sigma = 0.0;
+   // Initialize suspetibility tensor to appropriate size
+   suscept.SetSize(3); suscept = 0.0;
 
    // Collect density, temperature, and magnetic field values
    double Bmag = this->getBMagnitude(T, ip);
@@ -1733,10 +1732,10 @@ void ConductivityTensor::Eval(DenseMatrix &sigma, ElementTransformation &T,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
 
-   this->addParallelComp(realPart_ ?  (P.imag() - 1.0) : (-P.real() + 1.0), sigma);
-   this->addPerpDiagComp(realPart_ ?  (S.imag() - 1.0) : (-S.real() + 1.0), sigma);
-   this->addPerpSkewComp(realPart_ ?  D.real() : D.imag(), sigma);
-   sigma *= omega_*epsilon0_;
+   this->addParallelComp(realPart_ ?  P.real() - 1.0: P.imag(), suscept);
+   this->addPerpDiagComp(realPart_ ?  S.real() - 1.0: S.imag(), suscept);
+   this->addPerpSkewComp(realPart_ ? -D.imag(): D.real(), suscept);
+   suscept *= omega_*epsilon0_;
 }
 
 SPDDielectricTensor::SPDDielectricTensor(
@@ -2015,9 +2014,7 @@ double PlasmaProfile::EvalByType(Type type,
       {
          double pmin = params[0];
          double pmax = params[1];
-         double a = params[2];
-         double b = params[3];
-         Vector x0(const_cast<double*>(&params[4]), 3);
+         Vector x0(const_cast<double*>(&params[2]), 3);
 
          double rho = 0.0;
 
@@ -2122,57 +2119,7 @@ double PlasmaProfile::EvalByType(Type type,
          return ne1 + ne2;
       }
       break;
-      case SPARC_RES:
-      {
-         double r = cyl_ ? rz_[0] : xyz_[0];
-         double z = cyl_ ? rz_[1] : xyz_[1];
-
-         double x_tok_data[2];
-         Vector xTokVec(x_tok_data, 2);
-         xTokVec[0] = r; xTokVec[1] = z;
-
-         // N_||^2 = R cutoff:
-         double psiRZ = 0.0;
-         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
-
-         double psiRZ_center = -2.75633;
-         double psiRZ_edge = -0.387576;
-
-         double val = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
-
-         double nu0 = params[0];
-         double width = params[1];
-         double location = params[2];
-
-         // N_||^2 = L cutoff:
-         double A = 9.56300019e-02;
-         double B = 4.2;
-         double C = -1.47586242e-06;
-         double D = 1.84; //1.81
-         double sincfunc = A*(sin(B*z - C)/(B*z - C)) + D;
-
-         // 1.044 -> 0.99
-         //return nu0*exp(-pow(sqrt(val)-location, 2)/width); //+ nu0*exp(-pow(r-sincfunc, 2.0)/width);
-
-         // IONS: N_||^2 = R and S = 0
-         double rho = sqrt(pow(r,2.0)+pow(z,2.0));
-
-         double nu = 0.0; //nu0*exp(-pow(sqrt(val)-location, 2)/0.001);
-         if ( rho < 1.925) {nu = nu0*exp(-pow(sqrt(val)-0.99, 2)/0.001); }
-
-         //if (val < 1.0 && params[1] == 0) {nu = 0.0;}
-         //else if (val >= 1.0 && params[1] == 0){nu = nu0;}
-
-         // ELECTRONS: P = 0
-         if (width == 0.0)
-            {
-               nu = 0.0;
-               if ( rho > 1.925) {nu = nu0*exp(-pow(sqrt(val)-location, 2)/0.0001); }
-            }
-         return nu;
-      }
-      break;
-      case SPARC_DEN:
+      case POLOIDAL_H_MODE_DEN:
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -2251,7 +2198,7 @@ double PlasmaProfile::EvalByType(Type type,
          return ne;
       }
       break;
-      case SPARC_TEMP:
+      case POLOIDAL_H_MODE_TEMP:
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -2308,7 +2255,7 @@ double PlasmaProfile::EvalByType(Type type,
          return Te;
       }
       break;
-      case CORE:
+      case POLOIDAL_CORE:
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -2361,7 +2308,7 @@ double PlasmaProfile::EvalByType(Type type,
          return pval;
       }
       break;
-      case SOL:
+      case POLOIDAL_SOL:
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -2471,7 +2418,7 @@ double PlasmaProfile::EvalByType(Type type,
          return pval;
       }
       break;
-      case MIN_TEMP:
+      case POLOIDAL_MIN_TEMP:
       {
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -2482,7 +2429,7 @@ double PlasmaProfile::EvalByType(Type type,
          double A = 9.56300019e-02;
          double B = 4.2;
          double C = -1.47586242e-06;
-         double D = 1.92; //2.02106; // Location of wave-particle resonance
+         double D = 2.02106; // Location of wave-particle resonance
          double sincfunc = A*(sin(B*z - C)/(B*z - C)) + D;
 
          double temp = 80e3*(0.05/concentration);
@@ -2509,8 +2456,8 @@ BFieldProfile::BFieldProfile(Type type, const Vector & params, bool unit,
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
 
-   MFEM_VERIFY(type != B_EQDSK || eqdsk,
-               "BFieldProfile: Profile type B_EQDSK was chosen "
+   MFEM_VERIFY(type != B_EQDSK_POLOIDAL || eqdsk,
+               "BFieldProfile: Profile type B_EQDSK_POLOIDAL was chosen "
                "but the G_EQDSK_Data object is NULL.");
 
    xyz_ = 0.0;
@@ -2575,9 +2522,9 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
             }
          }
          break;
-      case B_P:
+      case B_P1:
       {
-         MFEM_VERIFY(!cyl_, "BFieldProfile B_P does not yet support "
+         MFEM_VERIFY(!cyl_, "BFieldProfile B_P1 does not yet support "
                      "cylindrical symmetry.")
          double bp_abs = p_[0];
          double a = p_[1];
@@ -2608,9 +2555,9 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      case B_TOPDOWN:
+      case B_P2:
       {
-         MFEM_VERIFY(!cyl_, "BFieldProfile B_TOPDOWN does not yet support "
+         MFEM_VERIFY(!cyl_, "BFieldProfile B_P2 does not yet support "
                      "cylindrical symmetry.")
          double bp_val = p_[0];
          // double a = p_[1];
@@ -2676,7 +2623,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      case B_EQDSK:
+      case B_EQDSK_TOPDOWN:
       {
          // Step 0: Extract parameters
          double u0 = p_[0];
@@ -2761,7 +2708,7 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          }
       }
       break;
-      case B_SPARC:
+      case B_EQDSK_POLOIDAL:
       {
          //|B| = \sqrt(Fpol^2+d\Psi/dZ^2+d\Psi/dR^2)/R
          //where Fpol== R*Bphi , BR = - 1/R d\Psi/dZ, BZ = 1/R d\Psi/dR

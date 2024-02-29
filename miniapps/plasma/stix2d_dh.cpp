@@ -1886,21 +1886,20 @@ int main(int argc, char *argv[])
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false);
-   ConductivityTensor sigma_real(BField, k_gf, nue_gf, nui_gf, density,
+   SusceptibilityTensor suscept_real(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, true);
-   ConductivityTensor sigma_imag(BField, k_gf, nue_gf, nui_gf, density,
+   SusceptibilityTensor suscept_imag(BField, k_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
                                            res_lim, false);
-   TransposeMatrixCoefficient sigma_realT(sigma_real);
-   TransposeMatrixCoefficient sigma_imagT(sigma_imag);
-   MatrixSumCoefficient sigma_real_diss(sigma_realT, sigma_real,1.0,-1.0);
-   // SIGN ERROR HERE:
-   MatrixSumCoefficient sigma_imag_diss(sigma_imagT, sigma_imag,-1.0,-1.0);
+   TransposeMatrixCoefficient suscept_realT(suscept_real);
+   TransposeMatrixCoefficient suscept_imagT(suscept_imag);
+   MatrixSumCoefficient suscept_real_diss(suscept_real, suscept_realT,1.0,-1.0);
+   MatrixSumCoefficient suscept_imag_diss(suscept_imag, suscept_imagT);
    SPDDielectricTensor epsilon_abs(BField, k_gf, nue_gf, nui_gf, density,
                                    temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
@@ -2266,7 +2265,7 @@ int main(int argc, char *argv[])
                    (CPDSolverDH::PrecondType)prec,
                    conv, BUnitCoef,
                    epsilonInv_real, epsilonInv_imag, 
-                   sigma_real_diss, sigma_imag_diss,
+                   suscept_real_diss, suscept_imag_diss,
                    epsilon_abs,
                    muCoef, etaCoef,
                    (phase_shift) ? &kReCoef : NULL,
@@ -3041,7 +3040,6 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
 
    double theta = atan2(z, r);
 
-   /*
    double rmin = 2.415 + 0.035;
    double rmax = rmin + 0.02;
    double length = 0.325;
@@ -3049,7 +3047,8 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
    double rthetamax = (3.8*M_PI)/180.0;
    double rthetamin = (-1.0*3.8*M_PI)/180.0;
    double theta_ext = rthetamax - rthetamin;
-   */
+
+   /*
    double length = 0.325; 
 
    double rmin = 0.25;
@@ -3058,6 +3057,7 @@ void curve_current_source_v0_r(const Vector &x, Vector &j)
    double rthetamax = 0.2/rmin;
    double rthetamin = -0.2/rmin;
    double theta_ext = rthetamax - rthetamin;
+   */
 
    if (theta >= rthetamin && theta <= rthetamax &&
        r >= rmin && r <= rmax)
@@ -3109,7 +3109,6 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
 
       double theta = atan2(z, r);
 
-      /*
       double rmin = 2.415 + 0.035;
       double rmax = rmin + 0.02;
       double length = 0.325;
@@ -3117,7 +3116,7 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
       double rthetamax = (3.8*M_PI)/180.0;
       double rthetamin = (-1.0*3.8*M_PI)/180.0;
       double theta_ext = rthetamax - rthetamin;
-      */
+      /*
       double length = 0.325; 
 
       double rmin = 0.25;
@@ -3126,6 +3125,7 @@ void curve_current_source_v0_i(const Vector &x, Vector &j)
       double rthetamax = 0.2/rmin;
       double rthetamin = -0.2/rmin;
       double theta_ext = rthetamax - rthetamin;
+      */
 
       if (theta >= rthetamin && theta <= rthetamax &&
           r >= rmin && r <= rmax)

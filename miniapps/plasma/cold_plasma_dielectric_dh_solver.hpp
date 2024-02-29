@@ -304,8 +304,8 @@ public:
                VectorCoefficient & BCoef,
                MatrixCoefficient & epsInvReCoef,
                MatrixCoefficient & epsInvImCoef,
-               MatrixCoefficient & sigmaReCoef,
-               MatrixCoefficient & sigmaImCoef,
+               MatrixCoefficient & susceptReCoef,
+               MatrixCoefficient & susceptImCoef,
                MatrixCoefficient & epsAbsCoef,
                Coefficient & muCoef,
                Coefficient * etaCoef,
@@ -718,8 +718,8 @@ private:
    // MatrixCoefficient * epsImCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsInvReCoef_;    // Dielectric Material Coefficient
    MatrixCoefficient * epsInvImCoef_;    // Dielectric Material Coefficient
-   MatrixCoefficient * sigmaReCoef_;    // Real Conductivity Coefficient
-   MatrixCoefficient * sigmaImCoef_;    // Imag Conductivity Coefficient
+   MatrixCoefficient * susceptReCoef_;    // Real Susceptibility Coefficient
+   MatrixCoefficient * susceptImCoef_;    // Imag Susceptibility Coefficient
    // MatrixCoefficient * epsAbsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muCoef_;       // Dia/Paramagnetic Material Coefficient
    PowerCoefficient    muInvCoef_;    // Dia/Paramagnetic Material Coefficient
