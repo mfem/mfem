@@ -647,8 +647,8 @@ private: // Static methods used by the Memory<T> class
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
    MFEM_ENZYME_INACTIVE static void *Register_(void *ptr, void *h_ptr,
-                                                size_t bytes, MemoryType mt,
-                                                bool own, bool alias, unsigned &flags);
+                                               size_t bytes, MemoryType mt,
+                                               bool own, bool alias, unsigned &flags);
 
    /// Register a pair of external host and device pointers
    static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
@@ -665,7 +665,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Un-register and free memory identified by its host pointer.
    MFEM_ENZYME_FN_LIKE_FREE static void Delete_(void *h_ptr, MemoryType mt,
-                                           unsigned flags);
+                                                unsigned flags);
 
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
@@ -677,16 +677,16 @@ private: // Static methods used by the Memory<T> class
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
    MFEM_ENZYME_FN_LIKE_DYNCAST static void *ReadWrite_(void *h_ptr,
-                                                  MemoryType h_mt, MemoryClass mc,
-                                                  size_t bytes, unsigned &flags);
+                                                       MemoryType h_mt, MemoryClass mc,
+                                                       size_t bytes, unsigned &flags);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST static const void *Read_(void *h_ptr,
-                                                   MemoryType h_mt,  MemoryClass mc,
-                                                   size_t bytes, unsigned &flags);
+                                                        MemoryType h_mt,  MemoryClass mc,
+                                                        size_t bytes, unsigned &flags);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST static void *Write_(void *h_ptr, MemoryType h_mt,
-                                              MemoryClass mc,
-                                              size_t bytes, unsigned &flags);
+                                                   MemoryClass mc,
+                                                   size_t bytes, unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                           size_t alias_bytes, unsigned base_flags,
@@ -695,7 +695,7 @@ private: // Static methods used by the Memory<T> class
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
    MFEM_ENZYME_INACTIVE static MemoryType GetDeviceMemoryType_(void *h_ptr,
-                                                                bool alias);
+                                                               bool alias);
 
    /// Return the type the of the host memory.
    MFEM_ENZYME_INACTIVE static MemoryType GetHostMemoryType_(void *h_ptr);
