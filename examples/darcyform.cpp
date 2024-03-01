@@ -561,26 +561,21 @@ void DarcyHybridization::ComputeH()
 
       LU_S.Factor(d_dofs_size);
 
-      // Prepare BA^-1
-      BAi.SetSize(B.Height(), B.Width());
-      BAi = B;
-      LU_A.RightSolve(B.Width(), B.Height(), BAi.GetData());
-
       // Get C^T
       GetCt(el, Ct_l, c_dofs);
 
       //-C A^-1 C^T
       AiCt.SetSize(Ct_l.Height(), Ct_l.Width());
       AiCt = Ct_l;
-      AiCt.Neg();
       LU_A.Solve(Ct_l.Height(), Ct_l.Width(), AiCt.GetData());
 
       H_l.SetSize(Ct_l.Width());
       mfem::MultAtB(Ct_l, AiCt, H_l);
+      H_l.Neg();
 
       //C A^-1 B^T S^-1 B A^-1 C^T
       BAiCt.SetSize(B.Height(), Ct_l.Width());
-      mfem::Mult(BAi, Ct_l, BAiCt);
+      mfem::Mult(B, AiCt, BAiCt);
 
       CAiBt.SetSize(Ct_l.Width(), B.Height());
       mfem::MultAtB(Ct_l, AiBt, CAiBt);
