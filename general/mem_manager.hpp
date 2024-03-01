@@ -605,13 +605,13 @@ private:
    template <typename T> friend class Memory;
 
    /// Host memory type set during the Setup.
-   ENZYME_INACTIVE static MemoryType host_mem_type;
+   MFEM_ENZYME_INACTIVE static MemoryType host_mem_type;
 
    /// Device memory type set during the Setup.
-   ENZYME_INACTIVE static MemoryType device_mem_type;
+   MFEM_ENZYME_INACTIVE static MemoryType device_mem_type;
 
    /// Allow to detect if a global memory manager instance exists.
-   ENZYME_INACTIVE static bool exists;
+   MFEM_ENZYME_INACTIVE static bool exists;
 
    /// Return true if the global memory manager instance exists.
    static bool Exists() { return exists; }
@@ -619,13 +619,13 @@ private:
    /// Array defining the dual MemoryType for each MemoryType
    /** The dual of a host MemoryType is a device MemoryType and vice versa: the
        dual of a device MemoryType is a host MemoryType. */
-   ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
+   MFEM_ENZYME_INACTIVE static MemoryType dual_map[MemoryTypeSize];
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
    static void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// True if Configure() was called.
-   ENZYME_INACTIVE static bool configured;
+   MFEM_ENZYME_INACTIVE static bool configured;
 
    /// Host and device allocator names for Umpire.
 #ifdef MFEM_USE_UMPIRE
@@ -646,7 +646,7 @@ private: // Static methods used by the Memory<T> class
 
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
-   ENZYME_INACTIVENOFREE static void *Register_(void *ptr, void *h_ptr,
+   MFEM_ENZYME_INACTIVE static void *Register_(void *ptr, void *h_ptr,
                                                 size_t bytes, MemoryType mt,
                                                 bool own, bool alias, unsigned &flags);
 
@@ -664,7 +664,7 @@ private: // Static methods used by the Memory<T> class
                                     MemoryType d_mt);
 
    /// Un-register and free memory identified by its host pointer.
-   ENZYME_FN_LIKE_FREE static void Delete_(void *h_ptr, MemoryType mt,
+   MFEM_ENZYME_FN_LIKE_FREE static void Delete_(void *h_ptr, MemoryType mt,
                                            unsigned flags);
 
    /// Free device memory identified by its host pointer
@@ -676,15 +676,15 @@ private: // Static methods used by the Memory<T> class
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
-   ENZYME_FN_LIKE_DYNCAST static void *ReadWrite_(void *h_ptr,
+   MFEM_ENZYME_FN_LIKE_DYNCAST static void *ReadWrite_(void *h_ptr,
                                                   MemoryType h_mt, MemoryClass mc,
                                                   size_t bytes, unsigned &flags);
 
-   ENZYME_FN_LIKE_DYNCAST static const void *Read_(void *h_ptr,
+   MFEM_ENZYME_FN_LIKE_DYNCAST static const void *Read_(void *h_ptr,
                                                    MemoryType h_mt,  MemoryClass mc,
                                                    size_t bytes, unsigned &flags);
 
-   ENZYME_FN_LIKE_DYNCAST static void *Write_(void *h_ptr, MemoryType h_mt,
+   MFEM_ENZYME_FN_LIKE_DYNCAST static void *Write_(void *h_ptr, MemoryType h_mt,
                                               MemoryClass mc,
                                               size_t bytes, unsigned &flags);
 
@@ -694,11 +694,11 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   ENZYME_INACTIVENOFREE static MemoryType GetDeviceMemoryType_(void *h_ptr,
+   MFEM_ENZYME_INACTIVE static MemoryType GetDeviceMemoryType_(void *h_ptr,
                                                                 bool alias);
 
    /// Return the type the of the host memory.
-   ENZYME_INACTIVENOFREE static MemoryType GetHostMemoryType_(void *h_ptr);
+   MFEM_ENZYME_INACTIVE static MemoryType GetHostMemoryType_(void *h_ptr);
 
    /// Verify that h_mt and h_ptr's h_mt (memory or alias) are equal.
    static void CheckHostMemoryType_(MemoryType h_mt, void *h_ptr, bool alias);
