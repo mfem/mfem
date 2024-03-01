@@ -4623,6 +4623,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       ReadNURBSMesh(input, curved, read_gf);
    }
+   else if (mesh_type == "MFEM NURBS mesh v1.1")
+   {
+     ReadNURBSMesh(input, curved, read_gf, true);
+   }
    else if (mesh_type == "MFEM INLINE mesh v1.0")
    {
       ReadInlineMesh(input, generate_edges);
@@ -5689,12 +5693,70 @@ void Mesh::KnotInsert(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
-void Mesh::NURBSUniformRefinement()
+void Mesh::KnotRemove(Array<Vector *> &kv)
 {
-   // do not check for NURBSext since this method is protected
+   if (NURBSext == NULL)
+   {
+      mfem_error("Mesh::KnotRemove : Not a NURBS mesh!");
+   }
+
+   if (kv.Size() != NURBSext->GetNKV())
+   {
+      mfem_error("Mesh::KnotRemove : KnotVector array size mismatch!");
+   }
+
    NURBSext->ConvertToPatches(*Nodes);
 
-   NURBSext->UniformRefinement();
+   NURBSext->KnotRemove(kv);
+
+   last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+   sequence++;
+
+   UpdateNURBS();
+}
+
+void Mesh::NURBSUniformRefinement(int rf, double tol)
+{
+   Array<int> rf_array(Dim);
+   rf_array = rf;
+   NURBSUniformRefinement(rf_array, tol);
+}
+
+void Mesh::NURBSUniformRefinement(Array<int> const& rf, double tol)
+{
+   MFEM_VERIFY(rf.Size() == Dim,
+               "Refinement factors must be defined for each dimension");
+
+   MFEM_VERIFY(NURBSext, "NURBSUniformRefinement is only for NURBS meshes");
+
+   NURBSext->ConvertToPatches(*Nodes);
+
+   Array<int> cf;
+   NURBSext->GetCoarseningFactors(cf);
+
+   bool cf1 = true;
+   for (auto f : cf)
+   {
+      cf1 = (cf1 && f == 1);
+   }
+
+   if (cf1)
+   {
+      NURBSext->UniformRefinement(rf);
+   }
+   else
+   {
+      NURBSext->Coarsen(cf, tol);
+
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+      sequence++;
+
+      UpdateNURBS();
+
+      NURBSext->ConvertToPatches(*Nodes);
+      for (int i=0; i<cf.Size(); ++i) { cf[i] *= rf[i]; }
+      NURBSext->UniformRefinement(cf);
+   }
 
    last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
    sequence++;
@@ -5785,7 +5847,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
 {
    SetEmpty();
 
-   // Read MFEM NURBS mesh v1.0 format
+   // Read MFEM NURBS mesh v1.0 or 1.1 format
    string ident;
 
    skip_comment_lines(input, '#');
@@ -10410,6 +10472,62 @@ void Mesh::UniformRefinement(int ref_algo)
    }
 }
 
+void Mesh::NURBSCoarsening(int cf, double tol)
+{
+   if (NURBSext && cf > 1)
+   {
+      NURBSext->ConvertToPatches(*Nodes);
+      Array<int> initialCoarsening;  // Initial coarsening factors
+      NURBSext->GetCoarseningFactors(initialCoarsening);
+
+      // If refinement formulas are nested, then initial coarsening is skipped.
+      bool noInitialCoarsening = true;
+      for (auto f : initialCoarsening)
+      {
+         noInitialCoarsening = (noInitialCoarsening && f == 1);
+      }
+
+      if (noInitialCoarsening)
+      {
+         NURBSext->Coarsen(cf, tol);
+      }
+      else
+      {
+         // Perform an initial full coarsening, and then refine. This is
+         // necessary only for non-nested refinement formulas.
+         NURBSext->Coarsen(initialCoarsening, tol);
+
+         // FiniteElementSpace::Update is not supported
+         last_operation = Mesh::NONE;
+         sequence++;
+
+         UpdateNURBS();
+
+         // Prepare for refinement by factors.
+         NURBSext->ConvertToPatches(*Nodes);
+
+         Array<int> rf(initialCoarsening);
+         bool divisible = true;
+         for (int i=0; i<rf.Size(); ++i)
+         {
+            rf[i] /= cf;
+            divisible = divisible && cf * rf[i] == initialCoarsening[i];
+         }
+
+         MFEM_VERIFY(divisible, "Invalid coarsening");
+
+         // Refine from the fully coarsened mesh to the mesh coarsened by the
+         // factor cf.
+         NURBSext->UniformRefinement(rf);
+      }
+
+      last_operation = Mesh::NONE; // FiniteElementSpace::Update is not supported
+      sequence++;
+
+      UpdateNURBS();
+   }
+}
+
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
                              int nonconforming, int nc_limit)
 {
@@ -11257,12 +11375,14 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 }
 
 void Mesh::PrintTopo(std::ostream &os, const Array<int> &e_to_k,
-                     const std::string &comments) const
+		     const int version, const std::string &comments) const
 {
+  MFEM_VERIFY(version == 10 || version == 11, "Invalid NURBS mesh version");
+
    int i;
    Array<int> vert;
 
-   os << "MFEM NURBS mesh v1.0\n";
+   os << "MFEM NURBS mesh v" << int(version / 10) << "." << version % 10 << "\n";
 
    // optional
    if (!comments.empty()) { os << '\n' << comments << '\n'; }

@@ -4548,7 +4548,7 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement()
+void ParMesh::NURBSUniformRefinement(int rf, double tol)
 {
    if (MyRank == 0)
    {
