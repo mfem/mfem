@@ -27,25 +27,25 @@ MassIntegrator::Kernels MassIntegrator::kernels;
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
-   MassIntegrator::AddSpecialization<2,2,2>();
-   MassIntegrator::AddSpecialization<2,3,3>();
-   MassIntegrator::AddSpecialization<2,4,4>();
-   MassIntegrator::AddSpecialization<2,5,5>();
-   MassIntegrator::AddSpecialization<2,6,6>();
-   MassIntegrator::AddSpecialization<2,7,7>();
-   MassIntegrator::AddSpecialization<2,8,8>();
-   MassIntegrator::AddSpecialization<2,9,9>();
+   MassIntegrator::AddSpecialization2D<2,2>();
+   MassIntegrator::AddSpecialization2D<3,3>();
+   MassIntegrator::AddSpecialization2D<4,4>();
+   MassIntegrator::AddSpecialization2D<5,5>();
+   MassIntegrator::AddSpecialization2D<6,6>();
+   MassIntegrator::AddSpecialization2D<7,7>();
+   MassIntegrator::AddSpecialization2D<8,8>();
+   MassIntegrator::AddSpecialization2D<9,9>();
    // 3D
-   MassIntegrator::AddSpecialization<3,2,2>();
-   MassIntegrator::AddSpecialization<3,2,3>();
-   MassIntegrator::AddSpecialization<3,3,4>();
-   MassIntegrator::AddSpecialization<3,4,5>();
-   MassIntegrator::AddSpecialization<3,4,6>();
-   MassIntegrator::AddSpecialization<3,5,6>();
-   MassIntegrator::AddSpecialization<3,5,8>();
-   MassIntegrator::AddSpecialization<3,6,7>();
-   MassIntegrator::AddSpecialization<3,7,8>();
-   MassIntegrator::AddSpecialization<3,8,9>();
+   MassIntegrator::AddSpecialization3D<2,2>();
+   MassIntegrator::AddSpecialization3D<2,3>();
+   MassIntegrator::AddSpecialization3D<3,4>();
+   MassIntegrator::AddSpecialization3D<4,5>();
+   MassIntegrator::AddSpecialization3D<4,6>();
+   MassIntegrator::AddSpecialization3D<5,6>();
+   MassIntegrator::AddSpecialization3D<5,8>();
+   MassIntegrator::AddSpecialization3D<6,7>();
+   MassIntegrator::AddSpecialization3D<7,8>();
+   MassIntegrator::AddSpecialization3D<8,9>();
 }
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -225,7 +225,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    else
    {
       const int D1D = dofs1D, Q1D = quad1D;
-      kernels.diag.Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag);
+      kernels.diag.Run(dim, D1D, Q1D, ne, maps->B, pa_data, diag, D1D, Q1D);
    }
 }
 
@@ -349,7 +349,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          MFEM_ABORT("OCCA PA Mass Apply unknown kernel!");
       }
 #endif // MFEM_USE_OCCA
-      kernels.apply.Run(dim, D1D, Q1D, ne, B, Bt, D, x, y);
+      kernels.apply.Run(dim, D1D, Q1D, ne, B, Bt, D, x, y, D1D, Q1D);
    }
 }
 

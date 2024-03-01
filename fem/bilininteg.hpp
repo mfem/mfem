@@ -2305,16 +2305,19 @@ public:
 
    Coefficient *GetCoefficient() const { return Q; }
 
-   template <int DIM, int D1D, int Q1D>
-   static void AddSpecialization()
+   template <int D1D, int Q1D>
+   static void AddSpecialization2D()
    {
-      if (DIM == 2) {
-         kernels.apply. template AddSpecialization2D<D1D, Q1D>();
-         kernels.diag. template AddSpecialization2D<D1D, Q1D>();
-      } else {
-         kernels.apply. template AddSpecialization3D<D1D, Q1D>();
-         kernels.diag. template AddSpecialization3D<D1D, Q1D>();
-      }
+      kernels.apply. template AddSpecialization2D<D1D, Q1D>();
+      kernels.diag. template AddSpecialization2D<D1D, Q1D>();
+
+   }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization3D()
+   {
+      kernels.apply. template AddSpecialization3D<D1D, Q1D>();
+      kernels.diag. template AddSpecialization3D<D1D, Q1D>();
    }
 };
 
@@ -2346,8 +2349,27 @@ public:
 
    using UserParams = internal::KernelTypeList<int, int>;
    using KernelParams = internal::KernelTypeList<int, int, int>;
-   using ApplyPAKernels = ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>;
-   using DiagonalPAKernels = DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>;
+
+   class ApplyPAKernels :  public ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams> {
+      public:
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
+   class DiagonalPAKernels : public  DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams> {
+      public:
+      template<int, int, int>
+      static KernelSignature Kernel2D();
+      template<int, int>
+      static KernelSignature Kernel3D();
+      static KernelSignature Fallback2D();
+      static KernelSignature Fallback3D();
+   };
+
    struct Kernels
    {
       KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams> apply;
@@ -2403,16 +2425,19 @@ public:
 
    const Coefficient *GetCoefficient() const { return Q; }
 
-   template <int DIM, int D1D, int Q1D>
-   static void AddSpecialization()
+   template <int D1D, int Q1D>
+   static void AddSpecialization2D()
    {
-      if (DIM == 2) {
-         kernels.apply. template AddSpecialization2D<D1D, Q1D>();
-         kernels.diag. template AddSpecialization2D<DIM, D1D, Q1D>();
-      } else {
-         kernels.apply. template AddSpecialization3D<D1D, Q1D>();
-         kernels.diag. template AddSpecialization3D<DIM, D1D, Q1D>();
-      }
+      kernels.apply. template AddSpecialization2D<D1D, Q1D>();
+      kernels.diag. template AddSpecialization2D<D1D, Q1D>();
+
+   }
+
+   template <int D1D, int Q1D>
+   static void AddSpecialization3D()
+   {
+      kernels.apply. template AddSpecialization3D<D1D, Q1D>();
+      kernels.diag. template AddSpecialization3D<D1D, Q1D>();
    }
 };
 
