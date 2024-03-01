@@ -45,12 +45,18 @@ SphericalObstacleProblem: SphericalObstacleProblem.o Problems.o IPsolver.o $(MFE
 DirichletObstacleProblem: DirichletObstacleProblem.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) DirichletObstacleProblem.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
+DirichletObstacleProblemVariant: DirichletObstacleProblemVariant.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) DirichletObstacleProblemVariant.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+
 TwoSidedDirichletObstacleProblem: TwoSidedDirichletObstacleProblem.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) TwoSidedDirichletObstacleProblem.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
 
 
 exQPContactBlockTL: exQPContactBlockTL.o Problems.o IPsolver.o $(MFEM_LIB_FILE)
 	$(MFEM_CXX) $(MFEM_FLAGS) exQPContactBlockTL.o Problems.o IPsolver.o -o $@ $(MFEM_LIBS)
+
+ParTest: ParTest.o $(MFEM_LIB_FILE)
+	$(MFEM_CXX) $(MFEM_FLAGS) ParTest.o -o $@ $(MFEM_LIBS)
 
 
 ObstacleProblem.o: $(SRC)ObstacleProblem.cpp $(CONFIG_MK)
@@ -60,6 +66,9 @@ SphericalObstacleProblem.o: $(SRC)SphericalObstacleProblem.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 DirichletObstacleProblem.o: $(SRC)DirichletObstacleProblem.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+
+DirichletObstacleProblemVariant.o: $(SRC)DirichletObstacleProblemVariant.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
 TwoSidedDirichletObstacleProblem.o: $(SRC)TwoSidedDirichletObstacleProblem.cpp $(CONFIG_MK)
@@ -90,6 +99,9 @@ ParProblems.o: $(SRC)ParProblems.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< 
 
 ParIPsolver.o: $(SRC)ParIPsolver.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
+
+ParTest.o: $(SRC)ParTest.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $<
 
 clean: clean-build 

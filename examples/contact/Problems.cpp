@@ -145,9 +145,6 @@ ObstacleProblem::ObstacleProblem(FiniteElementSpace *fes, double (*fSource)(cons
   // ------ construct dimS x dimD Jacobian with zero columns correspodning to Dirichlet dofs
   Vector one(dimD); one = 1.0;
   J = new SparseMatrix(one);
-
-  // constant term in energy function
-  Ce = 0.0;
 }
 
 
@@ -361,6 +358,171 @@ ObstacleProblem::~ObstacleProblem()
     delete Hcl;
   }
 }
+
+
+// project to "free"/nonessential dofs
+SparseMatrix * GenerateProjector(int n, Array<int> ess_tdof_list)
+{
+  //int n_cols_loc = offsets[1] - offsets[0];
+  //int n_cols_glb = 0;
+  //MPI_Allreduce(&n_cols_loc, &n_cols_glb, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  //int n_rows_loc = reduced_offsets[1] - reduced_offsets[0];
+  int nrows = n - ess_tdof_list.Size();
+  int ncols = n;
+
+  SparseMatrix * Psparse = new SparseMatrix(nrows, ncols);
+  Array<int> cols;
+  Vector entries;
+  cols.SetSize(1);
+  entries.SetSize(1); entries(0) = 1.0;
+
+  
+  int row = 0; // row to project to
+  for(int j = 0; j < ncols; j++)
+  {
+    // if not found
+    if (ess_tdof_list.Find(j) == -1)
+    {
+      cols[0] = j;
+      Psparse->SetRow(row, cols, entries);
+      row += 1;
+    }  
+  }
+  Psparse->Finalize();
+  return Psparse;
+}
+
+
+
+
+ObstacleProblemVariant::ObstacleProblemVariant(FiniteElementSpace *fes, Vector &x0DC, double (*fSource)(const Vector &), 
+		double (*obstacleSource)(const Vector &),
+		Array<int> tdof_list) : OptProblem(), Vh(fes), ess_tdof_list(tdof_list), Hcl(nullptr)
+{
+  R = GenerateProjector(fes->GetTrueVSize(), ess_tdof_list); 
+  dimD = fes->GetTrueVSize() - ess_tdof_list.Size();
+  dimS = dimD;
+  InitializeParentData(dimD, dimS);
+
+  noness_tdof_list.SetSize(dimD);
+  int i = 0;
+  for(int j = 0; j < fes->GetTrueVSize(); j++)
+  {
+     if(ess_tdof_list.Find(j) == -1)
+     {
+        noness_tdof_list[i] = j;
+        i += 1;
+     }
+  }
+
+  xDC.SetSize(dimD);
+  x0DC.GetSubVector(ess_tdof_list, xDC);
+  
+  // define Hessian of energy objective
+  // K = [[ \hat{K}   0]
+  //      [ 0         I]]
+  // where \hat{K} acts on dofs not constrained by the Dirichlet condition
+  // I acts on dofs constrained by the Dirichlet condition
+  Kform = new BilinearForm(Vh);
+  Kform->AddDomainIntegrator(new DiffusionIntegrator);
+  Kform->Assemble();
+  Kform->Finalize();
+  K = new SparseMatrix(Kform->SpMat());
+
+  RKP = RAP(*K, *R);
+  
+  // define right hand side dual-vector
+  // f_i = int fSource(x) \phi_i(x) dx, where {\phi_i}_i is the FE basis
+  // f = f - K1 xDC, where K1 contains the eliminated part of K
+  FunctionCoefficient fcoeff(fSource);
+  fform = new LinearForm(Vh);
+  fform->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+  fform->Assemble();
+  f.SetSize(K->Height());
+  f.Set(1.0, *fform);
+
+  // define obstacle function
+  FunctionCoefficient psicoeff(obstacleSource);
+  GridFunction psi_gf(Vh);
+  psi_gf.ProjectCoefficient(psicoeff);
+  psil.SetSize(dimS); psil = 0.0;
+  psi_gf.GetSubVector(ess_tdof_list, psil);
+  //psil.SetSize(dimS); psil = 0.0;
+  //psil.Set(1.0, psi_gf);
+  
+  // ------ construct dimS x dimD Jacobian
+  Vector temp(dimS); temp = 1.0;
+  J = new SparseMatrix(temp);
+}
+
+
+
+double ObstacleProblemVariant::E(const Vector &d_) const
+{
+  Vector d(K->Width()); d = 0.0;
+  d.SetSubVector(noness_tdof_list, d_);
+  d.SetSubVector(ess_tdof_list, xDC);
+
+  Vector Kd(K->Height()); Kd = 0.0;
+  K->Mult(d, Kd);
+  return 0.5 * InnerProduct(d, Kd) - InnerProduct(f, d);
+}
+
+void ObstacleProblemVariant::DdE(const Vector &d_, Vector &gradE) const
+{
+  Vector d(K->Width()); d = 0.0;
+  d.SetSubVector(noness_tdof_list, d_);
+  d.SetSubVector(ess_tdof_list, xDC);
+  Vector gradEfull(K->Height()); gradEfull = 0.0;
+  K->Mult(d, gradEfull);
+  gradEfull.Add(-1.0, f);
+  R->Mult(gradEfull, gradE);
+}
+
+SparseMatrix* ObstacleProblemVariant::DddE(const Vector &d)
+{
+  return RKP; 
+}
+
+// one bound:
+// g(d) = d - \psi_l >= 0
+//        d - \psi_l - s  = 0
+//                    s >= 0
+// two bounds:
+// g(d) = 1 / 2 (d - \psi_l) (\psi_u - d) >= 0
+// when \psi_l < \psi_u, g(d) >= 0 <==> \psi_l <= d <= \psi_u
+void ObstacleProblemVariant::g(const Vector &d, Vector &gd) const
+{
+  J->Mult(d, gd);
+  gd.Add(-1., psil);
+}
+
+SparseMatrix* ObstacleProblemVariant::Ddg(const Vector &d)
+{
+  return J;
+}
+
+SparseMatrix* ObstacleProblemVariant::lDddg(const Vector &d, const Vector &l)
+{
+  return Hcl;
+}
+
+ObstacleProblemVariant::~ObstacleProblemVariant()
+{
+  delete Kform;
+  delete fform;
+  delete J;
+  delete K;
+  delete R;
+  delete RKP;
+  if(Hcl != nullptr)
+  {
+    delete Hcl;
+  }
+}
+
+
 
 
 // quadratic approximation of the objective

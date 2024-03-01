@@ -124,6 +124,42 @@ public :
 };
 
 
+SparseMatrix * GenerateProjector(int n, Array<int> ess_tdof_list);
+
+
+class ObstacleProblemVariant : public OptProblem
+{
+protected:
+   // data to define energy objective function e(d) = 0.5 d^T K d - f^T d, g(d) = d + \psi >= 0
+   // stiffness matrix used to define objective
+   BilinearForm *Kform;
+   LinearForm   *fform;
+   Array<int> ess_tdof_list;
+   Array<int> noness_tdof_list;
+   SparseMatrix  *K;
+   SparseMatrix  *RKP; // R K P = R K R^T
+   SparseMatrix  *J;
+   SparseMatrix  *Hcl;
+   SparseMatrix *R;
+   FiniteElementSpace *Vh;
+   Vector f;
+   Vector psil;
+   Vector xDC;
+   double Ce;
+public : 
+   ObstacleProblemVariant(FiniteElementSpace*, Vector&,  double (*fSource)(const Vector &), double (*obstacleSource)(const Vector &), Array<int> tdof_list);
+   double E(const Vector &) const;
+   void DdE(const Vector &, Vector &) const;
+   SparseMatrix* DddE(const Vector &);
+   void g(const Vector &, Vector &) const;
+   SparseMatrix* Ddg(const Vector &);
+   SparseMatrix * lDddg(const Vector &, const Vector &);
+   virtual ~ObstacleProblemVariant();
+};
+
+
+
+
 class QPOptProblem : public OptProblem
 {
 protected:
