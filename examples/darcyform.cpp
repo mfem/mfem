@@ -720,7 +720,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       //(-A^-1 + A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
       MultInv(el, bu_l, bp_l, u_l, p_l);
 
-      u.AddElementVector(u_vdofs, u_l);
+      u.SetSubVector(u_vdofs, u_l);
    }
 }
 
