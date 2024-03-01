@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
                                                         gas_constant);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
-   GridFunction mom(&dfes, sol.GetData());
+   GridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
    // Output the initial solution.
    {
       ostringstream mesh_name;

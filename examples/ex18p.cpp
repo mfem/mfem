@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
                                                         gas_constant);
    ParGridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
-   ParGridFunction mom(&dfes, sol.GetData());
+   ParGridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
 
    // Output the initial solution.
    {
