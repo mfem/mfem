@@ -421,7 +421,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError_bregman < tol_stationarity &&
+      if (stationarityError < tol_stationarity &&
           std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
