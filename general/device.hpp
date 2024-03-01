@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "enzyme.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
