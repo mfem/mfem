@@ -21,24 +21,6 @@
 #include <HYPRE_config.h> // HYPRE_USING_GPU
 #endif
 
-#ifdef MFEM_USE_ENZYME
-#define ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
-#else
-#define ENZYME_INACTIVENOFREE
-#endif
-
-#ifdef MFEM_USE_ENZYME
-#define ENZYME_INACTIVE   __attribute__((enzyme_inactive))
-#else
-#define ENZYME_INACTIVE
-#endif
-
-#ifdef MFEM_USE_ENZYME
-#define ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))
-#else
-#define ENZYME_FN_LIKE(x)
-#endif
-
 namespace mfem
 {
 
@@ -663,8 +645,9 @@ private: // Static methods used by the Memory<T> class
 
    /// Register an external pointer of the given MemoryType.
    /// Return the host pointer.
-   ENZYME_INACTIVENOFREE static void *Register_(void *ptr, void *h_ptr, size_t bytes, MemoryType mt,
-                          bool own, bool alias, unsigned &flags);
+   ENZYME_INACTIVENOFREE static void *Register_(void *ptr, void *h_ptr,
+                                                size_t bytes, MemoryType mt,
+                                                bool own, bool alias, unsigned &flags);
 
    /// Register a pair of external host and device pointers
    static void Register2_(void *h_ptr, void *d_ptr, size_t bytes,
@@ -680,7 +663,8 @@ private: // Static methods used by the Memory<T> class
                                     MemoryType d_mt);
 
    /// Un-register and free memory identified by its host pointer.
-   ENZYME_FN_LIKE(free) static void Delete_(void *h_ptr, MemoryType mt, unsigned flags);
+   ENZYME_FN_LIKE_FREE static void Delete_(void *h_ptr, MemoryType mt,
+                                           unsigned flags);
 
    /// Free device memory identified by its host pointer
    static void DeleteDevice_(void *h_ptr, unsigned & flags);
@@ -691,14 +675,17 @@ private: // Static methods used by the Memory<T> class
 
    /// Return a pointer to the memory identified by the host pointer h_ptr for
    /// access with the given MemoryClass.
-   ENZYME_FN_LIKE(__dynamic_cast) static void *ReadWrite_(void *h_ptr, MemoryType h_mt, MemoryClass mc,
-                           size_t bytes, unsigned &flags);
+   ENZYME_FN_LIKE_DYNCAST static void *ReadWrite_(void *h_ptr,
+                                                  MemoryType h_mt, MemoryClass mc,
+                                                  size_t bytes, unsigned &flags);
 
-   ENZYME_FN_LIKE(__dynamic_cast) static const void *Read_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
-                            size_t bytes, unsigned &flags);
+   ENZYME_FN_LIKE_DYNCAST static const void *Read_(void *h_ptr,
+                                                   MemoryType h_mt,  MemoryClass mc,
+                                                   size_t bytes, unsigned &flags);
 
-   ENZYME_FN_LIKE(__dynamic_cast) static void *Write_(void *h_ptr, MemoryType h_mt,  MemoryClass mc,
-                       size_t bytes, unsigned &flags);
+   ENZYME_FN_LIKE_DYNCAST static void *Write_(void *h_ptr, MemoryType h_mt,
+                                              MemoryClass mc,
+                                              size_t bytes, unsigned &flags);
 
    static void SyncAlias_(const void *base_h_ptr, void *alias_h_ptr,
                           size_t alias_bytes, unsigned base_flags,
@@ -706,7 +693,8 @@ private: // Static methods used by the Memory<T> class
 
    /// Return the type the of the currently valid memory.
    /// If more than one types are valid, return a device type.
-   ENZYME_INACTIVENOFREE static MemoryType GetDeviceMemoryType_(void *h_ptr, bool alias);
+   ENZYME_INACTIVENOFREE static MemoryType GetDeviceMemoryType_(void *h_ptr,
+                                                                bool alias);
 
    /// Return the type the of the host memory.
    ENZYME_INACTIVENOFREE static MemoryType GetHostMemoryType_(void *h_ptr);
