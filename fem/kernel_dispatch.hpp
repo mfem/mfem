@@ -16,6 +16,7 @@
 
 #include <functional>
 #include <unordered_map>
+#include <tuple>
 
 namespace mfem
 {
@@ -88,23 +89,25 @@ protected:
 template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
-   std::hash<size_t> h;
-   std::size_t hasher_helper(const std::tuple<KernelParameters...> t, int hashing_index) const {
-      if (hashing_index >= sizeof...(KernelParameters)) {
-         return 1;
-      }
-      size_t lhs_hash = h(static_cast<size_t>(std::get<hashing_index>(t)));
-      if (hashing_index == sizeof...(KernelParameters) - 1) {
-         return lhs_hash;
-      }
-      size_t rhs_hash = hasher_helper(t, hashing_index + 1);
-      // This formula for combining hashes is from Boost.
-      return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
-   }
+    using Tuple = std::tuple<KernelParameters...>;
 
-   std::size_t operator()(const std::tuple<KernelParameters...> &k) const
+private:
+    template<int N>
+    size_t operator()(Tuple value) const { return 0; }
+
+    template<std::size_t N, typename THead, typename... TTail>
+    size_t operator()(Tuple value) const
+    {
+        constexpr int Index = N - sizeof...(TTail) - 1;
+        auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
+        auto rhs_hash = operator()<N, TTail...>(value);
+        return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
+    }
+
+public:
+   size_t operator()(Tuple value) const
    {
-      return hasher_helper(k, 0);
+      return operator()<sizeof...(KernelParameters), KernelParameters...>(value);
    }
 };
 
@@ -140,7 +143,7 @@ private:
 
    // Return T::NBZ(d1d, q1d) if T::NBZ is defined, 0 otherwise.
    static constexpr int GetNBZ(int d1d, int q1d)
-   { return GetNBZ_<>(d1d, q1d, nullptr); }
+   { return GetNBZ_<ApplyKernelsHelperClass>(d1d, q1d, nullptr); }
 
 public:
 
@@ -195,15 +198,12 @@ public:
    template<UserParams... params>
    void AddSpecialization2D() {
       constexpr int DIM = 2;
-      constexpr auto param_tuple = std::make_tuple<params...>;
+      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM, params...);
       // All kernels require at least D1D and Q1D
-      static_assert(sizeof...(params) >= 2 &&
-            std::is_same<decltype(std::get<0>(param_tuple)), int>::value &&
-            std::is_same<decltype(std::get<1>(param_tuple)), int>::value,
+      static_assert(sizeof...(params) >= 2,
             "All specializations require at least two template parameters");
 
       constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
-      constexpr auto key_tuple = std::make_tuple<DIM, params...>;
 
       this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel2D<params..., NBZ>();
    }
@@ -211,14 +211,13 @@ public:
    template<UserParams... params>
    void AddSpecialization3D() {
       constexpr int DIM = 3;
-      constexpr auto param_tuple = std::make_tuple<DIM, params...>;
-      static_assert(sizeof...(params) >= 2 &&
-            std::is_same<decltype(std::get<0>(param_tuple)), int>::value &&
-            std::is_same<decltype(std::get<1>(param_tuple)), int>::value,
+      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM, params...);
+      static_assert(sizeof...(UserParams) >= 2,
             "All specializations require at least two template parameters");
 
       this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel3D<params...>();
    }
+
 };
 
 }
