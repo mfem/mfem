@@ -622,7 +622,7 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
-   static Vector BAibu, BtSiBAibu;
+   Vector BAibu, BtSiBAibu;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -653,7 +653,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    LU_A.Solve(BtSiBAibu.Size(), 1, BtSiBAibu.GetData());
 
-   u += BtSiBAibu;
+   u -= BtSiBAibu;
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
