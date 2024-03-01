@@ -31,5 +31,18 @@ return_type __enzyme_autodiff(Args...);
 
 template <typename return_type, typename... Args>
 return_type __enzyme_fwddiff(Args...);
+
+#define ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
+#define ENZYME_INACTIVE   __attribute__((enzyme_inactive))
+#define ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))
+
+#else
+#define ENZYME_INACTIVENOFREE
+#define ENZYME_INACTIVE
+#define ENZYME_FN_LIKE(x)
 #endif
+
+#define ENZYME_FN_LIKE_FREE ENZYME_FN_LIKE(free)
+#define ENZYME_FN_LIKE_DYNCAST ENZYME_FN_LIKE(__dynamic_cast)
+
 #endif
