@@ -236,8 +236,9 @@ public:
    bool Solve(GridFunction &x, bool A_assembled=false, bool b_Assembled=false);
    bool SolveTranspose(GridFunction &x, LinearForm &f, bool A_assembled=false,
                        bool b_Assembled=false);
-
+#ifdef MFEM_USE_MPI
    bool isParallel() { return parallel; }
+#endif
    bool isSymmetric() { return symmetric; }
    void SetIterativeMode(bool flag=true) {iterative_mode = flag;};
 protected:
