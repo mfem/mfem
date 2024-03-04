@@ -674,7 +674,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
    const int p_NE = D1D*D1D;
    MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   int nThreads = MAX_CONST(2*D1D, 4);
+   const int nThreads = MAX_CONST(2*MD1, 4); 
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -900,9 +900,6 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         {
                            const int ei = edge_index(tmp->flags & FLAG_MASK);
                            const int dn = ei>>1, de = plus_1_mod_2(dn);
-                           int d_j[2];
-                           d_j[0] = de;
-                           d_j[1] = dn;
 
                            double *wt = r_workspace_ptr;
                            double *resid = wt + 3 * D1D;
@@ -1119,7 +1116,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
    MFEM_VERIFY(dim == 2,"Function for 2D only");
    switch (DEV.dof1d)
    {
-      case 3:    FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
+      case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
                                                 point_pos.Read(), point_pos_ordering,
                                                 DEV.o_x.Read(), DEV.o_y.Read(),
                                                 DEV.o_wtend_x.Read(),
@@ -1135,7 +1132,7 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                                 DEV.gll1d.ReadWrite(),
                                                 DEV.lagcoeff.Read(),
                                                 DEV.info.ReadWrite());
-      default:    FindPointsLocal2D_Kernel(npt, DEV.tol,
+      default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
                                               point_pos.Read(), point_pos_ordering,
                                               DEV.o_x.Read(),
                                               DEV.o_y.Read(),
