@@ -169,8 +169,10 @@ protected:
 
    ///@}
 
-   /// Return the standard inner (dot) product of @a x and @a y
-   /// Overriding this method in a derived class enables a custom inner product.
+   /** @brief Return the standard (L2) inner dot product of @a x and @a y
+       @details Overriding this method in a derived class enables a 
+                custom inner product.
+    */           
    virtual double Dot(const Vector &x, const Vector &y) const;
 
    /// Return the inner product norm of @a x
