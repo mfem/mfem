@@ -4556,6 +4556,14 @@ void ParMesh::NURBSUniformRefinement(int rf, double tol)
    }
 }
 
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, double tol)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
 void ParMesh::PrintXG(std::ostream &os) const
 {
    MFEM_ASSERT(Dim == spaceDim, "2D manifolds not supported");

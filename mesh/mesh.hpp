@@ -2149,7 +2149,7 @@ public:
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
                       "The NURBS Book", 2nd ed, Piegl and Tiller. */
    virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
-   virtual void NURBSUniformRefinement(Array<int> const& rf, double tol = 1.0e-12);
+   virtual void NURBSUniformRefinement(const Array<int> &rf, double tol=1.e-12);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.
