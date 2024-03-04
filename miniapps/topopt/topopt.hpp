@@ -329,7 +329,7 @@ public:
    void SetVolumeConstraintType(int constraint_type) {vol_constraint = constraint_type;}
    bool VolumeConstraintViolated();
 
-   virtual void Project() = 0;
+   virtual double Project() = 0;
    virtual double StationarityError(const GridFunction &grad) = 0;
    virtual double ComputeVolume() = 0;
    virtual std::unique_ptr<Coefficient> GetDensityDiffCoeff(
@@ -384,7 +384,7 @@ private:
 public:
    SigmoidDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                         double vol_frac);
-   void Project() override;
+   double Project() override;
    double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
@@ -421,7 +421,7 @@ private:
 public:
    ExponentialDesignDensity(FiniteElementSpace &fes, DensityFilter &filter,
                             double vol_frac);
-   void Project() override;
+   double Project() override;
    double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
@@ -466,7 +466,7 @@ public:
                        std::function<double(double)> primal2dual,
                        std::function<double(double)> dual2primal,
                        bool clip_lower=false, bool clip_upper=false);
-   void Project() override;
+   double Project() override;
    double StationarityError(const GridFunction &grad) override
    {
       return StationarityError(grad, false);
@@ -501,7 +501,7 @@ private:
 public:
    PrimalDesignDensity(FiniteElementSpace &fes, DensityFilter& filter,
                        double vol_frac);
-   void Project() override;
+   double Project() override;
    double StationarityError(const GridFunction &grad) override;
    double ComputeVolume() override
    {
@@ -571,6 +571,7 @@ protected:
    std::unique_ptr<Coefficient> dEdfrho;
    const bool solve_dual;
    const bool apply_projection;
+   double vol_lagrange;
    double val;
 private:
 #ifdef MFEM_USE_MPI
@@ -596,6 +597,7 @@ public:
    GridFunction &GetGradient() { return *gradF; }
    GridFunction &GetGridFunction() { return density.GetGridFunction(); }
    Coefficient &GetDensity() { return density.GetDensityCoefficient(); }
+   double GetVolLagrange() {return vol_lagrange; }
    // ρ - ρ_other where ρ_other is the provided density.
    // Assume ρ is constructed by the same mapping.
    // @note If you need different mapping between two grid functions,

@@ -574,7 +574,7 @@ SigmoidDesignDensity::SigmoidDesignDensity(FiniteElementSpace &fes,
    *zero_gf = 0.0;
 }
 
-void SigmoidDesignDensity::Project()
+double SigmoidDesignDensity::Project()
 {
    ComputeVolume();
    if (VolumeConstraintViolated())
@@ -599,8 +599,11 @@ void SigmoidDesignDensity::Project()
          ComputeVolume();
          if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
+         c += current_volume < target_volume ? dc : -dc;
       }
+      return c;
    }
+   return 0;
 }
 
 double SigmoidDesignDensity::StationarityError(const GridFunction &grad,
@@ -687,7 +690,7 @@ ExponentialDesignDensity::ExponentialDesignDensity(FiniteElementSpace &fes,
    *zero_gf = 0.0;
 }
 
-void ExponentialDesignDensity::Project()
+double ExponentialDesignDensity::Project()
 {
    ComputeVolume();
    if (VolumeConstraintViolated())
@@ -713,9 +716,12 @@ void ExponentialDesignDensity::Project()
          current_volume = zero_gf->ComputeL1Error(projected_rho);
          if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
+         c += current_volume < target_volume ? dc : -dc;
       }
       x_gf->Clip(-infinity(), 0.0);
+      return c;
    }
+   return 0.0;
 }
 
 double ExponentialDesignDensity::StationarityError(const GridFunction &grad,
@@ -805,7 +811,7 @@ LatentDesignDensity::LatentDesignDensity(FiniteElementSpace &fes,
    *zero_gf = 0.0;
 }
 
-void LatentDesignDensity::Project()
+double LatentDesignDensity::Project()
 {
    ComputeVolume();
    if (VolumeConstraintViolated())
@@ -847,13 +853,16 @@ void LatentDesignDensity::Project()
          current_volume = zero_gf->ComputeL1Error(projected_rho);
          if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
+         c += current_volume < target_volume ? dc : -dc;
       }
       if (clip_lower || clip_upper)
       {
          x_gf->Clip(clip_lower ? p2d(0.0) : -infinity(),
                     clip_upper ? p2d(1.0) : infinity());
       }
+      return c;
    }
+   return 0.0;
 }
 
 double LatentDesignDensity::StationarityError(const GridFunction &grad,
@@ -932,7 +941,7 @@ PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
    *zero_gf = 0.0;
 }
 
-void PrimalDesignDensity::Project()
+double PrimalDesignDensity::Project()
 {
    ComputeVolume();
    if (VolumeConstraintViolated())
@@ -957,9 +966,12 @@ void PrimalDesignDensity::Project()
          current_volume = zero_gf->ComputeL1Error(projected_rho);
          if (std::fabs(current_volume - target_volume) < vol_tol) { break; }
          *x_gf += current_volume < target_volume ? dc : -dc;
+         c += current_volume < target_volume ? dc : -dc;
       }
       x_gf->ProjectCoefficient(projected_rho);
+      return c;
    }
+   return 0.0;
 }
 
 double PrimalDesignDensity::StationarityError(const GridFunction &grad)
@@ -1066,7 +1078,7 @@ TopOptProblem::TopOptProblem(LinearForm &objective,
 
 double TopOptProblem::Eval()
 {
-   if (apply_projection) { density.Project(); }
+   if (apply_projection) { vol_lagrange = density.Project(); }
    density.UpdateFilteredDensity();
    state_equation.Solve(*state);
    val = obj(*state);
