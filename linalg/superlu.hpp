@@ -58,15 +58,15 @@ typedef enum
 {
    /// Natural ordering
    NATURAL,
-   /// Minimum degree ordering on structure of \f$ A^T*A \f$
+   /// Minimum degree ordering on structure of $ A^T*A $
    MMD_ATA,
-   /// Minimum degree ordering on structure of \f$ A^T+A \f$
+   /// Minimum degree ordering on structure of $ A^T+A $
    MMD_AT_PLUS_A,
    /// Approximate minimum degree column ordering
    COLAMD,
-   /// Sequential ordering on structure of \f$ A^T+A \f$ using the METIS package
+   /// Sequential ordering on structure of $ A^T+A $ using the METIS package
    METIS_AT_PLUS_A,
-   /** @brief Sequential ordering on structure of \f$ A^T+A \f$ using the
+   /** @brief Sequential ordering on structure of $ A^T+A $ using the
        PARMETIS package */
    PARMETIS,
    /// Use the Zoltan library from Sandia to define the column ordering
@@ -182,22 +182,22 @@ public:
        @note  @a A must be a SuperLURowLocMatrix. */
    void SetOperator(const Operator &op);
 
-   /** @brief Factor and solve the linear system \f$ y = Op^{-1} x \f$
+   /** @brief Factor and solve the linear system $ y = Op^{-1} x $
        @note Factorization modifies the operator matrix. */
    void Mult(const Vector &x, Vector &y) const;
 
-   /** @brief Factor and solve the linear systems \f$ y_i = Op^{-1} x_i \f$
+   /** @brief Factor and solve the linear systems $ y_i = Op^{-1} x_i $
        for all i in the @a X and @a Y arrays.
        @note Factorization modifies the operator matrix. */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /** @brief Factor and solve the transposed linear system
-       \f$ y = Op^{-T} x \f$
+       $ y = Op^{-T} x $
        @note Factorization modifies the operator matrix. */
    void MultTranspose(const Vector &x, Vector &y) const;
 
    /** @brief Factor and solve the transposed linear systems
-       \f$ y_i = Op^{-T} x_i \f$ for all i in the @a X and @a Y arrays.
+       $ y_i = Op^{-T} x_i $ for all i in the @a X and @a Y arrays.
        @note Factorization modifies the operator matrix. */
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
@@ -234,7 +234,7 @@ public:
    void SetIterativeRefine(superlu::IterRefine iter_ref);
 
    /** @brief Specify whether to replace tiny diagonals encountered
-       during pivot with \f$ \sqrt{\epsilon} \lVert A \rVert \f$
+       during pivot with $ \sqrt{\epsilon} \lVert A \rVert $
        (default false) */
    void SetReplaceTinyPivot(bool rtp);
 
