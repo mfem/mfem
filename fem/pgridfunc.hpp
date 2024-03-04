@@ -254,12 +254,10 @@ public:
 
    using GridFunction::ProjectBdrCoefficient;
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
                               const Array<int> &attr) override
    { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
 
-   // Only the values in the master are guaranteed to be correct!
    void ProjectBdrCoefficient(Coefficient *coeff[],
                               const Array<int> &attr) override
    { ProjectBdrCoefficient(coeff, NULL, attr); }
