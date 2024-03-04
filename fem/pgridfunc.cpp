@@ -713,8 +713,7 @@ void ParGridFunction::ProjectBdrCoefficient(
    }
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error");
    }
 #endif
@@ -752,8 +751,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
    for (int i = 0; i < values_counter.Size(); i++)
    {
-      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
-                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
                   "internal error: " << pfes->GetLocalTDofNumber(i) << ' ' << bool(
                      values_counter[i]));
    }
