@@ -247,6 +247,12 @@ private:
 
    void CalculateDifference()
    {
+      if (n < 2)
+      {
+         d = 0.0;
+         return;
+      }
+
       // Spacings are s, s + d, ..., s + (n-1)d, which must sum to 1:
       // 1 = ns + dn(n-1)/2
       d = 2.0 * (1.0 - (n * s)) / ((double) (n*(n-1)));
