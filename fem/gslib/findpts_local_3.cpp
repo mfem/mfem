@@ -20,24 +20,6 @@
 namespace mfem
 {
 
-//findptsKernelInfo["includes"].asArray();
-//    const dlong Nq = N + 1;
-//  findptsKernelInfo["defines/p_D"] = 3;
-//  findptsKernelInfo["defines/p_Nq"] = Nq;
-//  findptsKernelInfo["defines/p_Np"] = Nq * Nq * Nq;
-//  findptsKernelInfo["defines/p_nptsBlock"] = 4;
-
-//  unsigned int Nq2 = Nq * Nq;
-//  const auto blockSize = nearestPowerOfTwo(Nq2);
-
-//  findptsKernelInfo["defines/p_blockSize"] = blockSize;
-//  findptsKernelInfo["defines/p_Nfp"] = Nq * Nq;
-//  findptsKernelInfo["defines/dlong"] = dlongString;
-//  findptsKernelInfo["defines/hlong"] = hlongString;
-//  findptsKernelInfo["defines/dfloat"] = dfloatString;
-//  findptsKernelInfo["defines/DBL_MAX"] = std::numeric_limits<dfloat>::max();
-
-
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
@@ -71,7 +53,6 @@ static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0,
                                                                     const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
 {
    dfloat u0 = 1, u1 = 0, u2 = 0;
-   //#pragma unroll p_Nq
    for (dlong j = 0; j < p_Nr; ++j)
    {
       if (i != j)
