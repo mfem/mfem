@@ -22,89 +22,86 @@ namespace mfem
 #define CODE_INTERNAL 0
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
-#define dlong int
-#define dfloat double
 
 ////// OBBOX //////
-static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(dfloat *p0,
-                                                                   dfloat x, dlong i,
-                                                                   const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
+static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(double *p0,
+                                                                   double x, int i,
+                                                                   const double *z, const double *lagrangeCoeff, int pN)
 {
-   dfloat u0 = 1, u1 = 0;
-   for (dlong j = 0; j < p_Nr; ++j)
+   double u0 = 1, u1 = 0;
+   for (int j = 0; j < pN; ++j)
    {
       if (i != j)
       {
-         dfloat d_j = 2 * (x - z[j]);
+         double d_j = 2 * (x - z[j]);
          u1 = d_j * u1 + u0;
          u0 = d_j * u0;
       }
    }
-   dfloat *p1 = p0 + p_Nr;
+   double *p1 = p0 + pN;
    p0[i] = lagrangeCoeff[i] * u0;
    p1[i] = 2.0 * lagrangeCoeff[i] * u1;
 }
 
-static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(dfloat *p0,
-                                                                    dfloat x, dlong i,
-                                                                    const dfloat *z, const dfloat *lagrangeCoeff, dlong p_Nr)
+static MFEM_HOST_DEVICE inline void lagrange_eval_second_derivative(double *p0,
+                                                                    double x, int i,
+                                                                    const double *z, const double *lagrangeCoeff, int pN)
 {
-   dfloat u0 = 1, u1 = 0, u2 = 0;
-   //#pragma unroll p_Nq
-   for (dlong j = 0; j < p_Nr; ++j)
+   double u0 = 1, u1 = 0, u2 = 0;
+   for (int j = 0; j < pN; ++j)
    {
       if (i != j)
       {
-         dfloat d_j = 2 * (x - z[j]);
+         double d_j = 2 * (x - z[j]);
          u2 = d_j * u2 + u1;
          u1 = d_j * u1 + u0;
          u0 = d_j * u0;
       }
    }
-   dfloat *p1 = p0 + p_Nr, *p2 = p0 + 2 * p_Nr;
+   double *p1 = p0 + pN, *p2 = p0 + 2 * pN;
    p0[i] = lagrangeCoeff[i] * u0;
    p1[i] = 2.0 * lagrangeCoeff[i] * u1;
    p2[i] = 8.0 * lagrangeCoeff[i] * u2;
 }
 
 /* positive when possibly inside */
-static MFEM_HOST_DEVICE inline dfloat obbox_axis_test(const obbox_t *const b,
-                                                      const dfloat x[2])
+static MFEM_HOST_DEVICE inline double obbox_axis_test(const obbox_t *const b,
+                                                      const double x[2])
 {
-   dfloat test = 1;
-   for (dlong d = 0; d < 2; ++d)
+   double test = 1;
+   for (int d = 0; d < 2; ++d)
    {
-      dfloat b_d = (x[d] - b->x[d].min) * (b->x[0].max - x[0]);
+      double b_d = (x[d] - b->x[d].min) * (b->x[0].max - x[0]);
       test = test < 0 ? test : b_d;
    }
    return test;
 }
 
 /* positive when possibly inside */
-static MFEM_HOST_DEVICE inline dfloat obbox_test(const obbox_t *const b,
-                                                 const dfloat x[2])
+static MFEM_HOST_DEVICE inline double obbox_test(const obbox_t *const b,
+                                                 const double x[2])
 {
-   const dfloat bxyz = obbox_axis_test(b, x);
+   const double bxyz = obbox_axis_test(b, x);
    if (bxyz < 0)
    {
       return bxyz;
    }
    else
    {
-      dfloat dxyz[2];
-      for (dlong d = 0; d < 2; ++d)
+      double dxyz[2];
+      for (int d = 0; d < 2; ++d)
       {
          dxyz[d] = x[d] - b->c0[d];
       }
-      dfloat test = 1;
-      for (dlong d = 0; d < 2; ++d)
+      double test = 1;
+      for (int d = 0; d < 2; ++d)
       {
-         dfloat rst = 0;
-         for (dlong e = 0; e < 2; ++e)
+         double rst = 0;
+         for (int e = 0; e < 2; ++e)
          {
             rst += b->A[d * 2 + e] * dxyz[e];
          }
-         dfloat brst = (rst + 1) * (1 - rst);
+         double brst = (rst + 1) * (1 - rst);
          test = test < 0 ? test : brst;
       }
       return test;
@@ -112,15 +109,15 @@ static MFEM_HOST_DEVICE inline dfloat obbox_test(const obbox_t *const b,
 }
 
 ////// HASH //////
-static MFEM_HOST_DEVICE inline dlong hash_index(const findptsLocalHashData_t *p,
-                                                const dfloat x[2])
+static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
+                                              const double x[2])
 {
-   const dlong n = p->hash_n;
-   dlong sum = 0;
-   for (dlong d = 2 - 1; d >= 0; --d)
+   const int n = p->hash_n;
+   int sum = 0;
+   for (int d = 2 - 1; d >= 0; --d)
    {
       sum *= n;
-      dlong i = (dlong)floor((x[d] - p->bnd[d].min) * p->fac[d]);
+      int i = (int)floor((x[d] - p->bnd[d].min) * p->fac[d]);
       sum += i < 0 ? 0 : (n - 1 < i ? n - 1 : i);
    }
    return sum;
@@ -129,25 +126,15 @@ static MFEM_HOST_DEVICE inline dlong hash_index(const findptsLocalHashData_t *p,
 //// Linear algebra ////
 /* A is row-major */
 
-/* A is row-major */
-
-static MFEM_HOST_DEVICE inline void lin_solve_2(dfloat x[2], const dfloat A[4],
-                                                const dfloat y[2])
+static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
+                                                const double y[2])
 {
    const double idet = 1/(A[0]*A[3] - A[1]*A[2]);
    x[0] = idet*(A[3]*y[0] - A[1]*y[1]);
    x[1] = idet*(A[0]*y[1] - A[2]*y[0]);
 }
 
-//static MFEM_HOST_DEVICE inline void lin_solve_sym_2(dfloat x[2],
-//                                                    const dfloat A[3], const dfloat y[2])
-//{
-//   const dfloat idet = 1 / (A[0] * A[2] - A[1] * A[1]);
-//   x[0] = idet * (A[2] * y[0] - A[1] * y[1]);
-//   x[1] = idet * (A[0] * y[1] - A[1] * y[0]);
-//}
-
-static MFEM_HOST_DEVICE inline dfloat norm2(const dfloat x[2]) { return x[0] * x[0] + x[1] * x[1]; }
+static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x[0] + x[1] * x[1]; }
 
 /* the bit structure of flags is CSSRR
    the C bit --- 1<<4 --- is set when the point is converged
@@ -160,42 +147,31 @@ static MFEM_HOST_DEVICE inline dfloat norm2(const dfloat x[2]) { return x[0] * x
 #define CONVERGED_FLAG (1u<<4)
 #define FLAG_MASK 0x1fu
 
-static MFEM_HOST_DEVICE inline dlong num_constrained(const dlong flags)
+static MFEM_HOST_DEVICE inline int num_constrained(const int flags)
 {
-   const dlong y = flags | flags >> 1;
+   const int y = flags | flags >> 1;
    return (y&1u) + (y>>2 & 1u);
 }
 
 /* assumes x = 0, 1, or 2 */
-//static MFEM_HOST_DEVICE inline dlong plus_1_mod_3(const dlong x)
-//{
-//   return ((x | x >> 1) + 1) & 3u;
-//}
-
-//static MFEM_HOST_DEVICE inline dlong plus_2_mod_3(const dlong x)
-//{
-//   const dlong y = (x - 1) & 3u;
-//   return y ^ (y >> 1);
-//}
-
-static MFEM_HOST_DEVICE inline dlong plus_1_mod_2(const dlong x)
+static MFEM_HOST_DEVICE inline int plus_1_mod_2(const int x)
 {
    return x ^ 1u;
 }
 
 /* assumes x = 1 << i, with i < 4, returns i+1 */
-static MFEM_HOST_DEVICE inline dlong which_bit(const dlong x)
+static MFEM_HOST_DEVICE inline int which_bit(const int x)
 {
-   const dlong y = x & 7u;
+   const int y = x & 7u;
    return (y-(y>>2)) | ((x-1)&4u);
 }
 
-static MFEM_HOST_DEVICE inline dlong edge_index(const dlong x)
+static MFEM_HOST_DEVICE inline int edge_index(const int x)
 {
    return which_bit(x)-1;
 }
 
-static MFEM_HOST_DEVICE inline dlong point_index(const dlong x)
+static MFEM_HOST_DEVICE inline int point_index(const int x)
 {
    return ((x>>1)&1u) | ((x>>2)&2u);
 }
@@ -203,39 +179,38 @@ static MFEM_HOST_DEVICE inline dlong point_index(const dlong x)
 // compute (x,y) and (dxdn, dydx) data for all DOFs along the edge based on
 // edge index.
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t
-get_edge(const dfloat *elx[2], const dfloat *wtend[2], dlong ei,
-         dfloat *workspace,
-         dlong &side_init, dlong j, dlong p_Nr)
+get_edge(const double *elx[2], const double *wtend, int ei,
+         double *workspace,
+         int &side_init, int j, int pN)
 {
    findptsElementGEdge_t edge;
-   //   const dlong dn = ei>>1, de = plus_1_mod_2(dn);
-   const dlong jidx = ei >= 2 ? j : ei*(p_Nr-1);
-   const dlong kidx = ei >= 2 ? (ei-2)*(p_Nr-1) : j;
+   const int jidx = ei >= 2 ? j : ei*(pN-1);
+   const int kidx = ei >= 2 ? (ei-2)*(pN-1) : j;
 
    // location of derivatives based on whether we want at r/s=-1 or r/s=+1
    // ei == 0 and 2 are constrained at -1, 1 and 3 are constrained at +1.
-   const dfloat *wt1 = wtend[0] + (ei%2==0 ? 0 : 1)* p_Nr * 3 + p_Nr;
+   const double *wt1 = wtend + (ei%2==0 ? 0 : 1)* pN * 3 + pN;
 
-   for (dlong d = 0; d < 2; ++d)
+   for (int d = 0; d < 2; ++d)
    {
-      edge.x[d] = workspace + d * p_Nr; //x & y coordinates of DOFS along edge
-      edge.dxdn[d] = workspace + (2 + d) * p_Nr; //dxdn and dydn at DOFs along edge
+      edge.x[d] = workspace + d * pN; //x & y coordinates of DOFS along edge
+      edge.dxdn[d] = workspace + (2 + d) * pN; //dxdn and dydn at DOFs along edge
    }
 
-   const dlong mask = 1u << (ei / 2);
+   const int mask = 1u << (ei / 2);
    if ((side_init & mask) == 0)
    {
-      if (j < p_Nr)
+      if (j < pN)
       {
-#define ELX(d, j, k) elx[d][j + k * p_Nr] // assumes lexicographic ordering
-         for (dlong d = 0; d < 2; ++d)
+#define ELX(d, j, k) elx[d][j + k * pN] // assumes lexicographic ordering
+         for (int d = 0; d < 2; ++d)
          {
             // copy nodal coordinates along the constrained edge
             edge.x[d][j] = ELX(d, jidx, kidx);
 
             // compute derivative in normal direction.
-            dfloat sums_k = 0.0;
-            for (dlong k = 0; k < p_Nr; ++k)
+            double sums_k = 0.0;
+            for (int k = 0; k < pN; ++k)
             {
                if (ei >= 2)
                {
@@ -259,18 +234,18 @@ get_edge(const dfloat *elx[2], const dfloat *wtend[2], dlong ei,
 //pi=1, r=+1,s=-1
 //pi=2, r=-1,s=+1
 //pi=3, r=+1,s=+1
-static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[2],
-                                                          const dfloat *wtend[2],
-                                                          dlong pi, dlong p_Nr)
+static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
+                                                          const double *wtend,
+                                                          int pi, int pN)
 {
    findptsElementGPT_t pt;
 
-#define ELX(d, j, k) elx[d][j + k * p_Nr]
+#define ELX(d, j, k) elx[d][j + k * pN]
 
-   dlong r_g_wt_offset = pi % 2 == 0 ? 0 : 1; //wtend offset for gradient
-   dlong s_g_wt_offset = pi < 2 ? 0 : 1;
-   dlong jidx = pi % 2 == 0 ? 0 : p_Nr-1;
-   dlong kidx = pi < 2 ? 0 : p_Nr-1;
+   int r_g_wt_offset = pi % 2 == 0 ? 0 : 1; //wtend offset for gradient
+   int s_g_wt_offset = pi < 2 ? 0 : 1;
+   int jidx = pi % 2 == 0 ? 0 : pN-1;
+   int kidx = pi < 2 ? 0 : pN-1;
 
    pt.x[0] = ELX(0, jidx, kidx);
    pt.x[1] = ELX(1, jidx, kidx);
@@ -279,38 +254,38 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[2],
    pt.jac[1] = 0.0;
    pt.jac[2] = 0.0;
    pt.jac[3] = 0.0;
-   for (dlong j = 0; j < p_Nr; ++j)
+   for (int j = 0; j < pN; ++j)
    {
       //dx/dr
-      pt.jac[0] += wtend[0][3 * r_g_wt_offset * p_Nr + p_Nr + j] * ELX(0, j, kidx);
+      pt.jac[0] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(0, j, kidx);
 
       // dy/dr
-      pt.jac[1] += wtend[0][3 * r_g_wt_offset * p_Nr + p_Nr + j] * ELX(1, j, kidx);
+      pt.jac[1] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
 
       // dx/ds
-      pt.jac[2] += wtend[0][3 * s_g_wt_offset * p_Nr + p_Nr + j] * ELX(0, kidx, j);
+      pt.jac[2] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
 
       // dy/ds
-      pt.jac[3] += wtend[0][3 * s_g_wt_offset * p_Nr + p_Nr + j] * ELX(1, kidx, j);
+      pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, kidx, j);
    }
 
    pt.hes[0] = 0.0;
    pt.hes[1] = 0.0;
    pt.hes[2] = 0.0;
    pt.hes[3] = 0.0;
-   for (dlong j = 0; j < p_Nr; ++j)
+   for (int j = 0; j < pN; ++j)
    {
       //d2x/dr2
-      pt.hes[0] += wtend[0][3 * r_g_wt_offset * p_Nr + 2*p_Nr + j] * ELX(0, j, kidx);
+      pt.hes[0] += wtend[3 * r_g_wt_offset * pN + 2*pN + j] * ELX(0, j, kidx);
 
       // d2y/dr2
-      pt.hes[2] += wtend[0][3 * r_g_wt_offset * p_Nr + 2*p_Nr + j] * ELX(1, j, kidx);
+      pt.hes[2] += wtend[3 * r_g_wt_offset * pN + 2*pN + j] * ELX(1, j, kidx);
 
       // d2x/ds2
-      pt.hes[1] += wtend[0][3 * s_g_wt_offset * p_Nr + 2*p_Nr + j] * ELX(0, kidx, j);
+      pt.hes[1] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(0, kidx, j);
 
       // d2y/ds2
-      pt.hes[3] += wtend[0][3 * s_g_wt_offset * p_Nr + 2*p_Nr + j] * ELX(1, kidx, j);
+      pt.hes[3] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(1, kidx, j);
    }
 #undef ELX
    return pt;
@@ -322,14 +297,14 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const dfloat *elx[2],
    sets out->dist2, out->index, out->x, out->oldr in any event,
    leaving out->r, out->dr, out->flags to be set when returning 0 */
 static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
-                                                 const dfloat resid[2],
+                                                 const double resid[2],
                                                  const findptsElementPoint_t *p,
-                                                 const dfloat tol)
+                                                 const double tol)
 {
-   const dfloat dist2 = norm2(resid);
-   const dfloat decr = p->dist2 - dist2;
-   const dfloat pred = p->dist2p;
-   for (dlong d = 0; d < 2; ++d)
+   const double dist2 = norm2(resid);
+   const double decr = p->dist2 - dist2;
+   const double pred = p->dist2p;
+   for (int d = 0; d < 2; ++d)
    {
       out->x[d] = p->x[d];
       out->oldr[d] = p->r[d];
@@ -355,11 +330,11 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
          again, and we set things up here so it gets classed as a
          "very good iteration" --- this doubles the trust radius,
          which is why we divide by 4 below */
-      dfloat v0 = fabs(p->r[0] - p->oldr[0]);
-      dfloat v1 = fabs(p->r[1] - p->oldr[1]);
+      double v0 = fabs(p->r[0] - p->oldr[0]);
+      double v1 = fabs(p->r[1] - p->oldr[1]);
       out->tr = (v0 > v1 ? v0 : v1)/4;
       out->dist2 = p->dist2;
-      for (dlong d = 0; d < 2; ++d)
+      for (int d = 0; d < 2; ++d)
       {
          out->r[d] = p->oldr[d];
       }
@@ -376,16 +351,16 @@ static MFEM_HOST_DEVICE bool reject_prior_step_q(findptsElementPoint_t *out,
 /* minimize ||resid - jac * dr||_2, with |dr| <= tr, |r0+dr|<=1
    (exact solution of trust region problem) */
 static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
-                                         const dfloat jac[4],
-                                         const dfloat resid[2],
+                                         const double jac[4],
+                                         const double resid[2],
                                          const findptsElementPoint_t *const p,
-                                         const dfloat tol)
+                                         const double tol)
 {
-   const dfloat tr = p->tr;
-   dfloat bnd[4] = {-1, 1, -1, 1};
-   dfloat r0[2];
-   dfloat dr[2], fac;
-   dlong d, mask, flags;
+   const double tr = p->tr;
+   double bnd[4] = {-1, 1, -1, 1};
+   double r0[2];
+   double dr[2], fac;
+   int d, mask, flags;
    r0[0] = p->r[0], r0[1] = p->r[1];
 
    mask = 0xfu;
@@ -406,14 +381,14 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
    fac = 1, flags = 0;
    for (d = 0; d < 2; ++d)
    {
-      dfloat nr = r0[d] + dr[d];
+      double nr = r0[d] + dr[d];
       if ((nr - bnd[2 * d]) * (bnd[2 * d + 1] - nr) >= 0)
       {
          continue;
       }
       if (nr < bnd[2 * d])
       {
-         dfloat f = (bnd[2 * d] - r0[d]) / dr[d];
+         double f = (bnd[2 * d] - r0[d]) / dr[d];
          if (f < fac)
          {
             fac = f, flags = 1u << (2 * d);
@@ -421,7 +396,7 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
       }
       else
       {
-         dfloat f = (bnd[2 * d + 1] - r0[d]) / dr[d];
+         double f = (bnd[2 * d + 1] - r0[d]) / dr[d];
          if (f < fac)
          {
             fac = f, flags = 2u << (2 * d);
@@ -441,11 +416,11 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
 
 newton_area_edge :
    {
-      const dlong ei = edge_index(flags);
-      const dlong dn = ei>>1, de = plus_1_mod_2(dn);
-      dfloat fac = 1;
-      dlong new_flags = 0;
-      dfloat res[2], y, JtJ, drc;
+      const int ei = edge_index(flags);
+      const int dn = ei>>1, de = plus_1_mod_2(dn);
+      double fac = 1;
+      int new_flags = 0;
+      double res[2], y, JtJ, drc;
       res[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]),
                res[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       /* y = J_u^T res */
@@ -487,17 +462,17 @@ newton_area_edge :
    /* check and possibly relax constraints */
 newton_area_relax :
    {
-      const dlong old_flags = flags;
-      dfloat res[2], y[2];
+      const int old_flags = flags;
+      double res[2], y[2];
       /* res := res_0 - J dr */
       res[0] = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
       res[1] = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       /* y := J^T res */
       y[0] = jac[0] * res[0] + jac[2] * res[1];
       y[1] = jac[1] * res[0] + jac[3] * res[1];
-      for (dlong d = 0; d < 2; ++d)
+      for (int d = 0; d < 2; ++d)
       {
-         dlong f = flags >> (2 * d) & 3u;
+         int f = flags >> (2 * d) & 3u;
          if (f)
          {
             dr[d] = bnd[2 * d + (f - 1)] - r0[d];
@@ -525,14 +500,14 @@ newton_area_fin:
       flags |= CONVERGED_FLAG;
    }
    {
-      const dfloat res0 = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
-      const dfloat res1 = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
+      const double res0 = resid[0] - (jac[0] * dr[0] + jac[1] * dr[1]);
+      const double res1 = resid[1] - (jac[2] * dr[0] + jac[3] * dr[1]);
       out->dist2p = resid[0] * resid[0] + resid[1] * resid[1] -
                     (res0 * res0 + res1 * res1);
    }
-   for (dlong d = 0; d < 2; ++d)
+   for (int d = 0; d < 2; ++d)
    {
-      dlong f = flags >> (2 * d) & 3u;
+      int f = flags >> (2 * d) & 3u;
       out->r[d] = f == 0 ? r0[d] + dr[d] : (f == 1 ? -1 : 1);
    }
    out->flags = flags | (p->flags << 5);
@@ -540,25 +515,25 @@ newton_area_fin:
 
 static MFEM_HOST_DEVICE inline void newton_edge(findptsElementPoint_t *const
                                                 out,
-                                                const dfloat jac[4],
-                                                const dfloat rhes,
-                                                const dfloat resid[2],
-                                                const dlong de,
-                                                const dlong dn,
-                                                dlong flags,
+                                                const double jac[4],
+                                                const double rhes,
+                                                const double resid[2],
+                                                const int de,
+                                                const int dn,
+                                                int flags,
                                                 const findptsElementPoint_t *const p,
-                                                const dfloat tol)
+                                                const double tol)
 {
-   const dfloat tr = p->tr;
+   const double tr = p->tr;
    /* A = J^T J - resid_d H_d */
-   const dfloat A = jac[de] * jac[de] + jac[2 + de] * jac[2 + de] - rhes;
+   const double A = jac[de] * jac[de] + jac[2 + de] * jac[2 + de] - rhes;
    /* y = J^T r */
-   const dfloat y = jac[de] * resid[0] + jac[2 + de] * resid[1];
+   const double y = jac[de] * resid[0] + jac[2 + de] * resid[1];
 
-   const dfloat oldr = p->r[de];
-   dfloat dr, nr, tdr, tnr;
-   dfloat v, tv;
-   dlong new_flags = 0, tnew_flags = 0;
+   const double oldr = p->r[de];
+   double dr, nr, tdr, tnr;
+   double v, tv;
+   int new_flags = 0, tnew_flags = 0;
 
 #define EVAL(dr) (dr * A - 2 * y) * dr
 
@@ -610,32 +585,32 @@ newton_edge_fin:
    out->flags = flags | new_flags | (p->flags << 5);
 }
 
-static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[2],
-                                    const dfloat x[2],
-                                    const dfloat *z, //GLL point locations [-1, 1]
-                                    dfloat *dist2,
-                                    dfloat *r[2],
+static MFEM_HOST_DEVICE void seed_j(const double *elx[2],
+                                    const double x[2],
+                                    const double *z, //GLL point locations [-1, 1]
+                                    double *dist2,
+                                    double *r[2],
                                     const int j,
-                                    const dlong p_Nr)
+                                    const int pN)
 {
-   if (j >= p_Nr)
+   if (j >= pN)
    {
       return;
    }
 
    dist2[j] = DBL_MAX;
 
-   dfloat zr = z[j];
-   for (dlong k = 0; k < p_Nr; ++k)
+   double zr = z[j];
+   for (int k = 0; k < pN; ++k)
    {
-      dfloat zs = z[k];
-      const dlong jk = j + k * p_Nr;
-      dfloat dx[2];
-      for (dlong d = 0; d < 2; ++d)
+      double zs = z[k];
+      const int jk = j + k * pN;
+      double dx[2];
+      for (int d = 0; d < 2; ++d)
       {
          dx[d] = x[d] - elx[d][jk];
       }
-      const dfloat dist2_jkl = norm2(dx);
+      const double dist2_jkl = norm2(dx);
       if (dist2[j] > dist2_jkl)
       {
          dist2[j] = dist2_jkl;
@@ -645,21 +620,21 @@ static MFEM_HOST_DEVICE void seed_j(const dfloat *elx[2],
    }
 }
 
-static MFEM_HOST_DEVICE dfloat tensor_ig2_j(dfloat *g_partials,
-                                            const dfloat *Jr,
-                                            const dfloat *Dr,
-                                            const dfloat *Js,
-                                            const dfloat *Ds,
-                                            const dfloat *u,
-                                            const dlong j,
-                                            const dlong p_Nr)
+static MFEM_HOST_DEVICE double tensor_ig2_j(double *g_partials,
+                                            const double *Jr,
+                                            const double *Dr,
+                                            const double *Js,
+                                            const double *Ds,
+                                            const double *u,
+                                            const int j,
+                                            const int pN)
 {
-   dfloat uJs = 0.0;
-   dfloat uDs = 0.0;
-   for (dlong k = 0; k < p_Nr; ++k)
+   double uJs = 0.0;
+   double uDs = 0.0;
+   for (int k = 0; k < pN; ++k)
    {
-      uJs += u[j + k * p_Nr] * Js[k];
-      uDs += u[j + k * p_Nr] * Ds[k];
+      uJs += u[j + k * pN] * Js[k];
+      uDs += u[j + k * pN] * Ds[k];
    }
 
    g_partials[0] = uJs * Dr[j];
@@ -667,52 +642,54 @@ static MFEM_HOST_DEVICE dfloat tensor_ig2_j(dfloat *g_partials,
    return uJs * Jr[j];
 }
 
+template<int T_D1D = 0>
 static void FindPointsLocal2D_Kernel(const int npt,
-                                     const dfloat tol,
-                                     const dfloat *x,
-                                     const dlong point_pos_ordering,
-                                     const dfloat *xElemCoord,
-                                     const dfloat *yElemCoord,
-                                     const dfloat *wtend_x,
-                                     const dfloat *wtend_y,
-                                     const dfloat *c,
-                                     const dfloat *A,
-                                     const dfloat *minBound,
-                                     const dfloat *maxBound,
-                                     const dlong hash_n,
-                                     const dfloat *hashMin,
-                                     const dfloat *hashFac,
-                                     dlong *hashOffset,
-                                     dlong *const code_base,
-                                     dlong *const el_base,
-                                     dfloat *const r_base,
-                                     dfloat *const dist2_base,
-                                     const dfloat *gll1D,
+                                     const double tol,
+                                     const double *x,
+                                     const int point_pos_ordering,
+                                     const double *xElemCoord,
+                                     const double *yElemCoord,
+                                     const double *wtend,                                     const double *c,
+                                     const double *A,
+                                     const double *minBound,
+                                     const double *maxBound,
+                                     const int hash_n,
+                                     const double *hashMin,
+                                     const double *hashFac,
+                                     int *hashOffset,
+                                     int *const code_base,
+                                     int *const el_base,
+                                     double *const r_base,
+                                     double *const dist2_base,
+                                     const double *gll1D,
                                      const double *lagcoeff,
-                                     dfloat *infok,
-                                     const dlong p_Nr)
+                                     double *infok,
+                                     const int pN = 0)
 {
 #define MAX_CONST(a, b) (((a) > (b)) ? (a) : (b))
-#define p_innerSize 32
    const int dim = 2;
    const int dim2 = dim*dim;
-   const dlong p_NE = p_Nr*p_Nr;
-   const int pMax = 8;
-   mfem::forall_2D(npt, p_innerSize, 1, [=] MFEM_HOST_DEVICE (int i)
+   const int MD1 = T_D1D ? T_D1D : 14;
+   const int D1D = T_D1D ? T_D1D : pN;
+   const int p_NE = D1D*D1D;
+   MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
+   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   int nThreads = MAX_CONST(2*D1D, 4);
+
+   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      constexpr int size1 = MAX_CONST(4, pMax + 1) *
-                            (3 * 3 + 2 * 3) + 3 * 2 * pMax + 5;
-      constexpr int size2 = MAX_CONST(pMax *pMax * 6, pMax * 3 * 3);
-      MFEM_SHARED dfloat r_workspace[size1];
+      constexpr int size1 = MAX_CONST(4, MD1 + 1) *
+                            (3 * 3 + 2 * 3) + 3 * 2 * MD1 + 5;
+      constexpr int size2 = MAX_CONST(MD1 *MD1 * 6, MD1 * 3 * 3);
+      MFEM_SHARED double r_workspace[size1];
       MFEM_SHARED findptsElementPoint_t el_pts[2];
 
-      MFEM_SHARED dfloat constraint_workspace[size2];
-      // dlong constraint_init;
-      MFEM_SHARED dlong constraint_init_t[p_innerSize];
+      MFEM_SHARED double constraint_workspace[size2];
+      MFEM_SHARED int constraint_init_t[nThreads];
 
-      dfloat *r_workspace_ptr;
+      double *r_workspace_ptr;
       findptsElementPoint_t *fpt, *tmp;
-      MFEM_FOREACH_THREAD(j,x,p_innerSize)
+      MFEM_FOREACH_THREAD(j,x,nThreads)
       {
          r_workspace_ptr = r_workspace;
          fpt = el_pts + 0;
@@ -720,15 +697,14 @@ static void FindPointsLocal2D_Kernel(const int npt,
       }
       MFEM_SYNC_THREAD;
 
-      dlong id_x = point_pos_ordering == 0 ? i : i*dim;
-      dlong id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
-      dfloat x_i[2] = {x[id_x], x[id_y]};
-      const dfloat *wtend[2] = {&wtend_x[0], &wtend_y[0]};
+      int id_x = point_pos_ordering == 0 ? i : i*dim;
+      int id_y = point_pos_ordering == 0 ? i+npt : i*dim+1;
+      double x_i[2] = {x[id_x], x[id_y]};
 
-      dlong *code_i = code_base + i;
-      dlong *el_i = el_base + i;
-      dfloat *r_i = r_base + dim * i;
-      dfloat *dist2_i = dist2_base + i;
+      int *code_i = code_base + i;
+      int *el_i = el_base + i;
+      double *r_i = r_base + dim * i;
+      double *dist2_i = dist2_base + i;
 
       //// map_points_to_els ////
       findptsLocalHashData_t hash;
@@ -739,9 +715,9 @@ static void FindPointsLocal2D_Kernel(const int npt,
       }
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
-      const dlong hi = hash_index(&hash, x_i);
-      const dlong *elp = hash.offset + hash.offset[hi],
-                   *const ele = hash.offset + hash.offset[hi + 1];
+      const int hi = hash_index(&hash, x_i);
+      const int *elp = hash.offset + hash.offset[hi],
+                 *const ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
@@ -749,7 +725,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
       {
          //elp
 
-         const dlong el = *elp;
+         const int el = *elp;
 
          // construct obbox_t on the fly from data
          obbox_t box;
@@ -770,7 +746,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
          {
             //// findpts_local ////
             {
-               const dfloat *elx[dim];
+               const double *elx[dim];
 
                elx[0] = xElemCoord + el * p_NE;
                elx[1] = yElemCoord + el * p_NE;
@@ -778,8 +754,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                //// findpts_el ////
                {
                   MFEM_SYNC_THREAD;
-                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                  //                  for (dlong j = 0; j < p_innerSize; ++j) //inner
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j == 0)
                      {
@@ -793,32 +768,30 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   MFEM_SYNC_THREAD;
                   //// seed ////
                   {
-                     dfloat *dist2_temp = r_workspace_ptr;
-                     dfloat *r_temp[dim];
-                     for (dlong d = 0; d < dim; ++d)
+                     double *dist2_temp = r_workspace_ptr;
+                     double *r_temp[dim];
+                     for (int d = 0; d < dim; ++d)
                      {
-                        r_temp[d] = dist2_temp + (1 + d) * p_Nr;
+                        r_temp[d] = dist2_temp + (1 + d) * D1D;
                      }
 
-                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                     //                     for (dlong j = 0; j < p_innerSize; ++j)  //inner
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
-                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, p_Nr);
+                        seed_j(elx, x_i, gll1D, dist2_temp, r_temp, j, D1D);
                      }
                      MFEM_SYNC_THREAD;
 
-                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                     //                     for (dlong j = 0; j < p_innerSize; ++j) //inner
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
                      {
                         if (j == 0)
                         {
                            fpt->dist2 = DBL_MAX;
-                           for (dlong jj = 0; jj < p_Nr; ++jj)
+                           for (int jj = 0; jj < D1D; ++jj)
                            {
                               if (dist2_temp[jj] < fpt->dist2)
                               {
                                  fpt->dist2 = dist2_temp[jj];
-                                 for (dlong d = 0; d < dim; ++d)
+                                 for (int d = 0; d < dim; ++d)
                                  {
                                     fpt->r[d] = r_temp[d][jj];
                                  }
@@ -830,8 +803,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   } //seed done
 
 
-                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                  //                  for (dlong j = 0; j < p_innerSize; ++j)  //inner
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j == 0)
                      {
@@ -848,57 +820,54 @@ static void FindPointsLocal2D_Kernel(const int npt,
                   }
                   MFEM_SYNC_THREAD;
 
-                  for (dlong step = 0; step < 50; step++)
+                  for (int step = 0; step < 50; step++)
                   {
                      switch (num_constrained(tmp->flags & FLAG_MASK))
                      {
                         case 0:   // findpt_area
                         {
-                           dfloat *wtr = r_workspace_ptr;
-                           dfloat *wts = wtr + 2 * p_Nr;
+                           double *wtr = r_workspace_ptr;
+                           double *wts = wtr + 2 * D1D;
 
-                           dfloat *resid = wts + 2 * p_Nr;
-                           dfloat *jac = resid + 2;
-                           dfloat *resid_temp = jac + 4;
-                           dfloat *jac_temp = resid_temp + 2 * p_Nr;
+                           double *resid = wts + 2 * D1D;
+                           double *jac = resid + 2;
+                           double *resid_temp = jac + 4;
+                           double *jac_temp = resid_temp + 2 * D1D;
 
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                           //                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              if (j < p_Nr)
+                              if (j < D1D)
                               {
-                                 lagrange_eval_first_derivative(wtr, tmp->r[0], j, gll1D, lagcoeff, p_Nr);
-                                 lagrange_eval_first_derivative(wts, tmp->r[1], j, gll1D, lagcoeff, p_Nr);
+                                 lagrange_eval_first_derivative(wtr, tmp->r[0], j, gll1D, lagcoeff, D1D);
+                                 lagrange_eval_first_derivative(wts, tmp->r[1], j, gll1D, lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                           //                           for (dlong j = 0; j < p_innerSize; ++j)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              if (j < p_Nr * 2)
+                              if (j < D1D * 2)
                               {
                                  const int qp = j / 2;
                                  const int d = j % 2;
                                  resid_temp[d + qp * 2] = tensor_ig2_j(jac_temp + 2 * d + 4 * qp,
                                                                        wtr,
-                                                                       wtr + p_Nr,
+                                                                       wtr + D1D,
                                                                        wts,
-                                                                       wts + p_Nr,
+                                                                       wts + D1D,
                                                                        elx[d],
                                                                        qp,
-                                                                       p_Nr);
+                                                                       D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
-                           //                           for (dlong l = 0; l < p_innerSize; ++l) //inner
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
                            {
                               if (l < 2)
                               {
                                  resid[l] = tmp->x[l];
-                                 for (dlong j = 0; j < p_Nr; ++j)
+                                 for (int j = 0; j < D1D; ++j)
                                  {
                                     resid[l] -= resid_temp[l + j * 2];
                                  }
@@ -906,7 +875,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                               if (l < 4)
                               {
                                  jac[l] = 0;
-                                 for (dlong j = 0; j < p_Nr; ++j)
+                                 for (int j = 0; j < D1D; ++j)
                                  {
                                     jac[l] += jac_temp[l + j * 4];
                                  }
@@ -914,8 +883,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
-                           //                           for (dlong l = 0; l < p_innerSize; ++l)
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
                            {
                               if (l == 0)
                               {
@@ -930,39 +898,37 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         } //case 0
                         case 1:   // findpt_edge
                         {
-                           const dlong ei = edge_index(tmp->flags & FLAG_MASK);
-                           const dlong dn = ei>>1, de = plus_1_mod_2(dn);
-                           dlong d_j[2];
+                           const int ei = edge_index(tmp->flags & FLAG_MASK);
+                           const int dn = ei>>1, de = plus_1_mod_2(dn);
+                           int d_j[2];
                            d_j[0] = de;
                            d_j[1] = dn;
 
-                           dfloat *wt = r_workspace_ptr;
-                           dfloat *resid = wt + 3 * p_Nr;
-                           dfloat *jac = resid + 2; //jac will be row-major
-                           dfloat *hes_T = jac + 2 * 2;
-                           dfloat *hess = hes_T + 3;
+                           double *wt = r_workspace_ptr;
+                           double *resid = wt + 3 * D1D;
+                           double *jac = resid + 2; //jac will be row-major
+                           double *hes_T = jac + 2 * 2;
+                           double *hess = hes_T + 3;
                            findptsElementGEdge_t edge;
 
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               edge = get_edge(elx, wtend, ei, constraint_workspace, constraint_init_t[j], j,
-                                              p_Nr);
+                                              D1D);
                            }
                            MFEM_SYNC_THREAD;
 
-                           //                           const dfloat *const *e_x[2] = {edge.x, edge.dxdn};
-
                            // compute basis function info upto 2nd derivative for tangential components
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
-                              if (j < p_Nr)
+                              if (j < D1D)
                               {
-                                 lagrange_eval_second_derivative(wt, tmp->r[de], j, gll1D, lagcoeff, p_Nr);
+                                 lagrange_eval_second_derivative(wt, tmp->r[de], j, gll1D, lagcoeff, D1D);
                               }
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j < dim)
                               {
@@ -970,12 +936,12 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                  jac[2*j] = 0.0;
                                  jac[2*j + 1] = 0.0;
                                  hess[j] = 0.0;
-                                 for (dlong k = 0; k < p_Nr; ++k)
+                                 for (int k = 0; k < D1D; ++k)
                                  {
                                     resid[j] -= wt[k]*edge.x[j][k];
                                     jac[2*j] += wt[k]*edge.dxdn[j][k];
-                                    jac[2*j+1] += wt[k+p_Nr]*edge.x[j][k];
-                                    hess[j] += wt[k+2*p_Nr]*edge.x[j][k];
+                                    jac[2*j+1] += wt[k+D1D]*edge.x[j][k];
+                                    hess[j] += wt[k+2*D1D]*edge.x[j][k];
                                  }
                               }
                            }
@@ -984,13 +950,13 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            // at this point, the Jacobian will be out of
                            // order for edge index 2 and 3 so we need to swap
                            // columns
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j == 0)
                               {
                                  if (ei >= 2)
                                  {
-                                    dfloat temp1 = jac[1],
+                                    double temp1 = jac[1],
                                            temp2 = jac[3];
                                     jac[1] = jac[0];
                                     jac[3] = jac[2];
@@ -1002,7 +968,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                            }
                            MFEM_SYNC_THREAD;
 
-                           MFEM_FOREACH_THREAD(l,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(l,x,nThreads)
                            {
                               if (l == 0)
                               {
@@ -1029,21 +995,21 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         }
                         case 2:   // findpts_pt
                         {
-                           MFEM_FOREACH_THREAD(j,x,p_innerSize)
+                           MFEM_FOREACH_THREAD(j,x,nThreads)
                            {
                               if (j == 0)
                               {
-                                 dlong de = 0;
-                                 dlong dn = 0;
-                                 const dlong pi = point_index(tmp->flags & FLAG_MASK);
-                                 const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, p_Nr);
+                                 int de = 0;
+                                 int dn = 0;
+                                 const int pi = point_index(tmp->flags & FLAG_MASK);
+                                 const findptsElementGPT_t gpt = get_pt(elx, wtend, pi, D1D);
 
-                                 const dfloat *const pt_x = gpt.x,
+                                 const double *const pt_x = gpt.x,
                                                      *const jac = gpt.jac,
                                                             *const hes = gpt.hes;
 
-                                 dfloat resid[dim], steep[dim], sr[dim];
-                                 for (dlong d = 0; d < dim; ++d)
+                                 double resid[dim], steep[dim], sr[dim];
+                                 for (int d = 0; d < dim; ++d)
                                  {
                                     resid[d] = fpt->x[d] - pt_x[d];
                                  }
@@ -1104,21 +1070,19 @@ static void FindPointsLocal2D_Kernel(const int npt,
                         break;
                      }
                      MFEM_SYNC_THREAD;
-                     MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                     //                     for (dlong j = 0; j < p_innerSize; ++j)
+                     MFEM_FOREACH_THREAD(j,x,nThreads)
                      if (j == 0)
                      {
                         *tmp = *fpt;
                      }
                      MFEM_SYNC_THREAD;
-                  } //for dlong step < 50
+                  } //for int step < 50
                } //findpts_el
 
                bool converged_internal = (fpt->flags & FLAG_MASK) == CONVERGED_FLAG;
                if (*code_i == CODE_NOT_FOUND || converged_internal || fpt->dist2 < *dist2_i)
                {
-                  MFEM_FOREACH_THREAD(j,x,p_innerSize)
-                  //                  for (dlong j = 0; j < p_innerSize; ++j)
+                  MFEM_FOREACH_THREAD(j,x,nThreads)
                   {
                      if (j == 0)
                      {
@@ -1153,36 +1117,56 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
 {
    if (npt == 0) { return; }
    MFEM_VERIFY(dim == 2,"Function for 2D only");
-   FindPointsLocal2D_Kernel(npt, DEV.tol,
-                            point_pos.Read(), point_pos_ordering,
-                            DEV.o_x.Read(),
-                            DEV.o_y.Read(),
-                            DEV.o_wtend_x.Read(),
-                            DEV.o_wtend_y.Read(),
-                            DEV.o_c.Read(),
-                            DEV.o_A.Read(),
-                            DEV.o_min.Read(),
-                            DEV.o_max.Read(),
-                            DEV.hash_n,
-                            DEV.o_hashMin.Read(),
-                            DEV.o_hashFac.Read(),
-                            DEV.o_offset.ReadWrite(),
-                            gsl_code_dev_l.Write(),
-                            gsl_elem_dev_l.Write(),
-                            gsl_ref_l.Write(),
-                            gsl_dist_l.Write(),
-                            DEV.gll1d.ReadWrite(),
-                            DEV.lagcoeff.Read(),
-                            DEV.info.ReadWrite(),
-                            DEV.dof1d);
+   switch (DEV.dof1d)
+   {
+      case 3:    FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
+                                                point_pos.Read(), point_pos_ordering,
+                                                DEV.o_x.Read(), DEV.o_y.Read(),
+                                                DEV.o_wtend_x.Read(),
+                                                DEV.o_c.Read(), DEV.o_A.Read(),
+                                                DEV.o_min.Read(), DEV.o_max.Read(),
+                                                DEV.hash_n, DEV.o_hashMin.Read(),
+                                                DEV.o_hashFac.Read(),
+                                                DEV.o_offset.ReadWrite(),
+                                                gsl_code_dev_l.Write(),
+                                                gsl_elem_dev_l.Write(),
+                                                gsl_ref_l.Write(),
+                                                gsl_dist_l.Write(),
+                                                DEV.gll1d.ReadWrite(),
+                                                DEV.lagcoeff.Read(),
+                                                DEV.info.ReadWrite());
+      default:    FindPointsLocal2D_Kernel(npt, DEV.tol,
+                                              point_pos.Read(), point_pos_ordering,
+                                              DEV.o_x.Read(),
+                                              DEV.o_y.Read(),
+                                              DEV.o_wtend_x.Read(),
+                                              DEV.o_c.Read(),
+                                              DEV.o_A.Read(),
+                                              DEV.o_min.Read(),
+                                              DEV.o_max.Read(),
+                                              DEV.hash_n,
+                                              DEV.o_hashMin.Read(),
+                                              DEV.o_hashFac.Read(),
+                                              DEV.o_offset.ReadWrite(),
+                                              gsl_code_dev_l.Write(),
+                                              gsl_elem_dev_l.Write(),
+                                              gsl_ref_l.Write(),
+                                              gsl_dist_l.Write(),
+                                              DEV.gll1d.ReadWrite(),
+                                              DEV.lagcoeff.Read(),
+                                              DEV.info.ReadWrite(),
+                                              DEV.dof1d);
+   }
+
+
 }
 
 
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
-#undef dlong
-#undef dfloat
+#undef int
+#undef double
 
 } // namespace mfem
 
