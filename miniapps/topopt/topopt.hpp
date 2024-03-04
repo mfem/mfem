@@ -1,5 +1,6 @@
 #pragma once
 #include "mfem.hpp"
+#include "helper.hpp"
 #include <functional>
 
 
@@ -287,6 +288,36 @@ public:
    void Apply(Coefficient &rho, GridFunction &frho,
               bool apply_bdr=true) const override;
    BilinearForm& GetBilinearForm() {return *filter; }
+protected:
+private:
+};
+
+class HelmholtzL2Filter : public DensityFilter
+{
+public:
+protected:
+   HelmholtzFilter filter;
+   std::unique_ptr<GridFunction> H1frho;
+private:
+
+public:
+   HelmholtzL2Filter(FiniteElementSpace &fes_, FiniteElementSpace &rho_fes,
+                     const double eps,
+                     Array<int> &ess_bdr,
+                     bool enforce_symmetricity=false):
+      DensityFilter(rho_fes), filter(fes_, eps, ess_bdr, enforce_symmetricity),
+      H1frho(MakeGridFunction(&fes_))
+   {
+      *H1frho = 0.0;
+   }
+   void Apply(const GridFunction &rho, GridFunction &frho,
+              bool apply_bdr=true) const override
+   {
+      GridFunctionCoefficient rho_cf(&rho);
+      Apply(rho_cf, frho, apply_bdr);
+   }
+   void Apply(Coefficient &rho, GridFunction &frho,
+              bool apply_bdr=true) const override;
 protected:
 private:
 };

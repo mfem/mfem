@@ -1391,4 +1391,12 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
 #endif
    }
 }
+void HelmholtzL2Filter::Apply(Coefficient &rho, GridFunction &frho,
+                              bool apply_bdr) const
+{
+   filter.Apply(rho, *H1frho);
+   std::unique_ptr<LinearForm> projector(MakeLinearForm(&fes, frho.GetData()));
+   projector->AddDomainIntegrator(new L2ProjectionLFIntegrator(*H1frho));
+   projector->Assemble();
+}
 }
