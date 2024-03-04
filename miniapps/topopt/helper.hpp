@@ -7,8 +7,10 @@ namespace mfem
 {
 // Make a new (parallel) grid function from a given (parallel) finite element space.
 GridFunction *MakeGridFunction(FiniteElementSpace *fes);
+GridFunction *MakeGridFunction(FiniteElementSpace *fes, double *data);
 // Make a new (parallel) linear form from a given (parallel) finite element space.
 LinearForm *MakeLinearForm(FiniteElementSpace *fes);
+LinearForm *MakeLinearForm(FiniteElementSpace *fes, double *data);
 // Make a new (parallel) nonlinear form from a given (parallel) finite element space.
 NonlinearForm *MakeNonlinearForm(FiniteElementSpace *fes);
 // Make a new (parallel) bilinear form from a given (parallel) finite element space.

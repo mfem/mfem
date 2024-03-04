@@ -21,6 +21,22 @@ GridFunction *MakeGridFunction(FiniteElementSpace *fes)
    return new GridFunction(fes);
 #endif
 }
+GridFunction *MakeGridFunction(FiniteElementSpace *fes, double *data)
+{
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+   if (pfes)
+   {
+      return new ParGridFunction(pfes, data);
+   }
+   else
+   {
+      return new GridFunction(fes, data);
+   }
+#else
+   return new GridFunction(fes, data);
+#endif
+}
 LinearForm *MakeLinearForm(FiniteElementSpace *fes)
 {
 #ifdef MFEM_USE_MPI
@@ -35,6 +51,22 @@ LinearForm *MakeLinearForm(FiniteElementSpace *fes)
    }
 #else
    return new LinearForm(fes);
+#endif
+}
+LinearForm *MakeLinearForm(FiniteElementSpace *fes, double *data)
+{
+#ifdef MFEM_USE_MPI
+   auto pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+   if (pfes)
+   {
+      return new ParLinearForm(pfes, data);
+   }
+   else
+   {
+      return new LinearForm(fes, data);
+   }
+#else
+   return new LinearForm(fes, data);
 #endif
 }
 NonlinearForm *MakeNonlinearForm(FiniteElementSpace *fes)
