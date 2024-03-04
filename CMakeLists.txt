@@ -18,9 +18,10 @@ set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
 # Require C++11 and disable compiler-specific extensions
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 11 CACHE STRING "C++ standard to use.")
+set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL
+  "Force the use of the chosen C++ standard.")
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
@@ -93,7 +94,7 @@ if ((MFEM_USE_SUNDIALS OR
      MFEM_USE_RAJA OR
      MFEM_USE_UMPIRE) AND
     ("${CMAKE_CXX_STANDARD}" LESS "14"))
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to use." FORCE)
 endif()
 
 # Include xSDK default CMake file.
@@ -104,7 +105,8 @@ enable_language(CXX)
 if (MINGW)
    # MinGW GCC does not expose the functions jn/_jn, yn/_yn (used in Example
    # 25/25p) unless we use '-std=gnu++11':
-   set(CMAKE_CXX_EXTENSIONS ON)
+   set(CMAKE_CXX_EXTENSIONS ON
+      CACHE BOOL "Enable C++ standard extensions." FORCE)
 endif()
 if (MFEM_USE_CUDA)
    if (MFEM_USE_HIP)
@@ -115,9 +117,11 @@ if (MFEM_USE_CUDA)
       set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
    endif()
    enable_language(CUDA)
-   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
-   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-   set(CMAKE_CUDA_EXTENSIONS OFF)
+   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD} CACHE STRING
+      "CUDA standard to use.")
+   set(CMAKE_CUDA_STANDARD_REQUIRED ON CACHE BOOL
+      "Force the use of the chosen CUDA standard.")
+   set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CUDA_FLAGS "--expt-extended-lambda")
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       set(CUDA_FLAGS "-arch=${CUDA_ARCH} ${CUDA_FLAGS}")
