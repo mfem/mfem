@@ -192,11 +192,11 @@ public:
        @details While the convergence criterion is solver specific, most of the
        provided iterative solvers use one of the following criteria
 
-       \f$ ||r||_X \leq tol_{rel}||r_0||_X \f$,
+       $ ||r||_X \leq tol_{rel}||r_0||_X $,
 
-       \f$ ||r||_X \leq tol_{abs} \f$,
+       $ ||r||_X \leq tol_{abs} $,
 
-       \f$ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} \f$,
+       $ ||r||_X \leq \max\{ tol_{abs}, tol_{rel} ||r_0||_X \} $,
 
        where X denotes the space in which the norm is measured. The choice of
        X depends on the specific iterative solver.
