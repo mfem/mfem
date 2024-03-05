@@ -363,6 +363,12 @@ void PositionVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
    T.Transform(ip, V);
 }
 
+void VectorFunctionCoefficient::SetTime(double t)
+{
+    if (Q) Q->SetTime(t);
+    this->VectorCoefficient::SetTime(t);
+}
+
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip) const
 {

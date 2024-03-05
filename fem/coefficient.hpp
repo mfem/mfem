@@ -763,6 +763,9 @@ public:
       : VectorCoefficient(dim), TDFunction(std::move(TDF)), Q(q)
    { }
 
+   /// Set the time for time dependent coefficients
+   virtual void SetTime(double t);
+
    using VectorCoefficient::Eval;
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
