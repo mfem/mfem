@@ -2556,7 +2556,7 @@ public:
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
    virtual ~NodeExtrudeCoefficient() { }
 };
 

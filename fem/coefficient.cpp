@@ -48,7 +48,7 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
-void Coefficient::Project(QuadratureFunction &qf)
+void Coefficient::Project(QuadratureFunction &qf) const
 {
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
@@ -68,13 +68,13 @@ void Coefficient::Project(QuadratureFunction &qf)
    }
 }
 
-void ConstantCoefficient::Project(QuadratureFunction &qf)
+void ConstantCoefficient::Project(QuadratureFunction &qf) const
 {
    qf = constant;
 }
 
 double PWConstCoefficient::Eval(ElementTransformation & T,
-                                const IntegrationPoint & ip)
+                                const IntegrationPoint & ip) const
 {
    int att = T.Attribute;
    return (constants(att-1));
@@ -112,7 +112,7 @@ void PWCoefficient::SetTime(double t)
 }
 
 double PWCoefficient::Eval(ElementTransformation &T,
-                           const IntegrationPoint &ip)
+                           const IntegrationPoint &ip) const
 {
    const int att = T.Attribute;
    std::map<int, Coefficient*>::const_iterator p = pieces.find(att);
@@ -127,7 +127,7 @@ double PWCoefficient::Eval(ElementTransformation &T,
 }
 
 double FunctionCoefficient::Eval(ElementTransformation & T,
-                                 const IntegrationPoint & ip)
+                                 const IntegrationPoint & ip) const
 {
    double x[3];
    Vector transip(x, 3);
@@ -145,42 +145,42 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
 }
 
 double CartesianCoefficient::Eval(ElementTransformation & T,
-                                  const IntegrationPoint & ip)
+                                  const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return transip[comp];
 }
 
 double CylindricalRadialCoefficient::Eval(ElementTransformation & T,
-                                          const IntegrationPoint & ip)
+                                          const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return sqrt(transip[0] * transip[0] + transip[1] * transip[1]);
 }
 
 double CylindricalAzimuthalCoefficient::Eval(ElementTransformation & T,
-                                             const IntegrationPoint & ip)
+                                             const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return atan2(transip[1], transip[0]);
 }
 
 double SphericalRadialCoefficient::Eval(ElementTransformation & T,
-                                        const IntegrationPoint & ip)
+                                        const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return sqrt(transip * transip);
 }
 
 double SphericalAzimuthalCoefficient::Eval(ElementTransformation & T,
-                                           const IntegrationPoint & ip)
+                                           const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return atan2(transip[1], transip[0]);
 }
 
 double SphericalPolarCoefficient::Eval(ElementTransformation & T,
-                                       const IntegrationPoint & ip)
+                                       const IntegrationPoint & ip) const
 {
    T.Transform(ip, transip);
    return atan2(sqrt(transip[0] * transip[0] + transip[1] * transip[1]),
@@ -188,7 +188,7 @@ double SphericalPolarCoefficient::Eval(ElementTransformation & T,
 }
 
 double GridFunctionCoefficient::Eval (ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    Mesh *gf_mesh = GridF->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -203,7 +203,7 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    }
 }
 
-void GridFunctionCoefficient::Project(QuadratureFunction &qf)
+void GridFunctionCoefficient::Project(QuadratureFunction &qf) const
 {
    qf.ProjectGridFunction(*GridF);
 }
@@ -216,7 +216,7 @@ void TransformedCoefficient::SetTime(double t)
 }
 
 double TransformedCoefficient::Eval(ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+                                    const IntegrationPoint &ip) const
 {
    if (Q2)
    {
@@ -243,14 +243,14 @@ void DeltaCoefficient::SetDeltaCenter(const Vector& vcenter)
    sdim = vcenter.Size();
 }
 
-void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
+void DeltaCoefficient::GetDeltaCenter(Vector& vcenter) const
 {
    vcenter.SetSize(sdim);
    vcenter = center;
 }
 
 double DeltaCoefficient::EvalDelta(ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+                                   const IntegrationPoint &ip) const
 {
    double w = Scale();
    return weight ? weight->Eval(T, ip, GetTime())*w : w;
@@ -263,7 +263,7 @@ void RestrictedCoefficient::SetTime(double t)
 }
 
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                             const IntegrationRule &ir)
+                             const IntegrationRule &ir) const
 {
    Vector Mi;
    M.SetSize(vdim, ir.GetNPoints());
@@ -276,7 +276,7 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
    }
 }
 
-void VectorCoefficient::Project(QuadratureFunction &qf)
+void VectorCoefficient::Project(QuadratureFunction &qf) const
 {
    MFEM_VERIFY(vdim == qf.GetVDim(), "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -339,7 +339,7 @@ void PWVectorCoefficient::SetTime(double t)
 }
 
 void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                               const IntegrationPoint &ip) const
 {
    const int att = T.Attribute;
    std::map<int, VectorCoefficient*>::const_iterator p = pieces.find(att);
@@ -357,14 +357,14 @@ void PWVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void PositionVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    V.SetSize(vdim);
    T.Transform(ip, V);
 }
 
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    double x[3];
    Vector transip(x, 3);
@@ -421,7 +421,7 @@ VectorArrayCoefficient::~VectorArrayCoefficient()
 }
 
 void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip) const
 {
    V.SetSize(vdim);
    for (int i = 0; i < vdim; i++)
@@ -443,7 +443,7 @@ void VectorGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 }
 
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                         const IntegrationPoint &ip)
+                                         const IntegrationPoint &ip) const
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -459,7 +459,7 @@ void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void VectorGridFunctionCoefficient::Eval(
-   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
+   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir) const
 {
    if (T.mesh == GridFunc->FESpace()->GetMesh())
    {
@@ -471,7 +471,7 @@ void VectorGridFunctionCoefficient::Eval(
    }
 }
 
-void VectorGridFunctionCoefficient::Project(QuadratureFunction &qf)
+void VectorGridFunctionCoefficient::Project(QuadratureFunction &qf) const
 {
    qf.ProjectGridFunction(*GridFunc);
 }
@@ -491,7 +491,7 @@ void GradientGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 }
 
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                           const IntegrationPoint &ip)
+                                           const IntegrationPoint &ip) const
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -507,7 +507,7 @@ void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void GradientGridFunctionCoefficient::Eval(
-   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
+   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir) const
 {
    if (T.mesh == GridFunc->FESpace()->GetMesh())
    {
@@ -532,7 +532,7 @@ void CurlGridFunctionCoefficient::SetGridFunction(const GridFunction *gf)
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip) const
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -554,7 +554,7 @@ DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
 }
 
 double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                               const IntegrationPoint &ip)
+                                               const IntegrationPoint &ip) const
 {
    Mesh *gf_mesh = GridFunc->FESpace()->GetMesh();
    if (T.mesh->GetNE() == gf_mesh->GetNE())
@@ -582,10 +582,9 @@ void VectorDeltaCoefficient::SetDirection(const Vector &d_)
 }
 
 void VectorDeltaCoefficient::EvalDelta(
-   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   Vector &V, ElementTransformation &T, const IntegrationPoint &ip) const
 {
    V = dir;
-   d.SetTime(GetTime());
    V *= d.EvalDelta(T, ip);
 }
 
@@ -596,7 +595,7 @@ void VectorRestrictedCoefficient::SetTime(double t)
 }
 
 void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip) const
 {
    V.SetSize(vdim);
    if (active_attr[T.Attribute-1])
@@ -611,7 +610,7 @@ void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void VectorRestrictedCoefficient::Eval(
-   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
+   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir) const
 {
    if (active_attr[T.Attribute-1])
    {
@@ -625,7 +624,7 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
-void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
+void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose) const
 {
    MFEM_VERIFY(qf.GetVDim() == height*width, "Wrong sizes.");
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -697,7 +696,7 @@ void PWMatrixCoefficient::SetTime(double t)
 }
 
 void PWMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                               const IntegrationPoint &ip) const
 {
    const int att = T.Attribute;
    std::map<int, MatrixCoefficient*>::const_iterator p = pieces.find(att);
@@ -721,7 +720,7 @@ void MatrixFunctionCoefficient::SetTime(double t)
 }
 
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    double x[3];
    Vector transip(x, 3);
@@ -826,7 +825,7 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
 
 
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    mat.SetSize(height);
    Eval(mat, T, ip);
@@ -847,7 +846,7 @@ void SymmetricMatrixFunctionCoefficient::SetTime(double t)
 
 void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
                                               ElementTransformation &T,
-                                              const IntegrationPoint &ip)
+                                              const IntegrationPoint &ip) const
 {
    double x[3];
    Vector transip(x, 3);
@@ -912,7 +911,7 @@ MatrixArrayCoefficient::~MatrixArrayCoefficient ()
 }
 
 void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip) const
 {
    K.SetSize(height, width);
    for (int i = 0; i < height; i++)
@@ -931,7 +930,7 @@ void MatrixRestrictedCoefficient::SetTime(double t)
 }
 
 void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip) const
 {
    if (active_attr[T.Attribute-1])
    {
@@ -989,7 +988,7 @@ void InnerProductCoefficient::SetTime(double t)
 }
 
 double InnerProductCoefficient::Eval(ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
@@ -1013,7 +1012,7 @@ void VectorRotProductCoefficient::SetTime(double t)
 }
 
 double VectorRotProductCoefficient::Eval(ElementTransformation &T,
-                                         const IntegrationPoint &ip)
+                                         const IntegrationPoint &ip) const
 {
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
@@ -1035,7 +1034,7 @@ void DeterminantCoefficient::SetTime(double t)
 }
 
 double DeterminantCoefficient::Eval(ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+                                    const IntegrationPoint &ip) const
 {
    a->Eval(ma, T, ip);
    return ma.Det();
@@ -1092,7 +1091,7 @@ void VectorSumCoefficient::SetTime(double t)
 }
 
 void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                const IntegrationPoint &ip) const
 {
    V.SetSize(A.Size());
    if (    ACoef) { ACoef->Eval(A, T, ip); }
@@ -1122,7 +1121,7 @@ void ScalarVectorProductCoefficient::SetTime(double t)
 }
 
 void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                          const IntegrationPoint &ip)
+                                          const IntegrationPoint &ip) const
 {
    double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(V, T, ip);
@@ -1141,7 +1140,7 @@ void NormalizedVectorCoefficient::SetTime(double t)
 }
 
 void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+                                       const IntegrationPoint &ip) const
 {
    a->Eval(V, T, ip);
    double nv = V.Norml2();
@@ -1166,7 +1165,7 @@ void VectorCrossProductCoefficient::SetTime(double t)
 }
 
 void VectorCrossProductCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                         const IntegrationPoint &ip)
+                                         const IntegrationPoint &ip) const
 {
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
@@ -1194,7 +1193,7 @@ void MatrixVectorProductCoefficient::SetTime(double t)
 }
 
 void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                          const IntegrationPoint &ip)
+                                          const IntegrationPoint &ip) const
 {
    a->Eval(ma, T, ip);
    b->Eval(vb, T, ip);
@@ -1203,7 +1202,7 @@ void MatrixVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 void IdentityMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+                                     const IntegrationPoint &ip) const
 {
    M.SetSize(dim);
    M = 0.0;
@@ -1230,7 +1229,7 @@ void MatrixSumCoefficient::SetTime(double t)
 }
 
 void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                const IntegrationPoint &ip) const
 {
    b->Eval(M, T, ip);
    if ( beta != 1.0 ) { M *= beta; }
@@ -1251,7 +1250,7 @@ MatrixProductCoefficient::MatrixProductCoefficient(MatrixCoefficient &A,
 }
 
 void MatrixProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+                                    const IntegrationPoint &ip) const
 {
    a->Eval(ma, T, ip);
    b->Eval(mb, T, ip);
@@ -1279,7 +1278,7 @@ void ScalarMatrixProductCoefficient::SetTime(double t)
 
 void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
                                           ElementTransformation &T,
-                                          const IntegrationPoint &ip)
+                                          const IntegrationPoint &ip) const
 {
    double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(M, T, ip);
@@ -1298,7 +1297,7 @@ void TransposeMatrixCoefficient::SetTime(double t)
 
 void TransposeMatrixCoefficient::Eval(DenseMatrix &M,
                                       ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+                                      const IntegrationPoint &ip) const
 {
    a->Eval(M, T, ip);
    M.Transpose();
@@ -1320,7 +1319,7 @@ void InverseMatrixCoefficient::SetTime(double t)
 
 void InverseMatrixCoefficient::Eval(DenseMatrix &M,
                                     ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+                                    const IntegrationPoint &ip) const
 {
    a->Eval(M, T, ip);
    M.Invert();
@@ -1340,7 +1339,7 @@ void OuterProductCoefficient::SetTime(double t)
 }
 
 void OuterProductCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+                                   const IntegrationPoint &ip) const
 {
    a->Eval(va, T, ip);
    b->Eval(vb, T, ip);
@@ -1373,7 +1372,7 @@ void CrossCrossCoefficient::SetTime(double t)
 }
 
 void CrossCrossCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
-                                 const IntegrationPoint &ip)
+                                 const IntegrationPoint &ip) const
 {
    k->Eval(vk, T, ip);
    M.SetSize(vk.Size(), vk.Size());
@@ -1587,7 +1586,7 @@ void VectorQuadratureFunctionCoefficient::SetComponent(int index_, int length_)
 
 void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
-                                               const IntegrationPoint &ip)
+                                               const IntegrationPoint &ip) const
 {
    QuadF.HostRead();
 
@@ -1616,7 +1615,7 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
-void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf) const
 {
    qf = QuadF;
 }
@@ -1628,7 +1627,7 @@ QuadratureFunctionCoefficient::QuadratureFunctionCoefficient(
 }
 
 double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
-                                           const IntegrationPoint &ip)
+                                           const IntegrationPoint &ip) const
 {
    QuadF.HostRead();
    Vector temp(1);
@@ -1641,7 +1640,7 @@ double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    return temp[0];
 }
 
-void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
+void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf) const
 {
    qf = QuadF;
 }

@@ -13398,7 +13398,7 @@ NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int n_,
 }
 
 void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+                                  const IntegrationPoint &ip) const
 {
    V.SetSize(vdim);
    T.Transform(ip, tip);
