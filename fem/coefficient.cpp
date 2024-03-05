@@ -220,12 +220,12 @@ double TransformedCoefficient::Eval(ElementTransformation &T,
 {
    if (Q2)
    {
-      return Transform2(Q1->Eval(T, ip, GetTime()),
-                        Q2->Eval(T, ip, GetTime()));
+      return Transform2(Q1->Eval(T, ip),
+                        Q2->Eval(T, ip));
    }
    else
    {
-      return Transform1(Q1->Eval(T, ip, GetTime()));
+      return Transform1(Q1->Eval(T, ip));
    }
 }
 
@@ -253,7 +253,7 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
                                    const IntegrationPoint &ip) const
 {
    double w = Scale();
-   return weight ? weight->Eval(T, ip, GetTime())*w : w;
+   return weight ? weight->Eval(T, ip)*w : w;
 }
 
 void RestrictedCoefficient::SetTime(double t)
@@ -382,7 +382,7 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
    if (Q)
    {
-      V *= Q->Eval(T, ip, GetTime());
+      V *= Q->Eval(T, ip);
    }
 }
 
@@ -600,7 +600,6 @@ void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
    V.SetSize(vdim);
    if (active_attr[T.Attribute-1])
    {
-      c->SetTime(GetTime());
       c->Eval(V, T, ip);
    }
    else
@@ -614,7 +613,6 @@ void VectorRestrictedCoefficient::Eval(
 {
    if (active_attr[T.Attribute-1])
    {
-      c->SetTime(GetTime());
       c->Eval(M, T, ir);
    }
    else
@@ -770,7 +768,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 
    if (Q)
    {
-      K *= Q->Eval(T, ip, GetTime());
+      K *= Q->Eval(T, ip);
    }
 }
 
@@ -870,7 +868,7 @@ void SymmetricMatrixFunctionCoefficient::Eval(DenseSymmetricMatrix &K,
 
    if (Q)
    {
-      K *= Q->Eval(T, ip, GetTime());
+      K *= Q->Eval(T, ip);
    }
 }
 
@@ -934,7 +932,6 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
 {
    if (active_attr[T.Attribute-1])
    {
-      c->SetTime(GetTime());
       c->Eval(K, T, ip);
    }
    else
