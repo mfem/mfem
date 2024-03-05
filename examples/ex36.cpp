@@ -53,7 +53,7 @@ public:
                                     double min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
 };
 
 class ExponentialGridFunctionCoefficient : public Coefficient
@@ -69,7 +69,7 @@ public:
                                       double min_val_=0.0, double max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
 };
 
 int main(int argc, char *argv[])
@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
 }
 
 double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                              const IntegrationPoint &ip)
+                                              const IntegrationPoint &ip) const
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
@@ -390,7 +390,7 @@ double LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
 }
 
 double ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                                const IntegrationPoint &ip)
+                                                const IntegrationPoint &ip) const
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 

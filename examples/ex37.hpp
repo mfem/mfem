@@ -53,7 +53,7 @@ public:
 
 
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    {
       return fun(GridFunctionCoefficient::Eval(T, ip));
    }
@@ -84,7 +84,7 @@ public:
        fun(fun_) {}
 
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
+                       const IntegrationPoint &ip) const
    {
       const double value1 = fun(GridFunctionCoefficient::Eval(T, ip));
       const double value2 = fun(OtherGridF_cf.Eval(T, ip));
@@ -108,7 +108,7 @@ public:
       : rho_filter(rho_filter_), min_val(min_val_), max_val(max_val_),
         exponent(exponent_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       double val = rho_filter->GetValue(T, ip);
       double coeff = min_val + pow(val,exponent)*(max_val-min_val);
@@ -125,7 +125,7 @@ protected:
    Coefficient * mu=nullptr;
    GridFunction *u = nullptr; // displacement
    GridFunction *rho_filter = nullptr; // filter density
-   DenseMatrix grad; // auxiliary matrix, used in Eval
+   mutable DenseMatrix grad; // auxiliary matrix, used in Eval
    double exponent;
    double rho_min;
 
@@ -142,7 +142,7 @@ public:
       MFEM_ASSERT(rho_filter, "density field is not set");
    }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       double L = lambda->Eval(T, ip);
       double M = mu->Eval(T, ip);
@@ -177,7 +177,7 @@ public:
    using VectorCoefficient::Eval;
 
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector xx; xx.SetSize(T.GetDimension());
       T.Transform(ip,xx);

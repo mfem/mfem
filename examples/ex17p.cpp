@@ -60,7 +60,7 @@ protected:
    GridFunction *u; // displacement
    int si, sj; // component of the stress to evaluate, 0 <= si,sj < dim
 
-   DenseMatrix grad; // auxiliary matrix, used in Eval
+   mutable DenseMatrix grad; // auxiliary matrix, used in Eval
 
 public:
    StressCoefficient(Coefficient &lambda_, Coefficient &mu_)
@@ -69,7 +69,7 @@ public:
    void SetDisplacement(GridFunction &u_) { u = &u_; }
    void SetComponent(int i, int j) { si = i; sj = j; }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
 };
 
 // Simple GLVis visualization manager.
@@ -377,7 +377,7 @@ void InitDisplacement(const Vector &x, Vector &u)
 
 
 double StressCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+                               const IntegrationPoint &ip) const
 {
    MFEM_ASSERT(u != NULL, "displacement field is not set");
 
