@@ -1794,14 +1794,14 @@ private:
    VectorCoefficient * ACoef;
    VectorCoefficient * BCoef;
 
-   Vector A;
-   Vector B;
+   mutable Vector A;
+   mutable Vector B;
 
    Coefficient * alphaCoef;
    Coefficient * betaCoef;
 
-   double alpha;
-   double beta;
+   mutable double alpha;
+   mutable double beta;
 
    mutable Vector va;
 
