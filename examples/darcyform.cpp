@@ -608,8 +608,11 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
       const double *vals = Ct->GetRowEntries(row);
       for (int j = 0; j < c_dofs.Size() && col < ncols; j++)
       {
-         if (cols[col] != c_dofs[j]) { continue; }
+         const int cdof = (c_dofs[j]>=0)?(c_dofs[j]):(-1-c_dofs[j]);
+         if (cols[col] != cdof) { continue; }
          Ct_l(i,j) = vals[col++];
+         if(c_dofs[j] < 0)
+            Ct_l(i,j) *= -1.;
       }
    }
 }
