@@ -99,10 +99,6 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    Vector state1(num_equations);
    // state value at an integration point - second elem
    Vector state2(num_equations);
-   // flux dot n value at an integration point - first elem
-   Vector fluxN1(num_equations);
-   // flux dot n value at an integration point - second elem
-   Vector fluxN2(num_equations);
    // hat(F)(u,x)
    Vector fluxN(num_equations);
 #else
@@ -130,7 +126,7 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.SetAllIntPoints(&ip);  // setDegree face and element int. points
+      Tr.SetAllIntPoints(&ip); // set face and element int. points
 
       // Calculate basis functions on both elements at the face
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
@@ -159,18 +155,8 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
       max_char_speed = std::max(speed, max_char_speed);
 
       // pre-multiply integration weight to flux
-      fluxN *= ip.weight;
-      for (int k = 0; k < num_equations; k++)
-      {
-         for (int s = 0; s < dof1; s++)
-         {
-            elvect1_mat(s, k) -= fluxN(k) * shape1(s);
-         }
-         for (int s = 0; s < dof2; s++)
-         {
-            elvect2_mat(s, k) += fluxN(k) * shape2(s);
-         }
-      }
+      AddMult_a_VWt(-ip.weight, shape1, fluxN, elvect1_mat);
+      AddMult_a_VWt(+ip.weight, shape2, fluxN, elvect2_mat);
    }
 }
 
@@ -188,8 +174,6 @@ HyperbolicFormIntegrator::HyperbolicFormIntegrator(
    flux.SetSize(num_equations, fluxFunction.dim);
    state1.SetSize(num_equations);
    state2.SetSize(num_equations);
-   fluxN1.SetSize(num_equations);
-   fluxN2.SetSize(num_equations);
    fluxN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
 #endif
@@ -212,16 +196,13 @@ double RusanovFlux::Eval(const Vector &state1, const Vector &state2,
 {
 #ifdef MFEM_THREAD_SAFE
    Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
-#else
-   fluxN1.SetSize(fluxFunction.num_equations);
-   fluxN2.SetSize(fluxFunction.num_equations);
 #endif
    const double speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
    const double speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
    // NOTE: nor in general is not a unit normal
    const double maxE = std::max(speed1, speed2);
    // here, std::sqrt(nor*nor) is multiplied to match the scale with fluxN
-   const double scaledMaxE = maxE*sqrt(nor*nor);
+   const double scaledMaxE = maxE*std::sqrt(nor*nor);
    for (int i=0; i<state1.Size(); i++)
    {
       flux[i] = 0.5*(scaledMaxE*(state1[i] - state2[i]) + (fluxN1[i] + fluxN2[i]));
@@ -253,7 +234,6 @@ double ShallowWaterFlux::ComputeFlux(const Vector &U,
                                      ElementTransformation &Tr,
                                      DenseMatrix &FU) const
 {
-   const int dim = U.Size() - 1;
    const double height = U(0);
    const Vector h_vel(U.GetData() + 1, dim);
 
@@ -283,7 +263,6 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
                                          FaceElementTransformations &Tr,
                                          Vector &FUdotN) const
 {
-   const int dim = normal.Size();
    const double height = U(0);
    const Vector h_vel(U.GetData() + 1, dim);
 
@@ -298,7 +277,7 @@ double ShallowWaterFlux::ComputeFluxDotN(const Vector &U,
    }
 
    const double sound = std::sqrt(g * height);
-   const double vel = std::fabs(h_vel * normal / normal.Norml2()) / height;
+   const double vel = std::fabs(normal_vel) / std::sqrt(normal*normal);
 
    return vel + sound;
 }
@@ -308,15 +287,14 @@ double EulerFlux::ComputeFlux(const Vector &U,
                               ElementTransformation &Tr,
                               DenseMatrix &FU) const
 {
-   const int dim = U.Size() - 2;
-
    // 1. Get states
    const double density = U(0);                  // ρ
    const Vector momentum(U.GetData() + 1, dim);  // ρu
    const double energy = U(1 + dim);             // E, internal energy ρe
-   // pressure, p = (γ-1)*(ρu - ½ρ|u|²)
+   const double kinetic_energy = 0.5 * (momentum*momentum) / density;
+   // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const double pressure = (specific_heat_ratio - 1.0) *
-                           (energy - 0.5 * (momentum * momentum) / density);
+                           (energy - kinetic_energy);
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
@@ -348,7 +326,7 @@ double EulerFlux::ComputeFlux(const Vector &U,
    // sound speed, √(γ p / ρ)
    const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = std::sqrt(momentum * momentum) / density;
+   const double speed = std::sqrt(2.0 * kinetic_energy / density);
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }
@@ -359,15 +337,14 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
                                   FaceElementTransformations &Tr,
                                   Vector &FUdotN) const
 {
-   const int dim = normal.Size();
-
    // 1. Get states
    const double density = x(0);                  // ρ
    const Vector momentum(x.GetData() + 1, dim);  // ρu
    const double energy = x(1 + dim);             // E, internal energy ρe
+   const double kinetic_energy = 0.5 * (momentum*momentum) / density;
    // pressure, p = (γ-1)*(E - ½ρ|u|^2)
    const double pressure = (specific_heat_ratio - 1.0) *
-                           (energy - 0.5 * (momentum * momentum) / density);
+                           (energy - kinetic_energy);
 
    // Check whether the solution is physical only in debug mode
    MFEM_ASSERT(density >= 0, "Negative Density");
@@ -392,7 +369,7 @@ double EulerFlux::ComputeFluxDotN(const Vector &x,
    // sound speed, √(γ p / ρ)
    const double sound = std::sqrt(specific_heat_ratio * pressure / density);
    // fluid speed |u|
-   const double speed = std::fabs(momentum * normal / normal.Norml2()) / density;
+   const double speed = std::fabs(normal_velocity) / std::sqrt(normal*normal);
    // max characteristic speed = fluid speed + sound speed
    return speed + sound;
 }

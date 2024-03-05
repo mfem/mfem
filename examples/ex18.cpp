@@ -7,8 +7,8 @@
 //       ex18 -p 1 -r 2 -o 1 -s 3
 //       ex18 -p 1 -r 1 -o 3 -s 4
 //       ex18 -p 1 -r 0 -o 5 -s 6
-//       ex18 -p 2 -r 1 -o 1 -s 3
-//       ex18 -p 2 -r 0 -o 3 -s 3
+//       ex18 -p 2 -r 1 -o 1 -s 3 -mf
+//       ex18 -p 2 -r 0 -o 3 -s 3 -mf
 //
 // Description:  This example code solves the compressible Euler system of
 //               equations, a model nonlinear hyperbolic PDE, with a
@@ -37,6 +37,11 @@
 //               that wraps NonlinearFormIntegrators containing element and face
 //               integration schemes. In this case the system also involves an
 //               external approximate Riemann solver for the DG interface flux.
+//               By default, weak-divergence is pre-assembled in element-wise
+//               manner, which corresponds to (I_h(F(u_h)), ∇ v). This yields
+//               better performance and similar accuracy for the included test
+//               problems. This can be turned off and use nonlinear assembly
+//               similar to matrix-free assembly when -mf flag is provided.
 //               It also demonstrates how to use GLVis for in-situ visualization
 //               of vector grid function and how to set top-view.
 //
@@ -60,7 +65,7 @@ int main(int argc, char *argv[])
    const double gas_constant = 1.0;
 
    string mesh_file = "";
-   int IntOrderOffset = 3;
+   int IntOrderOffset = 1;
    int ref_levels = 1;
    int order = 3;
    int ode_solver_type = 4;
@@ -68,6 +73,7 @@ int main(int argc, char *argv[])
    double dt = -0.01;
    double cfl = 0.3;
    bool visualization = true;
+   bool preassembleWeakDiv = true;
    int vis_steps = 50;
 
    int precision = 8;
@@ -94,6 +100,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&preassembleWeakDiv, "-ea", "--element-assembly-divergence",
+                  "-mf", "--matrix-free-divergence",
+                  "Weak divergence assembly level\n"
+                  "    ea - Element assembly with interpolated F\n"
+                  "    mf - Nonlinear assembly in matrix-free manner");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.ParseCheck();
@@ -158,7 +169,7 @@ int main(int argc, char *argv[])
                                                         gas_constant);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
-
+   GridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
    // Output the initial solution.
    {
       ostringstream mesh_name;
@@ -184,7 +195,8 @@ int main(int argc, char *argv[])
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(
       vfes, std::unique_ptr<HyperbolicFormIntegrator>(
-         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)));
+         new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)),
+      preassembleWeakDiv);
 
    // Visualize the density
    socketstream sout;
@@ -203,7 +215,6 @@ int main(int argc, char *argv[])
       }
       else
       {
-         GridFunction mom(&dfes, sol.GetData());
          sout << "solution\n" << mesh << mom;
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light
@@ -263,7 +274,6 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
-            GridFunction mom(&dfes, sol.GetData());
             sout << "solution\n" << mesh << mom << flush;
             sout << "window_title 't = " << t << "'";
          }
