@@ -1398,12 +1398,16 @@ public:
    /// Reset the first term in the linear combination
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the first term in the linear combination
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the first term in the linear combination
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the second term in the linear combination
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the second term in the linear combination
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the second term in the linear combination
+   Coefficient * GetBCoef() { return b; }
 
    /// Reset the factor in front of the first term in the linear combination
    void SetAlpha(double alpha_) { alpha = alpha_; }
@@ -1430,7 +1434,7 @@ class SymmetricMatrixCoefficient : public MatrixCoefficient
 {
 protected:
    /// Internal matrix used when evaluating this coefficient as a DenseMatrix.
-   DenseSymmetricMatrix mat;
+   mutable DenseSymmetricMatrix mat;
 public:
    /// Construct a dim x dim matrix coefficient.
    explicit SymmetricMatrixCoefficient(int dimension)
@@ -1573,12 +1577,16 @@ public:
    /// Reset the first term in the product
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the first term in the product
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the first term in the product
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the second term in the product
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the second term in the product
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the second term in the product
+   Coefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -1626,12 +1634,16 @@ public:
    /// Reset the numerator in the ratio
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the numerator of the ratio
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the numerator of the ratio
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the denominator in the ratio
    void SetBCoef(Coefficient &B) { b = &B; }
    /// Return the denominator of the ratio
-   Coefficient * GetBCoef() const { return b; }
+   const Coefficient * GetBCoef() const { return b; }
+   /// Return the denominator of the ratio
+   Coefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
@@ -1662,8 +1674,9 @@ public:
    /// Reset the base coefficient
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the base coefficient
-   Coefficient * GetACoef() const { return a; }
-
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the base coefficient
+   Coefficient * GetACoef() { return a; }
    /// Reset the exponent
    void SetExponent(double p_) { p = p_; }
    /// Return the exponent
@@ -1695,13 +1708,17 @@ public:
    /// Reset the first vector in the inner product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the inner product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector coefficient in the inner product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the inner product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector coefficient in the inner product
-   VectorCoefficient * GetBCoef() const { return b; }
-
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector coefficient in the inner product
+   VectorCoefficient * GetBCoef() { return b; }
+   
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) const;
@@ -1727,12 +1744,16 @@ public:
    /// Reset the first vector in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector of the product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector of the product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector of the product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector of the product
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -1757,7 +1778,9 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Evaluate the determinant coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
@@ -1803,22 +1826,30 @@ public:
    /// Reset the first vector coefficient
    void SetACoef(VectorCoefficient &A_) { ACoef = &A_; }
    /// Return the first vector coefficient
-   VectorCoefficient * GetACoef() const { return ACoef; }
+   const VectorCoefficient * GetACoef() const { return ACoef; }
+   /// Return the first vector coefficient
+   VectorCoefficient * GetACoef() { return ACoef; }
 
    /// Reset the second vector coefficient
    void SetBCoef(VectorCoefficient &B_) { BCoef = &B_; }
    /// Return the second vector coefficient
-   VectorCoefficient * GetBCoef() const { return BCoef; }
+   const VectorCoefficient * GetBCoef() const { return BCoef; }
+   /// Return the second vector coefficient
+   VectorCoefficient * GetBCoef() { return BCoef; }
 
    /// Reset the factor in front of the first vector coefficient
    void SetAlphaCoef(Coefficient &A_) { alphaCoef = &A_; }
    /// Return the factor in front of the first vector coefficient
-   Coefficient * GetAlphaCoef() const { return alphaCoef; }
+   const Coefficient * GetAlphaCoef() const { return alphaCoef; }
+   /// Return the factor in front of the first vector coefficient
+   Coefficient * GetAlphaCoef() { return alphaCoef; }
 
    /// Reset the factor in front of the second vector coefficient
    void SetBetaCoef(Coefficient &B_) { betaCoef = &B_; }
    /// Return the factor in front of the second vector coefficient
-   Coefficient * GetBetaCoef() const { return betaCoef; }
+   const Coefficient * GetBetaCoef() const { return betaCoef; }
+   /// Return the factor in front of the second vector coefficient
+   Coefficient * GetBetaCoef() { return betaCoef; }
 
    /// Reset the first vector as a constant
    void SetA(const Vector &A_) { A = A_; ACoef = NULL; }
@@ -1872,12 +1903,16 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the vector factor
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the vector factor
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the vector factor
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -1908,7 +1943,9 @@ public:
    /// Reset the vector coefficient
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the vector coefficient
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -1936,12 +1973,16 @@ public:
    /// Reset the first term in the product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first term in the product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first term in the product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second term in the product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second term in the product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second term in the product
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -1970,12 +2011,16 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the vector coefficient
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the vector coefficient
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the vector coefficient
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the vector coefficient at @a ip.
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -2025,12 +2070,16 @@ public:
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the second matrix coefficient
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the second matrix coefficient
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() { return b; }
 
    /// Reset the factor in front of the first matrix coefficient
    void SetAlpha(double alpha_) { alpha = alpha_; }
@@ -2064,12 +2113,16 @@ public:
    /// Reset the first matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the first matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the first matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Reset the second matrix coefficient
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the second matrix coefficient
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the second matrix coefficient
+   MatrixCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -2103,12 +2156,16 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the matrix factor
    void SetBCoef(MatrixCoefficient &B) { b = &B; }
    /// Return the matrix factor
-   MatrixCoefficient * GetBCoef() const { return b; }
+   const MatrixCoefficient * GetBCoef() const { return b; }
+   /// Return the matrix factor
+   MatrixCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -2131,7 +2188,9 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -2154,7 +2213,9 @@ public:
    /// Reset the matrix coefficient
    void SetACoef(MatrixCoefficient &A) { a = &A; }
    /// Return the matrix coefficient
-   MatrixCoefficient * GetACoef() const { return a; }
+   const MatrixCoefficient * GetACoef() const { return a; }
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() { return a; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -2181,12 +2242,16 @@ public:
    /// Reset the first vector in the outer product
    void SetACoef(VectorCoefficient &A) { a = &A; }
    /// Return the first vector coefficient in the outer product
-   VectorCoefficient * GetACoef() const { return a; }
+   const VectorCoefficient * GetACoef() const { return a; }
+   /// Return the first vector coefficient in the outer product
+   VectorCoefficient * GetACoef() { return a; }
 
    /// Reset the second vector in the outer product
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    /// Return the second vector coefficient in the outer product
-   VectorCoefficient * GetBCoef() const { return b; }
+   const VectorCoefficient * GetBCoef() const { return b; }
+   /// Return the second vector coefficient in the outer product
+   VectorCoefficient * GetBCoef() { return b; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -2224,12 +2289,16 @@ public:
    /// Reset the scalar factor
    void SetACoef(Coefficient &A) { a = &A; }
    /// Return the scalar factor
-   Coefficient * GetACoef() const { return a; }
+   const Coefficient * GetACoef() const { return a; }
+   /// Return the scalar factor
+   Coefficient * GetACoef() { return a; }
 
    /// Reset the vector factor
    void SetKCoef(VectorCoefficient &K) { k = &K; }
    /// Return the vector factor
-   VectorCoefficient * GetKCoef() const { return k; }
+   const VectorCoefficient * GetKCoef() const { return k; }
+   /// Return the vector factor
+   VectorCoefficient * GetKCoef() { return k; }
 
    /// Evaluate the matrix coefficient at @a ip.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
