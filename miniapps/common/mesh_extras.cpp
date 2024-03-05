@@ -235,7 +235,7 @@ void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
 }
 
 void KershawTransformation::Eval(Vector &V, ElementTransformation &T,
-                                 const IntegrationPoint &ip)
+                                 const IntegrationPoint &ip) const
 {
    V = 0.0;
    Vector pos(dim);

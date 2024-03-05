@@ -47,7 +47,7 @@ public:
 
    virtual
    double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip)
+               const IntegrationPoint &ip) const
    {
       if (T.GetSpaceDim()==3)
       {

@@ -68,13 +68,13 @@ public:
    { }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) const;
 
    using VectorCoefficient::Eval;
 };
 
 void ReflectedCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                const IntegrationPoint &ip)
+                                const IntegrationPoint &ip) const
 {
    double x[3];
    Vector transip(x, 3);

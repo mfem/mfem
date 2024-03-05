@@ -33,7 +33,7 @@ public:
    ShiftedFunctionCoefficient(double constant_)
       : constant(constant_), constantcoefficient(true) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       if (constantcoefficient) { return constant; }
 
@@ -45,7 +45,7 @@ public:
    /// Evaluate the coefficient at @a ip + @a D.
    double Eval(ElementTransformation &T,
                const IntegrationPoint &ip,
-               const Vector &D);
+               const Vector &D) const;
 };
 
 class ShiftedVectorFunctionCoefficient : public VectorCoefficient
@@ -60,7 +60,7 @@ public:
 
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
+                     const IntegrationPoint &ip) const
    {
       Vector D(vdim);
       D = 0.;
@@ -71,7 +71,7 @@ public:
    void Eval(Vector &V,
              ElementTransformation &T,
              const IntegrationPoint &ip,
-             const Vector &D);
+             const Vector &D) const;
 };
 
 /// BilinearFormIntegrator for the high-order extension of shifted boundary

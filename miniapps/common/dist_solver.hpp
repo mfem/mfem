@@ -90,7 +90,7 @@ private:
 
    public:
       NormalizationCoeff(ParGridFunction &u_gf) : u(u_gf) { }
-      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+      virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const;
    };
 
 public:
@@ -132,7 +132,7 @@ public:
 
    using VectorCoefficient::Eval;
 
-   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) const
    {
       T.SetIntPoint(&ip);
 
@@ -153,7 +153,7 @@ public:
    PProductCoefficient(Coefficient& basec_, Coefficient& corrc_)
       : basef(basec_), corrf(corrc_) { }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
    {
       T.SetIntPoint(&ip);
       double u = basef.Eval(T,ip);
