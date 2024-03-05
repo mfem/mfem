@@ -1924,9 +1924,9 @@ void GridFunction::GetNodalValues(Vector &nval, int vdim) const
    Array<real_t> values;
    Array<int> overlap(fes->GetNV());
    nval.SetSize(fes->GetNV());
-
    nval = 0.0;
    overlap = 0;
+   nval.HostReadWrite();
    for (i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVertices(i, vertices);
