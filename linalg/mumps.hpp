@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,22 +34,35 @@ namespace mfem
 class MUMPSSolver : public Solver
 {
 public:
+   /// Specify the type of matrix we are applying the solver to
    enum MatType
    {
+      /// General sparse matrix, no symmetry is assumed
       UNSYMMETRIC = 0,
+      /// A sparse symmetric positive definite matrix
       SYMMETRIC_POSITIVE_DEFINITE = 1,
+      /// A sparse symmetric matrix that is not necessarily positive definite
       SYMMETRIC_INDEFINITE = 2
    };
 
+   /// Specify the reordering strategy for the MUMPS solver
    enum ReorderingStrategy
    {
+      /// Let MUMPS automatically decide the reording strategy
       AUTOMATIC = 0,
+      /// Approximate Minimum Degree with auto quasi-dense row detection is used
       AMD,
+      /// Approximate Minimum Fill method will be used
       AMF,
+      /// The PORD library will be used
       PORD,
+      /// The METIS library will be used
       METIS,
+      /// The ParMETIS library will be used
       PARMETIS,
+      /// The Scotch library will be used
       SCOTCH,
+      /// The PTScotch library will be used
       PTSCOTCH
    };
 
@@ -73,28 +86,49 @@ public:
    void SetOperator(const Operator &op);
 
    /**
-    * @brief Solve y = Op^{-1} x.
+    * @brief Solve $ y = Op^{-1} x $
     *
     * @param x RHS vector
     * @param y Solution vector
     */
    void Mult(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Solve $ Y_i = Op^{-T} X_i $
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
 
    /**
-    * @brief Transpose Solve y = Op^{-T} x.
+    * @brief Transpose Solve $ y = Op^{-T} x $
     *
     * @param x RHS vector
     * @param y Solution vector
     */
    void MultTranspose(const Vector &x, Vector &y) const;
+
+   /**
+    * @brief Transpose Solve $ Y_i = Op^{-T} X_i $
+    *
+    * @param X Array of RHS vectors
+    * @param Y Array of Solution vectors
+    */
    void ArrayMultTranspose(const Array<const Vector *> &X,
                            Array<Vector *> &Y) const;
 
    /**
     * @brief Set the error print level for MUMPS
     *
-    * @param print_lvl Print level
+    * Supported values are:
+    * - 0:  No output printed
+    * - 1:  Only errors printed
+    * - 2:  Errors, warnings, and main stats printed
+    * - 3:  Errors, warning, main stats, and terse diagnostics printed
+    * - 4:  Errors, warning, main stats, diagnostics, and input/output printed
+    *
+    * @param print_lvl Print level, default is 2
     *
     * @note This method has to be called before SetOperator
     */
@@ -103,8 +137,9 @@ public:
    /**
     * @brief Set the matrix type
     *
-    * Supported matrix types: General, symmetric indefinite and
-    * symmetric positive definite
+    * Supported matrix types: MUMPSSolver::UNSYMMETRIC,
+    * MUMPSSolver::SYMMETRIC_POSITIVE_DEFINITE,
+    * and MUMPSSolver::SYMMETRIC_INDEFINITE
     *
     * @param mtype Matrix type
     *
@@ -115,8 +150,10 @@ public:
    /**
     * @brief Set the reordering strategy
     *
-    * Supported reorderings are: AUTOMATIC, AMD, AMF, PORD, METIS, PARMETIS,
-    * SCOTCH, and PTSCOTCH
+    * Supported reorderings are: MUMPSSolver::AUTOMATIC,
+    * MUMPSSolver::AMD, MUMPSSolver::AMF, MUMPSSolver::PORD,
+    * MUMPSSolver::METIS, MUMPSSolver::PARMETIS,
+    * MUMPSSolver::SCOTCH, and MUMPSSolver::PTSCOTCH
     *
     * @param method Reordering method
     *
@@ -183,14 +220,14 @@ private:
    // MUMPS object
    DMUMPS_STRUC_C *id;
 
-   // Method for initialization
+   /// Method for initialization
    void Init(MPI_Comm comm_);
 
-   // Method for setting MUMPS internal parameters
+   /// Method for setting MUMPS internal parameters
    void SetParameters();
 
-   // Method for configuring storage for distributed/centralized RHS and
-   // solution
+   /// Method for configuring storage for distributed/centralized RHS and
+   /// solution
    void InitRhsSol(int nrhs) const;
 
 #if MFEM_MUMPS_VERSION >= 530

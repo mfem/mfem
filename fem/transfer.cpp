@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1420,14 +1420,20 @@ void Prolongation2D(const int NE, const int D1D, const int Q1D,
                     const Array<double>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, NE);
-   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, NE);
+   auto y_ = Reshape(localH.Write(), Q1D, Q1D, NE);
    auto B_ = Reshape(B.Read(), Q1D, D1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
 
-   localH = 0.0;
-
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            y_(qx, qy, e) = 0.0;
+         }
+      }
+
       for (int dy = 0; dy < D1D; ++dy)
       {
          double sol_x[DofQuadLimits::MAX_Q1D];
@@ -1467,14 +1473,23 @@ void Prolongation3D(const int NE, const int D1D, const int Q1D,
                     const Array<double>& B, const Vector& mask)
 {
    auto x_ = Reshape(localL.Read(), D1D, D1D, D1D, NE);
-   auto y_ = Reshape(localH.ReadWrite(), Q1D, Q1D, Q1D, NE);
+   auto y_ = Reshape(localH.Write(), Q1D, Q1D, Q1D, NE);
    auto B_ = Reshape(B.Read(), Q1D, D1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
-   localH = 0.0;
-
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               y_(qx, qy, qz, e) = 0.0;
+            }
+         }
+      }
+
       for (int dz = 0; dz < D1D; ++dz)
       {
          double sol_xy[DofQuadLimits::MAX_Q1D][DofQuadLimits::MAX_Q1D];
@@ -1539,14 +1554,20 @@ void Restriction2D(const int NE, const int D1D, const int Q1D,
                    const Array<double>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, NE);
-   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, NE);
+   auto y_ = Reshape(localL.Write(), D1D, D1D, NE);
    auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, NE);
 
-   localL = 0.0;
-
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            y_(dx, dy, e) = 0.0;
+         }
+      }
+
       for (int qy = 0; qy < Q1D; ++qy)
       {
          double sol_x[DofQuadLimits::MAX_D1D];
@@ -1578,14 +1599,23 @@ void Restriction3D(const int NE, const int D1D, const int Q1D,
                    const Array<double>& Bt, const Vector& mask)
 {
    auto x_ = Reshape(localH.Read(), Q1D, Q1D, Q1D, NE);
-   auto y_ = Reshape(localL.ReadWrite(), D1D, D1D, D1D, NE);
+   auto y_ = Reshape(localL.Write(), D1D, D1D, D1D, NE);
    auto Bt_ = Reshape(Bt.Read(), D1D, Q1D);
    auto m_ = Reshape(mask.Read(), Q1D, Q1D, Q1D, NE);
 
-   localL = 0.0;
-
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               y_(dx, dy, dz, e) = 0.0;
+            }
+         }
+      }
+
       for (int qz = 0; qz < Q1D; ++qz)
       {
          double sol_xy[DofQuadLimits::MAX_D1D][DofQuadLimits::MAX_D1D];

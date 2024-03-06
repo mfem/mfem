@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -121,6 +121,9 @@ public:
          default: MFEM_ABORT("Invalid dimension."); return INVALID;
       }
    }
+
+   /// Return the inverse of the given orientation for the specified geometry type.
+   static int GetInverseOrientation(Type geom_type, int orientation);
 
    /// Return the number of boundary "faces" of a given Geometry::Type.
    int NumBdr(int GeomType) const { return NumBdrArray[GeomType]; }

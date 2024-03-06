@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4548,7 +4548,15 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement()
+void ParMesh::NURBSUniformRefinement(int rf, double tol)
+{
+   if (MyRank == 0)
+   {
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+   }
+}
+
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, double tol)
 {
    if (MyRank == 0)
    {
@@ -4822,7 +4830,7 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
 
    // optional
    os <<
-      "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+      "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
       "# POINT       = 0\n"
       "# SEGMENT     = 1\n"
       "# TRIANGLE    = 2\n"
@@ -4933,7 +4941,7 @@ void ParMesh::PrintAsOne(std::ostream &os, const std::string &comments) const
 
       // optional
       os <<
-         "\n#\n# MFEM Geometry Types (see mesh/geom.hpp):\n#\n"
+         "\n#\n# MFEM Geometry Types (see fem/geom.hpp):\n#\n"
          "# POINT       = 0\n"
          "# SEGMENT     = 1\n"
          "# TRIANGLE    = 2\n"
