@@ -3014,7 +3014,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (ReduceInt(NumOfBdrElements) == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3056,7 +3056,7 @@ void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
 
-   if (ReduceInt(NumOfBdrElements) == 0)
+   if (!HasBoundaryElements())
    {
       GetElementToFaceTable();
       GenerateFaces();
@@ -3093,7 +3093,7 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    GetElementToFaceTable();
    GenerateFaces();
 
-   if (ReduceInt(NumOfBdrElements) == 0)
+   if (!HasBoundaryElements())
    {
       GenerateBoundaryElements();
    }
@@ -3166,7 +3166,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    {
       GetElementToFaceTable();
       GenerateFaces();
-      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          GenerateBoundaryElements();
          GetElementToFaceTable(); // update be_to_face
@@ -3186,7 +3186,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
       if (Dim == 2)
       {
          GenerateFaces(); // 'Faces' in 2D refers to the edges
-         if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+         if (!HasBoundaryElements() && generate_bdr)
          {
             GenerateBoundaryElements();
          }
@@ -3200,7 +3200,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (ReduceInt(NumOfBdrElements) == 0 && generate_bdr)
+      if (!HasBoundaryElements() == 0 && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
