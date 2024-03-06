@@ -3200,7 +3200,7 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    if (Dim == 1)
    {
       GenerateFaces();
-      if (!HasBoundaryElements() == 0 && generate_bdr)
+      if (!HasBoundaryElements() && generate_bdr)
       {
          // be_to_face will be set inside GenerateBoundaryElements
          GenerateBoundaryElements();
