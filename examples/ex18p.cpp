@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
       {
          sout << "parallel " << numProcs << " " << myRank << "\n";
          sout.precision(precision);
+         // Plot magnitude of vector-valued momentum
          sout << "solution\n" << pmesh << mom;
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light

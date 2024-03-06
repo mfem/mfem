@@ -215,7 +215,8 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout << "solution\n" << mesh << mom; // Plot magnitude for vector-valued momentum
+         // Plot magnitude of vector-valued momentum
+         sout << "solution\n" << mesh << mom; 
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light
          sout << "pause\n";
