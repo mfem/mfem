@@ -341,7 +341,6 @@ void ParInteriorPointSolver::FormIPNewtonMat(BlockVector & x, Vector & l, Vector
       HypreStealOwnership(*Wmm,*Ds);
       delete Ds;
    }
-
    delete JuT;
    delete JmT;
    Ju = problem->Duc(x); JuT = Ju->Transpose();
@@ -437,7 +436,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 
       delete Ah;
    }
-   else if(linSolver == 1 || linSolver == 2)
+   else if(linSolver == 1 || linSolver == 2 || linSolver == 3 || linSolver == 4 )
    {
       // form A = Huu + Ju^T D Ju, Wmm = D for contact
       HypreParMatrix * Wmmloc = dynamic_cast<HypreParMatrix *>(&(A.GetBlock(1, 1)));
@@ -477,7 +476,7 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
 #endif
 #endif
       }
-      else
+      else if (linSolver == 2)
       {
          HypreBoomerAMG amg;
          amg.SetPrintLevel(0);
@@ -593,10 +592,128 @@ void ParInteriorPointSolver::IPNewtonSolve(BlockVector &x, Vector &l, Vector &zl
          // AreducedSolver.GetNumIterations(n);
 
          cgnum_iterations.Append(n);
+      }
+      else // if linsolver == 3
+      {
+         // Extract interior and contact dofs
+         HypreParMatrix * Pi = problem->GetRestrictionToInteriorDofs();
+         HypreParMatrix * Pb = problem->GetRestrictionToContactDofs();
+
+         HypreParMatrix * PitAPi = RAP(Areduced, Pi);
+         HypreParMatrix * PbtAPb = RAP(Areduced, Pb);
+         HypreParMatrix * PitAPb = RAP(Pi,Areduced,Pb);
+         HypreParMatrix * PbtAPi = RAP(Pb,Areduced,Pi);
+
+         Vector Xi(PitAPi->Height()); Pi->MultTranspose(Xhat.GetBlock(0),Xi); 
+         Vector Xb(PbtAPb->Height()); Pb->MultTranspose(Xhat.GetBlock(0),Xb); 
+         Vector bi(PitAPi->Height()); Pi->MultTranspose(breduced,bi); 
+         Vector bb(PbtAPb->Height()); Pb->MultTranspose(breduced,bb); 
+         Vector Xib, Bib;
+         if (linSolver == 3)
+         {
+            Array<int> blkoffs(3);
+            blkoffs[0] = 0;
+            blkoffs[1] = Xi.Size();
+            blkoffs[2] = Xb.Size();
+            blkoffs.PartialSum();
+
+            BlockOperator blkA(blkoffs);
+            blkA.SetBlock(0,0, PitAPi);
+            blkA.SetBlock(0,1, PitAPb);
+            blkA.SetBlock(1,0, PbtAPi);
+            blkA.SetBlock(1,1, PbtAPb);
+
+            Xib.SetSize(blkoffs.Last());
+            Bib.SetSize(blkoffs.Last());
+
+            Xib.SetVector(Xi,0);
+            Xib.SetVector(Xb,blkoffs[1]);
+
+            Bib.SetVector(bi,0);
+            Bib.SetVector(bb,blkoffs[1]);
+
+            HypreBoomerAMG amg_i(*PitAPi);
+            amg_i.SetPrintLevel(0);
+            amg_i.SetSystemsOptions(3,false);
+            amg_i.SetRelaxType(relax_type);
+         
+            MUMPSSolver mumps_b(MPI_COMM_WORLD);
+            mumps_b.SetPrintLevel(0);
+            mumps_b.SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+            mumps_b.SetOperator(*PbtAPb);
+
+            BlockDiagonalPreconditioner prec(blkoffs);
+            prec.SetDiagonalBlock(0,&amg_i);
+            prec.SetDiagonalBlock(1,&mumps_b);
+
+            CGSolver BlockSolver(MPI_COMM_WORLD);
+            BlockSolver.SetRelTol(linSolveRelTol);
+            BlockSolver.SetMaxIter(5000);
+            BlockSolver.SetPrintLevel(3);
+            BlockSolver.SetOperator(blkA);
+            BlockSolver.SetPreconditioner(prec);
+            BlockSolver.Mult(Bib, Xib);
+            int m = BlockSolver.GetNumIterations();
+            cgnum_iterations.Append(m);
+            
+            Xi.MakeRef(Xib,0);
+            Xb.MakeRef(Xib,blkoffs[1]);
+
+            Vector PiX(Xhat.GetBlock(0).Size());
+            Vector PbX(Xhat.GetBlock(0).Size());
+            Xhat.GetBlock(0) = 0.0;
+            Pi->Mult(Xi,PiX);
+            Pb->Mult(Xb,PbX);
+            // recover original ordering for the solution;
+            Xhat.GetBlock(0) += PiX;
+            Xhat.GetBlock(0) += PbX;
+         }
+         else
+         {
+            MUMPSSolver * mumps_b = new MUMPSSolver(MPI_COMM_WORLD);
+            mumps_b->SetPrintLevel(0);
+            mumps_b->SetMatrixSymType(MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
+            mumps_b->SetOperator(*PbtAPb);
+            // (Aᵢᵢ - Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ) xᵢ = bᵢ - Aᵢⱼ A⁻¹ⱼⱼ bⱼ
+            TripleProductOperator * S = new TripleProductOperator(PitAPb, mumps_b, PbtAPi,true,true,true); // Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ
+            SumOperator SumOp(PitAPi,1.0,S,-1.0,true,true); // Aᵢᵢ - Aᵢⱼ A⁻¹ⱼⱼ Aⱼᵢ
+
+            Vector Yj(bb.Size()); mumps_b->Mult(bb,Yj); // A⁻¹ⱼⱼ bⱼ
+            Vector Yi(bi.Size()); PitAPb->Mult(Yj,Yi); //Aᵢⱼ A⁻¹ⱼⱼ bⱼ
+            bi -= Yi; // bᵢ - Aᵢⱼ A⁻¹ⱼⱼ bⱼ
+
+            HypreBoomerAMG amg_i(*PitAPi);
+            amg_i.SetPrintLevel(0);
+            amg_i.SetSystemsOptions(3,false);
+            amg_i.SetRelaxType(relax_type);
+
+            CGSolver solver(MPI_COMM_WORLD);
+            solver.SetRelTol(linSolveRelTol);
+            solver.SetMaxIter(5000);
+            solver.SetPrintLevel(3);
+            solver.SetOperator(SumOp);
+            solver.SetPreconditioner(amg_i);
+            solver.Mult(bi, Xi);
+            int m = solver.GetNumIterations();
+            cgnum_iterations.Append(m);
+
+            Vector Yb(bb.Size());
+            PbtAPi->Mult(Xi,Yb);
+            bb -= Yb;
+            mumps_b->Mult(bb,Xb);
+
+            Vector PiX(Xhat.GetBlock(0).Size());
+            Vector PbX(Xhat.GetBlock(0).Size());
+            Xhat.GetBlock(0) = 0.0;
+            Pi->Mult(Xi,PiX);
+            Pb->Mult(Xb,PbX);
+            // recover original ordering for the solution;
+            Xhat.GetBlock(0) += PiX;
+            Xhat.GetBlock(0) += PbX;
+         }
 
 
       }
-
       // now propagate solved uhat to obtain mhat and lhat
       // xm = Ju xu - bl
       Juloc->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));

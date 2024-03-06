@@ -7,7 +7,7 @@ private:
    MPI_Comm comm;
    bool formsystem = false;
    ParMesh * pmesh = nullptr;
-   Array<int> ess_bdr_attr;
+   Array<int> ess_bdr_attr, ess_bdr_attr_comp;
    int order;
    int ndofs;
    int ntdofs;
@@ -25,8 +25,10 @@ private:
    void Init();
    bool own_mesh;
 public:
-   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, Array<int> & ess_bdr_attr_, int order_ = 1 ) 
-   : comm(comm_), ess_bdr_attr(ess_bdr_attr_), order(order_)
+   ParElasticityProblem(MPI_Comm comm_, const char *mesh_file , int sref, int pref, 
+                        Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_, 
+                        int order_ = 1 ) 
+   : comm(comm_), ess_bdr_attr(ess_bdr_attr_),ess_bdr_attr_comp(ess_bdr_attr_comp_), order(order_)
    {
       own_mesh = true;
       Mesh * mesh = new Mesh(mesh_file,1,1);
@@ -44,8 +46,8 @@ public:
       Init();
    }
 
-   ParElasticityProblem(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, int order_ = 1) 
-   :  pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), order(order_)
+   ParElasticityProblem(ParMesh * pmesh_, Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,  int order_ = 1) 
+   :  pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_), ess_bdr_attr_comp(ess_bdr_attr_comp_), order(order_)
    {
       own_mesh = false;
       comm = pmesh->GetComm();
@@ -367,6 +369,8 @@ protected:
    int gnpoints=0;
    int nv, gnv;
    HypreParMatrix * K = nullptr;
+   HypreParMatrix * Pi = nullptr;
+   HypreParMatrix * Pb = nullptr;
    Vector *B = nullptr;
    Vector gapv;
    HypreParMatrix * M=nullptr;
@@ -423,6 +427,9 @@ public:
    HypreParMatrix* Ddg(const Vector &d);
    HypreParMatrix* lDddg(const Vector &d, const Vector &l);
 
+   HypreParMatrix * GetRestrictionToInteriorDofs() {return Pi;}
+   HypreParMatrix * GetRestrictionToContactDofs() {return Pb;}
+
    ~ParContactProblemSingleMesh()
    {
       delete B;
@@ -463,6 +470,10 @@ public:
    HypreParMatrix * Duc(const BlockVector &);
    HypreParMatrix * Dmc(const BlockVector &);
    HypreParMatrix * lDuuc(const BlockVector &, const Vector &);
+
+   HypreParMatrix * GetRestrictionToInteriorDofs() {return problem->GetRestrictionToInteriorDofs();}
+   HypreParMatrix * GetRestrictionToContactDofs() {return problem->GetRestrictionToContactDofs();}
+
    void c(const BlockVector &, Vector &);
    double CalcObjective(const BlockVector &);
    void CalcObjectiveGrad(const BlockVector &, BlockVector &);

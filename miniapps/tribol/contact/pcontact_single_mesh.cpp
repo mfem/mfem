@@ -12,7 +12,6 @@
 using namespace std;
 using namespace mfem;
 
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -21,7 +20,10 @@ int main(int argc, char *argv[])
    Hypre::Init();
    // 1. Parse command-line options.
    // const char *mesh_file = "meshes/merged.mesh";
-   const char *mesh_file = "meshes/merged_new.mesh";
+   // const char *mesh_file = "meshes/merged_new.mesh";
+   // const char *mesh_file = "meshes/newmesh1.mesh";
+   // const char *mesh_file = "meshes/iron.mesh";
+   const char *mesh_file = "meshes/iron-extended.mesh";
    int order = 1;
    int sref = 0;
    int pref = 0;
@@ -29,11 +31,11 @@ int main(int argc, char *argv[])
    Array<int> m_attr;
    bool visualization = true;
    bool paraview = false;
-   double linsolverrtol = 1e-6;
+   double linsolverrtol = 1e-10;
    double linsolveratol = 1e-12;
    int relax_type = 8;
    double optimizer_tol = 1e-6;
-   int optimizer_maxit = 10;
+   int optimizer_maxit = 20;
    bool enable_tribol = false;
    int linsolver = 2; // PCG  - AMG
    bool elast = false;
@@ -117,14 +119,76 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
 
    Array<int> ess_bdr_attr;
-   ess_bdr_attr.Append(2);
-   ess_bdr_attr.Append(6);
-   ParElasticityProblem * prob = new ParElasticityProblem(pmesh,ess_bdr_attr,
-                                                          order);
+   Array<int> ess_bdr_attr_comp;
 
-   Vector lambda(prob->GetMesh()->attributes.Max()); lambda = 57.6923076923;
-   Vector mu(prob->GetMesh()->attributes.Max()); mu = 38.4615384615;
+   bool ironing_problem = false;
+   if (ironing_problem)
+   {
+      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
+      ess_bdr_attr.Append(3); ess_bdr_attr_comp.Append(0);
+      ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(1);
+      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
+   }
+   else
+   {
+      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
+      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
+   }
+   ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
+                                                          ess_bdr_attr,ess_bdr_attr_comp,
+                                                          order);
+   Vector lambda(prob->GetMesh()->attributes.Max());
+   lambda[1] = 0.0;
+   lambda[0] = 0.499/(1.499*0.002);
+
+   Vector mu(prob->GetMesh()->attributes.Max());
+   mu[1] = 500;
+   mu[0] = 1./(2*1.499);
    prob->SetLambda(lambda); prob->SetMu(mu);
+
+   int dim = pmesh->Dimension();
+   Vector ess_values(dim);
+   // Dirichlet BCs attributes
+   // boundary attributes:
+   // 2. bottom plane of bottom body
+   // 3. top plane of bottom body
+   // 4. bottom surface of top body
+   // 6. top surface of top body
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+   int essbdr_attr;
+   if (ironing_problem)
+   {
+      // bottom body - bottom plane
+      essbdr_attr = 2;
+      ess_values = 0.0; ess_values[2] = -1.0;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      // bottom body - top plane
+      essbdr_attr = 3;
+      ess_values = 0.0; ess_values[0] = -1.0;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      // top body - bottom surface
+      essbdr_attr = 4;
+      ess_values = 0.0;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      // top body - top surface
+      essbdr_attr = 6;
+      ess_values = 0.0;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+   }
+   else
+   {
+      essbdr_attr = 2;
+      ess_values = 0.0; ess_values[2] = 0.7;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      essbdr_attr = 6;
+      ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+   }
 
    ParContactProblemSingleMesh contact(prob, enable_tribol);
    QPOptParContactProblemSingleMesh qpopt(&contact);
@@ -162,7 +226,7 @@ int main(int argc, char *argv[])
       mfem::out << " Global number of constraints    = " << numconstr << endl;
       mfem::out << " Optimizer number of iterations  = " <<
                 optimizer.GetNumIterations() << endl;
-      if (linsolver == 2)
+      if (linsolver == 2 || linsolver == 3 || linsolver == 4)
       {
          mfem::out << " CG iteration numbers            = " ;
          CGiterations.Print(mfem::out, CGiterations.Size());
