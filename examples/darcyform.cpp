@@ -481,27 +481,47 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 
 void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
-   const int s = Af_f_offsets[el+1] - Af_f_offsets[el];
-   DenseMatrix A_i(Af_data + Af_offsets[el], s, s);
+   const int o = hat_offsets[el];
+   const int s = hat_offsets[el+1] - o;
+   double *Af_el_data = Af_data + Af_offsets[el];
 
-   A_i = A;
+   for (int j = 0; j < s; j++)
+   {
+      if (hat_dofs_marker[o + j] == 1) { continue; }
+      for (int i = 0; i < s; i++)
+      {
+         if (hat_dofs_marker[o + i] == 1) { continue; }
+         *(Af_el_data++) = A(i, j);
+      }
+   }
+   MFEM_ASSERT(Af_el_data == Af_data + Af_offsets[el+1], "Internal error");
 }
 
 void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 {
    const int s = Df_f_offsets[el+1] - Df_f_offsets[el];
    DenseMatrix D_i(Df_data + Df_offsets[el], s, s);
+   MFEM_ASSERT(D.Size() == s, "Incompatible sizes");
 
    D_i = D;
 }
 
 void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 {
-   const int w = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int o = hat_offsets[el];
+   const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
-   DenseMatrix B_i(Bf_data + Bf_offsets[el], h, w);
+   double *Bf_el_data = Bf_data + Bf_offsets[el];
 
-   B_i = B;
+   for (int j = 0; j < w; j++)
+   {
+      if (hat_dofs_marker[o + j] == 1) { continue; }
+      for (int i = 0; i < h; i++)
+      {
+         *(Bf_el_data++) = B(i, j);
+      }
+   }
+   MFEM_ASSERT(Bf_el_data == Bf_data + Bf_offsets[el+1], "Internal error");
 }
 
 void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
@@ -527,6 +547,24 @@ void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
    }
 
    c_bfi_p->AssembleFaceMatrix(*fe1, *fe2, *ftr, elmat);
+}
+
+void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
+{
+   const int o = hat_offsets[el];
+   const int s = hat_offsets[el+1] - o;
+   Array<int> vdofs;
+   fes->GetElementVDofs(el, vdofs);
+   MFEM_ASSERT(vdofs.Size() == s, "Incompatible DOF sizes");
+   fdofs.DeleteAll();
+   fdofs.Reserve(s);
+   for (int i = 0; i < s; i++)
+   {
+      if (hat_dofs_marker[i + o] != 1)
+      {
+         fdofs.Append(vdofs[i]);
+      }
+   }
 }
 
 void DarcyHybridization::ComputeH()
@@ -626,7 +664,7 @@ void DarcyHybridization::ComputeH()
    Hb->Finalize();
    H = RAP(*Ct, *Hb, *Ct);
    delete Hb;
-#endif //!MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCYFORM_CT_BLOCK
 }
 
 void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
@@ -634,13 +672,13 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
 {
    const int hat_o = hat_offsets[el  ];
    const int hat_s = hat_offsets[el+1] - hat_o;
-   MFEM_ASSERT(hat_s == Af_f_offsets[el+1] - Af_f_offsets[el], "");
    c_fes->GetElementDofs(el, c_dofs);
-   Ct_l.SetSize(hat_s, c_dofs.Size());
+   Ct_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el], c_dofs.Size());
    Ct_l = 0.;
    for (int i = 0; i < hat_s; i++)
    {
       const int row = hat_o + i;
+      if (hat_dofs_marker[row] == 1) { continue; }
       int col = 0;
       const int ncols = Ct->RowSize(row);
       const int *cols = Ct->GetRowColumns(row);
@@ -667,6 +705,9 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   MFEM_ASSERT(bu.Size() == a_dofs_size /*&& bp.Size() == d_dofs_size*/,
+               "Incompatible sizes");
 
    // Load LU decomposition of A and Schur complement
 
@@ -705,7 +746,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    Vector b_rl;
    Array<int> c_dofs;
 #else //MFEM_DARCYFORM_CT_BLOCK
-   BlockVector hat_u(Af_f_offsets);
+   Vector hat_u(hat_offsets.Last());
 #endif //MFEM_DARCYFORM_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs;
@@ -722,7 +763,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    {
       // Load RHS
 
-      fes->GetElementVDofs(el, u_vdofs);
+      GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
       //C (-A^-1 bu + A^-1 B^T S^-1 B A^-1 bu)
@@ -737,7 +778,12 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       b_r.AddElementVector(c_dofs, b_rl);
 #else //MFEM_DARCYFORM_CT_BLOCK
-      hat_u.GetBlock(el) = u_l;
+      int i = 0;
+      for (int dof = hat_offsets[el]; dof < hat_offsets[el+1]; dof++)
+      {
+         if (hat_dofs_marker[dof] == 1) { continue; }
+         hat_u[dof] = u_l[i++];
+      }
 #endif //MFEM_DARCYFORM_CT_BLOCK
    }
 
@@ -755,7 +801,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    Vector sol_rl;
    Array<int> c_dofs;
 #else //MFEM_DARCYFORM_CT_BLOCK
-   BlockVector hat_bu(Af_f_offsets);
+   Vector hat_bu(hat_offsets.Last());
 #endif //MFEM_DARCYFORM_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs;
@@ -771,7 +817,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    {
       //Load RHS
 
-      fes->GetElementVDofs(el, u_vdofs);
+      GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
 #ifdef MFEM_DARCYFORM_CT_BLOCK
@@ -783,7 +829,12 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       Ct_l.AddMult_a(-1., sol_rl, bu_l);
 #else //MFEM_DARCYFORM_CT_BLOCK
       // bu - C^T sol
-      bu_l -= hat_bu.GetBlock(el);
+      int i = 0;
+      for (int dof = hat_offsets[el]; dof < hat_offsets[el+1]; dof++)
+      {
+         if (hat_dofs_marker[dof] == 1) { continue; }
+         bu_l[i++] -= hat_bu[dof];
+      }
 #endif //MFEM_DARCYFORM_CT_BLOCK
 
       //(-A^-1 + A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
