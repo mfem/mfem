@@ -46,14 +46,17 @@ public:
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
-       because the order may be used later for setting the edges. **/
-   void MarkEdge(DenseMatrix & pmat);
+       because the order may be used later for setting the edges. In the case
+       where multiple edges have the same @a length, the @a length2 metric is
+       used to break ties. **/
+   template <typename T1, typename T2>
+   void MarkEdge(const DSTable &v_to_v, const Array<T1> &length,
+                 const Array<T2> &length2)
+   { MarkEdge(indices, v_to_v, length, length2); }
 
-   static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   void MarkEdge(const DSTable &v_to_v, const int *length) override
-   { MarkEdge(indices, v_to_v, length); }
+   template <typename T1, typename T2>
+   static void MarkEdge(int *indices, const DSTable &v_to_v,
+                        const Array<T1> &length, const Array<T2> &length2);
 
    void ResetTransform(int tr) override { transform = tr; }
    unsigned GetTransform() const override { return transform; }
