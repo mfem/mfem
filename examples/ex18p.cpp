@@ -59,6 +59,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   // 0. Parallel setup
    Mpi::Init(argc, argv);
    const int numProcs = Mpi::WorldSize();
    const int myRank = Mpi::WorldRank();
@@ -181,14 +182,16 @@ int main(int argc, char *argv[])
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+
    HYPRE_BigInt glob_size = vfes.GlobalTrueVSize();
    if (Mpi::Root())
    {
       cout << "Number of unknowns: " << glob_size << endl;
    }
 
-   // 6. Define the initial conditions, save the corresponding mesh and grid
+   // 5. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
+
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
                                                         specific_heat_ratio,
@@ -196,7 +199,6 @@ int main(int argc, char *argv[])
    ParGridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
    ParGridFunction mom(&dfes, sol.GetData() + fes.GetNDofs());
-
    // Output the initial solution.
    {
       ostringstream mesh_name;
@@ -217,8 +219,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Set up the nonlinear form corresponding to the DG discretization of the
-   //    flux divergence, and assemble the corresponding mass matrix.
+   // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(
@@ -226,7 +227,7 @@ int main(int argc, char *argv[])
          new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)),
       preassembleWeakDiv);
 
-   // Visualize the density
+   // 7. Visualize momentum with its magnitude
    socketstream sout;
    if (visualization)
    {
@@ -262,29 +263,19 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Determine the minimum element size.
-   double hmin;
+   // 8. Time integration
+
+   // When dt is not specified, use CFL condition.
+   // Compute h_min and initial maximum characteristic speed
+   double hmin = infinity();
    if (cfl > 0)
    {
-      hmin = pmesh.GetNE() > 0 ? pmesh.GetElementSize(0, 1) : INFINITY;
-      for (int i = 1; i < pmesh.GetNE(); i++)
+      for (int i = 0; i < pmesh.GetNE(); i++)
       {
          hmin = min(pmesh.GetElementSize(i, 1), hmin);
       }
       MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPI_DOUBLE, MPI_MIN,
                     pmesh.GetComm());
-   }
-
-   // Start the timer.
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   double t = 0.0;
-   euler.SetTime(t);
-   ode_solver->Init(euler);
-
-   if (cfl > 0)
-   {
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
       // maximum char speed at all quadrature points on all faces.
       Vector z(sol.Size());
@@ -296,6 +287,15 @@ int main(int argc, char *argv[])
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
 
+   // Start the timer.
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   // Init time integration
+   double t = 0.0;
+   euler.SetTime(t);
+   ode_solver->Init(euler);
+
    // Integrate in time.
    bool done = false;
    for (int ti = 0; !done;)
@@ -303,7 +303,7 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0)
+      if (cfl > 0) // update time step size with CFL
       {
          double max_char_speed = euler.GetMaxCharSpeed();
          MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
@@ -357,7 +357,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the L2 solution error summed for all components.
-   //   if (t_final == 2.0) {
    const double error = sol.ComputeLpError(2, u0);
    if (Mpi::Root())
    {

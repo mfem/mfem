@@ -161,8 +161,9 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << vfes.GetVSize() << endl;
 
-   // 6. Define the initial conditions, save the corresponding mesh and grid
+   // 5. Define the initial conditions, save the corresponding mesh and grid
    //    functions to a file. This can be opened with GLVis with the -gc option.
+
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
                                                         specific_heat_ratio,
@@ -189,8 +190,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 7. Set up the nonlinear form corresponding to the DG discretization of the
-   //    flux divergence, and assemble the corresponding mass matrix.
+   // 6. Set up the nonlinear form with euler flux and numerical flux
    EulerFlux flux(dim, specific_heat_ratio);
    RusanovFlux numericalFlux(flux);
    DGHyperbolicConservationLaws euler(
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
          new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)),
       preassembleWeakDiv);
 
-   // Visualize the density
+   // 7. Visualize momentum with its magnitude
    socketstream sout;
    if (visualization)
    {
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout << "solution\n" << mesh << mom;
+         sout << "solution\n" << mesh << mom; // Plot magnitude for vector-valued momentum
          sout << "view 0 0\n";  // view from top
          sout << "keys jlm\n";  // turn off perspective and light
          sout << "pause\n";
@@ -225,34 +225,35 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Determine the minimum element size.
+   // 8. Time integration
+
+   // When dt is not specified, use CFL condition.
+   // Compute h_min and initial maximum characteristic speed
    double hmin = infinity();
    if (cfl > 0)
    {
+      // determine global h_min
       for (int i = 0; i < mesh.GetNE(); i++)
       {
          hmin = min(mesh.GetElementSize(i, 1), hmin);
       }
-   }
-
-   // Start the timer.
-   tic_toc.Clear();
-   tic_toc.Start();
-
-   double t = 0.0;
-   euler.SetTime(t);
-   ode_solver->Init(euler);
-
-   if (cfl > 0)
-   {
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces.
+      // maximum char speed at all quadrature points on all faces (and all elements with -mf).
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
       double max_char_speed = euler.GetMaxCharSpeed();
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
    }
+
+   // Start the timer.
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   // Init time integration
+   double t = 0.0;
+   euler.SetTime(t);
+   ode_solver->Init(euler);
 
    // Integrate in time.
    bool done = false;
@@ -261,7 +262,7 @@ int main(int argc, char *argv[])
       double dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0)
+      if (cfl > 0) // update time step size with CFL
       {
          double max_char_speed = euler.GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
@@ -304,7 +305,6 @@ int main(int argc, char *argv[])
    }
 
    // 10. Compute the L2 solution error summed for all components.
-   //   if (t_final == 2.0) {
    const double error = sol.ComputeLpError(2, u0);
    cout << "Solution error: " << error << endl;
 
