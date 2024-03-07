@@ -728,8 +728,11 @@ QPOptParContactProblemTribol::~QPOptParContactProblemTribol()
 #endif
 
 
-ParContactProblemSingleMesh::ParContactProblemSingleMesh(ParElasticityProblem * prob_, bool enable_tribol_)
-: prob(prob_), enable_tribol(enable_tribol_)
+ParContactProblemSingleMesh::ParContactProblemSingleMesh(ParElasticityProblem * prob_, 
+                                                         const std::set<int> & mortar_attrs_, 
+                                                         const std::set<int> & nonmortar_attrs_, 
+                                                         bool enable_tribol_)
+: prob(prob_), mortar_attrs(mortar_attrs_), nonmortar_attrs(nonmortar_attrs_), enable_tribol(enable_tribol_)
 {
    ParMesh* pmesh = prob->GetMesh();
    comm = pmesh->GetComm();
@@ -893,11 +896,6 @@ void ParContactProblemSingleMesh::SetupTribol()
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
-
-   // plane of bottom block
-   std::set<int> mortar_attrs({3});
-   // plane of top block
-   std::set<int> nonmortar_attrs({4});
 
    // Initialize Tribol contact library
    tribol::initialize(3, MPI_COMM_WORLD);
@@ -1095,10 +1093,6 @@ void ParContactProblemSingleMesh::SetupTribol()
    
    Pi = P_it->Transpose();
    delete P_it;
-   
-
-   
-
 }
 
 double ParContactProblemSingleMesh::E(const Vector & d)

@@ -378,9 +378,14 @@ protected:
    void ComputeContactVertices();
    void SetupTribol();
    bool enable_tribol = false;
+   std::set<int> mortar_attrs;
+   // plane of top block
+   std::set<int> nonmortar_attrs;
 
 public:
-   ParContactProblemSingleMesh(ParElasticityProblem * prob_, bool enable_tribol_ = false);
+   ParContactProblemSingleMesh(ParElasticityProblem * prob_, 
+                               const std::set<int> & mortar_attrs_, const std::set<int> & nonmortar_attrs_,
+                               bool enable_tribol_ = false);
 
    ParElasticityProblem * GetElasticityProblem() {return prob;}
    MPI_Comm GetComm() {return comm;}

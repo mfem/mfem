@@ -18,12 +18,7 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    int num_procs = Mpi::WorldSize();
    Hypre::Init();
-   // 1. Parse command-line options.
-   // const char *mesh_file = "meshes/merged.mesh";
-   // const char *mesh_file = "meshes/merged_new.mesh";
-   // const char *mesh_file = "meshes/newmesh1.mesh";
-   // const char *mesh_file = "meshes/iron.mesh";
-   const char *mesh_file = "meshes/iron-extended.mesh";
+
    int order = 1;
    int sref = 0;
    int pref = 0;
@@ -36,13 +31,26 @@ int main(int argc, char *argv[])
    int relax_type = 8;
    double optimizer_tol = 1e-6;
    int optimizer_maxit = 20;
-   bool enable_tribol = false;
+   bool enable_tribol = true;
    int linsolver = 2; // PCG  - AMG
    bool elast = false;
    bool nocontact = false;
+   int testNo = 4; // 0-6
+   // 1. Parse command-line options.
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use.");
+
+   args.AddOption(&testNo, "-testno", "--test-number",
+                  "Choice of test problem:"
+                  "-1: default (original 2 block problem)"
+                  "0: not implemented yet"
+                  "1: not implemented yet"
+                  "2: not implemented yet"
+                  "3: not implemented yet"
+                  "4: two block problem - diablo"
+                  "41: two block problem - twisted"
+                  "5: ironing problem"
+                  "51: ironing problem extended"
+                  "6: nested spheres problem");
    args.AddOption(&attr, "-at", "--attributes-surf",
                   "Attributes of boundary faces on contact surface for mesh 2.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -69,7 +77,8 @@ int main(int argc, char *argv[])
    args.AddOption(&relax_type, "-rt", "--relax-type",
                   "Selection of Smoother for AMG");
    args.AddOption(&linsolver, "-ls", "--linear-solver",
-                  "Selection of inner linear solver: 0: mumps, 1: mumps-reduced, 2: PCG-AMG-reduced");
+                  "Selection of inner linear solver: 0: mumps, 1: mumps-reduced,",
+                  "2: PCG-AMG-reduced, 3 PCG- with block-diag(AMG,direct solver), 4: with static cont of contact dofs");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -88,6 +97,44 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
       args.PrintOptions(cout);
+   }
+
+   if (Mpi::Root())
+   {
+      mfem::out << "Solving test problem number: " << testNo << endl;
+   }
+
+   const char *mesh_file = nullptr;
+
+   switch (testNo)
+   {
+      case -1:
+         mesh_file = "meshes/merged_new.mesh";
+         break;
+      case 0:
+      case 1:
+      case 2:
+      case 3:
+      case 6:
+      {
+         MFEM_ABORT("Problem not implemented yet");
+         break;
+      }
+      case 4:
+         mesh_file = "meshes/test4.mesh";
+         break;
+      case 41:
+         mesh_file = "meshes/newmesh1.mesh";
+         break;
+      case 5:
+         mesh_file = "meshes/iron.mesh";
+         break;
+      case 51:
+         mesh_file = "meshes/iron-extended.mesh";
+         break;
+      default:
+         MFEM_ABORT("Should be unreachable");
+         break;
    }
 
    Mesh * mesh = new Mesh(mesh_file,1);
@@ -110,30 +157,20 @@ int main(int argc, char *argv[])
    part.Append(part2);
 
    ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part.GetData());
+   // ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
 
    for (int i = 0; i<pref; i++)
    {
       pmesh->UniformRefinement();
    }
 
-   MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
+   // MFEM_VERIFY(pmesh->GetNE(), "Empty partition pmesh");
 
    Array<int> ess_bdr_attr;
    Array<int> ess_bdr_attr_comp;
 
-   bool ironing_problem = false;
-   if (ironing_problem)
-   {
-      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
-      ess_bdr_attr.Append(3); ess_bdr_attr_comp.Append(0);
-      ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(1);
-      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
-   }
-   else
-   {
-      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
-      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
-   }
+   ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
+   ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
    ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
                                                           ess_bdr_attr,ess_bdr_attr_comp,
                                                           order);
@@ -148,49 +185,30 @@ int main(int argc, char *argv[])
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
-   // Dirichlet BCs attributes
-   // boundary attributes:
-   // 2. bottom plane of bottom body
-   // 3. top plane of bottom body
-   // 4. bottom surface of top body
-   // 6. top surface of top body
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   int essbdr_attr;
-   if (ironing_problem)
+   int essbdr_attr = 2;
+
+   ess_values = 0.0;
+   if (testNo == -1 || testNo == 41)
    {
-      // bottom body - bottom plane
-      essbdr_attr = 2;
-      ess_values = 0.0; ess_values[2] = -1.0;
-      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      // bottom body - top plane
-      essbdr_attr = 3;
-      ess_values = 0.0; ess_values[0] = -1.0;
-      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      // top body - bottom surface
-      essbdr_attr = 4;
-      ess_values = 0.0;
-      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      // top body - top surface
-      essbdr_attr = 6;
-      ess_values = 0.0;
-      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      ess_values[0] = 0.1;
    }
    else
    {
-      essbdr_attr = 2;
-      ess_values = 0.0; ess_values[2] = 0.7;
-      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-      essbdr_attr = 6;
-      ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      ess_values[2] = 0.7;
    }
+   ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+   prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+   essbdr_attr = 6;
+   ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+   prob->SetDisplacementDirichletData(ess_values, ess_bdr);
 
-   ParContactProblemSingleMesh contact(prob, enable_tribol);
+
+   std::set<int> mortar_attr({3});
+   std::set<int> nonmortar_attr({4});
+
+   ParContactProblemSingleMesh contact(prob, mortar_attr, nonmortar_attr,
+                                       enable_tribol);
    QPOptParContactProblemSingleMesh qpopt(&contact);
    int numconstr = contact.GetGlobalNumConstraints();
    ParInteriorPointSolver optimizer(&qpopt);
@@ -254,6 +272,7 @@ int main(int argc, char *argv[])
       ParGridFunction x_gf(fes);
 
       x_gf.SetFromTrueDofs(X_new);
+      // x_gf*=-1.0;
 
       pmesh->MoveNodes(x_gf);
 
