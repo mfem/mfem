@@ -701,7 +701,7 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
-   Vector SiBAibu, AiBtSiBAibu;
+   Vector SiBAibu, AiBtSiBAibu, AiBtSibp;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -717,12 +717,12 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
-   //A^-1 bu
+   //u = A^-1 bu
    u.SetSize(bu.Size());
    u = bu;
    LU_A.Solve(u.Size(), 1, u.GetData());
 
-   //-A^-1 B^T S^-1 B A^-1 bu
+   //u += -A^-1 B^T S^-1 B A^-1 bu
    SiBAibu.SetSize(B.Height());
    B.Mult(u, SiBAibu);
 
@@ -735,10 +735,21 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    u -= AiBtSiBAibu;
 
-   //-S^-1 B A^-1 bu
-   p.SetSize(d_dofs_size);
-   p = 0.;
+   //p = S^-1 bp
+   p.SetSize(bp.Size());
+   p = bp;
+   LU_S.Solve(p.Size(), 1, p.GetData());
+
+   //u += A^-1 B^T S^-1 bp
+   AiBtSibp.SetSize(B.Width());
+   B.MultTranspose(p, AiBtSibp);
+   LU_A.Solve(AiBtSibp.Size(), 1, AiBtSibp.GetData());
+
+   u += AiBtSibp;
+
+   //p += -S^-1 B A^-1 bu
    p -= SiBAibu;
+
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
@@ -752,7 +763,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    Vector hat_u(hat_offsets.Last());
 #endif //MFEM_DARCYFORM_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
-   Array<int> u_vdofs;
+   Array<int> u_vdofs, p_dofs;
 
    if (b_r.Size() != H->Height())
    {
@@ -761,6 +772,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
    }
 
    const Vector &bu = b.GetBlock(0);
+   const Vector &bp = b.GetBlock(1);
 
    for (int el = 0; el < NE; el++)
    {
@@ -768,6 +780,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.GetSubVector(p_dofs, bp_l);
 
       //-C (A^-1 bu - A^-1 B^T S^-1 B A^-1 bu)
       MultInv(el, bu_l, bp_l, u_l, p_l);
@@ -811,6 +826,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    Array<int> u_vdofs, p_dofs;
 
    const Vector &bu = b.GetBlock(0);
+   const Vector &bp = b.GetBlock(1);
    Vector &u = sol.GetBlock(0);
    Vector &p = sol.GetBlock(1);
 
@@ -823,8 +839,10 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       //Load RHS
 
       GetFDofs(el, u_vdofs);
-      fes_p->GetElementDofs(el, p_dofs);
       bu.GetSubVector(u_vdofs, bu_l);
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.GetSubVector(p_dofs, bp_l);
 
 #ifdef MFEM_DARCYFORM_CT_BLOCK
       // Get C^T
