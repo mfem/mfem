@@ -2115,8 +2115,10 @@ public:
    using UserParams = internal::KernelTypeList<int, int>;
    using KernelParams = internal::KernelTypeList<int, int, int>;
 
-   class ApplyPAKernels :  public ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams> {
-      public:
+   class ApplyPAKernels :  public
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+   {
+   public:
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2125,8 +2127,10 @@ public:
       static KernelSignature Fallback3D();
    };
 
-   class DiagonalPAKernels : public  DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams> {
-      public:
+   class DiagonalPAKernels : public
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+   {
+   public:
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2350,8 +2354,10 @@ public:
    using UserParams = internal::KernelTypeList<int, int>;
    using KernelParams = internal::KernelTypeList<int, int, int>;
 
-   class ApplyPAKernels :  public ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams> {
-      public:
+   class ApplyPAKernels :  public
+      ApplyPAKernelsClassTemplate<KernelType, UserParams, KernelParams>
+   {
+   public:
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>
@@ -2360,8 +2366,10 @@ public:
       static KernelSignature Fallback3D();
    };
 
-   class DiagonalPAKernels : public  DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams> {
-      public:
+   class DiagonalPAKernels : public
+      DiagonalPAKernelsClassTemplate<DiagonalKernelType, UserParams, KernelParams>
+   {
+   public:
       template<int, int, int>
       static KernelSignature Kernel2D();
       template<int, int>

@@ -20,7 +20,8 @@
 
 namespace mfem
 {
-namespace internal {
+namespace internal
+{
 template<typename... Types>
 struct KernelTypeList {};
 }
@@ -89,20 +90,20 @@ protected:
 template<typename ...KernelParameters>
 struct KernelDispatchKeyHash
 {
-    using Tuple = std::tuple<KernelParameters...>;
+   using Tuple = std::tuple<KernelParameters...>;
 
 private:
-    template<int N>
-    size_t operator()(Tuple value) const { return 0; }
+   template<int N>
+   size_t operator()(Tuple value) const { return 0; }
 
-    template<std::size_t N, typename THead, typename... TTail>
-    size_t operator()(Tuple value) const
-    {
-        constexpr int Index = N - sizeof...(TTail) - 1;
-        auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
-        auto rhs_hash = operator()<N, TTail...>(value);
-        return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
-    }
+   template<std::size_t N, typename THead, typename... TTail>
+   size_t operator()(Tuple value) const
+   {
+      constexpr int Index = N - sizeof...(TTail) - 1;
+      auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
+      auto rhs_hash = operator()<N, TTail...>(value);
+      return lhs_hash ^(rhs_hash + 0x9e3779b9 + (lhs_hash << 6) + (lhs_hash >> 2));
+   }
 
 public:
    size_t operator()(Tuple value) const
@@ -116,7 +117,7 @@ class KernelDispatchTable {};
 
 template <typename ApplyKernelsHelperClass, typename... UserParams, typename... KernelParams>
 class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<UserParams...>, internal::KernelTypeList<KernelParams...>> :
-DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
+         DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
 {
 
    // These typedefs prefent AddSpecialization from compiling unless the provided
@@ -150,7 +151,8 @@ public:
    // TODO(bowen) Force this to use the same signature as the Signature typedef
    // above.
    template<typename... KernelArgs>
-   void Run2D(UserParams... params, KernelArgs... args) {
+   void Run2D(UserParams... params, KernelArgs... args)
+   {
       auto key = std::make_tuple(2, params...);
       const auto it = this->table.find(key);
       if (it != this->table.end())
@@ -165,7 +167,8 @@ public:
    }
 
    template<typename... KernelArgs>
-   void Run3D(UserParams... params, KernelArgs... args) {
+   void Run3D(UserParams... params, KernelArgs... args)
+   {
       auto key = std::make_tuple(3, params...);
       const auto it = this->table.find(key);
       if (it != this->table.end())
@@ -180,42 +183,55 @@ public:
    }
 
    template<typename... KernelArgs>
-   void Run(int dim, UserParams... params, KernelArgs... args) {
-      if (dim == 2) {
+   void Run(int dim, UserParams... params, KernelArgs... args)
+   {
+      if (dim == 2)
+      {
          Run2D(params..., args...);
-      } else if (dim == 3) {
+      }
+      else if (dim == 3)
+      {
          Run3D(params..., args...);
-      } else {
+      }
+      else
+      {
          MFEM_ABORT("Only 2 and 3 dimensional kernels exist");
       }
 
    }
 
-   void foobar() {
+   void foobar()
+   {
       printf("here\n");
    }
 
    template<UserParams... params>
-   void AddSpecialization2D() {
+   void AddSpecialization2D()
+   {
       constexpr int DIM = 2;
-      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM, params...);
+      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
+                                                                             params...);
       // All kernels require at least D1D and Q1D
       static_assert(sizeof...(params) >= 2,
-            "All specializations require at least two template parameters");
+                    "All specializations require at least two template parameters");
 
       constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
 
-      this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel2D<params..., NBZ>();
+      this->table[param_tuple] = ApplyKernelsHelperClass::template
+                                 Kernel2D<params..., NBZ>();
    }
 
    template<UserParams... params>
-   void AddSpecialization3D() {
+   void AddSpecialization3D()
+   {
       constexpr int DIM = 3;
-      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM, params...);
+      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
+                                                                             params...);
       static_assert(sizeof...(UserParams) >= 2,
-            "All specializations require at least two template parameters");
+                    "All specializations require at least two template parameters");
 
-      this->table[param_tuple] = ApplyKernelsHelperClass::template Kernel3D<params...>();
+      this->table[param_tuple] = ApplyKernelsHelperClass::template
+                                 Kernel3D<params...>();
    }
 
 };
