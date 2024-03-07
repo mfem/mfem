@@ -18,8 +18,9 @@
 namespace mfem
 {
 
-DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_)
-   : fes_u(fes_u_), fes_p(fes_p_)
+DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
+                     bool bsymmetrized)
+   : fes_u(fes_u_), fes_p(fes_p_), bsym(bsymmetrized)
 {
    offsets.SetSize(3);
    offsets[0] = 0;
@@ -96,7 +97,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
-   hybridization = new DarcyHybridization(fes_u, fes_p, constr_space);
+   hybridization = new DarcyHybridization(fes_u, fes_p, constr_space, bsym);
    BilinearFormIntegrator *constr_pot_integ = NULL;
    if (M_p)
    {
@@ -191,7 +192,7 @@ void DarcyForm::Finalize(int skip_zeros)
    if (M_p)
    {
       M_p->Finalize(skip_zeros);
-      block_op->SetDiagonalBlock(1, M_p);
+      block_op->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
    }
 
    if (B)
@@ -201,7 +202,7 @@ void DarcyForm::Finalize(int skip_zeros)
       if (!pBt.Ptr()) { ConstructBT(B); }
 
       block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
-      block_op->SetBlock(1, 0, B, -1.);
+      block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
    }
 
    if (hybridization)
@@ -254,7 +255,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    if (M_p)
    {
       M_p->FormSystemMatrix(ess_pot_tdof_list, pM_p);
-      block_op->SetDiagonalBlock(1, pM_p.Ptr());
+      block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
    }
 
    if (B)
@@ -264,7 +265,7 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
       ConstructBT(pB.Ptr());
 
       block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
-      block_op->SetBlock(1, 0, pB.Ptr(), -1.);
+      block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
    }
 
    if (hybridization)
@@ -422,8 +423,9 @@ const Operator* DarcyForm::ConstructBT(const Operator *opB)
 
 DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
-                                       FiniteElementSpace *fes_c_)
-   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_)
+                                       FiniteElementSpace *fes_c_,
+                                       bool bsymmetrized)
+   : Hybridization(fes_u_, fes_c_), fes_p(fes_p_), bsym(bsymmetrized)
 {
    c_bfi_p = NULL;
 
@@ -783,6 +785,11 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 
       fes_p->GetElementDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_l.Neg();
+      }
 
       //-C (A^-1 bu - A^-1 B^T S^-1 B A^-1 bu)
       MultInv(el, bu_l, bp_l, u_l, p_l);
@@ -843,6 +850,11 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
 
       fes_p->GetElementDofs(el, p_dofs);
       bp.GetSubVector(p_dofs, bp_l);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_l.Neg();
+      }
 
 #ifdef MFEM_DARCYFORM_CT_BLOCK
       // Get C^T

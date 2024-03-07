@@ -26,6 +26,8 @@ class DarcyForm : public Operator
 
    FiniteElementSpace *fes_u, *fes_p;
 
+   bool bsym;
+
    BilinearForm *M_u, *M_p;
    MixedBilinearForm *B;
 
@@ -44,7 +46,8 @@ class DarcyForm : public Operator
    const Operator* ConstructBT(const Operator *opB);
 
 public:
-   DarcyForm(FiniteElementSpace *fes_p, FiniteElementSpace *fes_u);
+   DarcyForm(FiniteElementSpace *fes_p, FiniteElementSpace *fes_u,
+             bool bsymmetrized = true);
 
    inline const Array<int>& GetOffsets() const { return offsets; }
 
@@ -200,6 +203,8 @@ class DarcyHybridization : public Hybridization
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
 
+   bool bsym;
+
    Array<int> Bf_offsets;
    double *Bf_data;
 
@@ -216,7 +221,7 @@ class DarcyHybridization : public Hybridization
 public:
    /// Constructor
    DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                      FiniteElementSpace *fes_c);
+                      FiniteElementSpace *fes_c, bool bsymmetrized = true);
    /// Destructor
    ~DarcyHybridization();
 
