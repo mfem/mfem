@@ -2882,12 +2882,12 @@ public:
    CubitFaceInfo(CubitFaceType face_type);
 
    inline uint8_t order() const { return _order; };
-   inline uint8_t numFaceNodes() const { return _num_face_nodes; };
-   inline uint8_t numFaceCornerNodes() const { return _num_face_corner_nodes; };
-   inline CubitFaceType faceType() const { return _face_type; }
+   inline uint8_t NumFaceNodes() const { return _num_face_nodes; };
+   inline uint8_t NumFaceCornerNodes() const { return _num_face_corner_nodes; };
+   inline CubitFaceType FaceType() const { return _face_type; }
 
 protected:
-   void buildCubitFaceInfo();
+   void BuildCubitFaceInfo();
 
 private:
    /**
@@ -2912,12 +2912,12 @@ private:
  */
 CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type(face_type)
 {
-   buildCubitFaceInfo();
+   BuildCubitFaceInfo();
 }
 
 
 void
-CubitFaceInfo::buildCubitFaceInfo()
+CubitFaceInfo::BuildCubitFaceInfo()
 {
    switch (_face_type)
    {
@@ -3006,33 +3006,33 @@ public:
       ELEMENT_PYRAMID14
    };
 
-   inline CubitElementType elementType() const { return _element_type; }
+   inline CubitElementType ElementType() const { return _element_type; }
 
    /**
     * Returns info for a particular face.
     */
-   const CubitFaceInfo & face(int iface = 0) const;
+   const CubitFaceInfo & Face(int iface = 0) const;
 
-   inline uint8_t numFaces() const { return _num_faces; }
+   inline uint8_t NumFaces() const { return _num_faces; }
 
-   inline uint8_t numNodes() const { return _num_nodes; }
-   inline uint8_t numCornerNodes() const { return _num_corner_nodes; }
+   inline uint8_t NumNodes() const { return _num_nodes; }
+   inline uint8_t NumCornerNodes() const { return _num_corner_nodes; }
 
-   inline uint8_t order() const { return _order; }
-   inline uint8_t dimension() const { return _dimension; }
+   inline uint8_t Order() const { return _order; }
+   inline uint8_t Dimension() const { return _dimension; }
 
 protected:
-   void buildCubit2DElementInfo(int num_nodes_per_element);
-   void buildCubit3DElementInfo(int num_nodes_per_element);
+   void BuildCubit2DElementInfo(int num_nodes_per_element);
+   void BuildCubit3DElementInfo(int num_nodes_per_element);
 
    /**
     * Sets the _face_info vector.
     */
-   std::vector<CubitFaceInfo> getWedge6FaceInfo() const;
-   std::vector<CubitFaceInfo> getWedge18FaceInfo() const;
+   std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
+   std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
-   std::vector<CubitFaceInfo> getPyramid5FaceInfo() const;
-   std::vector<CubitFaceInfo> getPyramid14FaceInfo() const;
+   std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
+   std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
 
 private:
    /**
@@ -3070,12 +3070,12 @@ CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
    {
       case 2:
       {
-         buildCubit2DElementInfo(num_nodes_per_element);
+         BuildCubit2DElementInfo(num_nodes_per_element);
          break;
       }
       case 3:
       {
-         buildCubit3DElementInfo(num_nodes_per_element);
+         BuildCubit3DElementInfo(num_nodes_per_element);
          break;
       }
       default:
@@ -3087,7 +3087,7 @@ CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
 }
 
 void
-CubitElementInfo::buildCubit2DElementInfo(int num_nodes_per_element)
+CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
 {
    _dimension = 2;
    _num_nodes = num_nodes_per_element;
@@ -3140,7 +3140,7 @@ CubitElementInfo::buildCubit2DElementInfo(int num_nodes_per_element)
 }
 
 void
-CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
+CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
 {
    _dimension = 3;
    _num_nodes = num_nodes_per_element;
@@ -3189,7 +3189,7 @@ CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_corner_nodes = 6;
          _num_faces = 5;
-         _face_info = getWedge6FaceInfo();
+         _face_info = GetWedge6FaceInfo();
          break;
       }
       case 18:
@@ -3198,7 +3198,7 @@ CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_corner_nodes = 6;
          _num_faces = 5;
-         _face_info = getWedge18FaceInfo();
+         _face_info = GetWedge18FaceInfo();
          break;
       }
       case 5:
@@ -3207,7 +3207,7 @@ CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_corner_nodes = 5;
          _num_faces = 5;
-         _face_info = getPyramid5FaceInfo();
+         _face_info = GetPyramid5FaceInfo();
          break;
       }
       case 14:
@@ -3216,7 +3216,7 @@ CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_corner_nodes = 5;
          _num_faces = 5;
-         _face_info = getPyramid14FaceInfo();
+         _face_info = GetPyramid14FaceInfo();
          _num_corner_nodes = 5;
          break;
       }
@@ -3230,7 +3230,7 @@ CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::getWedge6FaceInfo()
+CubitElementInfo::GetWedge6FaceInfo()
 const  // TODO: - use same ordering as MFEM.
 {
    // Refer to "cell_prism.C" line 127.
@@ -3244,7 +3244,7 @@ const  // TODO: - use same ordering as MFEM.
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::getWedge18FaceInfo()
+CubitElementInfo::GetWedge18FaceInfo()
 const // TODO: - use same ordering as MFEM.
 {
    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
@@ -3254,7 +3254,7 @@ const // TODO: - use same ordering as MFEM.
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::getPyramid5FaceInfo()
+CubitElementInfo::GetPyramid5FaceInfo()
 const // TODO: - use same ordering as MFEM.
 {
    // Refer to "cell_pyramid5.C" line 134.
@@ -3266,7 +3266,7 @@ const // TODO: - use same ordering as MFEM.
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::getPyramid14FaceInfo()
+CubitElementInfo::GetPyramid14FaceInfo()
 const // TODO: - use same ordering as MFEM.
 {
    // Refer to "cell_pyramid14.h"
@@ -3280,7 +3280,7 @@ const // TODO: - use same ordering as MFEM.
 }
 
 const CubitFaceInfo &
-CubitElementInfo::face(int iface) const
+CubitElementInfo::Face(int iface) const   // TODO: - rename to GetFace
 {
    /**
     * Check _face_info initialized.
