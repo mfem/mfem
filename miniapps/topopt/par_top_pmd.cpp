@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
                 << "Start Projected Mirror Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
+   double step_size(0), volume(vol_fraction),
           stationarityError(infinity()), stationarityError_bregman(infinity());
    int num_reeval(0);
    double old_compliance;
