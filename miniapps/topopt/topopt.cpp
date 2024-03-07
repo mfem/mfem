@@ -866,11 +866,11 @@ double LatentDesignDensity::Project()
 }
 
 double LatentDesignDensity::StationarityError(const GridFunction &grad,
-                                              bool useL2norm)
+                                              bool useL2norm, const double eps)
 {
    *tmp_gf = *x_gf;
    double volume_backup = current_volume;
-   *x_gf -= grad;
+   x_gf->Add(-eps, grad);
    Project();
    double d;
    if (useL2norm)
@@ -885,7 +885,7 @@ double LatentDesignDensity::StationarityError(const GridFunction &grad,
    // Restore solution and recompute volume
    *x_gf = *tmp_gf;
    current_volume = volume_backup;
-   return d;
+   return d/eps;
 }
 double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
                                                      GridFunction &q)
@@ -899,13 +899,13 @@ double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
    return std::sqrt(zero_gf->ComputeL1Error(Dh));
 }
 
-double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
+double LatentDesignDensity::StationarityErrorL2(GridFunction &grad, const double eps)
 {
    double c;
    MappedPairGridFunctionCoeffitient projected_rho(x_gf.get(),
-                                                   &grad, [&c, this](double x, double y)
+                                                   &grad, [&c, eps, this](double x, double y)
    {
-      return std::min(1.0, std::max(0.0, d2p(x) - y + c));
+      return std::min(1.0, std::max(0.0, d2p(x) - eps*y + c));
    });
 
    double c_l = target_volume_fraction - (1.0 - grad.Min());
@@ -929,7 +929,7 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad)
    }
 
    SumCoefficient diff_rho(projected_rho, *rho_cf, 1.0, -1.0);
-   return zero_gf->ComputeL2Error(diff_rho);
+   return zero_gf->ComputeL2Error(diff_rho)/eps;
 }
 PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
                                          DensityFilter& filter,
@@ -974,14 +974,14 @@ double PrimalDesignDensity::Project()
    return 0.0;
 }
 
-double PrimalDesignDensity::StationarityError(const GridFunction &grad)
+double PrimalDesignDensity::StationarityError(const GridFunction &grad, const double eps)
 {
    // Back up current status
    *tmp_gf = *x_gf;
    double volume_backup = current_volume;
 
    // Project ρ + grad
-   *x_gf -= grad;
+   x_gf->Add(-eps, grad);
    Project();
 
    // Compare the updated density and the original density
@@ -990,7 +990,7 @@ double PrimalDesignDensity::StationarityError(const GridFunction &grad)
    // Restore solution and recompute volume
    *x_gf = *tmp_gf;
    current_volume = volume_backup;
-   return d;
+   return d/eps;
 }
 ParametrizedLinearEquation::ParametrizedLinearEquation(
    FiniteElementSpace &fes, GridFunction &filtered_density,
