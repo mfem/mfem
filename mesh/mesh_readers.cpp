@@ -3636,11 +3636,11 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
       case CubitFaceInfo::FACE_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
       case CubitFaceInfo::FACE_QUAD4:
+      case CubitFaceInfo::FACE_QUAD8:
       case CubitFaceInfo::FACE_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
       default:
          MFEM_ABORT("Unsupported cubit face type encountered.");
-         return nullptr;
    }
 }
 
