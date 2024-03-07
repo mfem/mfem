@@ -2915,6 +2915,7 @@ CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type(face_type)
    buildCubitFaceInfo();
 }
 
+
 void
 CubitFaceInfo::buildCubitFaceInfo()
 {
@@ -2974,6 +2975,345 @@ CubitFaceInfo::buildCubitFaceInfo()
          break;
       }
    }
+}
+
+/**
+ * CubitElementInfo
+ *
+ * Stores information about a particular element.
+ */
+class CubitElementInfo
+{
+public:
+   CubitElementInfo() = default;
+   ~CubitElementInfo() = default;
+
+   CubitElementInfo(int num_nodes_per_element, int dimension = 3);
+
+   enum CubitElementType
+   {
+      ELEMENT_TRI3,
+      ELEMENT_TRI6,
+      ELEMENT_QUAD4,
+      ELEMENT_QUAD9,
+      ELEMENT_TET4,
+      ELEMENT_TET10,
+      ELEMENT_HEX8,
+      ELEMENT_HEX27,
+      ELEMENT_WEDGE6,
+      ELEMENT_WEDGE18,
+      ELEMENT_PYRAMID5,
+      ELEMENT_PYRAMID14
+   };
+
+   inline CubitElementType elementType() const { return _element_type; }
+
+   /**
+    * Returns info for a particular face.
+    */
+   const CubitFaceInfo & face(int iface = 0) const;
+
+   inline uint8_t numFaces() const { return _num_faces; }
+
+   inline uint8_t numNodes() const { return _num_nodes; }
+   inline uint8_t numCornerNodes() const { return _num_corner_nodes; }
+
+   inline uint8_t order() const { return _order; }
+   inline uint8_t dimension() const { return _dimension; }
+
+protected:
+   void buildCubit2DElementInfo(int num_nodes_per_element);
+   void buildCubit3DElementInfo(int num_nodes_per_element);
+
+   /**
+    * Sets the _face_info vector.
+    */
+   std::vector<CubitFaceInfo> getWedge6FaceInfo() const;
+   std::vector<CubitFaceInfo> getWedge18FaceInfo() const;
+
+   std::vector<CubitFaceInfo> getPyramid5FaceInfo() const;
+   std::vector<CubitFaceInfo> getPyramid14FaceInfo() const;
+
+private:
+   /**
+    * Stores the element type.
+    */
+   CubitElementType _element_type;
+
+   /**
+    * NB: first-order elements have only nodes on the "corners". Second-order have
+    * additional nodes between "corner" nodes.
+    */
+   uint8_t _order;
+   uint8_t _dimension;
+
+   /**
+    * NB: "corner nodes" refer to MOOSE nodes at the corners of an element. In
+    * MFEM this is referred to as "vertices".
+    */
+   uint8_t _num_nodes;
+   uint8_t _num_corner_nodes;
+
+   /**
+    * Stores info about the face types.
+    */
+   uint8_t _num_faces;
+   std::vector<CubitFaceInfo> _face_info;
+};
+
+/**
+ * CubitElementInfo
+ */
+CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
+{
+   switch (dimension)
+   {
+      case 2:
+      {
+         buildCubit2DElementInfo(num_nodes_per_element);
+         break;
+      }
+      case 3:
+      {
+         buildCubit3DElementInfo(num_nodes_per_element);
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported element dimension " << dimension << ".");
+         break;
+      }
+   }
+}
+
+void
+CubitElementInfo::buildCubit2DElementInfo(int num_nodes_per_element)
+{
+   _dimension = 2;
+   _num_nodes = num_nodes_per_element;
+
+   switch (num_nodes_per_element)
+   {
+      case 3:
+      {
+         _element_type = ELEMENT_TRI3;
+         _order = 1;
+         _num_corner_nodes = 3;
+         _num_faces = 3;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
+         break;
+      }
+      case 6:
+      {
+         _element_type = ELEMENT_TRI6;
+         _order = 2;
+         _num_corner_nodes = 3;
+         _num_faces = 3;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
+         break;
+      }
+      case 4:
+      {
+         _element_type = ELEMENT_QUAD4;
+         _order = 1;
+         _num_corner_nodes = 4;
+         _num_faces = 4;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
+         break;
+      }
+      case 9:
+      {
+         _element_type = ELEMENT_QUAD9;
+         _order = 2;
+         _num_corner_nodes = 4;
+         _num_faces = 4;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported 2D element with " << num_nodes_per_element <<
+                    " nodes per element.");
+         break;
+      }
+   }
+}
+
+void
+CubitElementInfo::buildCubit3DElementInfo(int num_nodes_per_element)
+{
+   _dimension = 3;
+   _num_nodes = num_nodes_per_element;
+
+   switch (num_nodes_per_element)
+   {
+      case 4:
+      {
+         _element_type = ELEMENT_TET4;
+         _order = 1;
+         _num_corner_nodes = 4;
+         _num_faces = 4;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI3)};
+         break;
+      }
+      case 10:
+      {
+         _element_type = ELEMENT_TET10;
+         _order = 2;
+         _num_corner_nodes = 4;
+         _num_faces = 4;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI6)};
+         break;
+      }
+      case 8:
+      {
+         _element_type = ELEMENT_HEX8;
+         _order = 1;
+         _num_corner_nodes = 8;
+         _num_faces = 6;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD4)};
+         break;
+      }
+      case 27:
+      {
+         _element_type = ELEMENT_HEX27;
+         _order = 2;
+         _num_corner_nodes = 8;
+         _num_faces = 6;
+         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD9)};
+         break;
+      }
+      case 6:
+      {
+         _element_type = ELEMENT_WEDGE6;
+         _order = 1;
+         _num_corner_nodes = 6;
+         _num_faces = 5;
+         _face_info = getWedge6FaceInfo();
+         break;
+      }
+      case 18:
+      {
+         _element_type = ELEMENT_WEDGE18;
+         _order = 2;
+         _num_corner_nodes = 6;
+         _num_faces = 5;
+         _face_info = getWedge18FaceInfo();
+         break;
+      }
+      case 5:
+      {
+         _element_type = ELEMENT_PYRAMID5;
+         _order = 1;
+         _num_corner_nodes = 5;
+         _num_faces = 5;
+         _face_info = getPyramid5FaceInfo();
+         break;
+      }
+      case 14:
+      {
+         _element_type = ELEMENT_PYRAMID14;
+         _order = 2;
+         _num_corner_nodes = 5;
+         _num_faces = 5;
+         _face_info = getPyramid14FaceInfo();
+         _num_corner_nodes = 5;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported 3D element with " << num_nodes_per_element <<
+                    " nodes per element.");
+         break;
+      }
+   }
+}
+
+std::vector<CubitFaceInfo>
+CubitElementInfo::getWedge6FaceInfo()
+const  // TODO: - use same ordering as MFEM.
+{
+   // Refer to "cell_prism.C" line 127.
+   // We are using the same side ordering as used in LibMesh.
+   CubitFaceInfo tri3 = CubitFaceInfo(
+                           CubitFaceInfo::FACE_TRI3);   // Faces 0, 4 (LibMesh)
+   CubitFaceInfo quad4 = CubitFaceInfo(
+                            CubitFaceInfo::FACE_QUAD4); // Faces 1, 2, 3 (LibMesh)
+
+   return {tri3, quad4, quad4, quad4, tri3};
+}
+
+std::vector<CubitFaceInfo>
+CubitElementInfo::getWedge18FaceInfo()
+const // TODO: - use same ordering as MFEM.
+{
+   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+
+   return {tri6, quad9, quad9, quad9, tri6};
+}
+
+std::vector<CubitFaceInfo>
+CubitElementInfo::getPyramid5FaceInfo()
+const // TODO: - use same ordering as MFEM.
+{
+   // Refer to "cell_pyramid5.C" line 134.
+   // We are using the same side ordering as used in LibMesh.
+   CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
+   CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
+
+   return {tri3, tri3, tri3, tri3, quad4};
+}
+
+std::vector<CubitFaceInfo>
+CubitElementInfo::getPyramid14FaceInfo()
+const // TODO: - use same ordering as MFEM.
+{
+   // Refer to "cell_pyramid14.h"
+   // Define Pyramid14: Quad9 base and 4 x Tri6.
+   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+
+   // Use same ordering as LibMesh ("cell_pyramid14.c"; line 44)
+   // front, right, back, left, base (different in MFEM!).
+   return {tri6, tri6, tri6, tri6, quad9};
+}
+
+const CubitFaceInfo &
+CubitElementInfo::face(int iface) const
+{
+   /**
+    * Check _face_info initialized.
+    */
+   if (_face_info.empty())
+   {
+      MFEM_ABORT("_face_info is empty.");
+   }
+
+   /**
+    * Check valid face index.
+    */
+   bool is_valid_face_index = (iface >= 0 && iface < _num_faces);
+   if (!is_valid_face_index)
+   {
+      MFEM_ABORT("Face index '" << iface << "' is invalid.");
+   }
+
+   /**
+    * Case 1: single face type --> only store a single face.
+    * Case 2: multiple face types --> store each face. Return face at index.
+    */
+   bool is_single_face_type = (_face_info.size() == 1);
+
+   /**
+    * Check vector size matches _num_Faces for multiple face types.
+    */
+   if (!is_single_face_type && _face_info.size() != _num_faces)
+   {
+      MFEM_ABORT("_face_info.size() != _num_faces.");
+   }
+
+   return is_single_face_type ? _face_info.front() : _face_info[iface];
 }
 
 
