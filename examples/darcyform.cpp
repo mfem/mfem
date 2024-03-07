@@ -13,7 +13,7 @@
 
 #include "darcyform.hpp"
 
-#define MFEM_DARCYFORM_CT_BLOCK
+#define MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 
 namespace mfem
 {
@@ -573,15 +573,15 @@ void DarcyHybridization::ComputeH()
 {
    const int skip_zeros = 1;
    const int NE = fes->GetNE();
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, Ct_l, AiCt, BAiCt, CAiBt, H_l;
    Array<int> c_dofs;
    H = new SparseMatrix(Ct->Width());
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, BAi, Hb_l;
    Array<int> a_dofs;
    SparseMatrix *Hb = new SparseMatrix(Ct->Height());
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 
    for (int el = 0; el < NE; el++)
    {
@@ -607,7 +607,7 @@ void DarcyHybridization::ComputeH()
       LUFactors LU_S(D.GetData(), Df_ipiv + Df_f_offsets[el]);
 
       LU_S.Factor(d_dofs_size);
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
       GetCt(el, Ct_l, c_dofs);
 
@@ -632,7 +632,7 @@ void DarcyHybridization::ComputeH()
       mfem::AddMult(CAiBt, BAiCt, H_l);
 
       H->AddSubMatrix(c_dofs, c_dofs, H_l, skip_zeros);
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       Hb_l.SetSize(B.Width());
 
       //-A^-1
@@ -657,16 +657,16 @@ void DarcyHybridization::ComputeH()
       }
 
       Hb->AddSubMatrix(a_dofs, a_dofs, Hb_l, skip_zeros);
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    }
 
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    H->Finalize();
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Hb->Finalize();
    H = RAP(*Ct, *Hb, *Ct);
    delete Hb;
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
 void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
@@ -757,13 +757,13 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
 {
    const int NE = fes->GetNE();
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix Ct_l;
    Vector b_rl;
    Array<int> c_dofs;
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector hat_u(hat_offsets.Last());
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs, p_dofs;
 
@@ -795,7 +795,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       MultInv(el, bu_l, bp_l, u_l, p_l);
       u_l.Neg();
 
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
       GetCt(el, Ct_l, c_dofs);
 
@@ -803,32 +803,32 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       Ct_l.MultTranspose(u_l, b_rl);
 
       b_r.AddElementVector(c_dofs, b_rl);
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       int i = 0;
       for (int dof = hat_offsets[el]; dof < hat_offsets[el+1]; dof++)
       {
          if (hat_dofs_marker[dof] == 1) { continue; }
          hat_u[dof] = u_l[i++];
       }
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    }
 
-#ifndef MFEM_DARCYFORM_CT_BLOCK
+#ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Ct->MultTranspose(hat_u, b_r);
-#endif //!MFEM_DARCYFORM_CT_BLOCK
+#endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 }
 
 void DarcyHybridization::ComputeSolution(const BlockVector &b,
                                          const Vector &sol_r, BlockVector &sol) const
 {
    const int NE = fes->GetNE();
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix Ct_l;
    Vector sol_rl;
    Array<int> c_dofs;
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector hat_bu(hat_offsets.Last());
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
    Array<int> u_vdofs, p_dofs;
 
@@ -837,9 +837,9 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    Vector &u = sol.GetBlock(0);
    Vector &p = sol.GetBlock(1);
 
-#ifndef MFEM_DARCYFORM_CT_BLOCK
+#ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    Ct->Mult(sol_r, hat_bu);
-#endif //!MFEM_DARCYFORM_CT_BLOCK
+#endif //!MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 
    for (int el = 0; el < NE; el++)
    {
@@ -856,14 +856,14 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
          bp_l.Neg();
       }
 
-#ifdef MFEM_DARCYFORM_CT_BLOCK
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // Get C^T
       GetCt(el, Ct_l, c_dofs);
 
       // bu - C^T sol
       sol_r.GetSubVector(c_dofs, sol_rl);
       Ct_l.AddMult_a(-1., sol_rl, bu_l);
-#else //MFEM_DARCYFORM_CT_BLOCK
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
       // bu - C^T sol
       int i = 0;
       for (int dof = hat_offsets[el]; dof < hat_offsets[el+1]; dof++)
@@ -871,7 +871,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
          if (hat_dofs_marker[dof] == 1) { continue; }
          bu_l[i++] -= hat_bu[dof];
       }
-#endif //MFEM_DARCYFORM_CT_BLOCK
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
 
       //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
       MultInv(el, bu_l, bp_l, u_l, p_l);
