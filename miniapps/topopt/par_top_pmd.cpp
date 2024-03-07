@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
    bool paraview = true;
    double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
+   bool use_bregman = true;
 
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
@@ -107,6 +108,9 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_bregman, "-bregman", "--use-bregman", "-L2",
+                  "--use-L2",
+                  "Use Bregman divergence as a stopping criteria");
    args.Parse();
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
@@ -195,15 +199,6 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(dynamic_cast<ParGridFunction&>(optprob.GetGradient()));
    ParGridFunction &psi(dynamic_cast<ParGridFunction&>(density.GetGridFunction()));
    rho_filter = density.GetDomainVolume()*vol_fraction;
-   ConstantCoefficient one_cf(1.0);
-   ConstantCoefficient zero_cf(0.0);
-   ConstantCoefficient max_grad_cf(0.0);
-   Array<int> material_bdr(ess_bdr_filter), void_bdr(ess_bdr_filter);
-   for (auto &val : material_bdr) {val = val == 1;}
-   for (auto &val : void_bdr) {val = val == -1;}
-   for (auto &val : ess_bdr_filter) {val = val != 0; }
-   rho_filter.ProjectBdrCoefficient(one_cf, material_bdr);
-   rho_filter.ProjectBdrCoefficient(zero_cf, void_bdr);
 
    std::unique_ptr<ParGridFunction> gradH1_selfload;
    std::unique_ptr<ParLinearForm> projected_grad_selfload;
@@ -244,11 +239,10 @@ int main(int argc, char *argv[])
    {
       MPI_Barrier(MPI_COMM_WORLD);
       designDensity_gf.reset(new ParGridFunction(&filter_fes));
-      rho_gf.reset(new ParGridFunction(&filter_fes));
+      rho_gf.reset(new ParGridFunction(&control_fes));
       designDensity_gf->ProjectCoefficient(densityProjector.GetPhysicalDensity(
                                               density.GetFilteredDensity()));
-      rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
-                                     GridFunction::AvgType::ARITHMETIC);
+      rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       sout_SIMP.open(vishost, visport);
       if (sout_SIMP.is_open())
       {
@@ -279,12 +273,11 @@ int main(int argc, char *argv[])
    {
       if (!rho_gf)
       {
-         rho_gf.reset(new ParGridFunction(&filter_fes));
-         rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
-                                        GridFunction::AvgType::ARITHMETIC);
-         rho_gf->ProjectBdrCoefficient(one_cf, material_bdr);
-         rho_gf->ProjectBdrCoefficient(zero_cf, void_bdr);
-
+         // rho_gf.reset(new ParGridFunction(&filter_fes));
+         // rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+         //                                GridFunction::AvgType::ARITHMETIC);
+         rho_gf.reset(new ParGridFunction(psi));
+         rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
       }
       pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
       pd->SetPrefixPath("ParaView");
@@ -365,8 +358,8 @@ int main(int argc, char *argv[])
       // Step 4. Visualization
       if (rho_gf)
       {
-         rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
-                                        GridFunction::AvgType::ARITHMETIC);
+         // rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+         //                                GridFunction::AvgType::ARITHMETIC);
          // MappedGridFunctionCoefficient bdr_rho(&psi, [](double x)
          // {
          //    return x > 0.0 ? 0.0 : sigmoid(x);
@@ -384,8 +377,8 @@ int main(int argc, char *argv[])
          //    }
          // }
          // rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
-         // rho_gf->ProjectBdrCoefficient(one_cf, material_bdr);
-         // rho_gf->ProjectBdrCoefficient(zero_cf, void_bdr);
+         // rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+         for(int i=0; i<rho_gf->Size(); i++) {(*rho_gf)(i) = sigmoid(psi[i]);}
       }
       if (glvis_visualization)
       {
@@ -419,7 +412,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < tol_stationarity &&
+      if ((use_bregman ? stationarityError_bregman : stationarityError) < tol_stationarity &&
           std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;

@@ -259,9 +259,9 @@ private:
 public:
    DensityFilter(FiniteElementSpace &fes):fes(fes) {};
    virtual void Apply(const GridFunction &rho, GridFunction &frho,
-                      bool apply_bdr=true) const = 0;
+                      bool apply_bdr=true) = 0;
    virtual void Apply(Coefficient &rho, GridFunction &frho,
-                      bool apply_bdr=true) const = 0;
+                      bool apply_bdr=true) = 0;
    FiniteElementSpace &GetFESpace() {return fes;};
 protected:
 private:
@@ -273,21 +273,24 @@ public:
 protected:
    std::unique_ptr<BilinearForm> filter;
    std::unique_ptr<LinearForm> rhoform;
-   Array<int> &ess_bdr;
+   Array<int> ess_bdr;
+   Array<int> material_bdr;
+   Array<int> void_bdr;
    ConstantCoefficient eps2;
+   ConstantCoefficient bdr_eps;
 private:
 
 public:
    HelmholtzFilter(FiniteElementSpace &fes, const double eps, Array<int> &ess_bdr,
                    bool enforce_symmetricity=false);
    void Apply(const GridFunction &rho, GridFunction &frho,
-              bool apply_bdr=true) const override
+              bool apply_bdr=true) override
    {
       GridFunctionCoefficient rho_cf(&rho);
       Apply(rho_cf, frho, apply_bdr);
    }
    void Apply(Coefficient &rho, GridFunction &frho,
-              bool apply_bdr=true) const override;
+              bool apply_bdr=true) override;
    BilinearForm& GetBilinearForm() {return *filter; }
 protected:
 private:
@@ -312,13 +315,13 @@ public:
       *H1frho = 0.0;
    }
    void Apply(const GridFunction &rho, GridFunction &frho,
-              bool apply_bdr=true) const override
+              bool apply_bdr=true) override
    {
       GridFunctionCoefficient rho_cf(&rho);
       Apply(rho_cf, frho, apply_bdr);
    }
    void Apply(Coefficient &rho, GridFunction &frho,
-              bool apply_bdr=true) const override;
+              bool apply_bdr=true) override;
 protected:
 private:
 };

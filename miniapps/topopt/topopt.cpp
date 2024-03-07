@@ -1119,8 +1119,12 @@ HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
                                  const double eps, Array<int> &ess_bdr,
                                  bool enforce_symmetricity):DensityFilter(fes),
    filter(MakeBilinearForm(&fes)), rhoform(MakeLinearForm(&fes)), eps2(eps*eps),
-   ess_bdr(ess_bdr)
+   bdr_eps(eps),
+   ess_bdr(ess_bdr), material_bdr(ess_bdr), void_bdr(ess_bdr)
 {
+   for (auto &val : ess_bdr) {val = val != 0; }
+   for (auto &val : material_bdr) {val = val == 1; }
+   for (auto &val : void_bdr) {val = val == -1; }
    if (enforce_symmetricity)
    {
       auto diffusion = new ForcedSymmetricDiffusionIntegrator(eps2);
@@ -1135,17 +1139,30 @@ HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
       filter->AddDomainIntegrator(new DiffusionIntegrator(eps2));
       filter->AddDomainIntegrator(new MassIntegrator());
    }
+   // filter->AddBdrFaceIntegrator(new BoundaryMassIntegrator(bdr_eps), ess_bdr);
    filter->Assemble();
 }
 void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
-                            bool apply_bdr) const
+                            bool apply_bdr)
 {
    MFEM_ASSERT(frho.FESpace() != filter->FESpace(),
                "Filter is initialized with finite element space different from the given filtered density.");
    rhoform->GetDLFI()->DeleteAll();
    rhoform->AddDomainIntegrator(new DomainLFIntegrator(rho));
-   Array<int> empty_bdr(ess_bdr); empty_bdr = 0;
-   EllipticSolver solver(*filter, *rhoform, apply_bdr ? ess_bdr : empty_bdr);
+   ConstantCoefficient zero_cf(0.0);
+   frho.ProjectBdrCoefficient(zero_cf, void_bdr);
+   if (apply_bdr)
+   {
+      ConstantCoefficient one_cf(1.0);
+      frho.ProjectBdrCoefficient(one_cf, material_bdr);
+   }
+   else
+   {
+      ConstantCoefficient one_cf(1.0);
+      SumCoefficient mismatch(rho, one_cf, 1.0, -1.0);
+      frho.ProjectBdrCoefficient(mismatch, material_bdr);
+   }
+   EllipticSolver solver(*filter, *rhoform, ess_bdr);
    solver.SetIterativeMode();
    bool converged = solver.Solve(frho, true, false);
 
@@ -1164,7 +1181,7 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
    }
 }
 void HelmholtzL2Filter::Apply(Coefficient &rho, GridFunction &frho,
-                              bool apply_bdr) const
+                              bool apply_bdr)
 {
    filter.Apply(rho, *H1frho);
    std::unique_ptr<LinearForm> projector(MakeLinearForm(&fes, frho.GetData()));
