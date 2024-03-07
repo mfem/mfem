@@ -2854,6 +2854,129 @@ const int cubit_side_map_hex27[6][9] =
 };
 
 
+/**
+ * CubitFaceInfo
+ *
+ * Stores information about a particular element face.
+ */
+class CubitFaceInfo
+{
+public:
+   CubitFaceInfo() = delete;
+   ~CubitFaceInfo() = default;
+
+   enum CubitFaceType
+   {
+      FACE_EDGE2,
+      FACE_EDGE3,
+      FACE_TRI3,
+      FACE_TRI6,
+      FACE_QUAD4,
+      FACE_QUAD8, // order = 2.
+      FACE_QUAD9  // order = 2. Center node.
+   };
+
+   /**
+    * Default initializer.
+    */
+   CubitFaceInfo(CubitFaceType face_type);
+
+   inline uint8_t order() const { return _order; };
+   inline uint8_t numFaceNodes() const { return _num_face_nodes; };
+   inline uint8_t numFaceCornerNodes() const { return _num_face_corner_nodes; };
+   inline CubitFaceType faceType() const { return _face_type; }
+
+protected:
+   void buildCubitFaceInfo();
+
+private:
+   /**
+    * Type of face.
+    */
+   CubitFaceType _face_type;
+
+   /**
+    * Total number of nodes and number of corner nodes ("vertices").
+    */
+   uint8_t _num_face_nodes;
+   uint8_t _num_face_corner_nodes;
+
+   /**
+    * Order of face.
+    */
+   uint8_t _order;
+};
+
+/**
+ * CubitFaceInfo
+ */
+CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type(face_type)
+{
+   buildCubitFaceInfo();
+}
+
+void
+CubitFaceInfo::buildCubitFaceInfo()
+{
+   switch (_face_type)
+   {
+      /**
+       * 2D
+       */
+      case (FACE_EDGE2):
+      {
+         _num_face_nodes = 2;
+         _num_face_corner_nodes = 2;
+         break;
+      }
+      case (FACE_EDGE3):
+      {
+         _num_face_nodes = 3;
+         _num_face_corner_nodes = 2;
+         break;
+      }
+      /**
+       * 3D
+       */
+      case (FACE_TRI3):
+      {
+         _num_face_nodes = 3;
+         _num_face_corner_nodes = 3;
+         break;
+      }
+      case (FACE_TRI6):
+      {
+         _num_face_nodes = 6;
+         _num_face_corner_nodes = 3;
+         break;
+      }
+      case (FACE_QUAD4):
+      {
+         _num_face_nodes = 4;
+         _num_face_corner_nodes = 4;
+         break;
+      }
+      case (FACE_QUAD8):
+      {
+         _num_face_nodes = 8;
+         _num_face_corner_nodes = 4;
+         break;
+      }
+      case (FACE_QUAD9):
+      {
+         _num_face_nodes = 9; // Includes center node.
+         _num_face_corner_nodes = 4;
+         break;
+      }
+      default:
+      {
+         MFEM_ABORT("Unsupported face type '" <<_face_type << "'.");
+         break;
+      }
+   }
+}
+
+
 enum CubitElementType
 {
    ELEMENT_TRI3,
@@ -3158,7 +3281,7 @@ static void SetCubitElementAndFaceType2D(const int num_nodes_per_element,
          num_element_linear_nodes = 4;
          break;
       }
-      
+
       default:
       {
          MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element <<
