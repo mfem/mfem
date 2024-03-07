@@ -189,9 +189,11 @@ int main(int argc, char *argv[])
    TopOptProblem optprob(elasticity.GetLinearForm(), elasticity, density, false,
                          true);
 
-   ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
-   ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
-                                 (&density.GetFilteredDensity());
+   ParGridFunction &u = dynamic_cast<ParGridFunction&>(optprob.GetState());
+   ParGridFunction &rho_filter = dynamic_cast<ParGridFunction&>
+                                 (density.GetFilteredDensity());
+   ParGridFunction &grad(dynamic_cast<ParGridFunction&>(optprob.GetGradient()));
+   ParGridFunction &psi(dynamic_cast<ParGridFunction&>(density.GetGridFunction()));
    rho_filter = density.GetDomainVolume()*vol_fraction;
    {
       // Apply Filter material boundary, ess_bdr_filter == 1
@@ -301,9 +303,6 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
-                        (&density.GetGridFunction()));
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
    if (problem >= ElasticityProblem::MBB_selfloading)
    {
