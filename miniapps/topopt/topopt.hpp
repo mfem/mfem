@@ -362,7 +362,8 @@ public:
    bool VolumeConstraintViolated();
 
    virtual double Project() = 0;
-   virtual double StationarityError(const GridFunction &grad, const double eps=1e-03) = 0;
+   virtual double StationarityError(const GridFunction &grad,
+                                    const double eps=1e-03) = 0;
    virtual double ComputeVolume() = 0;
    virtual std::unique_ptr<Coefficient> GetDensityDiffCoeff(
       GridFunction &other_gf) = 0;
@@ -425,11 +426,13 @@ public:
                        std::function<double(double)> dual2primal,
                        bool clip_lower=false, bool clip_upper=false);
    double Project() override;
-   double StationarityError(const GridFunction &grad, const double eps=1e-03) override
+   double StationarityError(const GridFunction &grad,
+                            const double eps=1e-03) override
    {
       return StationarityError(grad, false, eps);
    };
-   double StationarityError(const GridFunction &grad, bool useL2norm, const double eps=1e-03);
+   double StationarityError(const GridFunction &grad, bool useL2norm,
+                            const double eps=1e-03);
    double StationarityErrorL2(GridFunction &grad, const double eps=1e-03);
    double ComputeBregmanDivergence(GridFunction &p, GridFunction &q);
    double ComputeVolume() override
@@ -460,7 +463,8 @@ public:
    PrimalDesignDensity(FiniteElementSpace &fes, DensityFilter& filter,
                        double vol_frac);
    double Project() override;
-   double StationarityError(const GridFunction &grad, const double eps=1e-03) override;
+   double StationarityError(const GridFunction &grad,
+                            const double eps=1e-03) override;
    double ComputeVolume() override
    {
       current_volume = zero_gf->ComputeL1Error(*rho_cf);

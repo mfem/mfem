@@ -668,7 +668,8 @@ double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
    return std::sqrt(zero_gf->ComputeL1Error(Dh));
 }
 
-double LatentDesignDensity::StationarityErrorL2(GridFunction &grad, const double eps)
+double LatentDesignDensity::StationarityErrorL2(GridFunction &grad,
+                                                const double eps)
 {
    double c;
    MappedPairGridFunctionCoeffitient projected_rho(x_gf.get(),
@@ -743,7 +744,8 @@ double PrimalDesignDensity::Project()
    return 0.0;
 }
 
-double PrimalDesignDensity::StationarityError(const GridFunction &grad, const double eps)
+double PrimalDesignDensity::StationarityError(const GridFunction &grad,
+                                              const double eps)
 {
    // Back up current status
    *tmp_gf = *x_gf;
