@@ -3609,9 +3609,14 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
       case CubitElementInfo::ELEMENT_HEX8:
       case CubitElementInfo::ELEMENT_HEX27:
          return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
+      case CubitElementInfo::ELEMENT_WEDGE6:
+      case CubitElementInfo::ELEMENT_WEDGE18:
+         return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
+      case CubitElementInfo::ELEMENT_PYRAMID5:
+      case CubitElementInfo::ELEMENT_PYRAMID14:
+         return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
       default:
          MFEM_ABORT("Unsupported cubit element type encountered.");
-         return nullptr;
    }
 }
 
