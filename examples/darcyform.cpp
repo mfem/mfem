@@ -701,13 +701,12 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p) const
 {
-   Vector BAibu, BtSiBAibu;
+   Vector SiBAibu, AiBtSiBAibu;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
 
-   MFEM_ASSERT(bu.Size() == a_dofs_size /*&& bp.Size() == d_dofs_size*/,
-               "Incompatible sizes");
+   MFEM_ASSERT(bu.Size() == a_dofs_size, "Incompatible size");
 
    // Load LU decomposition of A and Schur complement
 
@@ -724,17 +723,22 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    LU_A.Solve(u.Size(), 1, u.GetData());
 
    //-A^-1 B^T S^-1 B A^-1 bu
-   BAibu.SetSize(B.Height());
-   B.Mult(u, BAibu);
+   SiBAibu.SetSize(B.Height());
+   B.Mult(u, SiBAibu);
 
-   LU_S.Solve(BAibu.Size(), 1, BAibu.GetData());
+   LU_S.Solve(SiBAibu.Size(), 1, SiBAibu.GetData());
 
-   BtSiBAibu.SetSize(B.Width());
-   B.MultTranspose(BAibu, BtSiBAibu);
+   AiBtSiBAibu.SetSize(B.Width());
+   B.MultTranspose(SiBAibu, AiBtSiBAibu);
 
-   LU_A.Solve(BtSiBAibu.Size(), 1, BtSiBAibu.GetData());
+   LU_A.Solve(AiBtSiBAibu.Size(), 1, AiBtSiBAibu.GetData());
 
-   u -= BtSiBAibu;
+   u -= AiBtSiBAibu;
+
+   //-S^-1 B A^-1 bu
+   p.SetSize(d_dofs_size);
+   p = 0.;
+   p -= SiBAibu;
 }
 
 void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
@@ -804,10 +808,11 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
    Vector hat_bu(hat_offsets.Last());
 #endif //MFEM_DARCYFORM_CT_BLOCK
    Vector bu_l, bp_l, u_l, p_l;
-   Array<int> u_vdofs;
+   Array<int> u_vdofs, p_dofs;
 
    const Vector &bu = b.GetBlock(0);
    Vector &u = sol.GetBlock(0);
+   Vector &p = sol.GetBlock(1);
 
 #ifndef MFEM_DARCYFORM_CT_BLOCK
    Ct->Mult(sol_r, hat_bu);
@@ -818,6 +823,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       //Load RHS
 
       GetFDofs(el, u_vdofs);
+      fes_p->GetElementDofs(el, p_dofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
 #ifdef MFEM_DARCYFORM_CT_BLOCK
@@ -841,6 +847,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       MultInv(el, bu_l, bp_l, u_l, p_l);
 
       u.SetSubVector(u_vdofs, u_l);
+      p.SetSubVector(p_dofs, p_l);
    }
 }
 
