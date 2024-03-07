@@ -2777,6 +2777,19 @@ const int mfem_to_genesis_hex27[27] =
    16,22,26,25,27,24,23,21
 };
 
+// TODO: - verify.
+const int mfem_to_genesis_pyramid14[14] =
+{
+   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+};
+
+// TODO: - verify.
+const int mfem_to_genesis_wedge18[18] =
+{
+   1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16, 17, 18
+};
+
+
 const int mfem_to_genesis_tri6[6]   =
 {
    1,2,3,4,5,6
@@ -3669,10 +3682,10 @@ void FinalizeCubitSecondOrderMesh(Mesh &mesh,
          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
          break;   // TODO: - figure-out node ordering for Wedge18, Pyramid14.
       case CubitElementInfo::ELEMENT_WEDGE18:
-         MFEM_ABORT("Node ordering has not been added for Wedge18.");
+         mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
          break;
       case CubitElementInfo::ELEMENT_PYRAMID14:
-         MFEM_ABORT("Node ordering has not been added for Pyramid14.");
+         mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
          break;
       default:
          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
@@ -3882,6 +3895,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                   inode = cubit_side_map_quad4[this_side - 1][knode];
                   break;
                }
+               // TODO: - add support for ELEMENT_QUAD8
                case (CubitElementInfo::ELEMENT_QUAD9):
                {
                   inode = cubit_side_map_quad9[this_side - 1][knode];
