@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
          for (int j = 0; j < pmesh->GetNBE(); j++)
          {
             Vector center(dim);
-            int bdrgeom = pmesh->GetBdrElementBaseGeometry(j);
+            int bdrgeom = pmesh->GetBdrElementGeometry(j);
             ElementTransformation * tr = pmesh->GetBdrElementTransformation(j);
             tr->Transform(Geometries.GetCenter(bdrgeom),center);
             int k = pmesh->GetBdrAttribute(j);

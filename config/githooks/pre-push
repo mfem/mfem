@@ -21,6 +21,7 @@ if [[ "${option}" == "--help" ]]; then
   echo "  --copyright"
   echo "  --license"
   echo "  --release"
+  echo "  --math"
   echo "  --style"
   echo "  --history"
   echo ""
@@ -63,6 +64,18 @@ if [[ "${option}" == "--release" || "${option}" == "" ]]; then
   fi
 fi
 
+# math in doxygen check
+math=true
+if [[ "${option}" == "--math" || "${option}" == "" ]]; then
+  if grep '\\f' -R doc/CodeDocumentation.dox mfem.hpp config general linalg mesh fem examples miniapps | grep -v '\\frac' | grep -v fem/picojson.h | grep -v config/githooks/pre-push > matches.txt
+  then
+    echo "Please use $..$ and \$\$..\$\$ for LaTeX formulas in the following"
+    echo "comments instead of the Doxygen style \f$..\f$, \f[..\f], etc."
+    cat matches.txt
+    math=false
+  fi
+fi
+
 # wrap-up
 code=0
 if ! $copyright ; then
@@ -75,6 +88,10 @@ if ! $license ; then
 fi
 if ! $release ; then
   echo "release check failed, unroll log for details"
+  code=1
+fi
+if ! $math ; then
+  echo "math in doxygen check failed, unroll log for details"
   code=1
 fi
 
