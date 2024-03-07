@@ -3591,11 +3591,11 @@ mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
 /// @brief Returns a pointer to a new mfem::Element based on the provided cubit
 /// element type. This is used to create the mesh elements from a Genesis file.
 mfem::Element *CreateCubitElement(Mesh &mesh,
-                                  const int cubit_element_type,
+                                  CubitElementInfo::CubitElementType element_type,
                                   const int *vertex_ids,
                                   const int block_id)
 {
-   switch (cubit_element_type)
+   switch (element_type)
    {
       case CubitElementInfo::ELEMENT_TRI3:
       case CubitElementInfo::ELEMENT_TRI6:
@@ -3623,11 +3623,11 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
 /// @brief Returns a pointer to a new mfem::Element based on the provided cubit
 /// face type. This is used to create the boundary elements from a Genesis file.
 mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
-                                          const int cubit_face_type,
+                                          CubitFaceInfo::CubitFaceType face_type,
                                           const int *vertex_ids,
                                           const int sideset_id)
 {
-   switch (cubit_face_type)
+   switch (face_type)
    {
       case CubitFaceInfo::FACE_EDGE2:
       case CubitFaceInfo::FACE_EDGE3:
