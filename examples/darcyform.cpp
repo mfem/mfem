@@ -718,13 +718,12 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    DenseMatrix B(Bf_data + Bf_offsets[el], d_dofs_size, a_dofs_size);
 
-   //-A^-1 bu
+   //A^-1 bu
    u.SetSize(bu.Size());
    u = bu;
-   u.Neg();
    LU_A.Solve(u.Size(), 1, u.GetData());
 
-   //A^-1 B^T S^-1 B A^-1 bu
+   //-A^-1 B^T S^-1 B A^-1 bu
    BAibu.SetSize(B.Height());
    B.Mult(u, BAibu);
 
@@ -766,8 +765,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b, Vector &b_r) const
       GetFDofs(el, u_vdofs);
       bu.GetSubVector(u_vdofs, bu_l);
 
-      //C (-A^-1 bu + A^-1 B^T S^-1 B A^-1 bu)
+      //-C (A^-1 bu - A^-1 B^T S^-1 B A^-1 bu)
       MultInv(el, bu_l, bp_l, u_l, p_l);
+      u_l.Neg();
 
 #ifdef MFEM_DARCYFORM_CT_BLOCK
       // Get C^T
@@ -837,7 +837,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b,
       }
 #endif //MFEM_DARCYFORM_CT_BLOCK
 
-      //(-A^-1 + A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+      //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
       MultInv(el, bu_l, bp_l, u_l, p_l);
 
       u.SetSubVector(u_vdofs, u_l);
