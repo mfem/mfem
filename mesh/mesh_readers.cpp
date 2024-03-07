@@ -3230,53 +3230,46 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::GetWedge6FaceInfo()
-const  // TODO: - use same ordering as MFEM.
+CubitElementInfo::GetWedge6FaceInfo() const
 {
-   // Refer to "cell_prism.C" line 127.
-   // We are using the same side ordering as used in LibMesh.
    CubitFaceInfo tri3 = CubitFaceInfo(
-                           CubitFaceInfo::FACE_TRI3);   // Faces 0, 4 (LibMesh)
+                           CubitFaceInfo::FACE_TRI3);
    CubitFaceInfo quad4 = CubitFaceInfo(
-                            CubitFaceInfo::FACE_QUAD4); // Faces 1, 2, 3 (LibMesh)
+                            CubitFaceInfo::FACE_QUAD4);
 
-   return {tri3, quad4, quad4, quad4, tri3};
+   return {tri3, tri3, quad4, quad4, quad4};
 }
 
 std::vector<CubitFaceInfo>
-CubitElementInfo::GetWedge18FaceInfo()
-const // TODO: - use same ordering as MFEM.
+CubitElementInfo::GetWedge18FaceInfo() const
 {
    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-   return {tri6, quad9, quad9, quad9, tri6};
+   // Same ordering as MFEM.
+   return {tri6, tri6, quad9, quad9, quad9};
 }
 
 std::vector<CubitFaceInfo>
 CubitElementInfo::GetPyramid5FaceInfo()
-const // TODO: - use same ordering as MFEM.
+const
 {
-   // Refer to "cell_pyramid5.C" line 134.
-   // We are using the same side ordering as used in LibMesh.
    CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
    CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
 
-   return {tri3, tri3, tri3, tri3, quad4};
+   return {quad4, tri3, tri3, tri3};
 }
 
 std::vector<CubitFaceInfo>
 CubitElementInfo::GetPyramid14FaceInfo()
-const // TODO: - use same ordering as MFEM.
+const
 {
-   // Refer to "cell_pyramid14.h"
    // Define Pyramid14: Quad9 base and 4 x Tri6.
    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-   // Use same ordering as LibMesh ("cell_pyramid14.c"; line 44)
-   // front, right, back, left, base (different in MFEM!).
-   return {tri6, tri6, tri6, tri6, quad9};
+   // Same ordering as MFEM.
+   return {quad9, tri6, tri6, tri6, tri6};
 }
 
 const CubitFaceInfo &
@@ -3644,6 +3637,8 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
    }
 }
 
+
+
 /// @brief The final step in constructing the mesh from a Genesis file. This is
 /// only called if the mesh order == 2 (determined internally from the cubit
 /// element type).
@@ -3672,6 +3667,12 @@ void FinalizeCubitSecondOrderMesh(Mesh &mesh,
          break;
       case CubitElementInfo::ELEMENT_HEX27:
          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+         break;   // TODO: - figure-out node ordering for Wedge18, Pyramid14.
+      case CubitElementInfo::ELEMENT_WEDGE18:
+         MFEM_ABORT("Node ordering has not been added for Wedge18.");
+         break;
+      case CubitElementInfo::ELEMENT_PYRAMID14:
+         MFEM_ABORT("Node ordering has not been added for Pyramid14.");
          break;
       default:
          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
