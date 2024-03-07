@@ -407,6 +407,8 @@ int main (int argc, char *argv[])
               "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "n) NURBS refinement (uniform or by formula) with a factor\n"
+              "c) NURBS coarsening (uniform or by formula) with a factor\n"
               "l) refine locally using the region() function\n"
               "r) random refinement with a probability\n"
               "--> " << flush;
@@ -432,6 +434,57 @@ int main (int argc, char *argv[])
                int ref_type = (sk == 'u') ? BasisType::ClosedUniform :
                               BasisType::GaussLobatto;
                *mesh = Mesh::MakeRefined(*mesh, ref_factor, ref_type);
+               break;
+            }
+            case 'n':
+            {
+               Array<int> ref_factors(dim);
+               cout << "enter refinement factor, 1st dimension --> " << flush;
+               cin >> ref_factors[0];
+               cout << "enter refinement factor, 2nd dimension --> " << flush;
+               cin >> ref_factors[1];
+               if (dim == 3)
+               {
+                  cout << "enter refinement factor, 3rd dimension --> "
+                       << flush;
+                  cin >> ref_factors[2];
+               }
+               for (auto ref_factor : ref_factors)
+                  if (ref_factor <= 1 || ref_factor > 32) { break; }
+
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cin >> input_tol;
+
+               double tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance ---> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->NURBSUniformRefinement(ref_factors, tol);
+               break;
+            }
+            case 'c':
+            {
+               cout << "enter coarsening factor --> " << flush;
+               int coarsen_factor;
+               cin >> coarsen_factor;
+               if (coarsen_factor <= 1 || coarsen_factor > 32) { break; }
+
+               char input_tol = 'n';
+               cout << "enter NURBS tolerance? [y/n] ---> " << flush;
+               cin >> input_tol;
+
+               double tol = 1.0e-12;  // Default value
+               if (input_tol == 'y')
+               {
+                  cout << "enter NURBS tolerance ---> " << flush;
+                  cin >> tol;
+               }
+
+               mesh->NURBSCoarsening(coarsen_factor, tol);
                break;
             }
             case 'l':
