@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -140,14 +140,14 @@ public:
        method AssembleGradPA() has been called.
 
        @param[in]     x  The gradient Operator is applied to the Vector @a x.
-       @param[in,out] y  The result Vector: @f$ y += G x @f$. */
+       @param[in,out] y  The result Vector: $ y += G x $. */
    virtual void AddMultGradPA(const Vector &x, Vector &y) const;
 
    /// Method for computing the diagonal of the gradient with partial assembly.
    /** The result Vector @a diag is an E-Vector. This method can be called only
        after the method AssembleGradPA() has been called.
 
-       @param[in,out] diag  The result Vector: @f$ diag += diag(G) @f$. */
+       @param[in,out] diag  The result Vector: $ diag += diag(G) $. */
    virtual void AssembleGradDiagonalPA(Vector &diag) const;
 
    /// Indicates whether this integrator can use a Ceed backend.
@@ -277,9 +277,9 @@ public:
 
 
 /** Neo-Hookean hyperelastic model with a strain energy density function given
-    by the formula: \f$(\mu/2)(\bar{I}_1 - dim) + (K/2)(det(J)/g - 1)^2\f$ where
-    J is the deformation gradient and \f$\bar{I}_1 = (det(J))^{-2/dim} Tr(J
-    J^t)\f$. The parameters \f$\mu\f$ and K are the shear and bulk moduli,
+    by the formula: $(\mu/2)(\bar{I}_1 - dim) + (K/2)(det(J)/g - 1)^2$ where
+    J is the deformation gradient and $$\bar{I}_1 = (det(J))^{-2/dim} Tr(J
+    J^t)$$. The parameters $\mu$ and K are the shear and bulk moduli,
     respectively, and g is a reference volumetric scaling. */
 class NeoHookeanModel : public HyperelasticModel
 {
@@ -312,7 +312,7 @@ public:
 
 /** Hyperelastic integrator for any given HyperelasticModel.
 
-    Represents @f$ \int W(Jpt) dx @f$ over a target zone, where W is the
+    Represents $ \int W(Jpt) dx $ over a target zone, where W is the
     @a model's strain energy density function, and Jpt is the Jacobian of the
     target->physical coordinates transformation. The target configuration is
     given by the current mesh at the time of the evaluation of the integrator.
@@ -356,8 +356,8 @@ public:
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
-    \f$P = \mu F - p F^{-T}\f$ where \f$\mu\f$ is the shear modulus,
-    \f$p\f$ is the pressure, and \f$F\f$ is the deformation gradient */
+    $P = \mu F - p F^{-T}$ where $\mu$ is the shear modulus,
+    $p$ is the pressure, and $F$ is the deformation gradient */
 class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
 {
 private:
@@ -430,7 +430,7 @@ public:
 
 
 /** This class is used to assemble the convective form of the nonlinear term
-    arising in the Navier-Stokes equations \f$(u \cdot \nabla v, w )\f$ */
+    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$ */
 class ConvectiveVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -453,7 +453,7 @@ public:
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
-    \f$.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )\f$ */
+    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$ */
 class SkewSymmetricVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {

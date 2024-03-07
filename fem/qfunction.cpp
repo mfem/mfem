@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,8 @@
 #include "qfunction.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
+#include "../general/forall.hpp"
+#include "../mesh/pmesh.hpp"
 
 namespace mfem
 {
@@ -238,6 +240,48 @@ void QuadratureFunction::SaveVTU(const std::string &filename, VTKFormat format,
 {
    std::ofstream f(filename + ".vtu");
    SaveVTU(f, format, compression_level, field_name);
+}
+
+static double ReduceDouble(const Mesh *mesh, double value)
+{
+#ifdef MFEM_USE_MPI
+   if (auto *pmesh = dynamic_cast<const ParMesh*>(mesh))
+   {
+      MPI_Comm comm = pmesh->GetComm();
+      MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
+#endif
+   return value;
+}
+
+double QuadratureFunction::Integrate() const
+{
+   MFEM_VERIFY(vdim == 1, "Only scalar functions are supported.")
+   const double local_integral = InnerProduct(*this, qspace->GetWeights());
+   return ReduceDouble(qspace->GetMesh(), local_integral);
+}
+
+void QuadratureFunction::Integrate(Vector &integrals) const
+{
+   integrals.SetSize(vdim);
+
+   const Vector &weights = qspace->GetWeights();
+   QuadratureFunction component(qspace);
+   const int N = component.Size();
+   const int VDIM = vdim; // avoid capturing 'this' in lambda body
+   const double *d_v = Read();
+
+   for (int vd = 0; vd < vdim; ++vd)
+   {
+      // Extract the component 'vd' into component.
+      double *d_c = component.Write();
+      mfem::forall(N, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_c[i] = d_v[vd + i*VDIM];
+      });
+      integrals[vd] = ReduceDouble(qspace->GetMesh(),
+                                   InnerProduct(component, weights));
+   }
 }
 
 }

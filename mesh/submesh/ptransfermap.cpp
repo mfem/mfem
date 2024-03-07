@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -192,7 +192,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, dst,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(dst);
+      CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
@@ -225,7 +225,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, z_,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(z_);
+      CommunicateSharedVdofs(z_);
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {

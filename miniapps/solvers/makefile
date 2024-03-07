@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-BLOCK_SOLVERS_SRC = div_free_solver.cpp block-solvers.cpp
+BLOCK_SOLVERS_SRC = block-solvers.cpp darcy_solver.cpp bramble_pasciak.cpp div_free_solver.cpp
 BLOCK_SOLVERS_OBJ = $(BLOCK_SOLVERS_SRC:.cpp=.o)
 
 LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
@@ -69,9 +69,9 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 block-solvers-test-par: block-solvers-constant block-solvers-anisotropic
 block-solvers-constant: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2)
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1)
 block-solvers-anisotropic: block-solvers
-	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-r 2\
+	@$(call mfem-test,$<, $(RUN_MPI), BlockSolver miniapp,-rs 1 -rp 1\
 	  -m $(SRC)anisotropic.mesh -c $(SRC)anisotropic.coeff\
 	  -eb $(SRC)anisotropic.bdr)
 lor_solvers-test-seq: lor_solvers

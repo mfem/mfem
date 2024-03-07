@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,6 +38,10 @@ protected:
    /// Set of Domain Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> dnfi; // owned
    Array<Array<int>*>              dnfi_marker; // not owned
+
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<NonlinearFormIntegrator*> bnfi; // owned
+   Array<Array<int>*> bnfi_marker; // not owned
 
    /// Set of interior face Integrators to be assembled (added).
    Array<NonlinearFormIntegrator*> fnfi; // owned
@@ -119,6 +123,19 @@ public:
    /// Access all integrators added with AddDomainIntegrator().
    Array<NonlinearFormIntegrator*> *GetDNFI() { return &dnfi; }
    const Array<NonlinearFormIntegrator*> *GetDNFI() const { return &dnfi; }
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(NonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
+
+   /// Access all integrators added with AddBoundaryIntegrator().
+   Array<NonlinearFormIntegrator*> *GetBNFI() { return &bnfi; }
+   const Array<NonlinearFormIntegrator*> *GetBNFI() const { return &bnfi; }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
@@ -235,6 +252,10 @@ protected:
    Array<BlockNonlinearFormIntegrator*> dnfi;
    Array<Array<int>*>                   dnfi_marker;
 
+   /// Set of Boundary Integrators to be assembled (added).
+   Array<BlockNonlinearFormIntegrator*> bnfi;
+   Array<Array<int>*> bnfi_marker;
+
    /// Set of interior face Integrators to be assembled (added).
    Array<BlockNonlinearFormIntegrator*> fnfi;
 
@@ -311,6 +332,15 @@ public:
    void AddDomainIntegrator(BlockNonlinearFormIntegrator *nlfi,
                             Array<int> &elem_marker)
    { dnfi.Append(nlfi); dnfi_marker.Append(&elem_marker); }
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi)
+   { bnfi.Append(nlfi); bnfi_marker.Append(NULL); }
+
+   /// Adds new Boundary Integrator, restricted to specific attributes.
+   void AddBoundaryIntegrator(BlockNonlinearFormIntegrator *nlfi,
+                              Array<int> &elem_marker)
+   { bnfi.Append(nlfi); bnfi_marker.Append(&elem_marker); }
 
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(BlockNonlinearFormIntegrator *nlfi)
