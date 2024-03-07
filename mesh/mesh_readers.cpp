@@ -2863,7 +2863,11 @@ enum CubitElementType
    ELEMENT_TET4,
    ELEMENT_TET10,
    ELEMENT_HEX8,
-   ELEMENT_HEX27
+   ELEMENT_HEX27,
+   ELEMENT_WEDGE6,
+   ELEMENT_WEDGE18,
+   ELEMENT_PYRAMID5,
+   ELEMENT_PYRAMID14
 };
 
 enum CubitFaceType
@@ -3154,6 +3158,7 @@ static void SetCubitElementAndFaceType2D(const int num_nodes_per_element,
          num_element_linear_nodes = 4;
          break;
       }
+      
       default:
       {
          MFEM_ABORT("Don't know what to do with a " << num_nodes_per_element <<
