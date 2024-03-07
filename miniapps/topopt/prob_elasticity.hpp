@@ -83,24 +83,22 @@ void GetElasticityProblem(const ElasticityProblem problem,
       } break;
       case ElasticityProblem::Bridge:
       {
-         if (filter_radius < 0) { filter_radius = 5.0; }
+         if (filter_radius < 0) { filter_radius = 0.05; }
          if (vol_fraction < 0) { vol_fraction = 0.3; }
 
-         double nel = std::pow(2, ref_levels + (par_ref_levels < 0 ? 0 : par_ref_levels));
          *mesh = Mesh::MakeCartesian2D(2, 1, mfem::Element::Type::QUADRILATERAL, true,
-                                       nel*2.0,
-                                       nel);
+                                       2.0, 1.0);
          ess_bdr.SetSize(3, 5);
          ess_bdr_filter.SetSize(5);
          ess_bdr = 0; ess_bdr_filter = 0;
          ess_bdr(1, 3) = 1; // left : y-roller -> x fixed
          ess_bdr(0, 4) = 1; // right-bottom : pin support
          ess_bdr_filter[2] = 1;
-         vforce_cf.reset(new VectorFunctionCoefficient(2, [nel](const Vector &x,
+         vforce_cf.reset(new VectorFunctionCoefficient(2, [](const Vector &x,
                                                              Vector &f)
          {
             f = 0.0;
-            if (x[1] > nel - 1) { f(1) = -1.0; }
+            if (x[1] > 1.0 - std::pow(2, -5.0)) { f(1) = -1.0; }
          }));
          prob_name = "Bridge";
       } break;
@@ -285,8 +283,9 @@ void GetElasticityProblem(const ElasticityProblem problem,
       case ElasticityProblem::Bridge:
       {
          {
-            double nel = std::pow(2, ref_levels + (par_ref_levels < 0 ? 0 : par_ref_levels));
-            mesh->MarkBoundary([nel](const Vector &x) {return ((x(0) > (2.0*nel - 1)) && (x(1) < 1e-10)); },
+            double h = std::pow(0.5,
+                                ref_levels + (par_ref_levels < 0 ? 0 : par_ref_levels));
+            mesh->MarkBoundary([h](const Vector &x) {return ((x(0) > (2.0 - h)) && (x(1) < 1e-10)); },
             5);
             mesh->SetAttributes();
          } break;
