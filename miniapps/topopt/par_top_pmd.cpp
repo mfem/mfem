@@ -195,20 +195,15 @@ int main(int argc, char *argv[])
    ParGridFunction &grad(dynamic_cast<ParGridFunction&>(optprob.GetGradient()));
    ParGridFunction &psi(dynamic_cast<ParGridFunction&>(density.GetGridFunction()));
    rho_filter = density.GetDomainVolume()*vol_fraction;
-   {
-      // Apply Filter material boundary, ess_bdr_filter == 1
-      Array<int> material_bdr(ess_bdr_filter);
-      for (auto &val : material_bdr) {val = val == 1;}
-      ConstantCoefficient one_cf(1.0);
-      rho_filter.ProjectBdrCoefficient(one_cf, material_bdr);
-      // Apply Filter void boundary, ess_bdr_filter == -1
-      Array<int> void_bdr(ess_bdr_filter);
-      for (auto &val : void_bdr) {val = val == -1;}
-      ConstantCoefficient zero_cf(0.0);
-      rho_filter.ProjectBdrCoefficient(zero_cf, void_bdr);
-      // Update ess_bdr_filter so that it is either 0 or 1.
-      for (auto &val : ess_bdr_filter) {val = val != 0; }
-   }
+   ConstantCoefficient one_cf(1.0);
+   ConstantCoefficient zero_cf(0.0);
+   ConstantCoefficient max_grad_cf(0.0);
+   Array<int> material_bdr(ess_bdr_filter), void_bdr(ess_bdr_filter);
+   for (auto &val : material_bdr) {val = val == 1;}
+   for (auto &val : void_bdr) {val = val == -1;}
+   for (auto &val : ess_bdr_filter) {val = val != 0; }
+   rho_filter.ProjectBdrCoefficient(one_cf, material_bdr);
+   rho_filter.ProjectBdrCoefficient(zero_cf, void_bdr);
 
    std::unique_ptr<ParGridFunction> gradH1_selfload;
    std::unique_ptr<ParLinearForm> projected_grad_selfload;
@@ -287,6 +282,8 @@ int main(int argc, char *argv[])
          rho_gf.reset(new ParGridFunction(&filter_fes));
          rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
                                         GridFunction::AvgType::ARITHMETIC);
+         rho_gf->ProjectBdrCoefficient(one_cf, material_bdr);
+         rho_gf->ProjectBdrCoefficient(zero_cf, void_bdr);
 
       }
       pd.reset(new ParaViewDataCollection(filename_prefix.str(), pmesh.get()));
@@ -370,23 +367,25 @@ int main(int argc, char *argv[])
       {
          rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
                                         GridFunction::AvgType::ARITHMETIC);
-         MappedGridFunctionCoefficient bdr_rho(&psi, [](double x)
-         {
-            return x > 0.0 ? 0.0 : sigmoid(x);
-         });
-         Array<int> bdr(ess_bdr_filter);
-         bdr = 1;
-         for (int i=0; i<bdr.Size(); i++)
-         {
-            for (int j=0; j<ess_bdr.NumRows(); j++)
-            {
-               if (ess_bdr(j, i))
-               {
-                  bdr[i] = 0;
-               }
-            }
-         }
-         rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
+         // MappedGridFunctionCoefficient bdr_rho(&psi, [](double x)
+         // {
+         //    return x > 0.0 ? 0.0 : sigmoid(x);
+         // });
+         // Array<int> bdr(ess_bdr_filter);
+         // bdr = 1;
+         // for (int i=0; i<bdr.Size(); i++)
+         // {
+         //    for (int j=0; j<ess_bdr.NumRows(); j++)
+         //    {
+         //       if (ess_bdr(j, i))
+         //       {
+         //          bdr[i] = 0;
+         //       }
+         //    }
+         // }
+         // rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
+         // rho_gf->ProjectBdrCoefficient(one_cf, material_bdr);
+         // rho_gf->ProjectBdrCoefficient(zero_cf, void_bdr);
       }
       if (glvis_visualization)
       {
