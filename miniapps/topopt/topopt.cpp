@@ -867,7 +867,7 @@ void TopOptProblem::UpdateGradient()
       // state equation is assumed to be a symmetric operator
       state_equation.DualSolve(*dual_solution, obj);
    }
-   density.GetFilter().Apply(*dEdfrho, *gradF_filter);
+   density.GetFilter().Apply(*dEdfrho, *gradF_filter, false);
    if (gradF_filter != gradF)
    {
       filter_to_density->SetData(gradF->GetData());
