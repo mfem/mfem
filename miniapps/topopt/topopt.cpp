@@ -1347,7 +1347,8 @@ int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
 HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
                                  const double eps, Array<int> &ess_bdr,
                                  bool enforce_symmetricity):DensityFilter(fes),
-   filter(MakeBilinearForm(&fes)), eps2(eps*eps), ess_bdr(ess_bdr)
+   filter(MakeBilinearForm(&fes)), rhoform(MakeLinearForm(&fes)), eps2(eps*eps),
+   ess_bdr(ess_bdr)
 {
    if (enforce_symmetricity)
    {
@@ -1370,10 +1371,10 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
 {
    MFEM_ASSERT(frho.FESpace() != filter->FESpace(),
                "Filter is initialized with finite element space different from the given filtered density.");
-   std::unique_ptr<LinearForm> rhoForm(MakeLinearForm(frho.FESpace()));
-   rhoForm->AddDomainIntegrator(new DomainLFIntegrator(rho));
+   rhoform->GetDLFI()->DeleteAll();
+   rhoform->AddDomainIntegrator(new DomainLFIntegrator(rho));
    Array<int> empty_bdr(ess_bdr); empty_bdr = 0;
-   EllipticSolver solver(*filter, *rhoForm, apply_bdr ? ess_bdr : empty_bdr);
+   EllipticSolver solver(*filter, *rhoform, apply_bdr ? ess_bdr : empty_bdr);
    solver.SetIterativeMode();
    bool converged = solver.Solve(frho, true, false);
 

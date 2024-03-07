@@ -272,6 +272,7 @@ class HelmholtzFilter : public DensityFilter
 public:
 protected:
    std::unique_ptr<BilinearForm> filter;
+   std::unique_ptr<LinearForm> rhoform;
    Array<int> &ess_bdr;
    ConstantCoefficient eps2;
 private:
