@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
    bool paraview = true;
    double tol_stationarity = 0;
    double tol_compliance = 5e-05;
+   double cx = 1.0;
+   double cy = 0.0;
 
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
@@ -110,6 +112,10 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&cx, "-cx", "--connection-x",
+                  "Connection point x-coordinate for ports");
+   args.AddOption(&cy, "-cy", "--connection-y",
+                  "Connection point y-coordinate for ports");
    args.Parse();
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
@@ -214,6 +220,20 @@ int main(int argc, char *argv[])
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
                                  (&density.GetFilteredDensity());
+   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
+   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
+                        (&density.GetGridFunction()));
+   {
+      Vector center({cx, cy});
+      Array<Vector*> ports(3);
+      ports[0] = new Vector(2); (*ports[0])(0) = 0.0; (*ports[0])(1) = 0.0;
+      ports[1] = new Vector(2); (*ports[1])(0) = 0.0; (*ports[1])(1) = 1.0;
+      ports[2] = new Vector(2); (*ports[2])(0) = 2.0; (*ports[2])(1) = 1.0;
+
+      initialDesign(rho, center, ports, vol_fraction*density.GetDomainVolume(),
+                    2.0, -5, 5);
+      rho.ApplyMap(sigmoid);
+   }
    rho_filter = 1.0;
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -269,9 +289,6 @@ int main(int argc, char *argv[])
    }
 
    // 11. Iterate
-   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &rho(*dynamic_cast<ParGridFunction*>
-                        (&density.GetGridFunction()));
    ParGridFunction old_rho(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
@@ -371,7 +388,7 @@ int main(int argc, char *argv[])
       logger.Print();
 
       if (stationarityError < tol_stationarity &&
-          std::fabs(old_compliance - compliance) < tol_compliance)
+          std::fabs((old_compliance - compliance)/old_compliance) < tol_compliance)
       {
          converged = true;
          if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }

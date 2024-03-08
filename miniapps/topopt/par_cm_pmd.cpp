@@ -50,42 +50,6 @@
 using namespace std;
 using namespace mfem;
 
-double DistanceToSegment(const Vector &p, const Vector &v, const Vector &w)
-{
-   const double l2 = v.DistanceSquaredTo(w);
-   const double t = std::max(0.0, std::min(1.0,
-                                           ((p*w) - (p*v) - (v*w) + (v*v))/l2));
-   Vector projection(v);
-   projection.Add(t, w);
-   projection.Add(-t, v);
-   return p.DistanceTo(projection);
-}
-
-void initialDesign(GridFunction& psi, Vector domain_center,
-                   Array<Vector*> ports,
-                   double target_volume, double domain_size, double lower, double upper)
-{
-   double weight = 0;
-   double current_volume = 0;
-   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
-   {
-      double d = infinity();
-      for (int i=0; i<ports.Size(); i++) {d = std::min(d, DistanceToSegment(x, domain_center, *(ports[i])));}
-      // double d = x.DistanceTo(domain_center);
-      // for (int i=0; i<ports.Size(); i++) {d = std::min(d, x.DistanceTo(*(ports[i])));}
-      return d;
-   });
-   psi.ProjectCoefficient(dist);
-   double maxDist = psi.Max();
-   MPI_Allreduce(MPI_IN_PLACE, &maxDist, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-   const double scale = upper - lower;
-   psi.ApplyMap([maxDist, lower, upper](double x)
-   {
-      double d = lower + (upper - lower)*(1.0 - std::pow(x / maxDist, 0.3));
-      return d;
-   });
-}
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -419,7 +383,7 @@ int main(int argc, char *argv[])
       logger.Print();
 
       if ((use_bregman ? stationarityError_bregman : stationarityError) < tol_stationarity &&
-          std::fabs(old_compliance - compliance) < tol_compliance)
+          std::fabs((old_compliance - compliance)/old_compliance) < tol_compliance)
       {
          converged = true;
          if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }
