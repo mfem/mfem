@@ -3719,6 +3719,111 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
    }
 }
 
+static void BuildBoundaryNodeIds(const vector<int> & boundary_ids,
+                            const CubitElementInfo & element_info,
+                            const map<int, vector<int>> & node_ids_for_element_id,
+                            const map<int, vector<int>> & element_ids_for_boundary_id,
+                            const map<int, vector<int>> & side_ids_for_boundary_id,
+                            map<int, vector<vector<int>>> & node_ids_for_boundary_id)
+{
+   for (int boundary_id : boundary_ids)
+   {
+      // Get element IDs of element on boundary (and their sides that are on boundary).
+      auto & boundary_element_ids = element_ids_for_boundary_id.at(
+                                       boundary_id);
+      auto & boundary_element_sides = side_ids_for_boundary_id.at(
+                                         boundary_id);
+
+      // Create vector to store the node ids of all boundary nodes.
+      std::vector<std::vector<int>> boundary_node_ids(
+                                    boundary_element_ids.size());
+
+      // Iterate over elements on boundary.
+      for (int jelement = 0; jelement < (int)boundary_element_ids.size(); jelement++)
+      {
+         // Get element ID and the boundary side.
+         const int boundary_element_global_id = boundary_element_ids[jelement];
+         const int boundary_side = boundary_element_sides[jelement];
+
+         // Get all of the element's nodes on boundary side of element.
+         const auto & face_info = element_info.Face(boundary_side);
+
+         const vector<int> & element_node_ids =
+            node_ids_for_element_id.at(boundary_element_global_id);
+
+         vector<int> nodes_of_element_on_side(face_info.NumFaceCornerNodes());
+
+         // Iterate over the element's face nodes on the matching side.
+         // NB: only adding vertices on face (ignore higher-order).
+         for (int knode = 0; knode < face_info.NumFaceCornerNodes(); knode++)
+         {
+            int inode;
+
+            switch (element_info.ElementType())
+            {
+               case (CubitElementInfo::ELEMENT_TRI3):
+               {
+                  inode = cubit_side_map_tri3[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_TRI6):
+               {
+                  inode = cubit_side_map_tri6[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_QUAD4):
+               {
+                  inode = cubit_side_map_quad4[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_QUAD9):
+               {
+                  inode = cubit_side_map_quad9[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_TET4):
+               {
+                  inode = cubit_side_map_tet4[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_TET10):
+               {
+                  inode = cubit_side_map_tet10[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_HEX8):
+               {
+                  inode = cubit_side_map_hex8[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_HEX27):
+               {
+                  inode = cubit_side_map_hex27[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_WEDGE6):
+               {
+                  inode = cubit_side_map_wedge6[boundary_side][knode];
+                  break;
+               }
+               default:
+               {
+                  MFEM_ABORT("Unsupported element type encountered.\n");
+                  break;
+               }
+            }
+
+            nodes_of_element_on_side[knode] = element_node_ids[inode - 1];
+         }
+
+         boundary_node_ids[jelement] = std::move(nodes_of_element_on_side);
+      }
+
+      // Add to the map.
+      node_ids_for_boundary_id[boundary_id] = std::move(boundary_node_ids);
+   }
+}
+
 
 
 /// @brief The final step in constructing the mesh from a Genesis file. This is
@@ -3880,102 +3985,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    map<int, vector<vector<int>>> node_ids_for_boundary_id;
 
-   for (int boundary_id : boundary_ids)
-   {
-      // Get element IDs of element on boundary (and their sides that are on boundary).
-      auto & boundary_element_ids = element_ids_for_boundary_id.at(
-                                       boundary_id);
-      auto & boundary_element_sides = side_ids_for_boundary_id.at(
-                                         boundary_id);
-
-      // Create vector to store the node ids of all boundary nodes.
-      std::vector<std::vector<int>> boundary_node_ids(
-                                    boundary_element_ids.size());
-
-      // Iterate over elements on boundary.
-      for (int jelement = 0; jelement < (int)boundary_element_ids.size(); jelement++)
-      {
-         // Get element ID and the boundary side.
-         const int boundary_element_global_id = boundary_element_ids[jelement];
-         const int boundary_side = boundary_element_sides[jelement];
-
-         // Get all of the element's nodes on boundary side of element.
-         const auto & face_info = element_info.Face(boundary_side);
-
-         const vector<int> & element_node_ids =
-            node_ids_for_element_id[boundary_element_global_id];
-
-         vector<int> nodes_of_element_on_side(face_info.NumFaceCornerNodes());
-
-         // Iterate over the element's face nodes on the matching side.
-         // NB: only adding vertices on face (ignore higher-order).
-         for (int knode = 0; knode < face_info.NumFaceCornerNodes(); knode++)
-         {
-            int inode;
-
-            switch (element_info.ElementType())
-            {
-               case (CubitElementInfo::ELEMENT_TRI3):
-               {
-                  inode = cubit_side_map_tri3[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_TRI6):
-               {
-                  inode = cubit_side_map_tri6[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_QUAD4):
-               {
-                  inode = cubit_side_map_quad4[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_QUAD9):
-               {
-                  inode = cubit_side_map_quad9[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_TET4):
-               {
-                  inode = cubit_side_map_tet4[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_TET10):
-               {
-                  inode = cubit_side_map_tet10[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_HEX8):
-               {
-                  inode = cubit_side_map_hex8[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_HEX27):
-               {
-                  inode = cubit_side_map_hex27[boundary_side][knode];
-                  break;
-               }
-               case (CubitElementInfo::ELEMENT_WEDGE6):
-               {
-                  inode = cubit_side_map_wedge6[boundary_side][knode];
-                  break;
-               }
-               default:
-               {
-                  MFEM_ABORT("Unsupported element type encountered.\n");
-                  break;
-               }
-            }
-
-            nodes_of_element_on_side[knode] = element_node_ids[inode - 1];
-         }
-
-         boundary_node_ids[jelement] = std::move(nodes_of_element_on_side);
-      }
-
-      // Add to the map.
-      node_ids_for_boundary_id[boundary_id] = std::move(boundary_node_ids);
-   }
+   BuildBoundaryNodeIds(boundary_ids, element_info, node_ids_for_element_id,
+                        element_ids_for_boundary_id, side_ids_for_boundary_id,
+                        node_ids_for_boundary_id);
 
    // Read the xyz coordinates for each node.
    vector<double> coordx(num_nodes);
