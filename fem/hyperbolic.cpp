@@ -184,6 +184,9 @@ double FluxFunction::ComputeFluxDotN(const Vector &U,
                                      FaceElementTransformations &Tr,
                                      Vector &FUdotN) const
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix flux(num_equations, dim);
+#endif
    double val = ComputeFlux(U, Tr, flux);
    flux.Mult(normal, FUdotN);
    return val;
@@ -215,6 +218,9 @@ double AdvectionFlux::ComputeFlux(const Vector &U,
                                   ElementTransformation &Tr,
                                   DenseMatrix &FU) const
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector bval(b.GetVDim());
+#endif
    b.Eval(bval, Tr, Tr.GetIntPoint());
    MultVWt(U, bval, FU);
    return bval.Norml2();

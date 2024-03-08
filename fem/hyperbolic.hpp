@@ -66,13 +66,13 @@ public:
    const int num_equations;
    const int dim;
 
-   FluxFunction(const int num_equations,
-                const int dim):num_equations(num_equations), dim(dim)
+   FluxFunction(const int num_equations, const int dim)
+      : num_equations(num_equations), dim(dim)
    {
 #ifndef MFEM_THREAD_SAFE
       flux.SetSize(num_equations, dim);
 #endif
-   };
+   }
 
    /**
     * @brief Compute flux F(u, x) for given state u and physical point x
@@ -115,6 +115,7 @@ public:
    {
       MFEM_ABORT("Not Implemented.");
    }
+
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable DenseMatrix flux;
@@ -130,7 +131,9 @@ private:
 class RiemannSolver
 {
 public:
-   RiemannSolver(const FluxFunction &fluxFunction):fluxFunction(fluxFunction) {}
+   RiemannSolver(const FluxFunction &fluxFunction)
+      : fluxFunction(fluxFunction) { }
+
    /**
     * @brief Evaluates numerical flux for given states and fluxes. Must be
     * overloaded in a derived class
@@ -139,18 +142,20 @@ public:
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
     * (num_equations)
-    * @param[in] nor scaled normal vector, @see mfem::CalcOrtho (dim)
+    * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face information
     * @param[out] flux numerical flux (num_equations)
     */
    virtual double Eval(const Vector &state1, const Vector &state2,
                        const Vector &nor, FaceElementTransformations &Tr,
                        Vector &flux) const = 0;
+
    virtual ~RiemannSolver() = default;
 
    /// @brief Get flux function F
    /// @return constant reference to the flux function.
-   const FluxFunction &GetFluxFunction() const {return fluxFunction;}
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
 protected:
    const FluxFunction &fluxFunction;
 };
@@ -166,7 +171,7 @@ private:
    double max_char_speed;
    const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
-   const int IntOrderOffset; // 2*p + IntOrderOffset will be used for quadrature
+   const int IntOrderOffset; // integration order offset, see GetRule()
 #ifndef MFEM_THREAD_SAFE
    // Local storages for element integration
    Vector shape;              // shape function value at an integration point
@@ -188,21 +193,21 @@ public:
     * @brief Construct a new Hyperbolic Form Integrator object
     *
     * @param[in] rsolver numerical flux
-    * @param[in] IntOrderOffset 2*p+IntOrderOffset order Gaussian quadrature
-    * will be used
+    * @param[in] IntOrderOffset integration order offset, see GetRule()
     */
    HyperbolicFormIntegrator(
       const RiemannSolver &rsolver,
       const int IntOrderOffset=0);
 
    /**
-    * @brief Get the element integration rule based on IntOrderOffset, @see
-    * AssembleElementVector. Used only when ir is not provided
+    * @brief Get the element integration rule based on IntOrderOffset, see
+    * AssembleElementVector(). Used only when ir is not provided
     *
-    * @param[in] el given finite element space
-    * @param[in] Tr Element transformation for Jacobian order
+    * @param[in] el given finite element
+    * @param[in] Tr element transformation for Jacobian order
     * @param[in] IntOrderOffset_ integration order offset
-    * @return const IntegrationRule& with order 2*p*Tr.OrderJ() + IntOrderOffset
+    * @return const IntegrationRule& with order 2*p + Tr.OrderJ() +
+    *    IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &el,
                                          const ElementTransformation &Tr,
@@ -213,14 +218,14 @@ public:
    }
 
    /**
-    * @brief Get the face integration rule based on IntOrderOffset, @see
-    * AssembleFaceVector. Used only when ir is not provided
+    * @brief Get the face integration rule based on IntOrderOffset, see
+    * AssembleFaceVector(). Used only when ir is not provided
     *
     * @param[in] trial_fe trial finite element space
     * @param[in] test_fe test finite element space
     * @param[in] Tr Face element trasnformation for Jacobian order
     * @param[in] IntOrderOffset_ integration order offset
-    * @return const IntegrationRule& with order (p1 + p2)*Tr.OrderJ() +
+    * @return const IntegrationRule& with order (p1 + p2) + Tr.OrderJ() +
     *    IntOrderOffset
     */
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
@@ -228,7 +233,7 @@ public:
                                          const FaceElementTransformations &Tr,
                                          const int IntOrderOffset_)
    {
-      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderW() +
+      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderJ() +
                         IntOrderOffset_;
       return IntRules.Get(Tr.GetGeometryType(), order);
    }
@@ -247,7 +252,7 @@ public:
       return max_char_speed;
    }
 
-   const FluxFunction &GetFluxFunction() {return fluxFunction; }
+   const FluxFunction &GetFluxFunction() { return fluxFunction; }
 
    /**
     * @brief implement (F(u), grad v) with abstract F computed by ComputeFlux
@@ -279,9 +284,9 @@ public:
 };
 
 
-//////////////////////////////////////////////////////////////////
+/*////////////////////////////////////////////////////////////////
 ///                      NUMERICAL FLUXES                      ///
-//////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////*/
 
 /**
  * @brief Rusanov flux, also known as local Lax-Friedrichs,
@@ -292,13 +297,15 @@ public:
 class RusanovFlux : public RiemannSolver
 {
 public:
-   RusanovFlux(const FluxFunction &fluxFunction): RiemannSolver(fluxFunction)
+   RusanovFlux(const FluxFunction &fluxFunction)
+      : RiemannSolver(fluxFunction)
    {
 #ifndef MFEM_THREAD_SAFE
       fluxN1.SetSize(fluxFunction.num_equations);
       fluxN2.SetSize(fluxFunction.num_equations);
 #endif
    }
+
    /**
     * @brief  hat(F)n = ½(F(u⁺,x)n + F(u⁻,x)n) - ½λ(u⁺ - u⁻)
     *
@@ -313,6 +320,7 @@ public:
    double Eval(const Vector &state1, const Vector &state2,
                const Vector &nor, FaceElementTransformations &Tr,
                Vector &flux) const override;
+
 protected:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector fluxN1, fluxN2;
@@ -342,6 +350,7 @@ public:
       bval.SetSize(b.GetVDim());
 #endif
    }
+
    /**
     * @brief Compute F(u)
     *
@@ -404,6 +413,7 @@ public:
     */
    double ComputeFlux(const Vector &state, ElementTransformation &Tr,
                       DenseMatrix &flux) const override;
+
    /**
     * @brief Compute normal flux, F(h, hu)
     *
