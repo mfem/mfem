@@ -115,7 +115,6 @@ int main(int argc, char *argv[])
       case 1:
       case 2:
       case 3:
-      case 6:
       {
          MFEM_ABORT("Problem not implemented yet");
          break;
@@ -127,10 +126,17 @@ int main(int argc, char *argv[])
          mesh_file = "meshes/newmesh1.mesh";
          break;
       case 5:
-         mesh_file = "meshes/iron.mesh";
+         mesh_file = "meshes/Test5.mesh";
          break;
       case 51:
-         mesh_file = "meshes/iron-extended.mesh";
+         mesh_file = "meshes/Test5mod.mesh";
+         break;
+      case 6:
+         mesh_file = "meshes/Test6.mesh";
+         break;
+      case 61:
+         // Something wrong with this mesh
+         mesh_file = "meshes/Test6mod.mesh";
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -147,17 +153,17 @@ int main(int argc, char *argv[])
    Array<int> attr1, attr2;
    attr1.Append(1);
    attr2.Append(2);
-   SubMesh mesh1 = SubMesh::CreateFromDomain(*mesh,attr1);
-   SubMesh mesh2 = SubMesh::CreateFromDomain(*mesh,attr2);
+   // SubMesh mesh1 = SubMesh::CreateFromDomain(*mesh,attr1);
+   // SubMesh mesh2 = SubMesh::CreateFromDomain(*mesh,attr2);
 
-   Array<int> part1(mesh1.GeneratePartitioning(num_procs),mesh1.GetNE());
-   Array<int> part2(mesh2.GeneratePartitioning(num_procs),mesh2.GetNE());
+   // Array<int> part1(mesh1.GeneratePartitioning(num_procs),mesh1.GetNE());
+   // Array<int> part2(mesh2.GeneratePartitioning(num_procs),mesh2.GetNE());
 
-   part.Append(part1);
-   part.Append(part2);
+   // part.Append(part1);
+   // part.Append(part2);
 
-   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part.GetData());
-   // ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
+   // ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh,part.GetData());
+   ParMesh * pmesh = new ParMesh(MPI_COMM_WORLD,*mesh);
 
    for (int i = 0; i<pref; i++)
    {
@@ -168,9 +174,18 @@ int main(int argc, char *argv[])
 
    Array<int> ess_bdr_attr;
    Array<int> ess_bdr_attr_comp;
-
-   ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
-   ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
+   if (testNo == 6 || testNo == 61)
+   {
+      ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(1);
+      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(2);
+      ess_bdr_attr.Append(4); ess_bdr_attr_comp.Append(0);
+      ess_bdr_attr.Append(5); ess_bdr_attr_comp.Append(-1);
+   }
+   else
+   {
+      ess_bdr_attr.Append(2); ess_bdr_attr_comp.Append(-1);
+      ess_bdr_attr.Append(6); ess_bdr_attr_comp.Append(-1);
+   }
    ParElasticityProblem * prob = new ParElasticityProblem(pmesh,
                                                           ess_bdr_attr,ess_bdr_attr_comp,
                                                           order);
@@ -181,31 +196,81 @@ int main(int argc, char *argv[])
    Vector mu(prob->GetMesh()->attributes.Max());
    mu[1] = 500;
    mu[0] = 1./(2*1.499);
+
+   if (testNo == 6 || testNo == 61 )
+   {
+      lambda = (1000*0.3)/(1.3*0.4);
+      mu = 500/(1.3);
+   }
+
    prob->SetLambda(lambda); prob->SetMu(mu);
 
    int dim = pmesh->Dimension();
    Vector ess_values(dim);
+   int essbdr_attr;
    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-   int essbdr_attr = 2;
 
    ess_values = 0.0;
-   if (testNo == -1 || testNo == 41)
+   ConstantCoefficient one(-10.0);
+
+   std::set<int> mortar_attr;
+   std::set<int> nonmortar_attr;
+
+   if (testNo == 6 || testNo == 61)
    {
-      ess_values[0] = 0.1;
+      /* material 1: e = 1000
+                     nu = 0.3
+         material 2: e = 1000
+                     nu = 0.3
+         material 3: e = 1000
+                     nu = 0.3
+         Attr    value
+         1      Dirichlet y = 0
+         2      Dirichlet z = 0
+         3      Neuman = 1.0
+         4      Dirichlet x = 0
+         5      Dirichlet x=y=z=0
+         6      Mortar
+         7      NonMortar
+         8      NonMortar
+         9      Mortar
+      */
+      ess_values = 0.0;
+      ess_bdr = 0;
+      ess_bdr[0] = 1;
+      ess_bdr[1] = 1;
+      ess_bdr[3] = 1;
+      ess_bdr[4] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      ess_bdr = 0;
+      ess_bdr[2] = 1;
+      prob->SetNeumanPressureData(one,ess_bdr);
+      mortar_attr.insert(6);
+      mortar_attr.insert(9);
+      nonmortar_attr.insert(7);
+      nonmortar_attr.insert(8);
    }
    else
    {
-      ess_values[2] = 0.7;
+      if (testNo == -1 || testNo == 41)
+      {
+         ess_values[0] = 0.1;
+      }
+      else
+      {
+         ess_values[2] = 0.7;
+      }
+      essbdr_attr = 2;
+      ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      essbdr_attr = 6;
+      ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
+      prob->SetDisplacementDirichletData(ess_values, ess_bdr);
+      mortar_attr.insert(3);
+      nonmortar_attr.insert(4);
    }
-   ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-   prob->SetDisplacementDirichletData(ess_values, ess_bdr);
-   essbdr_attr = 6;
-   ess_values = 0.0; ess_bdr = 0; ess_bdr[essbdr_attr - 1] = 1;
-   prob->SetDisplacementDirichletData(ess_values, ess_bdr);
 
 
-   std::set<int> mortar_attr({3});
-   std::set<int> nonmortar_attr({4});
 
    ParContactProblemSingleMesh contact(prob, mortar_attr, nonmortar_attr,
                                        enable_tribol);

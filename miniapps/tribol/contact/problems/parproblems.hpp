@@ -22,6 +22,7 @@ private:
    ParGridFunction x;
    HypreParMatrix A;
    Vector B,X;
+   ConstantCoefficient pressure_cf;
    void Init();
    bool own_mesh;
 public:
@@ -54,7 +55,6 @@ public:
       Init();
    }
 
-
    ParMesh * GetMesh() { return pmesh; }
    ParFiniteElementSpace * GetFESpace() { return fes; }
    FiniteElementCollection * GetFECol() { return fec; }
@@ -81,6 +81,12 @@ public:
    { 
       mu = mu_; 
       mu_cf.UpdateConstants(mu);
+   }
+
+   void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker)
+   { 
+      pressure_cf.constant = f.constant;
+      b.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),bdr_marker);
    }
 
    void FormLinearSystem();

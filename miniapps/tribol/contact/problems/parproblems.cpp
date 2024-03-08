@@ -44,6 +44,7 @@ void ParElasticityProblem::FormLinearSystem()
    {
       formsystem = true;
       b.Assemble();
+      // mfem::out << "2" << endl;
       a->Assemble();
       a->FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    }
