@@ -3654,26 +3654,6 @@ static void ReadCubitElementBlocks(const int netcdf_descriptor,
 }
 
 
-static int GetCubitBlockIndexForElement(const int global_element_index,
-                                        const int num_element_blocks,
-                                        const int *start_of_block)
-{
-   int iblock = 0;
-
-   while (iblock < num_element_blocks &&
-          global_element_index >= start_of_block[iblock + 1])
-   {
-      iblock++;
-   }
-
-   if (iblock >= num_element_blocks)
-   {
-      MFEM_ABORT("Element is not part of any blocks.");
-   }
-
-   return iblock;
-}
-
 mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
                           const int attribute)
 {
