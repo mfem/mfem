@@ -3543,6 +3543,21 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 }
 
+static vector<int> GetCubitBlockIDs(const int netcdf_descriptor, const int num_element_blocks)
+{
+   vector<int> block_ids(num_element_blocks);
+
+   int netcdf_status, variable_id;
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "eb_prop1", &variable_id);
+   netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                    block_ids.data());
+
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+
+   return block_ids;
+}
+
 
 static void ReadCubitElementBlocks(const int netcdf_descriptor,
                                    const int num_element_blocks, const int num_nodes_per_element,
@@ -3830,15 +3845,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                           block_elements);
 
    // Read the block IDs.
-   vector<int> block_ids(num_element_blocks);
-
-   {
-      netcdf_status = nc_inq_varid(netcdf_descriptor, "eb_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     block_ids.data());
-
-      if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
-   }
+   auto block_ids = GetCubitBlockIDs(netcdf_descriptor, num_element_blocks);
 
    // Create an array holding the index of the first element in each block. This
    // will allow the determination of the block that each element is in.
