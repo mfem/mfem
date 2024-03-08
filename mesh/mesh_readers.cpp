@@ -2866,6 +2866,15 @@ const int cubit_side_map_hex27[6][9] =
    {5,8,7,6,20,19,18,17,23}
 };
 
+const int cubit_side_map_wedge6[6][4] =
+{
+   {1,3,2,0},  // NB: 0 because only 3 elements.
+   {4,5,6,0},
+   {1,2,5,4},
+   {2,3,6,5},
+   {3,1,4,6}
+};
+
 
 /**
  * CubitFaceInfo
@@ -3014,9 +3023,9 @@ public:
       ELEMENT_HEX8,
       ELEMENT_HEX27,
       ELEMENT_WEDGE6,
-      ELEMENT_WEDGE18,
-      ELEMENT_PYRAMID5,
-      ELEMENT_PYRAMID14
+      //ELEMENT_WEDGE18,
+      //ELEMENT_PYRAMID5,
+      //ELEMENT_PYRAMID14
    };
 
    inline CubitElementType ElementType() const { return _element_type; }
@@ -3042,10 +3051,10 @@ protected:
     * Sets the _face_info vector.
     */
    std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
-   std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
+   // std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
-   std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
-   std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
+   // std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
+   // std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
 
 private:
    /**
@@ -3205,34 +3214,34 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _face_info = GetWedge6FaceInfo();
          break;
       }
-      case 18:
-      {
-         _element_type = ELEMENT_WEDGE18;
-         _order = 2;
-         _num_corner_nodes = 6;
-         _num_faces = 5;
-         _face_info = GetWedge18FaceInfo();
-         break;
-      }
-      case 5:
-      {
-         _element_type = ELEMENT_PYRAMID5;
-         _order = 1;
-         _num_corner_nodes = 5;
-         _num_faces = 5;
-         _face_info = GetPyramid5FaceInfo();
-         break;
-      }
-      case 14:
-      {
-         _element_type = ELEMENT_PYRAMID14;
-         _order = 2;
-         _num_corner_nodes = 5;
-         _num_faces = 5;
-         _face_info = GetPyramid14FaceInfo();
-         _num_corner_nodes = 5;
-         break;
-      }
+      // case 18:
+      // {
+      //    _element_type = ELEMENT_WEDGE18;
+      //    _order = 2;
+      //    _num_corner_nodes = 6;
+      //    _num_faces = 5;
+      //    _face_info = GetWedge18FaceInfo();
+      //    break;
+      // }
+      // case 5:
+      // {
+      //    _element_type = ELEMENT_PYRAMID5;
+      //    _order = 1;
+      //    _num_corner_nodes = 5;
+      //    _num_faces = 5;
+      //    _face_info = GetPyramid5FaceInfo();
+      //    break;
+      // }
+      // case 14:
+      // {
+      //    _element_type = ELEMENT_PYRAMID14;
+      //    _order = 2;
+      //    _num_corner_nodes = 5;
+      //    _num_faces = 5;
+      //    _face_info = GetPyramid14FaceInfo();
+      //    _num_corner_nodes = 5;
+      //    break;
+      // }
       default:
       {
          MFEM_ABORT("Unsupported 3D element with " << num_nodes_per_element <<
@@ -3253,37 +3262,37 @@ CubitElementInfo::GetWedge6FaceInfo() const
    return {tri3, tri3, quad4, quad4, quad4};
 }
 
-std::vector<CubitFaceInfo>
-CubitElementInfo::GetWedge18FaceInfo() const
-{
-   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+// std::vector<CubitFaceInfo>
+// CubitElementInfo::GetWedge18FaceInfo() const
+// {
+//    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+//    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-   // Same ordering as MFEM.
-   return {tri6, tri6, quad9, quad9, quad9};
-}
+//    // Same ordering as MFEM.
+//    return {tri6, tri6, quad9, quad9, quad9};
+// }
 
-std::vector<CubitFaceInfo>
-CubitElementInfo::GetPyramid5FaceInfo()
-const
-{
-   CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
-   CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
+// std::vector<CubitFaceInfo>
+// CubitElementInfo::GetPyramid5FaceInfo()
+// const
+// {
+//    CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
+//    CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
 
-   return {quad4, tri3, tri3, tri3};
-}
+//    return {quad4, tri3, tri3, tri3};
+// }
 
-std::vector<CubitFaceInfo>
-CubitElementInfo::GetPyramid14FaceInfo()
-const
-{
-   // Define Pyramid14: Quad9 base and 4 x Tri6.
-   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+// std::vector<CubitFaceInfo>
+// CubitElementInfo::GetPyramid14FaceInfo()
+// const
+// {
+//    // Define Pyramid14: Quad9 base and 4 x Tri6.
+//    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+//    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-   // Same ordering as MFEM.
-   return {quad9, tri6, tri6, tri6, tri6};
-}
+//    // Same ordering as MFEM.
+//    return {quad9, tri6, tri6, tri6, tri6};
+// }
 
 const CubitFaceInfo &
 CubitElementInfo::Face(int iface) const   // TODO: - rename to GetFace
@@ -3616,11 +3625,11 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
       case CubitElementInfo::ELEMENT_HEX27:
          return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
       case CubitElementInfo::ELEMENT_WEDGE6:
-      case CubitElementInfo::ELEMENT_WEDGE18:
+      //case CubitElementInfo::ELEMENT_WEDGE18:
          return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
-      case CubitElementInfo::ELEMENT_PYRAMID5:
-      case CubitElementInfo::ELEMENT_PYRAMID14:
-         return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
+      // case CubitElementInfo::ELEMENT_PYRAMID5:
+      // case CubitElementInfo::ELEMENT_PYRAMID14:
+      //    return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
       default:
          MFEM_ABORT("Unsupported cubit element type encountered.");
    }
@@ -3681,12 +3690,12 @@ void FinalizeCubitSecondOrderMesh(Mesh &mesh,
       case CubitElementInfo::ELEMENT_HEX27:
          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
          break;   // TODO: - figure-out node ordering for Wedge18, Pyramid14.
-      case CubitElementInfo::ELEMENT_WEDGE18:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
-         break;
-      case CubitElementInfo::ELEMENT_PYRAMID14:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
-         break;
+      // case CubitElementInfo::ELEMENT_WEDGE18:
+      //    mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
+      //    break;
+      // case CubitElementInfo::ELEMENT_PYRAMID14:
+      //    mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
+      //    break;
       default:
          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
    }
@@ -3865,6 +3874,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
          // NB: Sides numbers start at 1.
          const int this_side = boundary_sides[iboundary][jelement];
 
+         //auto & face_info = element_info.Face(this_side - 1);
+
          // Determine the block the element is part-of.
          const int iblock = GetCubitBlockIndexForElement(element_global_index,
                                                          num_element_blocks,
@@ -3895,7 +3906,6 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                   inode = cubit_side_map_quad4[this_side - 1][knode];
                   break;
                }
-               // TODO: - add support for ELEMENT_QUAD8
                case (CubitElementInfo::ELEMENT_QUAD9):
                {
                   inode = cubit_side_map_quad9[this_side - 1][knode];
@@ -3919,6 +3929,11 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                case (CubitElementInfo::ELEMENT_HEX27):
                {
                   inode = cubit_side_map_hex27[this_side - 1][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_WEDGE6):
+               {
+                  inode = cubit_side_map_wedge6[this_side - 1][knode];
                   break;
                }
                default:
@@ -3997,8 +4012,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   std::vector<int> renumbered_vertex_ids(max(element_info.NumCornerNodes(),
-                                              face_info.NumFaceCornerNodes()));
+   std::vector<int> renumbered_vertex_ids(element_info.NumCornerNodes());
 
    int element_counter = 0;
 
@@ -4086,6 +4100,39 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
+
+  for (int ielement = 0; ielement < NumOfElements; ielement++)
+  {
+    fprintf(stdout, "Element %3d\n", ielement);
+
+    auto * element = GetElement(ielement);
+
+    mfem::Array<int> element_vertices;
+    element->GetVertices(element_vertices);
+
+    for (int vertex_id : element_vertices)
+    {
+      fprintf(stdout, "%d, ", vertex_id);
+    }
+
+    fprintf(stdout, "\n");
+
+    for (int iface = 0; iface < element->GetNFaces(); iface++)
+    {
+      fprintf(stdout, "face %d with %d vertices\n", iface, element->GetNFaceVertices(iface));
+
+      auto face_vertices = element->GetFaceVertices(iface);
+
+      for (int ivertex = 0; ivertex < element->GetNFaceVertices(iface); ivertex++)
+      {
+        auto face_vertex_index = face_vertices[ivertex];
+
+        auto face_vertex = element_vertices[face_vertex_index];
+
+        fprintf(stdout, "%d:%d\n", face_vertex_index, face_vertex);
+      }
+    }
+  }
 }
 
 #endif // #ifdef MFEM_USE_NETCDF
