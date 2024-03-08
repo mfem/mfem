@@ -205,14 +205,18 @@ class DarcyHybridization : public Hybridization
 
    bool bsym;
 
-   Array<int> Bf_offsets;
-   double *Bf_data;
+   Array<int> Ae_offsets;
+   double *Ae_data;
+
+   Array<int> Bf_offsets, Be_offsets;
+   double *Bf_data, *Be_data;
 
    Array<int> Df_offsets, Df_f_offsets;
    double *Df_data;
    int *Df_ipiv;
 
    void GetFDofs(int el, Array<int> &fdofs) const;
+   void GetEDofs(int el, Array<int> &edofs) const;
    void ComputeH();
    void GetCt(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
@@ -254,6 +258,11 @@ public:
 
    /// Finalize the construction of the hybridized matrix.
    void Finalize();
+
+   /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
+       @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                            const BlockVector &x, BlockVector &b);
 
    void ReduceRHS(const Vector &b, Vector &b_r) const override
    { MFEM_ABORT("Use BlockVector version instead"); }

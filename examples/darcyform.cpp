@@ -14,6 +14,7 @@
 #include "darcyform.hpp"
 
 #define MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+#define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
 namespace mfem
 {
@@ -128,7 +129,9 @@ void DarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             M_u->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_u->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
       }
@@ -148,7 +151,9 @@ void DarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             B->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             B->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleDivMatrix(i, elmat);
          }
       }
@@ -168,7 +173,9 @@ void DarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_p -> GetNE(); i++)
          {
             M_p->ComputeElementMatrix(i, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             M_p->AssembleElementMatrix(i, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
 
@@ -183,28 +190,32 @@ void DarcyForm::Assemble(int skip_zeros)
 
 void DarcyForm::Finalize(int skip_zeros)
 {
-   if (M_u)
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (!hybridization)
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    {
-      M_u->Finalize(skip_zeros);
-      block_op->SetDiagonalBlock(0, M_u);
+      if (M_u)
+      {
+         M_u->Finalize(skip_zeros);
+         block_op->SetDiagonalBlock(0, M_u);
+      }
+
+      if (M_p)
+      {
+         M_p->Finalize(skip_zeros);
+         block_op->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
+      }
+
+      if (B)
+      {
+         B->Finalize(skip_zeros);
+
+         if (!pBt.Ptr()) { ConstructBT(B); }
+
+         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
+      }
    }
-
-   if (M_p)
-   {
-      M_p->Finalize(skip_zeros);
-      block_op->SetDiagonalBlock(1, M_p, (bsym)?(-1.):(+1.));
-   }
-
-   if (B)
-   {
-      B->Finalize(skip_zeros);
-
-      if (!pBt.Ptr()) { ConstructBT(B); }
-
-      block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
-      block_op->SetBlock(1, 0, B, (bsym)?(-1.):(+1.));
-   }
-
    if (hybridization)
    {
       hybridization->Finalize();
@@ -244,28 +255,33 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
                                  OperatorHandle &A)
 {
-   Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
-
-   if (M_u)
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (!hybridization)
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    {
-      M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
-      block_op->SetDiagonalBlock(0, pM_u.Ptr());
-   }
+      Array<int> ess_pot_tdof_list;//empty for discontinuous potentials
 
-   if (M_p)
-   {
-      M_p->FormSystemMatrix(ess_pot_tdof_list, pM_p);
-      block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
-   }
+      if (M_u)
+      {
+         M_u->FormSystemMatrix(ess_flux_tdof_list, pM_u);
+         block_op->SetDiagonalBlock(0, pM_u.Ptr());
+      }
 
-   if (B)
-   {
-      B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, pB);
+      if (M_p)
+      {
+         M_p->FormSystemMatrix(ess_pot_tdof_list, pM_p);
+         block_op->SetDiagonalBlock(1, pM_p.Ptr(), (bsym)?(-1.):(+1.));
+      }
 
-      ConstructBT(pB.Ptr());
+      if (B)
+      {
+         B->FormRectangularSystemMatrix(ess_flux_tdof_list, ess_pot_tdof_list, pB);
 
-      block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
-      block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
+         ConstructBT(pB.Ptr());
+
+         block_op->SetBlock(0, 1, pBt.Ptr(), -1.);
+         block_op->SetBlock(1, 0, pB.Ptr(), (bsym)?(-1.):(+1.));
+      }
    }
 
    if (hybridization)
@@ -304,6 +320,13 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
 void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                     const BlockVector &x, BlockVector &b)
 {
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (hybridization)
+   {
+      hybridization->EliminateVDofsInRHS(vdofs_flux, x, b);
+      return;
+   }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    if (B)
    {
       if (assembly != AssemblyLevel::LEGACY && assembly != AssemblyLevel::FULL)
@@ -429,7 +452,9 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 {
    c_bfi_p = NULL;
 
+   Ae_data = NULL;
    Bf_data = NULL;
+   Be_data = NULL;
    Df_data = NULL;
    Df_ipiv = NULL;
 }
@@ -438,7 +463,9 @@ DarcyHybridization::~DarcyHybridization()
 {
    delete c_bfi_p;
 
+   delete Ae_data;
    delete Bf_data;
+   delete Be_data;
    delete Df_data;
    delete Df_ipiv;
 }
@@ -467,6 +494,12 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Df_offsets[0] = 0;
    Df_f_offsets.SetSize(NE+1);
    Df_f_offsets[0] = 0;
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Ae_offsets.SetSize(NE+1);
+   Ae_offsets[0] = 0;
+   Be_offsets.SetSize(NE+1);
+   Be_offsets[0] = 0;
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    for (int i = 0; i < NE; i++)
    {
       int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
@@ -474,11 +507,21 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
       Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
       Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      int a_size = hat_offsets[i+1] - hat_offsets[i];
+      int e_size = a_size - f_size;
+      Ae_offsets[i+1] = Ae_offsets[i] + e_size*a_size;
+      Be_offsets[i+1] = Be_offsets[i] + e_size*d_size;
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    }
 
    Bf_data = new double[Bf_offsets[NE]]();//init by zeros
    Df_data = new double[Df_offsets[NE]]();//init by zeros
    Df_ipiv = new int[Df_f_offsets[NE]];
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Ae_data = new double[Ae_offsets[NE]];
+   Be_data = new double[Be_offsets[NE]]();//init by zeros
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
 void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
@@ -486,10 +529,22 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
    double *Af_el_data = Af_data + Af_offsets[el];
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   double *Ae_el_data = Ae_data + Ae_offsets[el];
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < s; j++)
    {
-      if (hat_dofs_marker[o + j] == 1) { continue; }
+      if (hat_dofs_marker[o + j] == 1)
+      {
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         for (int i = 0; i < s; i++)
+         {
+            *(Ae_el_data++) = A(i, j);
+         }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         continue;
+      }
       for (int i = 0; i < s; i++)
       {
          if (hat_dofs_marker[o + i] == 1) { continue; }
@@ -497,6 +552,9 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
       }
    }
    MFEM_ASSERT(Af_el_data == Af_data + Af_offsets[el+1], "Internal error");
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   MFEM_ASSERT(Ae_el_data == Ae_data + Ae_offsets[el+1], "Internal error");
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
 void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
@@ -514,16 +572,31 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
    const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
    double *Bf_el_data = Bf_data + Bf_offsets[el];
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   double *Be_el_data = Be_data + Be_offsets[el];
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < w; j++)
    {
-      if (hat_dofs_marker[o + j] == 1) { continue; }
+      if (hat_dofs_marker[o + j] == 1)
+      {
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         for (int i = 0; i < h; i++)
+         {
+            *(Be_el_data++) = B(i, j);
+         }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         continue;
+      }
       for (int i = 0; i < h; i++)
       {
          *(Bf_el_data++) = B(i, j);
       }
    }
    MFEM_ASSERT(Bf_el_data == Bf_data + Bf_offsets[el+1], "Internal error");
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   MFEM_ASSERT(Be_el_data == Be_data + Be_offsets[el+1], "Internal error");
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
 void DarcyHybridization::ComputeAndAssembleFaceMatrix(int face,
@@ -565,6 +638,24 @@ void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
       if (hat_dofs_marker[i + o] != 1)
       {
          fdofs.Append(vdofs[i]);
+      }
+   }
+}
+
+void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
+{
+   const int o = hat_offsets[el];
+   const int s = hat_offsets[el+1] - o;
+   Array<int> vdofs;
+   fes->GetElementVDofs(el, vdofs);
+   MFEM_ASSERT(vdofs.Size() == s, "Incompatible DOF sizes");
+   edofs.DeleteAll();
+   edofs.Reserve(s);
+   for (int i = 0; i < s; i++)
+   {
+      if (hat_dofs_marker[i + o] == 1)
+      {
+         edofs.Append(vdofs[i]);
       }
    }
 }
@@ -698,6 +789,55 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
 void DarcyHybridization::Finalize()
 {
    if (!H) { ComputeH(); }
+}
+
+void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                                             const BlockVector &x, BlockVector &b)
+{
+   const int NE = fes->GetNE();
+   Vector u_e, bu_e, bp_e;
+   Array<int> u_vdofs, p_dofs, edofs;
+
+   const Vector &xu = x.GetBlock(0);
+   Vector &bu = b.GetBlock(0);
+   Vector &bp = b.GetBlock(1);
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetEDofs(el, edofs);
+      xu.GetSubVector(edofs, u_e);
+      u_e.Neg();
+
+      //bu -= A_e u_e
+      const int a_size = hat_offsets[el+1] - hat_offsets[el];
+      DenseMatrix Ae(Ae_data + Ae_offsets[el], a_size, edofs.Size());
+
+      bu_e.SetSize(a_size);
+      Ae.Mult(u_e, bu_e);
+
+      fes->GetElementVDofs(el, u_vdofs);
+      bu.AddElementVector(u_vdofs, bu_e);
+
+      //bp -= B_e u_e
+      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      DenseMatrix Be(Be_data + Be_offsets[el], d_size, edofs.Size());
+
+      bp_e.SetSize(d_size);
+      Be.Mult(u_e, bp_e);
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is oppposite!
+         bp_e.Neg();
+      }
+
+      fes_p->GetElementDofs(el, p_dofs);
+      bp.AddElementVector(p_dofs, bp_e);
+   }
+
+   for (int vdof : vdofs_flux)
+   {
+      bu(vdof) = xu(vdof);//<--can be arbitrary as it is ignored
+   }
 }
 
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
