@@ -47,9 +47,44 @@
 #include "topopt.hpp"
 #include "helper.hpp"
 #include "prob_elasticity.hpp"
-
 using namespace std;
 using namespace mfem;
+
+double DistanceToSegment(const Vector &p, const Vector &v, const Vector &w)
+{
+   const double l2 = v.DistanceSquaredTo(w);
+   const double t = std::max(0.0, std::min(1.0,
+                                           ((p*w) - (p*v) - (v*w) + (v*v))/l2));
+   Vector projection(v);
+   projection.Add(t, w);
+   projection.Add(-t, v);
+   return p.DistanceTo(projection);
+}
+
+void initialDesign(GridFunction& psi, Vector domain_center,
+                   Array<Vector*> ports,
+                   double target_volume, double domain_size, double lower, double upper)
+{
+   double weight = 0;
+   double current_volume = 0;
+   FunctionCoefficient dist([&domain_center, &ports](const Vector &x)
+   {
+      double d = infinity();
+      for (int i=0; i<ports.Size(); i++) {d = std::min(d, DistanceToSegment(x, domain_center, *(ports[i])));}
+      // double d = x.DistanceTo(domain_center);
+      // for (int i=0; i<ports.Size(); i++) {d = std::min(d, x.DistanceTo(*(ports[i])));}
+      return d;
+   });
+   psi.ProjectCoefficient(dist);
+   double maxDist = psi.Max();
+   MPI_Allreduce(MPI_IN_PLACE, &maxDist, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   const double scale = upper - lower;
+   psi.ApplyMap([maxDist, lower, upper](double x)
+   {
+      double d = lower + (upper - lower)*(1.0 - std::pow(x / maxDist, 0.3));
+      return d;
+   });
+}
 
 int main(int argc, char *argv[])
 {
@@ -78,9 +113,13 @@ int main(int argc, char *argv[])
    bool glvis_visualization = true;
    bool save = false;
    bool paraview = true;
-   double tol_stationarity = 0;
+   double tol_stationarity = 1e-04;
    double tol_compliance = 5e-05;
+   bool use_bregman = true;
+   double cx = 1.0;
+   double cy = 0.0;
 
+   
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
 
@@ -110,6 +149,13 @@ int main(int argc, char *argv[])
    args.AddOption(&glvis_visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&use_bregman, "-bregman", "--use-bregman", "-L2",
+                  "--use-L2",
+                  "Use Bregman divergence as a stopping criteria");
+   args.AddOption(&cx, "-cx", "--connection-x",
+                  "Connection point x-coordinate for ports");
+   args.AddOption(&cy, "-cy", "--connection-y",
+                  "Connection point y-coordinate for ports");
    args.Parse();
    if (!args.Good()) {if (Mpi::Root()) args.PrintUsage(mfem::out);}
 
@@ -123,11 +169,12 @@ int main(int argc, char *argv[])
    std::unique_ptr<VectorCoefficient> t_in;
    Vector d_in, d_out;
    std::string prob_name;
-   GetCompliantMechanismProblem((CompliantMechanismProblem)problem, filter_radius,
-                                vol_fraction,
-                                mesh, k_in, k_out, d_in, d_out, t_in, bdr_in, bdr_out,
-                                ess_bdr, ess_bdr_filter,
-                                prob_name, seq_ref_levels, par_ref_levels);
+   mfem::GetCompliantMechanismProblem((CompliantMechanismProblem)problem,
+                                      filter_radius,
+                                      vol_fraction,
+                                      mesh, k_in, k_out, d_in, d_out, t_in, bdr_in, bdr_out,
+                                      ess_bdr, ess_bdr_filter,
+                                      prob_name, seq_ref_levels, par_ref_levels);
    filename_prefix << prob_name << "-" << seq_ref_levels + par_ref_levels;
    int dim = mesh->Dimension();
    const int num_el = mesh->GetNE();
@@ -216,6 +263,21 @@ int main(int argc, char *argv[])
    ParGridFunction &u = *dynamic_cast<ParGridFunction*>(&optprob.GetState());
    ParGridFunction &rho_filter = *dynamic_cast<ParGridFunction*>
                                  (&density.GetFilteredDensity());
+
+   // 11. Iterate
+   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
+   ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
+                        (&density.GetGridFunction()));
+   {
+      Vector center({cx, cy});
+      Array<Vector*> ports(3);
+      ports[0] = new Vector(2); (*ports[0])(0) = 0.0; (*ports[0])(1) = 0.0;
+      ports[1] = new Vector(2); (*ports[1])(0) = 0.0; (*ports[1])(1) = 1.0;
+      ports[2] = new Vector(2); (*ports[2])(0) = 2.0; (*ports[2])(1) = 1.0;
+
+      initialDesign(psi, center, ports, vol_fraction*density.GetDomainVolume(),
+                    2.0, -5, 5);
+   }
    rho_filter = 1.0;
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
@@ -270,11 +332,6 @@ int main(int argc, char *argv[])
       pd->SetTime(0);
       pd->Save();
    }
-
-   // 11. Iterate
-   ParGridFunction &grad(*dynamic_cast<ParGridFunction*>(&optprob.GetGradient()));
-   ParGridFunction &psi(*dynamic_cast<ParGridFunction*>
-                        (&density.GetGridFunction()));
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
 
    ParLinearForm diff_rho_form(&control_fes);
@@ -285,7 +342,6 @@ int main(int argc, char *argv[])
       mfem::out << "\n"
                 << "Initialization Done." << "\n"
                 << "Start Projected Mirror Descent Step." << "\n" << std::endl;
-
    double compliance = optprob.Eval();
    double step_size(0), volume(density.GetDomainVolume()*vol_fraction),
           stationarityError(infinity()), stationarityError_bregman(infinity());
@@ -323,7 +379,7 @@ int main(int argc, char *argv[])
 
       // Step 3. Step and upate gradient
       num_reeval = Step_Armijo(optprob, old_psi, grad, diff_rho_form, c1, step_size,
-                               std::min(k+1, 20));
+                               20);
       compliance = optprob.GetValue();
       volume = density.GetVolume();
       optprob.UpdateGradient();
@@ -342,7 +398,7 @@ int main(int argc, char *argv[])
          }
          if (sout_r.is_open())
          {
-            rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
+            rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(), GridFunction::AvgType::ARITHMETIC);
             sout_r << "parallel " << num_procs << " " << myid << "\n";
             sout_r << "solution\n" << *pmesh << *rho_gf
                    << flush;
@@ -362,7 +418,7 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if (stationarityError < tol_stationarity &&
+      if ((use_bregman ? stationarityError_bregman : stationarityError) < tol_stationarity &&
           std::fabs(old_compliance - compliance) < tol_compliance)
       {
          converged = true;
