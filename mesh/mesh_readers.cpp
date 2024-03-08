@@ -3522,17 +3522,17 @@ static void ReadCubitDimensions(const int netcdf_descriptor,
 }
 
 static void ReadCubitBoundaries(const int netcdf_descriptor,
-                                const int num_boundaries,
-                                vector<size_t> &num_boundary_elements,
-                                vector<vector<int>> &boundary_elements,
-                                vector<vector<int>> &boundary_sides)
+                                const vector<int> & boundary_ids,
+                                map<int, vector<int>> & element_ids_for_boundary_id,
+                                map<int, vector<int>> & side_ids_for_boundary_id)
 {
    int netcdf_status, variable_id;
 
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
-   for (int iboundary = 0; iboundary < num_boundaries; iboundary++)
+   int iboundary = 0;
+   for (int boundary_id : boundary_ids)
    {
       // 1. Extract number of elements/sides for boundary.
       size_t num_sides = 0;
@@ -3545,18 +3545,16 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
 
       if (netcdf_status != NC_NOERR) { break; }
 
-      num_boundary_elements[iboundary] = num_sides;
-
       // 2. Extract elements and sides on each boundary.
-      boundary_elements[iboundary].resize(num_sides); // (element, face) pairs.
-      boundary_sides[iboundary].resize(num_sides);
+      vector<int> boundary_element_ids(num_sides); // (element, face) pairs.
+      vector<int> boundary_side_ids(num_sides);
 
       //
       snprintf(string_buffer, buffer_size, "elem_ss%d", iboundary + 1);
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     boundary_elements[iboundary].data());
+                                     boundary_element_ids.data());
 
       if (netcdf_status != NC_NOERR) { break; }
 
@@ -3565,9 +3563,22 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
 
       netcdf_status = nc_inq_varid(netcdf_descriptor, string_buffer, &variable_id);
       netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     boundary_sides[iboundary].data());
+                                     boundary_side_ids.data());
 
       if (netcdf_status != NC_NOERR) { break; }
+
+      // Now subtract 1 to convert from 1-index --> 0-index.
+      for (int i = 0; i < num_sides; i++)
+      {
+         boundary_element_ids[i]--;
+         boundary_side_ids[i]--;
+      }
+
+      // Add to maps.
+      element_ids_for_boundary_id[boundary_id] = std::move(boundary_element_ids);
+      side_ids_for_boundary_id[boundary_id] = std::move(boundary_side_ids);
+
+      iboundary++;
    }
 
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
@@ -3881,28 +3892,11 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    }
 
    // Read the (element, corresponding side) on each of the boundaries.
-   vector<size_t> num_boundary_elements(num_boundaries);
-
-   vector<vector<int>> boundary_elements(num_boundaries);
-   vector<vector<int>> boundary_sides(num_boundaries);
-
-   ReadCubitBoundaries(netcdf_descriptor, num_boundaries, num_boundary_elements,
-                       boundary_elements, boundary_sides);
-
-
-   // Temporary code.
    map<int, vector<int>> element_ids_for_boundary_id;
    map<int, vector<int>> side_ids_for_boundary_id;
 
-   int iboundary = 0;
-   for (int boundary_id : boundary_ids)
-   {
-      // NB: inefficient. Move into ReadCubitBoundaries.
-      element_ids_for_boundary_id[boundary_id] = boundary_elements[iboundary];
-      side_ids_for_boundary_id[boundary_id] = boundary_sides[iboundary];
-
-      iboundary++;
-   }
+   ReadCubitBoundaries(netcdf_descriptor, boundary_ids,
+                       element_ids_for_boundary_id, side_ids_for_boundary_id);
 
    map<int, vector<vector<int>>> node_ids_for_boundary_id;
 
@@ -3910,9 +3904,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    {
       // Get element IDs of element on boundary (and their sides that are on boundary).
       auto & boundary_element_ids = element_ids_for_boundary_id.at(
-                                       boundary_id);   // Argh 1-index.
+                                       boundary_id);
       auto & boundary_element_sides = side_ids_for_boundary_id.at(
-                                         boundary_id);    // Argh 1-index.
+                                         boundary_id);
 
       // Create vector to store the node ids of all boundary nodes.
       std::vector<std::vector<int>> boundary_node_ids(
@@ -3922,9 +3916,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
       for (int jelement = 0; jelement < (int)boundary_element_ids.size(); jelement++)
       {
          // Get element ID and the boundary side.
-         const int boundary_element_global_id = boundary_element_ids[jelement] -
-                                                1; // Argh 1-index --> 0-index.
-         const int boundary_side = boundary_element_sides[jelement] - 1;   // Bad!
+         const int boundary_element_global_id = boundary_element_ids[jelement];
+         const int boundary_side = boundary_element_sides[jelement];
 
          // Get all of the element's nodes on boundary side of element.
          const auto & face_info = element_info.Face(boundary_side);
@@ -4111,9 +4104,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    // Load up the boundary elements.
    //
    NumOfBdrElements = 0;
-   for (size_t iboundary = 0; iboundary < num_boundaries; iboundary++)
+   for (int boundary_id : boundary_ids)
    {
-      NumOfBdrElements += num_boundary_elements[iboundary];
+      NumOfBdrElements += element_ids_for_boundary_id.at(boundary_id).size();
    }
 
    boundary.SetSize(NumOfBdrElements);
