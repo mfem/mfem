@@ -848,6 +848,12 @@ public:
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
+   /// Returns a const reference to the sparse matrix of eliminated b.c.:  \f$ M_e \f$
+   const SparseMatrix &SpMatElim() const { return *mat_e; }
+
+   /// Returns a reference to the sparse matrix of eliminated b.c.:  \f$ M_e \f$
+   SparseMatrix &SpMatElim() { return *mat_e; }
+
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
@@ -989,24 +995,59 @@ public:
                                  Array<int> &test_vdofs,
                                  int skip_zeros = 1);
 
-   /// Eliminate essential boundary DOFs from the columns of the system.
+   /// Eliminate essential boundary trial DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the columns will be
-       set to 0.0 through elimination.*/
-   void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
-                           const Vector &sol, Vector &rhs);
+       the essential part of the boundary. */
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                  const Vector &sol, Vector &rhs);
 
-   /// Eliminate the list of DOFs from the columns of the system.
-   /** @a marked_vdofs is the of colunm numbers that will be eliminated.  All
-       entries in the columns will be set to 0.0 through elimination.*/
+   /// Eliminate essential boundary trial DOFs from the system matrix.
+   void EliminateTrialEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary trial DOFs from the system.
+   /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
+       the essential part of the boundary. */
+   MFEM_DEPRECATED void EliminateTrialDofs(const Array<int> &bdr_attr_is_ess,
+                                           const Vector &sol, Vector &rhs)
+   { EliminateTrialEssentialBC(bdr_attr_is_ess, sol, rhs); }
+
+   /// Eliminate the given trial @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   /** In this case the eliminations are applied to the internal \f$ M \f$
+       and @a rhs without storing the elimination matrix \f$ M_e \f$. */
+   void EliminateTrialVDofs(const Array<int> &vdofs, const Vector &sol,
+                            Vector &rhs);
+
+   /// Eliminate the given trial @a vdofs, storing the eliminated part internally in \f$ M_e \f$.
+   /** This method works in conjunction with EliminateVDofsInRHS() and allows
+       elimination of boundary conditions in multiple right-hand sides. In this
+       method, @a vdofs is a list of DOFs. */
+   void EliminateTrialVDofs(const Array<int> &vdofs);
+
+   /** @brief Use the stored eliminated part of the matrix (see
+       EliminateTrialVDofs(const Array<int> &, DiagonalPolicy)) to modify the r.h.s.
+       @a b; @a vdofs is a list of DOFs (non-directional, i.e. >= 0). */
+   void EliminateTrialVDofsInRHS(const Array<int> &vdofs, const Vector &x,
+                                 Vector &b);
+
+   /** @brief Similar to
+      EliminateTrialVDofs(const Array<int> &, const Vector &, Vector &)
+      but here @a ess_dofs is a marker (boolean) array on all vector-dofs
+      (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromTrialDofs(const Array<int> &marked_vdofs,
                                           const Vector &sol, Vector &rhs);
 
-   /// Eliminate essential boundary DOFs from the rows of the system.
+   /// Eliminate essential boundary test DOFs from the system matrix.
+   void EliminateTestEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /// (DEPRECATED) Eliminate essential boundary test DOFs from the system.
    /** The array @a bdr_attr_is_ess marks boundary attributes that constitute
-       the essential part of the boundary.  All entries in the rows will be
-       set to 0.0 through elimination.*/
-   virtual void EliminateTestDofs(const Array<int> &bdr_attr_is_ess);
+       the essential part of the boundary. */
+   MFEM_DEPRECATED virtual void EliminateTestDofs(const Array<int>
+                                                  &bdr_attr_is_ess)
+   { EliminateTestEssentialBC(bdr_attr_is_ess); }
+
+   /// Eliminate the given test @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
+   void EliminateTestVDofs(const Array<int> &vdofs);
 
    /** @brief Return in @a A that is column-constrained.
 
