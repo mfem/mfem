@@ -11,6 +11,12 @@
 Version 4.6.1 (development)
 ===========================
 
+Meshing improvements
+--------------------
+- Introduced formulas for refinement of patches in NURBS meshes. Refinement by
+  arbitrary integer factors is also enabled, e.g. in the mesh-explorer miniapp.
+  NURBS coarsening and knot removal are also introduced.
+
 Discretization improvements
 ---------------------------
 - Introduced support for higher order non conformal Nedelec elements on
