@@ -819,6 +819,7 @@ void DarcyHybridization::ConstructC()
       Mesh *mesh = fes->GetMesh();
       int num_faces = mesh->GetNumFaces();
       Array<int> c_vdofs_1, c_vdofs_2;
+      Array<int> c_dofs_1, c_dofs_2;
       for (int f = 0; f < num_faces; f++)
       {
          FTr = mesh->GetInteriorFaceTransformations(f);
@@ -839,13 +840,15 @@ void DarcyHybridization::ConstructC()
 
          //side 1
          c_fes->GetElementVDofs(FTr->Elem1No, c_vdofs_1);
-         FiniteElementSpace::AdjustVDofs(c_vdofs_1);
+         c_dofs_1 = c_vdofs_1;
+         FiniteElementSpace::AdjustVDofs(c_dofs_1);
          DenseMatrix Ct_el1(Ct_data + Ct_offsets[FTr->Elem1No], s1, c_vdofs_1.Size());
          for (int j = 0; j < c_vdofs.Size(); j++)
          {
             const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
             double s = (c_vdofs[j]>=0)?(+1.):(-1);
-            const int col = c_vdofs_1.Find(c_vdof);
+            const int col = c_dofs_1.Find(c_vdof);//nice :X
+            if (c_vdofs_1[col] < 0) { s *= -1.; }
             for (int i = 0; i < s1; i++)
             {
                Ct_el1(i, col) += elmat(i,j) * s;
@@ -854,13 +857,15 @@ void DarcyHybridization::ConstructC()
 
          //side 2
          c_fes->GetElementVDofs(FTr->Elem2No, c_vdofs_2);
-         FiniteElementSpace::AdjustVDofs(c_vdofs_2);
+         c_dofs_2 = c_vdofs_2;
+         FiniteElementSpace::AdjustVDofs(c_dofs_2);
          DenseMatrix Ct_el2(Ct_data + Ct_offsets[FTr->Elem2No], s2, c_vdofs_2.Size());
          for (int j = 0; j < c_vdofs.Size(); j++)
          {
             const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
             double s = (c_vdofs[j]>=0)?(+1.):(-1);
-            const int col = c_vdofs_2.Find(c_vdof);
+            const int col = c_dofs_2.Find(c_vdof);//nice :X
+            if (c_vdofs_2[col] < 0) { s *= -1.; }
             for (int i = 0; i < s2; i++)
             {
                Ct_el2(i, col) += elmat(s1 + i,j) * s;
@@ -993,7 +998,6 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
       for (int j = 0; j < c_dofs.Size(); j++)
       {
          Ct_l(i,j) = Ct_el(row - hat_o, j);
-         if (c_dofs[j] < 0) { Ct_l(i,j) *= -1.; }
       }
       i++;
    }
