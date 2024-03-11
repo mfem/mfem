@@ -350,7 +350,7 @@ protected:
                           const std::map<int, std::vector<int>> & node_ids_for_element_id,
                           const std::map<int, int> & cubit_to_mfem_vertex_map);
 
-   void BuildMFEMBoundaryElements(
+   void BuildCubitBoundaries(
       const cubit::CubitElementInfo * element_info,
       const std::vector<int> & boundary_ids,
       const std::map<int, std::vector<int>> & element_ids_for_boundary_id,

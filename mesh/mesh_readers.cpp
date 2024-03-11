@@ -4033,7 +4033,7 @@ void Mesh::BuildCubitElements(const int num_elements,
    }
 }
 
-void Mesh::BuildMFEMBoundaryElements(
+void Mesh::BuildCubitBoundaries(
    const cubit::CubitElementInfo * element_info,
    const vector<int> & boundary_ids,
    const map<int, vector<int>> & element_ids_for_boundary_id,
@@ -4205,7 +4205,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Load up the boundary elements.
    //
-   BuildMFEMBoundaryElements(&element_info, boundary_ids,
+   BuildCubitBoundaries(&element_info, boundary_ids,
                              element_ids_for_boundary_id, node_ids_for_boundary_id, side_ids_for_boundary_id,
                              cubit_to_mfem_vertex_map);
 
