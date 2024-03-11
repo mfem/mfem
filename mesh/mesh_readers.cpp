@@ -4015,6 +4015,60 @@ void Mesh::BuildMFEMElements(const int num_elements,
    }
 }
 
+void Mesh::BuildMFEMBoundaryElements(
+   const cubit::CubitElementInfo * element_info,
+   const vector<int> & boundary_ids,
+   const map<int, vector<int>> & element_ids_for_boundary_id,
+   const map<int, vector<vector<int>>> & node_ids_for_boundary_id,
+   const map<int, vector<int>> & side_ids_for_boundary_id,
+   const map<int, int> & cubit_to_mfem_vertex_map)
+{
+   using namespace cubit;
+
+   NumOfBdrElements = 0;
+   for (int boundary_id : boundary_ids)
+   {
+      NumOfBdrElements += element_ids_for_boundary_id.at(boundary_id).size();
+   }
+
+   boundary.SetSize(NumOfBdrElements);
+
+   int boundary_counter = 0;
+
+   // Iterate over boundaries.
+   for (int boundary_id : boundary_ids)
+   {
+      const vector<vector<int>> &nodes_on_boundary = node_ids_for_boundary_id.at(
+                                                        boundary_id);
+
+      int jelement = 0;
+      for (int side_id : side_ids_for_boundary_id.at(boundary_id))
+      {
+         const auto & face_info = element_info->Face(side_id);
+
+         const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
+
+         // NB: inefficient. Just get max number of nodes on that side.
+         vector<int> renumbered_vertex_ids(element_nodes_on_side.size());
+
+         // Iterate over element's face linear nodes.
+         for (int knode = 0; knode < element_nodes_on_side.size(); knode++)
+         {
+            const int node_id = element_nodes_on_side[knode];
+
+            // Renumber using the mapping.
+            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map.at(node_id) - 1;
+         }
+
+         // Create boundary element.
+         boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
+                                                                   face_info.FaceType(),
+                                                                   renumbered_vertex_ids.data(),
+                                                                   boundary_id);
+      }
+   }
+}
+
 
 void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
@@ -4063,7 +4117,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    // Generate element and face info.
    cubit::CubitElementInfo element_info(num_nodes_per_element,
-                                 num_dimensions);   // TODO: - Assuming single element type.
+                                        num_dimensions);   // TODO: - Assuming single element type.
 
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
@@ -4136,54 +4190,16 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Now load the elements.
    //
-   BuildMFEMElements(num_elements, &element_info, block_ids, element_ids_for_block_id,
+   BuildMFEMElements(num_elements, &element_info, block_ids,
+                     element_ids_for_block_id,
                      node_ids_for_element_id, cubit_to_mfem_vertex_map);
 
    //
    // Load up the boundary elements.
    //
-   NumOfBdrElements = 0;
-   for (int boundary_id : boundary_ids)
-   {
-      NumOfBdrElements += element_ids_for_boundary_id.at(boundary_id).size();
-   }
-
-   boundary.SetSize(NumOfBdrElements);
-
-   int boundary_counter = 0;
-
-   // Iterate over boundaries.
-   for (int boundary_id : boundary_ids)
-   {
-      const vector<vector<int>> &nodes_on_boundary = node_ids_for_boundary_id.at(
-                                                        boundary_id);
-
-      int jelement = 0;
-      for (int side_id : side_ids_for_boundary_id.at(boundary_id))
-      {
-         const auto & face_info = element_info.Face(side_id);
-
-         const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
-
-         // NB: inefficient. Just get max number of nodes on that side.
-         vector<int> renumbered_vertex_ids(element_nodes_on_side.size());
-
-         // Iterate over element's face linear nodes.
-         for (int knode = 0; knode < element_nodes_on_side.size(); knode++)
-         {
-            const int node_id = element_nodes_on_side[knode];
-
-            // Renumber using the mapping.
-            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map[node_id] - 1;
-         }
-
-         // Create boundary element.
-         boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
-                                                                   face_info.FaceType(),
-                                                                   renumbered_vertex_ids.data(),
-                                                                   boundary_id);
-      }
-   }
+   BuildMFEMBoundaryElements(&element_info, boundary_ids,
+                             element_ids_for_boundary_id, node_ids_for_boundary_id, side_ids_for_boundary_id,
+                             cubit_to_mfem_vertex_map);
 
    // Additional setup for second order.
    if (element_info.Order() == 2)
