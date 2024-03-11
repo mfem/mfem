@@ -780,9 +780,9 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
    c_fes->GetElementDofs(el, c_dofs);
    Ct_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el], c_dofs.Size());
    Ct_l = 0.;
-   for (int i = 0; i < hat_s; i++)
+   int i = 0;
+   for (int row = hat_o; row < hat_o + hat_s; row++)
    {
-      const int row = hat_o + i;
       if (hat_dofs_marker[row] == 1) { continue; }
       int col = 0;
       const int ncols = Ct->RowSize(row);
@@ -795,6 +795,7 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
          Ct_l(i,j) = vals[col++];
          if (c_dofs[j] < 0) { Ct_l(i,j) *= -1.; }
       }
+      i++;
    }
 }
 
