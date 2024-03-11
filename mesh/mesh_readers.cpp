@@ -3609,6 +3609,24 @@ static vector<int> GetCubitBlockIDs(const int netcdf_descriptor,
    return block_ids;
 }
 
+static void ReadCubitBoundaryIDs(const int netcdf_descriptor,
+                                 const int num_boundaries, vector<int> & boundary_ids)
+{
+   boundary_ids.clear();
+
+   if (num_boundaries < 1) { return; }
+
+   boundary_ids.resize(num_boundaries);
+
+   int netcdf_status, variable_id;
+
+   netcdf_status = nc_inq_varid(netcdf_descriptor, "ss_prop1", &variable_id);
+   netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
+                                  boundary_ids.data());
+
+   if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
+}
+
 
 static void ReadCubitElementBlocks(const int netcdf_descriptor,
                                    const int num_nodes_per_element,
@@ -4130,17 +4148,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    // Read the boundary ids.
    vector<int> boundary_ids;
-
-   if (num_boundaries > 0)
-   {
-      boundary_ids.resize(num_boundaries);
-
-      netcdf_status = nc_inq_varid(netcdf_descriptor, "ss_prop1", &variable_id);
-      netcdf_status = nc_get_var_int(netcdf_descriptor, variable_id,
-                                     boundary_ids.data());
-
-      if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
-   }
+   ReadCubitBoundaryIDs(netcdf_descriptor, num_boundaries, boundary_ids);
 
    // Read the (element, corresponding side) on each of the boundaries.
    map<int, vector<int>> element_ids_for_boundary_id;
