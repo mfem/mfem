@@ -50,6 +50,13 @@ class ParMesh;
 class ParNCMesh;
 #endif
 
+#ifdef MFEM_USE_NETCDF
+namespace cubit 
+{
+class CubitElementInfo;
+}
+#endif
+
 /// Mesh data type
 class Mesh
 {
@@ -335,6 +342,13 @@ protected:
    void BuildMFEMVertices(const std::vector<int> & unique_vertex_ids,
                           const std::vector<double> & coordx, const std::vector<double> & coordy,
                           const std::vector<double> & coordz);
+
+   void BuildMFEMElements(const int num_elements,
+                          const cubit::CubitElementInfo * element_info,
+                          const std::vector<int> & block_ids,
+                          const std::map<int, std::vector<int>> & element_ids_for_block_id,
+                          const std::map<int, std::vector<int>> & node_ids_for_element_id,
+                          const std::map<int, int> & cubit_to_mfem_vertex_map);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
