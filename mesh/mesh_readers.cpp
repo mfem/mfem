@@ -3416,7 +3416,7 @@ static std::map<int, vector<int>> GetElementIdsForBlockId(
 
       for (int i = 0; i < element_ids.size(); i++)
       {
-         element_ids[i++] = element_id++;
+         element_ids[i] = element_id++;
       }
 
       element_ids_for_block_id[block_id] = std::move(element_ids);
