@@ -3875,79 +3875,80 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
 /// @brief The final step in constructing the mesh from a Genesis file. This is
 /// only called if the mesh order == 2 (determined internally from the cubit
 /// element type).
-// void FinalizeCubitSecondOrderMesh(Mesh &mesh,
-//                                   const int cubit_element_type,
-//                                   const int num_element_blocks,
-//                                   const int num_nodes_per_element,
-//                                   const int *start_of_block,
-//                                   const double *coordx,
-//                                   const double *coordy,
-//                                   const double *coordz,
-//                                   const vector<vector<int>> &element_blocks)
-// {
-//    int *mfem_to_genesis_map = nullptr;
+static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
+                                         const vector<int> & unique_block_ids,
+                                         const map<int, vector<int>> & element_ids_for_block_id,
+                                         const map<int, vector<int>> & node_ids_for_element_id,
+                                         const CubitElementInfo & element_info,
+                                         const double *coordx,
+                                         const double *coordy,
+                                         const double *coordz)
+{
+   int *mfem_to_genesis_map = nullptr;
 
-//    switch (cubit_element_type)
-//    {
-//       case CubitElementInfo::ELEMENT_TRI6:
-//          mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
-//          break;
-//       case CubitElementInfo::ELEMENT_QUAD9:
-//          mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
-//          break;
-//       case CubitElementInfo::ELEMENT_TET10:
-//          mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
-//          break;
-//       case CubitElementInfo::ELEMENT_HEX27:
-//          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
-//          break;   // TODO: - figure-out node ordering for Wedge18, Pyramid14.
-//       // case CubitElementInfo::ELEMENT_WEDGE18:
-//       //    mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
-//       //    break;
-//       // case CubitElementInfo::ELEMENT_PYRAMID14:
-//       //    mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
-//       //    break;
-//       default:
-//          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-//    }
+   switch (element_info.ElementType())
+   {
+      case CubitElementInfo::ELEMENT_TRI6:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
+         break;
+      case CubitElementInfo::ELEMENT_QUAD9:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
+         break;
+      case CubitElementInfo::ELEMENT_TET10:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
+         break;
+      case CubitElementInfo::ELEMENT_HEX27:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+         break;
+      // TODO: _ add ordering for ELEMENT_QUAD8, PYRAMID14, WEDGE18.
+      default:
+         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+   }
 
-//    mesh.FinalizeTopology();
+   mesh.FinalizeTopology();
 
-//    // Define quadratic FE space.
-//    const int Dim = mesh.Dimension();
-//    FiniteElementCollection *fec = new H1_FECollection(2,3);
-//    FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
-//                                                     Ordering::byVDIM);
-//    GridFunction *Nodes = new GridFunction(fes);
-//    Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
-//    mesh.SetNodalGridFunction(Nodes, true);
+   // Define quadratic FE space.
+   const int Dim = mesh.Dimension();
+   FiniteElementCollection *fec = new H1_FECollection(2,3);
+   FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
+                                                    Ordering::byVDIM);
+   GridFunction *Nodes = new GridFunction(fes);
+   Nodes->MakeOwner(fec); // Nodes will destroy 'fec' and 'fes'
+   mesh.SetNodalGridFunction(Nodes, true);
 
-//    for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
-//    {
-//       Array<int> dofs;
-//       fes->GetElementDofs(ielement, dofs);
+   for (int block_id : unique_block_ids)
+   {
+      auto & element_ids = element_ids_for_block_id.at(block_id);
 
-//       Array<int> vdofs = dofs;   // Deep copy.
-//       fes->DofsToVDofs(vdofs);
+      for (int element_id : element_ids)
+      {
+         auto & node_ids = node_ids_for_element_id.at(element_id);
 
-//       const vector<int> & element_node_ids = node_ids_for_element_id[ielement];
+         Array<int> dofs;
+         fes->GetElementDofs(element_id, dofs);
 
-//       for (int jnode = 0; jnode < dofs.Size(); jnode++)
-//       {
-//          const int node_index = element_node_ids[mfem_to_genesis_map[jnode] - 1] - 1;
+         Array<int> vdofs = dofs;   // Deep copy.
+         fes->DofsToVDofs(vdofs);
 
-//          (*Nodes)(vdofs[jnode])     = coordx[node_index];
-//          (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
+         const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
 
-//          if (Dim == 3)
-//          {
-//             (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
-//          }
-//       }
-//    }
-// }
+         for (int jnode = 0; jnode < dofs.Size(); jnode++)
+         {
+            const int node_index = element_node_ids[mfem_to_genesis_map[jnode] - 1] - 1;
 
-}  // namespace cubit.
+            (*Nodes)(vdofs[jnode])     = coordx[node_index];
+            (*Nodes)(vdofs[jnode] + 1) = coordy[node_index];
+
+            if (Dim == 3)
+            {
+               (*Nodes)(vdofs[jnode] + 2) = coordz[node_index];
+            }
+         }
+      }
+   }
+}
+
+}  // end of namespace cubit.
 
 void Mesh::BuildMFEMVertices(const vector<int> & unique_vertex_ids,
                              const vector<double> & coordx,
@@ -4170,20 +4171,19 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    }
 
    // Additional setup for second order.
-   // if (element_info.Order() == 2)
-   // {
-   //    curved = 1;
+   if (element_info.Order() == 2)
+   {
+      curved = 1;
 
-   //    FinalizeCubitSecondOrderMesh(*this,
-   //                                 element_info.ElementType(),
-   //                                 num_element_blocks,
-   //                                 num_nodes_per_element,
-   //                                 start_of_block.data(),
-   //                                 coordx.data(),
-   //                                 coordy.data(),
-   //                                 coordz.data(),
-   //                                 block_elements);
-   // }
+      FinalizeCubitSecondOrderMesh(*this,
+                                   block_ids,
+                                   element_ids_for_block_id,
+                                   node_ids_for_element_id,
+                                   element_info,
+                                   coordx.data(),
+                                   coordy.data(),
+                                   coordz.data());
+   }
 
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
