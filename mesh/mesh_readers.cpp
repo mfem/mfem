@@ -2915,7 +2915,7 @@ public:
 
    inline uint8_t Order() const { return _order; };
    inline uint8_t NumFaceNodes() const { return _num_face_nodes; };
-   inline uint8_t NumFaceCornerNodes() const { return _num_face_corner_nodes; };
+   inline uint8_t NumFaceVertices() const { return _num_face_vertices; };
    inline CubitFaceType FaceType() const { return _face_type; }
 
 protected:
@@ -2931,7 +2931,7 @@ private:
     * Total number of nodes and number of corner nodes ("vertices").
     */
    uint8_t _num_face_nodes;
-   uint8_t _num_face_corner_nodes;
+   uint8_t _num_face_vertices;
 
    /**
     * Order of face.
@@ -2959,13 +2959,13 @@ CubitFaceInfo::BuildCubitFaceInfo()
       case (FACE_EDGE2):
       {
          _num_face_nodes = 2;
-         _num_face_corner_nodes = 2;
+         _num_face_vertices = 2;
          break;
       }
       case (FACE_EDGE3):
       {
          _num_face_nodes = 3;
-         _num_face_corner_nodes = 2;
+         _num_face_vertices = 2;
          break;
       }
       /**
@@ -2974,19 +2974,19 @@ CubitFaceInfo::BuildCubitFaceInfo()
       case (FACE_TRI3):
       {
          _num_face_nodes = 3;
-         _num_face_corner_nodes = 3;
+         _num_face_vertices = 3;
          break;
       }
       case (FACE_TRI6):
       {
          _num_face_nodes = 6;
-         _num_face_corner_nodes = 3;
+         _num_face_vertices = 3;
          break;
       }
       case (FACE_QUAD4):
       {
          _num_face_nodes = 4;
-         _num_face_corner_nodes = 4;
+         _num_face_vertices = 4;
          break;
       }
       // case (FACE_QUAD8):
@@ -2998,7 +2998,7 @@ CubitFaceInfo::BuildCubitFaceInfo()
       case (FACE_QUAD9):
       {
          _num_face_nodes = 9; // Includes center node.
-         _num_face_corner_nodes = 4;
+         _num_face_vertices = 4;
          break;
       }
       default:
@@ -3048,7 +3048,7 @@ public:
    inline uint8_t NumFaces() const { return _num_faces; }
 
    inline uint8_t NumNodes() const { return _num_nodes; }
-   inline uint8_t NumCornerNodes() const { return _num_corner_nodes; }
+   inline uint8_t NumVertices() const { return _num_vertices; }
 
    inline uint8_t Order() const { return _order; }
    inline uint8_t Dimension() const { return _dimension; }
@@ -3084,7 +3084,7 @@ private:
     * MFEM this is referred to as "vertices".
     */
    uint8_t _num_nodes;
-   uint8_t _num_corner_nodes;
+   uint8_t _num_vertices;
 
    /**
     * Stores info about the face types.
@@ -3130,7 +3130,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_TRI3;
          _order = 1;
-         _num_corner_nodes = 3;
+         _num_vertices = 3;
          _num_faces = 3;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
          break;
@@ -3139,7 +3139,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_TRI6;
          _order = 2;
-         _num_corner_nodes = 3;
+         _num_vertices = 3;
          _num_faces = 3;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
          break;
@@ -3148,7 +3148,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_QUAD4;
          _order = 1;
-         _num_corner_nodes = 4;
+         _num_vertices = 4;
          _num_faces = 4;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
          break;
@@ -3157,7 +3157,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_QUAD9;
          _order = 2;
-         _num_corner_nodes = 4;
+         _num_vertices = 4;
          _num_faces = 4;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
          break;
@@ -3183,7 +3183,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_TET4;
          _order = 1;
-         _num_corner_nodes = 4;
+         _num_vertices = 4;
          _num_faces = 4;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI3)};
          break;
@@ -3192,7 +3192,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_TET10;
          _order = 2;
-         _num_corner_nodes = 4;
+         _num_vertices = 4;
          _num_faces = 4;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI6)};
          break;
@@ -3201,7 +3201,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_HEX8;
          _order = 1;
-         _num_corner_nodes = 8;
+         _num_vertices = 8;
          _num_faces = 6;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD4)};
          break;
@@ -3210,7 +3210,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_HEX27;
          _order = 2;
-         _num_corner_nodes = 8;
+         _num_vertices = 8;
          _num_faces = 6;
          _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD9)};
          break;
@@ -3219,7 +3219,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_WEDGE6;
          _order = 1;
-         _num_corner_nodes = 6;
+         _num_vertices = 6;
          _num_faces = 5;
          _face_info = GetWedge6FaceInfo();
          break;
@@ -3237,7 +3237,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_PYRAMID5;
          _order = 1;
-         _num_corner_nodes = 5;
+         _num_vertices = 5;
          _num_faces = 5;
          _face_info = GetPyramid5FaceInfo();
          break;
@@ -3778,11 +3778,11 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
          const vector<int> & element_node_ids =
             node_ids_for_element_id.at(boundary_element_global_id);
 
-         vector<int> nodes_of_element_on_side(face_info.NumFaceCornerNodes());
+         vector<int> nodes_of_element_on_side(face_info.NumFaceVertices());
 
          // Iterate over the element's face nodes on the matching side.
          // NB: only adding vertices on face (ignore higher-order).
-         for (int knode = 0; knode < face_info.NumFaceCornerNodes(); knode++)
+         for (int knode = 0; knode < face_info.NumFaceVertices(); knode++)
          {
             int inode;
 
@@ -3872,7 +3872,7 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
          auto & node_ids = node_ids_for_element_id.at(element_id);
 
          // Only use the nodes on the edge of the element!
-         for (int knode = 0; knode < block_element.NumCornerNodes(); knode++)
+         for (int knode = 0; knode < block_element.NumVertices(); knode++)
          {
             unique_vertex_ids.push_back(node_ids[knode]);
          }
@@ -4001,7 +4001,7 @@ void Mesh::BuildMFEMElements(const int num_elements,
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   std::vector<int> renumbered_vertex_ids(element_info->NumCornerNodes());
+   std::vector<int> renumbered_vertex_ids(element_info->NumVertices());
 
    int element_counter = 0;
 
@@ -4016,7 +4016,7 @@ void Mesh::BuildMFEMElements(const int num_elements,
          const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
 
          // Iterate over linear (vertex) nodes in block.
-         for (int knode = 0; knode < element_info->NumCornerNodes(); knode++)
+         for (int knode = 0; knode < element_info->NumVertices(); knode++)
          {
             const int node_id = element_node_ids[knode];
 
