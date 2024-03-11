@@ -856,7 +856,13 @@ void DarcyHybridization::ConstructC()
             for (int i = 0; i < s1; i++)
             {
                if (hat_dofs_marker[o1 + i] == 1) { continue; }
-               Ct_el1(row++, col) += elmat(i,j) * s;
+               double val = elmat(i,j) * s;
+               Ct_el1(row++, col) += val;
+               if (val != 0.)
+               {
+                  //mark the hat dof as "boundary" if the row is non-zero
+                  hat_dofs_marker[o1 + i] = -1;
+               }
             }
             MFEM_ASSERT(row == f_size_1, "Internal error.");
          }
@@ -877,7 +883,13 @@ void DarcyHybridization::ConstructC()
             for (int i = 0; i < s2; i++)
             {
                if (hat_dofs_marker[o2 + i] == 1) { continue; }
-               Ct_el2(row++, col) += elmat(s1 + i,j) * s;
+               double val = elmat(s1 + i,j) * s;
+               Ct_el2(row++, col) += val;
+               if (val != 0.)
+               {
+                  //mark the hat dof as "boundary" if the row is non-zero
+                  hat_dofs_marker[o2 + i] = -1;
+               }
             }
             MFEM_ASSERT(row == f_size_2, "Internal error.");
          }
