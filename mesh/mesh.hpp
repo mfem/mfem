@@ -343,7 +343,7 @@ protected:
                           const std::vector<double> & coordx, const std::vector<double> & coordy,
                           const std::vector<double> & coordz);
 
-   void BuildMFEMElements(const int num_elements,
+   void BuildCubitElements(const int num_elements,
                           const cubit::CubitElementInfo * element_info,
                           const std::vector<int> & block_ids,
                           const std::map<int, std::vector<int>> & element_ids_for_block_id,

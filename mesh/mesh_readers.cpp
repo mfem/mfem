@@ -3989,7 +3989,7 @@ void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
    }
 }
 
-void Mesh::BuildMFEMElements(const int num_elements,
+void Mesh::BuildCubitElements(const int num_elements,
                              const cubit::CubitElementInfo * element_info,
                              const vector<int> & block_ids,
                              const map<int, vector<int>> & element_ids_for_block_id,
@@ -4198,7 +4198,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Now load the elements.
    //
-   BuildMFEMElements(num_elements, &element_info, block_ids,
+   BuildCubitElements(num_elements, &element_info, block_ids,
                      element_ids_for_block_id,
                      node_ids_for_element_id, cubit_to_mfem_vertex_map);
 
