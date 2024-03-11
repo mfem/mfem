@@ -3720,11 +3720,11 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
 }
 
 static void BuildBoundaryNodeIds(const vector<int> & boundary_ids,
-                            const CubitElementInfo & element_info,
-                            const map<int, vector<int>> & node_ids_for_element_id,
-                            const map<int, vector<int>> & element_ids_for_boundary_id,
-                            const map<int, vector<int>> & side_ids_for_boundary_id,
-                            map<int, vector<vector<int>>> & node_ids_for_boundary_id)
+                                 const CubitElementInfo & element_info,
+                                 const map<int, vector<int>> & node_ids_for_element_id,
+                                 const map<int, vector<int>> & element_ids_for_boundary_id,
+                                 const map<int, vector<int>> & side_ids_for_boundary_id,
+                                 map<int, vector<vector<int>>> & node_ids_for_boundary_id)
 {
    for (int boundary_id : boundary_ids)
    {
@@ -3822,6 +3822,38 @@ static void BuildBoundaryNodeIds(const vector<int> & boundary_ids,
       // Add to the map.
       node_ids_for_boundary_id[boundary_id] = std::move(boundary_node_ids);
    }
+}
+
+static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
+                                 const CubitElementInfo & block_element,
+                                 const map<int, vector<int>> & element_ids_for_block_id,
+                                 const map<int, vector<int>> & node_ids_for_element_id,
+                                 vector<int> & unique_vertex_ids)
+{
+   // Iterate through all nodes (on edge of each element) and add their global IDs
+   // to the unique_corner_node_ids vector.
+   for (int block_id : unique_block_ids)
+   {
+      auto & element_ids = element_ids_for_block_id.at(block_id);
+
+      for (int element_id : element_ids)
+      {
+         auto & node_ids = node_ids_for_element_id.at(element_id);
+
+         // Only use the nodes on the edge of the element!
+         for (int knode = 0; knode < block_element.NumCornerNodes(); knode++)
+         {
+            unique_vertex_ids.push_back(node_ids[knode]);
+         }
+      }
+   }
+
+   // Sort unique_vertex_ids in ascending order and remove duplicate node IDs.
+   std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
+
+   auto new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
+
+   unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 }
 
 
@@ -3999,28 +4031,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    // We need another node ID mapping since MFEM needs contiguous vertex ids.
    vector<int> unique_vertex_ids;
-
-   for (int block_id : block_ids)
-   {
-      const vector<int> & block_element_ids = element_ids_for_block_id.at(block_id);
-
-      for (int block_element_id : block_element_ids)
-      {
-         const vector<int> & element_node_ids = node_ids_for_element_id.at(
-                                                   block_element_id);
-
-         for (int knode = 0; knode < element_info.NumCornerNodes(); knode++)
-         {
-            unique_vertex_ids.push_back(element_node_ids[knode]);
-         }
-      }
-   }
-
-   // Sort and only retain unique node IDs.
-   std::sort(unique_vertex_ids.begin(), unique_vertex_ids.end());
-
-   auto new_end = std::unique(unique_vertex_ids.begin(), unique_vertex_ids.end());
-   unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
+   BuildUniqueVertexIDs(block_ids, element_info, element_ids_for_block_id,
+                        node_ids_for_element_id, unique_vertex_ids);
 
    // unique_vertex_ids now contains a 1-based sorted list of node IDs for each
    // node used by the mesh. We now create a map by running over the node IDs
