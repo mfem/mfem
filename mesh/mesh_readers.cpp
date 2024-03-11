@@ -2904,7 +2904,7 @@ public:
       FACE_TRI3,
       FACE_TRI6,
       FACE_QUAD4,
-      FACE_QUAD8, // order = 2.
+      //FACE_QUAD8, // order = 2.
       FACE_QUAD9  // order = 2. Center node.
    };
 
@@ -2989,12 +2989,12 @@ CubitFaceInfo::BuildCubitFaceInfo()
          _num_face_corner_nodes = 4;
          break;
       }
-      case (FACE_QUAD8):
-      {
-         _num_face_nodes = 8;
-         _num_face_corner_nodes = 4;
-         break;
-      }
+      // case (FACE_QUAD8):
+      // {
+      //    _num_face_nodes = 8;
+      //    _num_face_corner_nodes = 4;
+      //    break;
+      // }
       case (FACE_QUAD9):
       {
          _num_face_nodes = 9; // Includes center node.
@@ -3738,7 +3738,7 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
       case CubitFaceInfo::FACE_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
       case CubitFaceInfo::FACE_QUAD4:
-      case CubitFaceInfo::FACE_QUAD8:
+      //case CubitFaceInfo::FACE_QUAD8:
       case CubitFaceInfo::FACE_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
       default:
