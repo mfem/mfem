@@ -313,6 +313,11 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
       if (M_p)
       {
          M_p->RecoverFEMSolution(X_b.GetBlock(1), b.GetBlock(1), x.GetBlock(1));
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            x.GetBlock(1).Neg();
+         }
       }
    }
 }
@@ -336,7 +341,18 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       }
       else
       {
-         B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(1));
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is oppposite!
+            Vector b_(fes_p->GetVSize());
+            b_ = 0.;
+            B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b_);
+            b.GetBlock(1) -= b_;
+         }
+         else
+         {
+            B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(1));
+         }
       }
    }
    if (M_u)
