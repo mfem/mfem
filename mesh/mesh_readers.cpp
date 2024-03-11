@@ -3968,9 +3968,9 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 }  // end of namespace cubit.
 
 void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
-                             const vector<double> & coordx,
-                             const vector<double> & coordy,
-                             const vector<double> & coordz)
+                              const vector<double> & coordx,
+                              const vector<double> & coordy,
+                              const vector<double> & coordz)
 {
    NumOfVertices = unique_vertex_ids.size();
    vertices.SetSize(NumOfVertices);
@@ -3990,11 +3990,11 @@ void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
 }
 
 void Mesh::BuildCubitElements(const int num_elements,
-                             const cubit::CubitElementInfo * element_info,
-                             const vector<int> & block_ids,
-                             const map<int, vector<int>> & element_ids_for_block_id,
-                             const map<int, vector<int>> & node_ids_for_element_id,
-                             const map<int, int> & cubit_to_mfem_vertex_map)
+                              const cubit::CubitElementInfo * element_info,
+                              const vector<int> & block_ids,
+                              const map<int, vector<int>> & element_ids_for_block_id,
+                              const map<int, vector<int>> & node_ids_for_element_id,
+                              const map<int, int> & cubit_to_mfem_vertex_map)
 {
    using namespace cubit;
 
@@ -4199,15 +4199,15 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    // Now load the elements.
    //
    BuildCubitElements(num_elements, &element_info, block_ids,
-                     element_ids_for_block_id,
-                     node_ids_for_element_id, cubit_to_mfem_vertex_map);
+                      element_ids_for_block_id,
+                      node_ids_for_element_id, cubit_to_mfem_vertex_map);
 
    //
    // Load up the boundary elements.
    //
    BuildCubitBoundaries(&element_info, boundary_ids,
-                             element_ids_for_boundary_id, node_ids_for_boundary_id, side_ids_for_boundary_id,
-                             cubit_to_mfem_vertex_map);
+                        element_ids_for_boundary_id, node_ids_for_boundary_id, side_ids_for_boundary_id,
+                        cubit_to_mfem_vertex_map);
 
    // Additional setup for second order.
    if (element_info.Order() == 2)
