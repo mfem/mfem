@@ -3935,6 +3935,28 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
 
 }  // namespace cubit.
 
+void Mesh::BuildMFEMVertices(const vector<int> & unique_vertex_ids,
+                             const vector<double> & coordx,
+                             const vector<double> & coordy,
+                             const vector<double> & coordz)
+{
+   NumOfVertices = unique_vertex_ids.size();
+   vertices.SetSize(NumOfVertices);
+
+   for (int ivertex = 0; ivertex < NumOfVertices; ivertex++)
+   {
+      const int original_1based_id = unique_vertex_ids[ivertex];
+
+      vertices[ivertex](0) = coordx[original_1based_id - 1];
+      vertices[ivertex](1) = coordy[original_1based_id - 1];
+
+      if (Dim == 3)
+      {
+         vertices[ivertex](2) = coordz[original_1based_id - 1];
+      }
+   }
+}
+
 
 void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
@@ -4051,21 +4073,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Load up the vertices.
    //
-   NumOfVertices = unique_vertex_ids.size();
-   vertices.SetSize(NumOfVertices);
-
-   for (int ivertex = 0; ivertex < NumOfVertices; ivertex++)
-   {
-      const int original_1based_id = unique_vertex_ids[ivertex];
-
-      vertices[ivertex](0) = coordx[original_1based_id - 1];
-      vertices[ivertex](1) = coordy[original_1based_id - 1];
-
-      if (Dim == 3)
-      {
-         vertices[ivertex](2) = coordz[original_1based_id - 1];
-      }
-   }
+   BuildMFEMVertices(unique_vertex_ids, coordx, coordy, coordz);
 
    //
    // Now load the elements.
