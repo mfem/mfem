@@ -29,6 +29,7 @@
 #include <iostream>
 #include <array>
 #include <map>
+#include <vector>   // TODO: - temporary.
 
 namespace mfem
 {
@@ -331,6 +332,9 @@ protected:
 #ifdef MFEM_USE_NETCDF
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
+   void BuildMFEMVertices(const std::vector<int> & unique_vertex_ids,
+                          const std::vector<double> & coordx, const std::vector<double> & coordy,
+                          const std::vector<double> & coordz);
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
