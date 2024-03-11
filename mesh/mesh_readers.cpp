@@ -3409,7 +3409,7 @@ static void ReadCubitNumElementsInBlock(const int netcdf_descriptor,
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 }
 
-static std::map<int, vector<int>> GetElementIdsForBlockId(
+static std::map<int, vector<int>> GetElementIDsForBlockID(
                                   const vector<int> & block_ids,
                                   const map<int, size_t> & num_elements_for_block_id)
 {
@@ -3746,7 +3746,7 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
    }
 }
 
-static void BuildBoundaryNodeIds(const vector<int> & boundary_ids,
+static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                                  const CubitElementInfo & element_info,
                                  const map<int, vector<int>> & node_ids_for_element_id,
                                  const map<int, vector<int>> & element_ids_for_boundary_id,
@@ -4123,7 +4123,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                                num_elements_for_block_id);
 
    // Generate ascending element ids for each block starting at zero.
-   map<int, vector<int>> element_ids_for_block_id = GetElementIdsForBlockId(
+   map<int, vector<int>> element_ids_for_block_id = GetElementIDsForBlockID(
                                                        block_ids, num_elements_for_block_id);
 
    // Read number of nodes for each element. NB: we currently only support
@@ -4159,7 +4159,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    map<int, vector<vector<int>>> node_ids_for_boundary_id;
 
-   BuildBoundaryNodeIds(boundary_ids, element_info, node_ids_for_element_id,
+   BuildBoundaryNodeIDs(boundary_ids, element_info, node_ids_for_element_id,
                         element_ids_for_boundary_id, side_ids_for_boundary_id,
                         node_ids_for_boundary_id);
 
