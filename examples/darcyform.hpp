@@ -220,6 +220,8 @@ class DarcyHybridization : public Hybridization
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
+   void AssembleCtElementMatrix(int el, const Array<int> c_dofs,
+                                const DenseMatrix &elmat, int ioff=0);
    void ConstructC();
    void ComputeH();
    void GetCt(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;

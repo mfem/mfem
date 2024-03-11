@@ -791,6 +791,43 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
+void DarcyHybridization::AssembleCtElementMatrix(int el,
+                                                 const Array<int> c_vdofs, const DenseMatrix &elmat, int ioff)
+{
+   Array<int> c_vdofs_el;
+   Array<int> c_dofs_el;
+
+   const int hat_offset = hat_offsets[el];
+   const int hat_size = hat_offsets[el+1] - hat_offset;
+   const int f_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+
+   c_fes->GetElementVDofs(el, c_vdofs_el);
+   c_dofs_el = c_vdofs_el;
+   FiniteElementSpace::AdjustVDofs(c_dofs_el);
+   DenseMatrix Ct_el1(Ct_data + Ct_offsets[el], f_size,
+                      c_vdofs_el.Size());
+   for (int j = 0; j < c_vdofs.Size(); j++)
+   {
+      const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
+      double s = (c_vdofs[j]>=0)?(+1.):(-1);
+      const int col = c_dofs_el.Find(c_vdof);//nice :X
+      if (c_vdofs_el[col] < 0) { s *= -1.; }
+      int row = 0;
+      for (int i = 0; i < hat_size; i++)
+      {
+         if (hat_dofs_marker[hat_offset + i] == 1) { continue; }
+         double val = elmat(i + ioff, j) * s;
+         Ct_el1(row++, col) += val;
+         if (val != 0.)
+         {
+            //mark the hat dof as "boundary" if the row is non-zero
+            hat_dofs_marker[hat_offset + i] = -1;
+         }
+      }
+      MFEM_ASSERT(row == f_size, "Internal error.");
+   }
+}
+
 void DarcyHybridization::ConstructC()
 {
 #ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
@@ -818,81 +855,26 @@ void DarcyHybridization::ConstructC()
       FaceElementTransformations *FTr;
       Mesh *mesh = fes->GetMesh();
       int num_faces = mesh->GetNumFaces();
-      Array<int> c_vdofs_1, c_vdofs_2;
-      Array<int> c_dofs_1, c_dofs_2;
+
       for (int f = 0; f < num_faces; f++)
       {
          FTr = mesh->GetInteriorFaceTransformations(f);
          if (!FTr) { continue; }
 
-         const int o1 = hat_offsets[FTr->Elem1No];
-         const int s1 = hat_offsets[FTr->Elem1No+1] - o1;
-         const int o2 = hat_offsets[FTr->Elem2No];
-         const int s2 = hat_offsets[FTr->Elem2No+1] - o2;
-         const int f_size_1 = Af_f_offsets[FTr->Elem1No+1] - Af_f_offsets[FTr->Elem1No];
-         const int f_size_2 = Af_f_offsets[FTr->Elem2No+1] - Af_f_offsets[FTr->Elem2No];
+         const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
+         const FiniteElement *fe2 = fes->GetFE(FTr->Elem2No);
 
          c_fes->GetFaceVDofs(f, c_vdofs);
          c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
-                                   *fes->GetFE(FTr->Elem1No),
-                                   *fes->GetFE(FTr->Elem2No),
-                                   *FTr, elmat);
+                                   *fe1, *fe2, *FTr, elmat);
          // zero-out small elements in elmat
          elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
 
          //side 1
-         c_fes->GetElementVDofs(FTr->Elem1No, c_vdofs_1);
-         c_dofs_1 = c_vdofs_1;
-         FiniteElementSpace::AdjustVDofs(c_dofs_1);
-         DenseMatrix Ct_el1(Ct_data + Ct_offsets[FTr->Elem1No], f_size_1,
-                            c_vdofs_1.Size());
-         for (int j = 0; j < c_vdofs.Size(); j++)
-         {
-            const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
-            double s = (c_vdofs[j]>=0)?(+1.):(-1);
-            const int col = c_dofs_1.Find(c_vdof);//nice :X
-            if (c_vdofs_1[col] < 0) { s *= -1.; }
-            int row = 0;
-            for (int i = 0; i < s1; i++)
-            {
-               if (hat_dofs_marker[o1 + i] == 1) { continue; }
-               double val = elmat(i,j) * s;
-               Ct_el1(row++, col) += val;
-               if (val != 0.)
-               {
-                  //mark the hat dof as "boundary" if the row is non-zero
-                  hat_dofs_marker[o1 + i] = -1;
-               }
-            }
-            MFEM_ASSERT(row == f_size_1, "Internal error.");
-         }
+         AssembleCtElementMatrix(FTr->Elem1No, c_vdofs, elmat);
 
          //side 2
-         c_fes->GetElementVDofs(FTr->Elem2No, c_vdofs_2);
-         c_dofs_2 = c_vdofs_2;
-         FiniteElementSpace::AdjustVDofs(c_dofs_2);
-         DenseMatrix Ct_el2(Ct_data + Ct_offsets[FTr->Elem2No], f_size_2,
-                            c_vdofs_2.Size());
-         for (int j = 0; j < c_vdofs.Size(); j++)
-         {
-            const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
-            double s = (c_vdofs[j]>=0)?(+1.):(-1);
-            const int col = c_dofs_2.Find(c_vdof);//nice :X
-            if (c_vdofs_2[col] < 0) { s *= -1.; }
-            int row = 0;
-            for (int i = 0; i < s2; i++)
-            {
-               if (hat_dofs_marker[o2 + i] == 1) { continue; }
-               double val = elmat(s1 + i,j) * s;
-               Ct_el2(row++, col) += val;
-               if (val != 0.)
-               {
-                  //mark the hat dof as "boundary" if the row is non-zero
-                  hat_dofs_marker[o2 + i] = -1;
-               }
-            }
-            MFEM_ASSERT(row == f_size_2, "Internal error.");
-         }
+         AssembleCtElementMatrix(FTr->Elem2No, c_vdofs, elmat, fe1->GetDof());
       }
    }
    else
