@@ -14,6 +14,7 @@
 #include "darcyform.hpp"
 
 #define MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
+#define MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
 namespace mfem
@@ -469,6 +470,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    Be_data = NULL;
    Df_data = NULL;
    Df_ipiv = NULL;
+   Ct_data = NULL;
 }
 
 DarcyHybridization::~DarcyHybridization()
@@ -480,6 +482,7 @@ DarcyHybridization::~DarcyHybridization()
    delete Be_data;
    delete Df_data;
    delete Df_ipiv;
+   delete Ct_data;
 }
 
 void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
@@ -493,11 +496,127 @@ void DarcyHybridization::SetConstraintIntegrators(BilinearFormIntegrator
 
 void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 {
+   const int NE = fes->GetNE();
+
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
+   if (Ct_data) { return; }
+
+   // count the number of dofs in the discontinuous version of fes:
+   Array<int> vdofs;
+   int num_hat_dofs = 0;
+   hat_offsets.SetSize(NE+1);
+   hat_offsets[0] = 0;
+   for (int i = 0; i < NE; i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      num_hat_dofs += vdofs.Size();
+      hat_offsets[i+1] = num_hat_dofs;
+   }
+
+   // Assemble the constraint matrix C
+   ConstructC();
+
+   // Define the "free" (0) and "essential" (1) hat_dofs.
+   // The "essential" hat_dofs are those that depend only on essential cdofs;
+   // all other hat_dofs are "free".
+   hat_dofs_marker.SetSize(num_hat_dofs);
+   Array<int> free_tdof_marker;
+#ifdef MFEM_USE_MPI
+   ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace*>(fes);
+   free_tdof_marker.SetSize(pfes ? pfes->TrueVSize() :
+                            fes->GetConformingVSize());
+#else
+   free_tdof_marker.SetSize(fes->GetConformingVSize());
+#endif
+   free_tdof_marker = 1;
+   for (int i = 0; i < ess_flux_tdof_list.Size(); i++)
+   {
+      free_tdof_marker[ess_flux_tdof_list[i]] = 0;
+   }
+   Array<int> free_vdofs_marker;
+#ifdef MFEM_USE_MPI
+   if (!pfes)
+   {
+      const SparseMatrix *cP = fes->GetConformingProlongation();
+      if (!cP)
+      {
+         free_vdofs_marker.MakeRef(free_tdof_marker);
+      }
+      else
+      {
+         free_vdofs_marker.SetSize(fes->GetVSize());
+         cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
+      }
+   }
+   else
+   {
+      HypreParMatrix *P = pfes->Dof_TrueDof_Matrix();
+      free_vdofs_marker.SetSize(fes->GetVSize());
+      P->BooleanMult(1, free_tdof_marker, 0, free_vdofs_marker);
+   }
+#else
+   const SparseMatrix *cP = fes->GetConformingProlongation();
+   if (!cP)
+   {
+      free_vdofs_marker.MakeRef(free_tdof_marker);
+   }
+   else
+   {
+      free_vdofs_marker.SetSize(fes->GetVSize());
+      cP->BooleanMult(free_tdof_marker, free_vdofs_marker);
+   }
+#endif
+   for (int i = 0; i < NE; i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      FiniteElementSpace::AdjustVDofs(vdofs);
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         hat_dofs_marker[hat_offsets[i]+j] = ! free_vdofs_marker[vdofs[j]];
+      }
+   }
+#ifndef MFEM_DEBUG
+   // In DEBUG mode this array is used below.
+   free_tdof_marker.DeleteAll();
+#endif
+   free_vdofs_marker.DeleteAll();
+   // Split the "free" (0) hat_dofs into "internal" (0) or "boundary" (-1).
+   // The "internal" hat_dofs are those "free" hat_dofs for which the
+   // corresponding column in C is zero; otherwise the free hat_dof is
+   // "boundary".
+   /*for (int i = 0; i < num_hat_dofs; i++)
+   {
+      // skip "essential" hat_dofs and empty rows in Ct
+      if (hat_dofs_marker[i] == 1) { continue; }
+      //CT row????????
+
+      //hat_dofs_marker[i] = -1; // mark this hat_dof as "boundary"
+   }*/
+
+   // Define Af_offsets and Af_f_offsets
+   Af_offsets.SetSize(NE+1);
+   Af_offsets[0] = 0;
+   Af_f_offsets.SetSize(NE+1);
+   Af_f_offsets[0] = 0;
+
+   for (int i = 0; i < NE; i++)
+   {
+      int f_size = 0; // count the "free" hat_dofs in element i
+      for (int j = hat_offsets[i]; j < hat_offsets[i+1]; j++)
+      {
+         if (hat_dofs_marker[j] != 1) { f_size++; }
+      }
+      Af_offsets[i+1] = Af_offsets[i] + f_size*f_size;
+      Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
+   }
+
+   Af_data = new double[Af_offsets[NE]];
+   Af_ipiv = new int[Af_f_offsets[NE]];
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    if (Ct) { return; }
 
    Hybridization::Init(ess_flux_tdof_list);
-
-   const int NE = fes->GetNE();
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 
    // Define Bf_offsets, Df_offsets and Df_f_offsets
    Bf_offsets.SetSize(NE+1);
@@ -672,6 +791,90 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
+void DarcyHybridization::ConstructC()
+{
+#ifndef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
+   Hybridization::ConstructC();
+   return;
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
+
+   const int NE = fes->GetNE();
+   Array<int> c_vdofs;
+
+   Ct_offsets.SetSize(NE+1);
+   Ct_offsets[0] = 0;
+   for (int i = 0; i < NE; i++)
+   {
+      const int hat_size = hat_offsets[i+1] - hat_offsets[i];
+      c_fes->GetElementVDofs(i, c_vdofs);
+      Ct_offsets[i+1] = Ct_offsets[i] + c_vdofs.Size()*hat_size;
+   }
+
+   Ct_data = new double[Ct_offsets[NE]]();//init by zeros
+
+   if (c_bfi)
+   {
+      DenseMatrix elmat;
+      FaceElementTransformations *FTr;
+      Mesh *mesh = fes->GetMesh();
+      int num_faces = mesh->GetNumFaces();
+      Array<int> c_vdofs_1, c_vdofs_2;
+      for (int f = 0; f < num_faces; f++)
+      {
+         FTr = mesh->GetInteriorFaceTransformations(f);
+         if (!FTr) { continue; }
+
+         int o1 = hat_offsets[FTr->Elem1No];
+         int s1 = hat_offsets[FTr->Elem1No+1] - o1;
+         int o2 = hat_offsets[FTr->Elem2No];
+         int s2 = hat_offsets[FTr->Elem2No+1] - o2;
+
+         c_fes->GetFaceVDofs(f, c_vdofs);
+         c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
+                                   *fes->GetFE(FTr->Elem1No),
+                                   *fes->GetFE(FTr->Elem2No),
+                                   *FTr, elmat);
+         // zero-out small elements in elmat
+         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+
+         //side 1
+         c_fes->GetElementVDofs(FTr->Elem1No, c_vdofs_1);
+         FiniteElementSpace::AdjustVDofs(c_vdofs_1);
+         DenseMatrix Ct_el1(Ct_data + Ct_offsets[FTr->Elem1No], s1, c_vdofs_1.Size());
+         for (int j = 0; j < c_vdofs.Size(); j++)
+         {
+            const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
+            double s = (c_vdofs[j]>=0)?(+1.):(-1);
+            const int col = c_vdofs_1.Find(c_vdof);
+            for (int i = 0; i < s1; i++)
+            {
+               Ct_el1(i, col) += elmat(i,j) * s;
+            }
+         }
+
+         //side 2
+         c_fes->GetElementVDofs(FTr->Elem2No, c_vdofs_2);
+         FiniteElementSpace::AdjustVDofs(c_vdofs_2);
+         DenseMatrix Ct_el2(Ct_data + Ct_offsets[FTr->Elem2No], s2, c_vdofs_2.Size());
+         for (int j = 0; j < c_vdofs.Size(); j++)
+         {
+            const int c_vdof = (c_vdofs[j]>=0)?(c_vdofs[j]):(-1-c_vdofs[j]);
+            double s = (c_vdofs[j]>=0)?(+1.):(-1);
+            const int col = c_vdofs_2.Find(c_vdof);
+            for (int i = 0; i < s2; i++)
+            {
+               Ct_el2(i, col) += elmat(s1 + i,j) * s;
+            }
+         }
+      }
+   }
+   else
+   {
+      // Check if c_fes is really needed here.
+      MFEM_ABORT("TODO: algebraic definition of C");
+   }
+}
+
 void DarcyHybridization::ComputeH()
 {
    const int skip_zeros = 1;
@@ -679,7 +882,7 @@ void DarcyHybridization::ComputeH()
 #ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, Ct_l, AiCt, BAiCt, CAiBt, H_l;
    Array<int> c_dofs;
-   H = new SparseMatrix(Ct->Width());
+   H = new SparseMatrix(c_fes->GetVSize());
 #else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK
    DenseMatrix AiBt, BAi, Hb_l;
    Array<int> a_dofs;
@@ -777,9 +980,24 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
 {
    const int hat_o = hat_offsets[el  ];
    const int hat_s = hat_offsets[el+1] - hat_o;
-   c_fes->GetElementDofs(el, c_dofs);
+   c_fes->GetElementVDofs(el, c_dofs);
    Ct_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el], c_dofs.Size());
    Ct_l = 0.;
+#ifdef MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
+   DenseMatrix Ct_el(Ct_data + Ct_offsets[el], hat_s, c_dofs.Size());
+
+   int i = 0;
+   for (int row = hat_o; row < hat_o + hat_s; row++)
+   {
+      if (hat_dofs_marker[row] == 1) { continue; }
+      for (int j = 0; j < c_dofs.Size(); j++)
+      {
+         Ct_l(i,j) = Ct_el(row - hat_o, j);
+         if (c_dofs[j] < 0) { Ct_l(i,j) *= -1.; }
+      }
+      i++;
+   }
+#else //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
    int i = 0;
    for (int row = hat_o; row < hat_o + hat_s; row++)
    {
@@ -797,6 +1015,7 @@ void DarcyHybridization::GetCt(int el, DenseMatrix &Ct_l,
       }
       i++;
    }
+#endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 }
 
 void DarcyHybridization::Finalize()

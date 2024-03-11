@@ -215,8 +215,12 @@ class DarcyHybridization : public Hybridization
    double *Df_data;
    int *Df_ipiv;
 
+   Array<int> Ct_offsets;
+   double *Ct_data;
+
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
+   void ConstructC();
    void ComputeH();
    void GetCt(int el, DenseMatrix &Ct_l, Array<int> &c_dofs) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
@@ -257,7 +261,7 @@ public:
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
    /// Finalize the construction of the hybridized matrix.
-   void Finalize();
+   void Finalize() override;
 
    /** @brief Use the stored eliminated part of the matrix to modify the r.h.s.
        @a b; @a vdofs_flux is a list of DOFs (non-directional, i.e. >= 0). */
