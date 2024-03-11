@@ -3967,7 +3967,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
 }  // end of namespace cubit.
 
-void Mesh::BuildMFEMVertices(const vector<int> & unique_vertex_ids,
+void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
                              const vector<double> & coordx,
                              const vector<double> & coordy,
                              const vector<double> & coordz)
@@ -4193,7 +4193,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Load up the vertices.
    //
-   BuildMFEMVertices(unique_vertex_ids, coordx, coordy, coordz);
+   BuildCubitVertices(unique_vertex_ids, coordx, coordy, coordz);
 
    //
    // Now load the elements.
