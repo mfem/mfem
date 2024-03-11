@@ -2876,6 +2876,15 @@ const int cubit_side_map_wedge6[6][4] =
    {3,1,4,6}
 };
 
+const int cubit_side_map_pyramid5[5][4] =
+{
+   {4, 3, 2, 1},
+   {1, 2, 5, 0},  // NB: 0 because only 3 elements.
+   {2, 3, 5, 0},
+   {3, 4, 5, 0},
+   {4, 1, 5, 0}
+};
+
 
 /**
  * CubitFaceInfo
@@ -3025,7 +3034,7 @@ public:
       ELEMENT_HEX27,
       ELEMENT_WEDGE6,
       //ELEMENT_WEDGE18,
-      //ELEMENT_PYRAMID5,
+      ELEMENT_PYRAMID5,
       //ELEMENT_PYRAMID14
    };
 
@@ -3054,7 +3063,7 @@ protected:
    std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
    // std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
-   // std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
+   std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
    // std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
 
 private:
@@ -3224,15 +3233,15 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       //    _face_info = GetWedge18FaceInfo();
       //    break;
       // }
-      // case 5:
-      // {
-      //    _element_type = ELEMENT_PYRAMID5;
-      //    _order = 1;
-      //    _num_corner_nodes = 5;
-      //    _num_faces = 5;
-      //    _face_info = GetPyramid5FaceInfo();
-      //    break;
-      // }
+      case 5:
+      {
+         _element_type = ELEMENT_PYRAMID5;
+         _order = 1;
+         _num_corner_nodes = 5;
+         _num_faces = 5;
+         _face_info = GetPyramid5FaceInfo();
+         break;
+      }
       // case 14:
       // {
       //    _element_type = ELEMENT_PYRAMID14;
@@ -3273,15 +3282,15 @@ CubitElementInfo::GetWedge6FaceInfo() const
 //    return {tri6, tri6, quad9, quad9, quad9};
 // }
 
-// std::vector<CubitFaceInfo>
-// CubitElementInfo::GetPyramid5FaceInfo()
-// const
-// {
-//    CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
-//    CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
+std::vector<CubitFaceInfo>
+CubitElementInfo::GetPyramid5FaceInfo()
+const
+{
+   CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
+   CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
 
-//    return {quad4, tri3, tri3, tri3};
-// }
+   return {quad4, tri3, tri3, tri3, tri3};
+}
 
 // std::vector<CubitFaceInfo>
 // CubitElementInfo::GetPyramid14FaceInfo()
@@ -3687,9 +3696,9 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
       case CubitElementInfo::ELEMENT_WEDGE6:
          //case CubitElementInfo::ELEMENT_WEDGE18:
          return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
-      // case CubitElementInfo::ELEMENT_PYRAMID5:
-      // case CubitElementInfo::ELEMENT_PYRAMID14:
-      //    return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
+      case CubitElementInfo::ELEMENT_PYRAMID5:
+         // case CubitElementInfo::ELEMENT_PYRAMID14:
+         return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
       default:
          MFEM_ABORT("Unsupported cubit element type encountered.");
    }
@@ -3804,6 +3813,11 @@ static void BuildBoundaryNodeIds(const vector<int> & boundary_ids,
                case (CubitElementInfo::ELEMENT_WEDGE6):
                {
                   inode = cubit_side_map_wedge6[boundary_side][knode];
+                  break;
+               }
+               case (CubitElementInfo::ELEMENT_PYRAMID5):
+               {
+                  inode = cubit_side_map_pyramid5[boundary_side][knode];
                   break;
                }
                default:
