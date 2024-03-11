@@ -4095,9 +4095,6 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    read_gf  = 0;
    curved   = 0; // Set to 1 if mesh is curved.
 
-   // Setup buffer used to write variable names to.
-   int variable_id;
-
    // Open the file.
    int netcdf_status, netcdf_descriptor;
 
