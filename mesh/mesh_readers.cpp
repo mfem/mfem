@@ -4056,15 +4056,17 @@ void Mesh::BuildCubitBoundaries(
    // Iterate over boundaries.
    for (int boundary_id : boundary_ids)
    {
+      const vector<int> & sides_on_boundary = side_ids_for_boundary_id.at(
+                                                 boundary_id);
       const vector<vector<int>> &nodes_on_boundary = node_ids_for_boundary_id.at(
                                                         boundary_id);
 
-      int jelement = 0;
-      for (int side_id : side_ids_for_boundary_id.at(boundary_id))
+      for (int jelement = 0; jelement < nodes_on_boundary.size(); jelement++)
       {
-         const auto & face_info = element_info->Face(side_id);
-
+         const int side_id = sides_on_boundary[jelement];
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
+
+         const auto & face_info = element_info->Face(side_id);
 
          // NB: inefficient. Just get max number of nodes on that side.
          vector<int> renumbered_vertex_ids(element_nodes_on_side.size());
