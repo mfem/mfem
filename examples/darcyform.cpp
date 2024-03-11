@@ -336,11 +336,7 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       }
       else
       {
-         Array<int> vdofs_flux_marker;
-         FiniteElementSpace::ListToMarker(vdofs_flux, fes_u->GetTrueVSize(),
-                                          vdofs_flux_marker);
-         B->EliminateEssentialBCFromTrialDofs(vdofs_flux_marker, x.GetBlock(0),
-                                              b.GetBlock(1));
+         B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b.GetBlock(1));
       }
    }
    if (M_u)
