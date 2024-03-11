@@ -3844,8 +3844,7 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
                                  const map<int, vector<int>> & node_ids_for_element_id,
                                  vector<int> & unique_vertex_ids)
 {
-   // Iterate through all nodes (on edge of each element) and add their global IDs
-   // to the unique_corner_node_ids vector.
+   // Iterate through all vertices and add their global IDs to the unique_vertex_ids vector.
    for (int block_id : unique_block_ids)
    {
       auto & element_ids = element_ids_for_block_id.at(block_id);
@@ -3909,7 +3908,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
    // Define quadratic FE space.
    const int Dim = mesh.Dimension();
-   FiniteElementCollection *fec = new H1_FECollection(2,3);
+   FiniteElementCollection *fec = new H1_FECollection(2, Dim);
    FiniteElementSpace *fes = new FiniteElementSpace(&mesh, fec, Dim,
                                                     Ordering::byVDIM);
    GridFunction *Nodes = new GridFunction(fes);
@@ -3972,6 +3971,50 @@ void Mesh::BuildMFEMVertices(const vector<int> & unique_vertex_ids,
    }
 }
 
+void Mesh::BuildMFEMElements(const int num_elements,
+                             const cubit::CubitElementInfo * element_info,
+                             const vector<int> & block_ids,
+                             const map<int, vector<int>> & element_ids_for_block_id,
+                             const map<int, vector<int>> & node_ids_for_element_id,
+                             const map<int, int> & cubit_to_mfem_vertex_map)
+{
+   using namespace cubit;
+
+   NumOfElements = num_elements;
+   elements.SetSize(num_elements);
+
+   std::vector<int> renumbered_vertex_ids(element_info->NumCornerNodes());
+
+   int element_counter = 0;
+
+   // Iterate over blocks.
+   for (int block_id : block_ids)
+   {
+      const vector<int> &block_element_ids = element_ids_for_block_id.at(block_id);
+
+      // Iterate over elements in block.
+      for (int element_id : block_element_ids)
+      {
+         const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
+
+         // Iterate over linear (vertex) nodes in block.
+         for (int knode = 0; knode < element_info->NumCornerNodes(); knode++)
+         {
+            const int node_id = element_node_ids[knode];
+
+            // Renumber using the mapping.
+            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map.at(node_id) - 1;
+         }
+
+         // Create element.
+         elements[element_counter++] = CreateCubitElement(*this,
+                                                          element_info->ElementType(),
+                                                          renumbered_vertex_ids.data(),
+                                                          block_id);
+      }
+   }
+}
+
 
 void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
@@ -4019,7 +4062,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                                num_nodes_per_element);
 
    // Generate element and face info.
-   CubitElementInfo element_info(num_nodes_per_element,
+   cubit::CubitElementInfo element_info(num_nodes_per_element,
                                  num_dimensions);   // TODO: - Assuming single element type.
 
    // Read the elements that make-up each block.
@@ -4093,39 +4136,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    // Now load the elements.
    //
-   NumOfElements = num_elements;
-   elements.SetSize(num_elements);
-
-   std::vector<int> renumbered_vertex_ids(element_info.NumCornerNodes());
-
-   int element_counter = 0;
-
-   // Iterate over blocks.
-   for (int block_id : block_ids)
-   {
-      const vector<int> &block_element_ids = element_ids_for_block_id.at(block_id);
-
-      // Iterate over elements in block.
-      for (int element_id : block_element_ids)
-      {
-         const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
-
-         // Iterate over linear (vertex) nodes in block.
-         for (int knode = 0; knode < element_info.NumCornerNodes(); knode++)
-         {
-            const int node_id = element_node_ids[knode];
-
-            // Renumber using the mapping.
-            renumbered_vertex_ids[knode] = cubit_to_mfem_vertex_map[node_id] - 1;
-         }
-
-         // Create element.
-         elements[element_counter++] = CreateCubitElement(*this,
-                                                          element_info.ElementType(),
-                                                          renumbered_vertex_ids.data(),
-                                                          block_id);
-      }
-   }
+   BuildMFEMElements(num_elements, &element_info, block_ids, element_ids_for_block_id,
+                     node_ids_for_element_id, cubit_to_mfem_vertex_map);
 
    //
    // Load up the boundary elements.
@@ -4152,6 +4164,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
          const auto & face_info = element_info.Face(side_id);
 
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
+
+         // NB: inefficient. Just get max number of nodes on that side.
+         vector<int> renumbered_vertex_ids(element_nodes_on_side.size());
 
          // Iterate over element's face linear nodes.
          for (int knode = 0; knode < element_nodes_on_side.size(); knode++)
