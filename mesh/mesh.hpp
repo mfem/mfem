@@ -340,15 +340,15 @@ protected:
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
    void BuildCubitVertices(const std::vector<int> & unique_vertex_ids,
-                          const std::vector<double> & coordx, const std::vector<double> & coordy,
-                          const std::vector<double> & coordz);
+                           const std::vector<double> & coordx, const std::vector<double> & coordy,
+                           const std::vector<double> & coordz);
 
    void BuildCubitElements(const int num_elements,
-                          const cubit::CubitElementInfo * element_info,
-                          const std::vector<int> & block_ids,
-                          const std::map<int, std::vector<int>> & element_ids_for_block_id,
-                          const std::map<int, std::vector<int>> & node_ids_for_element_id,
-                          const std::map<int, int> & cubit_to_mfem_vertex_map);
+                           const cubit::CubitElementInfo * element_info,
+                           const std::vector<int> & block_ids,
+                           const std::map<int, std::vector<int>> & element_ids_for_block_id,
+                           const std::map<int, std::vector<int>> & node_ids_for_element_id,
+                           const std::map<int, int> & cubit_to_mfem_vertex_map);
 
    void BuildCubitBoundaries(
       const cubit::CubitElementInfo * element_info,
