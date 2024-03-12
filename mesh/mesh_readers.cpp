@@ -2973,7 +2973,7 @@ public:
       ELEMENT_HEX8,
       ELEMENT_HEX27,
       ELEMENT_WEDGE6,
-      //ELEMENT_WEDGE18,
+      ELEMENT_WEDGE18,
       ELEMENT_PYRAMID5,
       //ELEMENT_PYRAMID14
    };
@@ -3000,7 +3000,7 @@ protected:
     * Sets the _face_info vector.
     */
    std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
-   // std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
+   std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
    std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
    // std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
@@ -3160,15 +3160,15 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _face_info = GetWedge6FaceInfo();
          break;
       }
-      // case 18:
-      // {
-      //    _element_type = ELEMENT_WEDGE18;
-      //    _order = 2;
-      //    _num_corner_nodes = 6;
-      //    _num_faces = 5;
-      //    _face_info = GetWedge18FaceInfo();
-      //    break;
-      // }
+      case 18:
+      {
+         _element_type = ELEMENT_WEDGE18;
+         _order = 2;
+         _num_vertices = 6;
+         _num_faces = 5;
+         _face_info = GetWedge18FaceInfo();
+         break;
+      }
       case 5:
       {
          _element_type = ELEMENT_PYRAMID5;
@@ -3208,15 +3208,14 @@ CubitElementInfo::GetWedge6FaceInfo() const
    return {tri3, tri3, quad4, quad4, quad4};
 }
 
-// std::vector<CubitFaceInfo>
-// CubitElementInfo::GetWedge18FaceInfo() const
-// {
-//    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-//    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+std::vector<CubitFaceInfo>
+CubitElementInfo::GetWedge18FaceInfo() const
+{
+   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-//    // Same ordering as MFEM.
-//    return {tri6, tri6, quad9, quad9, quad9};
-// }
+   return {tri6, tri6, quad9, quad9, quad9};
+}
 
 std::vector<CubitFaceInfo>
 CubitElementInfo::GetPyramid5FaceInfo()
@@ -3646,7 +3645,7 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
       case CubitElementInfo::ELEMENT_HEX27:
          return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
       case CubitElementInfo::ELEMENT_WEDGE6:
-         //case CubitElementInfo::ELEMENT_WEDGE18:
+      case CubitElementInfo::ELEMENT_WEDGE18:
          return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
       case CubitElementInfo::ELEMENT_PYRAMID5:
          // case CubitElementInfo::ELEMENT_PYRAMID14:
@@ -3747,6 +3746,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                   break;
                }
                case (CubitElementInfo::ELEMENT_WEDGE6):
+               case (CubitElementInfo::ELEMENT_WEDGE18):
                {
                   inode = cubit_side_map_wedge6[boundary_side][knode];
                   break;
@@ -3849,7 +3849,9 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
       case CubitElementInfo::ELEMENT_HEX27:
          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
          break;
-      // TODO: _ add ordering for ELEMENT_QUAD8, PYRAMID14, WEDGE18.
+      case CubitElementInfo::ELEMENT_WEDGE18:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
+         break;
       default:
          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
    }
