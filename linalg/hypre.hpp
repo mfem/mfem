@@ -128,12 +128,12 @@ inline MemoryClass GetHypreMemoryClass()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryClass::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryClass::DEVICE :
           MemoryClass::HOST;
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryClass::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
 #endif
 }
 
@@ -145,25 +145,25 @@ inline MemoryType GetHypreMemoryType()
 #elif defined(HYPRE_USING_UNIFIED_MEMORY)
    return MemoryType::MANAGED;
 #else
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    return (GetHypreMemoryLocation() == HYPRE_MEMORY_DEVICE) ? MemoryType::DEVICE :
           Device::GetHostMemoryType();
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    return MemoryType::DEVICE;
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
 #endif
 }
 
 inline bool HypreUsingGPU()
 {
 #ifdef HYPRE_USING_GPU
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    HYPRE_MemoryLocation loc;
    HYPRE_GetMemoryLocation(&loc);
    return loc == HYPRE_MEMORY_DEVICE;
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    return true;
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
 #else
    return false;
 #endif
