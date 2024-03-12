@@ -2816,35 +2816,12 @@ const int cubit_side_map_quad4[4][2] =
    {4,1},
 };
 
-const int cubit_side_map_tri6[3][3] =
-{
-   {1,2,4},
-   {2,3,5},
-   {3,1,6},
-};
-
-const int cubit_side_map_quad9[4][3] =
-{
-   {1,2,5},
-   {2,3,6},
-   {3,4,7},
-   {4,1,8},
-};
-
 const int cubit_side_map_tet4[4][3] =
 {
    {1,2,4},
    {2,3,4},
    {1,4,3},
    {1,3,2}
-};
-
-const int cubit_side_map_tet10[4][6] =
-{
-   {1,2,4,5,9,8},
-   {2,3,4,6,10,9},
-   {1,4,3,8,10,7},
-   {1,3,2,7,6,5}
 };
 
 const int cubit_side_map_hex8[6][4] =
@@ -2855,16 +2832,6 @@ const int cubit_side_map_hex8[6][4] =
    {1,4,8,5},
    {1,4,3,2},
    {5,8,7,6}
-};
-
-const int cubit_side_map_hex27[6][9] =
-{
-   {1,2,6,5,9,14,17,13,26},
-   {2,3,7,6,10,15,18,14,25},
-   {4,3,7,8,11,15,19,16,27},
-   {1,4,8,5,12,16,20,13,24},
-   {1,4,3,2,12,11,10,9,22},
-   {5,8,7,6,20,19,18,17,23}
 };
 
 const int cubit_side_map_wedge6[5][4] =
@@ -3756,43 +3723,27 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
             switch (element_info.ElementType())
             {
                case (CubitElementInfo::ELEMENT_TRI3):
+               case (CubitElementInfo::ELEMENT_TRI6):
                {
                   inode = cubit_side_map_tri3[boundary_side][knode];
                   break;
                }
-               case (CubitElementInfo::ELEMENT_TRI6):
-               {
-                  inode = cubit_side_map_tri6[boundary_side][knode];
-                  break;
-               }
                case (CubitElementInfo::ELEMENT_QUAD4):
+               case (CubitElementInfo::ELEMENT_QUAD9):
                {
                   inode = cubit_side_map_quad4[boundary_side][knode];
                   break;
                }
-               case (CubitElementInfo::ELEMENT_QUAD9):
-               {
-                  inode = cubit_side_map_quad9[boundary_side][knode];
-                  break;
-               }
                case (CubitElementInfo::ELEMENT_TET4):
+               case (CubitElementInfo::ELEMENT_TET10):
                {
                   inode = cubit_side_map_tet4[boundary_side][knode];
                   break;
                }
-               case (CubitElementInfo::ELEMENT_TET10):
-               {
-                  inode = cubit_side_map_tet10[boundary_side][knode];
-                  break;
-               }
                case (CubitElementInfo::ELEMENT_HEX8):
-               {
-                  inode = cubit_side_map_hex8[boundary_side][knode];
-                  break;
-               }
                case (CubitElementInfo::ELEMENT_HEX27):
                {
-                  inode = cubit_side_map_hex27[boundary_side][knode];
+                  inode = cubit_side_map_hex8[boundary_side][knode];
                   break;
                }
                case (CubitElementInfo::ELEMENT_WEDGE6):
