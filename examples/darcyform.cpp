@@ -874,7 +874,8 @@ void DarcyHybridization::ConstructC()
          AssembleCtElementMatrix(FTr->Elem1No, c_vdofs, elmat);
 
          //side 2
-         AssembleCtElementMatrix(FTr->Elem2No, c_vdofs, elmat, fe1->GetDof());
+         AssembleCtElementMatrix(FTr->Elem2No, c_vdofs, elmat,
+                                 fe1->GetDof()*fes->GetVDim());
       }
    }
    else
