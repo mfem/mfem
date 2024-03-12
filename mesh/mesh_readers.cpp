@@ -3020,7 +3020,6 @@ public:
 
    inline uint8_t NumFaces() const { return _num_faces; }
 
-   inline uint8_t NumNodes() const { return _num_nodes; }
    inline uint8_t NumVertices() const { return _num_vertices; }
 
    inline uint8_t Order() const { return _order; }
@@ -3056,7 +3055,6 @@ private:
     * NB: "corner nodes" refer to MOOSE nodes at the corners of an element. In
     * MFEM this is referred to as "vertices".
     */
-   uint8_t _num_nodes;
    uint8_t _num_vertices;
 
    /**
@@ -3095,7 +3093,6 @@ void
 CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
 {
    _dimension = 2;
-   _num_nodes = num_nodes_per_element;
 
    switch (num_nodes_per_element)
    {
@@ -3148,7 +3145,6 @@ void
 CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
 {
    _dimension = 3;
-   _num_nodes = num_nodes_per_element;
 
    switch (num_nodes_per_element)
    {
