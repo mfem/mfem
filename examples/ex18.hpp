@@ -57,7 +57,8 @@ public:
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
     * @param formIntegrator_ integrator (F(u,x), grad v)
-    * @param preassembleWeakDivergence preassemble weak divergence for faster assembly
+    * @param preassembleWeakDivergence preassemble weak divergence for faster
+    *                                  assembly
     */
    DGHyperbolicConservationLaws(
       FiniteElementSpace &vfes_,
@@ -131,7 +132,8 @@ void DGHyperbolicConservationLaws::ComputeInvMass()
       int dof = vfes.GetFE(i)->GetDof();
       invmass[i].SetSize(dof);
       inv_mass.AssembleElementMatrix(*vfes.GetFE(i),
-                                     *vfes.GetElementTransformation(i), invmass[i]);
+                                     *vfes.GetElementTransformation(i),
+                                     invmass[i]);
    }
 }
 
@@ -146,7 +148,8 @@ void DGHyperbolicConservationLaws::ComputeWeakDivergence()
       int dof = vfes.GetFE(i)->GetDof();
       weakdiv_bynodes.SetSize(dof, dof*dim);
       weak_div.AssembleElementMatrix2(*vfes.GetFE(i), *vfes.GetFE(i),
-                                      *vfes.GetElementTransformation(i), weakdiv_bynodes);
+                                      *vfes.GetElementTransformation(i),
+                                      weakdiv_bynodes);
       weakdiv[i].SetSize(dof, dof*dim);
       // Reorder so that trial space is ByDim.
       // This makes applying weak divergence to flux value simpler.
