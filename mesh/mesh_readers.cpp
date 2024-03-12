@@ -2778,13 +2778,11 @@ const int mfem_to_genesis_hex27[27] =
    16,22,26,25,27,24,23,21
 };
 
-// TODO: - verify.
 const int mfem_to_genesis_pyramid14[14] =
 {
    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 };
 
-// TODO: - verify.
 const int mfem_to_genesis_wedge18[18] =
 {
    1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16, 17, 18
@@ -2983,7 +2981,7 @@ public:
    /**
     * Returns info for a particular face.
     */
-   const CubitFaceInfo & Face(int iface = 0) const;
+   const CubitFaceInfo & GetFace(int iface = 0) const;
 
    inline uint8_t NumFaces() const { return _num_faces; }
 
@@ -3239,7 +3237,7 @@ const
 }
 
 const CubitFaceInfo &
-CubitElementInfo::Face(int iface) const   // TODO: - rename to GetFace
+CubitElementInfo::GetFace(int iface) const
 {
    /**
     * Check _face_info initialized.
@@ -3704,7 +3702,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
          const int boundary_side = boundary_element_sides[jelement];
 
          // Get all of the element's nodes on boundary side of element.
-         const auto & face_info = element_info.Face(boundary_side);
+         const auto & face_info = element_info.GetFace(boundary_side);
 
          const vector<int> & element_node_ids =
             node_ids_for_element_id.at(boundary_element_global_id);
@@ -3998,7 +3996,7 @@ void Mesh::BuildCubitBoundaries(
       int jelement = 0;
       for (int side_id : side_ids_for_boundary_id.at(boundary_id))
       {
-         const auto & face_info = element_info->Face(side_id);
+         const auto & face_info = element_info->GetFace(side_id);
 
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
 
@@ -4038,7 +4036,6 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 
    // Read important dimensions from file.
-   // TODO: - create cubit file info structure to hold all core info.
    size_t num_dimensions, num_nodes, num_elements, num_element_blocks,
           num_boundaries;
 
@@ -4069,9 +4066,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    ReadCubitNumNodesPerElement(netcdf_descriptor, num_element_blocks,
                                num_nodes_per_element);
 
-   // Generate element and face info.
+   // Generate element and face info for single-element type.
    cubit::CubitElementInfo element_info(num_nodes_per_element,
-                                        num_dimensions);   // TODO: - Assuming single element type.
+                                        num_dimensions);
 
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
@@ -4155,7 +4152,6 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    // Clean up all netcdf stuff.
    nc_close(netcdf_descriptor);
-
 }
 
 #endif // #ifdef MFEM_USE_NETCDF

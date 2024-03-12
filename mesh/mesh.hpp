@@ -29,7 +29,7 @@
 #include <iostream>
 #include <array>
 #include <map>
-#include <vector>   // TODO: - temporary.
+#include <vector>
 
 namespace mfem
 {
