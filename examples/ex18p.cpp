@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use. If not provided, then a periodic square"
                   " mesh will be used.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
+                  "Problem setup to use. See EulerInitialCondition().");
    args.AddOption(&ser_ref_levels, "-rs", "--serial-refine",
                   "Number of times to refine the serial mesh uniformly.");
    args.AddOption(&par_ref_levels, "-rp", "--parallel-refine",
@@ -190,7 +190,8 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define the initial conditions, save the corresponding mesh and grid
-   //    functions to a file. This can be opened with GLVis with the -gc option.
+   //    functions to files. These can be opened with GLVis using:
+   //    "glvis -np 4  -m euler-mesh -g euler-1-init" (for x-momentum).
 
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
@@ -247,12 +248,13 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout << "parallel " << numProcs << " " << myRank << "\n";
          sout.precision(precision);
          // Plot magnitude of vector-valued momentum
+         sout << "parallel " << numProcs << " " << myRank << "\n";
          sout << "solution\n" << pmesh << mom;
+         sout << "window_title 'momentum, t = 0'\n";
          sout << "view 0 0\n";  // view from top
-         sout << "keys jlm\n";  // turn off perspective and light
+         sout << "keys jlm\n";  // turn off perspective and light, show mesh
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
@@ -278,11 +280,12 @@ int main(int argc, char *argv[])
       MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPI_DOUBLE, MPI_MIN,
                     pmesh.GetComm());
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces.
+      // maximum char speed at all quadrature points on all faces (and all
+      // elements with -mf).
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
-      double max_char_speed  = euler.GetMaxCharSpeed();
+      double max_char_speed = euler.GetMaxCharSpeed();
       MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1, MPI_DOUBLE, MPI_MAX,
                     pmesh.GetComm());
       dt = cfl * hmin / max_char_speed / (2 * order + 1);
@@ -322,9 +325,9 @@ int main(int argc, char *argv[])
          }
          if (visualization)
          {
+            sout << "window_title 'momentum, t = " << t << "'\n";
             sout << "parallel " << numProcs << " " << myRank << "\n";
-            sout << "solution\n" << pmesh << mom;
-            sout << "window_title 't = " << t << "'" << flush;
+            sout << "solution\n" << pmesh << mom << flush;
          }
       }
    }
@@ -336,7 +339,7 @@ int main(int argc, char *argv[])
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -np 4 -m euler-mesh-final -g euler-1-final".
+   //    "glvis -np 4 -m euler-mesh-final -g euler-1-final" (for x-momentum).
    {
       ostringstream mesh_name;
       mesh_name << "euler-mesh-final." << setfill('0') << setw(6)

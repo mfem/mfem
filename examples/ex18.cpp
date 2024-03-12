@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
                   "Mesh file to use. If not provided, then a periodic square"
                   " mesh will be used.");
    args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See, EulerInitialCondition.");
+                  "Problem setup to use. See EulerInitialCondition().");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
          y *= 0.5;
       });
    }
+
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a command-line
    // parameter.
@@ -162,7 +163,8 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << vfes.GetVSize() << endl;
 
    // 5. Define the initial conditions, save the corresponding mesh and grid
-   //    functions to a file. This can be opened with GLVis with the -gc option.
+   //    functions to files. These can be opened with GLVis using:
+   //    "glvis -m euler-mesh.mesh -g euler-1-init.gf" (for x-momentum).
 
    // Initialize the state.
    VectorFunctionCoefficient u0 = EulerInitialCondition(problem,
@@ -215,10 +217,12 @@ int main(int argc, char *argv[])
       }
       else
       {
+         sout.precision(precision);
          // Plot magnitude of vector-valued momentum
          sout << "solution\n" << mesh << mom;
+         sout << "window_title 'momentum, t = 0'\n";
          sout << "view 0 0\n";  // view from top
-         sout << "keys jlm\n";  // turn off perspective and light
+         sout << "keys jlm\n";  // turn off perspective and light, show mesh
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
@@ -233,13 +237,13 @@ int main(int argc, char *argv[])
    double hmin = infinity();
    if (cfl > 0)
    {
-      // determine global h_min
       for (int i = 0; i < mesh.GetNE(); i++)
       {
          hmin = min(mesh.GetElementSize(i, 1), hmin);
       }
       // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces (and all elements with -mf).
+      // maximum char speed at all quadrature points on all faces (and all
+      // elements with -mf).
       Vector z(sol.Size());
       euler.Mult(sol, z);
 
@@ -276,8 +280,8 @@ int main(int argc, char *argv[])
          cout << "time step: " << ti << ", time: " << t << endl;
          if (visualization)
          {
+            sout << "window_title 'momentum, t = " << t << "'\n";
             sout << "solution\n" << mesh << mom << flush;
-            sout << "window_title 't = " << t << "'";
          }
       }
    }
@@ -286,7 +290,7 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m euler-mesh-final.mesh -g euler-1-final.gf".
+   //    "glvis -m euler-mesh-final.mesh -g euler-1-final.gf" (for x-momentum).
    {
       ostringstream mesh_name;
       mesh_name << "euler-mesh-final.mesh";
