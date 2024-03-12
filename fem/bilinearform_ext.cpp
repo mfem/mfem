@@ -445,7 +445,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < iSz; ++i)
       {
          assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
-                                        elem_attributes, localY);
+                                        elem_attributes, y);
       }
    }
 
