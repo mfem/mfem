@@ -2975,7 +2975,7 @@ public:
       ELEMENT_WEDGE6,
       ELEMENT_WEDGE18,
       ELEMENT_PYRAMID5,
-      //ELEMENT_PYRAMID14
+      ELEMENT_PYRAMID14
    };
 
    inline CubitElementType ElementType() const { return _element_type; }
@@ -3003,7 +3003,7 @@ protected:
    std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
    std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
-   // std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
+   std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
 
 private:
    /**
@@ -3178,16 +3178,15 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _face_info = GetPyramid5FaceInfo();
          break;
       }
-      // case 14:
-      // {
-      //    _element_type = ELEMENT_PYRAMID14;
-      //    _order = 2;
-      //    _num_corner_nodes = 5;
-      //    _num_faces = 5;
-      //    _face_info = GetPyramid14FaceInfo();
-      //    _num_corner_nodes = 5;
-      //    break;
-      // }
+      case 14:
+      {
+         _element_type = ELEMENT_PYRAMID14;
+         _order = 2;
+         _num_vertices = 5;
+         _num_faces = 5;
+         _face_info = GetPyramid14FaceInfo();
+         break;
+      }
       default:
       {
          MFEM_ABORT("Unsupported 3D element with " << num_nodes_per_element <<
@@ -3227,17 +3226,17 @@ const
    return {quad4, tri3, tri3, tri3, tri3};
 }
 
-// std::vector<CubitFaceInfo>
-// CubitElementInfo::GetPyramid14FaceInfo()
-// const
-// {
-//    // Define Pyramid14: Quad9 base and 4 x Tri6.
-//    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-//    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
+std::vector<CubitFaceInfo>
+CubitElementInfo::GetPyramid14FaceInfo()
+const
+{
+   // Define Pyramid14: Quad9 base and 4 x Tri6.
+   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
+   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-//    // Same ordering as MFEM.
-//    return {quad9, tri6, tri6, tri6, tri6};
-// }
+   // Same ordering as MFEM.
+   return {quad9, tri6, tri6, tri6, tri6};
+}
 
 const CubitFaceInfo &
 CubitElementInfo::Face(int iface) const   // TODO: - rename to GetFace
@@ -3648,7 +3647,7 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
       case CubitElementInfo::ELEMENT_WEDGE18:
          return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
       case CubitElementInfo::ELEMENT_PYRAMID5:
-         // case CubitElementInfo::ELEMENT_PYRAMID14:
+      case CubitElementInfo::ELEMENT_PYRAMID14:
          return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
       default:
          MFEM_ABORT("Unsupported cubit element type encountered.");
@@ -3671,7 +3670,6 @@ mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
       case CubitFaceInfo::FACE_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
       case CubitFaceInfo::FACE_QUAD4:
-      //case CubitFaceInfo::FACE_QUAD8:
       case CubitFaceInfo::FACE_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
       default:
@@ -3752,6 +3750,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                   break;
                }
                case (CubitElementInfo::ELEMENT_PYRAMID5):
+               case (CubitElementInfo::ELEMENT_PYRAMID14):
                {
                   inode = cubit_side_map_pyramid5[boundary_side][knode];
                   break;
@@ -3851,6 +3850,9 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
          break;
       case CubitElementInfo::ELEMENT_WEDGE18:
          mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
+         break;
+      case CubitElementInfo::ELEMENT_PYRAMID14:
+         mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
          break;
       default:
          MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
