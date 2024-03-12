@@ -3592,9 +3592,9 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 }
 
-static vector<int> BuildCubitBlockIDs(const int netcdf_descriptor,
-                                      const int num_element_blocks,
-                                      vector<int> & block_ids)
+static void BuildCubitBlockIDs(const int netcdf_descriptor,
+                               const int num_element_blocks,
+                               vector<int> & block_ids)
 {
    block_ids.resize(num_element_blocks);
 
@@ -4116,6 +4116,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 
    // Read important dimensions from file.
+   // TODO: - create cubit file info structure to hold all core info.
    size_t num_dimensions, num_nodes, num_elements, num_element_blocks,
           num_boundaries;
 
