@@ -2867,7 +2867,7 @@ const int cubit_side_map_hex27[6][9] =
    {5,8,7,6,20,19,18,17,23}
 };
 
-const int cubit_side_map_wedge6[6][4] =
+const int cubit_side_map_wedge6[5][4] =
 {
    {1,3,2,0},  // NB: 0 because only 3 elements.
    {4,5,6,0},
