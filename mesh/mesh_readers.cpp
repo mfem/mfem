@@ -3409,11 +3409,12 @@ static void ReadCubitNumElementsInBlock(const int netcdf_descriptor,
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 }
 
-static std::map<int, vector<int>> GetElementIDsForBlockID(
-                                  const vector<int> & block_ids,
-                                  const map<int, size_t> & num_elements_for_block_id)
+static void BuildElementIDsForBlockID(
+   const vector<int> & block_ids,
+   const map<int, size_t> & num_elements_for_block_id,
+   map<int, vector<int>> & element_ids_for_block_id)
 {
-   map<int, vector<int>> element_ids_for_block_id;
+   element_ids_for_block_id.clear();
 
    int element_id = 0;  // Start at zero.
 
@@ -3430,8 +3431,6 @@ static std::map<int, vector<int>> GetElementIDsForBlockID(
 
       element_ids_for_block_id[block_id] = std::move(element_ids);
    }
-
-   return element_ids_for_block_id;
 }
 
 
@@ -3593,10 +3592,11 @@ static void ReadCubitBoundaries(const int netcdf_descriptor,
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
 }
 
-static vector<int> GetCubitBlockIDs(const int netcdf_descriptor,
-                                    const int num_element_blocks)
+static vector<int> BuildCubitBlockIDs(const int netcdf_descriptor,
+                                      const int num_element_blocks,
+                                      vector<int> & block_ids)
 {
-   vector<int> block_ids(num_element_blocks);
+   block_ids.resize(num_element_blocks);
 
    int netcdf_status, variable_id;
 
@@ -3605,8 +3605,6 @@ static vector<int> GetCubitBlockIDs(const int netcdf_descriptor,
                                   block_ids.data());
 
    if (netcdf_status != NC_NOERR) { HandleNetCDFError(netcdf_status); }
-
-   return block_ids;
 }
 
 static void ReadCubitBoundaryIDs(const int netcdf_descriptor,
@@ -4127,7 +4125,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    Dim = num_dimensions;
 
    // Read the block IDs.
-   vector<int> block_ids = GetCubitBlockIDs(netcdf_descriptor, num_element_blocks);
+   vector<int> block_ids;
+   BuildCubitBlockIDs(netcdf_descriptor, num_element_blocks, block_ids);
 
    // Read the number of elements for each block.
    map<int, size_t> num_elements_for_block_id;
@@ -4136,8 +4135,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                                num_elements_for_block_id);
 
    // Generate ascending element ids for each block starting at zero.
-   map<int, vector<int>> element_ids_for_block_id = GetElementIDsForBlockID(
-                                                       block_ids, num_elements_for_block_id);
+   map<int, vector<int>> element_ids_for_block_id;
+   BuildElementIDsForBlockID(
+      block_ids, num_elements_for_block_id, element_ids_for_block_id);
 
    // Read number of nodes for each element. NB: we currently only support
    // reading in a single type of element!
