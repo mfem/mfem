@@ -3887,6 +3887,20 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
    unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 }
 
+/// unique_vertex_ids contains a 1-based sorted list of vertex IDs used by the mesh. We 
+/// now create a map by running over the vertex IDs and remapping to a contiguous
+/// 1-based array of integers.
+static void BuildCubitToMFEMVertexMap(const vector<int> & unique_vertex_ids, 
+                                      map<int, int> & cubit_to_mfem_vertex_map)
+{
+   cubit_to_mfem_vertex_map.clear();
+
+   int ivertex = 1;
+   for (int vertex_id : unique_vertex_ids)
+   {
+      cubit_to_mfem_vertex_map[vertex_id] = ivertex++;
+   }
+}
 
 
 /// @brief The final step in constructing the mesh from a Genesis file. This is
@@ -4179,15 +4193,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    // node used by the mesh. We now create a map by running over the node IDs
    // and remapping to contiguous 1-based integers.
    // ie. [1, 4, 5, 8, 9] --> [1, 2, 3, 4, 5].
-   std::map<int,int> cubit_to_mfem_vertex_map;
-
-   for (size_t ivertex = 0; ivertex < unique_vertex_ids.size(); ivertex++)
-   {
-      const int key     = unique_vertex_ids[ivertex];
-      const int value   = ivertex + 1;
-
-      cubit_to_mfem_vertex_map[key] = value;
-   }
+   map<int, int> cubit_to_mfem_vertex_map;
+   BuildCubitToMFEMVertexMap(unique_vertex_ids, cubit_to_mfem_vertex_map);
 
    //
    // Load up the vertices.
