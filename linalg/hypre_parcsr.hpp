@@ -32,7 +32,7 @@ typedef HYPRE_Int HYPRE_BigInt;
 
 namespace mfem
 {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
 inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 {
    HYPRE_MemoryLocation loc;

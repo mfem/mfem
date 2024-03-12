@@ -65,7 +65,9 @@ void Hypre::SetDefaultOptions()
 #endif
 #endif
 
-#if MFEM_HYPRE_VERSION >= 22600
+   // Runtime Memory and Execution policy support was added in 2.26.0 but choosing to initialize
+   // the vendor libraries at runtime was not added until 2.31.0 so we use that instead
+#if MFEM_HYPRE_VERSION >= 23100
    if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
    {
       HYPRE_SetMemoryLocation(HYPRE_MEMORY_DEVICE);
@@ -86,14 +88,12 @@ void Hypre::SetDefaultOptions()
    // HYPRE_SetExecutionPolicy(HYPRE_EXEC_DEVICE);
 #endif
 
-   // TODO 23/11/28: introduced in https://github.com/hypre-space/hypre/pull/962,
-   //                not yet in a release
-   // #if MFEM_HYPRE_VERSION >= 23100
-   // if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
-   // {
-   //    HYPRE_DeviceInitialize();
-   // }
-   // #endif
+#if MFEM_HYPRE_VERSION >= 23100
+   if (mfem::Device::Allows(mfem::Backend::DEVICE_MASK))
+   {
+      HYPRE_DeviceInitialize();
+   }
+#endif
 
    // Use GPU-based random number generator (default)
    // HYPRE_SetUseGpuRand(1);
@@ -562,7 +562,7 @@ void HypreParMatrix::Init()
 
 void HypreParMatrix::Read(MemoryClass mc) const
 {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
       MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
@@ -580,13 +580,13 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->j = const_cast<HYPRE_Int*>(mem_offd.J.Read(mc, offd_nnz));
    offd->data = const_cast<double*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif // MFEM_HYPRE_VERSION >= 21800
@@ -594,7 +594,7 @@ void HypreParMatrix::Read(MemoryClass mc) const
 
 void HypreParMatrix::ReadWrite(MemoryClass mc)
 {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
       MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
@@ -612,13 +612,13 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->j = mem_offd.J.ReadWrite(mc, offd_nnz);
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
    diag->memory_location = ml;
    offd->memory_location = ml;
 #endif // MFEM_HYPRE_VERSION >= 21800
@@ -626,7 +626,7 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
 
 void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
 {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    if (GetHypreMemoryLocation() == HYPRE_MEMORY_HOST && mc != MemoryClass::HOST)
    {
       MFEM_ABORT("Hypre is configured to use the HOST but the MemoryClass is DEVICE");
@@ -647,13 +647,13 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
       offd->data = mem_offd.data.Write(mc, mem_offd.data.Capacity());
    }
 #if MFEM_HYPRE_VERSION >= 21800
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc == MemoryClass::HOST) ? HYPRE_MEMORY_HOST : GetHypreMemoryLocation();
-#else // MFEM_HYPRE_VERSION >= 22600
+#else // MFEM_HYPRE_VERSION >= 23100
    decltype(diag->memory_location) ml =
       (mc != GetHypreMemoryClass() ? HYPRE_MEMORY_HOST : HYPRE_MEMORY_DEVICE);
-#endif // MFEM_HYPRE_VERSION >= 22600
+#endif // MFEM_HYPRE_VERSION >= 23100
    if (set_diag) { diag->memory_location = ml; }
    if (set_offd) { offd->memory_location = ml; }
 #endif // MFEM_HYPRE_VERSION >= 21800
@@ -5595,7 +5595,7 @@ void HypreAMS::MakeGradientAndInterpolation(
 
 void HypreAMS::ResetAMSPrecond()
 {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    /* Read options from ams */
    auto *ams_data = (hypre_AMSData *)ams;
 
