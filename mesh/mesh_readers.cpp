@@ -2913,7 +2913,6 @@ public:
    CubitFaceInfo(CubitFaceType face_type);
 
    inline uint8_t Order() const { return _order; };
-   inline uint8_t NumFaceNodes() const { return _num_face_nodes; };
    inline uint8_t NumFaceVertices() const { return _num_face_vertices; };
    inline CubitFaceType FaceType() const { return _face_type; }
 
@@ -2927,9 +2926,8 @@ private:
    CubitFaceType _face_type;
 
    /**
-    * Total number of nodes and number of corner nodes ("vertices").
+    * Number of corner nodes ("vertices").
     */
-   uint8_t _num_face_nodes;
    uint8_t _num_face_vertices;
 
    /**
@@ -2956,14 +2954,8 @@ CubitFaceInfo::BuildCubitFaceInfo()
        * 2D
        */
       case (FACE_EDGE2):
-      {
-         _num_face_nodes = 2;
-         _num_face_vertices = 2;
-         break;
-      }
       case (FACE_EDGE3):
       {
-         _num_face_nodes = 3;
          _num_face_vertices = 2;
          break;
       }
@@ -2971,26 +2963,14 @@ CubitFaceInfo::BuildCubitFaceInfo()
        * 3D
        */
       case (FACE_TRI3):
-      {
-         _num_face_nodes = 3;
-         _num_face_vertices = 3;
-         break;
-      }
       case (FACE_TRI6):
       {
-         _num_face_nodes = 6;
          _num_face_vertices = 3;
          break;
       }
       case (FACE_QUAD4):
-      {
-         _num_face_nodes = 4;
-         _num_face_vertices = 4;
-         break;
-      }
       case (FACE_QUAD9):
       {
-         _num_face_nodes = 9; // Includes center node.
          _num_face_vertices = 4;
          break;
       }
