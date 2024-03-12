@@ -2904,7 +2904,6 @@ public:
       FACE_TRI3,
       FACE_TRI6,
       FACE_QUAD4,
-      //FACE_QUAD8, // order = 2.
       FACE_QUAD9  // order = 2. Center node.
    };
 
@@ -2989,12 +2988,6 @@ CubitFaceInfo::BuildCubitFaceInfo()
          _num_face_vertices = 4;
          break;
       }
-      // case (FACE_QUAD8):
-      // {
-      //    _num_face_nodes = 8;
-      //    _num_face_corner_nodes = 4;
-      //    break;
-      // }
       case (FACE_QUAD9):
       {
          _num_face_nodes = 9; // Includes center node.
