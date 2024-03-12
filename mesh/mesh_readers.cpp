@@ -3887,10 +3887,10 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
    unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 }
 
-/// unique_vertex_ids contains a 1-based sorted list of vertex IDs used by the mesh. We 
+/// unique_vertex_ids contains a 1-based sorted list of vertex IDs used by the mesh. We
 /// now create a map by running over the vertex IDs and remapping to a contiguous
 /// 1-based array of integers.
-static void BuildCubitToMFEMVertexMap(const vector<int> & unique_vertex_ids, 
+static void BuildCubitToMFEMVertexMap(const vector<int> & unique_vertex_ids,
                                       map<int, int> & cubit_to_mfem_vertex_map)
 {
    cubit_to_mfem_vertex_map.clear();
