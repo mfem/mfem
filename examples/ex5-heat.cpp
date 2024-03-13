@@ -169,11 +169,12 @@ int main(int argc, char *argv[])
 
    auto tFun = GetTFun(t_0, a, kFun);
    FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0, tcoeff, 1., -1.);//<-- due to symmetrization, the sign is opposite
+   SumCoefficient gcoeff(0, tcoeff, 1.,
+                         -1.);//<-- due to symmetrization, the sign is opposite
 
    auto qFun = GetQFun(t_0, a, kFun);
    VectorFunctionCoefficient qcoeff(dim, qFun);
-   
+
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction q,t for the finite element solution and
    //    linear forms fform and gform for the right hand side.  The data
@@ -232,7 +233,7 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
-   
+
    chrono.Clear();
    chrono.Start();
 
@@ -526,27 +527,34 @@ TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
    {
       const int ndim = x.Size();
       double t0 = t_0 * sin(M_PI*x(0)) * sin(M_PI*x(1));
-      if(ndim > 2)
+      if (ndim > 2)
+      {
          t0 *= sin(M_PI*x(2));
-         
+      }
+
       Vector ddT((ndim<=2)?(2):(4));
       ddT(0) = -t_0 * M_PI*M_PI * sin(M_PI*x(0)) * sin(M_PI*x(1));//xx,yy
       ddT(1) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * cos(M_PI*x(1));//xy
-      if(ndim > 2)
+      if (ndim > 2)
       {
          ddT(0) *= sin(M_PI*x(2));//xx,yy,zz
          ddT(1) *= sin(M_PI*x(2));//xy
-         ddT(2) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(2));//xz
-         ddT(3) = +t_0 * M_PI*M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1)) * cos(M_PI*x(2));//yz
-         
+         ddT(2) = +t_0 * M_PI*M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1)) * cos(M_PI*x(
+                                                                              2));//xz
+         ddT(3) = +t_0 * M_PI*M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1)) * cos(M_PI*x(
+                                                                              2));//yz
+
       }
 
       DenseMatrix kappa;
       kFun(x, kappa);
 
       double div = -(kappa(0,0) + kappa(1,1)) * ddT(0) - (kappa(0,1) + kappa(1,0)) * ddT(1);
-      if(ndim > 2)
-         div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2) - (kappa(1,2) + kappa(2,1)) * ddT(3);
+      if (ndim > 2)
+      {
+         div += -kappa(2,2) * ddT(0) - (kappa(0,2) + kappa(2,0)) * ddT(2) - (kappa(1,
+                                                                                   2) + kappa(2,1)) * ddT(3);
+      }
       return t0 - div / a * t;
    };
 }
@@ -554,7 +562,7 @@ TDFunc GetTFun(double t_0, double a, const MatFunc &kFun)
 VecFunc GetQFun(double t_0, double a, const MatFunc &kFun)
 {
    return [=](const Vector &x, Vector &v)
-   {	
+   {
       const int vdim = x.Size();
       v.SetSize(vdim);
 
@@ -562,7 +570,7 @@ VecFunc GetQFun(double t_0, double a, const MatFunc &kFun)
       gT = 0.;
       gT(0) = t_0 * M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1));
       gT(1) = t_0 * M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1));
-      if(vdim > 2)
+      if (vdim > 2)
       {
          gT(0) *= sin(M_PI*x(2));
          gT(1) *= sin(M_PI*x(2));
@@ -572,7 +580,7 @@ VecFunc GetQFun(double t_0, double a, const MatFunc &kFun)
       DenseMatrix kappa;
       kFun(x, kappa);
 
-      if(vdim <= 2)
+      if (vdim <= 2)
       {
          v(0) = -kappa(0,0) * gT(0) -kappa(0,1) * gT(1);
          v(1) = -kappa(1,0) * gT(0) -kappa(1,1) * gT(1);
@@ -594,7 +602,7 @@ MatFunc GetKFun(double k, double ks, double ka)
       kappa(0,0) *= ks;
       kappa(0,1) = +ka * k;
       kappa(1,0) = -ka * k;
-      if(ndim > 2)
+      if (ndim > 2)
       {
          kappa(0,2) = +ka * k;
          kappa(2,0) = -ka * k;
