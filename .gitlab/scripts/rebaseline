@@ -21,11 +21,14 @@ PATCH_FILE=${ARTIFACT_PATH}.patch
 FULL_FILE=${ARTIFACT_PATH}.out
 DIFF_FILE=${ARTIFACT_PATH}.diff
 
-# There will be collision between corona and quartz baselines.
-# Once the corresponding files have been generated, we can switch to machine
-# specific ref.
-SAVED_NAME=baseline-${SYS_TYPE}.saved
-#SAVED_NAME=baseline-${SYS_TYPE}-${MACHINE_NAME}.saved
+# There is a collision between quartz and other baselines when same system type.
+# We should consider switching to using machine names instead.
+if [[ "${MACHINE_NAME}" == "quartz" ]]; then
+    SAVED_NAME=baseline-${MACHINE_NAME}.saved
+else
+    SAVED_NAME=baseline-${SYS_TYPE}.saved
+fi
+# SAVED_NAME=baseline-${SYS_TYPE}-${MACHINE_NAME}.saved
 
 cd ${BUILD_ROOT}/tests
 
