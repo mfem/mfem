@@ -36,6 +36,8 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
    M_p = NULL;
    B = NULL;
 
+   assembly = AssemblyLevel::LEGACY;
+
    block_op = new BlockOperator(offsets);
 
    hybridization = NULL;
