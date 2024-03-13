@@ -115,15 +115,6 @@ int main(int argc, char *argv[])
    const int dim = mesh.Dimension();
    const int num_equations = dim + 2;
 
-   if (problem == 5)
-   {
-      mesh.Transform([](const Vector &x, Vector &y)
-      {
-         y = x;
-         y *= 0.5;
-      });
-   }
-
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a command-line
    // parameter.
