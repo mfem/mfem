@@ -3284,8 +3284,11 @@ public:
 
    ~NetCDFReader();
 
+   bool HasVariable(const std::string name);
    void ReadVariable(const std::string name, int * data);
    void ReadVariable(const std::string name, double * data);
+
+   bool HasDimension(const std::string name);
    void ReadDimension(const std::string name, size_t *dimension);
 
 protected:
@@ -3361,6 +3364,39 @@ void NetCDFReader::ReadDimension(const std::string name, size_t *dimension)
    CheckForNetCDFError();
 }
 
+bool NetCDFReader::HasVariable(const std::string name)
+{
+   int var_id;
+   const int status = nc_inq_varid(_netcdf_descriptor, name.c_str(), &var_id);
+
+   switch (status)
+   {
+      case NC_NOERR:    // Found!
+         return true;
+      case NC_ENOTVAR:  // Not found.
+         return false;
+      default:
+         HandleNetCDFError(status);
+         return false;
+   }
+}
+
+bool NetCDFReader::HasDimension(const std::string name)
+{
+   int dim_id;
+   const int status = nc_inq_dimid(_netcdf_descriptor, name.c_str(), &dim_id);
+
+   switch (status)
+   {
+      case NC_NOERR:    // Found!
+         return true;
+      case NC_EBADDIM:  // Not found.
+         return false;
+      default:
+         HandleNetCDFError(status);
+         return false;
+   }
+}
 
 void NetCDFReader::ReadVariable(const std::string name, int * data)
 {
@@ -3498,7 +3534,16 @@ static void ReadCubitDimensions(NetCDFReader & cubit_reader,
    cubit_reader.ReadDimension("num_nodes", &num_nodes);
    cubit_reader.ReadDimension("num_elem", &num_elem);
    cubit_reader.ReadDimension("num_el_blk", &num_el_blk);
-   cubit_reader.ReadDimension("num_side_sets", &num_side_sets);
+
+   // Optional: if not present, num_side_sets = 0.
+   if (cubit_reader.HasDimension("num_side_sets"))
+   {
+      cubit_reader.ReadDimension("num_side_sets", &num_side_sets);
+   }
+   else
+   {
+      num_side_sets = 0;
+   }
 }
 
 static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
