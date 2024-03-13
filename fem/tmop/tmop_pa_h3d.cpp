@@ -74,7 +74,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                            for (int t = 0; t < DIM; t++)
                            {
                               Href(v,m,n,qx,qy,qz) +=
-                                  Jrt(m,s) * H(v,s,v,t,qx,qy,qz,e) * Jrt(n,t);
+                                 Jrt(m,s) * H(v,s,v,t,qx,qy,qz,e) * Jrt(n,t);
                            }
                         }
                      }
@@ -101,7 +101,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                   for (int m = 0; m < DIM; m++)
                   {
                      for (int n = 0; n < DIM; n++)
-                     { 
+                     {
                         QQD(m,n,qx,qy,dz) = 0.0;
                      }
                   }
