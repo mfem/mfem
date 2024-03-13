@@ -62,6 +62,8 @@ int main(int argc, char *argv[])
    int nx = 0;
    int ny = 0;
    int order = 1;
+   double ks = 1.;
+   double ka = 0.;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -76,6 +78,10 @@ int main(int argc, char *argv[])
                   "Number of cells in y.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&ks, "-ks", "--kappa_sym",
+                  "Symmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&ka, "-ka", "--kappa_anti",
+                  "Antisymmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -153,15 +159,19 @@ int main(int argc, char *argv[])
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
-   auto kFun = GetKFun(1., 1., 0.);
+   const double t_0 = 1.; //base temperature
+   const double a = 1.; //heat capacity
+   const double k = 1.; //base heat conductivity
+
+   auto kFun = GetKFun(k, ks, ka);
    MatrixFunctionCoefficient kcoeff(dim, kFun);
    InverseMatrixCoefficient ikcoeff(kcoeff);
 
-   auto tFun = GetTFun(1., 1., kFun);
+   auto tFun = GetTFun(t_0, a, kFun);
    FunctionCoefficient tcoeff(tFun);
-   SumCoefficient gcoeff(0, tcoeff, 1., -1.);
+   SumCoefficient gcoeff(0, tcoeff, 1., -1.);//<-- due to symmetrization, the sign is opposite
 
-   auto qFun = GetQFun(1., 1., kFun);
+   auto qFun = GetQFun(t_0, a, kFun);
    VectorFunctionCoefficient qcoeff(dim, qFun);
    
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
