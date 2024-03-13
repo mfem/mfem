@@ -4730,7 +4730,7 @@ ParNURBSExtension::ParNURBSExtension(const ParNURBSExtension &orig)
 }
 
 ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
-                                     int *part, const Array<bool> &active_bel)
+                                     const int *part, const Array<bool> &active_bel)
    : gtopo(comm)
 {
    if (parent->NumOfActiveElems < parent->NumOfElements)
