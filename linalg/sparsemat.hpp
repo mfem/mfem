@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -433,9 +433,9 @@ public:
    /// Compute y^t A x
    double InnerProduct(const Vector &x, const Vector &y) const;
 
-   /// For all i compute \f$ x_i = \sum_j A_{ij} \f$
+   /// For all i compute $ x_i = \sum_j A_{ij} $
    void GetRowSums(Vector &x) const;
-   /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
+   /// For i = irow compute $ x_i = \sum_j | A_{i, j} | $
    double GetRowNorml1(int irow) const;
 
    /// This virtual method is not supported: it always returns NULL.
@@ -530,11 +530,11 @@ public:
    void DiagScale(const Vector &b, Vector &x,
                   double sc = 1.0, bool use_abs_diag = false) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j |A_{ij}| \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j |A_{ij}| $. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                 double sc = 1.0) const;
 
-   /** x1 = x0 + sc D^{-1} (b - A x0) where \f$ D_{ii} = \sum_j A_{ij} \f$. */
+   /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j A_{ij} $. */
    void Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                 double sc = 1.0) const;
 
@@ -650,18 +650,23 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    virtual void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR(std::ostream &out) const;
 
    /// Prints a sparse matrix to stream out in CSR format.
+   /** @note The host in synchronized when the finalized matrix is on the device. */
    void PrintCSR2(std::ostream &out) const;
 
    /// Print various sparse matrix statistics.
