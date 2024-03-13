@@ -449,29 +449,29 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   double err_u  = q.ComputeL2Error(qcoeff, irs);
-   double norm_u = ComputeLpNorm(2., qcoeff, *mesh, irs);
-   double err_p  = t.ComputeL2Error(tcoeff, irs);
-   double norm_p = ComputeLpNorm(2., tcoeff, *mesh, irs);
+   double err_q  = q.ComputeL2Error(qcoeff, irs);
+   double norm_q = ComputeLpNorm(2., qcoeff, *mesh, irs);
+   double err_t  = t.ComputeL2Error(tcoeff, irs);
+   double norm_t = ComputeLpNorm(2., tcoeff, *mesh, irs);
 
-   std::cout << "|| q_h - q_ex || / || q_ex || = " << err_u / norm_u << "\n";
-   std::cout << "|| t_h - t_ex || / || t_ex || = " << err_p / norm_p << "\n";
+   std::cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
+   std::cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
 
    // 13. Save the mesh and the solution. This output can be viewed later using
-   //     GLVis: "glvis -m ex5.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
-   //     sol_p.gf".
+   //     GLVis: "glvis -m ex5.mesh -g sol_q.gf" or "glvis -m ex5.mesh -g
+   //     sol_t.gf".
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
 
-      ofstream u_ofs("sol_u.gf");
-      u_ofs.precision(8);
-      q.Save(u_ofs);
+      ofstream q_ofs("sol_q.gf");
+      q_ofs.precision(8);
+      q.Save(q_ofs);
 
-      ofstream p_ofs("sol_p.gf");
-      p_ofs.precision(8);
-      t.Save(p_ofs);
+      ofstream t_ofs("sol_t.gf");
+      t_ofs.precision(8);
+      t.Save(t_ofs);
    }
 
    // 14. Save data in the VisIt format
@@ -497,12 +497,12 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream u_sock(vishost, visport);
-      u_sock.precision(8);
-      u_sock << "solution\n" << *mesh << q << "window_title 'Velocity'" << endl;
-      socketstream p_sock(vishost, visport);
-      p_sock.precision(8);
-      p_sock << "solution\n" << *mesh << t << "window_title 'Pressure'" << endl;
+      socketstream q_sock(vishost, visport);
+      q_sock.precision(8);
+      q_sock << "solution\n" << *mesh << q << "window_title 'Heat flux'" << endl;
+      socketstream t_sock(vishost, visport);
+      t_sock.precision(8);
+      t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
    }
 
    // 17. Free the used memory.

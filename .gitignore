@@ -72,6 +72,8 @@ examples/sphere_refined.*
 examples/sol.*
 examples/sol_u.*
 examples/sol_p.*
+examples/sol_q.*
+examples/sol_t.*
 examples/sol_r.*
 examples/sol_i.*
 examples/ex6p-checkpoint.*
