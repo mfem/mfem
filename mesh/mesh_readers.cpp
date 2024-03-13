@@ -2988,7 +2988,6 @@ public:
    inline uint8_t NumVertices() const { return _num_vertices; }
 
    inline uint8_t Order() const { return _order; }
-   inline uint8_t Dimension() const { return _dimension; }
 
 protected:
    void BuildCubit2DElementInfo(int num_nodes_per_element);
@@ -3014,7 +3013,6 @@ private:
     * additional nodes between "corner" nodes.
     */
    uint8_t _order;
-   uint8_t _dimension;
 
    /**
     * NB: "corner nodes" refer to MOOSE nodes at the corners of an element. In
@@ -3057,8 +3055,6 @@ CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
 void
 CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
 {
-   _dimension = 2;
-
    switch (num_nodes_per_element)
    {
       case 3:
@@ -3109,8 +3105,6 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
 void
 CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
 {
-   _dimension = 3;
-
    switch (num_nodes_per_element)
    {
       case 4:
