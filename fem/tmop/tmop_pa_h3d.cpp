@@ -46,18 +46,51 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED double qqd[DIM*DIM*DIM*DIM*MQ1*MQ1*MD1];
-      MFEM_SHARED double qdd[DIM*DIM*DIM*DIM*MQ1*MD1*MD1];
-      DeviceTensor<7,double> QQD(qqd, DIM, DIM, DIM, DIM, MQ1, MQ1, MD1);
-      DeviceTensor<7,double> QDD(qdd, DIM, DIM, DIM, DIM, MQ1, MD1, MD1);
+      // Takes into account Jtr by replacing H with Href at all quad points.
+      MFEM_SHARED double Href_data[DIM*DIM*DIM*MQ1*MQ1*MQ1];
+      DeviceTensor<6, double> Href(Href_data, DIM, DIM, DIM, MQ1, MQ1, MQ1);
+      for (int v = 0; v < DIM; v++)
+      {
+         MFEM_FOREACH_THREAD(qx,x,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(qz,z,Q1D)
+               {
+                  const double *Jtr = &J(0,0,qx,qy,qz,e);
+                  double Jrt_data[9];
+                  ConstDeviceMatrix Jrt(Jrt_data,3,3);
+                  kernels::CalcInverse<3>(Jtr, Jrt_data);
+
+                  for (int m = 0; m < DIM; m++)
+                  {
+                     for (int n = 0; n < DIM; n++)
+                     {
+                        // Hr_{v,m,n,q} = \sum_{s,t=1}^d
+                        //                Jrt_{m,s,q} H_{v,s,v,t,q} Jrt_{n,t,q}
+                        Href(v,m,n,qx,qy,qz) = 0.0;
+                        for (int s = 0; s < DIM; s++)
+                        {
+                           for (int t = 0; t < DIM; t++)
+                           {
+                              Href(v,m,n,qx,qy,qz) +=
+                                  Jrt(m,s) * H(v,s,v,t,qx,qy,qz,e) * Jrt(n,t);
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      MFEM_SHARED double qqd[DIM*DIM*MQ1*MQ1*MD1];
+      MFEM_SHARED double qdd[DIM*DIM*MQ1*MD1*MD1];
+      DeviceTensor<5,double> QQD(qqd, DIM, DIM, MQ1, MQ1, MD1);
+      DeviceTensor<5,double> QDD(qdd, DIM, DIM, MQ1, MD1, MD1);
 
       for (int v = 0; v < DIM; ++v)
       {
-         // W_inv = (w_ij)_3x3.
-         // ( d_dx w00 + d_dy w_10 + d_dz w_20,
-         //   d_dx w01 + d_dy w_11 + d_dz w_21,
-         //   d_dx w02 + d_dy w_12 + d_dz w_22 )   on both sides of H.
-
          // Contract in z.
          MFEM_FOREACH_THREAD(qx,x,Q1D)
          {
@@ -65,45 +98,26 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
             {
                MFEM_FOREACH_THREAD(dz,z,D1D)
                {
-                  for (int d1 = 0; d1 < DIM; d1++)
+                  for (int m = 0; m < DIM; m++)
                   {
-                     for (int d2 = 0; d2 < DIM; d2++)
-                     {
-                        for (int d3 = 0; d3 < DIM; d3++)
-                        {
-                           for (int d4 = 0; d4 < DIM; d4++)
-                           {
-                              QQD(d1,d2,d3,d4,qx,qy,dz) = 0.0;
-                           }
-                        }
+                     for (int n = 0; n < DIM; n++)
+                     { 
+                        QQD(m,n,qx,qy,dz) = 0.0;
                      }
                   }
 
                   MFEM_UNROLL(MQ1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
-                     const double *Jtr = &J(0,0,qx,qy,qz,e);
-                     double jrt[9];
-                     ConstDeviceMatrix Jrt(jrt,3,3);
-                     kernels::CalcInverse<3>(Jtr, jrt);
-
                      const double Bz = B(qz,dz);
                      const double Gz = G(qz,dz);
-
-                     for (int l1 = 0; l1 < DIM; l1++)
+                     for (int m = 0; m < DIM; m++)
                      {
-                        for (int l2 = 0; l2 < DIM; l2++)
+                        for (int n = 0; n < DIM; n++)
                         {
-                           for (int r1 = 0; r1 < DIM; r1++)
-                           {
-                              for (int r2 = 0; r2 < DIM; r2++)
-                              {
-                                 const double L = (l1 == 2 ?Gz:Bz) * Jrt(l1,l2);
-                                 const double h = H(v,l2,v,r2,qx,qy,qz,e);
-                                 const double R = (r1 == 2 ?Gz:Bz) * Jrt(r1,r2);
-                                 QQD(l1,l2,r1,r2,qx,qy,dz) += L * h * R;
-                              }
-                           }
+                           const double L = (m == 2 ? Gz : Bz);
+                           const double R = (n == 2 ? Gz : Bz);
+                           QQD(m,n,qx,qy,dz) += L * Href(v,m,n,qx,qy,qz) * R;
                         }
                      }
                   }
@@ -119,17 +133,11 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
             {
                MFEM_FOREACH_THREAD(dy,y,D1D)
                {
-                  for (int d1 = 0; d1 < DIM; d1++)
+                  for (int m = 0; m < DIM; m++)
                   {
-                     for (int d2 = 0; d2 < DIM; d2++)
+                     for (int n = 0; n < DIM; n++)
                      {
-                        for (int d3 = 0; d3 < DIM; d3++)
-                        {
-                           for (int d4 = 0; d4 < DIM; d4++)
-                           {
-                              QDD(d1,d2,d3,d4,qx,dy,dz) = 0.0;
-                           }
-                        }
+                        QDD(m,n,qx,dy,dz) = 0.0;
                      }
                   }
 
@@ -138,21 +146,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                   {
                      const double By = B(qy,dy);
                      const double Gy = G(qy,dy);
-
-                     for (int l1 = 0; l1 < DIM; l1++)
+                     for (int m = 0; m < DIM; m++)
                      {
-                        for (int l2 = 0; l2 < DIM; l2++)
+                        for (int n = 0; n < DIM; n++)
                         {
-                           for (int r1 = 0; r1 < DIM; r1++)
-                           {
-                              for (int r2 = 0; r2 < DIM; r2++)
-                              {
-                                 const double L = (l1 == 1 ? Gy : By);
-                                 const double R = (r1 == 1 ? Gy : By);
-                                 QDD(l1,l2,r1,r2,qx,dy,dz) +=
-                                    L * QQD(l1,l2,r1,r2,qx,qy,dz) * R;
-                              }
-                           }
+                           const double L = (m == 1 ? Gy : By);
+                           const double R = (n == 1 ? Gy : By);
+                           QDD(m,n,qx,dy,dz) += L * QQD(m,n,qx,qy,dz) * R;
                         }
                      }
                   }
@@ -174,20 +174,13 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_3D,
                   {
                      const double Bx = B(qx,dx);
                      const double Gx = G(qx,dx);
-
-                     for (int l1 = 0; l1 < DIM; l1++)
+                     for (int m = 0; m < DIM; m++)
                      {
-                        for (int l2 = 0; l2 < DIM; l2++)
+                        for (int n = 0; n < DIM; n++)
                         {
-                           for (int r1 = 0; r1 < DIM; r1++)
-                           {
-                              for (int r2 = 0; r2 < DIM; r2++)
-                              {
-                                 const double L = (l1 == 0 ? Gx : Bx);
-                                 const double R = (r1 == 0 ? Gx : Bx);
-                                 d += L * QDD(l1,l2,r1,r2,qx,dy,dz) * R;
-                              }
-                           }
+                           const double L = (m == 0 ? Gx : Bx);
+                           const double R = (n == 0 ? Gx : Bx);
+                           d += L * QDD(m,n,qx,dy,dz) * R;
                         }
                      }
                   }
