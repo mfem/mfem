@@ -322,7 +322,8 @@ protected:
                     bool &finalize_topo);
    void ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
                         bool &finalize_topo, const std::string &xml_prefix="");
-   void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf);
+   void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
+                      bool spacing=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
    void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
 
@@ -414,9 +415,6 @@ protected:
    /// Refine a mixed 3D mesh uniformly.
    virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
-   /// Refine NURBS mesh.
-   virtual void NURBSUniformRefinement();
-
    /// This function is not public anymore. Use GeneralRefinement instead.
    virtual void LocalRefinement(const Array<int> &marked_el, int type = 3);
 
@@ -437,8 +435,17 @@ protected:
 
    void UpdateNURBS();
 
-   void PrintTopo(std::ostream &out, const Array<int> &e_to_k,
-                  const std::string &comments = "") const;
+   /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
+       patch topology. Optional file comments can be provided in @a comments.
+
+       @param[in] os  Output stream to which to write.
+       @param[in] e_to_k  Map from edge to signed knotvector indices.
+       @param[in] version NURBS mesh version number times 10 (e.g. 11 for v1.1).
+       @param[in] comment Optional comment string, written after version line.
+   */
+   void PrintTopo(std::ostream &os, const Array<int> &e_to_k,
+                  const int version,
+                  const std::string &comment = "") const;
 
    /// Used in GetFaceElementTransformations (...)
    void GetLocalPtToSegTransformation(IsoparametricTransformation &,
@@ -665,8 +672,7 @@ public:
        Construct a shell of a mesh object allocating space to store pointers to
        the vertices, elements, and boundary elements. The vertices and elements
        themselves can later be added using methods from the
-       @ref mfem_Mesh_construction "Mesh construction" group.
-   */
+       @ref mfem_Mesh_construction "Mesh construction" group. */
    Mesh(int Dim_, int NVert, int NElem, int NBdrElem = 0, int spaceDim_ = -1)
    {
       if (spaceDim_ == -1) { spaceDim_ = Dim_; }
@@ -675,7 +681,8 @@ public:
 
    /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
-       generated. See also @a Mesh::LoadFromFile. */
+       generated. See also @a Mesh::LoadFromFile. See @a Mesh::Finalize for the
+       meaning of @a refine. */
    explicit Mesh(const std::string &filename, int generate_edges = 0,
                  int refine = 1, bool fix_orientation = true);
 
@@ -2132,6 +2139,22 @@ public:
        FiniteElementSpace%s and GridFunction%s defined on the mesh. */
    void UniformRefinement(int ref_algo = 0);
 
+   /** @brief Refine NURBS mesh, with an optional refinement factor, generally
+       anisotropic.
+
+       @param[in] rf  Optional refinement factor. If scalar, the factor is used
+                      for all dimensions. If an array, factors can be specified
+                      for each dimension. The factor multiplies the number of
+                      elements in each dimension. Some factors can be 1.
+       @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
+                      "The NURBS Book", 2nd ed, Piegl and Tiller. */
+   virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
+   virtual void NURBSUniformRefinement(const Array<int> &rf, double tol=1.e-12);
+
+   /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
+   /// which divides the number of elements in each dimension.
+   void NURBSCoarsening(int cf = 2, double tol = 1.0e-12);
+
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
        tetrahedra and nonconforming refinement (i.e., with hanging-nodes) of
@@ -2218,8 +2241,16 @@ public:
        is that it is possible to specifically refine a coarse NURBS mesh without
        changing the mesh file itself. Examples in miniapps/nurbs/meshes. */
    void RefineNURBSFromFile(std::string ref_file);
-   void KnotInsert(Array<KnotVector *> &kv);
-   void KnotInsert(Array<Vector *> &kv);
+
+   /// For NURBS meshes, insert the new knots in @a kv, for each direction.
+   void KnotInsert(Array<KnotVector*> &kv);
+
+   /// For NURBS meshes, insert the knots in @a kv, for each direction.
+   void KnotInsert(Array<Vector*> &kv);
+
+   /// For NURBS meshes, remove the knots in @a kv, for each direction.
+   void KnotRemove(Array<Vector*> &kv);
+
    /* For each knot vector:
          new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
    void DegreeElevate(int rel_degree, int degree = 16);

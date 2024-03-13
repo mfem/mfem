@@ -54,6 +54,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
+  mesh/test_nurbs.cpp
   fem/test_1d_bilininteg.cpp
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
