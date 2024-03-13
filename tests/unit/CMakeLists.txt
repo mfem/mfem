@@ -100,6 +100,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_kernels.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_project_bdr.cpp
+  fem/test_project_bdr_par.cpp
   fem/test_quadf_coef.cpp
   fem/test_quadinterpolator.cpp
   fem/test_quadraturefunc.cpp
