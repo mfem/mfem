@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1623,9 +1623,10 @@ public:
        geometric rigid body modes and could perform better on some problems, see
        "Improving algebraic multigrid interpolation operators for linear
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
-       This solver assumes Ordering::byVDIM in the FiniteElementSpace used to
-       construct A. */
-   void SetElasticityOptions(ParFiniteElementSpace *fespace);
+       The optional argument @ interp_refine is used to enable/disable pre-processing
+       of the interpolation matrix through iterative weight refinement */
+   void SetElasticityOptions(ParFiniteElementSpace *fespace,
+                             bool interp_refine = true);
 
 #if MFEM_HYPRE_VERSION >= 21800
    /** Hypre parameters to use AIR AMG solve for advection-dominated problems.
@@ -1755,6 +1756,10 @@ private:
    void MakeGradientAndInterpolation(ParFiniteElementSpace *edge_fespace,
                                      int cycle_type);
 
+   // Recreates another AMS solver with the same options when SetOperator is
+   // called multiple times.
+   void ResetAMSPrecond();
+
    /// The underlying hypre solver object
    HYPRE_Solver ams;
    /// Vertex coordinates
@@ -1772,10 +1777,6 @@ private:
    bool singular = false;
    /// Flag set if `SetPrintLevel` is called, needed in `ResetAMSPrecond`
    int print_level = 1;
-
-   // Recreates another AMS solver with the same options when SetOperator is
-   // called multiple times.
-   void ResetAMSPrecond();
 
 public:
    /// @brief Construct the AMS solver on the given edge finite element space.

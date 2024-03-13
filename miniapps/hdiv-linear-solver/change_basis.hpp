@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@ private:
    const int ne; ///< Number of elements in the mesh.
    mutable DofToQuad dof2quad; ///< 1D basis transformation.
    Array<double> B_1d; ///< 1D basis transformation matrix.
-   Array<double> Bt_1d; ///< 1D basis transformation matrix traspose.
+   Array<double> Bt_1d; ///< 1D basis transformation matrix transpose.
    bool no_op; ///< If the basis types are the same, the operation is a no-op.
 public:
    ChangeOfBasis_L2(FiniteElementSpace &fes);

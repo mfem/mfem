@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -373,16 +373,20 @@ public:
 /// 2D non-barrier Shape+Size+Orientation (VOS) metric (polyconvex).
 class TMOP_Metric_014 : public TMOP_QualityMetric
 {
+protected:
+   mutable InvariantsEvaluator2D<double> ie;
+
 public:
-   // W = |T-I|^2.
+   // W = |J - I|^2.
+   virtual double EvalWMatrixForm(const DenseMatrix &Jpt) const;
+
+   // W = I1[J-I].
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
-   { MFEM_ABORT("Not implemented"); }
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const
-   { MFEM_ABORT("Not implemented"); }
+                          const double weight, DenseMatrix &A) const;
 };
 
 /// 2D Shifted barrier form of shape metric (mu_2).
@@ -1772,10 +1776,14 @@ protected:
    AdaptivityEvaluator *adapt_lim_eval;  // Not owned.
 
    // Surface fitting.
-   GridFunction *surf_fit_gf;           // Owned, Updated by surf_fit_eval.
-   const Array<bool> *surf_fit_marker;  // Not owned.
-   Coefficient *surf_fit_coeff;         // Not owned.
-   AdaptivityEvaluator *surf_fit_eval;  // Not owned.
+   const Array<bool> *surf_fit_marker;      // Not owned. Nodes to fit.
+   Coefficient *surf_fit_coeff;             // Not owned. Fitting term scaling.
+   // Fitting to a discrete level set.
+   GridFunction *surf_fit_gf;               // Owned. Updated by surf_fit_eval.
+   AdaptivityEvaluator *surf_fit_eval;      // Not owned.
+   // Fitting to given physical positions.
+   TMOP_QuadraticLimiter *surf_fit_limiter; // Owned. Created internally.
+   const GridFunction *surf_fit_pos;        // Not owned. Positions to fit.
    double surf_fit_normal;
    bool surf_fit_gf_bg;
    GridFunction *surf_fit_grad, *surf_fit_hess;
@@ -1813,17 +1821,27 @@ protected:
 
    // PA extension
    // ------------
+   // Jtr: all ref->target Jacobians, (dim x dim) Q-Vector as DenseTensor.
+   //      updated when needed, based on Jtr_needs_update.
+   //
    //  E: Q-vector for TMOP-energy
+   //     Used as temporary storage when the total energy is computed.
    //  O: Q-Vector of 1.0, used to compute sums using the dot product kernel.
    // X0: E-vector for initial nodal coordinates used for limiting.
+   //     Does not change during the TMOP iteration.
    //  H: Q-Vector for Hessian associated with the metric term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
    // C0: Q-Vector for spatial weight used for the limiting term.
+   //     Updated when the mesh nodes change.
    // LD: E-Vector constructed using limiting distance grid function (delta).
+   //     Does not change during the TMOP iteration.
    // H0: Q-Vector for Hessian associated with the limiting term.
+   //     Updated by every call to PANonlinearFormExtension::GetGradient().
+   // MC: Q-Vector for the metric Coefficient.
+   //     Updated when the mesh nodes change.
    //
-   // maps:     Dof2Quad map for fespace associate with nodal coordinates.
-   // maps_lim: Dof2Quad map for fespace associated with the limiting distance
-   //            grid function.
+   // maps:     Dof2Quad map for fes associated with the nodal coordinates.
+   // maps_lim: Dof2Quad map for fes associated with the limiting dist GridFunc.
    //
    // Jtr_debug_grad
    //     We keep track if Jtr was set by AssembleGradPA() in Jtr_debug_grad: it
@@ -1842,7 +1860,7 @@ protected:
       mutable DenseTensor Jtr;
       mutable bool Jtr_needs_update;
       mutable bool Jtr_debug_grad;
-      mutable Vector E, O, X0, H, C0, LD, H0;
+      mutable Vector E, O, X0, H, C0, LD, H0, MC;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
       const GeometricFactors *geom;
@@ -1956,6 +1974,9 @@ protected:
 
    void AssemblePA_Limiting();
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
+   // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
+   // new physical positions of the quadrature points.
+   void UpdateCoefficientsPA(const Vector &x_loc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
    double ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
@@ -1976,9 +1997,10 @@ public:
         lim_dist(NULL), lim_func(NULL), lim_normal(1.0),
         adapt_lim_gf0(NULL), adapt_lim_gf(NULL), adapt_lim_coeff(NULL),
         adapt_lim_eval(NULL),
-        surf_fit_gf(NULL), surf_fit_marker(NULL),
-        surf_fit_coeff(NULL),
-        surf_fit_eval(NULL), surf_fit_normal(1.0),
+        surf_fit_marker(NULL), surf_fit_coeff(NULL),
+        surf_fit_gf(NULL), surf_fit_eval(NULL),
+        surf_fit_limiter(NULL), surf_fit_pos(NULL),
+        surf_fit_normal(1.0),
         surf_fit_gf_bg(false), surf_fit_grad(NULL), surf_fit_hess(NULL),
         surf_fit_eval_bg_grad(NULL), surf_fit_eval_bg_hess(NULL),
         discr_tc(dynamic_cast<DiscreteAdaptTC *>(tc)),
@@ -2004,7 +2026,7 @@ public:
 
    /// The TMOP integrals can be computed over the reference element or the
    /// target elements. This function is used to switch between the two options.
-   /// By default integratioin is performed over the target elements.
+   /// By default integration is performed over the target elements.
    void IntegrateOverTarget(bool integ_over_target_)
    {
       MFEM_VERIFY(metric_normal == 1.0 && lim_normal == 1.0,
@@ -2093,7 +2115,7 @@ public:
 
 
 #ifdef MFEM_USE_MPI
-   /// Parallel support for surface fitting.
+   /// Parallel support for surface fitting to the zero level set of a function.
    void EnableSurfaceFitting(const ParGridFunction &s0,
                              const Array<bool> &smarker, Coefficient &coeff,
                              AdaptivityEvaluator &ae);
@@ -2131,8 +2153,27 @@ public:
                                        ParGridFunction &s0_hess,
                                        AdaptivityEvaluator &ahe);
 #endif
-   void GetSurfaceFittingErrors(double &err_avg, double &err_max);
-   bool IsSurfaceFittingEnabled() { return (surf_fit_gf != NULL); }
+   /** @brief Fitting of certain DOFs to given positions in physical space.
+
+       Having a set S of marked nodes (or DOFs) and their target positions in
+       physical space x_t, we move these nodes to the target positions during
+       the optimization process.
+       This function adds to the TMOP functional the term
+       @f$ \sum_{i \in S} c \frac{1}{2} (x_i - x_{t,i})^2 @f$,
+       where @f$c@f$ corresponds to @a coeff below and is evaluated at the
+       DOF locations.
+
+       @param[in] pos     The desired positions for the mesh nodes.
+       @param[in] smarker Indicates which DOFs will be aligned.
+       @param[in] coeff   Coefficient c for the above integral. */
+   void EnableSurfaceFitting(const GridFunction &pos,
+                             const Array<bool> &smarker, Coefficient &coeff);
+   void GetSurfaceFittingErrors(const Vector &pos,
+                                double &err_avg, double &err_max);
+   bool IsSurfaceFittingEnabled()
+   {
+      return surf_fit_gf != NULL || surf_fit_pos != NULL;
+   }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }

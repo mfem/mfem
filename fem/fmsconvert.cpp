@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,13 +31,13 @@ FmsBasisTypeToMfemBasis(FmsBasisType b)
    switch (b)
    {
       case FMS_NODAL_GAUSS_OPEN:
-         retval = mfem::BasisType::GaussLegendre;;
+         retval = mfem::BasisType::GaussLegendre;
          break;
       case FMS_NODAL_GAUSS_CLOSED:
-         retval = mfem::BasisType::GaussLobatto;;
+         retval = mfem::BasisType::GaussLobatto;
          break;
       case FMS_POSITIVE:
-         retval = mfem::BasisType::Positive;;
+         retval = mfem::BasisType::Positive;
          break;
       case FMS_NODAL_UNIFORM_OPEN:
          retval = mfem::BasisType::OpenUniform;
@@ -1812,22 +1812,22 @@ MeshToFmsMesh(const Mesh *mmesh, FmsMesh *fmesh, FmsComponent *volume)
       switch (betype)
       {
          case Element::POINT:
-            bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_VERTEX].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          case Element::SEGMENT:
-            bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_EDGE].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          case Element::TRIANGLE:
-            bdr_eles[FMS_TRIANGLE].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_TRIANGLE].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          case Element::QUADRILATERAL:
-            bdr_eles[FMS_QUADRILATERAL].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_QUADRILATERAL].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          case Element::TETRAHEDRON:
-            bdr_eles[FMS_TETRAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_TETRAHEDRON].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          case Element::HEXAHEDRON:
-            bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrElementEdgeIndex(i));
+            bdr_eles[FMS_HEXAHEDRON].push_back(mmesh->GetBdrElementFaceIndex(i));
             break;
          default:
             MFEM_WARNING("Unsupported boundary element " << betype << " at boundary index "

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -922,7 +922,7 @@ void ParaViewDataCollection::Save()
    {
       const std::string &field_name = qfield.first;
       std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel());
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ void FillWithRandomNumbers(std::vector<double> &x, double a = 0.0,
                            double b = 1.0);
 
 /// This function creates random rotation matrices (3 x 3) and stores them in
-/// the vector. That means, x[0 - 8] is the first rotation matrix. x[9 - 17] is
+/// the vector. That means, x[0-8] is the first rotation matrix, x[9-17] is
 /// the second and so forth. Size of the vector determines the number of
 /// rotation that fit into the vector and should be a multiple of 9.
 void FillWithRandomRotations(std::vector<double> &x);

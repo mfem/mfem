@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,7 +106,8 @@ public:
       PrintLevel &Iterations() { iterations=true; return *this; }
       PrintLevel &FirstAndLast() { first_and_last=true; return *this; }
       PrintLevel &Summary() { summary=true; return *this; }
-      PrintLevel &All() { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
+      PrintLevel &All()
+      { return Warnings().Errors().Iterations().FirstAndLast().Summary(); }
       ///@}
    };
 
@@ -168,8 +169,13 @@ protected:
 
    ///@}
 
+   /// Return the dot product of @a x and @a y
    double Dot(const Vector &x, const Vector &y) const;
+
+   /// Return the 2-norm of @a x
    double Norm(const Vector &x) const { return sqrt(Dot(x, x)); }
+
+   /// Monitor both the residual @a r and the solution @a x
    void Monitor(int it, double norm, const Vector& r, const Vector& x,
                 bool final=false) const;
 
@@ -338,7 +344,11 @@ public:
    /// Replace diagonal entries with their absolute values.
    void SetPositiveDiagonal(bool pos_diag = true) { use_abs_diag = pos_diag; }
 
+   /// Approach the solution of the linear system by applying Jacobi smoothing.
    void Mult(const Vector &x, Vector &y) const;
+
+   /** @brief Approach the solution of the transposed linear system by applying
+       Jacobi smoothing. */
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    /** @brief Recompute the diagonal using the method AssembleDiagonal of the
@@ -432,8 +442,12 @@ public:
 
    ~OperatorChebyshevSmoother() {}
 
-   void Mult(const Vector&x, Vector &y) const;
+   /** @brief Approach the solution of the linear system by applying Chebyshev
+       smoothing. */
+   void Mult(const Vector &x, Vector &y) const;
 
+   /** @brief Approach the solution of the transposed linear system by applying
+       Chebyshev smoothing. */
    void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y); }
 
    void SetOperator(const Operator &op_)
@@ -475,6 +489,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
+   /// Iterative solution of the linear system using Stationary Linear Iteration
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -507,6 +522,8 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
+   /** @brief Iterative solution of the linear system using the Conjugate
+       Gradient method. */
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -537,6 +554,7 @@ public:
    /// Set the number of iteration to perform between restarts, default is 50.
    void SetKDim(int dim) { m = dim; }
 
+   /// Iterative solution of the linear system using the GMRES method
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -555,6 +573,7 @@ public:
 
    void SetKDim(int dim) { m = dim; }
 
+   /// Iterative solution of the linear system using the FGMRES method.
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -586,6 +605,7 @@ public:
    virtual void SetOperator(const Operator &op)
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
+   /// Iterative solution of the linear system using the BiCGSTAB method
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -621,6 +641,7 @@ public:
 
    virtual void SetOperator(const Operator &op);
 
+   /// Iterative solution of the linear system using the MINRES method
    virtual void Mult(const Vector &b, Vector &x) const;
 };
 
@@ -1101,7 +1122,10 @@ public:
    /// Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
+   /// Direct solution of the linear system using UMFPACK
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /// Direct solution of the transposed linear system using UMFPACK
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~UMFPackSolver();
@@ -1128,7 +1152,10 @@ public:
    // Works on sparse matrices only; calls SparseMatrix::SortColumnIndices().
    virtual void SetOperator(const Operator &op);
 
+   /// Direct solution of the linear system using KLU
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /// Direct solution of the transposed linear system using KLU
    virtual void MultTranspose(const Vector &b, Vector &x) const;
 
    virtual ~KLUSolver();
@@ -1150,6 +1177,8 @@ public:
    /// block_dof is a boolean matrix, block_dof(i, j) = 1 if j-th dof belongs to
    /// i-th block, block_dof(i, j) = 0 otherwise.
    DirectSubBlockSolver(const SparseMatrix& A, const SparseMatrix& block_dof);
+
+   /// Direct solution of the block diagonal linear system
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
 };
@@ -1165,7 +1194,11 @@ public:
    ProductSolver(Operator* A_, Solver* S0_, Solver* S1_,
                  bool ownA, bool ownS0, bool ownS1)
       : Solver(A_->NumRows()), A(A_, ownA), S0(S0_, ownS0), S1(S1_, ownS1) { }
+
+   /// Solution of the linear system using a product of subsolvers
    virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Solution of the transposed linear system using a product of subsolvers
    virtual void MultTranspose(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op) { }
 };
@@ -1238,12 +1271,139 @@ public:
    AuxSpaceSmoother(const HypreParMatrix &op, HypreParMatrix *aux_map,
                     bool op_is_symmetric = true, bool own_aux_map = false);
    virtual void Mult(const Vector &x, Vector &y) const { Mult(x, y, false); }
-   virtual void MultTranspose(const Vector &x, Vector &y) const { Mult(x, y, true); }
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { Mult(x, y, true); }
    virtual void SetOperator(const Operator &op) { }
    HypreSmoother& GetSmoother() { return *aux_smoother_.As<HypreSmoother>(); }
    using Operator::Mult;
 };
 #endif // MFEM_USE_MPI
+
+#ifdef MFEM_USE_LAPACK
+/** Non-negative least squares (NNLS) solver class, for computing a vector
+    with non-negative entries approximately satisfying an under-determined
+    linear system. */
+class NNLSSolver : public Solver
+{
+public:
+   NNLSSolver();
+
+   ~NNLSSolver() { }
+
+   /// The operator must be a DenseMatrix.
+   void SetOperator(const Operator &op) override;
+
+   /** @brief Compute the non-negative least squares solution to the
+       underdetermined system. */
+   void Mult(const Vector &w, Vector &sol) const override;
+
+   /** @brief
+       Set verbosity. If set to 0: print nothing; if 1: just print results;
+       if 2: print short update on every iteration; if 3: print longer update
+       each iteration.
+     */
+   void SetVerbosity(int v) { verbosity_ = v; }
+
+   /// Set the target absolute residual norm tolerance for convergence
+   void SetTolerance(double tol) { const_tol_ = tol; }
+
+   /// Set the minimum number of nonzeros required for the solution.
+   void SetMinNNZ(int min_nnz) { min_nnz_ = min_nnz; }
+
+   /** @brief Set the maximum number of nonzeros required for the solution, as
+       an early termination condition. */
+   void SetMaxNNZ(int max_nnz) { max_nnz_ = max_nnz; }
+
+   /** @brief Set threshold on relative change in residual over nStallCheck_
+       iterations. */
+   void SetResidualChangeTolerance(double tol)
+   { res_change_termination_tol_ = tol; }
+
+   /** @brief Set the magnitude of projected residual entries that are
+       considered zero.  Increasing this value relaxes solution constraints. */
+   void SetZeroTolerance(double tol) { zero_tol_ = tol; }
+
+   /// Set RHS vector constant shift, defining rhs_lb and rhs_ub in Solve().
+   void SetRHSDelta(double d) { rhs_delta_ = d; }
+
+   /// Set the maximum number of outer iterations in Solve().
+   void SetOuterIterations(int n) { n_outer_ = n; }
+
+   /// Set the maximum number of inner iterations in Solve().
+   void SetInnerIterations(int n) { n_inner_ = n; }
+
+   /// Set the number of iterations to use for stall checking.
+   void SetStallCheck(int n) { nStallCheck_ = n; }
+
+   /// Set a flag to determine whether to call NormalizeConstraints().
+   void SetNormalize(bool n) { normalize_ = n; }
+
+   /** @brief
+     * Enumerated types of QRresidual mode. Options are 'off': the residual is
+     * calculated normally, 'on': the residual is calculated using the QR
+     * method, 'hybrid': the residual is calculated normally until we experience
+     * rounding errors, then the QR method is used. The default is 'hybrid',
+     * which should see the best performance. Recommend using 'hybrid' or 'off'
+     * only, since 'on' is computationally expensive.
+     */
+   enum class QRresidualMode {off, on, hybrid};
+
+   /** @brief
+    * Set the residual calculation mode for the NNLS solver. See QRresidualMode
+    * enum above for details.
+    */
+   void SetQRResidualMode(const QRresidualMode qr_residual_mode);
+
+   /**
+    * @brief Solve the NNLS problem. Specifically, we find a vector @a soln,
+    * such that rhs_lb < mat*soln < rhs_ub is satisfied, where mat is the
+    * DenseMatrix input to SetOperator().
+    *
+    * The method by which we find the solution is the active-set method
+    * developed by Lawson and Hanson (1974) using lapack. To decrease rounding
+    * errors in the case of very tight tolerances, we have the option to compute
+    * the residual using the QR factorization of A, by res = b - Q*Q^T*b. This
+    * residual calculation results in less rounding error, but is more
+    * computationally expensive. To select whether to use the QR residual method
+    * or not, see set_qrresidual_mode above.
+    */
+   void Solve(const Vector& rhs_lb, const Vector& rhs_ub, Vector& soln) const;
+
+   /** @brief
+     * Normalize the constraints such that the tolerances for each constraint
+     * (i.e. (UB - LB)/2) are equal. This seems to help the performance in most
+     * cases.
+     */
+   void NormalizeConstraints(Vector& rhs_lb, Vector& rhs_ub) const;
+
+private:
+   const DenseMatrix *mat;
+
+   double const_tol_;
+   int min_nnz_; // minimum number of nonzero entries
+   mutable int max_nnz_; // maximum number of nonzero entries
+   int verbosity_;
+
+   /**
+    * @brief Threshold on relative change in residual over nStallCheck_
+    * iterations, for stall sensing.
+    */
+   double res_change_termination_tol_;
+
+   double zero_tol_;
+   double rhs_delta_;
+   int n_outer_;
+   int n_inner_;
+   int nStallCheck_;
+
+   bool normalize_;
+
+   mutable bool NNLS_qrres_on_;
+   QRresidualMode qr_residual_mode_;
+
+   mutable Vector row_scaling_;
+};
+#endif // MFEM_USE_LAPACK
 
 }
 

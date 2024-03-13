@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,7 @@
 //
 // Solves the grad-div problem u - grad(div(u)) = f using a variety of solver
 // techniques. This miniapp supports solving this problem using a variety of
-// matrix-free and matrix-based preconditioning methods, inclding:
+// matrix-free and matrix-based preconditioning methods, including:
 //
 // * Matrix-free block-diagonal preconditioning for the saddle-point system.
 // * ADS-AMG preconditioning.
@@ -278,4 +278,4 @@ void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X)
       cout << "Done.\nIterations: " << cg.GetNumIterations()
            << "\nElapsed: " << tic_toc.RealTime() << endl;
    }
-};
+}

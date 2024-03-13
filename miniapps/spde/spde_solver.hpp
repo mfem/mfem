@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,7 +138,7 @@ public:
 
 private:
    /// The rational approximation of the SPDE results in multiple
-   /// reactio-diffusion PDEs that need to be solved. This call solves the PDE
+   /// reaction-diffusion PDEs that need to be solved. This call solves the PDE
    /// (div Theta grad + alpha I)^exponent x = beta b.
    void Solve(const ParLinearForm &b, ParGridFunction &x, double alpha,
               double beta, int exponent = 1);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1486,7 +1486,7 @@ void RT_R1D_SegmentElement::Project(const FiniteElement &fe,
    else
    {
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       double * nk_ptr = const_cast<double*>(nk);
 
@@ -1523,7 +1523,7 @@ void RT_R1D_SegmentElement::ProjectCurl(const FiniteElement &fe,
                                         ElementTransformation &Trans,
                                         DenseMatrix &curl) const
 {
-   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
    double * nk_ptr = const_cast<double*>(nk);
@@ -1849,7 +1849,7 @@ void RT_R2D_FiniteElement::Project(const FiniteElement &fe,
    else
    {
       double vk[Geometry::MaxDim];
-      DenseMatrix vshape(fe.GetDof(), fe.GetVDim());
+      DenseMatrix vshape(fe.GetDof(), fe.GetRangeDim());
 
       double * nk_ptr = const_cast<double*>(nk);
 
@@ -1888,7 +1888,7 @@ void RT_R2D_FiniteElement::ProjectCurl(const FiniteElement &fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &curl) const
 {
-   DenseMatrix curl_shape(fe.GetDof(), fe.GetVDim());
+   DenseMatrix curl_shape(fe.GetDof(), fe.GetRangeDim());
    Vector curl_k(fe.GetDof());
 
    double * nk_ptr = const_cast<double*>(nk);

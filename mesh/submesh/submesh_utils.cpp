@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -191,15 +191,23 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
 {
    // TODO: Check if parent is really a parent of mesh
 
-   Array<int> pfids(sm.GetNFaces());
+   Array<int> pfids(sm.GetNumFaces());
    pfids = -1;
    for (int i = 0; i < sm.GetNE(); i++)
    {
       int peid = parent_element_ids[i];
 
       Array<int> sel_faces, pel_faces, o;
-      sm.GetElementFaces(i, sel_faces, o);
-      pm.GetElementFaces(peid, pel_faces, o);
+      if (pm.Dimension() == 2)
+      {
+         sm.GetElementEdges(i, sel_faces, o);
+         pm.GetElementEdges(peid, pel_faces, o);
+      }
+      else
+      {
+         sm.GetElementFaces(i, sel_faces, o);
+         pm.GetElementFaces(peid, pel_faces, o);
+      }
 
       MFEM_ASSERT(sel_faces.Size() == pel_faces.Size(), "internal error");
 

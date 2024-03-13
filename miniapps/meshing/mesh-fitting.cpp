@@ -103,7 +103,6 @@ int main(int argc, char *argv[])
    bool href = false;
    // the error types for ref and deref are: 0 - L2squared, 1 - length, 2 - L2, 3 - L2/length
 
-
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -262,9 +261,8 @@ int main(int argc, char *argv[])
    {
       int res = std::max(1, rs_levels);
       //SPLIT TYPE == 1 - 12 TETS, 2 = 24 TETS
-      mesh = new Mesh(Mesh::MakeHexTo24or12TetMesh(2*res,2*res,2*res,
-                                                   1.0, 1.0, 1.0,
-                                                   custom_split_mesh)); //24tet
+      mesh = new Mesh(Mesh::MakeCartesian3DWith24TetsPerHex(2*res,2*res,2*res,
+                                                            1.0, 1.0, 1.0)); //24tet
    }
    else
    {
@@ -274,7 +272,7 @@ int main(int argc, char *argv[])
       {
          if (exceptions == 4)
          {
-            mesh = new Mesh(Mesh::MakeQuadTo4TriMesh(6, 5, 1.2, 1.0));
+            mesh = new Mesh(Mesh::MakeCartesian2DWith4TrisPerQuad(6, 5, 1.2, 1.0));
             for (int lev = 0; lev < rs_levels; lev++)
             {
                mesh->UniformRefinement();
@@ -282,12 +280,12 @@ int main(int argc, char *argv[])
          }
          else
          {
-            mesh = new Mesh(Mesh::MakeQuadTo4TriMesh(2*res,2*res, 1.0, 1.0));
+            mesh = new Mesh(Mesh::MakeCartesian2DWith4TrisPerQuad(2*res,2*res, 1.0, 1.0));
          }
       }
       else   //1 quad to 5 quads
       {
-         mesh = new Mesh(Mesh::MakeQuadTo5QuadMesh(2*res,2*res, 1.0, 1.0));
+         mesh = new Mesh(Mesh::MakeCartesian2DWith5QuadsPerQuad(2*res,2*res, 1.0, 1.0));
       }
    }
 
@@ -725,6 +723,7 @@ int main(int argc, char *argv[])
          }
          mesh->SetAttribute(i, static_cast<int>(mat(i) + 1));
       }
+      mesh->SetAttributes();
 
       delete mat_file;
       std::cout << "Done marking\n";
@@ -1436,7 +1435,8 @@ int main(int argc, char *argv[])
       if (surface_fit_const > 0.0)
       {
          double err_avg, err_max;
-         tmop_integ->GetSurfaceFittingErrors(err_avg, err_max);
+         Vector temp(0);
+         tmop_integ->GetSurfaceFittingErrors(temp,err_avg, err_max);
          std::cout << "Avg fitting error: " << err_avg << std::endl
                    << "Max fitting error: " << err_max << std::endl;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -162,6 +162,8 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
    if (category_ == TransferCategory::ParentToSubMesh)
    {
       // dst = S1^T src
+      src.HostRead();
+      dst.HostWrite(); // dst is fully overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
          double s = 1.0;
@@ -178,6 +180,8 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       //
       // G is identity if the partitioning matches
 
+      src.HostRead();
+      dst.HostReadWrite(); // dst is only partially overwritten
       for (int i = 0; i < sub1_to_parent_map_.Size(); i++)
       {
          double s = 1.0;
@@ -188,13 +192,16 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, dst,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(dst);
+      CommunicateSharedVdofs(dst);
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {
       // dst = S2^T G (S1 src (*) S2 dst)
       //
       // G is identity if the partitioning matches
+
+      src.HostRead();
+      dst.HostReadWrite();
 
       z_ = 0.0;
 
@@ -218,7 +225,7 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*src.ParFESpace(), src, z_,
                               &sub1_to_parent_map_);
 
-      // CommunicateSharedVdofs(z_);
+      CommunicateSharedVdofs(z_);
 
       for (int i = 0; i < sub2_to_parent_map_.Size(); i++)
       {
@@ -310,8 +317,7 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
 
    if (parent_face_ori.Size() == 0) { return; }
 
-   VDofTransformation vdoftrans(fes.GetVDim(),
-                                fes.GetOrdering());
+   DofTransformation doftrans(fes.GetVDim(), fes.GetOrdering());
 
    int dim = mesh->Dimension();
    bool face = (dim == 3);
@@ -325,17 +331,13 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       if (parent_face_ori[i] == 0) { continue; }
 
       Geometry::Type geom = face ? mesh->GetFaceGeometry(i) :
-                            mesh->GetElementGeometry(i);;
+                            mesh->GetElementGeometry(i);
 
-      StatelessDofTransformation * doftrans =
-         fec->DofTransformationForGeometry(geom);
-
-      if (doftrans == NULL) { continue; }
-
-      vdoftrans.SetDofTransformation(*doftrans);
+      if (!fec->DofTransformationForGeometry(geom)) { continue; }
+      doftrans.SetDofTransformation(*fec->DofTransformationForGeometry(geom));
 
       Fo[0] = parent_face_ori[i];
-      vdoftrans.SetFaceOrientations(Fo);
+      doftrans.SetFaceOrientations(Fo);
 
       if (face)
       {
@@ -349,12 +351,12 @@ ParTransferMap::CorrectFaceOrientations(const ParFiniteElementSpace &fes,
       if (sub_to_parent_map)
       {
          src.GetSubVector(vdofs, face_vector);
-         vdoftrans.TransformPrimal(face_vector);
+         doftrans.TransformPrimal(face_vector);
       }
       else
       {
          dst.GetSubVector(vdofs, face_vector);
-         vdoftrans.InvTransformPrimal(face_vector);
+         doftrans.InvTransformPrimal(face_vector);
       }
 
       for (int j = 0; j < vdofs.Size(); j++)

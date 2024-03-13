@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 #include "fem.hpp"
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
 using namespace std;
 
@@ -24,6 +25,12 @@ void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssemblePA(fes)\n"
               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleNURBSPA(const FiniteElementSpace&)
+{
+   mfem_error ("BilinearFormIntegrator::AssembleNURBSPA(fes)\n"
+               "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&,
@@ -92,7 +99,13 @@ void BilinearFormIntegrator::AssembleDiagonalPA_ADAt(const Vector &, Vector &)
 
 void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
 {
-   MFEM_ABORT("BilinearFormIntegrator::MultAssembled(...)\n"
+   MFEM_ABORT("BilinearFormIntegrator:AddMultPA:(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSPA(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -126,23 +139,30 @@ void BilinearFormIntegrator::AssembleDiagonalMF(Vector &)
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix (
+void BilinearFormIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans,
-   DenseMatrix &elmat )
+   DenseMatrix &elmat)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleElementMatrix(...)\n"
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleElementMatrix2 (
+void BilinearFormIntegrator::AssembleElementMatrix2(
    const FiniteElement &el1, const FiniteElement &el2,
-   ElementTransformation &Trans, DenseMatrix &elmat )
+   ElementTransformation &Trans, DenseMatrix &elmat)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleElementMatrix2(...)\n"
               "   is not implemented for this class.");
 }
 
-void BilinearFormIntegrator::AssembleFaceMatrix (
+void BilinearFormIntegrator::AssemblePatchMatrix(
+   const int patch, const FiniteElementSpace &fes, SparseMatrix*& smat)
+{
+   mfem_error ("BilinearFormIntegrator::AssemblePatchMatrix(...)\n"
+               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
@@ -768,12 +788,12 @@ void GradientIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-
-      trial_fe.CalcDShape(ip, dshape);
-      test_fe.CalcShape(ip, shape);
-
       Trans.SetIntPoint(&ip);
+
       CalcAdjugate(Trans.Jacobian(), Jadj);
+
+      test_fe.CalcPhysShape(Trans, shape);
+      trial_fe.CalcDShape(ip, dshape);
 
       Mult(dshape, Jadj, gshape);
 
@@ -848,6 +868,19 @@ void DiffusionIntegrator::AssembleElementMatrix
 
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
 
+   const NURBSFiniteElement *NURBSFE =
+      dynamic_cast<const NURBSFiniteElement *>(&el);
+
+   bool deleteRule = false;
+   if (NURBSFE && patchRules)
+   {
+      const int patch = NURBSFE->GetPatch();
+      const int* ijk = NURBSFE->GetIJK();
+      Array<const KnotVector*>& kv = NURBSFE->KnotVectors();
+      ir = &patchRules->GetElementRule(NURBSFE->GetElement(), patch, ijk, kv,
+                                       deleteRule);
+   }
+
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -881,6 +914,11 @@ void DiffusionIntegrator::AssembleElementMatrix
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
+   }
+
+   if (deleteRule)
+   {
+      delete ir;
    }
 }
 
@@ -1303,10 +1341,11 @@ void MassIntegrator::AssembleElementMatrix2(
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      trial_fe.CalcShape(ip, shape);
-      test_fe.CalcShape(ip, te_shape);
-
       Trans.SetIntPoint (&ip);
+
+      trial_fe.CalcPhysShape(Trans, shape);
+      test_fe.CalcPhysShape(Trans, te_shape);
+
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
@@ -2419,7 +2458,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
 {
    int dof = el.GetDof();
    int spaceDim = Trans.GetSpaceDim();
-   int vdim = std::max(spaceDim, el.GetVDim());
+   int vdim = std::max(spaceDim, el.GetRangeDim());
 
    double w;
 
@@ -2487,7 +2526,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    {
       // assume test_fe is scalar FE and trial_fe is vector FE
       int spaceDim = Trans.GetSpaceDim();
-      int vdim = std::max(spaceDim, trial_fe.GetVDim());
+      int vdim = std::max(spaceDim, trial_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
@@ -2585,8 +2624,8 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    {
       // assume both test_fe and trial_fe are vector FE
       int spaceDim = Trans.GetSpaceDim();
-      int trial_vdim = std::max(spaceDim, trial_fe.GetVDim());
-      int test_vdim = std::max(spaceDim, test_fe.GetVDim());
+      int trial_vdim = std::max(spaceDim, trial_fe.GetRangeDim());
+      int test_vdim = std::max(spaceDim, test_fe.GetRangeDim());
       int trial_dof = trial_fe.GetDof();
       int test_dof = test_fe.GetDof();
       double w;
@@ -2910,16 +2949,16 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 
    dshape.SetSize(dof, dim);
-   dshapedxt.SetSize(dof, dim);
-   // pelmat.SetSize(dim);
+   dshapedxt.SetSize(dof, sdim);
+   pelmat.SetSize(dof);
 
-   elvect.SetSize(dim*dof);
+   elvect.SetSize(vdim*dof);
 
    // NOTE: DenseMatrix is in column-major order. This is consistent with
    // vectors ordered byNODES. In the resulting DenseMatrix, each column
    // corresponds to a particular vdim.
-   DenseMatrix mat_in(elfun.GetData(), dof, dim);
-   DenseMatrix mat_out(elvect.GetData(), dof, dim);
+   DenseMatrix mat_in(elfun.GetData(), dof, vdim);
+   DenseMatrix mat_out(elvect.GetData(), dof, vdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -2978,6 +3017,12 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 }
 
+ElasticityComponentIntegrator::ElasticityComponentIntegrator(
+   ElasticityIntegrator &parent_, int i_, int j_)
+   : parent(parent_),
+     i_block(i_),
+     j_block(j_)
+{ }
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)

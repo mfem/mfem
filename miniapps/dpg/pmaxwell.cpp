@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
 //                   MFEM Ultraweak DPG Maxwell parallel example
 //
 // Compile with: make pmaxwell
@@ -728,7 +739,7 @@ int main(int argc, char *argv[])
 
    double res0 = 0.;
    double err0 = 0.;
-   int dof0;
+   int dof0 = 0; // init to suppress gcc warning
 
    Array<int> elements_to_refine;
 
@@ -1392,7 +1403,7 @@ void maxwell_solution_curlcurl(const Vector & X,
    curlcurlE.resize(dim);
    for (int i = 0; i < dim; ++i)
    {
-      curlcurlE[i] = 0.0;;
+      curlcurlE[i] = 0.0;
    }
    switch (prob)
    {

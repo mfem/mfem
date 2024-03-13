@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -128,7 +128,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
    int map_type = el.GetMapType();
    dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
-   ne = fes.GetMesh()->GetNBE();
+   ne = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);

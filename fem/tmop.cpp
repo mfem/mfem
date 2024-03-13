@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -462,21 +462,52 @@ void TMOP_Metric_009::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1b(weight, A.GetData());
 }
 
-// mu_14 = |T-I|^2
+double TMOP_Metric_014::EvalWMatrixForm(const DenseMatrix &Jpt) const
+{
+   // mu_14 = |J - I|^2.
+   DenseMatrix Mat(Jpt);
+   Mat(0,0) -= 1.0;
+   Mat(1,1) -= 1.0;
+   return Mat.FNorm2();
+}
+
 double TMOP_Metric_014::EvalW(const DenseMatrix &Jpt) const
 {
-   MFEM_VERIFY(Jtr != NULL,
-               "Requires a target Jacobian, use SetTargetJacobian().");
+   // mu_14 = |J - I|^2 = I1[J-I].
+   DenseMatrix Mat(Jpt);
+   Mat(0,0) -= 1.0;
+   Mat(1,1) -= 1.0;
 
-   DenseMatrix Id(2,2);
+   ie.SetJacobian(Mat.GetData());
+   return ie.Get_I1();
+}
 
-   Id(0,0) = 1; Id(0,1) = 0;
-   Id(1,0) = 0; Id(1,1) = 1;
+void TMOP_Metric_014::EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+{
+   // P = dI1[J-I] d/dJ[J-I] = dI1[J-I].
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   P = ie.Get_dI1();
+}
 
-   DenseMatrix Mat(2,2);
-   Mat = Jpt;
-   Mat.Add(-1,Id);
-   return Mat.FNorm2();
+void TMOP_Metric_014::AssembleH(const DenseMatrix &Jpt,
+                                const DenseMatrix &DS,
+                                const double weight,
+                                DenseMatrix &A) const
+{
+   // dP = ddI1[J-I].
+   DenseMatrix JptMinusId = Jpt;
+   for (int i = 0; i < Jpt.Size(); i++)
+   {
+      JptMinusId(i, i) -= 1.0;
+   }
+   ie.SetJacobian(JptMinusId.GetData());
+   ie.SetDerivativeMatrix(DS.Height(), DS.GetData());
+   ie.Assemble_ddI1(weight, A.GetData());
 }
 
 double TMOP_Metric_022::EvalW(const DenseMatrix &Jpt) const
@@ -2846,6 +2877,7 @@ TMOP_Integrator::~TMOP_Integrator()
    delete lim_func;
    delete adapt_lim_gf;
    delete surf_fit_gf;
+   delete surf_fit_limiter;
    delete surf_fit_grad;
    delete surf_fit_hess;
    for (int i = 0; i < ElemDer.Size(); i++)
@@ -2920,6 +2952,10 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_gf->CountElementsPerVDof(surf_fit_dof_count);
@@ -3010,12 +3046,37 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    }
 }
 
+void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
+                                           const Array<bool> &smarker,
+                                           Coefficient &coeff)
+{
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_gf == NULL,
+               "Using both fitting approaches is not supported.");
+   MFEM_VERIFY(pos.FESpace()->GetMesh()->GetNodes(),
+               "Positions on a mesh without Nodes is not supported.");
+   MFEM_VERIFY(pos.FESpace()->GetOrdering() ==
+               pos.FESpace()->GetMesh()->GetNodes()->FESpace()->GetOrdering(),
+               "Incompatible ordering of spaces!");
+
+   surf_fit_pos     = &pos;
+   pos.CountElementsPerVDof(surf_fit_dof_count);
+   surf_fit_marker  = &smarker;
+   surf_fit_coeff   = &coeff;
+   delete surf_fit_limiter;
+   surf_fit_limiter = new TMOP_QuadraticLimiter;
+}
+
 #ifdef MFEM_USE_MPI
 void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
+
    delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    s0.CountElementsPerVDof(surf_fit_dof_count);
@@ -3099,31 +3160,53 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
 }
 #endif
 
-void TMOP_Integrator::GetSurfaceFittingErrors(double &err_avg, double &err_max)
+void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &pos,
+                                              double &err_avg, double &err_max)
 {
-   MFEM_VERIFY(surf_fit_gf, "Surface fitting has not been enabled.");
+   MFEM_VERIFY(surf_fit_marker, "Surface fitting has not been enabled.");
 
+   const FiniteElementSpace *fes =
+      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
 #ifdef MFEM_USE_MPI
-   auto pfes =
-      dynamic_cast<const ParFiniteElementSpace *>(surf_fit_gf->FESpace());
+   auto pfes = dynamic_cast<const ParFiniteElementSpace *>(fes);
    bool parallel = (pfes) ? true : false;
 #endif
 
+   int dim = fes->GetMesh()->Dimension();
+   const int node_cnt = surf_fit_marker->Size();
    err_max = 0.0;
    int dof_cnt = 0;
    double err_sum = 0.0;
-   for (int i = 0; i < surf_fit_marker->Size(); i++)
+   for (int i = 0; i < node_cnt; i++)
    {
-      if ((*surf_fit_marker)[i] == true)
-      {
+      if ((*surf_fit_marker)[i] == false) { continue; }
+
 #ifdef MFEM_USE_MPI
-         // Don't count the overlapping DOFs in parallel.
-         if (parallel && pfes->GetLocalTDofNumber(i) < 0) { continue; }
+      // Don't count the overlapping DOFs in parallel.
+      // The pfes might be ordered byVDIM, while the loop goes consecutively.
+      const int dof_i = pfes->DofToVDof(i, 0);
+      if (parallel && pfes->GetLocalTDofNumber(dof_i) < 0) { continue; }
 #endif
-         dof_cnt++;
-         err_max  = fmax(err_max, fabs((*surf_fit_gf)(i)));
-         err_sum += fabs((*surf_fit_gf)(i));
+
+      dof_cnt++;
+      double sigma_s = 0.0;
+      if (surf_fit_gf) { sigma_s = fabs((*surf_fit_gf)(i)); }
+      if (surf_fit_pos)
+      {
+         Vector pos_s(dim), pos_s_target(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            pos_s(d) = (fes->GetOrdering() == Ordering::byNODES) ?
+                       pos(d*node_cnt + i) : pos(i*dim + d);
+            pos_s_target(d) = (fes->GetOrdering() == Ordering::byNODES)
+                              ? (*surf_fit_pos)(d*node_cnt + i)
+                              : (*surf_fit_pos)(i*dim + d);
+         }
+         sigma_s = pos_s.DistanceTo(pos_s_target);
       }
+
+      err_max  = fmax(err_max, sigma_s);
+      err_sum += sigma_s;
    }
 
 #ifdef MFEM_USE_MPI
@@ -3177,7 +3260,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // as part of a FD derivative computation (because we include the exact
    // derivatives of these terms in FD computations).
    const bool adaptive_limiting = (adapt_lim_gf && fd_call_flag == false);
-   const bool surface_fit = (surf_fit_gf && fd_call_flag == false);
+   const bool surface_fit = (surf_fit_marker && fd_call_flag == false);
 
    DSh.SetSize(dof, dim);
    Jrt.SetSize(dim);
@@ -3280,20 +3363,41 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    // Contribution from the surface fitting term.
    if (surface_fit)
    {
-      const IntegrationRule &ir_s =
-         surf_fit_gf->FESpace()->GetFE(el_id)->GetNodes();
-      Array<int> dofs;
-      Vector sigma_e;
-      surf_fit_gf->FESpace()->GetElementDofs(el_id, dofs);
-      surf_fit_gf->GetSubVector(dofs, sigma_e);
-      for (int s = 0; s < dofs.Size(); s++)
+      // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
+      const FiniteElementSpace *fes_fit =
+         (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+      const IntegrationRule *ir_s = &fes_fit->GetFE(el_id)->GetNodes();
+      Array<int> vdofs;
+      fes_fit->GetElementVDofs(el_id, vdofs);
+
+      Vector sigma_e(dof);
+      if (surf_fit_gf) { surf_fit_gf->GetSubVector(vdofs, sigma_e); }
+
+      for (int s = 0; s < dof; s++)
       {
-         if ((*surf_fit_marker)[dofs[s]] == true)
+         // Because surf_fit_pos.fes might be ordered byVDIM.
+         const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+         if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
+
+         const IntegrationPoint &ip_s = ir_s->IntPoint(s);
+         Tpr->SetIntPoint(&ip_s);
+
+         if (surf_fit_gf)
          {
-            const IntegrationPoint &ip_s = ir_s.IntPoint(s);
-            Tpr->SetIntPoint(&ip_s);
             energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
                       sigma_e(s) * sigma_e(s);
+         }
+         if (surf_fit_pos)
+         {
+            // Fitting to exact positions.
+            Vector pos(dim), pos_target(dim);
+            for (int d = 0; d < dim; d++)
+            {
+               pos(d) = PMatI(s, d);
+               pos_target(d) = (*surf_fit_pos)(vdofs[d*dof + s]);
+            }
+            energy += surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
+                      surf_fit_limiter->Eval(pos, pos_target, 1.0);
          }
       }
    }
@@ -3522,7 +3626,8 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (metric_coeff || lim_coeff || adapt_lim_gf || surf_fit_gf || exact_action)
+   if (metric_coeff || lim_coeff || adapt_lim_gf ||
+       surf_fit_gf || surf_fit_pos || exact_action)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -3604,7 +3709,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    }
 
    if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
-   if (surf_fit_gf) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
    delete Tpr;
 }
@@ -3656,7 +3761,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
-   if (metric_coeff || lim_coeff || adapt_lim_gf || surf_fit_gf)
+   if (metric_coeff || lim_coeff || adapt_lim_gf || surf_fit_gf || surf_fit_pos)
    {
       Tpr = new IsoparametricTransformation;
       Tpr->SetFE(&el);
@@ -3712,7 +3817,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    }
 
    if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
-   if (surf_fit_gf) { AssembleElemGradSurfFit(el, *Tpr, elmat); }
+   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
 
    delete Tpr;
 }
@@ -3819,49 +3924,75 @@ void TMOP_Integrator::AssembleElemVecSurfFit(const FiniteElement &el_x,
                                              DenseMatrix &mat)
 {
    const int el_id = Tpr.ElementNo;
+
+   // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
+   const FiniteElementSpace *fes_fit =
+      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+   const FiniteElement &el_s = *fes_fit->GetFE(el_id);
+   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
+
    // Check if the element has any DOFs marked for surface fitting.
-   Array<int> sdofs, dofs;
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, sdofs);
+   Array<int> dofs, vdofs;
+   fes_fit->GetElementVDofs(el_id, vdofs);
    int count = 0;
-   for (int s = 0; s < sdofs.Size(); s++)
+   for (int s = 0; s < dof_s; s++)
    {
-      count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
-   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
-
-   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
-
-   Vector sigma_e;
-   surf_fit_gf->GetSubVector(sdofs, sigma_e);
-
-   // Project the gradient of sigma in the same space.
-   // The FE coefficients of the gradient go in surf_fit_grad_e.
+   Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
-   Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
-   DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   if (surf_fit_gf_bg)
+   if (surf_fit_gf || surf_fit_gf_bg)
    {
-      surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
-      surf_fit_grad->GetSubVector(dofs, grad_ptr);
+      surf_fit_gf->GetSubVector(vdofs, sigma_e);
+
+      // Project the gradient of sigma in the same space.
+      // The FE coefficients of the gradient go in surf_fit_grad_e.
+      Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
+      DenseMatrix grad_phys; // This will be (dof x dim, dof).
+      if (surf_fit_gf_bg)
+      {
+         surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
+         surf_fit_grad->GetSubVector(dofs, grad_ptr);
+      }
+      else
+      {
+         el_s.ProjectGrad(el_s, Tpr, grad_phys);
+         grad_phys.Mult(sigma_e, grad_ptr);
+      }
    }
-   else
-   {
-      el_s.ProjectGrad(el_s, Tpr, grad_phys);
-      grad_phys.Mult(sigma_e, grad_ptr);
-   }
+   else { Tpr.GetPointMat().Transpose(PMatI); }
 
    const IntegrationRule &ir = el_s.GetNodes();
+
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[sdofs[s]] == false) { continue; }
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
-      const double w = 2.0 * surf_fit_normal *
-                       surf_fit_coeff->Eval(Tpr, ip) * sigma_e(s) *
-                       1.0/surf_fit_dof_count[sdofs[s]];
+      double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip) *
+                 1.0 / surf_fit_dof_count[vdofs[s]];
+
+      if (surf_fit_gf) { w *= 2.0 * sigma_e(s); }
+      if (surf_fit_pos)
+      {
+         Vector pos(dim), pos_target(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            pos(d) = PMatI(s, d);
+            pos_target(d) = (*surf_fit_pos)(vdofs[d*dof_s + s]);
+         }
+         Vector grad_s(dim);
+         surf_fit_limiter->Eval_d1(pos, pos_target, 1.0, grad_s);
+         for (int d = 0; d < dim; d++) { surf_fit_grad_e(s, d) = grad_s(d); }
+      }
+
       for (int d = 0; d < dim; d++)
       {
          mat(s, d) += w * surf_fit_grad_e(s, d);
@@ -3874,79 +4005,109 @@ void TMOP_Integrator::AssembleElemGradSurfFit(const FiniteElement &el_x,
                                               DenseMatrix &mat)
 {
    const int el_id = Tpr.ElementNo;
+
+   // Scalar for surf_fit_gf, vector for surf_fit_pos, but that's ok.
+   const FiniteElementSpace *fes_fit =
+      (surf_fit_gf) ? surf_fit_gf->FESpace() : surf_fit_pos->FESpace();
+   const FiniteElement &el_s = *fes_fit->GetFE(el_id);
+   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
+
    // Check if the element has any DOFs marked for surface fitting.
-   Array<int> dofs, sdofs;
-   surf_fit_gf->FESpace()->GetElementDofs(el_id, sdofs);
-   int ndofs = sdofs.Size();
+   Array<int> dofs, vdofs;
+   fes_fit->GetElementVDofs(el_id, vdofs);
    int count = 0;
-   for (int s = 0; s < ndofs; s++)
+   for (int s = 0; s < dof_s; s++)
    {
-      count += ((*surf_fit_marker)[sdofs[s]]) ? 1 : 0;
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      count += ((*surf_fit_marker)[scalar_dof_id]) ? 1 : 0;
    }
    if (count == 0) { return; }
 
-   const FiniteElement &el_s = *surf_fit_gf->FESpace()->GetFE(el_id);
-
-   const int dof_s = el_s.GetDof(), dim = el_x.GetDim();
-
-   Vector sigma_e;
-   surf_fit_gf->GetSubVector(sdofs, sigma_e);
-
+   Vector sigma_e(dof_s);
    DenseMatrix surf_fit_grad_e(dof_s, dim);
-   Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
-   DenseMatrix grad_phys;
-   if (surf_fit_gf_bg)
-   {
-      surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
-      surf_fit_grad->GetSubVector(dofs, grad_ptr);
-   }
-   else
-   {
-      el_s.ProjectGrad(el_s, Tpr, grad_phys);
-      grad_phys.Mult(sigma_e, grad_ptr);
-   }
-
    DenseMatrix surf_fit_hess_e(dof_s, dim*dim);
-   Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
-   if (surf_fit_gf_bg)
+   if (surf_fit_gf || surf_fit_gf_bg)
    {
-      surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
-      surf_fit_hess->GetSubVector(dofs, hess_ptr);
+      surf_fit_gf->GetSubVector(vdofs, sigma_e);
+
+      // Project the gradient of sigma in the same space.
+      // The FE coefficients of the gradient go in surf_fit_grad_e.
+      Vector grad_ptr(surf_fit_grad_e.GetData(), dof_s * dim);
+      DenseMatrix grad_phys; // This will be (dof x dim, dof).
+      if (surf_fit_gf_bg)
+      {
+         surf_fit_grad->FESpace()->GetElementVDofs(el_id, dofs);
+         surf_fit_grad->GetSubVector(dofs, grad_ptr);
+      }
+      else
+      {
+         el_s.ProjectGrad(el_s, Tpr, grad_phys);
+         grad_phys.Mult(sigma_e, grad_ptr);
+      }
+
+      // Project the Hessian of sigma in the same space.
+      // The FE coefficients of the Hessian go in surf_fit_hess_e.
+      Vector hess_ptr(surf_fit_hess_e.GetData(), dof_s*dim*dim);
+      if (surf_fit_gf_bg)
+      {
+         surf_fit_hess->FESpace()->GetElementVDofs(el_id, dofs);
+         surf_fit_hess->GetSubVector(dofs, hess_ptr);
+      }
+      else
+      {
+         surf_fit_hess_e.SetSize(dof_s*dim, dim);
+         Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
+         surf_fit_hess_e.SetSize(dof_s, dim * dim);
+      }
    }
-   else
-   {
-      surf_fit_hess_e.SetSize(dof_s*dim, dim);
-      Mult(grad_phys, surf_fit_grad_e, surf_fit_hess_e);
-      surf_fit_hess_e.SetSize(dof_s, dim * dim);
-   }
+   else { Tpr.GetPointMat().Transpose(PMatI); }
 
    const IntegrationRule &ir = el_s.GetNodes();
 
-   Vector surf_fit_grad_s(dim);
    DenseMatrix surf_fit_hess_s(dim, dim);
-
    for (int s = 0; s < dof_s; s++)
    {
-      if ((*surf_fit_marker)[sdofs[s]] == false) { continue; }
+      // Because surf_fit_pos.fes might be ordered byVDIM.
+      const int scalar_dof_id = fes_fit->VDofToDof(vdofs[s]);
+      if ((*surf_fit_marker)[scalar_dof_id] == false) { continue; }
 
       const IntegrationPoint &ip = ir.IntPoint(s);
       Tpr.SetIntPoint(&ip);
+      double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
 
-      Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
-      surf_fit_hess_e.GetRow(s, gg_ptr);
+      if (surf_fit_gf || surf_fit_gf_bg)
+      {
+         Vector gg_ptr(surf_fit_hess_s.GetData(), dim * dim);
+         surf_fit_hess_e.GetRow(s, gg_ptr);
+         w *= 2.0;
+      }
+      if (surf_fit_pos)
+      {
+         Vector pos(dim), pos_target(dim);
+         for (int d = 0; d < dim; d++)
+         {
+            pos(d) = PMatI(s, d);
+            pos_target(d) = (*surf_fit_pos)(vdofs[d*dof_s + s]);
+         }
+         // Eval_d2 returns the full Hessian, but we still use the general
+         // computation that's in the dim x dim loop below.
+         sigma_e(s) = 1.0;
+         for (int d = 0; d < dim; d++) { surf_fit_grad_e(s, d) = 0.0; }
+         surf_fit_limiter->Eval_d2(pos, pos_target, 1.0, surf_fit_hess_s);
+      }
 
       // Loops over the local matrix.
-      const double w = surf_fit_normal * surf_fit_coeff->Eval(Tpr, ip);
       for (int idim = 0; idim < dim; idim++)
       {
          for (int jdim = 0; jdim <= idim; jdim++)
          {
-            double entry = w * ( 2.0 * surf_fit_grad_e(s, idim) *
-                                 /* */ surf_fit_grad_e(s, jdim) +
-                                 2.0 * sigma_e(s) * surf_fit_hess_s(idim, jdim));
-            entry *= 1.0/surf_fit_dof_count[sdofs[s]];
-            int idx = s + idim*ndofs;
-            int jdx = s + jdim*ndofs;
+            double entry = w * ( surf_fit_grad_e(s, idim) *
+                                 surf_fit_grad_e(s, jdim) +
+                                 sigma_e(s) * surf_fit_hess_s(idim, jdim));
+            entry *= 1.0 / surf_fit_dof_count[vdofs[s]];
+            int idx = s + idim*dof_s;
+            int jdx = s + jdim*dof_s;
             mat(idx, jdx) += entry;
             if (idx != jdx) { mat(jdx, idx) += entry; }
          }
@@ -4015,7 +4176,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
    fd_call_flag = false;
 
    // Contributions from adaptive limiting, surface fitting (exact derivatives).
-   if (adapt_lim_gf || surf_fit_gf)
+   if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
    {
       const IntegrationRule &ir = ActionIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -4040,7 +4201,7 @@ void TMOP_Integrator::AssembleElementVectorFD(const FiniteElement &el,
 
       PMatO.UseExternalData(elvect.GetData(), dof, dim);
       if (adapt_lim_gf) { AssembleElemVecAdaptLim(el, Tpr, ir, weights, PMatO); }
-      if (surf_fit_gf) { AssembleElemVecSurfFit(el, Tpr, PMatO); }
+      if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, Tpr, PMatO); }
    }
 }
 
@@ -4115,7 +4276,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
    fd_call_flag = false;
 
    // Contributions from adaptive limiting.
-   if (adapt_lim_gf || surf_fit_gf)
+   if (adapt_lim_gf || surf_fit_gf || surf_fit_pos)
    {
       const IntegrationRule &ir = GradientIntegrationRule(el);
       const int nqp = ir.GetNPoints();
@@ -4139,7 +4300,7 @@ void TMOP_Integrator::AssembleElementGradFD(const FiniteElement &el,
       }
 
       if (adapt_lim_gf) { AssembleElemGradAdaptLim(el, Tpr, ir, weights, elmat); }
-      if (surf_fit_gf) { AssembleElemGradSurfFit(el, Tpr, elmat); }
+      if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, Tpr, elmat); }
    }
 }
 
@@ -4172,7 +4333,7 @@ void TMOP_Integrator::EnableNormalization(const GridFunction &x)
    metric_normal = 1.0 / metric_normal;
    lim_normal = 1.0 / lim_normal;
    //if (surf_fit_gf) { surf_fit_normal = 1.0 / surf_fit_normal; }
-   if (surf_fit_gf) { surf_fit_normal = lim_normal; }
+   if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 
 #ifdef MFEM_USE_MPI
@@ -4185,7 +4346,7 @@ void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
    metric_normal = 1.0 / rdc[0];
    lim_normal    = 1.0 / rdc[1];
    // if (surf_fit_gf) { surf_fit_normal = 1.0 / rdc[2]; }
-   if (surf_fit_gf) { surf_fit_normal = lim_normal; }
+   if (surf_fit_gf || surf_fit_pos) { surf_fit_normal = lim_normal; }
 }
 #endif
 
@@ -4255,7 +4416,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    }
 
    // Cases when integration is not over the target element, or when the
-   // targets don't contain volumetric iniformation.
+   // targets don't contain volumetric information.
    if (integ_over_target == false || targetC->ContainsVolumeInfo() == false)
    {
       lim_energy = fes->GetNE();
@@ -4311,6 +4472,8 @@ UpdateAfterMeshPositionChange(const Vector &x_new,
                               const FiniteElementSpace &x_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_new); }
 
    Ordering::Type ordering = x_fes.GetOrdering();
 

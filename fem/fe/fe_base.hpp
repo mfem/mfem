@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,8 +130,8 @@ public:
 
 /** @brief Structure representing the matrices/tensors needed to evaluate (in
     reference space) the values, gradients, divergences, or curls of a
-    FiniteElement at a the quadrature points of a given IntegrationRule. */
-/** Object of this type are typically created and owned by the respective
+    FiniteElement at the quadrature points of a given IntegrationRule. */
+/** Objects of this type are typically created and owned by the respective
     FiniteElement object. */
 class DofToQuad
 {
@@ -158,7 +158,12 @@ public:
           freedom. */
       /** When representing a vector-valued FiniteElement, two DofToQuad objects
           are used to describe the "closed" and "open" 1D basis functions. */
-      TENSOR
+      TENSOR,
+
+      /** @brief Full multidimensional representation which does not use tensor
+          product structure. The ordering of the degrees of freedom is the
+          same as TENSOR, but the sizes of B and G are the same as FULL.*/
+      LEXICOGRAPHIC_FULL
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -250,7 +255,7 @@ protected:
    /// Container for all DofToQuad objects created by the FiniteElement.
    /** Multiple DofToQuad objects may be needed when different quadrature rules
        or different DofToQuad::Mode are used. */
-   mutable Array<DofToQuad*> dof2quad_array;
+   mutable Array<DofToQuad *> dof2quad_array;
 
 public:
    /// Enumeration for range_type and deriv_range_type
@@ -307,19 +312,20 @@ public:
    FiniteElement(int D, Geometry::Type G, int Do, int O,
                  int F = FunctionSpace::Pk);
 
-   /// Returns the reference space dimension for the finite element
+   /// Returns the reference space dimension for the finite element.
    int GetDim() const { return dim; }
 
-   /// Returns the vector dimension for vector-valued finite elements
-   int GetVDim() const { return vdim; }
+   /** @brief Returns the vector dimension for vector-valued finite elements,
+       which is also the dimension of the interpolation operatrion. */
+   int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements
+   /// Returns the dimension of the curl for vector-valued finite elements.
    int GetCurlDim() const { return cdim; }
 
-   /// Returns the Geometry::Type of the reference element
+   /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
 
-   /// Returns the number of degrees of freedom in the finite element
+   /// Returns the number of degrees of freedom in the finite element.
    int GetDof() const { return dof; }
 
    /** @brief Returns the order of the finite element. In the case of
@@ -595,7 +601,7 @@ public:
    /** @brief Return a DoF transformation object for this particular type of
        basis.
    */
-   virtual StatelessDofTransformation * GetDofTransformation() const
+   virtual const StatelessDofTransformation *GetDofTransformation() const
    { return NULL; }
 
    /// Deconstruct the FiniteElement
@@ -707,6 +713,9 @@ public:
 /// Class for standard nodal finite elements.
 class NodalFiniteElement : public ScalarFiniteElement
 {
+private:
+   /// Create and cache the LEXICOGRAPHIC_FULL DofToQuad maps.
+   void CreateLexicographicFullMap(const IntegrationRule &ir) const;
 protected:
    Array<int> lex_ordering;
    void ProjectCurl_2D(const FiniteElement &fe,
@@ -724,6 +733,9 @@ public:
    NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
                       int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
+
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override;
 
    void GetLocalInterpolation(ElementTransformation &Trans,
                               DenseMatrix &I) const override
@@ -1025,8 +1037,8 @@ public:
    };
 
 private:
-   typedef std::map< int, Array<double*>* > PointsMap;
-   typedef std::map< int, Array<Basis*>* > BasisMap;
+   typedef std::map<int, Array<double*>*> PointsMap;
+   typedef std::map<int, Array<Basis*>*> BasisMap;
 
    MemoryType h_mt;
    PointsMap points_container;
@@ -1248,12 +1260,7 @@ public:
                             const DofMapType dmtype);
 
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
-                                 DofToQuad::Mode mode) const override
-   {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
-   }
+                                 DofToQuad::Mode mode) const override;
 
    void SetMapType(const int map_type_) override;
 
@@ -1296,15 +1303,15 @@ public:
    const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
                                  DofToQuad::Mode mode) const override
    {
-      return (mode == DofToQuad::FULL) ?
-             FiniteElement::GetDofToQuad(ir, mode) :
-             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array);
+      return (mode == DofToQuad::TENSOR) ?
+             GetTensorDofToQuad(*this, ir, mode, basis1d, true, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
    }
 
    const DofToQuad &GetDofToQuadOpen(const IntegrationRule &ir,
                                      DofToQuad::Mode mode) const
    {
-      MFEM_VERIFY(mode != DofToQuad::FULL, "invalid mode requested");
+      MFEM_VERIFY(mode == DofToQuad::TENSOR, "invalid mode requested");
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }

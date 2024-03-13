@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,8 +36,8 @@ void DLFGradAssemble2D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED double sBGt[2][Q*D];
       MFEM_SHARED double sQQ[2][Q*Q];
@@ -130,8 +130,8 @@ void DLFGradAssemble3D(const int vdim, const int ne, const int d, const int q,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQD = (Q >= D) ? Q : D;
 
       MFEM_SHARED double sBGt[2][Q*D];

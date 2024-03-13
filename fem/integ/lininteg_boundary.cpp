@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,7 +38,7 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       double QQ[Q];
 
       for (int c = 0; c < vdim; ++c)
@@ -92,8 +92,8 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    {
       if (M(e) == 0) { return; } // ignore
 
-      constexpr int Q = T_Q1D ? T_Q1D : MAX_Q1D;
-      constexpr int D = T_D1D ? T_D1D : MAX_D1D;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       MFEM_SHARED double sBt[Q*D];
       MFEM_SHARED double sQQ[Q*Q];
@@ -159,6 +159,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const bool normals,
                             Vector &y)
 {
+   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
    const FiniteElement &el = *fes.GetBE(0);
@@ -214,6 +215,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
@@ -229,6 +231,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
+   if (fes.GetNBE() == 0) { return; }
    const FiniteElement &fe = *fes.GetBE(0);
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();

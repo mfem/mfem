@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,15 +22,22 @@ namespace mfem
 class BatchedLOR_H1 : BatchedLORKernel
 {
 public:
-   template <int ORDER> void Assemble2D();
+   template <int ORDER, int SDIM> void Assemble2D();
    template <int ORDER> void Assemble3D();
    BatchedLOR_H1(BilinearForm &a,
                  FiniteElementSpace &fes_ho_,
                  Vector &X_vert_,
                  Vector &sparse_ij_,
-                 Array<int> &sparse_mapping_);
+                 Array<int> &sparse_mapping_)
+      : BatchedLORKernel(fes_ho_, X_vert_, sparse_ij_, sparse_mapping_)
+   {
+      ProjectLORCoefficient<MassIntegrator>(a, c1);
+      ProjectLORCoefficient<DiffusionIntegrator>(a, c2);
+   }
 };
 
 }
+
+#include "lor_h1_impl.hpp"
 
 #endif

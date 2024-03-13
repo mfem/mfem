@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -422,15 +422,15 @@ class TransformedCoefficient : public Coefficient
 private:
    Coefficient * Q1;
    Coefficient * Q2;
-   double (*Transform1)(double);
-   double (*Transform2)(double,double);
+   std::function<double(double)> Transform1;
+   std::function<double(double, double)> Transform2;
 
 public:
-   TransformedCoefficient (Coefficient * q,double (*F)(double))
-      : Q1(q), Transform1(F) { Q2 = 0; Transform2 = 0; }
+   TransformedCoefficient (Coefficient * q, std::function<double(double)> F)
+      : Q1(q), Transform1(std::move(F)) { Q2 = 0; Transform2 = 0; }
    TransformedCoefficient (Coefficient * q1,Coefficient * q2,
-                           double (*F)(double,double))
-      : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
+                           std::function<double(double, double)> F)
+      : Q1(q1), Q2(q2), Transform2(std::move(F)) { Transform1 = 0; }
 
    /// Set the time for internally stored coefficients
    void SetTime(double t);
@@ -2245,7 +2245,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   VectorQuadratureFunctionCoefficient(QuadratureFunction &qf);
+   VectorQuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    /** Set the starting index within the QuadFunc that'll be used to project
        outwards as well as the corresponding length. The projected length should
@@ -2273,7 +2273,7 @@ private:
 
 public:
    /// Constructor with a quadrature function as input
-   QuadratureFunctionCoefficient(QuadratureFunction &qf);
+   QuadratureFunctionCoefficient(const QuadratureFunction &qf);
 
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 

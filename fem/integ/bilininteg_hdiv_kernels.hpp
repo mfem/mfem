@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -140,8 +140,8 @@ inline void SmemPAHdivMassApply2D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      constexpr int MQ1 = T_Q1D ? T_Q1D : HDIV_MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : HDIV_MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       MFEM_SHARED double smo[MQ1*(MD1-1)];
@@ -310,8 +310,8 @@ inline void SmemPAHdivMassApply3D(const int NE,
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-      constexpr int MQ1 = T_Q1D ? T_Q1D : HDIV_MAX_Q1D;
-      constexpr int MD1 = T_D1D ? T_D1D : HDIV_MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
 
       MFEM_SHARED double smo[MQ1*(MD1-1)];

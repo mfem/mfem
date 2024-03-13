@@ -128,6 +128,13 @@ examples/amgx/sol.gf
 examples/amgx/mesh.*
 examples/amgx/sol.*
 
+examples/caliper/ex1
+examples/caliper/ex1p
+examples/caliper/refined.mesh
+examples/caliper/sol.gf
+examples/caliper/mesh.*
+examples/caliper/sol.*
+
 examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
@@ -213,6 +220,7 @@ miniapps/meshing/twist
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
 miniapps/meshing/extruder
+miniapps/meshing/fit-node-position
 miniapps/meshing/trimmer
 miniapps/meshing/reflector
 miniapps/meshing/mesh-optimizer
@@ -265,11 +273,20 @@ miniapps/navier/*_output
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex11p
+miniapps/nurbs/nurbs_printfunc
+miniapps/nurbs/nurbs_patch_ex1
+miniapps/nurbs/nurbs_curveint
 miniapps/nurbs/refined.mesh
 miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+miniapps/nurbs/sin-fit.mesh
+miniapps/nurbs/CurveInt
+miniapps/nurbs/nurbs_naca_cmesh
+miniapps/nurbs/naca-cmesh.mesh
+miniapps/nurbs/glvis_naca-cmesh.mesh
+miniapps/nurbs/Naca_cmesh
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -292,9 +309,14 @@ miniapps/tools/display-basis
 miniapps/tools/load-dc
 miniapps/tools/convert-dc
 miniapps/tools/lor-transfer
+miniapps/tools/plor-transfer
 miniapps/tools/get-values
-miniapps/tools/check-tmop-metric
+miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
+miniapps/tools/nodal-transfer
+miniapps/tools/ParaView
+miniapps/tools/gridfunc_*
+miniapps/tools/mesh_*
 
 miniapps/toys/automata
 miniapps/toys/life
@@ -320,6 +342,7 @@ miniapps/toys/mondrian.mesh
 miniapps/solvers/block-solvers
 miniapps/solvers/lor_solvers
 miniapps/solvers/plor_solvers
+miniapps/solvers/lor_elast
 miniapps/solvers/ParaView
 miniapps/solvers/mesh.*
 miniapps/solvers/sol.*
