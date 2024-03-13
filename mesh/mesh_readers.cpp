@@ -2938,79 +2938,60 @@ public:
       ELEMENT_PYRAMID14
    };
 
-   inline CubitElementType ElementType() const { return _element_type; }
+   /// Returns the Cubit element type.
+   inline CubitElementType GetElementType() const { return _element_type; }
 
-   /**
-    * Returns info for a particular face.
-    */
+   /// Returns a reference to the Cubit face information.
    const CubitFaceInfo & GetFace(int iface = 0) const;
 
-   inline uint8_t NumFaces() const { return _num_faces; }
+   /// Returns the number of faces for the element type.
+   inline uint8_t GetNumFaces() const { return _num_faces; }
 
-   inline uint8_t NumVertices() const { return _num_vertices; }
+   /// Returns the number of vertices for the element type.
+   inline uint8_t GetNumVertices() const { return _num_vertices; }
 
-   inline uint8_t Order() const { return _order; }
+   /// Returns the order of the element.
+   inline uint8_t GetOrder() const { return _order; }
 
 protected:
+   /// Initializes member variables for a 2D Cubit element.
    void BuildCubit2DElementInfo(int num_nodes_per_element);
+
+   /// Initializes member variables for a 3D Cubit element.
    void BuildCubit3DElementInfo(int num_nodes_per_element);
 
-   /**
-    * Sets the _face_info vector.
-    */
+   /// Returns the face information for Wedges.
    std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
    std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
 
+   /// Returns the face information for Pyramids.
    std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
    std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
 
 private:
-   /**
-    * Stores the element type.
-    */
    CubitElementType _element_type;
 
-   /**
-    * NB: first-order elements have only nodes on the "corners". Second-order have
-    * additional nodes between "corner" nodes.
-    */
    uint8_t _order;
-
-   /**
-    * NB: "corner nodes" refer to MOOSE nodes at the corners of an element. In
-    * MFEM this is referred to as "vertices".
-    */
    uint8_t _num_vertices;
 
-   /**
-    * Stores info about the face types.
-    */
    uint8_t _num_faces;
-   std::vector<CubitFaceInfo> _face_info;
+   vector<CubitFaceInfo> _face_info;
 };
 
-/**
- * CubitElementInfo
- */
+
 CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
 {
-   switch (dimension)
+   if (dimension == 2)
    {
-      case 2:
-      {
-         BuildCubit2DElementInfo(num_nodes_per_element);
-         break;
-      }
-      case 3:
-      {
-         BuildCubit3DElementInfo(num_nodes_per_element);
-         break;
-      }
-      default:
-      {
-         MFEM_ABORT("Unsupported element dimension " << dimension << ".");
-         break;
-      }
+      BuildCubit2DElementInfo(num_nodes_per_element);
+   }
+   else if (dimension == 3)
+   {
+      BuildCubit3DElementInfo(num_nodes_per_element);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported element dimension " << dimension << ".");
    }
 }
 
@@ -3188,7 +3169,6 @@ const
    CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
    CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
 
-   // Same ordering as MFEM.
    return {quad9, tri6, tri6, tri6, tri6};
 }
 
@@ -3219,7 +3199,7 @@ CubitElementInfo::GetFace(int iface) const
    bool is_single_face_type = (_face_info.size() == 1);
 
    /**
-    * Check vector size matches _num_Faces for multiple face types.
+    * Check vector size matches _num_faces for multiple face types.
     */
    if (!is_single_face_type && _face_info.size() != _num_faces)
    {
@@ -3724,7 +3704,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
          {
             int inode;
 
-            switch (element_info.ElementType())
+            switch (element_info.GetElementType())
             {
                case (CubitElementInfo::ELEMENT_TRI3):
                case (CubitElementInfo::ELEMENT_TRI6):
@@ -3796,7 +3776,7 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
          auto & node_ids = node_ids_for_element_id.at(element_id);
 
          // Only use the nodes on the edge of the element!
-         for (int knode = 0; knode < block_element.NumVertices(); knode++)
+         for (int knode = 0; knode < block_element.GetNumVertices(); knode++)
          {
             unique_vertex_ids.push_back(node_ids[knode]);
          }
@@ -3841,7 +3821,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 {
    int *mfem_to_genesis_map = nullptr;
 
-   switch (element_info.ElementType())
+   switch (element_info.GetElementType())
    {
       case CubitElementInfo::ELEMENT_TRI6:
          mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
@@ -3944,7 +3924,7 @@ void Mesh::BuildCubitElements(const int num_elements,
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   std::vector<int> renumbered_vertex_ids(element_info->NumVertices());
+   std::vector<int> renumbered_vertex_ids(element_info->GetNumVertices());
 
    int element_counter = 0;
 
@@ -3959,7 +3939,7 @@ void Mesh::BuildCubitElements(const int num_elements,
          const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
 
          // Iterate over linear (vertex) nodes in block.
-         for (int knode = 0; knode < element_info->NumVertices(); knode++)
+         for (int knode = 0; knode < element_info->GetNumVertices(); knode++)
          {
             const int node_id = element_node_ids[knode];
 
@@ -3969,7 +3949,7 @@ void Mesh::BuildCubitElements(const int num_elements,
 
          // Create element.
          elements[element_counter++] = CreateCubitElement(*this,
-                                                          element_info->ElementType(),
+                                                          element_info->GetElementType(),
                                                           renumbered_vertex_ids.data(),
                                                           block_id);
       }
@@ -4142,7 +4122,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                         cubit_to_mfem_vertex_map);
 
    // Additional setup for second order.
-   if (element_info.Order() == 2)
+   if (element_info.GetOrder() == 2)
    {
       curved = 1;
 
