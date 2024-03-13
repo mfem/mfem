@@ -339,10 +339,13 @@ protected:
 #ifdef MFEM_USE_NETCDF
    /// @brief Load a mesh from a Genesis file.
    void ReadCubit(const std::string &filename, int &curved, int &read_gf);
+
+   /// @brief Called internally in ReadCubit. This method creates the vertices.
    void BuildCubitVertices(const std::vector<int> & unique_vertex_ids,
                            const std::vector<double> & coordx, const std::vector<double> & coordy,
                            const std::vector<double> & coordz);
 
+   /// @brief Called internally in ReadCubit. This method builds the mesh elements.
    void BuildCubitElements(const int num_elements,
                            const cubit::CubitElementInfo * element_info,
                            const std::vector<int> & block_ids,
@@ -350,6 +353,7 @@ protected:
                            const std::map<int, std::vector<int>> & node_ids_for_element_id,
                            const std::map<int, int> & cubit_to_mfem_vertex_map);
 
+   /// @brief Called internally in ReadCubit. This method adds the mesh boundary elements.
    void BuildCubitBoundaries(
       const cubit::CubitElementInfo * element_info,
       const std::vector<int> & boundary_ids,
