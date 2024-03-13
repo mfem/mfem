@@ -55,8 +55,13 @@ void HyperbolicFormIntegrator::AssembleElementVector(const FiniteElement &el,
 
    // obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
-   const IntegrationRule *ir = IntRule ? IntRule :
-                               &GetRule(el, Tr, IntOrderOffset);
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = el.GetOrder()*2 + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
    // loop over interation points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -119,8 +124,12 @@ void HyperbolicFormIntegrator::AssembleFaceVector(
 
    // obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
-   const IntegrationRule *ir = IntRule ? IntRule :
-                               &GetRule(el1, el2, Tr, IntOrderOffset);
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      const int order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
+      ir = &IntRules.Get(Tr.GetGeometryType(), order);
+   }
    // loop over integration points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {

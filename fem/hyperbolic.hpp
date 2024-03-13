@@ -29,7 +29,7 @@ namespace mfem
 //    HyperbolicFormIntegrator is a NonlinearFormIntegrator that implements
 //    element weak divergence and interface flux
 //
-//       ∫_T F(u):∇v,   ∫_e F̂(u)⋅[[v]]
+//       ∫_T F(u):∇v,   -∫_e F̂(u)⋅[[v]]
 //
 //    Here, T is an element, e is an edge, and [[⋅]] is jump. This form
 //    integrator is coupled with RiemannSolver that implements the numerical
@@ -42,7 +42,8 @@ namespace mfem
 //    computing normal flux. Several example equations are also defined
 //    including: advection, Burgers', shallow water, and Euler equations. Users
 //    can control the quadrature rule by either providing the integration rule,
-//    or integration order offset. See, HyperbolicFormIntegrator::GetRule.
+//    or integration order offset. Integration will use 2*p + IntOrderOffset order
+//    quadrature rule.
 //
 //    At each call of HyperbolicFormIntegrator::AssembleElementVector
 //    HyperbolicFormIntegrator::AssembleFaceVector, the maximum characteristic
@@ -171,7 +172,7 @@ private:
    double max_char_speed;
    const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
-   const int IntOrderOffset; // integration order offset, see GetRule()
+   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
 #ifndef MFEM_THREAD_SAFE
    // Local storages for element integration
    Vector shape;              // shape function value at an integration point
@@ -193,50 +194,11 @@ public:
     * @brief Construct a new Hyperbolic Form Integrator object
     *
     * @param[in] rsolver numerical flux
-    * @param[in] IntOrderOffset integration order offset, see GetRule()
+    * @param[in] IntOrderOffset integration order offset
     */
    HyperbolicFormIntegrator(
       const RiemannSolver &rsolver,
       const int IntOrderOffset=0);
-
-   /**
-    * @brief Get the element integration rule based on IntOrderOffset, see
-    * AssembleElementVector(). Used only when ir is not provided
-    *
-    * @param[in] el given finite element
-    * @param[in] Tr element transformation for Jacobian order
-    * @param[in] IntOrderOffset_ integration order offset
-    * @return const IntegrationRule& with order 2*p + Tr.OrderJ() +
-    *    IntOrderOffset
-    */
-   static const IntegrationRule &GetRule(const FiniteElement &el,
-                                         const ElementTransformation &Tr,
-                                         const int IntOrderOffset_)
-   {
-      const int order = 2 * el.GetOrder() + Tr.OrderJ() + IntOrderOffset_;
-      return IntRules.Get(Tr.GetGeometryType(), order);
-   }
-
-   /**
-    * @brief Get the face integration rule based on IntOrderOffset, see
-    * AssembleFaceVector(). Used only when ir is not provided
-    *
-    * @param[in] trial_fe trial finite element space
-    * @param[in] test_fe test finite element space
-    * @param[in] Tr Face element trasnformation for Jacobian order
-    * @param[in] IntOrderOffset_ integration order offset
-    * @return const IntegrationRule& with order (p1 + p2) + Tr.OrderJ() +
-    *    IntOrderOffset
-    */
-   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe,
-                                         const FaceElementTransformations &Tr,
-                                         const int IntOrderOffset_)
-   {
-      const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Tr.OrderJ() +
-                        IntOrderOffset_;
-      return IntRules.Get(Tr.GetGeometryType(), order);
-   }
 
    /**
     * @brief Reset the Max Char Speed 0
