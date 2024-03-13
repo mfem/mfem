@@ -2877,7 +2877,6 @@ public:
     */
    CubitFaceInfo(CubitFaceType face_type);
 
-   inline uint8_t Order() const { return _order; };
    inline uint8_t NumFaceVertices() const { return _num_face_vertices; };
    inline CubitFaceType FaceType() const { return _face_type; }
 
@@ -2894,11 +2893,6 @@ private:
     * Number of corner nodes ("vertices").
     */
    uint8_t _num_face_vertices;
-
-   /**
-    * Order of face.
-    */
-   uint8_t _order;
 };
 
 /**
