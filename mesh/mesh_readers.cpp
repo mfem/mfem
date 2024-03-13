@@ -3290,6 +3290,8 @@ private:
 
    int _netcdf_status{NC_NOERR};
    int _netcdf_descriptor;
+
+   char *_name_buffer{NULL};
 };
 
 
@@ -3297,12 +3299,20 @@ NetCDFReader::NetCDFReader(const std::string fname)
 {
    _netcdf_status = nc_open(fname.c_str(), NC_NOWRITE, &_netcdf_descriptor);
    CheckForNetCDFError();
+
+   _name_buffer = new char[NC_MAX_NAME +
+                                       1]; // NB: add byte for '\0' terminating char.
 }
 
 NetCDFReader::~NetCDFReader()
 {
    _netcdf_status = nc_close(_netcdf_descriptor);
    CheckForNetCDFError();
+
+   if (_name_buffer)
+   {
+      delete[] _name_buffer;
+   }
 }
 
 void NetCDFReader::CheckForNetCDFError()
@@ -3343,11 +3353,8 @@ void NetCDFReader::ReadDimension(const char * name, size_t *dimension)
 {
    const int dimension_id = ReadDimensionID(name);
 
-   // NB: need to add 1 for '\0' terminating character.
-   const int buffer_size = NC_MAX_NAME + 1;
-   char string_buffer[buffer_size];
-
-   _netcdf_status = nc_inq_dim(_netcdf_descriptor, dimension_id, string_buffer,
+   // NB: ignore name output (write to our private buffer).
+   _netcdf_status = nc_inq_dim(_netcdf_descriptor, dimension_id, _name_buffer,
                                dimension);
    CheckForNetCDFError();
 }
