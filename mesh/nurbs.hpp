@@ -624,7 +624,8 @@ public:
 
    ParNURBSExtension(const ParNURBSExtension &orig);
 
-   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *partitioning,
+   ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
+                     const int *partitioning,
                      const Array<bool> &active_bel);
 
    // Create a parallel version of 'parent' with partitioning as in
