@@ -3378,8 +3378,6 @@ static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
                                      double *coordy,
                                      double *coordz)
 {
-   if (!coordx || !coordy) { return; }  // Only allow coordz to be NULL if dimensions < 3.
-
    cubit_reader.ReadVariable("coordx", coordx);
    cubit_reader.ReadVariable("coordy", coordx);
 
@@ -3394,11 +3392,8 @@ static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
                                         const std::vector<int> & block_ids,
                                         std::map<int, size_t> &num_elements_for_block_id)
 {
-   int netcdf_status, variable_id;
-
    // NB: need to add 1 for '\0' terminating character.
    const int buffer_size = NC_MAX_NAME + 1;
-
    char string_buffer[buffer_size];
 
    int iblock = 1;
@@ -3407,7 +3402,6 @@ static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
       // Write variable name to buffer.
       snprintf(string_buffer, buffer_size, "num_el_in_blk%d", iblock++);
 
-      // Sets name and length for variable ID. We discard the name (just write to our string buffer).
       size_t num_elements_for_block = 0;
       cubit_reader.ReadDimension(string_buffer, &num_elements_for_block);
 
@@ -3444,9 +3438,7 @@ static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
                                         const int num_element_blocks,
                                         size_t &num_nodes_per_element)
 {
-   // NB: need to add 1 for '\0' terminating character.
    const int buffer_size = NC_MAX_NAME + 1;
-
    char string_buffer[buffer_size];
 
    size_t new_num_nodes_per_element, last_num_nodes_per_element;
@@ -3458,7 +3450,6 @@ static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
       // Write variable name to buffer.
       snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock + 1);
 
-      // Set name and length. We discard the name.
       cubit_reader.ReadDimension(string_buffer, &new_num_nodes_per_element);
 
       // NB: currently can only support one element type!
@@ -3593,7 +3584,6 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       // Write variable name to buffer.
       snprintf(string_buffer, buffer_size, "connect%d", iblock++);
 
-      // Get variable ID and then set all nodes of element in block.
       cubit_reader.ReadVariable(string_buffer, node_ids_for_block.data());
 
       // Now map from the element id to the nodes:
@@ -3790,7 +3780,6 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
       {
          auto & node_ids = node_ids_for_element_id.at(element_id);
 
-         // Only use the nodes on the edge of the element!
          for (int knode = 0; knode < block_element.GetNumVertices(); knode++)
          {
             unique_vertex_ids.push_back(node_ids[knode]);
@@ -3806,7 +3795,7 @@ static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
    unique_vertex_ids.resize(std::distance(unique_vertex_ids.begin(), new_end));
 }
 
-/// unique_vertex_ids contains a 1-based sorted list of vertex IDs used by the mesh. We
+/// @brief unique_vertex_ids contains a 1-based sorted list of vertex IDs used by the mesh. We
 /// now create a map by running over the vertex IDs and remapping to a contiguous
 /// 1-based array of integers.
 static void BuildCubitToMFEMVertexMap(const vector<int> & unique_vertex_ids,
@@ -3834,7 +3823,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
                                          const double *coordy,
                                          const double *coordz)
 {
-   int *mfem_to_genesis_map = nullptr;
+   int *mfem_to_genesis_map = NULL;
 
    switch (element_info.GetElementType())
    {
@@ -4033,10 +4022,14 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    read_gf  = 0;
    curved   = 0; // Set to 1 if mesh is curved.
 
+   //
    // Open the file.
+   //
    NetCDFReader cubit_reader(filename);
 
+   //
    // Read important dimensions from file.
+   //
    size_t num_dimensions, num_nodes, num_elements, num_element_blocks,
           num_boundaries;
 
@@ -4045,46 +4038,47 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 
    Dim = num_dimensions;
 
-   // Read the block IDs.
+   //
+   // Read the blocks.
+   //
    vector<int> block_ids;
    BuildCubitBlockIDs(cubit_reader, num_element_blocks, block_ids);
 
-   // Read the number of elements for each block.
    map<int, size_t> num_elements_for_block_id;
-
    ReadCubitNumElementsInBlock(cubit_reader, block_ids,
                                num_elements_for_block_id);
 
-   // Generate ascending element ids for each block starting at zero.
    map<int, vector<int>> element_ids_for_block_id;
    BuildElementIDsForBlockID(
       block_ids, num_elements_for_block_id, element_ids_for_block_id);
 
-   // Read number of nodes for each element. NB: we currently only support
-   // reading in a single type of element!
+   //
+   // Read number of nodes for each element (NB: limited to a single element type).
+   //
    size_t num_nodes_per_element;
-
    ReadCubitNumNodesPerElement(cubit_reader, num_element_blocks,
                                num_nodes_per_element);
 
-   // Generate element and face info for single-element type.
    cubit::CubitElementInfo element_info(num_nodes_per_element,
                                         num_dimensions);
 
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
-
    ReadCubitElementBlocks(cubit_reader,
                           num_nodes_per_element,
                           block_ids,
                           element_ids_for_block_id,
                           node_ids_for_element_id);
 
+   //
    // Read the boundary ids.
+   //
    vector<int> boundary_ids;
    ReadCubitBoundaryIDs(cubit_reader, num_boundaries, boundary_ids);
 
+   //
    // Read the (element, corresponding side) on each of the boundaries.
+   //
    map<int, vector<int>> element_ids_for_boundary_id;
    map<int, vector<int>> side_ids_for_boundary_id;
 
@@ -4097,7 +4091,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                         element_ids_for_boundary_id, side_ids_for_boundary_id,
                         node_ids_for_boundary_id);
 
+   //
    // Read the xyz coordinates for each node.
+   //
    vector<double> coordx(num_nodes);
    vector<double> coordy(num_nodes);
    vector<double> coordz(num_dimensions == 3 ? num_nodes : 0);
@@ -4105,15 +4101,19 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    ReadCubitNodeCoordinates(cubit_reader, coordx.data(), coordy.data(),
                             coordz.data());
 
+   //
    // We need another node ID mapping since MFEM needs contiguous vertex ids.
+   //
    vector<int> unique_vertex_ids;
    BuildUniqueVertexIDs(block_ids, element_info, element_ids_for_block_id,
                         node_ids_for_element_id, unique_vertex_ids);
 
+   //
    // unique_vertex_ids now contains a 1-based sorted list of node IDs for each
    // node used by the mesh. We now create a map by running over the node IDs
    // and remapping to contiguous 1-based integers.
    // ie. [1, 4, 5, 8, 9] --> [1, 2, 3, 4, 5].
+   //
    map<int, int> cubit_to_mfem_vertex_map;
    BuildCubitToMFEMVertexMap(unique_vertex_ids, cubit_to_mfem_vertex_map);
 
@@ -4136,7 +4136,9 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                         element_ids_for_boundary_id, node_ids_for_boundary_id, side_ids_for_boundary_id,
                         cubit_to_mfem_vertex_map);
 
+   //
    // Additional setup for second order.
+   //
    if (element_info.GetOrder() == 2)
    {
       curved = 1;
