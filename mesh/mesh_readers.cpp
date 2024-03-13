@@ -2854,14 +2854,11 @@ const int cubit_side_map_pyramid5[5][4] =
 /**
  * CubitFaceInfo
  *
- * Stores information about a particular element face.
+ * Stores information about a particular face.
  */
 class CubitFaceInfo
 {
 public:
-   CubitFaceInfo() = delete;
-   ~CubitFaceInfo() = default;
-
    enum CubitFaceType
    {
       FACE_EDGE2,
@@ -2869,75 +2866,46 @@ public:
       FACE_TRI3,
       FACE_TRI6,
       FACE_QUAD4,
-      FACE_QUAD9  // order = 2. Center node.
+      FACE_QUAD9  // Order = 2; center node.
    };
 
-   /**
-    * Default initializer.
-    */
+   /// Default initializer.
    CubitFaceInfo(CubitFaceType face_type);
+   CubitFaceInfo() = delete;
 
-   inline uint8_t NumFaceVertices() const { return _num_face_vertices; };
-   inline CubitFaceType FaceType() const { return _face_type; }
+   ~CubitFaceInfo() = default;
 
-protected:
-   void BuildCubitFaceInfo();
+   /// Returns the number of vertices for the face.
+   inline uint8_t GetNumFaceVertices() const { return _num_face_vertices; };
+
+   /// Returns the face type.
+   inline CubitFaceType GetFaceType() const { return _face_type; }
 
 private:
-   /**
-    * Type of face.
-    */
    CubitFaceType _face_type;
-
-   /**
-    * Number of corner nodes ("vertices").
-    */
    uint8_t _num_face_vertices;
 };
 
-/**
- * CubitFaceInfo
- */
-CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type(face_type)
-{
-   BuildCubitFaceInfo();
-}
 
-
-void
-CubitFaceInfo::BuildCubitFaceInfo()
+CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type{face_type}
 {
    switch (_face_type)
    {
-      /**
-       * 2D
-       */
-      case (FACE_EDGE2):
-      case (FACE_EDGE3):
-      {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
          _num_face_vertices = 2;
          break;
-      }
-      /**
-       * 3D
-       */
-      case (FACE_TRI3):
-      case (FACE_TRI6):
-      {
+      case FACE_TRI3:
+      case FACE_TRI6:
          _num_face_vertices = 3;
          break;
-      }
-      case (FACE_QUAD4):
-      case (FACE_QUAD9):
-      {
+      case FACE_QUAD4:
+      case FACE_QUAD9:
          _num_face_vertices = 4;
          break;
-      }
       default:
-      {
          MFEM_ABORT("Unsupported face type '" <<_face_type << "'.");
          break;
-      }
    }
 }
 
@@ -3748,11 +3716,11 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
          const vector<int> & element_node_ids =
             node_ids_for_element_id.at(boundary_element_global_id);
 
-         vector<int> nodes_of_element_on_side(face_info.NumFaceVertices());
+         vector<int> nodes_of_element_on_side(face_info.GetNumFaceVertices());
 
          // Iterate over the element's face nodes on the matching side.
          // NB: only adding vertices on face (ignore higher-order).
-         for (int knode = 0; knode < face_info.NumFaceVertices(); knode++)
+         for (int knode = 0; knode < face_info.GetNumFaceVertices(); knode++)
          {
             int inode;
 
@@ -4055,7 +4023,7 @@ void Mesh::BuildCubitBoundaries(
 
          // Create boundary element.
          boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
-                                                                   face_info.FaceType(),
+                                                                   face_info.GetFaceType(),
                                                                    renumbered_vertex_ids.data(),
                                                                    boundary_id);
       }
