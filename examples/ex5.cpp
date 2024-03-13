@@ -219,6 +219,10 @@ int main(int argc, char *argv[])
 
    FiniteElementCollection *trace_coll = NULL;
    FiniteElementSpace *trace_space = NULL;
+
+   chrono.Clear();
+   chrono.Start();
+
    if (hybridization)
    {
       trace_coll = new RT_Trace_FECollection(order, dim, 0);
@@ -264,6 +268,8 @@ int main(int argc, char *argv[])
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
                            pDarcyOp, X, B);
 
+   chrono.Stop();
+   std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
 
 
    int maxIter(1000);
