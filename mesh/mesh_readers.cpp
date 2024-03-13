@@ -3284,18 +3284,18 @@ public:
 
    ~NetCDFReader();
 
-   bool HasVariable(const std::string name);
-   void ReadVariable(const std::string name, int * data);
-   void ReadVariable(const std::string name, double * data);
+   bool HasVariable(const char * name);
+   void ReadVariable(const char * name, int * data);
+   void ReadVariable(const char * name, double * data);
 
-   bool HasDimension(const std::string name);
-   void ReadDimension(const std::string name, size_t *dimension);
+   bool HasDimension(const char * name);
+   void ReadDimension(const char * name, size_t *dimension);
 
 protected:
    void CheckForNetCDFError();
 
-   int ReadVariableID(const std::string name);
-   int ReadDimensionID(const std::string name);
+   int ReadVariableID(const char * name);
+   int ReadDimensionID(const char * name);
 
 private:
    void HandleNetCDFError(const int error_code);
@@ -3330,28 +3330,28 @@ void NetCDFReader::HandleNetCDFError(const int error_code)
    MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(error_code));
 }
 
-int NetCDFReader::ReadVariableID(const std::string var_name)
+int NetCDFReader::ReadVariableID(const char * var_name)
 {
    int variable_id;
 
-   _netcdf_status = nc_inq_varid(_netcdf_descriptor, var_name.c_str(),
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, var_name,
                                  &variable_id);
    CheckForNetCDFError();
 
    return variable_id;
 }
 
-int NetCDFReader::ReadDimensionID(const std::string name)
+int NetCDFReader::ReadDimensionID(const char * name)
 {
    int dim_id;
 
-   _netcdf_status = nc_inq_dimid(_netcdf_descriptor, name.c_str(), &dim_id);
+   _netcdf_status = nc_inq_dimid(_netcdf_descriptor, name, &dim_id);
    CheckForNetCDFError();
 
    return dim_id;
 }
 
-void NetCDFReader::ReadDimension(const std::string name, size_t *dimension)
+void NetCDFReader::ReadDimension(const char * name, size_t *dimension)
 {
    const int dimension_id = ReadDimensionID(name);
 
@@ -3364,10 +3364,10 @@ void NetCDFReader::ReadDimension(const std::string name, size_t *dimension)
    CheckForNetCDFError();
 }
 
-bool NetCDFReader::HasVariable(const std::string name)
+bool NetCDFReader::HasVariable(const char * name)
 {
    int var_id;
-   const int status = nc_inq_varid(_netcdf_descriptor, name.c_str(), &var_id);
+   const int status = nc_inq_varid(_netcdf_descriptor, name, &var_id);
 
    switch (status)
    {
@@ -3381,10 +3381,10 @@ bool NetCDFReader::HasVariable(const std::string name)
    }
 }
 
-bool NetCDFReader::HasDimension(const std::string name)
+bool NetCDFReader::HasDimension(const char * name)
 {
    int dim_id;
-   const int status = nc_inq_dimid(_netcdf_descriptor, name.c_str(), &dim_id);
+   const int status = nc_inq_dimid(_netcdf_descriptor, name, &dim_id);
 
    switch (status)
    {
@@ -3398,7 +3398,7 @@ bool NetCDFReader::HasDimension(const std::string name)
    }
 }
 
-void NetCDFReader::ReadVariable(const std::string name, int * data)
+void NetCDFReader::ReadVariable(const char * name, int * data)
 {
    const int variable_id = ReadVariableID(name);
 
@@ -3407,7 +3407,7 @@ void NetCDFReader::ReadVariable(const std::string name, int * data)
 }
 
 
-void NetCDFReader::ReadVariable(const std::string name, double * data)
+void NetCDFReader::ReadVariable(const char * name, double * data)
 {
    const int variable_id = ReadVariableID(name);
 
@@ -3451,7 +3451,7 @@ static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
 
       // Sets name and length for variable ID. We discard the name (just write to our string buffer).
       size_t num_elements_for_block = 0;
-      cubit_reader.ReadDimension(string(string_buffer), &num_elements_for_block);
+      cubit_reader.ReadDimension(string_buffer, &num_elements_for_block);
 
       num_elements_for_block_id[block_id] = num_elements_for_block;
    }
@@ -3501,7 +3501,7 @@ static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
       snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock + 1);
 
       // Set name and length. We discard the name.
-      cubit_reader.ReadDimension(string(string_buffer), &new_num_nodes_per_element);
+      cubit_reader.ReadDimension(string_buffer, &new_num_nodes_per_element);
 
       // NB: currently can only support one element type!
       if (iblock > 0 && new_num_nodes_per_element != last_num_nodes_per_element)
@@ -3561,7 +3561,7 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       size_t num_sides = 0;
 
       snprintf(string_buffer, buffer_size, "num_side_ss%d", iboundary + 1);
-      cubit_reader.ReadDimension(string(string_buffer), &num_sides);
+      cubit_reader.ReadDimension(string_buffer, &num_sides);
 
       // 2. Extract elements and sides on each boundary.
       vector<int> boundary_element_ids(num_sides); // (element, face) pairs.
@@ -3569,11 +3569,11 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
 
       //
       snprintf(string_buffer, buffer_size, "elem_ss%d", iboundary + 1);
-      cubit_reader.ReadVariable(string(string_buffer), boundary_element_ids.data());
+      cubit_reader.ReadVariable(string_buffer, boundary_element_ids.data());
 
       //
       snprintf(string_buffer, buffer_size,"side_ss%d", iboundary + 1);
-      cubit_reader.ReadVariable(string(string_buffer), boundary_side_ids.data());
+      cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
       // Now subtract 1 to convert from 1-index --> 0-index.
       for (int i = 0; i < num_sides; i++)
@@ -3636,7 +3636,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       snprintf(string_buffer, buffer_size, "connect%d", iblock++);
 
       // Get variable ID and then set all nodes of element in block.
-      cubit_reader.ReadVariable(string(string_buffer), node_ids_for_block.data());
+      cubit_reader.ReadVariable(string_buffer, node_ids_for_block.data());
 
       // Now map from the element id to the nodes:
       int ielement = 0;
