@@ -87,11 +87,9 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
             MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
                const double *Jtr = &J(0,0,qx,qy,e);
-
-               // Jrt = Jtr^{-1}
-               double jrt_data[4];
-               ConstDeviceMatrix Jrt(jrt_data,2,2);
-               kernels::CalcInverse<2>(Jtr, jrt_data);
+               double Jrt_data[4];
+               ConstDeviceMatrix Jrt(Jrt_data,2,2);
+               kernels::CalcInverse<2>(Jtr, Jrt_data);
 
                for (int m = 0; m < DIM; m++)
                {
@@ -114,8 +112,8 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
          }
       }
 
-      MFEM_SHARED double QD_data[DIM*DIM*MQ1*MD1];
-      DeviceTensor<4,double> QD(QD_data, DIM, DIM, MQ1, MD1);
+      MFEM_SHARED double qd[DIM*DIM*MQ1*MD1];
+      DeviceTensor<4,double> QD(qd, DIM, DIM, MQ1, MD1);
 
       for (int v = 0; v < DIM; v++)
       {
@@ -143,7 +141,7 @@ MFEM_REGISTER_TMOP_KERNELS(void, AssembleDiagonalPA_Kernel_2D,
                      {
                         const double L = (m == 1 ? Gy : By);
                         const double R = (n == 1 ? Gy : By);
-                        QD(m,n,qx,dy) += L * Href(v, m, n, qx, qy) * R;
+                        QD(m,n,qx,dy) += L * Href(v,m,n,qx,qy) * R;
                      }
                   }
                }
