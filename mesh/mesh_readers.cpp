@@ -3273,6 +3273,111 @@ CubitElementInfo::GetFace(int iface) const
    return is_single_face_type ? _face_info.front() : _face_info[iface];
 }
 
+/**
+ * Lightweight wrapper around NetCDF C functions.
+ */
+class NetCDFReader
+{
+public:
+   NetCDFReader() = delete;
+   NetCDFReader(const std::string fname);
+
+   ~NetCDFReader();
+
+   void ReadVariable(const std::string name, int * data);
+   void ReadVariable(const std::string name, double * data);
+   void ReadDimension(const std::string name, size_t *dimension);
+
+protected:
+   void CheckForNetCDFError();
+
+   int ReadVariableID(const std::string name);
+   int ReadDimensionID(const std::string name);
+
+private:
+   void HandleNetCDFError(const int error_code);
+
+   int _netcdf_status{NC_NOERR};
+   int _netcdf_descriptor;
+};
+
+
+NetCDFReader::NetCDFReader(const std::string fname)
+{
+   _netcdf_status = nc_open(fname.c_str(), NC_NOWRITE, &_netcdf_descriptor);
+   CheckForNetCDFError();
+}
+
+NetCDFReader::~NetCDFReader()
+{
+   _netcdf_status = nc_close(_netcdf_descriptor);
+   CheckForNetCDFError();
+}
+
+void NetCDFReader::CheckForNetCDFError()
+{
+   if (_netcdf_status != NC_NOERR)
+   {
+      HandleNetCDFError(_netcdf_status);
+   }
+}
+
+void NetCDFReader::HandleNetCDFError(const int error_code)
+{
+   MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(error_code));
+}
+
+int NetCDFReader::ReadVariableID(const std::string var_name)
+{
+   int variable_id;
+
+   _netcdf_status = nc_inq_varid(_netcdf_descriptor, var_name.c_str(),
+                                 &variable_id);
+   CheckForNetCDFError();
+
+   return variable_id;
+}
+
+int NetCDFReader::ReadDimensionID(const std::string name)
+{
+   int dim_id;
+
+   _netcdf_status = nc_inq_dimid(_netcdf_descriptor, name.c_str(), &dim_id);
+   CheckForNetCDFError();
+
+   return dim_id;
+}
+
+void NetCDFReader::ReadDimension(const std::string name, size_t *dimension)
+{
+   const int dimension_id = ReadDimensionID(name);
+
+   // NB: need to add 1 for '\0' terminating character.
+   const int buffer_size = NC_MAX_NAME + 1;
+   char string_buffer[buffer_size];
+
+   _netcdf_status = nc_inq_dim(_netcdf_descriptor, dimension_id, string_buffer,
+                               dimension);
+   CheckForNetCDFError();
+}
+
+
+void NetCDFReader::ReadVariable(const std::string name, int * data)
+{
+   const int variable_id = ReadVariableID(name);
+
+   _netcdf_status = nc_get_var_int(_netcdf_descriptor, variable_id, data);
+   CheckForNetCDFError();
+}
+
+
+void NetCDFReader::ReadVariable(const std::string name, double * data)
+{
+   const int variable_id = ReadVariableID(name);
+
+   _netcdf_status = nc_get_var_double(_netcdf_descriptor, variable_id, data);
+   CheckForNetCDFError();
+}
 
 static void HandleNetCDFError(const int error)
 {
