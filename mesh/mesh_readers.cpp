@@ -3220,25 +3220,39 @@ public:
 
    ~NetCDFReader();
 
+   /// Returns true if variable id for that name exists.
    bool HasVariable(const char * name);
+
+   /// Read variable info from file and write to int buffer.
    void ReadVariable(const char * name, int * data);
+
+   /// Read variable info from file and write to double buffer.
    void ReadVariable(const char * name, double * data);
 
+   /// Returns true if dimension id for that name exists.
    bool HasDimension(const char * name);
+
+   /// Read dimension info from file.
    void ReadDimension(const char * name, size_t *dimension);
 
 protected:
+   /// Called internally. Calls HandleNetCDFError if _netcdf_status is not "NC_NOERR".
    void CheckForNetCDFError();
 
+   /// Called in "ReadVariable" methods to extract variable id.
    int ReadVariableID(const char * name);
+
+   /// Called in "ReadDimension" to extract dimension id.
    int ReadDimensionID(const char * name);
 
 private:
+   /// Calls MFEM_Abort with string description of NetCDF error.
    void HandleNetCDFError(const int error_code);
 
    int _netcdf_status{NC_NOERR};
    int _netcdf_descriptor;
 
+   /// Internal buffer. Used in ReadDimension to write unwanted name to.
    char *_name_buffer{NULL};
 };
 
@@ -3248,8 +3262,8 @@ NetCDFReader::NetCDFReader(const std::string fname)
    _netcdf_status = nc_open(fname.c_str(), NC_NOWRITE, &_netcdf_descriptor);
    CheckForNetCDFError();
 
-   _name_buffer = new char[NC_MAX_NAME +
-                                       1]; // NB: add byte for '\0' terminating char.
+   // NB: add byte for '\0' terminating char.
+   _name_buffer = new char[NC_MAX_NAME + 1];
 }
 
 NetCDFReader::~NetCDFReader()
@@ -3301,7 +3315,7 @@ void NetCDFReader::ReadDimension(const char * name, size_t *dimension)
 {
    const int dimension_id = ReadDimensionID(name);
 
-   // NB: ignore name output (write to our private buffer).
+   // NB: ignore name output (write to private buffer).
    _netcdf_status = nc_inq_dim(_netcdf_descriptor, dimension_id, _name_buffer,
                                dimension);
    CheckForNetCDFError();
@@ -3357,6 +3371,7 @@ void NetCDFReader::ReadVariable(const char * name, double * data)
    _netcdf_status = nc_get_var_double(_netcdf_descriptor, variable_id, data);
    CheckForNetCDFError();
 }
+
 
 static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
                                      double *coordx,
