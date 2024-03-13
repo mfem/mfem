@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #ifndef MFEM_DEVICE_HPP
 #define MFEM_DEVICE_HPP
 
+#include "enzyme.hpp"
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
@@ -125,7 +126,7 @@ private:
    enum MODES {SEQUENTIAL, ACCELERATED};
 
    static bool device_env, mem_host_env, mem_device_env, mem_types_set;
-   static MFEM_EXPORT Device device_singleton;
+   MFEM_ENZYME_INACTIVE static MFEM_EXPORT Device device_singleton;
 
    MODES mode = Device::SEQUENTIAL;
    int dev = 0;   ///< Device ID of the configured device.
