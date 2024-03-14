@@ -203,7 +203,7 @@ class DarcyHybridization : public Hybridization
    FiniteElementSpace *fes_p;
    BilinearFormIntegrator *c_bfi_p;
 
-   bool bsym;
+   bool bsym, bhdg;
 
    Array<int> Ae_offsets;
    double *Ae_data;

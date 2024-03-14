@@ -467,6 +467,8 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
 {
    c_bfi_p = NULL;
 
+   bhdg = (fes->FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS);
+
    Ae_data = NULL;
    Bf_data = NULL;
    Be_data = NULL;
@@ -837,53 +839,60 @@ void DarcyHybridization::ConstructC()
    return;
 #endif //MFEM_DARCY_HYBRIDIZATION_CT_BLOCK_ASSEMBLY
 
-   const int NE = fes->GetNE();
-   Array<int> c_vdofs;
-
-   Ct_offsets.SetSize(NE+1);
-   Ct_offsets[0] = 0;
-   for (int i = 0; i < NE; i++)
+   if (bhdg)
    {
-      const int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
-      c_fes->GetElementVDofs(i, c_vdofs);
-      Ct_offsets[i+1] = Ct_offsets[i] + c_vdofs.Size() * f_size;
-   }
-
-   Ct_data = new double[Ct_offsets[NE]]();//init by zeros
-
-   if (c_bfi)
-   {
-      DenseMatrix elmat;
-      FaceElementTransformations *FTr;
-      Mesh *mesh = fes->GetMesh();
-      int num_faces = mesh->GetNumFaces();
-
-      for (int f = 0; f < num_faces; f++)
-      {
-         FTr = mesh->GetInteriorFaceTransformations(f);
-         if (!FTr) { continue; }
-
-         const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
-         const FiniteElement *fe2 = fes->GetFE(FTr->Elem2No);
-
-         c_fes->GetFaceVDofs(f, c_vdofs);
-         c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
-                                   *fe1, *fe2, *FTr, elmat);
-         // zero-out small elements in elmat
-         elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
-
-         //side 1
-         AssembleCtElementMatrix(FTr->Elem1No, c_vdofs, elmat);
-
-         //side 2
-         AssembleCtElementMatrix(FTr->Elem2No, c_vdofs, elmat,
-                                 fe1->GetDof()*fes->GetVDim());
-      }
+      MFEM_ABORT("Not implemented yet");
    }
    else
    {
-      // Check if c_fes is really needed here.
-      MFEM_ABORT("TODO: algebraic definition of C");
+      const int NE = fes->GetNE();
+      Array<int> c_vdofs;
+
+      Ct_offsets.SetSize(NE+1);
+      Ct_offsets[0] = 0;
+      for (int i = 0; i < NE; i++)
+      {
+         const int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
+         c_fes->GetElementVDofs(i, c_vdofs);
+         Ct_offsets[i+1] = Ct_offsets[i] + c_vdofs.Size() * f_size;
+      }
+
+      Ct_data = new double[Ct_offsets[NE]]();//init by zeros
+
+      if (c_bfi)
+      {
+         DenseMatrix elmat;
+         FaceElementTransformations *FTr;
+         Mesh *mesh = fes->GetMesh();
+         int num_faces = mesh->GetNumFaces();
+
+         for (int f = 0; f < num_faces; f++)
+         {
+            FTr = mesh->GetInteriorFaceTransformations(f);
+            if (!FTr) { continue; }
+
+            const FiniteElement *fe1 = fes->GetFE(FTr->Elem1No);
+            const FiniteElement *fe2 = fes->GetFE(FTr->Elem2No);
+
+            c_fes->GetFaceVDofs(f, c_vdofs);
+            c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
+                                      *fe1, *fe2, *FTr, elmat);
+            // zero-out small elements in elmat
+            elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+
+            //side 1
+            AssembleCtElementMatrix(FTr->Elem1No, c_vdofs, elmat);
+
+            //side 2
+            AssembleCtElementMatrix(FTr->Elem2No, c_vdofs, elmat,
+                                    fe1->GetDof()*fes->GetVDim());
+         }
+      }
+      else
+      {
+         // Check if c_fes is really needed here.
+         MFEM_ABORT("TODO: algebraic definition of C");
+      }
    }
 }
 
