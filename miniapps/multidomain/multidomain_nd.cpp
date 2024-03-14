@@ -9,36 +9,36 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// This miniapp aims to demonstrate how to solve two PDEs, that represent
-// different physics, on the same domain. MFEM's SubMesh interface is used to
-// compute on and transfer between the spaces of predefined parts of the domain.
-// For the sake of simplicity, the spaces on each domain are using the same
-// order H1 finite elements. This does not mean that the approach is limited to
-// this configuration.
+// This miniapp is a variant of the multidomain miniapp which aims to extend
+// the demonstration given therein to PDEs involving H(curl) fininte elements.
 //
 // A 3D domain comprised of an outer box with a cylinder shaped inside is used.
 //
-// A heat equation is described on the outer box domain
+// A magnetic diffusion equation is described on the outer box domain
 //
-//                  dT/dt = κΔT         in outer box
-//                      T = T_wall      on outside wall
-//                   ∇T•n = 0           on inside (cylinder) wall
+//                  dH/dt = -∇×(σ∇×H)   in outer box
+//                    n×H = n×H_wall    on outside wall
+//               n×(σ∇×H) = 0           on inside (cylinder) wall
 //
-// with temperature T and coefficient κ (non-physical in this example).
+// with magnetic field H and coefficient σ (non-physical in this example).
 //
 // A convection-diffusion equation is described inside the cylinder domain
 //
-//             dT/dt = κΔT - α∇•(b T)   in inner cylinder
-//                 T = T_wall           on cylinder wall (obtained from heat equation)
-//              ∇T•n = 0                else
+//          dH/dt = -∇×(σ∇×H)+α∇×(v×H)  in inner cylinder
+//            n×H = n×H_wall            on cylinder wall (obtained from
+//                                      diffusion equation)
+//       n×(σ∇×H) = 0                   else
 //
-// with temperature T, coefficients κ, α and prescribed velocity profile b.
+// with magnetic field H, coefficients σ, α, and prescribed velocity
+// profile v.
 //
 // To couple the solutions of both equations, a segregated solve with one way
-// coupling approach is used. The heat equation of the outer box is solved from
-// the timestep T_box(t) to T_box(t+dt). Then for the convection-diffusion
-// equation T_wall is set to T_box(t+dt) and the equation is solved for T(t+dt)
-// which results in a first-order one way coupling.
+// coupling approach is used. The diffusion equation of the outer box is solved
+// from the timestep H_box(t) to H_box(t+dt). Then for the convection-diffusion
+// equation H_wall is set to H_box(t+dt) and the equation is solved for H(t+dt)
+// which results in a first-order one way coupling. It is important to note
+// that when using Nedelec basis functions, as in this example, only the
+// tangential portion of H is communicated between the two regions.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -65,10 +65,12 @@ void velocity_profile(const Vector &c, Vector &q)
    }
    else
    {
-      q(2) = -A * exp(-(pow(x, 2.0) / 2.0 + pow(y, 2.0) / 2.0));
+      q(2) = A * exp(-(pow(x, 2.0) / 2.0 + pow(y, 2.0) / 2.0));
    }
 }
 
+// A simple vector field which is everywhere parallel to the xy plane and
+// wraps around the domain in a counter-clockwise fashion.
 void square_xy(const Vector &p, Vector &v)
 {
    v.SetSize(3);
@@ -79,12 +81,12 @@ void square_xy(const Vector &p, Vector &v)
 }
 
 /**
- * @brief Convection-diffusion time dependent operator
+ * @brief Convection-diffusion time dependent operator for a vector field
  *
- *              dT/dt = κΔT - α∇•(b T)
+ *              dH/dt = -∇ × σ ∇ × H  + α ∇ ×(v × H)
  *
  * Can also be used to create a diffusion or convection only operator by setting
- * α or κ to zero.
+ * α or σ to zero.
  */
 class ConvectionDiffusionTDO : public TimeDependentOperator
 {
@@ -93,15 +95,14 @@ public:
     * @brief Construct a new convection-diffusion time dependent operator.
     *
     * @param fes The ParFiniteElementSpace the solution is defined on
-    * @param ess_tdofs All essential true dofs (relevant if fes is using H1
-    * finite elements)
+    * @param ess_tdofs All essential true dofs in the Nedelec space
     * @param alpha The convection coefficient
     * @param kappa The diffusion coefficient
     */
    ConvectionDiffusionTDO(ParFiniteElementSpace &fes,
                           Array<int> ess_tdofs,
                           double alpha = 1.0,
-                          double kappa = 1.0e-1)
+                          double sigma = 1.0e-1)
       : TimeDependentOperator(fes.GetTrueVSize()),
         Mform(&fes),
         Kform(&fes),
@@ -109,7 +110,7 @@ public:
         ess_tdofs_(ess_tdofs),
         M_solver(fes.GetComm())
    {
-      d = new ConstantCoefficient(-kappa);
+      d = new ConstantCoefficient(-sigma);
       q = new VectorFunctionCoefficient(fes.GetParMesh()->Dimension(),
                                         velocity_profile);
 
@@ -119,27 +120,16 @@ public:
       Mform.Assemble(0);
       Mform.Finalize();
 
-      if (fes.IsDGSpace())
-      {
-         M.Reset(Mform.ParallelAssemble(), true);
+      Kform.AddDomainIntegrator(new MixedWeakCurlCrossIntegrator(*aq));
+      Kform.AddDomainIntegrator(new CurlCurlIntegrator(*d));
+      Kform.Assemble(0);
 
-         inflow = new ConstantCoefficient(0.0);
-         bform.AddBdrFaceIntegrator(
-            new BoundaryFlowIntegrator(*inflow, *q, alpha));
-      }
-      else
-      {
-         Kform.AddDomainIntegrator(new MixedWeakCurlCrossIntegrator(*aq));
-         Kform.AddDomainIntegrator(new CurlCurlIntegrator(*d));
-         Kform.Assemble(0);
+      Array<int> empty;
+      Kform.FormSystemMatrix(empty, K);
+      Mform.FormSystemMatrix(ess_tdofs_, M);
 
-         Array<int> empty;
-         Kform.FormSystemMatrix(empty, K);
-         Mform.FormSystemMatrix(ess_tdofs_, M);
-
-         bform.Assemble();
-         b = bform.ParallelAssemble();
-      }
+      bform.Assemble();
+      b = bform.ParallelAssemble();
 
       M_solver.iterative_mode = false;
       M_solver.SetRelTol(1e-8);
@@ -197,11 +187,8 @@ public:
    /// Diffusion coefficient
    Coefficient *d = nullptr;
 
-   /// Inflow coefficient
-   Coefficient *inflow = nullptr;
-
    /// Essential true dof array. Relevant for eliminating boundary conditions
-   /// when using an H1 space.
+   /// when using a Nedelec space.
    Array<int> ess_tdofs_;
 
    double current_dt = -1.0;
@@ -284,11 +271,11 @@ int main(int argc, char *argv[])
    ess_tdofs.Unique();
    ConvectionDiffusionTDO cd_tdo(fes_cylinder, ess_tdofs);
 
-   ParGridFunction temperature_cylinder_gf(&fes_cylinder);
-   temperature_cylinder_gf = 0.0;
+   ParGridFunction magnetic_field_cylinder_gf(&fes_cylinder);
+   magnetic_field_cylinder_gf = 0.0;
 
-   Vector temperature_cylinder;
-   temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
+   Vector magnetic_field_cylinder;
+   magnetic_field_cylinder_gf.GetTrueDofs(magnetic_field_cylinder);
 
    RK3SSPSolver cd_ode_solver;
    cd_ode_solver.Init(cd_tdo);
@@ -317,15 +304,15 @@ int main(int argc, char *argv[])
 
    ConvectionDiffusionTDO d_tdo(fes_block, ess_tdofs, 0.0, 1.0);
 
-   ParGridFunction temperature_block_gf(&fes_block);
-   temperature_block_gf = 0.0;
+   ParGridFunction magnetic_field_block_gf(&fes_block);
+   magnetic_field_block_gf = 0.0;
 
    VectorFunctionCoefficient one(3, square_xy);
-   temperature_block_gf.ProjectBdrCoefficientTangent(one,
-                                                     block_wall_attributes);
+   magnetic_field_block_gf.ProjectBdrCoefficientTangent(one,
+                                                        block_wall_attributes);
 
-   Vector temperature_block;
-   temperature_block_gf.GetTrueDofs(temperature_block);
+   Vector magnetic_field_block;
+   magnetic_field_block_gf.GetTrueDofs(magnetic_field_block);
 
    RK3SSPSolver d_ode_solver;
    d_ode_solver.Init(d_tdo);
@@ -333,8 +320,8 @@ int main(int argc, char *argv[])
    Array<int> cylinder_surface_attributes(1);
    cylinder_surface_attributes[0] = 9;
 
-   auto cylinder_surface_submesh = ParSubMesh::CreateFromBoundary(parent_mesh,
-                                                                  cylinder_surface_attributes);
+   auto cylinder_surface_submesh =
+      ParSubMesh::CreateFromBoundary(parent_mesh, cylinder_surface_attributes);
 
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -344,8 +331,8 @@ int main(int argc, char *argv[])
       cyl_sol_sock.open(vishost, visport);
       cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       cyl_sol_sock.precision(8);
-      cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
-                   "pause\n" << std::flush;
+      cyl_sol_sock << "solution\n" << cylinder_submesh
+                   << magnetic_field_cylinder_gf << "pause\n" << std::flush;
    }
    socketstream block_sol_sock;
    if (visualization)
@@ -353,14 +340,14 @@ int main(int argc, char *argv[])
       block_sol_sock.open(vishost, visport);
       block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
       block_sol_sock.precision(8);
-      block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
-                     "pause\n" << std::flush;
+      block_sol_sock << "solution\n" << block_submesh << magnetic_field_block_gf
+                     << "pause\n" << std::flush;
    }
 
    // Create the transfer map needed in the time integration loop
-   auto temperature_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
-                                               temperature_block_gf,
-                                               temperature_cylinder_gf);
+   auto magnetic_field_block_to_cylinder_map = ParSubMesh::CreateTransferMap(
+                                                  magnetic_field_block_gf,
+                                                  magnetic_field_cylinder_gf);
 
    double t = 0.0;
    bool last_step = false;
@@ -372,20 +359,20 @@ int main(int argc, char *argv[])
       }
 
       // Advance the diffusion equation on the outer block to the next time step
-      d_ode_solver.Step(temperature_block, t, dt);
+      d_ode_solver.Step(magnetic_field_block, t, dt);
       {
          // Transfer the solution from the inner surface of the outer block to
          // the cylinder outer surface to act as a boundary condition.
-         temperature_block_gf.SetFromTrueDofs(temperature_block);
+         magnetic_field_block_gf.SetFromTrueDofs(magnetic_field_block);
 
-         temperature_block_to_cylinder_map.Transfer(temperature_block_gf,
-                                                    temperature_cylinder_gf);
+         magnetic_field_block_to_cylinder_map.Transfer(magnetic_field_block_gf,
+                                                       magnetic_field_cylinder_gf);
 
-         temperature_cylinder_gf.GetTrueDofs(temperature_cylinder);
+         magnetic_field_cylinder_gf.GetTrueDofs(magnetic_field_cylinder);
       }
       // Advance the convection-diffusion equation on the outer block to the
       // next time step
-      cd_ode_solver.Step(temperature_cylinder, t, dt);
+      cd_ode_solver.Step(magnetic_field_cylinder, t, dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -394,17 +381,17 @@ int main(int argc, char *argv[])
             out << "step " << ti << ", t = " << t << std::endl;
          }
 
-         temperature_cylinder_gf.SetFromTrueDofs(temperature_cylinder);
-         temperature_block_gf.SetFromTrueDofs(temperature_block);
+         magnetic_field_cylinder_gf.SetFromTrueDofs(magnetic_field_cylinder);
+         magnetic_field_block_gf.SetFromTrueDofs(magnetic_field_block);
 
          if (visualization)
          {
             cyl_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-            cyl_sol_sock << "solution\n" << cylinder_submesh << temperature_cylinder_gf <<
-                         std::flush;
+            cyl_sol_sock << "solution\n" << cylinder_submesh
+                         << magnetic_field_cylinder_gf << std::flush;
             block_sol_sock << "parallel " << num_procs << " " << myid << "\n";
-            block_sol_sock << "solution\n" << block_submesh << temperature_block_gf <<
-                           std::flush;
+            block_sol_sock << "solution\n" << block_submesh
+                           << magnetic_field_block_gf << std::flush;
          }
       }
    }
