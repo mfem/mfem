@@ -2918,14 +2918,6 @@ protected:
    /// Initializes member variables for a 3D Cubit element.
    void BuildCubit3DElementInfo(int num_nodes_per_element);
 
-   /// Returns the face information for Wedges.
-   vector<CubitFaceType> GetWedge6FaceInfo() const;   // TODO: - remove this.
-   vector<CubitFaceType> GetWedge18FaceInfo() const;
-
-   /// Returns the face information for Pyramids.
-   vector<CubitFaceType> GetPyramid5FaceInfo() const;
-   vector<CubitFaceType> GetPyramid14FaceInfo() const;
-
 private:
    CubitElementType _element_type;
 
@@ -3070,7 +3062,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 6;
          _num_faces = 5;
-         _face_info = GetWedge6FaceInfo();
+         _face_info = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
       case 18:
@@ -3079,7 +3071,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_vertices = 6;
          _num_faces = 5;
-         _face_info = GetWedge18FaceInfo();
+         _face_info = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
       case 5:
@@ -3088,17 +3080,16 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 5;
          _num_faces = 5;
-         _face_info = GetPyramid5FaceInfo();
+         _face_info = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
       case 14:
       {
          _element_type = ELEMENT_PYRAMID14;
          _order = 2;
-         _num_vertices =
-            5;   // TODO: - should just be switch statement in class (static).
-         _num_faces = 5;      // TODO: - remove.
-         _face_info = GetPyramid14FaceInfo();
+         _num_vertices = 5;
+         _num_faces = 5;
+         _face_info = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
       default:
@@ -3108,31 +3099,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          break;
       }
    }
-}
-
-vector<CubitElementInfo::CubitFaceType>
-CubitElementInfo::GetWedge6FaceInfo() const
-{
-   return {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
-}
-
-vector<CubitElementInfo::CubitFaceType>
-CubitElementInfo::GetWedge18FaceInfo() const
-{
-   return {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
-}
-
-vector<CubitElementInfo::CubitFaceType>
-CubitElementInfo::GetPyramid5FaceInfo() const
-{
-   return {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
-}
-
-vector<CubitElementInfo::CubitFaceType>
-CubitElementInfo::GetPyramid14FaceInfo() const
-{
-   // Define Pyramid14: Quad9 base and 4 x Tri6.
-   return {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
 }
 
 /**
