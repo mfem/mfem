@@ -4383,7 +4383,7 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      
+
       mutable Vector vc, shape;
 
       VecShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
@@ -4422,7 +4422,7 @@ ScalarCrossProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      
+
       mutable DenseMatrix vshape;
       mutable Vector vc;
 
@@ -4465,7 +4465,7 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      
+
       mutable DenseMatrix vshape;
       mutable Vector vc;
 
@@ -4517,7 +4517,7 @@ struct VDotVShapeCoefficient : public VectorCoefficient
 {
    VectorCoefficient &VQ;
    const FiniteElement &fe;
-   
+
    mutable DenseMatrix vshape;
    mutable Vector vc;
 

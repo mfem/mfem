@@ -2550,7 +2550,7 @@ class NodeExtrudeCoefficient : public VectorCoefficient
 private:
    int n, layer;
    double p[2], s;
-   
+
    mutable Vector tip;
 public:
    NodeExtrudeCoefficient(const int dim, const int n_, const double s_);

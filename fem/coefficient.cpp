@@ -365,8 +365,8 @@ void PositionVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
 
 void VectorFunctionCoefficient::SetTime(double t)
 {
-    if (Q) Q->SetTime(t);
-    this->VectorCoefficient::SetTime(t);
+   if (Q) { Q->SetTime(t); }
+   this->VectorCoefficient::SetTime(t);
 }
 
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,

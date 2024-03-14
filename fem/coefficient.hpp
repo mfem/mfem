@@ -61,7 +61,7 @@ public:
                        const IntegrationPoint &ip) const
    {
       mfem_error ("Coefficient::Eval(...) const\n"
-               "   is not implemented for this class.");
+                  "   is not implemented for this class.");
       return 0.0;
    }
 
@@ -70,14 +70,14 @@ public:
    {
       return const_cast<const Coefficient*>(this)->Eval(T,ip);
    }
-   
+
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    double Eval(ElementTransformation &T,
-               const IntegrationPoint &ip, double t) 
+               const IntegrationPoint &ip, double t)
    {
       SetTime(t);
       return Eval(T, ip);
@@ -542,7 +542,8 @@ public:
    void GetDeltaCenter(Vector& center) const;
 
    /// The value of the function assuming we are evaluating at the delta center.
-   virtual double EvalDelta(ElementTransformation &T, const IntegrationPoint &ip) const;
+   virtual double EvalDelta(ElementTransformation &T,
+                            const IntegrationPoint &ip) const;
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip) const
@@ -602,7 +603,7 @@ public:
                      const IntegrationPoint &ip) const
    {
       mfem_error ("VectorCoefficient::Eval(...) const\n"
-               "   is not implemented for this class.");
+                  "   is not implemented for this class.");
    }
 
    /** @deprecated Use/overload the const- version of this member function instead */
@@ -610,7 +611,7 @@ public:
                      const IntegrationPoint &ip)
    {
       const_cast<const VectorCoefficient*>(this)->Eval(V, T, ip);
-   } 
+   }
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at all points of @a ir, storing the result in @a M. */
@@ -1103,10 +1104,10 @@ public:
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) const
-    {
-        mfem_error ("MatrixCoefficient::Eval(...) const\n"
-               "   is not implemented for this class.");
-    }
+   {
+      mfem_error ("MatrixCoefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+   }
 
    /** @deprecated Use/overload the const- version of this member function instead*/
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
@@ -1359,7 +1360,8 @@ public:
 
    /// Evaluate coefficient located at (i,j) in the matrix using integration
    /// point @a ip.
-   double Eval(int i, int j, ElementTransformation &T, const IntegrationPoint &ip) const
+   double Eval(int i, int j, ElementTransformation &T,
+               const IntegrationPoint &ip) const
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
 
    /// Evaluate the matrix coefficient @a ip.
@@ -1750,7 +1752,7 @@ public:
    const VectorCoefficient * GetBCoef() const { return b; }
    /// Return the second vector coefficient in the inner product
    VectorCoefficient * GetBCoef() { return b; }
-   
+
    /// Evaluate the coefficient at @a ip.
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip) const;
