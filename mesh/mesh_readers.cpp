@@ -3379,7 +3379,7 @@ static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
                                      double *coordz)
 {
    cubit_reader.ReadVariable("coordx", coordx);
-   cubit_reader.ReadVariable("coordy", coordx);
+   cubit_reader.ReadVariable("coordy", coordy);
 
    if (coordz)
    {
@@ -3936,6 +3936,7 @@ void Mesh::BuildCubitElements(const int num_elements,
    for (int block_id : block_ids)
    {
       const vector<int> &block_element_ids = element_ids_for_block_id.at(block_id);
+
 
       // Iterate over elements in block.
       for (int element_id : block_element_ids)
