@@ -2885,7 +2885,8 @@ enum CubitElementType
 class CubitElement
 {
 public:
-   CubitElement() = default;
+   /// NB: Delete default constructor.
+   CubitElement() = delete;
    ~CubitElement() = default;
 
    CubitElement(CubitElementType element_type);
@@ -2915,8 +2916,24 @@ public:
    static CubitElementType GetElementType(size_t num_nodes,
                                           short unsigned int dimension = 3);
 
+   /// Creates an MFEM equivalent element using the supplied vertex IDs and block ID.
+   Element * BuildElement(Mesh & mesh, const int * vertex_ids,
+                          const int block_id) const;
+
+   /// Creates an MFEM boundary element for a Cubit face using the supplied vertex IDs and block ID.
+   Element * BuildBoundaryElement(Mesh & mesh, const int iface,
+                                  const int * vertex_ids, const int sideset_id) const;
+
+protected:
+   /// Static method which returns the 2D Cubit element type for the number of nodes per element.
    static CubitElementType Get2DElementType(size_t num_nodes);
+
+   /// Static method which returns the 3D Cubit element type for the number of nodes per element.
    static CubitElementType Get3DElementType(size_t num_nodes);
+
+   /// Creates a new MFEM element. Used internally in BuildElement and BuildBoundaryElement.
+   Element * NewElement(Mesh & mesh, Geometry::Type geom, const int *vertices,
+                        const int attribute) const;
 
 private:
    CubitElementType _element_type;
@@ -3085,6 +3102,72 @@ CubitElementType CubitElement::GetElementType(
    else
    {
       MFEM_ABORT("Unsupported Cubit dimension " << dimension << ".");
+   }
+}
+
+mfem::Element * CubitElement::NewElement(Mesh &mesh, Geometry::Type geom,
+                                         const int *vertices,
+                                         const int attribute) const
+{
+   Element *new_element = mesh.NewElement(geom);
+   new_element->SetVertices(vertices);
+   new_element->SetAttribute(attribute);
+   return new_element;
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// element type. This is used to create the mesh elements from a Genesis file.
+mfem::Element * CubitElement::BuildElement(Mesh &mesh,
+                                           const int *vertex_ids,
+                                           const int block_id) const
+{
+   switch (GetElementType())
+   {
+      case ELEMENT_TRI3:
+      case ELEMENT_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, block_id);
+      case ELEMENT_QUAD4:
+      case ELEMENT_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, block_id);
+      case ELEMENT_TET4:
+      case ELEMENT_TET10:
+         return NewElement(mesh, Geometry::TETRAHEDRON, vertex_ids, block_id);
+      case ELEMENT_HEX8:
+      case ELEMENT_HEX27:
+         return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
+      case ELEMENT_WEDGE6:
+      case ELEMENT_WEDGE18:
+         return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
+      case ELEMENT_PYRAMID5:
+      case ELEMENT_PYRAMID14:
+         return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
+      default:
+         MFEM_ABORT("Unsupported Cubit element type encountered.");
+   }
+}
+
+/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
+/// face type. This is used to create the boundary elements from a Genesis file.
+mfem::Element * CubitElement::BuildBoundaryElement(Mesh &mesh,
+                                                   const int face_id,
+                                                   const int *vertex_ids,
+                                                   const int sideset_id) const
+{
+   CubitFaceType face_type = GetFaceType(face_id);
+
+   switch (face_type)
+   {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
+         return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
+      case FACE_TRI3:
+      case FACE_TRI6:
+         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
+      case FACE_QUAD4:
+      case FACE_QUAD9:
+         return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
+      default:
+         MFEM_ABORT("Unsupported Cubit face type encountered.");
    }
 }
 
@@ -3483,71 +3566,6 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
    }
 }
 
-
-mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
-                          const int attribute)
-{
-   Element *new_element = mesh.NewElement(geom);
-   new_element->SetVertices(vertices);
-   new_element->SetAttribute(attribute);
-   return new_element;
-}
-
-/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
-/// element type. This is used to create the mesh elements from a Genesis file.
-mfem::Element *CreateCubitElement(Mesh &mesh,
-                                  CubitElementType element_type,
-                                  const int *vertex_ids,
-                                  const int block_id)
-{
-   switch (element_type)
-   {
-      case ELEMENT_TRI3:
-      case ELEMENT_TRI6:
-         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, block_id);
-      case ELEMENT_QUAD4:
-      case ELEMENT_QUAD9:
-         return NewElement(mesh, Geometry::SQUARE, vertex_ids, block_id);
-      case ELEMENT_TET4:
-      case ELEMENT_TET10:
-         return NewElement(mesh, Geometry::TETRAHEDRON, vertex_ids, block_id);
-      case ELEMENT_HEX8:
-      case ELEMENT_HEX27:
-         return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
-      case ELEMENT_WEDGE6:
-      case ELEMENT_WEDGE18:
-         return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
-      case ELEMENT_PYRAMID5:
-      case ELEMENT_PYRAMID14:
-         return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
-      default:
-         MFEM_ABORT("Unsupported cubit element type encountered.");
-   }
-}
-
-/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
-/// face type. This is used to create the boundary elements from a Genesis file.
-mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
-                                          CubitFaceType face_type,
-                                          const int *vertex_ids,
-                                          const int sideset_id)
-{
-   switch (face_type)
-   {
-      case FACE_EDGE2:
-      case FACE_EDGE3:
-         return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
-      case FACE_TRI3:
-      case FACE_TRI6:
-         return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
-      case FACE_QUAD4:
-      case FACE_QUAD9:
-         return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
-      default:
-         MFEM_ABORT("Unsupported cubit face type encountered.");
-   }
-}
-
 static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                                  const CubitElement & element_info,
                                  const map<int, vector<int>> & node_ids_for_element_id,
@@ -3830,10 +3848,9 @@ void Mesh::BuildCubitElements(const int num_elements,
          }
 
          // Create element.
-         elements[element_counter++] = CreateCubitElement(*this,
-                                                          element_info->GetElementType(),
-                                                          renumbered_vertex_ids.data(),
-                                                          block_id);
+         elements[element_counter++] = element_info->BuildElement(*this,
+                                                                  renumbered_vertex_ids.data(),
+                                                                  block_id);
       }
    }
 }
@@ -3867,8 +3884,6 @@ void Mesh::BuildCubitBoundaries(
       int jelement = 0;
       for (int side_id : side_ids_for_boundary_id.at(boundary_id))
       {
-         const auto face_type = element_info->GetFaceType(side_id);
-
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
 
          // NB: inefficient. Just get max number of nodes on that side.
@@ -3884,10 +3899,10 @@ void Mesh::BuildCubitBoundaries(
          }
 
          // Create boundary element.
-         boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
-                                                                   face_type,
-                                                                   renumbered_vertex_ids.data(),
-                                                                   boundary_id);
+         boundary[boundary_counter++] = element_info->BuildBoundaryElement(*this,
+                                                                           side_id,
+                                                                           renumbered_vertex_ids.data(),
+                                                                           boundary_id);
       }
    }
 }
