@@ -58,8 +58,19 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip) const = 0;
+                       const IntegrationPoint &ip) const
+   {
+      mfem_error ("Coefficient::Eval(...) const\n"
+               "   is not implemented for this class.");
+      return 0.0;
+   }
 
+   /** @deprecated Overload the const- version of this member function instead*/
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      return const_cast<const Coefficient*>(this)->Eval(T,ip);
+   }
+   
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
    /** @note When this method is called, the caller must make sure that the
@@ -588,7 +599,18 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip) const = 0;
+                     const IntegrationPoint &ip) const
+   {
+      mfem_error ("VectorCoefficient::Eval(...) const\n"
+               "   is not implemented for this class.");
+   }
+
+   /** @deprecated Use/overload the const- version of this member function instead */
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const VectorCoefficient*>(this)->Eval(V, T, ip);
+   } 
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at all points of @a ir, storing the result in @a M. */
@@ -1080,8 +1102,18 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) const = 0;
+                     const IntegrationPoint &ip) const
+    {
+        mfem_error ("MatrixCoefficient::Eval(...) const\n"
+               "   is not implemented for this class.");
+    }
 
+   /** @deprecated Use/overload the const- version of this member function instead*/
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const MatrixCoefficient*>(this)->Eval(K, T, ip);
+   }
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
