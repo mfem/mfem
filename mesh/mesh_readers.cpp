@@ -2852,64 +2852,6 @@ const int cubit_side_map_pyramid5[5][4] =
 
 
 /**
- * CubitFaceInfo
- *
- * Stores information about a particular face.
- */
-class CubitFaceInfo
-{
-public:
-   enum CubitFaceType
-   {
-      FACE_EDGE2,
-      FACE_EDGE3,
-      FACE_TRI3,
-      FACE_TRI6,
-      FACE_QUAD4,
-      FACE_QUAD9  // Order = 2; center node.
-   };
-
-   /// Default initializer.
-   CubitFaceInfo(CubitFaceType face_type);
-   CubitFaceInfo() = delete;
-
-   ~CubitFaceInfo() = default;
-
-   /// Returns the number of vertices for the face.
-   inline uint8_t GetNumFaceVertices() const { return _num_face_vertices; };
-
-   /// Returns the face type.
-   inline CubitFaceType GetFaceType() const { return _face_type; }
-
-private:
-   CubitFaceType _face_type;
-   uint8_t _num_face_vertices;
-};
-
-
-CubitFaceInfo::CubitFaceInfo(CubitFaceType face_type) : _face_type{face_type}
-{
-   switch (_face_type)
-   {
-      case FACE_EDGE2:
-      case FACE_EDGE3:
-         _num_face_vertices = 2;
-         break;
-      case FACE_TRI3:
-      case FACE_TRI6:
-         _num_face_vertices = 3;
-         break;
-      case FACE_QUAD4:
-      case FACE_QUAD9:
-         _num_face_vertices = 4;
-         break;
-      default:
-         MFEM_ABORT("Unsupported face type '" <<_face_type << "'.");
-         break;
-   }
-}
-
-/**
  * CubitElementInfo
  *
  * Stores information about a particular element.
@@ -2921,6 +2863,16 @@ public:
    ~CubitElementInfo() = default;
 
    CubitElementInfo(int num_nodes_per_element, int dimension = 3);
+
+   enum CubitFaceType
+   {
+      FACE_EDGE2,
+      FACE_EDGE3,
+      FACE_TRI3,
+      FACE_TRI6,
+      FACE_QUAD4,
+      FACE_QUAD9  // Order = 2; center node.
+   };
 
    enum CubitElementType
    {
@@ -2941,14 +2893,20 @@ public:
    /// Returns the Cubit element type.
    inline CubitElementType GetElementType() const { return _element_type; }
 
-   /// Returns a reference to the Cubit face information.
-   const CubitFaceInfo & GetFace(int iface = 0) const;
+   /// Returns the face type for a specified face.
+   inline CubitFaceType GetFaceType(size_t iface = 0) const
+   {
+      return _face_info.at(iface);
+   }
 
    /// Returns the number of faces for the element type.
-   inline uint8_t GetNumFaces() const { return _num_faces; }
+   inline uint8_t GetNumFaces() const { return _num_faces; }// TODO: - just return _face_info.size()
 
    /// Returns the number of vertices for the element type.
    inline uint8_t GetNumVertices() const { return _num_vertices; }
+
+   /// Returns the number of vertices for the face index.
+   size_t GetNumFaceVertices(size_t iface = 0) const;
 
    /// Returns the order of the element.
    inline uint8_t GetOrder() const { return _order; }
@@ -2961,12 +2919,12 @@ protected:
    void BuildCubit3DElementInfo(int num_nodes_per_element);
 
    /// Returns the face information for Wedges.
-   std::vector<CubitFaceInfo> GetWedge6FaceInfo() const;
-   std::vector<CubitFaceInfo> GetWedge18FaceInfo() const;
+   vector<CubitFaceType> GetWedge6FaceInfo() const;   // TODO: - remove this.
+   vector<CubitFaceType> GetWedge18FaceInfo() const;
 
    /// Returns the face information for Pyramids.
-   std::vector<CubitFaceInfo> GetPyramid5FaceInfo() const;
-   std::vector<CubitFaceInfo> GetPyramid14FaceInfo() const;
+   vector<CubitFaceType> GetPyramid5FaceInfo() const;
+   vector<CubitFaceType> GetPyramid14FaceInfo() const;
 
 private:
    CubitElementType _element_type;
@@ -2975,9 +2933,29 @@ private:
    uint8_t _num_vertices;
 
    uint8_t _num_faces;
-   vector<CubitFaceInfo> _face_info;
+
+   vector<CubitFaceType> _face_info;
 };
 
+size_t CubitElementInfo::GetNumFaceVertices(size_t iface) const
+{
+   CubitFaceType face_type = _face_info.at(iface);
+
+   switch (face_type)
+   {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
+         return 2;
+      case FACE_TRI3:
+      case FACE_TRI6:
+         return 3;
+      case FACE_QUAD4:
+      case FACE_QUAD9:
+         return 4;
+      default:
+         MFEM_ABORT("Unrecognized Cubit face type " << face_type);
+   }
+}
 
 CubitElementInfo::CubitElementInfo(int num_nodes_per_element, int dimension)
 {
@@ -3006,7 +2984,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 3;
          _num_faces = 3;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
+         _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
       case 6:
@@ -3015,7 +2993,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_vertices = 3;
          _num_faces = 3;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
+         _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
       case 4:
@@ -3024,7 +3002,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 4;
          _num_faces = 4;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE2)};
+         _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
       case 9:
@@ -3033,7 +3011,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_vertices = 4;
          _num_faces = 4;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_EDGE3)};
+         _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
       default:
@@ -3056,7 +3034,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 4;
          _num_faces = 4;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI3)};
+         _face_info = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
       case 10:
@@ -3065,7 +3043,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_vertices = 4;
          _num_faces = 4;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_TRI6)};
+         _face_info = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
       case 8:
@@ -3074,7 +3052,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 1;
          _num_vertices = 8;
          _num_faces = 6;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD4)};
+         _face_info = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
       case 27:
@@ -3083,7 +3061,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _order = 2;
          _num_vertices = 8;
          _num_faces = 6;
-         _face_info = {CubitFaceInfo(CubitFaceInfo::FACE_QUAD9)};
+         _face_info = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
       case 6:
@@ -3117,8 +3095,9 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
       {
          _element_type = ELEMENT_PYRAMID14;
          _order = 2;
-         _num_vertices = 5;
-         _num_faces = 5;
+         _num_vertices =
+            5;   // TODO: - should just be switch statement in class (static).
+         _num_faces = 5;      // TODO: - remove.
          _face_info = GetPyramid14FaceInfo();
          break;
       }
@@ -3131,82 +3110,29 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
    }
 }
 
-std::vector<CubitFaceInfo>
+vector<CubitElementInfo::CubitFaceType>
 CubitElementInfo::GetWedge6FaceInfo() const
 {
-   CubitFaceInfo tri3 = CubitFaceInfo(
-                           CubitFaceInfo::FACE_TRI3);
-   CubitFaceInfo quad4 = CubitFaceInfo(
-                            CubitFaceInfo::FACE_QUAD4);
-
-   return {tri3, tri3, quad4, quad4, quad4};
+   return {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
 }
 
-std::vector<CubitFaceInfo>
+vector<CubitElementInfo::CubitFaceType>
 CubitElementInfo::GetWedge18FaceInfo() const
 {
-   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
-
-   return {tri6, tri6, quad9, quad9, quad9};
+   return {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
 }
 
-std::vector<CubitFaceInfo>
-CubitElementInfo::GetPyramid5FaceInfo()
-const
+vector<CubitElementInfo::CubitFaceType>
+CubitElementInfo::GetPyramid5FaceInfo() const
 {
-   CubitFaceInfo tri3 = CubitFaceInfo(CubitFaceInfo::FACE_TRI3);
-   CubitFaceInfo quad4 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD4);
-
-   return {quad4, tri3, tri3, tri3, tri3};
+   return {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
 }
 
-std::vector<CubitFaceInfo>
-CubitElementInfo::GetPyramid14FaceInfo()
-const
+vector<CubitElementInfo::CubitFaceType>
+CubitElementInfo::GetPyramid14FaceInfo() const
 {
    // Define Pyramid14: Quad9 base and 4 x Tri6.
-   CubitFaceInfo tri6 = CubitFaceInfo(CubitFaceInfo::FACE_TRI6);
-   CubitFaceInfo quad9 = CubitFaceInfo(CubitFaceInfo::FACE_QUAD9);
-
-   return {quad9, tri6, tri6, tri6, tri6};
-}
-
-const CubitFaceInfo &
-CubitElementInfo::GetFace(int iface) const
-{
-   /**
-    * Check _face_info initialized.
-    */
-   if (_face_info.empty())
-   {
-      MFEM_ABORT("_face_info is empty.");
-   }
-
-   /**
-    * Check valid face index.
-    */
-   bool is_valid_face_index = (iface >= 0 && iface < _num_faces);
-   if (!is_valid_face_index)
-   {
-      MFEM_ABORT("Face index '" << iface << "' is invalid.");
-   }
-
-   /**
-    * Case 1: single face type --> only store a single face.
-    * Case 2: multiple face types --> store each face. Return face at index.
-    */
-   bool is_single_face_type = (_face_info.size() == 1);
-
-   /**
-    * Check vector size matches _num_faces for multiple face types.
-    */
-   if (!is_single_face_type && _face_info.size() != _num_faces)
-   {
-      MFEM_ABORT("_face_info.size() != _num_faces.");
-   }
-
-   return is_single_face_type ? _face_info.front() : _face_info[iface];
+   return {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
 }
 
 /**
@@ -3649,20 +3575,20 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
 /// @brief Returns a pointer to a new mfem::Element based on the provided cubit
 /// face type. This is used to create the boundary elements from a Genesis file.
 mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
-                                          CubitFaceInfo::CubitFaceType face_type,
+                                          CubitElementInfo::CubitFaceType face_type,
                                           const int *vertex_ids,
                                           const int sideset_id)
 {
    switch (face_type)
    {
-      case CubitFaceInfo::FACE_EDGE2:
-      case CubitFaceInfo::FACE_EDGE3:
+      case CubitElementInfo::FACE_EDGE2:
+      case CubitElementInfo::FACE_EDGE3:
          return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
-      case CubitFaceInfo::FACE_TRI3:
-      case CubitFaceInfo::FACE_TRI6:
+      case CubitElementInfo::FACE_TRI3:
+      case CubitElementInfo::FACE_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
-      case CubitFaceInfo::FACE_QUAD4:
-      case CubitFaceInfo::FACE_QUAD9:
+      case CubitElementInfo::FACE_QUAD4:
+      case CubitElementInfo::FACE_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
       default:
          MFEM_ABORT("Unsupported cubit face type encountered.");
@@ -3696,16 +3622,16 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
          const int boundary_side = boundary_element_sides[jelement];
 
          // Get all of the element's nodes on boundary side of element.
-         const auto & face_info = element_info.GetFace(boundary_side);
-
          const vector<int> & element_node_ids =
             node_ids_for_element_id.at(boundary_element_global_id);
 
-         vector<int> nodes_of_element_on_side(face_info.GetNumFaceVertices());
+         vector<int> nodes_of_element_on_side(element_info.GetNumFaceVertices(
+                                                 boundary_side));
 
          // Iterate over the element's face nodes on the matching side.
          // NB: only adding vertices on face (ignore higher-order).
-         for (int knode = 0; knode < face_info.GetNumFaceVertices(); knode++)
+         for (int knode = 0; knode < element_info.GetNumFaceVertices(boundary_side);
+              knode++)
          {
             int inode;
 
@@ -3988,7 +3914,7 @@ void Mesh::BuildCubitBoundaries(
       int jelement = 0;
       for (int side_id : side_ids_for_boundary_id.at(boundary_id))
       {
-         const auto & face_info = element_info->GetFace(side_id);
+         const auto face_type = element_info->GetFaceType(side_id);
 
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
 
@@ -4006,7 +3932,7 @@ void Mesh::BuildCubitBoundaries(
 
          // Create boundary element.
          boundary[boundary_counter++] = CreateCubitBoundaryElement(*this,
-                                                                   face_info.GetFaceType(),
+                                                                   face_type,
                                                                    renumbered_vertex_ids.data(),
                                                                    boundary_id);
       }
