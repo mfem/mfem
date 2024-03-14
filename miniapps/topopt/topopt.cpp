@@ -671,32 +671,40 @@ double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
 double LatentDesignDensity::StationarityErrorL2(GridFunction &grad,
                                                 const double eps)
 {
-   double c;
+   double c = 0;
    MappedPairGridFunctionCoeffitient projected_rho(x_gf.get(),
                                                    &grad, [&c, eps, this](double x, double y)
    {
       return std::min(1.0, std::max(0.0, d2p(x) - eps*y + c));
    });
+   double old_volume = current_volume;
+   current_volume = zero_gf->ComputeL1Error(projected_rho);
+   if (VolumeConstraintViolated())
+   {
 
-   double c_l = target_volume_fraction - (1.0 - grad.Min());
-   double c_r = target_volume_fraction - (0.0 - grad.Max());
+      double c_l = target_volume_fraction - (1.0 - grad.Min());
+      double c_r = target_volume_fraction - (0.0 - grad.Max());
 #ifdef MFEM_USE_MPI
-   auto pfes = dynamic_cast<ParFiniteElementSpace*>(x_gf->FESpace());
-   if (pfes)
-   {
-      MPI_Allreduce(MPI_IN_PLACE, &c_l, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
-      MPI_Allreduce(MPI_IN_PLACE, &c_r, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
-   }
+      auto pfes = dynamic_cast<ParFiniteElementSpace*>(x_gf->FESpace());
+      if (pfes)
+      {
+         MPI_Allreduce(MPI_IN_PLACE, &c_l, 1, MPI_DOUBLE, MPI_MIN, pfes->GetComm());
+         MPI_Allreduce(MPI_IN_PLACE, &c_r, 1, MPI_DOUBLE, MPI_MAX, pfes->GetComm());
+      }
 #endif
-   while (c_r - c_l > 1e-09)
-   {
-      c = 0.5 * (c_l + c_r);
-      double vol = zero_gf->ComputeL1Error(projected_rho);
-      if (std::fabs(vol - target_volume) < vol_tol) { break; }
-
-      if (vol > target_volume) { c_r = c; }
-      else { c_l = c; }
+      // binary search
+      while (c_r - c_l > 1e-09)
+      {
+         c = 0.5 * (c_l + c_r);
+         current_volume = zero_gf->ComputeL1Error(projected_rho);
+         // Since we already know that the volume constraint is violated,
+         // we need to find c such that the volume is close to the target.
+         // instead of checking volume constraint violation.
+         if (current_volume > target_volume) { c_r = c; }
+         else { c_l = c; }
+      }
    }
+   current_volume = old_volume;
 
    SumCoefficient diff_rho(projected_rho, *rho_cf, 1.0, -1.0);
    return zero_gf->ComputeL2Error(diff_rho)/eps;
@@ -753,7 +761,11 @@ double PrimalDesignDensity::StationarityError(const GridFunction &grad,
 
    // Project ρ + grad
    x_gf->Add(-eps, grad);
-   Project();
+   ComputeVolume();
+   if (VolumeConstraintViolated())
+   {
+      Project();
+   }
 
    // Compare the updated density and the original density
    double d = tmp_gf->ComputeL2Error(*rho_cf);

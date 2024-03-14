@@ -366,7 +366,7 @@ public:
 
    virtual double Project() = 0;
    virtual double StationarityError(const GridFunction &grad,
-                                    const double eps=1e-03) = 0;
+                                    const double eps) = 0;
    virtual double ComputeVolume() = 0;
    virtual std::unique_ptr<Coefficient> GetDensityDiffCoeff(
       GridFunction &other_gf) = 0;
