@@ -2900,7 +2900,7 @@ public:
    }
 
    /// Returns the number of faces for the element type.
-   inline uint8_t GetNumFaces() const { return _num_faces; }// TODO: - just return _face_info.size()
+   inline size_t GetNumFaces() const { return _face_info.size(); }
 
    /// Returns the number of vertices for the element type.
    inline uint8_t GetNumVertices() const { return _num_vertices; }
@@ -2923,8 +2923,6 @@ private:
 
    uint8_t _order;
    uint8_t _num_vertices;
-
-   uint8_t _num_faces;
 
    vector<CubitFaceType> _face_info;
 };
@@ -2975,7 +2973,6 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TRI3;
          _order = 1;
          _num_vertices = 3;
-         _num_faces = 3;
          _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
@@ -2984,7 +2981,6 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TRI6;
          _order = 2;
          _num_vertices = 3;
-         _num_faces = 3;
          _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
@@ -2993,7 +2989,6 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_QUAD4;
          _order = 1;
          _num_vertices = 4;
-         _num_faces = 4;
          _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
@@ -3002,7 +2997,6 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_QUAD9;
          _order = 2;
          _num_vertices = 4;
-         _num_faces = 4;
          _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
@@ -3025,7 +3019,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TET4;
          _order = 1;
          _num_vertices = 4;
-         _num_faces = 4;
          _face_info = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
@@ -3034,7 +3027,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TET10;
          _order = 2;
          _num_vertices = 4;
-         _num_faces = 4;
          _face_info = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
@@ -3043,7 +3035,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_HEX8;
          _order = 1;
          _num_vertices = 8;
-         _num_faces = 6;
          _face_info = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
@@ -3052,7 +3043,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_HEX27;
          _order = 2;
          _num_vertices = 8;
-         _num_faces = 6;
          _face_info = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
@@ -3061,7 +3051,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_WEDGE6;
          _order = 1;
          _num_vertices = 6;
-         _num_faces = 5;
          _face_info = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
@@ -3070,7 +3059,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_WEDGE18;
          _order = 2;
          _num_vertices = 6;
-         _num_faces = 5;
          _face_info = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
@@ -3079,7 +3067,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_PYRAMID5;
          _order = 1;
          _num_vertices = 5;
-         _num_faces = 5;
          _face_info = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
@@ -3088,7 +3075,6 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_PYRAMID14;
          _order = 2;
          _num_vertices = 5;
-         _num_faces = 5;
          _face_info = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
@@ -3281,8 +3267,8 @@ static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
 
 
 static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
-                                        const std::vector<int> & block_ids,
-                                        std::map<int, size_t> &num_elements_for_block_id)
+                                        const vector<int> & block_ids,
+                                        map<int, size_t> &num_elements_for_block_id)
 {
    // NB: need to add 1 for '\0' terminating character.
    const int buffer_size = NC_MAX_NAME + 1;
@@ -3577,8 +3563,8 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                                          boundary_id);
 
       // Create vector to store the node ids of all boundary nodes.
-      std::vector<std::vector<int>> boundary_node_ids(
-                                    boundary_element_ids.size());
+      vector<vector<int>> boundary_node_ids(
+                          boundary_element_ids.size());
 
       // Iterate over elements on boundary.
       for (int jelement = 0; jelement < (int)boundary_element_ids.size(); jelement++)
@@ -3657,7 +3643,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
    }
 }
 
-static void BuildUniqueVertexIDs(const std::vector<int> & unique_block_ids,
+static void BuildUniqueVertexIDs(const vector<int> & unique_block_ids,
                                  const CubitElementInfo & block_element,
                                  const map<int, vector<int>> & element_ids_for_block_id,
                                  const map<int, vector<int>> & node_ids_for_element_id,
@@ -3818,7 +3804,7 @@ void Mesh::BuildCubitElements(const int num_elements,
    NumOfElements = num_elements;
    elements.SetSize(num_elements);
 
-   std::vector<int> renumbered_vertex_ids(element_info->GetNumVertices());
+   vector<int> renumbered_vertex_ids(element_info->GetNumVertices());
 
    int element_counter = 0;
 
