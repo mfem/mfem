@@ -1099,7 +1099,8 @@ void Mesh::ApplyLocalSlaveTransformation(FaceElementTransformations &FT,
    }
 }
 
-FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
+FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo,
+                                                            int mask)
 {
    FaceElementTransformations *tr;
    int fn = GetBdrElementFaceIndex(BdrElemNo);
@@ -1109,7 +1110,7 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    {
       return NULL;
    }
-   tr = GetFaceElementTransformations(fn, 21);
+   tr = GetFaceElementTransformations(fn, mask);
    tr->Attribute = boundary[BdrElemNo]->GetAttribute();
    tr->ElementNo = BdrElemNo;
    tr->ElementType = ElementTransformation::BDR_FACE;

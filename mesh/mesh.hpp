@@ -1659,7 +1659,8 @@ public:
 
    /// See GetFaceElementTransformations().
    /// @note The returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo)
+   FaceElementTransformations *GetInteriorFaceTransformations (int FaceNo,
+                                                               int mask = 31)
    {
       if (faces_info[FaceNo].Elem2No < 0) { return NULL; }
       return GetFaceElementTransformations (FaceNo);
@@ -1667,7 +1668,8 @@ public:
 
    /// Builds the transformation defining the given boundary face.
    /// @note The returned object should NOT be deleted by the caller.
-   FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo);
+   FaceElementTransformations *GetBdrFaceTransformations (int BdrElemNo,
+                                                          int mask = 21);
 
    /// @}
    /// @anchor mfem_Mesh_geom_factors
