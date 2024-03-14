@@ -3158,6 +3158,187 @@ mfem::Element * CubitElement::BuildBoundaryElement(Mesh &mesh,
 }
 
 /**
+ * CubitBlock
+ *
+ * Stores the information about each block in a mesh. Each block can contain a different
+ * element type (although all element types must be of the same order and dimension).
+ */
+class CubitBlock
+{
+public:
+   CubitBlock() = delete;
+   ~CubitBlock() = default;
+
+   /**
+    * Default initializer.
+    */
+   CubitBlock(int dimension);
+
+   /**
+    * Returns a constant reference to the element info for a particular block.
+    */
+   const CubitElement & GetBlockElement(int block_id) const;
+
+   /**
+    * Call to add each block individually.
+    */
+   void AddBlockElement(int block_id, CubitElementType element_type);
+
+   /**
+    * Accessors.
+    */
+   uint8_t GetOrder() const;
+   inline uint8_t GetDimension() const { return _dimension; }
+
+   inline size_t GetNumBlocks() const { return BlockIDs().size(); }
+   inline bool HasBlocks() const { return !BlockIDs().empty(); }
+
+protected:
+   /**
+    * Checks that the order of a new block element matches the order of existing blocks. Called
+    * internally in mehtod "addBlockElement".
+    */
+   void CheckElementBlockIsCompatible(const CubitElement & new_block_element)
+   const;
+
+   /**
+    * Reset all block elements. Called internally in initializer.
+    */
+   void ClearBlockElements();
+
+   /**
+    * Helper methods.
+    */
+   inline const std::set<int> & BlockIDs() const { return _block_ids; }
+
+   bool HasBlockID(int block_id) const;
+   bool ValidBlockID(int block_id) const;
+   bool ValidDimension(int dimension) const;
+
+private:
+   /**
+    * Stores all block IDs.
+    */
+   std::set<int> _block_ids;
+
+   /**
+    * Maps from block ID to element.
+    */
+   std::map<int, CubitElement> _block_element_for_block_id;
+
+   /**
+    * Dimension and order of block elements.
+    */
+   uint8_t _dimension;
+   uint8_t _order;
+};
+
+CubitBlock::CubitBlock(int dimension)
+{
+   if (!ValidDimension(dimension))
+   {
+      MFEM_ABORT("Invalid dimension '" << dimension << "' specified.");
+   }
+
+   _dimension = dimension;
+
+   ClearBlockElements();
+}
+
+void
+CubitBlock::AddBlockElement(int block_id, CubitElementType element_type)
+{
+   if (HasBlockID(block_id))
+   {
+      MFEM_ABORT("Block with ID '" << block_id << "' has already been added.");
+   }
+   else if (!ValidBlockID(block_id))
+   {
+      MFEM_ABORT("Illegal block ID '" << block_id << "'.");
+   }
+
+   CubitElement block_element = CubitElement(element_type);
+
+   /**
+    * Check element is compatible with existing element blocks.
+    */
+   CheckElementBlockIsCompatible(block_element);
+
+   if (!HasBlocks()) // Set order of elements.
+   {
+      _order = block_element.GetOrder();
+   }
+
+   _block_ids.insert(block_id);
+   _block_element_for_block_id.emplace(block_id,
+                                       block_element);
+}
+
+uint8_t
+CubitBlock::GetOrder() const
+{
+   if (!HasBlocks())
+   {
+      MFEM_ABORT("No elements have been added.");
+   }
+
+   return _order;
+}
+
+void
+CubitBlock::ClearBlockElements()
+{
+   _order = 0;
+   _block_ids.clear();
+   _block_element_for_block_id.clear();
+}
+
+bool
+CubitBlock::HasBlockID(int block_id) const
+{
+   return (_block_ids.count(block_id) > 0);
+}
+
+bool
+CubitBlock::ValidBlockID(int block_id) const
+{
+   return (block_id > 0); // 1-based indexing.
+}
+
+bool
+CubitBlock::ValidDimension(int dimension) const
+{
+   return (dimension == 2 || dimension == 3);
+}
+
+const CubitElement &
+CubitBlock::GetBlockElement(int block_id) const
+{
+   if (!HasBlockID(block_id))
+   {
+      MFEM_ABORT("No element info for block ID '" << block_id << "'.");
+   }
+
+   return _block_element_for_block_id.at(block_id);
+}
+
+void
+CubitBlock::CheckElementBlockIsCompatible(const CubitElement &
+                                          new_block_element) const
+{
+   if (!HasBlocks())
+   {
+      return;
+   }
+
+   // Enforce block orders to be the same for now.
+   if (GetOrder() != new_block_element.GetOrder())
+   {
+      MFEM_ABORT("All block elements must be of the same order.");
+   }
+}
+
+/**
  * Lightweight wrapper around NetCDF C functions.
  */
 class NetCDFReader
