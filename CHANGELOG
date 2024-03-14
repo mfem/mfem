@@ -49,6 +49,7 @@ Miscellaneous
 -------------
 - The ReadCubit Genesis mesh importer has been rewritten to improve readability and can now handle
   meshes build from Wedge elements and Pyramid elements.
+- Added Exodus unit tests.
 
 - Updated the Doxygen documentation style, which now requires Doxygen version
   1.9.8 or later. See the doc/ directory.
