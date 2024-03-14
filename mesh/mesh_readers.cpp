@@ -2757,6 +2757,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
 #ifdef MFEM_USE_NETCDF
 
+
 namespace cubit
 {
 
@@ -3375,7 +3376,8 @@ static void BuildElementIDsForBlockID(
 
       vector<int> element_ids(num_elements_for_block);
 
-      for (int i = 0; i < element_ids.size(); i++)
+
+      for (size_t i = 0; i < element_ids.size(); i++)
       {
          element_ids[i] = element_id++;
       }
@@ -3656,7 +3658,7 @@ static void BuildUniqueVertexIDs(const vector<int> & unique_block_ids,
       {
          auto & node_ids = node_ids_for_element_id.at(element_id);
 
-         for (int knode = 0; knode < block_element.GetNumVertices(); knode++)
+         for (size_t knode = 0; knode < block_element.GetNumVertices(); knode++)
          {
             unique_vertex_ids.push_back(node_ids[knode]);
          }
@@ -3820,7 +3822,7 @@ void Mesh::BuildCubitElements(const int num_elements,
          const vector<int> & element_node_ids = node_ids_for_element_id.at(element_id);
 
          // Iterate over linear (vertex) nodes in block.
-         for (int knode = 0; knode < block_element->GetNumVertices(); knode++)
+         for (size_t knode = 0; knode < block_element->GetNumVertices(); knode++)
          {
             const int node_id = element_node_ids[knode];
 
@@ -3869,7 +3871,7 @@ void Mesh::BuildCubitBoundaries(
       {
          const vector<int> & element_nodes_on_side = nodes_on_boundary[jelement++];
 
-         // Iterate over element's face linear nodes.
+         // Iterate over element's face vertices.
          for (size_t knode = 0; knode < element_nodes_on_side.size(); knode++)
          {
             const int node_id = element_nodes_on_side[knode];
