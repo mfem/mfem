@@ -2896,11 +2896,11 @@ public:
    /// Returns the face type for a specified face.
    inline CubitFaceType GetFaceType(size_t iface = 0) const
    {
-      return _face_info.at(iface);
+      return _face.at(iface);
    }
 
    /// Returns the number of faces for the element type.
-   inline size_t GetNumFaces() const { return _face_info.size(); }
+   inline size_t GetNumFaces() const { return _face.size(); }
 
    /// Returns the number of vertices for the element type.
    inline uint8_t GetNumVertices() const { return _num_vertices; }
@@ -2924,12 +2924,12 @@ private:
    uint8_t _order;
    uint8_t _num_vertices;
 
-   vector<CubitFaceType> _face_info;
+   vector<CubitFaceType> _face;
 };
 
 size_t CubitElementInfo::GetNumFaceVertices(size_t iface) const
 {
-   CubitFaceType face_type = _face_info.at(iface);
+   CubitFaceType face_type = _face.at(iface);
 
    switch (face_type)
    {
@@ -2973,7 +2973,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TRI3;
          _order = 1;
          _num_vertices = 3;
-         _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
+         _face = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
       case 6:
@@ -2981,7 +2981,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TRI6;
          _order = 2;
          _num_vertices = 3;
-         _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
+         _face = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
       case 4:
@@ -2989,7 +2989,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_QUAD4;
          _order = 1;
          _num_vertices = 4;
-         _face_info = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
+         _face = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       }
       case 9:
@@ -2997,7 +2997,7 @@ CubitElementInfo::BuildCubit2DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_QUAD9;
          _order = 2;
          _num_vertices = 4;
-         _face_info = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
+         _face = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       }
       default:
@@ -3019,7 +3019,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TET4;
          _order = 1;
          _num_vertices = 4;
-         _face_info = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
+         _face = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
       case 10:
@@ -3027,7 +3027,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_TET10;
          _order = 2;
          _num_vertices = 4;
-         _face_info = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
+         _face = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
       case 8:
@@ -3035,7 +3035,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_HEX8;
          _order = 1;
          _num_vertices = 8;
-         _face_info = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
+         _face = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
       case 27:
@@ -3043,7 +3043,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_HEX27;
          _order = 2;
          _num_vertices = 8;
-         _face_info = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
+         _face = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
       case 6:
@@ -3051,7 +3051,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_WEDGE6;
          _order = 1;
          _num_vertices = 6;
-         _face_info = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
+         _face = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       }
       case 18:
@@ -3059,7 +3059,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_WEDGE18;
          _order = 2;
          _num_vertices = 6;
-         _face_info = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
+         _face = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       }
       case 5:
@@ -3067,7 +3067,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_PYRAMID5;
          _order = 1;
          _num_vertices = 5;
-         _face_info = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
+         _face = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       }
       case 14:
@@ -3075,7 +3075,7 @@ CubitElementInfo::BuildCubit3DElementInfo(int num_nodes_per_element)
          _element_type = ELEMENT_PYRAMID14;
          _order = 2;
          _num_vertices = 5;
-         _face_info = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
+         _face = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       }
       default:
