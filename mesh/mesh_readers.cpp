@@ -2850,6 +2850,32 @@ const int cubit_side_map_pyramid5[5][4] =
    {4, 1, 5, 0}
 };
 
+enum CubitFaceType
+{
+   FACE_EDGE2,
+   FACE_EDGE3,
+   FACE_TRI3,
+   FACE_TRI6,
+   FACE_QUAD4,
+   FACE_QUAD9  // Order = 2; center node.
+};
+
+enum CubitElementType
+{
+   ELEMENT_TRI3,
+   ELEMENT_TRI6,
+   ELEMENT_QUAD4,
+   ELEMENT_QUAD9,
+   ELEMENT_TET4,
+   ELEMENT_TET10,
+   ELEMENT_HEX8,
+   ELEMENT_HEX27,
+   ELEMENT_WEDGE6,
+   ELEMENT_WEDGE18,
+   ELEMENT_PYRAMID5,
+   ELEMENT_PYRAMID14
+};
+
 
 /**
  * CubitElement
@@ -2862,33 +2888,8 @@ public:
    CubitElement() = default;
    ~CubitElement() = default;
 
-   CubitElement(int num_nodes_per_element, int dimension = 3);
-
-   enum CubitFaceType
-   {
-      FACE_EDGE2,
-      FACE_EDGE3,
-      FACE_TRI3,
-      FACE_TRI6,
-      FACE_QUAD4,
-      FACE_QUAD9  // Order = 2; center node.
-   };
-
-   enum CubitElementType
-   {
-      ELEMENT_TRI3,
-      ELEMENT_TRI6,
-      ELEMENT_QUAD4,
-      ELEMENT_QUAD9,
-      ELEMENT_TET4,
-      ELEMENT_TET10,
-      ELEMENT_HEX8,
-      ELEMENT_HEX27,
-      ELEMENT_WEDGE6,
-      ELEMENT_WEDGE18,
-      ELEMENT_PYRAMID5,
-      ELEMENT_PYRAMID14
-   };
+   CubitElement(CubitElementType element_type);
+   CubitElement(int num_nodes, int dim = 3);
 
    /// Returns the Cubit element type.
    inline CubitElementType GetElementType() const { return _element_type; }
@@ -2903,7 +2904,7 @@ public:
    inline size_t GetNumFaces() const { return _faces.size(); }
 
    /// Returns the number of vertices for the element type.
-   inline uint8_t GetNumVertices() const { return _num_vertices; }
+   inline size_t GetNumVertices() const { return _num_vertices; }
 
    /// Returns the number of vertices for the face index.
    size_t GetNumFaceVertices(size_t iface = 0) const;
@@ -2911,18 +2912,17 @@ public:
    /// Returns the order of the element.
    inline uint8_t GetOrder() const { return _order; }
 
-protected:
-   /// Initializes member variables for a 2D Cubit element.
-   void BuildCubit2DElementInfo(int num_nodes_per_element);
+   static CubitElementType GetElementType(size_t num_nodes,
+                                          short unsigned int dimension = 3);
 
-   /// Initializes member variables for a 3D Cubit element.
-   void BuildCubit3DElementInfo(int num_nodes_per_element);
+   static CubitElementType Get2DElementType(size_t num_nodes);
+   static CubitElementType Get3DElementType(size_t num_nodes);
 
 private:
    CubitElementType _element_type;
 
    uint8_t _order;
-   uint8_t _num_vertices;
+   size_t _num_vertices;
 
    vector<CubitFaceType> _faces;
 };
@@ -2943,147 +2943,148 @@ size_t CubitElement::GetNumFaceVertices(size_t iface) const
       case FACE_QUAD9:
          return 4;
       default:
-         MFEM_ABORT("Unrecognized Cubit face type " << face_type);
+         MFEM_ABORT("Unrecognized Cubit face type " << face_type << ".");
    }
 }
 
-CubitElement::CubitElement(int num_nodes_per_element, int dimension)
+CubitElement::CubitElement(int num_nodes,
+                           int dim) : CubitElement(GetElementType(
+                                                         num_nodes,
+                                                         dim))
 {
-   if (dimension == 2)
-   {
-      BuildCubit2DElementInfo(num_nodes_per_element);
-   }
-   else if (dimension == 3)
-   {
-      BuildCubit3DElementInfo(num_nodes_per_element);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported element dimension " << dimension << ".");
-   }
 }
 
-void
-CubitElement::BuildCubit2DElementInfo(int num_nodes_per_element)
+CubitElement::CubitElement(CubitElementType element_type)
 {
-   switch (num_nodes_per_element)
+   _element_type = element_type;
+
+   switch (element_type)
    {
-      case 3:
-      {
-         _element_type = ELEMENT_TRI3;
+      case ELEMENT_TRI3:   // 2D.
          _order = 1;
          _num_vertices = 3;
          _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
-      }
-      case 6:
-      {
-         _element_type = ELEMENT_TRI6;
+      case ELEMENT_TRI6:
          _order = 2;
          _num_vertices = 3;
          _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
-      }
-      case 4:
-      {
-         _element_type = ELEMENT_QUAD4;
+      case ELEMENT_QUAD4:
          _order = 1;
          _num_vertices = 4;
          _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
-      }
-      case 9:
-      {
-         _element_type = ELEMENT_QUAD9;
+      case ELEMENT_QUAD9:
          _order = 2;
          _num_vertices = 4;
          _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
-      }
-      default:
-      {
-         MFEM_ABORT("Unsupported 2D element with " << num_nodes_per_element <<
-                    " nodes per element.");
-         break;
-      }
-   }
-}
-
-void
-CubitElement::BuildCubit3DElementInfo(int num_nodes_per_element)
-{
-   switch (num_nodes_per_element)
-   {
-      case 4:
-      {
-         _element_type = ELEMENT_TET4;
+      case ELEMENT_TET4:   // 3D.
          _order = 1;
          _num_vertices = 4;
          _faces = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
-      }
-      case 10:
-      {
-         _element_type = ELEMENT_TET10;
+      case ELEMENT_TET10:
          _order = 2;
          _num_vertices = 4;
          _faces = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
-      }
-      case 8:
-      {
-         _element_type = ELEMENT_HEX8;
+      case ELEMENT_HEX8:
          _order = 1;
          _num_vertices = 8;
          _faces = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
-      }
-      case 27:
-      {
-         _element_type = ELEMENT_HEX27;
+      case ELEMENT_HEX27:
          _order = 2;
          _num_vertices = 8;
          _faces = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
-      }
-      case 6:
-      {
-         _element_type = ELEMENT_WEDGE6;
+      case ELEMENT_WEDGE6:
          _order = 1;
          _num_vertices = 6;
          _faces = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
-      }
-      case 18:
-      {
-         _element_type = ELEMENT_WEDGE18;
+      case ELEMENT_WEDGE18:
          _order = 2;
          _num_vertices = 6;
          _faces = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
-      }
-      case 5:
-      {
-         _element_type = ELEMENT_PYRAMID5;
+      case ELEMENT_PYRAMID5:
          _order = 1;
          _num_vertices = 5;
          _faces = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
-      }
-      case 14:
-      {
-         _element_type = ELEMENT_PYRAMID14;
+      case ELEMENT_PYRAMID14:
          _order = 2;
          _num_vertices = 5;
          _faces = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
-      }
       default:
-      {
-         MFEM_ABORT("Unsupported 3D element with " << num_nodes_per_element <<
-                    " nodes per element.");
+         MFEM_ABORT("Unsupported Cubit element type " << element_type << ".");
          break;
-      }
+   }
+}
+
+CubitElementType CubitElement::Get3DElementType(
+   size_t num_nodes)
+{
+   switch (num_nodes)
+   {
+      case 4:
+         return ELEMENT_TET4;
+      case 10:
+         return ELEMENT_TET10;
+      case 8:
+         return ELEMENT_HEX8;
+      case 27:
+         return ELEMENT_HEX27;
+      case 6:
+         return ELEMENT_WEDGE6;
+      case 18:
+         return ELEMENT_WEDGE18;
+      case 5:
+         return ELEMENT_PYRAMID5;
+      case 14:
+         return ELEMENT_PYRAMID14;
+      default:
+         MFEM_ABORT("Unsupported 3D element with " << num_nodes << " nodes.");
+   }
+}
+
+CubitElementType CubitElement::Get2DElementType(
+   size_t num_nodes)
+{
+   switch (num_nodes)
+   {
+      case 3:
+         return ELEMENT_TRI3;
+      case 6:
+         return ELEMENT_TRI6;
+      case 4:
+         return ELEMENT_QUAD4;
+      case 9:
+         return ELEMENT_QUAD9;
+      default:
+         MFEM_ABORT("Unsupported 2D element with " << num_nodes << " nodes.");
+   }
+}
+
+CubitElementType CubitElement::GetElementType(
+   size_t num_nodes,
+   short unsigned int dimension)
+{
+   if (dimension == 2)
+   {
+      return Get2DElementType(num_nodes);
+   }
+   else if (dimension == 3)
+   {
+      return Get3DElementType(num_nodes);
+   }
+   else
+   {
+      MFEM_ABORT("Unsupported Cubit dimension " << dimension << ".");
    }
 }
 
@@ -3495,29 +3496,29 @@ mfem::Element *NewElement(Mesh &mesh, Geometry::Type geom, const int *vertices,
 /// @brief Returns a pointer to a new mfem::Element based on the provided cubit
 /// element type. This is used to create the mesh elements from a Genesis file.
 mfem::Element *CreateCubitElement(Mesh &mesh,
-                                  CubitElement::CubitElementType element_type,
+                                  CubitElementType element_type,
                                   const int *vertex_ids,
                                   const int block_id)
 {
    switch (element_type)
    {
-      case CubitElement::ELEMENT_TRI3:
-      case CubitElement::ELEMENT_TRI6:
+      case ELEMENT_TRI3:
+      case ELEMENT_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, block_id);
-      case CubitElement::ELEMENT_QUAD4:
-      case CubitElement::ELEMENT_QUAD9:
+      case ELEMENT_QUAD4:
+      case ELEMENT_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, block_id);
-      case CubitElement::ELEMENT_TET4:
-      case CubitElement::ELEMENT_TET10:
+      case ELEMENT_TET4:
+      case ELEMENT_TET10:
          return NewElement(mesh, Geometry::TETRAHEDRON, vertex_ids, block_id);
-      case CubitElement::ELEMENT_HEX8:
-      case CubitElement::ELEMENT_HEX27:
+      case ELEMENT_HEX8:
+      case ELEMENT_HEX27:
          return NewElement(mesh, Geometry::CUBE, vertex_ids, block_id);
-      case CubitElement::ELEMENT_WEDGE6:
-      case CubitElement::ELEMENT_WEDGE18:
+      case ELEMENT_WEDGE6:
+      case ELEMENT_WEDGE18:
          return NewElement(mesh, Geometry::PRISM, vertex_ids, block_id);
-      case CubitElement::ELEMENT_PYRAMID5:
-      case CubitElement::ELEMENT_PYRAMID14:
+      case ELEMENT_PYRAMID5:
+      case ELEMENT_PYRAMID14:
          return NewElement(mesh, Geometry::PYRAMID, vertex_ids, block_id);
       default:
          MFEM_ABORT("Unsupported cubit element type encountered.");
@@ -3527,20 +3528,20 @@ mfem::Element *CreateCubitElement(Mesh &mesh,
 /// @brief Returns a pointer to a new mfem::Element based on the provided cubit
 /// face type. This is used to create the boundary elements from a Genesis file.
 mfem::Element *CreateCubitBoundaryElement(Mesh &mesh,
-                                          CubitElement::CubitFaceType face_type,
+                                          CubitFaceType face_type,
                                           const int *vertex_ids,
                                           const int sideset_id)
 {
    switch (face_type)
    {
-      case CubitElement::FACE_EDGE2:
-      case CubitElement::FACE_EDGE3:
+      case FACE_EDGE2:
+      case FACE_EDGE3:
          return NewElement(mesh, Geometry::SEGMENT, vertex_ids, sideset_id);
-      case CubitElement::FACE_TRI3:
-      case CubitElement::FACE_TRI6:
+      case FACE_TRI3:
+      case FACE_TRI6:
          return NewElement(mesh, Geometry::TRIANGLE, vertex_ids, sideset_id);
-      case CubitElement::FACE_QUAD4:
-      case CubitElement::FACE_QUAD9:
+      case FACE_QUAD4:
+      case FACE_QUAD9:
          return NewElement(mesh, Geometry::SQUARE, vertex_ids, sideset_id);
       default:
          MFEM_ABORT("Unsupported cubit face type encountered.");
@@ -3589,38 +3590,38 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
 
             switch (element_info.GetElementType())
             {
-               case (CubitElement::ELEMENT_TRI3):
-               case (CubitElement::ELEMENT_TRI6):
+               case (ELEMENT_TRI3):
+               case (ELEMENT_TRI6):
                {
                   inode = cubit_side_map_tri3[boundary_side][knode];
                   break;
                }
-               case (CubitElement::ELEMENT_QUAD4):
-               case (CubitElement::ELEMENT_QUAD9):
+               case (ELEMENT_QUAD4):
+               case (ELEMENT_QUAD9):
                {
                   inode = cubit_side_map_quad4[boundary_side][knode];
                   break;
                }
-               case (CubitElement::ELEMENT_TET4):
-               case (CubitElement::ELEMENT_TET10):
+               case (ELEMENT_TET4):
+               case (ELEMENT_TET10):
                {
                   inode = cubit_side_map_tet4[boundary_side][knode];
                   break;
                }
-               case (CubitElement::ELEMENT_HEX8):
-               case (CubitElement::ELEMENT_HEX27):
+               case (ELEMENT_HEX8):
+               case (ELEMENT_HEX27):
                {
                   inode = cubit_side_map_hex8[boundary_side][knode];
                   break;
                }
-               case (CubitElement::ELEMENT_WEDGE6):
-               case (CubitElement::ELEMENT_WEDGE18):
+               case (ELEMENT_WEDGE6):
+               case (ELEMENT_WEDGE18):
                {
                   inode = cubit_side_map_wedge6[boundary_side][knode];
                   break;
                }
-               case (CubitElement::ELEMENT_PYRAMID5):
-               case (CubitElement::ELEMENT_PYRAMID14):
+               case (ELEMENT_PYRAMID5):
+               case (ELEMENT_PYRAMID14):
                {
                   inode = cubit_side_map_pyramid5[boundary_side][knode];
                   break;
@@ -3705,22 +3706,22 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
    switch (element_info.GetElementType())
    {
-      case CubitElement::ELEMENT_TRI6:
+      case ELEMENT_TRI6:
          mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
          break;
-      case CubitElement::ELEMENT_QUAD9:
+      case ELEMENT_QUAD9:
          mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
          break;
-      case CubitElement::ELEMENT_TET10:
+      case ELEMENT_TET10:
          mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
          break;
-      case CubitElement::ELEMENT_HEX27:
+      case ELEMENT_HEX27:
          mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
          break;
-      case CubitElement::ELEMENT_WEDGE18:
+      case ELEMENT_WEDGE18:
          mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
          break;
-      case CubitElement::ELEMENT_PYRAMID14:
+      case ELEMENT_PYRAMID14:
          mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
          break;
       default:
