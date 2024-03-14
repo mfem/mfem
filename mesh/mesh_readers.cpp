@@ -3525,7 +3525,7 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
       // Now subtract 1 to convert from 1-index --> 0-index.
-      for (int i = 0; i < num_sides; i++)
+      for (size_t i = 0; i < num_sides; i++)
       {
          boundary_element_ids[i]--;
          boundary_side_ids[i]--;
@@ -3866,8 +3866,6 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
       for (int element_id : element_ids)
       {
-         auto & node_ids = node_ids_for_element_id.at(element_id);
-
          Array<int> dofs;
          fes->GetElementDofs(element_id, dofs);
 
@@ -3998,7 +3996,7 @@ void Mesh::BuildCubitBoundaries(
          vector<int> renumbered_vertex_ids(element_nodes_on_side.size());
 
          // Iterate over element's face linear nodes.
-         for (int knode = 0; knode < element_nodes_on_side.size(); knode++)
+         for (size_t knode = 0; knode < element_nodes_on_side.size(); knode++)
          {
             const int node_id = element_nodes_on_side[knode];
 
