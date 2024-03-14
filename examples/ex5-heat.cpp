@@ -500,9 +500,11 @@ int main(int argc, char *argv[])
       socketstream q_sock(vishost, visport);
       q_sock.precision(8);
       q_sock << "solution\n" << *mesh << q << "window_title 'Heat flux'" << endl;
+      q_sock << "keys Rljvvvvvmmc" << endl;
       socketstream t_sock(vishost, visport);
       t_sock.precision(8);
       t_sock << "solution\n" << *mesh << t << "window_title 'Temperature'" << endl;
+      t_sock << "keys Rljmmc" << endl;
    }
 
    // 17. Free the used memory.
