@@ -1789,28 +1789,32 @@ public:
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
-   FaceElementTransformations *GetInteriorFaceTransformations(int FaceNo);
+   FaceElementTransformations *GetInteriorFaceTransformations(int FaceNo,
+                                                              int mask = 31);
 
    /// @brief Variant of GetInteriorFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetInteriorFaceTransformations(int FaceNo,
                                        FaceElementTransformations &FElTr,
                                        IsoparametricTransformation &ElTr1,
-                                       IsoparametricTransformation &ElTr2) const;
+                                       IsoparametricTransformation &ElTr2,
+                                       int mask = 31) const;
 
    /// @brief Builds the transformation defining the given boundary face.
    ///
    /// @note The returned object is owned by the class and is shared, i.e.,
    /// calling this function resets pointers obtained from previous calls.
    /// Also, this pointer should NOT be deleted by the caller.
-   FaceElementTransformations *GetBdrFaceTransformations(int BdrElemNo);
+   FaceElementTransformations *GetBdrFaceTransformations(int BdrElemNo,
+                                                         int mask = 21);
 
    /// @brief Variant of GetBdrFaceTransformations using a user allocated
    /// FaceElementTransformations object.
    void GetBdrFaceTransformations(int BdrElemNo,
                                   FaceElementTransformations &FElTr,
                                   IsoparametricTransformation &ElTr1,
-                                  IsoparametricTransformation &ElTr2) const;
+                                  IsoparametricTransformation &ElTr2,
+                                  int mask = 21) const;
 
    /// @}
 
