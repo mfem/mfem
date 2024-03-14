@@ -2788,7 +2788,6 @@ const int mfem_to_genesis_wedge18[18] =
    1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12, 16, 17, 18
 };
 
-
 const int mfem_to_genesis_tri6[6]   =
 {
    1,2,3,4,5,6
@@ -2844,7 +2843,7 @@ const int cubit_side_map_wedge6[5][4] =
 const int cubit_side_map_pyramid5[5][4] =
 {
    {4, 3, 2, 1},
-   {1, 2, 5, 0},  // NB: 0 because only 3 elements.
+   {1, 2, 5, 0},
    {2, 3, 5, 0},
    {3, 4, 5, 0},
    {4, 1, 5, 0}
@@ -2885,12 +2884,12 @@ enum CubitElementType
 class CubitElement
 {
 public:
-   /// NB: Delete default constructor.
-   CubitElement() = delete;
-   ~CubitElement() = default;
-
-   /// Default constructor. Sets the member variables for a given element type.
+   /// Default constructor.
    CubitElement(CubitElementType element_type);
+   CubitElement() = delete;
+
+   /// Destructor.
+   ~CubitElement() = default;
 
    /// Returns the Cubit element type.
    inline CubitElementType GetElementType() const { return _element_type; }
@@ -2901,13 +2900,13 @@ public:
       return _faces.at(iface);
    }
 
-   /// Returns the number of faces for the element type.
+   /// Returns the number of faces.
    inline size_t GetNumFaces() const { return _faces.size(); }
 
-   /// Returns the number of vertices for the element type.
+   /// Returns the number of vertices.
    inline size_t GetNumVertices() const { return _num_vertices; }
 
-   /// Returns the number of vertices for the face index.
+   /// Returns the number of vertices for a particular face.
    size_t GetNumFaceVertices(size_t iface = 0) const;
 
    /// Returns the order of the element.
@@ -2917,13 +2916,13 @@ public:
    Element * BuildElement(Mesh & mesh, const int * vertex_ids,
                           const int block_id) const;
 
-   /// Creates an MFEM boundary element for a Cubit face using the supplied vertex IDs and block ID.
+   /// Creates an MFEM boundary element using the supplied vertex IDs and block ID.
    Element * BuildBoundaryElement(Mesh & mesh, const int iface,
                                   const int * vertex_ids, const int sideset_id) const;
 
    /// Static method returning the element type for a given number of nodes per element and dimension.
    static CubitElementType GetElementType(size_t num_nodes,
-                                          short unsigned int dimension = 3);
+                                          uint8_t dimension = 3);
 protected:
    /// Static method which returns the 2D Cubit element type for the number of nodes per element.
    static CubitElementType Get2DElementType(size_t num_nodes);
@@ -3016,8 +3015,7 @@ CubitElement::CubitElement(CubitElementType element_type)
    }
 }
 
-CubitElementType CubitElement::Get3DElementType(
-   size_t num_nodes)
+CubitElementType CubitElement::Get3DElementType(size_t num_nodes)
 {
    switch (num_nodes)
    {
@@ -3042,8 +3040,7 @@ CubitElementType CubitElement::Get3DElementType(
    }
 }
 
-CubitElementType CubitElement::Get2DElementType(
-   size_t num_nodes)
+CubitElementType CubitElement::Get2DElementType(size_t num_nodes)
 {
    switch (num_nodes)
    {
@@ -3060,9 +3057,8 @@ CubitElementType CubitElement::Get2DElementType(
    }
 }
 
-CubitElementType CubitElement::GetElementType(
-   size_t num_nodes,
-   short unsigned int dimension)
+CubitElementType CubitElement::GetElementType(size_t num_nodes,
+                                              uint8_t dimension)
 {
    if (dimension == 2)
    {
@@ -3081,9 +3077,7 @@ CubitElementType CubitElement::GetElementType(
 
 size_t CubitElement::GetNumFaceVertices(size_t iface) const
 {
-   CubitFaceType face_type = _faces.at(iface);
-
-   switch (face_type)
+   switch (GetFaceType(iface))
    {
       case FACE_EDGE2:
       case FACE_EDGE3:
@@ -3095,7 +3089,7 @@ size_t CubitElement::GetNumFaceVertices(size_t iface) const
       case FACE_QUAD9:
          return 4;
       default:
-         MFEM_ABORT("Unrecognized Cubit face type " << face_type << ".");
+         MFEM_ABORT("Unrecognized Cubit face type " << GetFaceType(iface) << ".");
    }
 }
 
@@ -3326,6 +3320,7 @@ void NetCDFReader::ReadVariable(const char * name, double * data)
 }
 
 
+/// @brief Reads the coordinate data from the Genesis file.
 static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
                                      double *coordx,
                                      double *coordy,
@@ -3341,10 +3336,13 @@ static void ReadCubitNodeCoordinates(NetCDFReader & cubit_reader,
 }
 
 
+/// @brief Reads the number of elements in each block.
 static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
                                         const vector<int> & block_ids,
                                         map<int, size_t> &num_elements_for_block_id)
 {
+   num_elements_for_block_id.clear();
+
    // NB: need to add 1 for '\0' terminating character.
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
@@ -3362,6 +3360,7 @@ static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
    }
 }
 
+/// @brief Reads the element ids for each block.
 static void BuildElementIDsForBlockID(
    const vector<int> & block_ids,
    const map<int, size_t> & num_elements_for_block_id,
@@ -3370,7 +3369,6 @@ static void BuildElementIDsForBlockID(
    element_ids_for_block_id.clear();
 
    int element_id = 0;  // Start at zero.
-
    for (int block_id : block_ids)
    {
       const int num_elements_for_block = num_elements_for_block_id.at(block_id);
@@ -3386,7 +3384,7 @@ static void BuildElementIDsForBlockID(
    }
 }
 
-
+/// @brief Reads the number of nodes per element for each block.
 static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
                                         const int num_element_blocks,
                                         size_t &num_nodes_per_element)
@@ -3425,6 +3423,7 @@ static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
 }
 
 
+/// @brief Extracts core dimension information from Genesis file.
 static void ReadCubitDimensions(NetCDFReader & cubit_reader,
                                 size_t &num_dim,
                                 size_t &num_nodes,
@@ -3448,6 +3447,8 @@ static void ReadCubitDimensions(NetCDFReader & cubit_reader,
    }
 }
 
+/// @brief Extracts the element ids corresponding to elements that lie on each boundary;
+/// also extracts the side ids of those elements which lie on the boundary.
 static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
                                 const vector<int> & boundary_ids,
                                 map<int, vector<int>> & element_ids_for_boundary_id,
@@ -3477,14 +3478,14 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       snprintf(string_buffer, buffer_size,"side_ss%d", iboundary + 1);
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
-      // Now subtract 1 to convert from 1-index --> 0-index.
+      // 3. Now subtract 1 to convert from 1-index --> 0-index.
       for (size_t i = 0; i < num_sides; i++)
       {
          boundary_element_ids[i]--;
          boundary_side_ids[i]--;
       }
 
-      // Add to maps.
+      // 4. Add to maps.
       element_ids_for_boundary_id[boundary_id] = std::move(boundary_element_ids);
       side_ids_for_boundary_id[boundary_id] = std::move(boundary_side_ids);
 
@@ -3492,15 +3493,16 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
    }
 }
 
+/// @brief Reads the block ids from the Genesis file.
 static void BuildCubitBlockIDs(NetCDFReader & cubit_reader,
                                const int num_element_blocks,
                                vector<int> & block_ids)
 {
    block_ids.resize(num_element_blocks);
-
    cubit_reader.ReadVariable("eb_prop1", block_ids.data());
 }
 
+/// @brief Reads the boundary ids from the Genesis file.
 static void ReadCubitBoundaryIDs(NetCDFReader & cubit_reader,
                                  const int num_boundaries, vector<int> & boundary_ids)
 {
@@ -3509,11 +3511,10 @@ static void ReadCubitBoundaryIDs(NetCDFReader & cubit_reader,
    if (num_boundaries < 1) { return; }
 
    boundary_ids.resize(num_boundaries);
-
    cubit_reader.ReadVariable("ss_prop1", boundary_ids.data());
 }
 
-
+/// @brief Reads the node ids for each element from the Genesis file.
 static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
                                    const int num_nodes_per_element,
                                    const vector<int> & block_ids,
@@ -3557,6 +3558,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
    }
 }
 
+/// @brief Builds a mapping from the boundary ID to the face vertices of each element that lie on the boundary.
 static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                                  const CubitElement & block_element,
                                  const map<int, vector<int>> & node_ids_for_element_id,
@@ -3638,6 +3640,7 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
    }
 }
 
+/// @brief Generates a vector of unique vertex ID.
 static void BuildUniqueVertexIDs(const vector<int> & unique_block_ids,
                                  const CubitElement & block_element,
                                  const map<int, vector<int>> & element_ids_for_block_id,
@@ -3765,6 +3768,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
 }  // end of namespace cubit.
 
+/// @brief Set the coordinates of the Cubit vertices.
 void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
                               const vector<double> & coordx,
                               const vector<double> & coordy,
@@ -3787,6 +3791,7 @@ void Mesh::BuildCubitVertices(const vector<int> & unique_vertex_ids,
    }
 }
 
+/// @brief Create Cubit elements.
 void Mesh::BuildCubitElements(const int num_elements,
                               const cubit::CubitElement * block_element,
                               const vector<int> & block_ids,
@@ -3831,6 +3836,7 @@ void Mesh::BuildCubitElements(const int num_elements,
    }
 }
 
+/// @brief Build the Cubit boundaries.
 void Mesh::BuildCubitBoundaries(
    const cubit::CubitElement * block_element,
    const vector<int> & boundary_ids,
@@ -3880,7 +3886,6 @@ void Mesh::BuildCubitBoundaries(
       }
    }
 }
-
 
 void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
 {
