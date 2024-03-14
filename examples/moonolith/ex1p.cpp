@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool use_vector_fe = false;
    bool use_h1 = true;
+   bool use_vector_space = false;
    bool verbose = false;
    bool assemble_mass_and_coupling_together = true;
 
@@ -74,7 +75,11 @@ int main(int argc, char *argv[])
    args.AddOption(&verbose, "-verb", "--verbose", "--no-verb", "--no-verbose",
                   "Enable/Disable verbose output");
    args.AddOption(&use_vector_fe, "-vfe", "--use_vector_fe", "-no-vfe",
-                  "--no-vector_fe", "Use vector finite elements (Experimental)");
+                  "--no-vector_fe",
+                  "Use RT|ND vector finite elements (Experimental)");
+   args.AddOption(&use_vector_space, "-vfs", "--use_vector_space", "-no-vfs",
+                  "--no-vector_space",
+                  "Use Lagrange vector finite elements (Experimental)");
    args.AddOption(&use_h1, "-h1", "--use-h1", "-nh1", "--no-h1",
                   "Use H1 collection");
    args.AddOption(&assemble_mass_and_coupling_together, "-act",
@@ -84,6 +89,12 @@ int main(int argc, char *argv[])
                   "non-affine elements)");
    args.Parse();
    check_options(args);
+
+   if (use_vector_fe && use_vector_space)
+   {
+      mfem::err <<
+                "WARNING: use_vector_fe and use_vector_space options are both true, ignoring use_vector_fe\n";
+   }
 
    shared_ptr<Mesh> src_mesh, dest_mesh;
 
@@ -181,7 +192,6 @@ int main(int argc, char *argv[])
             make_shared<H1_FECollection>(source_fe_order, src_mesh->Dimension());
          dest_fe_coll =
             make_shared<H1_FECollection>(dest_fe_order, dest_mesh->Dimension());
-
       }
       else
       {
@@ -192,11 +202,13 @@ int main(int argc, char *argv[])
       }
    }
 
-   auto src_fe =
-      make_shared<ParFiniteElementSpace>(p_src_mesh.get(), src_fe_coll.get());
+   auto src_fe = make_shared<ParFiniteElementSpace>(
+                    p_src_mesh.get(), src_fe_coll.get(),
+                    use_vector_space ? src_mesh->Dimension() : 1);
 
-   auto dest_fe =
-      make_shared<ParFiniteElementSpace>(p_dest_mesh.get(), dest_fe_coll.get());
+   auto dest_fe = make_shared<ParFiniteElementSpace>(
+                     p_dest_mesh.get(), dest_fe_coll.get(),
+                     use_vector_space ? dest_mesh->Dimension() : 1);
 
    ParGridFunction src_fun(src_fe.get());
 
@@ -206,7 +218,7 @@ int main(int argc, char *argv[])
    // To be used with vector fe
    VectorFunctionCoefficient vector_coeff(dim, &vector_fun);
 
-   if (use_vector_fe)
+   if (use_vector_fe || use_vector_space)
    {
       src_fun.ProjectCoefficient(vector_coeff);
       src_fun.Update();
@@ -226,7 +238,11 @@ int main(int argc, char *argv[])
       assemble_mass_and_coupling_together);
    assembler.SetVerbose(verbose);
 
-   if (use_vector_fe)
+   if (use_vector_space)
+   {
+      assembler.AddMortarIntegrator(make_shared<TPL2MortarIntegrator>());
+   }
+   else if (use_vector_fe)
    {
       assembler.AddMortarIntegrator(make_shared<VectorL2MortarIntegrator>());
    }

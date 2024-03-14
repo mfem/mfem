@@ -60,24 +60,9 @@ public:
     }
   }
 
-  bool is_vector_fe() const {
-    bool is_vector_fe = false;
-    for (auto i_ptr : integrators) {
-      if (i_ptr->is_vector_fe()) {
-        is_vector_fe = true;
-        break;
-      }
-    }
-
-    return is_vector_fe;
-  }
-
-  BilinearFormIntegrator *new_mass_integrator() const {
-    if (is_vector_fe()) {
-      return new VectorFEMassIntegrator();
-    } else {
-      return new MassIntegrator();
-    }
+  BilinearFormIntegrator *newBFormIntegrator() const {
+    assert(!integrators.empty());
+    return integrators[0]->newBFormIntegrator();
   }
 };
 
@@ -498,6 +483,7 @@ static FiniteElementCollection *FECollFromName(const std::string &comp_name) {
 }
 
 static void read_space(moonolith::InputStream &is,
+                       const int vdim,
                        std::shared_ptr<FiniteElementSpace> &space,
                        std::vector<ElementDofMap> &dof_map) {
   using namespace std;
@@ -554,24 +540,24 @@ static void read_space(moonolith::InputStream &is,
   Finalize(*mesh_ptr, true);
   // }
 
-  space = make_shared<FiniteElementSpace>(mesh_ptr, fe_coll);
+  space = make_shared<FiniteElementSpace>(mesh_ptr, fe_coll, vdim);
 }
 
-static void read_spaces(moonolith::InputStream &is, Spaces &spaces) {
+static void read_spaces(moonolith::InputStream &is, const int vdim, Spaces &spaces) {
   bool has_source, has_destination;
   is >> has_source >> has_destination;
 
   spaces.spaces().resize(2);
 
   if (has_source) {
-    read_space(is, spaces.spaces()[0], spaces.dof_map(0));
+    read_space(is, vdim, spaces.spaces()[0], spaces.dof_map(0));
     spaces.set_must_destroy_attached(0, true);
   } else {
     spaces.spaces()[0] = nullptr;
   }
 
   if (has_destination) {
-    read_space(is, spaces.spaces()[1], spaces.dof_map(1));
+    read_space(is, vdim, spaces.spaces()[1], spaces.dof_map(1));
     spaces.set_must_destroy_attached(1, true);
   } else {
     spaces.spaces()[1] = nullptr;
@@ -633,14 +619,14 @@ static bool Assemble(moonolith::Communicator &comm,
   std::map<long, std::shared_ptr<Spaces>> spaces;
   std::map<long, std::vector<std::shared_ptr<Spaces>>> migrated_spaces;
 
-  auto read = [&spaces, &migrated_spaces,
+  auto read = [&spaces, &migrated_spaces, &source,
                comm](const long ownerrank, const long /*senderrank*/,
                      bool is_forwarding, DataContainer &data, InputStream &in) {
     CHECK_STREAM_READ_BEGIN("vol_proj", in);
 
     std::shared_ptr<Spaces> proc_space = std::make_shared<Spaces>(comm);
 
-    read_spaces(in, *proc_space);
+    read_spaces(in, source->GetVDim(), *proc_space);
 
     if (!is_forwarding) {
       assert(!spaces[ownerrank]);
@@ -841,7 +827,7 @@ Assemble(moonolith::Communicator &comm, ParMortarAssembler::Impl &impl,
   mass_mat_buffer.set_size(s_global_n_dofs, s_global_n_dofs);
 
   std::unique_ptr<BilinearFormIntegrator> mass_integr(
-      impl.new_mass_integrator());
+      impl.newBFormIntegrator());
 
   auto fun = [&](const ElementAdapter<Dimensions> &source,
                  const ElementAdapter<Dimensions> &destination) -> bool {
@@ -1104,7 +1090,7 @@ bool ParMortarAssembler::Update() {
 
   if (!impl_->assemble_mass_and_coupling_together) {
     ParBilinearForm b_form(impl_->destination.get());
-    b_form.AddDomainIntegrator(impl_->new_mass_integrator());
+    b_form.AddDomainIntegrator(impl_->newBFormIntegrator());
     b_form.Assemble();
     b_form.Finalize();
     impl_->mass_matrix = shared_ptr<HypreParMatrix>(b_form.ParallelAssemble());
