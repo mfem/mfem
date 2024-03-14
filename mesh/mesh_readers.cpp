@@ -2892,8 +2892,6 @@ public:
    /// Default constructor. Sets the member variables for a given element type.
    CubitElement(CubitElementType element_type);
 
-   CubitElement(int num_nodes, int dim = 3);
-
    /// Returns the Cubit element type.
    inline CubitElementType GetElementType() const { return _element_type; }
 
@@ -2945,33 +2943,6 @@ private:
 
    vector<CubitFaceType> _faces;
 };
-
-size_t CubitElement::GetNumFaceVertices(size_t iface) const
-{
-   CubitFaceType face_type = _faces.at(iface);
-
-   switch (face_type)
-   {
-      case FACE_EDGE2:
-      case FACE_EDGE3:
-         return 2;
-      case FACE_TRI3:
-      case FACE_TRI6:
-         return 3;
-      case FACE_QUAD4:
-      case FACE_QUAD9:
-         return 4;
-      default:
-         MFEM_ABORT("Unrecognized Cubit face type " << face_type << ".");
-   }
-}
-
-CubitElement::CubitElement(int num_nodes,
-                           int dim) : CubitElement(GetElementType(
-                                                         num_nodes,
-                                                         dim))
-{
-}
 
 CubitElement::CubitElement(CubitElementType element_type)
 {
@@ -3107,6 +3078,28 @@ CubitElementType CubitElement::GetElementType(
    }
 }
 
+
+size_t CubitElement::GetNumFaceVertices(size_t iface) const
+{
+   CubitFaceType face_type = _faces.at(iface);
+
+   switch (face_type)
+   {
+      case FACE_EDGE2:
+      case FACE_EDGE3:
+         return 2;
+      case FACE_TRI3:
+      case FACE_TRI6:
+         return 3;
+      case FACE_QUAD4:
+      case FACE_QUAD9:
+         return 4;
+      default:
+         MFEM_ABORT("Unrecognized Cubit face type " << face_type << ".");
+   }
+}
+
+
 mfem::Element * CubitElement::NewElement(Mesh &mesh, Geometry::Type geom,
                                          const int *vertices,
                                          const int attribute) const
@@ -3117,8 +3110,7 @@ mfem::Element * CubitElement::NewElement(Mesh &mesh, Geometry::Type geom,
    return new_element;
 }
 
-/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
-/// element type. This is used to create the mesh elements from a Genesis file.
+
 mfem::Element * CubitElement::BuildElement(Mesh &mesh,
                                            const int *vertex_ids,
                                            const int block_id) const
@@ -3148,16 +3140,13 @@ mfem::Element * CubitElement::BuildElement(Mesh &mesh,
    }
 }
 
-/// @brief Returns a pointer to a new mfem::Element based on the provided cubit
-/// face type. This is used to create the boundary elements from a Genesis file.
+
 mfem::Element * CubitElement::BuildBoundaryElement(Mesh &mesh,
                                                    const int face_id,
                                                    const int *vertex_ids,
                                                    const int sideset_id) const
 {
-   CubitFaceType face_type = GetFaceType(face_id);
-
-   switch (face_type)
+   switch (GetFaceType(face_id))
    {
       case FACE_EDGE2:
       case FACE_EDGE3:
@@ -3937,8 +3926,8 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    ReadCubitNumNodesPerElement(cubit_reader, num_element_blocks,
                                num_nodes_per_element);
 
-   CubitElement block_element(num_nodes_per_element,
-                              num_dimensions);
+   CubitElement block_element(CubitElement::GetElementType(num_nodes_per_element,
+                                                           num_dimensions));
 
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
