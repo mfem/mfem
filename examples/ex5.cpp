@@ -481,9 +481,11 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
       u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
+      u_sock << "keys Rljvvvvvmmc" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
       p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
+      p_sock << "keys Rljmmc" << endl;
    }
 
    // 17. Free the used memory.
