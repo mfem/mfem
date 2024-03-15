@@ -53,7 +53,7 @@ class ParNCMesh;
 #ifdef MFEM_USE_NETCDF
 namespace cubit
 {
-class CubitElement;
+class CubitBlock;
 }
 #endif
 
@@ -347,7 +347,7 @@ protected:
 
    /// @brief Called internally in ReadCubit. This method builds the mesh elements.
    void BuildCubitElements(const int num_elements,
-                           const cubit::CubitElement * element_info,
+                           const cubit::CubitBlock * blocks,
                            const std::vector<int> & block_ids,
                            const std::map<int, std::vector<int>> & element_ids_for_block_id,
                            const std::map<int, std::vector<int>> & node_ids_for_element_id,
@@ -355,11 +355,12 @@ protected:
 
    /// @brief Called internally in ReadCubit. This method adds the mesh boundary elements.
    void BuildCubitBoundaries(
-      const cubit::CubitElement * element_info,
+      const cubit::CubitBlock * blocks,
       const std::vector<int> & boundary_ids,
       const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
       const std::map<int, std::vector<std::vector<int>>> & node_ids_for_boundary_id,
       const std::map<int, std::vector<int>> & side_ids_for_boundary_id,
+      const std::map<int, int> & block_id_for_element_id,
       const std::map<int, int> & cubit_to_mfem_vertex_map);
 #endif
 
