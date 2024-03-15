@@ -2907,6 +2907,9 @@ public:
    /// Returns the number of vertices.
    inline size_t GetNumVertices() const { return _num_vertices; }
 
+   /// Returns the number of nodes (vertices + higher-order control points).
+   inline size_t GetNumNodes() const { return _num_nodes; }
+
    /// Returns the number of vertices for a particular face.
    size_t GetNumFaceVertices(size_t iface = 0) const;
 
@@ -2940,6 +2943,7 @@ private:
 
    uint8_t _order;
    size_t _num_vertices;
+   size_t _num_nodes;
 
    vector<CubitFaceType> _faces;
 };
@@ -2953,61 +2957,73 @@ CubitElement::CubitElement(CubitElementType element_type)
       case ELEMENT_TRI3:   // 2D.
          _order = 1;
          _num_vertices = 3;
+         _num_nodes = 3;
          _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       case ELEMENT_TRI6:
          _order = 2;
          _num_vertices = 3;
+         _num_nodes = 6;
          _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       case ELEMENT_QUAD4:
          _order = 1;
          _num_vertices = 4;
+         _num_nodes = 4;
          _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
          break;
       case ELEMENT_QUAD9:
          _order = 2;
          _num_vertices = 4;
+         _num_nodes = 9;
          _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
          break;
       case ELEMENT_TET4:   // 3D.
          _order = 1;
          _num_vertices = 4;
+         _num_nodes = 4;
          _faces = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       case ELEMENT_TET10:
          _order = 2;
          _num_vertices = 4;
+         _num_nodes = 10;
          _faces = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       case ELEMENT_HEX8:
          _order = 1;
          _num_vertices = 8;
+         _num_nodes = 8;
          _faces = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       case ELEMENT_HEX27:
          _order = 2;
          _num_vertices = 8;
+         _num_nodes = 27;
          _faces = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       case ELEMENT_WEDGE6:
          _order = 1;
          _num_vertices = 6;
+         _num_nodes = 6;
          _faces = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
          break;
       case ELEMENT_WEDGE18:
          _order = 2;
          _num_vertices = 6;
+         _num_nodes = 18;
          _faces = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
          break;
       case ELEMENT_PYRAMID5:
          _order = 1;
          _num_vertices = 5;
+         _num_nodes = 5;
          _faces = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
          break;
       case ELEMENT_PYRAMID14:
          _order = 2;
          _num_vertices = 5;
+         _num_nodes = 14;
          _faces = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
          break;
       default:
