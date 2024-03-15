@@ -42,8 +42,8 @@ namespace mfem
 //    computing normal flux. Several example equations are also defined
 //    including: advection, Burgers', shallow water, and Euler equations. Users
 //    can control the quadrature rule by either providing the integration rule,
-//    or integration order offset. Integration will use 2*p + IntOrderOffset order
-//    quadrature rule.
+//    or integration order offset. Integration will use 2*p + IntOrderOffset
+//    order quadrature rule.
 //
 //    At each call of HyperbolicFormIntegrator::AssembleElementVector
 //    HyperbolicFormIntegrator::AssembleFaceVector, the maximum characteristic
