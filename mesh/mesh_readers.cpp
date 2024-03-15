@@ -3647,13 +3647,12 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
-   int iboundary = 0;
    for (int boundary_id : boundary_ids)
    {
       // 1. Extract number of elements/sides for boundary.
       size_t num_sides = 0;
 
-      snprintf(string_buffer, buffer_size, "num_side_ss%d", iboundary + 1);
+      snprintf(string_buffer, buffer_size, "num_side_ss%d", boundary_id);
       cubit_reader.ReadDimension(string_buffer, &num_sides);
 
       // 2. Extract elements and sides on each boundary.
@@ -3661,11 +3660,11 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       vector<int> boundary_side_ids(num_sides);
 
       //
-      snprintf(string_buffer, buffer_size, "elem_ss%d", iboundary + 1);
+      snprintf(string_buffer, buffer_size, "elem_ss%d", boundary_id);
       cubit_reader.ReadVariable(string_buffer, boundary_element_ids.data());
 
       //
-      snprintf(string_buffer, buffer_size,"side_ss%d", iboundary + 1);
+      snprintf(string_buffer, buffer_size,"side_ss%d", boundary_id);
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
       // 3. Now subtract 1 to convert from 1-index --> 0-index.
@@ -3678,8 +3677,6 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       // 4. Add to maps.
       element_ids_for_boundary_id[boundary_id] = std::move(boundary_element_ids);
       side_ids_for_boundary_id[boundary_id] = std::move(boundary_side_ids);
-
-      iboundary++;
    }
 }
 
@@ -3943,7 +3940,8 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
       for (int element_id : element_ids)
       {
          Array<int> dofs;
-         fes->GetElementDofs(element_id - 1, dofs);   // NB: 1-index (Exodus) --> 0-index (MFEM).
+         fes->GetElementDofs(element_id - 1,
+                             dofs);   // NB: 1-index (Exodus) --> 0-index (MFEM).
 
          Array<int> vdofs = dofs;   // Deep copy.
          fes->DofsToVDofs(vdofs);
