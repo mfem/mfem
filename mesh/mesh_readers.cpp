@@ -3569,20 +3569,19 @@ static void BuildElementIDsForBlockID(
    element_ids_for_block_id.clear();
    block_id_for_element_id.clear();
 
-   // TODO: - should be able to extract actual element IDs using the CubitReader and Exodus II specifications.
-   int element_id = 0;  // Start at zero.
-
+   // From the Exodus II specifications, the element ID is numbered contiguously starting
+   // from 1 across the element blocks.
+   int element_id = 1;
    for (int block_id : block_ids)
    {
       const int num_elements_for_block = num_elements_for_block_id.at(block_id);
 
       vector<int> element_ids(num_elements_for_block);
 
-      for (size_t i = 0; i < element_ids.size(); i++)
+      for (int i = 0; i < num_elements_for_block; i++, element_id++)
       {
-         element_ids[i] = element_id++;
-
-         block_id_for_element_id[element_ids[i]] = block_id;
+         element_ids[i] = element_id;
+         block_id_for_element_id[element_id] = block_id;
       }
 
       element_ids_for_block_id[block_id] = std::move(element_ids);
@@ -3672,7 +3671,7 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       // 3. Now subtract 1 to convert from 1-index --> 0-index.
       for (size_t i = 0; i < num_sides; i++)
       {
-         boundary_element_ids[i]--;
+         //boundary_element_ids[i]--;
          boundary_side_ids[i]--;
       }
 
@@ -3759,9 +3758,6 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
                                  const map<int, int> & block_id_for_element_id,
                                  map<int, vector<vector<int>>> & node_ids_for_boundary_id)
 {
-   // TODO: - temporary.
-   CubitElement block_element = blocks.GetBlockElement(1);
-
    for (int boundary_id : boundary_ids)
    {
       // Get element IDs of element on boundary (and their sides that are on boundary).
@@ -3947,7 +3943,7 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
       for (int element_id : element_ids)
       {
          Array<int> dofs;
-         fes->GetElementDofs(element_id, dofs);
+         fes->GetElementDofs(element_id - 1, dofs);   // NB: 1-index (Exodus) --> 0-index (MFEM).
 
          Array<int> vdofs = dofs;   // Deep copy.
          fes->DofsToVDofs(vdofs);
