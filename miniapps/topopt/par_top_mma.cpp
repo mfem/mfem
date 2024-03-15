@@ -274,31 +274,45 @@ int main(int argc, char *argv[])
    bool converged = false;
    density.ComputeVolume();
    ParGridFunction lower(rho), upper(rho), ograd(rho), one(&control_fes),
-                   dv(&control_fes);
+                   dv(&control_fes), old2_rho(&control_fes);
    ParBilinearForm mass(&control_fes);
    mass.AddDomainIntegrator(new MassIntegrator());
    mass.Assemble();
    one = 1.0;
    mass.Mult(one, dv);
-   dv /= target_volume;
-   double mv = 0.2;
    for (int k = 0; k < max_it; k++)
    {
-      // Store old data
       old_compliance = compliance;
-      // Step and upate gradient
-
-      lower = rho; lower -= mv; lower.Clip(0, 1);
-      upper = rho; upper += mv; upper.Clip(0, 1);
-      double con = density.GetVolume() / target_volume - 1.0;
-      mass.Mult(grad, ograd);
-      mma->Update(rho, ograd, &con, &dv, lower, upper);
+      if (k < 2)
+      {
+         lower = rho; lower -= 0.5;
+         upper = rho; upper += 0.5;
+      }
+      else
+      {
+         double gamma;
+         for (int i=0; i<rho.Size(); i++)
+         {
+            const double diff = (rho(i) - old_rho(i))*(old_rho(i) - old2_rho(i));
+            if (diff < 0) { gamma = 0.7; }
+            else if (diff > 0) { gamma = 1.2; }
+            else { gamma = 1.0; }
+            lower(i) = std::max(rho(i) - gamma*(old_rho(i)-lower(i)), 0.0);
+            upper(i) = std::min(rho(i) + gamma*(upper(i)-old_rho(i)), 1.0);
+         }
+      }
+      lower.Clip(0, 1);
+      upper.Clip(0, 1);
+      old2_rho = old_rho;
+      old_rho = rho;
+      double con = density.GetVolume() - density.GetDomainVolume()*vol_fraction;
+      mma->Update(rho, grad, &con, &dv, lower, upper);
       volume = density.ComputeVolume();
       compliance = optprob.Eval();
       optprob.UpdateGradient();
 
       // Check convergence
-      stationarityError = density.StationarityError(grad);
+      stationarityError = density.StationarityError(grad, 1.0);
       logger.Print();
 
       // Step 4. Visualization
