@@ -3250,7 +3250,7 @@ public:
 protected:
    /**
     * Checks that the order of a new block element matches the order of existing blocks. Called
-    * internally in mehtod "addBlockElement".
+    * internally in method "addBlockElement".
     */
    void CheckElementBlockIsCompatible(const CubitElement & new_block_element)
    const;
@@ -3970,9 +3970,9 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
       for (int element_id : element_ids)
       {
+         // NB: 1-index (Exodus) --> 0-index (MFEM).
          Array<int> dofs;
-         fes->GetElementDofs(element_id - 1,
-                             dofs);   // NB: 1-index (Exodus) --> 0-index (MFEM).
+         fes->GetElementDofs(element_id - 1, dofs);
 
          Array<int> vdofs = dofs;   // Deep copy.
          fes->DofsToVDofs(vdofs);
