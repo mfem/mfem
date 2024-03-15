@@ -228,8 +228,9 @@ int main(int argc, char *argv[])
       projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
                                                       *gradH1_selfload));
       density.SetVolumeConstraintType(-1);
-
+      psi = inv_sigmoid(0.999);
    }
+   density.ComputeVolume();
    // 10. Connect to GLVis. Prepare for VisIt output.
    char vishost[] = "localhost";
    int  visport   = 19916;
@@ -294,10 +295,6 @@ int main(int argc, char *argv[])
 
    // 11. Iterate
    ParGridFunction old_grad(&control_fes), old_psi(&control_fes);
-   if (problem >= ElasticityProblem::MBB_selfloading)
-   {
-      psi = inv_sigmoid(0.5);
-   }
 
    ParLinearForm diff_rho_form(&control_fes);
    std::unique_ptr<Coefficient> diff_rho(optprob.GetDensityDiffCoeff(old_psi));
@@ -309,7 +306,7 @@ int main(int argc, char *argv[])
                 << "Start Projected Mirror Descent Step." << "\n" << std::endl;
 
    double compliance = optprob.Eval();
-   double step_size(0), volume(vol_fraction),
+   double step_size(0), volume(density.GetVolume()),
           stationarityError(infinity()), stationarityError_bregman(infinity());
    int num_reeval(0);
    double old_compliance;
@@ -378,7 +375,7 @@ int main(int argc, char *argv[])
          // }
          // rho_gf->ProjectBdrCoefficient(bdr_rho, bdr);
          // rho_gf->ProjectCoefficient(density.GetDensityCoefficient());
-         for(int i=0; i<rho_gf->Size(); i++) {(*rho_gf)(i) = sigmoid(psi[i]);}
+         for (int i=0; i<rho_gf->Size(); i++) {(*rho_gf)(i) = sigmoid(psi[i]);}
       }
       if (glvis_visualization)
       {
@@ -412,8 +409,9 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if ((use_bregman ? stationarityError_bregman : stationarityError) < tol_stationarity &&
-          std::fabs(old_compliance - compliance) < tol_compliance)
+      if ((use_bregman ? stationarityError_bregman : stationarityError) <
+          tol_stationarity &&
+          std::fabs((old_compliance - compliance)/compliance) < tol_compliance)
       {
          converged = true;
          if (Mpi::Root()) { mfem::out << "Total number of iteration = " << k + 1 << std::endl; }

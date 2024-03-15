@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
    double cx = 1.0;
    double cy = 0.0;
 
-   
+
    ostringstream filename_prefix;
    filename_prefix << "PMD-";
 
@@ -362,7 +362,8 @@ int main(int argc, char *argv[])
          }
          if (sout_r.is_open())
          {
-            rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(), GridFunction::AvgType::ARITHMETIC);
+            rho_gf->ProjectDiscCoefficient(density.GetDensityCoefficient(),
+                                           GridFunction::AvgType::ARITHMETIC);
             sout_r << "parallel " << num_procs << " " << myid << "\n";
             sout_r << "solution\n" << *pmesh << *rho_gf
                    << flush;
@@ -382,7 +383,8 @@ int main(int argc, char *argv[])
 
       logger.Print();
 
-      if ((use_bregman ? stationarityError_bregman : stationarityError) < tol_stationarity &&
+      if ((use_bregman ? stationarityError_bregman : stationarityError) <
+          tol_stationarity &&
           std::fabs((old_compliance - compliance)/old_compliance) < tol_compliance)
       {
          converged = true;

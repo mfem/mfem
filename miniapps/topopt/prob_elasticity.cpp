@@ -15,7 +15,8 @@ double DistanceToSegment(const Vector &p, const Vector &v, const Vector &w)
 
 void initialDesign(GridFunction& psi, Vector domain_center,
                    Array<Vector*> ports,
-                   double target_volume, double domain_size, double lower, double upper, bool toDensity)
+                   double target_volume, double domain_size, double lower, double upper,
+                   bool toDensity)
 {
    double weight = 0;
    double current_volume = 0;

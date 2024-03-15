@@ -9,7 +9,8 @@ double DistanceToSegment(const Vector &p, const Vector &v, const Vector &w);
 
 void initialDesign(GridFunction& psi, Vector domain_center,
                    Array<Vector*> ports,
-                   double target_volume, double domain_size, double lower, double upper, bool toDensity=false);
+                   double target_volume, double domain_size, double lower, double upper,
+                   bool toDensity=false);
 
 void uniformRefine(std::unique_ptr<Mesh>& mesh, int ser_ref_levels,
                    int par_ref_levels);
