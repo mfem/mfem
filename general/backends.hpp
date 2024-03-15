@@ -65,7 +65,7 @@
 
 // 'double' atomicAdd implementation for previous versions of CUDA
 #if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE inline double atomicAdd(double *add, double val)
+MFEM_DEVICE inline real_t atomicAdd(real_t *add, real_t val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
    unsigned long long int old = *ptr, reg;
@@ -73,10 +73,18 @@ MFEM_DEVICE inline double atomicAdd(double *add, double val)
    {
       reg = old;
       old = atomicCAS(ptr, reg,
+#ifdef MFEM_USE_SINGLE
+                      __float_as_int(val + __int_as_float(reg)));
+#else
                       __double_as_longlong(val + __longlong_as_double(reg)));
+#endif
    }
    while (reg != old);
+#ifdef MFEM_USE_SINGLE
+   return __int_as_float(old);
+#else
    return __longlong_as_double(old);
+#endif
 }
 #endif
 

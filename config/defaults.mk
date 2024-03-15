@@ -167,6 +167,8 @@ MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_ENZYME        = NO
+MFEM_USE_DOUBLE        = YES
+MFEM_USE_SINGLE        = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
@@ -317,8 +319,13 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib -ldmumps\
+MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib \
  -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+ifeq ($(MFEM_USE_SINGLE),YES)
+   MUMPS_LIB += -lsmumps
+else
+   MUMPS_LIB += -ldmumps
+endif
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build

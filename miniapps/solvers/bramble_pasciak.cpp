@@ -133,7 +133,7 @@ void BramblePasciakSolver::Init(
 }
 
 HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
-   ParBilinearForm &mVarf, double q_scaling)
+   ParBilinearForm &mVarf, real_t q_scaling)
 {
    MFEM_ASSERT((q_scaling > 0.0) && (q_scaling < 1.0),
                "Invalid Q-scaling factor: q_scaling = " << q_scaling );
@@ -151,7 +151,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
    {
       DenseMatrix M_i, Q_i;
       Vector diag_i;
-      double scaling = 0.0, eval_i = 0.0;
+      real_t scaling = 0.0, eval_i = 0.0;
       mVarf.ComputeElementMatrix(i, M_i);
       M_i.GetDiag(diag_i);
       // M_i <- D^{-1/2} M_i D^{-1/2}, where D = diag(M_i)
@@ -165,7 +165,7 @@ HypreParMatrix *BramblePasciakSolver::ConstructMassPreconditioner(
 #else
       // Inverse power method
       Vector x(M_i.Height()), Mx(M_i.Height()), diff(M_i.Height());
-      double eval_prev = 0.0;
+      real_t eval_prev = 0.0;
       int iter = 0;
       x.Randomize();
       do
@@ -222,8 +222,8 @@ void BPCGSolver::UpdateVectors()
 void BPCGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
-   double delta, delta0, del0;
-   double alpha, beta, gamma;
+   real_t delta, delta0, del0;
+   real_t alpha, beta, gamma;
 
    // Initialization
    x.UseDevice(true);

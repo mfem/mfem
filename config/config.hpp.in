@@ -201,4 +201,10 @@
 // Enable the Enzyme LLVM plugin
 // #define MFEM_USE_ENZYME
 
+// Use double-precision floating point type
+// #define MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+// #define MFEM_USE_SINGLE
+
 #endif // MFEM_CONFIG_HEADER
