@@ -773,14 +773,14 @@ public:
 class SumOperator : public Operator
 {
    const Operator *A, *B;
-   const double alpha, beta;
+   const real_t alpha, beta;
    bool ownA, ownB;
    mutable Vector z;
 
 public:
    SumOperator(
-      const Operator *A, const double alpha,
-      const Operator *B, const double beta,
+      const Operator *A, const real_t alpha,
+      const Operator *B, const real_t beta,
       bool ownA, bool ownB);
 
    virtual void Mult(const Vector &x, Vector &y) const

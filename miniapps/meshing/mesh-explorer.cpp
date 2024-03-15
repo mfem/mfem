@@ -456,7 +456,7 @@ int main (int argc, char *argv[])
                cout << "enter NURBS tolerance? [y/n] ---> " << flush;
                cin >> input_tol;
 
-               double tol = 1.0e-12;  // Default value
+               real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
                   cout << "enter NURBS tolerance ---> " << flush;
@@ -477,7 +477,7 @@ int main (int argc, char *argv[])
                cout << "enter NURBS tolerance? [y/n] ---> " << flush;
                cin >> input_tol;
 
-               double tol = 1.0e-12;  // Default value
+               real_t tol = 1.0e-12;  // Default value
                if (input_tol == 'y')
                {
                   cout << "enter NURBS tolerance ---> " << flush;

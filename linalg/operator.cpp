@@ -365,8 +365,8 @@ void SecondOrderTimeDependentOperator::ImplicitSolve(const real_t dt0,
    mfem_error("SecondOrderTimeDependentOperator::ImplicitSolve() is not overridden!");
 }
 
-SumOperator::SumOperator(const Operator *A, const double alpha,
-                         const Operator *B, const double beta,
+SumOperator::SumOperator(const Operator *A, const real_t alpha,
+                         const Operator *B, const real_t beta,
                          bool ownA, bool ownB)
    : Operator(A->Height(), A->Width()),
      A(A), B(B), alpha(alpha), beta(beta), ownA(ownA), ownB(ownB),

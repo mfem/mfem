@@ -2148,12 +2148,12 @@ public:
                       elements in each dimension. Some factors can be 1.
        @param[in] tol NURBS geometry deviation tolerance, cf. Algorithm A5.8 of
                       "The NURBS Book", 2nd ed, Piegl and Tiller. */
-   virtual void NURBSUniformRefinement(int rf = 2, double tol = 1.0e-12);
-   virtual void NURBSUniformRefinement(const Array<int> &rf, double tol=1.e-12);
+   virtual void NURBSUniformRefinement(int rf = 2, real_t tol = 1.0e-12);
+   virtual void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12);
 
    /// Coarsening for a NURBS mesh, with an optional coarsening factor @a cf > 1
    /// which divides the number of elements in each dimension.
-   void NURBSCoarsening(int cf = 2, double tol = 1.0e-12);
+   void NURBSCoarsening(int cf = 2, real_t tol = 1.0e-12);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
