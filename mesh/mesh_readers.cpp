@@ -3558,25 +3558,31 @@ static void ReadCubitNumElementsInBlock(NetCDFReader & cubit_reader,
    }
 }
 
-/// @brief Reads the element ids for each block.
+/// @brief Builds the mappings:
+/// (blockID --> (elements in block)); (elementID --> blockID)
 static void BuildElementIDsForBlockID(
    const vector<int> & block_ids,
    const map<int, size_t> & num_elements_for_block_id,
-   map<int, vector<int>> & element_ids_for_block_id)
+   map<int, vector<int>> & element_ids_for_block_id,
+   map<int, int> & block_id_for_element_id)
 {
    element_ids_for_block_id.clear();
+   block_id_for_element_id.clear();
 
+   // TODO: - should be able to extract actual element IDs using the CubitReader and Exodus II specifications.
    int element_id = 0;  // Start at zero.
+
    for (int block_id : block_ids)
    {
       const int num_elements_for_block = num_elements_for_block_id.at(block_id);
 
       vector<int> element_ids(num_elements_for_block);
 
-
       for (size_t i = 0; i < element_ids.size(); i++)
       {
          element_ids[i] = element_id++;
+
+         block_id_for_element_id[element_ids[i]] = block_id;
       }
 
       element_ids_for_block_id[block_id] = std::move(element_ids);
@@ -4107,8 +4113,10 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
                                num_elements_for_block_id);
 
    map<int, vector<int>> element_ids_for_block_id;
+   map<int, int> block_id_for_element_id;
    BuildElementIDsForBlockID(
-      block_ids, num_elements_for_block_id, element_ids_for_block_id);
+      block_ids, num_elements_for_block_id, element_ids_for_block_id,
+      block_id_for_element_id);
 
    //
    // Read number of nodes for each element.
