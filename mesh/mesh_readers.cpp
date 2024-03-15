@@ -3583,42 +3583,28 @@ static void BuildElementIDsForBlockID(
    }
 }
 
-/// @brief Reads the number of nodes per element for each block.
-static void ReadCubitNumNodesPerElement(NetCDFReader & cubit_reader,
-                                        const int num_element_blocks,
-                                        size_t &num_nodes_per_element)
+/// @brief Reads the element types for each block.
+static void ReadCubitBlocks(NetCDFReader & cubit_reader,
+                            const vector<int> block_ids,
+                            CubitBlock & cubit_blocks)
 {
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
-   size_t new_num_nodes_per_element, last_num_nodes_per_element;
+   size_t num_nodes_per_element;
 
-   bool different_element_types_detected = false;
-
-   for (int iblock = 0; iblock < num_element_blocks; iblock++)
+   for (int block_id : block_ids)
    {
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", iblock + 1);
+      snprintf(string_buffer, buffer_size, "num_nod_per_el%d", block_id);
 
-      cubit_reader.ReadDimension(string_buffer, &new_num_nodes_per_element);
+      cubit_reader.ReadDimension(string_buffer, &num_nodes_per_element);
 
-      // NB: currently can only support one element type!
-      if (iblock > 0 && new_num_nodes_per_element != last_num_nodes_per_element)
-      {
-         different_element_types_detected = true;
-         break;
-      }
-
-      last_num_nodes_per_element = new_num_nodes_per_element;
+      // Determine the element type:
+      CubitElementType element_type = CubitElement::GetElementType(
+                                         num_nodes_per_element, cubit_blocks.GetDimension());
+      cubit_blocks.AddBlockElement(block_id, element_type);
    }
-
-   if (different_element_types_detected)
-   {
-      MFEM_ABORT("Element blocks of different types are not supported!\n");
-   }
-
-   // Set:
-   num_nodes_per_element = new_num_nodes_per_element;
 }
 
 
@@ -4124,19 +4110,17 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
       block_ids, num_elements_for_block_id, element_ids_for_block_id);
 
    //
-   // Read number of nodes for each element (NB: limited to a single element type).
-   //
-   size_t num_nodes_per_element;
-   ReadCubitNumNodesPerElement(cubit_reader, num_element_blocks,
-                               num_nodes_per_element);
+   // Read number of nodes for each element.
+   CubitBlock blocks(num_dimensions);
+   ReadCubitBlocks(cubit_reader, block_ids, blocks);
 
-   CubitElement block_element(CubitElement::GetElementType(num_nodes_per_element,
-                                                           num_dimensions));
+   // TODO: - Temporary code
+   CubitElement block_element = blocks.GetBlockElement(block_ids.front());
 
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
    ReadCubitElementBlocks(cubit_reader,
-                          num_nodes_per_element,
+                          block_element.GetNumNodes(),   // TODO: temporary
                           block_ids,
                           element_ids_for_block_id,
                           node_ids_for_element_id);
