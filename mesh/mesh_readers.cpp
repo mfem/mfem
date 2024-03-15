@@ -3701,7 +3701,7 @@ static void ReadCubitBoundaryIDs(NetCDFReader & cubit_reader,
 
 /// @brief Reads the node ids for each element from the Genesis file.
 static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
-                                   const int num_nodes_per_element,
+                                   const CubitBlock & cubit_blocks,
                                    const vector<int> & block_ids,
                                    const map<int, vector<int>> & element_ids_for_block_id,
                                    map<int, vector<int>> &node_ids_for_element_id)
@@ -3709,19 +3709,19 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
    const int buffer_size = NC_MAX_NAME + 1;
    char string_buffer[buffer_size];
 
-   int iblock = 1;
    for (const int block_id : block_ids)
    {
-      // NB: assuming single element type.
+      const CubitElement & block_element = cubit_blocks.GetBlockElement(block_id);
+
       const vector<int> & block_element_ids = element_ids_for_block_id.at(block_id);
 
       const size_t num_nodes_for_block = block_element_ids.size() *
-                                         num_nodes_per_element;
+                                         block_element.GetNumNodes();
 
       vector<int> node_ids_for_block(num_nodes_for_block);
 
       // Write variable name to buffer.
-      snprintf(string_buffer, buffer_size, "connect%d", iblock++);
+      snprintf(string_buffer, buffer_size, "connect%d", block_id);
 
       cubit_reader.ReadVariable(string_buffer, node_ids_for_block.data());
 
@@ -3729,11 +3729,12 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       int ielement = 0;
       for (int element_id : block_element_ids)
       {
-         vector<int> element_node_ids(num_nodes_per_element);
+         vector<int> element_node_ids(block_element.GetNumNodes());
 
-         for (int i = 0; i < num_nodes_per_element; i++)
+         for (int i = 0; i < block_element.GetNumNodes(); i++)
          {
-            element_node_ids[i] = node_ids_for_block[ielement * num_nodes_per_element + i];
+            element_node_ids[i] = node_ids_for_block[ielement * block_element.GetNumNodes()
+                                                     + i];
          }
 
          ielement++;
@@ -4120,7 +4121,7 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    // Read the elements that make-up each block.
    map<int, vector<int>> node_ids_for_element_id;
    ReadCubitElementBlocks(cubit_reader,
-                          block_element.GetNumNodes(),   // TODO: temporary
+                          blocks,
                           block_ids,
                           element_ids_for_block_id,
                           node_ids_for_element_id);
