@@ -876,7 +876,7 @@ void DarcyHybridization::ConstructC()
 
             c_fes->GetFaceVDofs(f, c_vdofs);
             c_bfi->AssembleFaceMatrix(*c_fes->GetFaceElement(f),
-                                    *fe1, *fe2, *FTr, elmat);
+                                      *fe1, *fe2, *FTr, elmat);
             // zero-out small elements in elmat
             elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
 
