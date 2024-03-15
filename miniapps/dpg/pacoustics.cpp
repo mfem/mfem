@@ -1022,8 +1022,8 @@ complex<real_t> acoustics_solution(const Vector & X)
          real_t y = X(1)-0.5;
          real_t r = sqrt(x*x + y*y);
          real_t beta = omega * r;
-         complex<real_t> Ho = complex<real_t>(jn(0, beta) + (complex<double>) zi * yn(0,
-                                                                                      beta));
+         complex<real_t> Ho = complex<real_t>(jn(0, beta)) +
+                              (complex<real_t>) (zi * yn(0, beta));
          return real_t(0.25)*zi*Ho;
       }
       break;

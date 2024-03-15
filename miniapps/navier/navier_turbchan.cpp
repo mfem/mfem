@@ -114,8 +114,9 @@ int main(int argc, char *argv[])
    }
 
    // Create translation vectors defining the periodicity
-   Vector x_translation({Lx, 0.0, 0.0});
-   Vector z_translation({0.0, 0.0, Lz});
+   constexpr real_t zero = 0.0;
+   Vector x_translation({Lx, zero, zero});
+   Vector z_translation({zero, zero, Lz});
    std::vector<Vector> translations = {x_translation, z_translation};
 
    // Create the periodic mesh using the vertex mapping defined by the translation vectors
