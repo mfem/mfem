@@ -2895,10 +2895,10 @@ public:
    /// Returns the Cubit element type.
    inline CubitElementType GetElementType() const { return _element_type; }
 
-   /// Returns the face type for a specified face.
-   inline CubitFaceType GetFaceType(size_t iface = 0) const
+   /// Returns the face type for a specified face. NB: sides have 1-based indexing.
+   inline CubitFaceType GetFaceType(size_t side_id = 1) const
    {
-      return _faces.at(iface);
+      return _faces.at((int)side_id - 1);
    }
 
    /// Returns the number of faces.
@@ -2911,7 +2911,7 @@ public:
    inline size_t GetNumNodes() const { return _num_nodes; }
 
    /// Returns the number of vertices for a particular face.
-   size_t GetNumFaceVertices(size_t iface = 0) const;
+   size_t GetNumFaceVertices(size_t iface = 1) const;
 
    /// Returns the order of the element.
    inline uint8_t GetOrder() const { return _order; }
@@ -3092,9 +3092,9 @@ CubitElementType CubitElement::GetElementType(size_t num_nodes,
 }
 
 
-size_t CubitElement::GetNumFaceVertices(size_t iface) const
+size_t CubitElement::GetNumFaceVertices(size_t side_id) const
 {
-   switch (GetFaceType(iface))
+   switch (GetFaceType(side_id))
    {
       case FACE_EDGE2:
       case FACE_EDGE3:
@@ -3106,7 +3106,7 @@ size_t CubitElement::GetNumFaceVertices(size_t iface) const
       case FACE_QUAD9:
          return 4;
       default:
-         MFEM_ABORT("Unrecognized Cubit face type " << GetFaceType(iface) << ".");
+         MFEM_ABORT("Unrecognized Cubit face type " << GetFaceType(side_id) << ".");
    }
 }
 
@@ -3655,7 +3655,7 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       snprintf(string_buffer, buffer_size, "num_side_ss%d", boundary_id);
       cubit_reader.ReadDimension(string_buffer, &num_sides);
 
-      // 2. Extract elements and sides on each boundary.
+      // 2. Extract elements and sides on each boundary (1-indexed!)
       vector<int> boundary_element_ids(num_sides); // (element, face) pairs.
       vector<int> boundary_side_ids(num_sides);
 
@@ -3667,14 +3667,7 @@ static void ReadCubitBoundaries(NetCDFReader & cubit_reader,
       snprintf(string_buffer, buffer_size,"side_ss%d", boundary_id);
       cubit_reader.ReadVariable(string_buffer, boundary_side_ids.data());
 
-      // 3. Now subtract 1 to convert from 1-index --> 0-index.
-      for (size_t i = 0; i < num_sides; i++)
-      {
-         //boundary_element_ids[i]--;
-         boundary_side_ids[i]--;
-      }
-
-      // 4. Add to maps.
+      // 3. Add to maps.
       element_ids_for_boundary_id[boundary_id] = std::move(boundary_element_ids);
       side_ids_for_boundary_id[boundary_id] = std::move(boundary_side_ids);
    }
@@ -3795,27 +3788,27 @@ static void BuildBoundaryNodeIDs(const vector<int> & boundary_ids,
             {
                case ELEMENT_TRI3:
                case ELEMENT_TRI6:
-                  inode = cubit_side_map_tri3[boundary_side][knode];
+                  inode = cubit_side_map_tri3[boundary_side - 1][knode];
                   break;
                case ELEMENT_QUAD4:
                case ELEMENT_QUAD9:
-                  inode = cubit_side_map_quad4[boundary_side][knode];
+                  inode = cubit_side_map_quad4[boundary_side - 1][knode];
                   break;
                case ELEMENT_TET4:
                case ELEMENT_TET10:
-                  inode = cubit_side_map_tet4[boundary_side][knode];
+                  inode = cubit_side_map_tet4[boundary_side - 1][knode];
                   break;
                case ELEMENT_HEX8:
                case ELEMENT_HEX27:
-                  inode = cubit_side_map_hex8[boundary_side][knode];
+                  inode = cubit_side_map_hex8[boundary_side - 1][knode];
                   break;
                case ELEMENT_WEDGE6:
                case ELEMENT_WEDGE18:
-                  inode = cubit_side_map_wedge6[boundary_side][knode];
+                  inode = cubit_side_map_wedge6[boundary_side - 1][knode];
                   break;
                case ELEMENT_PYRAMID5:
                case ELEMENT_PYRAMID14:
-                  inode = cubit_side_map_pyramid5[boundary_side][knode];
+                  inode = cubit_side_map_pyramid5[boundary_side - 1][knode];
                   break;
                default:
                   MFEM_ABORT("Unsupported element type encountered.\n");
