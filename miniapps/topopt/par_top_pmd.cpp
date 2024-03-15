@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
       pd->RegisterField("frho", &rho_filter);
       pd->SetLevelsOfDetail(order);
       pd->SetDataFormat(VTKFormat::BINARY);
-      pd->SetHighOrderOutput(true);
+      pd->SetHighOrderOutput(order > 1);
       pd->SetCycle(0);
       pd->SetTime(0);
       pd->Save();
