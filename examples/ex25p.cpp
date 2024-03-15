@@ -762,11 +762,11 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
 
             // Bessel functions
             complex<real_t> Ho, Ho_r, Ho_rr;
-            Ho = jn(0, beta) + (complex<real_t>) zi * yn(0, beta);
-            Ho_r = -k * complex<real_t>(jn(1, beta) + (complex<real_t>) zi * yn(1, beta));
-            Ho_rr = -k * k * complex<real_t>(real_t(1) / beta *
-                                             (jn(1, beta) + ((complex<real_t>) zi) * yn(1, beta)) -
-                                             (jn(2, beta) + ((complex<real_t>) zi) * yn(2, beta)));
+            Ho = real_t(jn(0, beta)) + zi * real_t(yn(0, beta));
+            Ho_r = -k * (real_t(jn(1, beta)) + zi * real_t(yn(1, beta)));
+            Ho_rr = -k * k * (real_t(1) / beta *
+                              (real_t(jn(1, beta)) + zi * real_t(yn(1, beta))) -
+                              (real_t(jn(2, beta)) + zi * real_t(yn(2, beta))));
 
             // First derivatives
             real_t r_x = x0 / r;
