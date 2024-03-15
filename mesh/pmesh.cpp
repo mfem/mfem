@@ -4549,7 +4549,7 @@ void ParMesh::UniformRefinement3D()
    UpdateNodes();
 }
 
-void ParMesh::NURBSUniformRefinement(int rf, double tol)
+void ParMesh::NURBSUniformRefinement(int rf, real_t tol)
 {
    if (MyRank == 0)
    {
@@ -4557,7 +4557,7 @@ void ParMesh::NURBSUniformRefinement(int rf, double tol)
    }
 }
 
-void ParMesh::NURBSUniformRefinement(const Array<int> &rf, double tol)
+void ParMesh::NURBSUniformRefinement(const Array<int> &rf, real_t tol)
 {
    if (MyRank == 0)
    {

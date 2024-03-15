@@ -5715,14 +5715,14 @@ void Mesh::KnotRemove(Array<Vector *> &kv)
    UpdateNURBS();
 }
 
-void Mesh::NURBSUniformRefinement(int rf, double tol)
+void Mesh::NURBSUniformRefinement(int rf, real_t tol)
 {
    Array<int> rf_array(Dim);
    rf_array = rf;
    NURBSUniformRefinement(rf_array, tol);
 }
 
-void Mesh::NURBSUniformRefinement(Array<int> const& rf, double tol)
+void Mesh::NURBSUniformRefinement(Array<int> const& rf, real_t tol)
 {
    MFEM_VERIFY(rf.Size() == Dim,
                "Refinement factors must be defined for each dimension");
@@ -10472,7 +10472,7 @@ void Mesh::UniformRefinement(int ref_algo)
    }
 }
 
-void Mesh::NURBSCoarsening(int cf, double tol)
+void Mesh::NURBSCoarsening(int cf, real_t tol)
 {
    if (NURBSext && cf > 1)
    {
