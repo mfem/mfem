@@ -2801,53 +2801,53 @@ const int mfem_to_genesis_quad9[9]  =
 
 const int cubit_side_map_tri3[3][2] =
 {
-   {1,2},
-   {2,3},
-   {3,1},
+   {1,2}, // 1
+   {2,3}, // 2
+   {3,1}, // 3
 };
 
 const int cubit_side_map_quad4[4][2] =
 {
-   {1,2},
-   {2,3},
-   {3,4},
-   {4,1},
+   {1,2}, // 1
+   {2,3}, // 2
+   {3,4}, // 3
+   {4,1}, // 4
 };
 
 const int cubit_side_map_tet4[4][3] =
 {
-   {1,2,4},
-   {2,3,4},
-   {1,4,3},
-   {1,3,2}
+   {1,2,4}, // 1
+   {2,3,4}, // 2
+   {1,4,3}, // 3
+   {1,3,2}  // 4
 };
 
 const int cubit_side_map_hex8[6][4] =
 {
-   {1,2,6,5},
-   {2,3,7,6},
-   {4,3,7,8},
-   {1,4,8,5},
-   {1,4,3,2},
-   {5,8,7,6}
+   {1,2,6,5},  // 1 <-- Exodus II side_ids
+   {2,3,7,6},  // 2
+   {4,3,7,8},  // 3
+   {1,4,8,5},  // 4
+   {1,4,3,2},  // 5
+   {5,8,7,6}   // 6
 };
 
 const int cubit_side_map_wedge6[5][4] =
 {
-   {1,3,2,0},  // NB: 0 because only 3 elements.
-   {4,5,6,0},
-   {1,2,5,4},
-   {2,3,6,5},
-   {3,1,4,6}
+   {1,2,5,4},  // 1 (Quad4)
+   {2,3,6,5},  // 2
+   {3,1,4,6},  // 3
+   {1,3,2,0},  // 4 (Tri3; NB: 0 is placeholder!)
+   {4,5,6,0}   // 5
 };
 
 const int cubit_side_map_pyramid5[5][4] =
 {
-   {4, 3, 2, 1},
-   {1, 2, 5, 0},
-   {2, 3, 5, 0},
-   {3, 4, 5, 0},
-   {4, 1, 5, 0}
+   {1, 2, 5, 0},  // 1 (Tri3)
+   {2, 3, 5, 0},  // 2
+   {3, 4, 5, 0},  // 3
+   {4, 1, 5, 0},  // 4
+   {4, 3, 2, 1}   // 5 (Quad4)
 };
 
 enum CubitFaceType
@@ -2896,13 +2896,10 @@ public:
    inline CubitElementType GetElementType() const { return _element_type; }
 
    /// Returns the face type for a specified face. NB: sides have 1-based indexing.
-   inline CubitFaceType GetFaceType(size_t side_id = 1) const
-   {
-      return _faces.at((int)side_id - 1);
-   }
+   CubitFaceType GetFaceType(size_t side_id = 1) const;
 
    /// Returns the number of faces.
-   inline size_t GetNumFaces() const { return _faces.size(); }
+   inline size_t GetNumFaces() const { return _num_faces; }
 
    /// Returns the number of vertices.
    inline size_t GetNumVertices() const { return _num_vertices; }
@@ -2942,10 +2939,10 @@ private:
    CubitElementType _element_type;
 
    uint8_t _order;
-   size_t _num_vertices;
-   size_t _num_nodes;
 
-   vector<CubitFaceType> _faces;
+   size_t _num_vertices;
+   size_t _num_faces;
+   size_t _num_nodes;
 };
 
 CubitElement::CubitElement(CubitElementType element_type)
@@ -2958,73 +2955,73 @@ CubitElement::CubitElement(CubitElementType element_type)
          _order = 1;
          _num_vertices = 3;
          _num_nodes = 3;
-         _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
+         _num_faces = 3;
          break;
       case ELEMENT_TRI6:
          _order = 2;
          _num_vertices = 3;
          _num_nodes = 6;
-         _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
+         _num_faces = 3;
          break;
       case ELEMENT_QUAD4:
          _order = 1;
          _num_vertices = 4;
          _num_nodes = 4;
-         _faces = {FACE_EDGE2, FACE_EDGE2, FACE_EDGE2, FACE_EDGE2};
+         _num_faces = 4;
          break;
       case ELEMENT_QUAD9:
          _order = 2;
          _num_vertices = 4;
          _num_nodes = 9;
-         _faces = {FACE_EDGE3, FACE_EDGE3, FACE_EDGE3, FACE_EDGE3};
+         _num_faces = 4;
          break;
       case ELEMENT_TET4:   // 3D.
          _order = 1;
          _num_vertices = 4;
          _num_nodes = 4;
-         _faces = {FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
+         _num_faces = 4;
          break;
       case ELEMENT_TET10:
          _order = 2;
          _num_vertices = 4;
          _num_nodes = 10;
-         _faces = {FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
+         _num_faces = 4;
          break;
       case ELEMENT_HEX8:
          _order = 1;
          _num_vertices = 8;
          _num_nodes = 8;
-         _faces = {FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
+         _num_faces = 6;
          break;
       case ELEMENT_HEX27:
          _order = 2;
          _num_vertices = 8;
          _num_nodes = 27;
-         _faces = {FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
+         _num_faces = 6;
          break;
       case ELEMENT_WEDGE6:
          _order = 1;
          _num_vertices = 6;
          _num_nodes = 6;
-         _faces = {FACE_TRI3, FACE_TRI3, FACE_QUAD4, FACE_QUAD4, FACE_QUAD4};
+         _num_faces = 5;
          break;
       case ELEMENT_WEDGE18:
          _order = 2;
          _num_vertices = 6;
          _num_nodes = 18;
-         _faces = {FACE_TRI6, FACE_TRI6, FACE_QUAD9, FACE_QUAD9, FACE_QUAD9};
+         _num_faces = 5;
          break;
       case ELEMENT_PYRAMID5:
          _order = 1;
          _num_vertices = 5;
          _num_nodes = 5;
-         _faces = {FACE_QUAD4, FACE_TRI3, FACE_TRI3, FACE_TRI3, FACE_TRI3};
+         _num_faces = 5;
          break;
       case ELEMENT_PYRAMID14:
          _order = 2;
          _num_vertices = 5;
          _num_nodes = 14;
-         _faces = {FACE_QUAD9, FACE_TRI6, FACE_TRI6, FACE_TRI6, FACE_TRI6};
+         _num_faces = 5;
          break;
       default:
          MFEM_ABORT("Unsupported Cubit element type " << element_type << ".");
@@ -3088,6 +3085,47 @@ CubitElementType CubitElement::GetElementType(size_t num_nodes,
    else
    {
       MFEM_ABORT("Unsupported Cubit dimension " << dimension << ".");
+   }
+}
+
+CubitFaceType CubitElement::GetFaceType(size_t side_id) const
+{
+   // NB: 1-based indexing. See Exodus II file format specifications.
+   bool valid_id = (side_id >= 1 &&
+                    side_id <= GetNumFaces());
+   if (!valid_id)
+   {
+      MFEM_ABORT("Encountered invalid side ID: " << side_id << ".");
+   }
+
+   switch (_element_type)
+   {
+      case ELEMENT_TRI3:      // 2D.
+         return FACE_EDGE2;
+      case ELEMENT_TRI6:
+         return FACE_EDGE3;
+      case ELEMENT_QUAD4:
+         return FACE_EDGE2;
+      case ELEMENT_QUAD9:
+         return FACE_EDGE3;
+      case ELEMENT_TET4:      // 3D.
+         return FACE_TRI3;
+      case ELEMENT_TET10:
+         return FACE_TRI6;
+      case ELEMENT_HEX8:
+         return FACE_QUAD4;
+      case ELEMENT_HEX27:
+         return FACE_QUAD9;
+      case ELEMENT_WEDGE6:    // [Quad4, Quad4, Quad4, Tri3, Tri3]
+         return (side_id < 4 ? FACE_QUAD4 : FACE_TRI3);
+      case ELEMENT_WEDGE18:   // [Quad9, Quad9, Quad9, Tri6, Tri6]
+         return (side_id < 4 ? FACE_QUAD9 : FACE_TRI6);
+      case ELEMENT_PYRAMID5:  // [Tri3, Tri3, Tri3, Tri3, Quad4]
+         return (side_id < 5 ? FACE_TRI3 : FACE_QUAD4);
+      case ELEMENT_PYRAMID14: // [Tri6, Tri6, Tri6, Tri6, Quad9]
+         return (side_id < 5 ? FACE_TRI6 : FACE_QUAD9);
+      default:
+         MFEM_ABORT("Unknown element type: " << _element_type << ".");
    }
 }
 
