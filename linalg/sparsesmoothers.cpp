@@ -22,6 +22,10 @@ namespace mfem
 
 void SparseSmoother::SetOperator(const Operator &a)
 {
+   if (own_oper)
+   {
+      delete oper;
+   }
    oper = dynamic_cast<const SparseMatrix*>(&a);
    if (oper == NULL)
    {
@@ -52,8 +56,8 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
 }
 
 /// Create the Jacobi smoother.
-DSmoother::DSmoother(const SparseMatrix &a, int t, double s, int it)
-   : SparseSmoother(a)
+DSmoother::DSmoother(const SparseMatrix &a, int t, double s, int it, bool own)
+   : SparseSmoother(a, own)
 {
    type = t;
    scale = s;
