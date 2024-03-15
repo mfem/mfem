@@ -3894,39 +3894,13 @@ static void BuildCubitToMFEMVertexMap(const vector<int> & unique_vertex_ids,
 /// element type).
 static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
                                          const vector<int> & unique_block_ids,
+                                         const CubitBlock & blocks,
                                          const map<int, vector<int>> & element_ids_for_block_id,
                                          const map<int, vector<int>> & node_ids_for_element_id,
-                                         const CubitElement & block_element,
                                          const double *coordx,
                                          const double *coordy,
                                          const double *coordz)
 {
-   int *mfem_to_genesis_map = NULL;
-
-   switch (block_element.GetElementType())
-   {
-      case ELEMENT_TRI6:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
-         break;
-      case ELEMENT_QUAD9:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
-         break;
-      case ELEMENT_TET10:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
-         break;
-      case ELEMENT_HEX27:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
-         break;
-      case ELEMENT_WEDGE18:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
-         break;
-      case ELEMENT_PYRAMID14:
-         mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
-         break;
-      default:
-         MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-   }
-
    mesh.FinalizeTopology();
 
    // Define quadratic FE space.
@@ -3940,6 +3914,34 @@ static void FinalizeCubitSecondOrderMesh(Mesh &mesh,
 
    for (int block_id : unique_block_ids)
    {
+      const CubitElement & block_element = blocks.GetBlockElement(block_id);
+
+      int *mfem_to_genesis_map = NULL;
+
+      switch (block_element.GetElementType())
+      {
+         case ELEMENT_TRI6:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_tri6;
+            break;
+         case ELEMENT_QUAD9:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_quad9;
+            break;
+         case ELEMENT_TET10:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_tet10;
+            break;
+         case ELEMENT_HEX27:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_hex27;
+            break;
+         case ELEMENT_WEDGE18:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_wedge18;
+            break;
+         case ELEMENT_PYRAMID14:
+            mfem_to_genesis_map = (int *) mfem_to_genesis_pyramid14;
+            break;
+         default:
+            MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+      }
+
       auto & element_ids = element_ids_for_block_id.at(block_id);
 
       for (int element_id : element_ids)
@@ -4226,17 +4228,16 @@ void Mesh::ReadCubit(const std::string &filename, int &curved, int &read_gf)
    //
    if (blocks.GetOrder() == 2)
    {
-      MFEM_ABORT("Second order elements have not been implemented.");
-      // curved = 1;
+      curved = 1;
 
-      // FinalizeCubitSecondOrderMesh(*this,
-      //                              block_ids,
-      //                              element_ids_for_block_id,
-      //                              node_ids_for_element_id,
-      //                              block_element,
-      //                              coordx.data(),
-      //                              coordy.data(),
-      //                              coordz.data());
+      FinalizeCubitSecondOrderMesh(*this,
+                                   block_ids,
+                                   blocks,
+                                   element_ids_for_block_id,
+                                   node_ids_for_element_id,
+                                   coordx.data(),
+                                   coordy.data(),
+                                   coordz.data());
    }
 }
 
