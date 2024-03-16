@@ -84,8 +84,8 @@ static std::string strerror()
       buff = "Unknown error";
    }
 #else
-   char* p = check_strerror_r(strerror_r(errno, &buff[0], buff.size()), &buff[0],
-                              buff.size());
+   char* p = check_strerror_r(strerror_r(errno, &buff[0], buff.size()),
+                              &buff[0], buff.size());
    std::string tmp(p, std::strlen(p));
    std::swap(buff, tmp);
 #endif

@@ -12,6 +12,8 @@
 #ifndef MFEM_KDTREE_HPP
 #define MFEM_KDTREE_HPP
 
+#include "../config/config.hpp"
+
 #include <vector>
 #include <algorithm>
 #include <fstream>
