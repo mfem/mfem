@@ -13,7 +13,6 @@
 #define MFEM_KDTREE_HPP
 
 #include "../config/config.hpp"
-#include "globals.hpp"
 
 #include <vector>
 #include <algorithm>

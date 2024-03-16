@@ -46,6 +46,12 @@
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 #cmakedefine MFEM_USE_MPI
 
+// Use double-precision floating point type
+#cmakedefine MFEM_USE_DOUBLE
+
+// Use single-precision floating point type
+#cmakedefine MFEM_USE_SINGLE
+
 // Enable debug checks in MFEM.
 #cmakedefine MFEM_DEBUG
 
@@ -200,11 +206,5 @@
 
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
-
-// Use double-precision floating point type
-#cmakedefine MFEM_USE_DOUBLE
-
-// Use single-precision floating point type
-#cmakedefine MFEM_USE_SINGLE
 
 #endif // MFEM_CONFIG_HEADER

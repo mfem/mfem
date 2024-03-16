@@ -9003,6 +9003,14 @@ void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 
 void Mesh::SwapNodes(GridFunction *&nodes, int &own_nodes_)
 {
+   // If this is a nonconforming mesh without nodes, ncmesh->coordinates will
+   // be non-empty; so if the 'nodes' argument is not NULL, we will create an
+   // inconsistent state where the Mesh has nodes and ncmesh->coordinates is not
+   // empty. This was creating an issue for Mesh::Print() since both the
+   // "coordinates" and "nodes" sections were written, leading to crashes during
+   // loading. This issue is now fixed in Mesh::Printer() by temporarily
+   // swapping ncmesh->coordinates with an empty array when the Mesh has nodes.
+
    mfem::Swap<GridFunction*>(Nodes, nodes);
    mfem::Swap<int>(own_nodes, own_nodes_);
    // TODO:
@@ -11300,11 +11308,20 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
 
    if (Nonconforming())
    {
+      // Workaround for inconsistent Mesh state where the Mesh has nodes and
+      // ncmesh->coodrinates is not empty. Such state can be created with the
+      // method Mesh::SwapNodes(), see the comment at the beginning of its
+      // implementation.
+      Array<real_t> coords_save;
+      if (Nodes) { mfem::Swap(coords_save, ncmesh->coordinates); }
+
       // nonconforming mesh format
       ncmesh->Print(os, comments);
 
       if (Nodes)
       {
+         mfem::Swap(coords_save, ncmesh->coordinates);
+
          os << "\n# mesh curvature GridFunction";
          os << "\nnodes\n";
          Nodes->Save(os);

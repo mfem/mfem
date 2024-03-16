@@ -107,38 +107,6 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 
 #endif
 
-#if defined MFEM_USE_SINGLE && defined MFEM_USE_DOUBLE
-#error "DOUBLE and SINGLE precision cannot both be specified"
-#endif
-
-#ifdef MFEM_USE_SINGLE
-typedef float real_t;
-#elif defined MFEM_USE_DOUBLE
-typedef double real_t;
-#else
-#error "Either DOUBLE or SINGLE precision must be specified"
-#endif
-
 } // namespace mfem
-
-
-// Request a global object to be instantiated for each thread in its TLS.
-#define MFEM_THREAD_LOCAL thread_local
-
-
-// MFEM_DEPRECATED macro to mark obsolete functions and methods
-// see https://stackoverflow.com/questions/295120/c-mark-as-deprecated
-#if defined(__GNUC__) || defined(__clang__)
-#define MFEM_DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
-#define MFEM_DEPRECATED __declspec(deprecated)
-#else
-#pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
-#define MFEM_DEPRECATED
-#endif
-
-// Return value for main function in examples that should be skipped by testing
-// in some case. This return value prevents failures in testing.
-#define MFEM_SKIP_RETURN_VALUE 242
 
 #endif
