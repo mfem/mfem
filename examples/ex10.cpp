@@ -156,11 +156,6 @@ void visualize(ostream &os, Mesh *mesh, GridFunction *deformed_nodes,
 
 int main(int argc, char *argv[])
 {
-#ifdef MFEM_USE_SINGLE
-   cout << "This example is not supported in single precision.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
-
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-quad.mesh";
    int ref_levels = 2;
@@ -464,7 +459,17 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
      M(&fespace), S(&fespace), H(&fespace),
      viscosity(visc), z(height/2)
 {
+#if defined(MFEM_USE_DOUBLE)
    const real_t rel_tol = 1e-8;
+   const real_t newton_abs_tol = 0.0;
+#elif defined(MFEM_USE_SINGLE)
+   const real_t rel_tol = 1e-3;
+   const real_t newton_abs_tol = 1e-4;
+#else
+#error "Only single and double precision are supported!"
+   const real_t rel_tol = real_t(1);
+   const real_t newton_abs_tol = real_t(0);
+#endif
    const int skip_zero_entries = 0;
 
    const real_t ref_density = 1.0; // density in the reference configuration
@@ -514,7 +519,7 @@ HyperelasticOperator::HyperelasticOperator(FiniteElementSpace &f,
    newton_solver.SetOperator(*reduced_oper);
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAbsTol(newton_abs_tol);
    newton_solver.SetMaxIter(10);
 }
 

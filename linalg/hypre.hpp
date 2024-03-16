@@ -32,6 +32,14 @@
 #error "MFEM does not work with HYPRE's complex numbers support"
 #endif
 
+#if defined(MFEM_USE_DOUBLE) && defined(HYPRE_SINGLE)
+#error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-single!"
+#elif defined(MFEM_USE_DOUBLE) && defined(HYPRE_LONG_DOUBLE)
+#error "MFEM_USE_DOUBLE=YES requires HYPRE build WITHOUT --enable-longdouble!"
+#elif defined(MFEM_USE_SINGLE) && !defined(HYPRE_SINGLE)
+#error "MFEM_USE_SINGLE=YES requires HYPRE build with --enable-single!"
+#endif
+
 #if defined(HYPRE_USING_GPU) && \
     !(defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP))
 #error "Unsupported GPU build of HYPRE! Only CUDA and HIP builds are supported."

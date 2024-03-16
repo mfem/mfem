@@ -162,11 +162,6 @@ void visualize(ostream &os, ParMesh *mesh,
 
 int main(int argc, char *argv[])
 {
-#ifdef MFEM_USE_SINGLE
-   cout << "This example is not supported in single precision.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
-
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int myid = Mpi::WorldRank();
@@ -535,7 +530,17 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
      viscosity(visc), M_solver(f.GetComm()), newton_solver(f.GetComm()),
      z(height/2)
 {
+#if defined(MFEM_USE_DOUBLE)
    const real_t rel_tol = 1e-8;
+   const real_t newton_abs_tol = 0.0;
+#elif defined(MFEM_USE_SINGLE)
+   const real_t rel_tol = 1e-3;
+   const real_t newton_abs_tol = 1e-4;
+#else
+#error "Only single and double precision are supported!"
+   const real_t rel_tol = real_t(1);
+   const real_t newton_abs_tol = real_t(0);
+#endif
    const int skip_zero_entries = 0;
 
    const real_t ref_density = 1.0; // density in the reference configuration
@@ -586,7 +591,7 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    newton_solver.SetOperator(*reduced_oper);
    newton_solver.SetPrintLevel(1); // print Newton iterations
    newton_solver.SetRelTol(rel_tol);
-   newton_solver.SetAbsTol(0.0);
+   newton_solver.SetAbsTol(newton_abs_tol);
    newton_solver.SetAdaptiveLinRtol(2, 0.5, 0.9);
    newton_solver.SetMaxIter(10);
 }

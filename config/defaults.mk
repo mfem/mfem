@@ -120,6 +120,8 @@ MFEM_MPI_NP = 4
 MFEM_USE_MPI           = NO
 MFEM_USE_METIS         = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5       = NO
+MFEM_USE_DOUBLE        = YES
+MFEM_USE_SINGLE        = NO
 MFEM_DEBUG             = NO
 MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
@@ -167,8 +169,6 @@ MFEM_USE_CODIPACK      = NO
 MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_ENZYME        = NO
-MFEM_USE_DOUBLE        = YES
-MFEM_USE_SINGLE        = NO
 
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP

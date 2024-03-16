@@ -230,7 +230,7 @@ void kSmemForceMult2D(const int NE,
             MFEM_FOREACH_THREAD(dx,x,H1D)
             {
                const real_t v = velocity(dx,dy,c,e);
-               if (std::abs(v) < eps2)
+               if (fabs(v) < eps2)
                {
                   velocity(dx,dy,c,e) = 0.0;
                }
@@ -442,7 +442,7 @@ void kSmemForceMult3D(const int NE,
                MFEM_FOREACH_THREAD(hx,x,H1D)
                {
                   const real_t v = velocity(hx,hy,hz,c,e);
-                  if (std::abs(v) < eps2)
+                  if (fabs(v) < eps2)
                   {
                      velocity(hx,hy,hz,c,e) = 0.0;
                   }
@@ -1345,10 +1345,10 @@ void QBody(const int nzones, const int z,
    const real_t inv_weight = 1. / weight;
    const real_t *J = d_Jacobians + dim2*(nqp*z + q);
    const real_t detJ = kernels::Det<dim>(J);
-   min_detJ = std::min(min_detJ,detJ);
+   min_detJ = std::fmin(min_detJ,detJ);
    kernels::CalcInverse<dim>(J,Jinv);
    const real_t rho = inv_weight * d_rho0DetJ0w[zq] / detJ;
-   const real_t e   = std::max((real_t) 0.0, d_e_quads[zq]);
+   const real_t e   = std::fmax((real_t) 0.0, d_e_quads[zq]);
    const real_t p   = (gamma - 1.0) * rho * e;
    const real_t sound_speed = std::sqrt(gamma * (gamma-1.0) * e);
    for (int k = 0; k < dim2; k+=1) { stress[k] = 0.0; }
@@ -1375,7 +1375,7 @@ void QBody(const int nzones, const int z,
       const real_t compr_dir_nl2 = kernels::Norml2(dim, compr_dir);
       const real_t h = h0 * ph_dir_nl2 / compr_dir_nl2;
       const real_t mu = eig_val_data[0];
-      visc_coeff = 2.0 * rho * h * h * std::abs(mu);
+      visc_coeff = 2.0 * rho * h * h * fabs(mu);
       const real_t eps = 1e-12;
       visc_coeff += 0.5 * rho * h * sound_speed *
                     (1.0 - smooth_step_01(mu - 2.0 * eps, eps));
@@ -1396,7 +1396,7 @@ void QBody(const int nzones, const int z,
       if (inv_dt>0.0)
       {
          const real_t cfl_inv_dt = cfl / inv_dt;
-         d_dt_est[zq] = std::min(d_dt_est[zq], cfl_inv_dt);
+         d_dt_est[zq] = std::fmin(d_dt_est[zq], cfl_inv_dt);
       }
    }
    kernels::MultABt(dim, dim, dim, stress, Jinv, stressJiT);
@@ -1771,7 +1771,7 @@ public:
       {
          for (int i = 0; i < H1Vsize; i++)
          {
-            if (std::abs(rhs[i]) < ftz_tol)
+            if (fabs(rhs[i]) < ftz_tol)
             {
                rhs[i] = 0.0;
             }

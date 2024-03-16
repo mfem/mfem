@@ -22,6 +22,8 @@ endif()
 option(BUILD_SHARED_LIBS "Enable shared library build of MFEM" OFF)
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+option(MFEM_USE_DOUBLE "Double precision" ON)
+option(MFEM_USE_SINGLE "Single precision" OFF)
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
@@ -66,8 +68,6 @@ option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" 
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
-option(MFEM_USE_DOUBLE "Double precision" ON)
-option(MFEM_USE_SINGLE "Single precision" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
