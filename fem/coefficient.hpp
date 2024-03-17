@@ -1516,7 +1516,18 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) const = 0;
+                     const IntegrationPoint &ip) const
+   {
+      mfem_error ("SymmetricMatrixCoefficient::Eval(...) const\n"
+                  "   is not implemented for this class.");
+   }
+
+   /** @deprecated Use/overload the const- version of this member function instead*/
+   virtual void Eval(DenseSymmetricMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      const_cast<const SymmetricMatrixCoefficient*>(this)->Eval(K, T, ip);
+   }
 
    using MatrixCoefficient::Eval;
    /** @brief Evaluate the matrix coefficient in the element described by @a T
