@@ -4351,7 +4351,7 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
 
       VShapeCoefficient(Coefficient &q, const FiniteElement &fe_, int sdim)
          : MatrixCoefficient(fe_.GetDof(), sdim), Q(q), fe(fe_) { }
-
+      using MatrixCoefficient::Eval;
       virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                         const IntegrationPoint &ip) const
       {
@@ -4390,6 +4390,7 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
            vc(width), shape(height) { }
 
+      using MatrixCoefficient::Eval;
       virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                         const IntegrationPoint &ip) const
       {
@@ -4475,7 +4476,8 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
       {
          MFEM_ASSERT(width == 3, "");
       }
-
+      
+      using MatrixCoefficient::Eval;
       virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                         const IntegrationPoint &ip) const
       {
