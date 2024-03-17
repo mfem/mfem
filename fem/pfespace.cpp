@@ -2614,7 +2614,6 @@ void NeighborRowMessage::Encode(int rank)
             int osvar = 0;  // Offset for DOFs in the variable order case
             if (varOrder)
             {
-               int var = 0;
                // Using global edof
                int osglob = 0;  // Global offset
                int allvar = FindEdgeDofVar(ri.index, edof, osglob);
@@ -2643,7 +2642,6 @@ void NeighborRowMessage::Encode(int rank)
          // TODO: similar change to faces has no effect, because osloc == osvar always?
          if (ent == 2 && varOrder)
          {
-            const int *ind = nullptr;
             int osvar = 0;  // Offset for DOFs in the variable order case
             int var = 0;
             const int order = FindLocalFaceOrder(ri.index, edof, osvar, var);
@@ -3211,8 +3209,8 @@ void ParFiniteElementSpace::MarkIntermediateEntityDofs(int entity,
       for (int var = 1; var < nvar - 1; ++var)  // Intermediate variants
       {
          Array<int> dofs;
-         const int order = GetEntityDofs(entity, edge, dofs,
-                                         Geometry::INVALID, var); // dummy geom
+         GetEntityDofs(entity, edge, dofs, Geometry::INVALID, // dummy geom
+                       var);
          for (auto dof : dofs)
          {
             if (dof >= os) // Skip dofs for vertices (and edges in face case)

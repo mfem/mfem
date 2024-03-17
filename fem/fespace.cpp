@@ -2842,21 +2842,19 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
 
 int FiniteElementSpace::GetNumAllVariants(int entity, int index) const
 {
-   MFEM_ASSERT(IsVariableOrder(), "");
+   MFEM_ASSERT(IsVariableOrder(), "Not a variable-order space");
 
    VarOrderBits bits = (entity == 1) ? all_var_edge_orders[index] :
                        all_var_face_orders[index];
 
-   int var = 0;
-   for (int order = 0; bits != 0; order++, bits >>= 1)
+   int nvar = 0;
+   while (bits != 0)
    {
-      if (bits & 1)
-      {
-         var++;
-      }
+      if (bits & 1) { nvar++; }
+      bits >>= 1;
    }
 
-   return var;
+   return nvar;
 }
 
 static const char* msg_orders_changed =
