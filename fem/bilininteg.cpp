@@ -4476,7 +4476,7 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
       {
          MFEM_ASSERT(width == 3, "");
       }
-      
+
       using MatrixCoefficient::Eval;
       virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                         const IntegrationPoint &ip) const

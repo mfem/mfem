@@ -1116,7 +1116,7 @@ public:
 
    /** @deprecated Use SymmetricMatrixCoefficient instead */
    bool IsSymmetric() const { return symmetric; }
-   
+
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result in @a K. */
    /** @note When this method is called, the caller must make sure that the
@@ -1385,7 +1385,7 @@ public:
    double Eval(int i, int j, ElementTransformation &T,
                const IntegrationPoint &ip) const
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, ip, GetTime()) : 0.0; }
-   
+
    /// Evaluate the matrix coefficient @a ip.
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) const;
