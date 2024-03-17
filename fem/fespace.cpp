@@ -2408,7 +2408,8 @@ void FiniteElementSpace::Construct(const Array<int> * prefdata)
    if (IsVariableOrder())
    {
       // for variable order spaces, calculate orders of edges and faces
-      CalcEdgeFaceVarOrders(edge_orders, face_orders, prefdata);
+      CalcEdgeFaceVarOrders(edge_orders, face_orders,
+                            all_var_edge_orders, all_var_face_orders, prefdata);
    }
    else if (mixed_faces)
    {
@@ -2509,6 +2510,8 @@ int FiniteElementSpace::MinOrder(VarOrderBits bits)
 
 void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,
+                                               Array<VarOrderBits> &all_edge_orders,
+                                               Array<VarOrderBits> &all_face_orders,
                                                const Array<int> * prefdata) const
 {
    MFEM_ASSERT(IsVariableOrder() || prefdata, "");
@@ -2521,6 +2524,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
    edge_orders = 0;
    face_orders.SetSize(mesh->GetNFaces());
    face_orders = 0;
+
+   all_edge_orders.SetSize(mesh->GetNEdges());
+   all_face_orders.SetSize(mesh->GetNFaces());
 
    // Calculate initial edge/face orders, as required by incident elements.
    // For each edge/face we accumulate in a bit-mask the orders of elements
@@ -2557,6 +2563,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
       return;
    }
 
+   all_edge_orders = edge_orders;
+   all_face_orders = face_orders;
+
    // Iterate while minimum orders propagate by master/slave relations
    // (and new orders also propagate from faces to incident edges).
    // See https://github.com/mfem/mfem/pull/1423#issuecomment-638930559
@@ -2582,6 +2591,8 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
             edge_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
          }
+
+         all_edge_orders[master.index] |= slave_orders;
       }
 
       // propagate from slave faces(+edges) to master faces(+edges)
@@ -2592,6 +2603,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
       for (const NCMesh::Master &master : face_list.masters)
       {
          VarOrderBits slave_orders = 0;
+
          for (int i = master.slaves_begin; i < master.slaves_end; i++)
          {
             const NCMesh::Slave &slave = face_list.slaves[i];
@@ -2627,6 +2639,8 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
             face_orders[master.index] |= (VarOrderBits(1) << min_order);
             done = false;
          }
+
+         all_face_orders[master.index] |= slave_orders;
       }
 
       // make sure edges support (new) orders required by incident faces
@@ -2640,6 +2654,16 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
       }
    }
    while (!done);
+
+   for (int i=0; i<edge_orders.Size(); ++i)
+   {
+      all_edge_orders[i] |= edge_orders[i];
+   }
+
+   for (int i=0; i<face_orders.Size(); ++i)
+   {
+      all_face_orders[i] |= face_orders[i];
+   }
 }
 
 // TODO: change Array<int> to Array<VarOrderBits> for entity_orders?
@@ -2741,6 +2765,56 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
    return var_edge_orders[var_edge_dofs.GetI()[edge] + variant];
 }
 
+int FiniteElementSpace::EntityAllVarToVar(int entity, int index,
+                                          int allvar) const
+{
+   MFEM_ASSERT(IsVariableOrder(), "");
+
+   const int order = GetEntityOrderAllVar(entity, index, allvar);
+
+   // Find the variant with this order
+   int var = -1;
+   const int nvar = GetNVariants(entity, index);
+
+   for (int v=0; v<nvar; ++v)
+   {
+      const int ov = entity == 1 ? GetEdgeOrder(index, v) :
+                     GetFaceOrder(index, v);
+      if (ov == order)
+      {
+         var = v;
+      }
+   }
+
+   return var;
+}
+
+int FiniteElementSpace::GetEntityOrderAllVar(int entity, int index,
+                                             int variant) const
+{
+   if (!IsVariableOrder()) { return fec->GetOrder(); }
+
+   VarOrderBits bits = entity == 1 ? all_var_edge_orders[index] :
+                       all_var_face_orders[index];
+
+   int var = 0;
+   for (int order = 0; bits != 0; order++, bits >>= 1)
+   {
+      if (bits & 1)
+      {
+         if (var == variant)
+         {
+            return order;
+         }
+
+         var++;
+      }
+   }
+
+   MFEM_ABORT("Variant not found in FiniteElementSpace::GetEntityOrderAllVar");
+   return -1; // Invalid return value
+}
+
 int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
    if (!IsVariableOrder())
@@ -2764,6 +2838,25 @@ int FiniteElementSpace::GetNVariants(int entity, int index) const
 
    MFEM_ASSERT(index >= 0 && index < dof_table.Size(), "");
    return dof_table.GetRow(index + 1) - dof_table.GetRow(index);
+}
+
+int FiniteElementSpace::GetNumAllVariants(int entity, int index) const
+{
+   MFEM_ASSERT(IsVariableOrder(), "");
+
+   VarOrderBits bits = (entity == 1) ? all_var_edge_orders[index] :
+                       all_var_face_orders[index];
+
+   int var = 0;
+   for (int order = 0; bits != 0; order++, bits >>= 1)
+   {
+      if (bits & 1)
+      {
+         var++;
+      }
+   }
+
+   return var;
 }
 
 static const char* msg_orders_changed =

@@ -447,6 +447,8 @@ public:
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 
+   void MarkIntermediateEntityDofs(int entity, Array<bool> & intermediate) const;
+
 protected:
    void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits> &edge_orders,
                                                Array<VarOrderBits> &face_orders,

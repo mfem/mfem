@@ -427,6 +427,89 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       TestSolvePar(fespace);
    }
 
+   SECTION("Hex mesh with intermediate orders")
+   {
+      // Test ParFiniteElementSpace::MarkIntermediateEntityDofs
+      // This test is designed for 2 MPI ranks. If more than 2 ranks are used,
+      // the test is run on only the first 2 ranks via a split communicator.
+      int numprocs, rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+
+      MPI_Comm comm2;
+      MPI_Comm_split(MPI_COMM_WORLD, rank < 2 ? 0 : 1, rank, &comm2);
+
+      if (rank < 2)
+      {
+         // 2x1x1 element hex mesh
+         Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+         mesh.EnsureNCMesh();
+
+         Array<int> partition(2);
+         partition = 0;
+         if (numprocs > 1) { partition[1] = 1; }
+
+         ParMesh pmesh(comm2, mesh, partition.GetData());
+         mesh.Clear();
+
+         // Standard H1 space with order 1 elements
+         H1_FECollection fe_coll(1, pmesh.Dimension());
+         ParFiniteElementSpace fespace(&pmesh, &fe_coll);
+
+         {
+            Array<Refinement> refs;
+            if (rank == 1) { refs.Append(Refinement(0)); }
+            pmesh.GeneralRefinement(refs);
+            fespace.Update(false);
+         }
+
+         {
+            Array<Refinement> refs;
+            if (rank == 1) { refs.Append(Refinement(4)); }
+            pmesh.GeneralRefinement(refs);
+            fespace.Update(false);
+         }
+
+         if (rank == 1)
+         {
+            for (int elem=0; elem<pmesh.GetNE(); ++elem)
+            {
+               const int p_elem = fespace.GetElementOrder(elem);
+               fespace.SetElementOrder(elem, p_elem + 1);
+            }
+         }
+         fespace.Update(false);
+
+         {
+            Array<Refinement> refs;
+            if (rank == 1) { refs.Append(Refinement(6)); }
+            if (rank == 0) { refs.Append(Refinement(0)); }
+            pmesh.GeneralRefinement(refs);
+            fespace.Update(false);
+         }
+
+         {
+            Array<Refinement> refs;
+            if (rank == 1) { refs.Append(Refinement(10)); }
+            pmesh.GeneralRefinement(refs);
+            fespace.Update(false);
+         }
+
+         if (rank == 1) { fespace.SetElementOrder(3, 3); }
+         fespace.Update(false);
+
+         // Set at least order 2 everywhere
+         for (int elem=0; elem<pmesh.GetNE(); ++elem)
+         {
+            const int p_elem = fespace.GetElementOrder(elem);
+            if (p_elem < 2) { fespace.SetElementOrder(elem, 2); }
+         }
+         fespace.Update(false);
+
+         TestSolvePar(fespace);
+      }
+   }
+
    SECTION("Quad/hex mesh ND/RT")
    {
       using namespace var_order_test;
@@ -678,7 +761,7 @@ static void TestSolvePar(ParFiniteElementSpace &fespace)
 
    // solve
    HypreBoomerAMG prec;
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(fespace.GetComm());
    cg.SetRelTol(1e-30);
    cg.SetMaxIter(100);
    cg.SetPrintLevel(1);

@@ -260,9 +260,14 @@ protected:
    Table var_edge_dofs;
    Table var_face_dofs; ///< NOTE: also used for spaces with mixed faces
 
+   /// Bit-mask representing a set of orders needed by an edge/face.
+   typedef std::uint64_t VarOrderBits;
+   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
+
    /** Additional data for the var_*_dofs tables: individual variant orders
        (these are basically alternate J arrays for var_edge/face_dofs). */
    Array<char> var_edge_orders, var_face_orders;
+   Array<VarOrderBits> all_var_edge_orders, all_var_face_orders;
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
@@ -347,10 +352,6 @@ protected:
        boundary. */
    void BuildNURBSFaceToDofTable() const;
 
-   /// Bit-mask representing a set of orders needed by an edge/face.
-   typedef std::uint64_t VarOrderBits;
-   static constexpr int MaxVarOrder = 8*sizeof(VarOrderBits) - 1;
-
    /// Return the minimum order (least significant bit set) in the bit mask.
    static int MinOrder(VarOrderBits bits);
 
@@ -361,6 +362,8 @@ protected:
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(Array<VarOrderBits> &edge_orders,
                               Array<VarOrderBits> &face_orders,
+                              Array<VarOrderBits> &all_edge_orders,
+                              Array<VarOrderBits> &all_face_orders,
                               const Array<int> * prefdata=nullptr) const;
 
    virtual void ApplyGhostElementOrdersToEdgesAndFaces(Array<VarOrderBits>
@@ -393,6 +396,9 @@ protected:
 
    /// Return number of possible DOF variants for edge/face (var. order spaces).
    int GetNVariants(int entity, int index) const;
+   int GetNumAllVariants(int entity, int index) const;
+
+   int EntityAllVarToVar(int entity, int index, int allvar) const;
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    int GetEntityDofs(int entity, int index, Array<int> &dofs,
@@ -716,6 +722,8 @@ public:
 
    /// Returns the polynomial degree of the i'th face finite element
    int GetFaceOrder(int face, int variant = 0) const;
+
+   int GetEntityOrderAllVar(int entity, int index, int variant) const;
 
    /// Returns vector dimension.
    inline int GetVDim() const { return vdim; }
