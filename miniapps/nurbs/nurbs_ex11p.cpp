@@ -184,6 +184,7 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      NURBSext->ConnectBoundaries();
    }
    else
    {

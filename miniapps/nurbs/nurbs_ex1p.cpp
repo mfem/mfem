@@ -254,11 +254,17 @@ int main(int argc, char *argv[])
       {
          fec = pmesh->GetNodes()->OwnFEC();
          own_fec = 0;
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         if (myid == 0)
+         {
+            cout << "Using isoparametric FEs: " << fec->Name() << endl;
+         }
       }
       else
       {
-         cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         if (myid == 0)
+         {
+            cout <<"Mesh does not have FEs --> Assume order 1.\n";
+         }
          fec = new H1_FECollection(1, dim);
          own_fec = 1;
       }
@@ -277,19 +283,8 @@ int main(int argc, char *argv[])
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
-
-      // Enforce periodic BC's
-      if (master.Size() > 0)
-      {
-         if (myid == 0)
-         {
-            cout<<"Connecting boundaries"<<endl;
-            cout<<" - master : "; master.Print();
-            cout<<" - slave  : "; slave.Print();
-         }
-
-         NURBSext->ConnectBoundaries(master,slave);
-      }
+      if (master.Size()>0) { NURBSext->ConnectBoundaries(master, slave); }
+      NURBSext->ConnectBoundaries();
    }
    else
    {
@@ -298,7 +293,9 @@ int main(int argc, char *argv[])
       own_fec = 1;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh,NURBSext,fec);
+   NURBSext = fespace->GetNURBSext();
    HYPRE_BigInt size = fespace->GlobalTrueVSize();
+
    if (myid == 0)
    {
       cout << "Number of finite element unknowns: " << size << endl;
@@ -344,11 +341,16 @@ int main(int argc, char *argv[])
          ess_bdr = 0;
       }
 
-      // Remove periodic BCs from essential boundary list
-      for (int i = 0; i < master.Size(); i++)
+      // Remove periodic BCs
+      if (NURBSext)
       {
-         ess_bdr[master[i]-1] = 0;
-         ess_bdr[slave[i]-1] = 0;
+         Array<int> master_idx = NURBSext->GetMaster();
+         Array<int> slave_idx = NURBSext->GetSlave();
+         for (int i = 0; i < master.Size(); i++)
+         {
+            ess_bdr[master_idx[i]-1] = 0;
+            ess_bdr[slave_idx[i]-1] = 0;
+         }
       }
 
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);

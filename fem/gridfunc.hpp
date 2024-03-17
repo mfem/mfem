@@ -103,7 +103,7 @@ public:
    /** The content of @a input should be in the format created by the method
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
        are owned by the GridFunction. */
-   GridFunction(Mesh *m, std::istream &input);
+   GridFunction(Mesh *m, std::istream &input, bool connect = false);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
 

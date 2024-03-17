@@ -620,7 +620,7 @@ void VisItDataCollection::LoadFields()
       {
          if ((it->second).association == "nodes")
          {
-            field_map.Register(it->first, new GridFunction(mesh, file), own_data);
+            field_map.Register(it->first, new GridFunction(mesh, file, true), own_data);
          }
          else if ((it->second).association == "elements")
          {

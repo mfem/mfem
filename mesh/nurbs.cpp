@@ -1979,7 +1979,6 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
    // CheckBdrPatches();
 
    skip_comment_lines(input, '#');
-
    // Read knotvectors or patches
    string ident;
    input >> ws >> ident; // 'knotvectors' or 'patches'
@@ -2141,7 +2140,7 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
 
-   // periodic
+   // Read periodicity info
    if (ident == "periodic")
    {
       master.Load(input);
@@ -2151,9 +2150,9 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
       input >> ws >> ident;
    }
 
+   // Read weights
    if (patches.Size() == 0)
    {
-      // weights
       if (ident == "weights")
       {
          weights.Load(input, GetNDof());
@@ -2164,9 +2163,6 @@ NURBSExtension::NURBSExtension(std::istream &input, bool spacing)
          weights = 1.0;
       }
    }
-
-   // periodic
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -2219,7 +2215,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    // periodic
    parent->master.Copy(master);
    parent->slave.Copy(slave);
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent,
@@ -2274,7 +2269,6 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent,
 
    parent->master.Copy(master);
    parent->slave.Copy(slave);
-   ConnectBoundaries();
 }
 
 NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
@@ -2320,6 +2314,9 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
    weights.SetSize(GetNDof());
    MergeWeights(mesh_array, num_pieces);
+
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
 }
 
 NURBSExtension::~NURBSExtension()
@@ -2392,6 +2389,13 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
             }
       }
 
+      if (master.Size() > 0)
+      {
+         os << "\nperiodic\n";
+         master.Save(os);
+         slave.Save(os);
+      }
+
       os << "\nweights\n";
       weights.Print(os, 1);
    }
@@ -2403,6 +2407,14 @@ void NURBSExtension::Print(std::ostream &os, const std::string &comments) const
          os << "\n# patch " << p << "\n\n";
          patches[p]->Print(os);
       }
+
+      if (master.Size() > 0)
+      {
+         os << "\nperiodic\n";
+         master.Save(os);
+         slave.Save(os);
+      }
+
    }
 }
 
@@ -2451,8 +2463,6 @@ void NURBSExtension::PrintFunctions(const char *basename, int samples) const
 
 void NURBSExtension::InitDofMap()
 {
-   master.SetSize(0);
-   slave.SetSize(0);
    d_to_d.SetSize(0);
 }
 
@@ -2460,7 +2470,6 @@ void NURBSExtension::ConnectBoundaries(Array<int> &bnds0, Array<int> &bnds1)
 {
    bnds0.Copy(master);
    bnds1.Copy(slave);
-   ConnectBoundaries();
 }
 
 void NURBSExtension::ConnectBoundaries()
@@ -4142,8 +4151,6 @@ void NURBSExtension::SetKnotsFromPatches()
    GenerateElementDofTable();
    GenerateActiveBdrElems();
    GenerateBdrElementDofTable();
-
-   ConnectBoundaries();
 }
 
 void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
@@ -4750,7 +4757,8 @@ ParNURBSExtension::ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent,
    }
    own_topo = 1;
    parent->own_topo = 0;
-
+   parent->master.Copy(master);
+   parent->slave.Copy(slave);
    parent->edge_to_knot.Copy(edge_to_knot);
 
    parent->GetOrders().Copy(mOrders);
