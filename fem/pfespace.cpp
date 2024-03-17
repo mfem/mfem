@@ -2136,7 +2136,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
          FindDofInTable(var_edge_dofs, dof, index, edof);
 
          // Convert from local to global offset.
-         int var = -1;
          int os = 0;
          int order = -1;
          const int edge = index;
@@ -2147,7 +2146,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
             if (edof < os + dofs)
             {
-               var = v;
                order = eo;
                break;
             }
@@ -2155,7 +2153,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             os += dofs;
          }
 
-         MFEM_ASSERT(var >= 0, "");
+         MFEM_ASSERT(order >= 0, "");
 
          edof -= os;  // Local offset
 
@@ -2175,7 +2173,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             os += dofs;
          }
 
-         MFEM_ASSERT(allvar >= 0, "");
+         MFEM_VERIFY(allvar >= 0, "");
 
          edof += os;  // Global offset
 
@@ -2189,8 +2187,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
          FindDofInTable(var_face_dofs, dof, index, edof);
 
          // Convert from local to global offset.
-         int allvar = -1;
-         int var = -1;
          int os = 0;
          int order = -1;
          const int face = index;
@@ -2202,7 +2198,6 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             const int dofs = fec->GetNumDof(geom, fo);
             if (edof < os + dofs)
             {
-               var = v;
                order = fo;
                break;
             }
@@ -2210,12 +2205,13 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             os += dofs;
          }
 
-         MFEM_ASSERT(var >= 0, "");
+         MFEM_ASSERT(order >= 0, "");
 
          edof -= os;  // Local offset
 
          os = 0;
          const int nallvar = this->GetNumAllVariants(2, face);
+         int allvar = -1;
          for (int v=0; v<nallvar; ++v)
          {
             const int fo = this->GetEntityOrderAllVar(2, face, v);
@@ -2229,7 +2225,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof,
             os += dofs;
          }
 
-         MFEM_ASSERT(allvar >= 0, "");
+         MFEM_VERIFY(allvar >= 0, "");
 
          edof += os;  // Global offset
          return;
