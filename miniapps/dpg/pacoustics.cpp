@@ -616,8 +616,8 @@ int main(int argc, char *argv[])
       a->FormLinearSystem(ess_tdof_list,x,Ah, X,B);
 
       ComplexOperator * Ahc = Ah.As<ComplexOperator>();
-      BlockOperator * BlockA_r = dynamic_cast<BlockOperator *>(&Ahc->real());
-      BlockOperator * BlockA_i = dynamic_cast<BlockOperator *>(&Ahc->imag());
+      auto * BlockA_r = dynamic_cast<TBlockOperator<HypreParMatrix> *>(&Ahc->real());
+      auto * BlockA_i = dynamic_cast<TBlockOperator<HypreParMatrix> *>(&Ahc->imag());
 
       int num_blocks = BlockA_r->NumRowBlocks();
       Array<int> tdof_offsets(2*num_blocks+1);
@@ -650,12 +650,10 @@ int main(int argc, char *argv[])
 
       if (!static_cond)
       {
-         HypreBoomerAMG * solver_p = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(0,0));
+         HypreBoomerAMG * solver_p = new HypreBoomerAMG(BlockA_r->GetBlock(0,0));
          solver_p->SetPrintLevel(0);
          solver_p->SetSystemsOptions(dim);
-         HypreBoomerAMG * solver_u = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(1,1));
+         HypreBoomerAMG * solver_u = new HypreBoomerAMG(BlockA_r->GetBlock(1,1));
          solver_u->SetPrintLevel(0);
          solver_u->SetSystemsOptions(dim);
          M.SetDiagonalBlock(0,solver_p);
@@ -664,22 +662,22 @@ int main(int argc, char *argv[])
          M.SetDiagonalBlock(num_blocks+1,solver_u);
       }
 
-      HypreBoomerAMG * solver_hatp = new HypreBoomerAMG((HypreParMatrix &)
-                                                        BlockA_r->GetBlock(skip,skip));
+      HypreBoomerAMG * solver_hatp = new HypreBoomerAMG(BlockA_r->GetBlock(skip,
+                                                                           skip));
       solver_hatp->SetPrintLevel(0);
 
       HypreSolver * solver_hatu = nullptr;
       if (dim == 2)
       {
          // AMS preconditioner for 2D H(div) (trace) space
-         solver_hatu = new HypreAMS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
+         solver_hatu = new HypreAMS(BlockA_r->GetBlock(skip+1,skip+1),
                                     hatu_fes);
          dynamic_cast<HypreAMS*>(solver_hatu)->SetPrintLevel(0);
       }
       else
       {
          // ADS preconditioner for 3D H(div) (trace) space
-         solver_hatu = new HypreADS((HypreParMatrix &)BlockA_r->GetBlock(skip+1,skip+1),
+         solver_hatu = new HypreADS(BlockA_r->GetBlock(skip+1,skip+1),
                                     hatu_fes);
          dynamic_cast<HypreADS*>(solver_hatu)->SetPrintLevel(0);
       }

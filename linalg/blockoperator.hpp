@@ -14,13 +14,29 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "tblockoperator.hpp"
 #include "operator.hpp"
 #include "blockvector.hpp"
 
 namespace mfem
 {
 
-//! @class BlockOperator
+//! @typedef BlockConstOperator
+/**
+ * \brief A class to handle constant Block systems in a matrix-free implementation.
+ *
+ * Usage:
+ * - Use one of the constructors to define the block structure.
+ * - Use SetDiagonalBlock or SetBlock to fill the BlockConstOperator
+ * - Use the method Mult and MultTranspose to apply the operator to a vector.
+ *
+ * If a block is not set, it is assumed to be a zero block.
+ */
+typedef TBlockOperator<const Operator> BlockConstOperator;
+
+extern template class TBlockOperator<const Operator>;
+
+//! @typedef BlockOperator
 /**
  * \brief A class to handle Block systems in a matrix-free implementation.
  *
@@ -31,104 +47,9 @@ namespace mfem
  *
  * If a block is not set, it is assumed to be a zero block.
  */
-class BlockOperator : public Operator
-{
-public:
-   //! Constructor for BlockOperators with the same block-structure for rows and
-   //! columns.
-   /**
-    *  offsets: offsets that mark the start of each row/column block (size
-    *  nRowBlocks+1).
-    */
-   BlockOperator(const Array<int> & offsets);
-   //! Constructor for general BlockOperators.
-   /**
-    *  row_offsets: offsets that mark the start of each row block (size
-    *  nRowBlocks+1).  col_offsets: offsets that mark the start of each column
-    *  block (size nColBlocks+1).
-    */
-   BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
+typedef TBlockOperator<Operator> BlockOperator;
 
-   /// Copy assignment is not supported
-   BlockOperator &operator=(const BlockOperator &) = delete;
-
-   /// Move assignment is not supported
-   BlockOperator &operator=(BlockOperator &&) = delete;
-
-   //! Add block op in the block-entry (iblock, iblock).
-   /**
-    * iblock: The block will be inserted in location (iblock, iblock).
-    * op: the Operator to be inserted.
-    * c: optional scalar multiple for this block.
-    */
-   void SetDiagonalBlock(int iblock, const Operator *op, double c = 1.0);
-   //! Add a block op in the block-entry (iblock, jblock).
-   /**
-    * irow, icol: The block will be inserted in location (irow, icol).
-    * op: the Operator to be inserted.
-    * c: optional scalar multiple for this block.
-    */
-   void SetBlock(int iRow, int iCol, const Operator *op, double c = 1.0);
-
-   //! Return the number of row blocks
-   int NumRowBlocks() const { return nRowBlocks; }
-   //! Return the number of column blocks
-   int NumColBlocks() const { return nColBlocks; }
-
-   //! Check if block (i,j) is a zero block
-   int IsZeroBlock(int i, int j) const { return (op(i,j)==NULL) ? 1 : 0; }
-   //! Return a reference to block i,j
-   const Operator & GetBlock(int i, int j) const
-   { MFEM_VERIFY(op(i,j), ""); return *op(i,j); }
-   //! Return the coefficient for block i,j
-   double GetBlockCoef(int i, int j) const
-   { MFEM_VERIFY(op(i,j), ""); return coef(i,j); }
-   //! Set the coefficient for block i,j
-   void SetBlockCoef(int i, int j, double c)
-   { MFEM_VERIFY(op(i,j), ""); coef(i,j) = c; }
-
-   //! Return the row offsets for block starts
-   Array<int> & RowOffsets() { return row_offsets; }
-   //! Read only access to the row offsets for block starts
-   const Array<int> & RowOffsets() const { return row_offsets; }
-   //! Return the columns offsets for block starts
-   Array<int> & ColOffsets() { return col_offsets; }
-   //! Read only access to the columns offsets for block starts
-   const Array<int> & ColOffsets() const { return col_offsets; }
-
-   /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
-
-   /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
-
-   ~BlockOperator();
-
-   //! Controls the ownership of the blocks: if nonzero, BlockOperator will
-   //! delete all blocks that are set (non-NULL); the default value is zero.
-   int owns_blocks;
-
-   virtual Type GetType() const { return MFEM_Block_Operator; }
-
-private:
-   //! Number of block rows
-   int nRowBlocks;
-   //! Number of block columns
-   int nColBlocks;
-   //! Row offsets for the starting position of each block
-   Array<int> row_offsets;
-   //! Column offsets for the starting position of each block
-   Array<int> col_offsets;
-   //! 2D array that stores each block of the operator.
-   Array2D<const Operator *> op;
-   //! 2D array that stores a coefficient for each block of the operator.
-   Array2D<double> coef;
-
-   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
-   mutable BlockVector xblock;
-   mutable BlockVector yblock;
-   mutable Vector tmp;
-};
+extern template class TBlockOperator<Operator>;
 
 //! @class BlockDiagonalPreconditioner
 /**
@@ -136,7 +57,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetDiagonalBlock to fill the BlockOperator
+ * - Use SetDiagonalBlock to fill the BlockDiagonalPreconditioner
  * - Use the method Mult and MultTranspose to apply the operator to a vector.
  *
  * If a block is not set, it is assumed to be an identity block.
@@ -206,7 +127,7 @@ private:
  *
  * Usage:
  * - Use the constructors to define the block structure
- * - Use SetBlock() to fill the BlockOperator
+ * - Use SetBlock() to fill the BlockLowerTriangularOperator
  * - Diagonal blocks of the preconditioner should approximate the inverses of
  *   the diagonal block of the matrix
  * - Off-diagonal blocks of the preconditioner should match/approximate those of
@@ -220,7 +141,7 @@ private:
 class BlockLowerTriangularPreconditioner : public Solver
 {
 public:
-   //! Constructor for BlockLowerTriangularPreconditioners with the same
+   //! Constructor for BlockLowerTriangularPreconditioner%s with the same
    //! block-structure for rows and columns.
    /**
     *  @param offsets  Offsets that mark the start of each row/column block

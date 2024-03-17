@@ -178,8 +178,8 @@ class DivFreeSolver : public DarcySolver
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
    std::vector<Array<int>> ops_offsets_;
-   Array<BlockOperator*> ops_;
-   Array<BlockOperator*> blk_Ps_;
+   Array<TBlockOperator<const HypreParMatrix>*> ops_;
+   Array<TBlockOperator<const HypreParMatrix>*> blk_Ps_;
    Array<Solver*> smoothers_;
    OperatorPtr prec_;
    OperatorPtr solver_;

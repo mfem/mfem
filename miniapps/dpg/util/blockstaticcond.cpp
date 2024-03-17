@@ -547,7 +547,7 @@ void BlockStaticCondensation::BuildProlongation()
 void BlockStaticCondensation::BuildParallelProlongation()
 {
    MFEM_VERIFY(parallel, "BuildParallelProlongation: wrong code path");
-   pP = new BlockOperator(rdof_offsets, rtdof_offsets);
+   pP = new TBlockOperator<HypreParMatrix>(rdof_offsets, rtdof_offsets);
    R = new BlockMatrix(rtdof_offsets, rdof_offsets);
    pP->owns_blocks = 0;
    R->owns_blocks = 0;
@@ -571,8 +571,8 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
 {
    if (!pP) { BuildParallelProlongation(); }
 
-   pS = new BlockOperator(rtdof_offsets);
-   pS_e = new BlockOperator(rtdof_offsets);
+   pS = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
+   pS_e = new TBlockOperator<HypreParMatrix>(rtdof_offsets);
    pS->owns_blocks = 1;
    pS_e->owns_blocks = 1;
    HypreParMatrix * A = nullptr;
@@ -584,7 +584,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
    {
       if (!tr_fes[i]) { continue; }
       pfes_i = dynamic_cast<ParFiniteElementSpace*>(tr_fes[i]);
-      HypreParMatrix * Pi = (HypreParMatrix*)(&pP->GetBlock(skip_i,skip_i));
+      HypreParMatrix * Pi = &pP->GetBlock(skip_i,skip_i);
       int skip_j=0;
       for (int j = 0; j<nblocks; j++)
       {
@@ -602,7 +602,7 @@ void BlockStaticCondensation::ParallelAssemble(BlockMatrix *m)
          else
          {
             pfes_j = dynamic_cast<ParFiniteElementSpace*>(tr_fes[j]);
-            HypreParMatrix * Pj = (HypreParMatrix*)(&pP->GetBlock(skip_j,skip_j));
+            HypreParMatrix * Pj = &pP->GetBlock(skip_j,skip_j);
             A = new HypreParMatrix(pfes_i->GetComm(), pfes_i->GlobalVSize(),
                                    pfes_j->GlobalVSize(), pfes_i->GetDofOffsets(),
                                    pfes_j->GetDofOffsets(), &m->GetBlock(skip_i,skip_j));
@@ -865,7 +865,7 @@ void BlockStaticCondensation::ReduceSystem(Vector &x, Vector &X,
       for (int j = 0; j<rblocks; j++)
       {
          if (!ess_tdofs[j]->Size()) { continue; }
-         HypreParMatrix *Ah = (HypreParMatrix *)(&pS->GetBlock(j,j));
+         HypreParMatrix *Ah = &pS->GetBlock(j,j);
          Vector diag;
          Ah->GetDiag(diag);
          for (int i = 0; i < ess_tdofs[j]->Size(); i++)
