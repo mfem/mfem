@@ -109,10 +109,9 @@ protected:
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
       struct gslib::hash_data_2 *hash2;
-      mutable Vector o_x, o_y, o_z;
-      //   mutable Vector o_xyz;
+      mutable Vector o_xyz;
       mutable Vector o_c, o_A, o_min, o_max;
-      mutable Vector o_wtend_x, o_wtend_y, o_wtend_z;
+      mutable Vector o_wtend;
       mutable Vector gll1d;
       mutable Vector lagcoeff;
       mutable Vector gll1dsol;
@@ -124,6 +123,7 @@ protected:
       mutable Array<dlong> o_offset;
       mutable dlong hash_n;
       mutable Vector o_hashMin;
+      mutable Vector o_hashMax;
       mutable Vector o_hashFac;
       mutable Vector info;
    } DEV;

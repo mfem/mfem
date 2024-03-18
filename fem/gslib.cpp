@@ -707,20 +707,9 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
 
    //TO DO: make DEV.O_x/y/z point to gsl_mesh if it is already on device?
    // will gsl_mesh ever be on device since we do setup on cpu
-   DEV.o_x.UseDevice(true);
-   DEV.o_y.UseDevice(true);
-
-   DEV.o_x.SetSize(mesh_pts_cnt);
-   DEV.o_y.SetSize(mesh_pts_cnt);
-
-   DEV.o_x = gsl_mesh.GetData();
-   DEV.o_y = gsl_mesh.GetData()+mesh_pts_cnt;
-   if (dim == 3)
-   {
-      DEV.o_z.UseDevice(true);
-      DEV.o_z.SetSize(mesh_pts_cnt);
-      DEV.o_z = gsl_mesh.GetData()+2*mesh_pts_cnt;
-   }
+   DEV.o_xyz.UseDevice(true);
+   DEV.o_xyz.SetSize(mesh_pts_cnt*dim);
+   DEV.o_xyz = gsl_mesh.GetData();
 
    DEV.o_c.UseDevice(true);
    DEV.o_c.SetSize(dim*NE_split_total);
@@ -776,18 +765,22 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
       }
    }
 
+   DEV.o_hashMax.UseDevice(true);
    DEV.o_hashMin.UseDevice(true);
    DEV.o_hashFac.UseDevice(true);
+   DEV.o_hashMax.SetSize(dim);
    DEV.o_hashMin.SetSize(dim);
    DEV.o_hashFac.SetSize(dim);
    if (dim == 2)
    {
       auto hash = findptsData2->local.hd;
 
+      auto p_o_hashMax = DEV.o_hashMax.HostWrite();
       auto p_o_hashMin = DEV.o_hashMin.HostWrite();
       auto p_o_hashFac = DEV.o_hashFac.HostWrite();
       for (int d = 0; d < dim; d++)
       {
+         p_o_hashMax[d] = hash.bnd[d].max;
          p_o_hashMin[d] = hash.bnd[d].min;
          p_o_hashFac[d] = hash.fac[d];
       }
@@ -797,10 +790,12 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
    {
       auto hash = findptsData3->local.hd;
 
+      auto p_o_hashMax = DEV.o_hashMax.HostWrite();
       auto p_o_hashMin = DEV.o_hashMin.HostWrite();
       auto p_o_hashFac = DEV.o_hashFac.HostWrite();
       for (int d = 0; d < dim; d++)
       {
+         p_o_hashMax[d] = hash.bnd[d].max;
          p_o_hashMin[d] = hash.bnd[d].min;
          p_o_hashFac[d] = hash.fac[d];
       }
@@ -829,29 +824,11 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
                       findptsData3->local.hd.offset[i];
    }
 
-   DEV.o_wtend_x.UseDevice(true);
-   DEV.o_wtend_x.SetSize(6*DEV.dof1d);
-   DEV.o_wtend_y.UseDevice(true);
-   DEV.o_wtend_y.SetSize(6*DEV.dof1d);
-   DEV.o_wtend_x.HostWrite();
-   DEV.o_wtend_y.HostWrite();
-   DEV.o_wtend_x = dim == 2 ? findptsData2->local.fed.wtend[0] :
-                   findptsData3->local.fed.wtend[0];
-   DEV.o_wtend_y = dim == 2 ? findptsData2->local.fed.wtend[1] :
-                   findptsData3->local.fed.wtend[1];
-   //   if (gsl_comm->id == 0) {
-   //      DEV.o_wtend_x.Print(mfem::out, DEV.dof1d);
-   //      DEV.o_wtend_y.Print(mfem::out, DEV.dof1d);
-   //   }
-   //   MFEM_ABORT(" ");
-
-   if (dim == 3)
-   {
-      DEV.o_wtend_z.UseDevice(true);
-      DEV.o_wtend_z.SetSize(6*DEV.dof1d);
-      DEV.o_wtend_z.HostWrite();
-      DEV.o_wtend_z = findptsData3->local.fed.wtend[2];
-   }
+   DEV.o_wtend.UseDevice(true);
+   DEV.o_wtend.SetSize(6*DEV.dof1d);
+   DEV.o_wtend.HostWrite();
+   DEV.o_wtend = dim == 2 ? findptsData2->local.fed.wtend[0] :
+                 findptsData3->local.fed.wtend[0];
 
    // Get gll points
    DEV.gll1d.UseDevice(true);
