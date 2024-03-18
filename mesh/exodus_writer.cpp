@@ -22,6 +22,9 @@ static void HandleNetCDFStatus(int status);
 static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
                                                   std::set<mfem::Element::Type> & element_types,
                                                   std::map<mfem::Element::Type, std::vector<int>> & element_ids_for_type);
+static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
+                                             std::set<int> & boundary_ids);
+
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -70,6 +73,15 @@ void Mesh::WriteExodusII(const std::string fpath)
                        &num_elem_blk_id);
    HandleNetCDFStatus(status);
 
+   //
+   // Set boundaries.
+   //
+   std::set<int> boundary_ids;
+   GenerateExodusIISideSetsFromMesh(*this, boundary_ids);
+
+   int num_side_sets_ids;
+   status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
+                       &num_side_sets_ids);
 
    //
    // Close file
@@ -117,6 +129,24 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 
          element_ids.push_back(ielement);
       }
+   }
+}
+
+/// @brief Generates sidesets from the mesh. We iterate over the boundary elements and look at the
+/// element attributes (each one matches a sideset ID). We can then build a set of unique sideset
+/// IDs and a mapping from sideset ID to a vector of all element IDs.
+static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
+                                             std::set<int> & boundary_ids)
+{
+   boundary_ids.clear();
+
+   for (int ielement = 0; ielement < mesh.GetNBE(); ielement++)
+   {
+      mfem::Element * boundary_element = mesh.GetBdrElement(ielement);
+
+      int boundary_id = boundary_element->GetAttribute();
+
+      boundary_ids.insert(boundary_id);
    }
 }
 }
