@@ -35,8 +35,25 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Add file contents.
+   // Add title.
    //
+   const char *title = "MFEM mesh";
+   status = nc_put_att_text(ncid, NC_GLOBAL, "title", strlen(title), title);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set dimension.
+   //
+   int num_dim_id;
+   status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set # elements.
+   //
+   int num_elem_id;
+   status = nc_def_dim(ncid, "num_elem", NumOfElements, &num_elem_id);
+   HandleNetCDFStatus(status);
 
    //
    // Close file
@@ -55,5 +72,7 @@ static void HandleNetCDFStatus(int status)
       MFEM_ABORT("NetCDF error: " << nc_strerror(status));
    }
 }
+
+
 
 }
