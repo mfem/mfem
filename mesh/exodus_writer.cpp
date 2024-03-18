@@ -25,6 +25,7 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
                                              std::set<int> & boundary_ids);
 
+static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -40,6 +41,10 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
+   // Generate Initialization Parameters
+   //
+
+   //
    // Add title.
    //
    const char *title = "MFEM mesh";
@@ -51,6 +56,17 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    int num_dim_id;
    status = nc_def_dim(ncid, "num_dim", Dim, &num_dim_id);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set # nodes.
+   //
+   int num_nodes_id;
+   int num_nodes;
+
+   GenerateExodusIINodeIDsFromMesh(*this, num_nodes);
+
+   status = nc_def_dim(ncid, "num_nodes", num_nodes, &num_nodes_id);
    HandleNetCDFStatus(status);
 
    //
@@ -74,7 +90,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
-   // Set boundaries.
+   // Set # side sets ("boundaries")
    //
    std::set<int> boundary_ids;
    GenerateExodusIISideSetsFromMesh(*this, boundary_ids);
@@ -82,6 +98,14 @@ void Mesh::WriteExodusII(const std::string fpath)
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
                        &num_side_sets_ids);
+   HandleNetCDFStatus(status);
+
+   //
+   // Set # node sets - TODO: add this (currently, set to 0).
+   //
+   int num_node_sets_ids;
+   status = nc_def_dim(ncid, "num_node_sets", 0, &num_node_sets_ids);
+   HandleNetCDFStatus(status);
 
    //
    // Close file
@@ -148,5 +172,38 @@ static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
 
       boundary_ids.insert(boundary_id);
    }
+}
+
+/// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
+static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
+{
+   std::set<int> node_ids;
+
+   const FiniteElementSpace * fespace = mesh.GetNodalFESpace();
+
+   mfem::Array<int> dofs;
+
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      if (fespace)   // Higher-order
+      {
+         fespace->GetElementDofs(ielement, dofs);
+
+         for (int dof : dofs) { node_ids.insert(dof); }
+      }
+      else
+      {
+         mfem::Array<int> vertex_indices;
+         mesh.GetElementVertices(ielement, vertex_indices);
+
+         // TODO: - Hmmmm. These are not actually the dofs. Just the vertex offsets.
+         for (int vertex_index : vertex_indices)
+         {
+            node_ids.insert(vertex_index);
+         }
+      }
+   }
+
+   num_nodes = (int)node_ids.size();
 }
 }
