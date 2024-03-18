@@ -1060,7 +1060,6 @@ static void FindPointsLocal3D_Kernel(const int npt,
          hashBox.x[d].max = hashMax[d];
       }
       double hashBoxTest = obbox_axis_test(&hashBox, x_i);
-      hashBoxTest = 5.0;
 
       for (; elp != ele && hashBoxTest >= 0; ++elp)
       {
