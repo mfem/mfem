@@ -3951,10 +3951,13 @@ void PetscH2Solver::H2SolverConstructor(ParFiniteElementSpace *fes)
    Vector c(fes->GetTrueVSize());
    coords.ParallelProject(c);
    delete fes_coords;
-   PCSetType(*this,PCH2OPUS);
-   PCSetCoordinates(*this,sdim,c.Size()/sdim,(PetscReal*)mfem::Read(c.GetMemory(),
-                                                                    c.Size(),false));
-   PCSetFromOptions(*this);
+
+   PC pc = (PC)obj;
+   ierr = PCSetType(pc,PCH2OPUS); PCHKERRQ(obj, ierr);
+   ierr = PCSetCoordinates(pc,sdim,c.Size()/sdim,
+                           (PetscReal*)mfem::Read(c.GetMemory(),
+                                                  c.Size(),false));
+   ierr = PCSetFromOptions(pc); PCHKERRQ(obj, ierr);
 #else
    MFEM_ABORT("Need PETSc configured with --download-h2opus");
 #endif

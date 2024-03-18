@@ -4,7 +4,9 @@
 -ksp_converged_reason
 
 # Internal use (don't remove it)
+# It is duplicated because we support older versions of PETSc
 -matis_convert_local_nest
+-mat_is_convert_local_nest
 
 # PCBDDC options
 
