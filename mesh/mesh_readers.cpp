@@ -3764,7 +3764,7 @@ static void ReadCubitElementBlocks(NetCDFReader & cubit_reader,
       {
          vector<int> element_node_ids(block_element.GetNumNodes());
 
-         for (int i = 0; i < block_element.GetNumNodes(); i++)
+         for (int i = 0; i < (int)block_element.GetNumNodes(); i++)
          {
             element_node_ids[i] = node_ids_for_block[ielement * block_element.GetNumNodes()
                                                      + i];
