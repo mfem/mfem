@@ -142,6 +142,8 @@ real_t omega;
 int dim;
 bool exact_known = false;
 
+template <typename T> T pow2(const T &x) { return x*x; }
+
 enum prob_type
 {
    beam,     // Wave propagating in a beam-like domain
@@ -275,7 +277,7 @@ int main(int argc, char *argv[])
    dim = mesh->Dimension();
 
    // Angular frequency
-   omega = 2.0 * M_PI * freq;
+   omega = real_t(2.0 * M_PI) * freq;
 
    // Setup PML length
    Array2D<real_t> length(dim, 2); length = 0.0;
@@ -357,14 +359,15 @@ int main(int argc, char *argv[])
             switch (prob)
             {
                case lshape:
-                  if (center[0] == 1.0 || center[0] == 0.5 || center[1] == 0.5)
+                  if (center[0] == real_t(1) || center[0] == real_t(0.5) ||
+                      center[1] == real_t(0.5))
                   {
                      ess_bdr[k - 1] = 1;
                   }
                   break;
                case fichera:
-                  if (center[0] == -1.0 || center[0] == 0.0 ||
-                      center[1] ==  0.0 || center[2] == 0.0)
+                  if (center[0] == real_t(-1) || center[0] == real_t(0) ||
+                      center[1] ==  real_t(0) || center[2] == real_t(0))
                   {
                      ess_bdr[k - 1] = 1;
                   }
@@ -423,8 +426,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   ConstantCoefficient muinv(1.0/mu);
-   ConstantCoefficient omeg(-pow(omega, 2) * epsilon);
+   ConstantCoefficient muinv(real_t(1)/mu);
+   ConstantCoefficient omeg(-pow2(omega) * epsilon);
    RestrictedCoefficient restr_muinv(muinv,attr);
    RestrictedCoefficient restr_omeg(omeg,attr);
 
@@ -520,7 +523,7 @@ int main(int argc, char *argv[])
    //              + omega^2 * epsilon (abs(det(J) * (J^T J)^-1) * E, F)
    if (pa || (!slu_solver && !mumps_solver && !strumpack_solver))
    {
-      ConstantCoefficient absomeg(pow(omega, 2) * epsilon);
+      ConstantCoefficient absomeg(pow2(omega) * epsilon);
       RestrictedCoefficient restr_absomeg(absomeg,attr);
 
       ParBilinearForm prec(fespace);
@@ -551,7 +554,7 @@ int main(int argc, char *argv[])
 
       std::unique_ptr<Operator> pc_r;
       std::unique_ptr<Operator> pc_i;
-      int s = (conv == ComplexOperator::HERMITIAN) ? -1.0 : 1.0;
+      int s = (conv == ComplexOperator::HERMITIAN) ? -1 : 1;
       if (pa)
       {
          // Jacobi Smoother
@@ -698,7 +701,8 @@ int main(int argc, char *argv[])
             ostringstream oss;
             oss << "Harmonic Solution (t = " << t << " T)";
 
-            add(cos(2.0*M_PI*t), x.real(), sin(2.0*M_PI*t), x.imag(), x_t);
+            add(cos(real_t(2.0*M_PI)*t), x.real(),
+                sin(real_t(2.0*M_PI)*t), x.imag(), x_t);
             sol_sock << "parallel " << num_procs << " " << myid << "\n";
             sol_sock << "solution\n" << *pmesh << x_t
                      << "window_title '" << oss.str() << "'" << flush;
@@ -721,12 +725,12 @@ void source(const Vector &x, Vector &f)
    real_t r = 0.0;
    for (int i = 0; i < dim; ++i)
    {
-      center(i) = 0.5 * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
-      r += pow(x[i] - center[i], 2.);
+      center(i) = real_t(0.5) * (comp_domain_bdr(i, 0) + comp_domain_bdr(i, 1));
+      r += pow2(x[i] - center[i]);
    }
-   real_t n = 5.0 * omega * sqrt(epsilon * mu) / M_PI;
-   real_t coeff = pow(n, 2) / M_PI;
-   real_t alpha = -pow(n, 2) * r;
+   real_t n = real_t(5) * omega * sqrt(epsilon * mu) / real_t(M_PI);
+   real_t coeff = pow2(n) / real_t(M_PI);
+   real_t alpha = -pow2(n) * r;
    f = 0.0;
    f[0] = coeff * exp(alpha);
 }
@@ -739,7 +743,7 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
       E[i] = 0.0;
    }
 
-   complex<real_t> zi = complex<real_t>(0., 1.);
+   constexpr complex<real_t> zi = complex<real_t>(0., 1.);
    real_t k = omega * sqrt(epsilon * mu);
    switch (prob)
    {
@@ -772,7 +776,7 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
             real_t r_x = x0 / r;
             real_t r_y = x1 / r;
             real_t r_xy = -(r_x / r) * r_y;
-            real_t r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            real_t r_xx = (real_t(1) / r) * (real_t(1) - r_x * r_x);
 
             complex<real_t> val, val_xx, val_xy;
             val = real_t(0.25) * zi * Ho;
@@ -791,7 +795,7 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
             real_t r_x = x0 / r;
             real_t r_y = x1 / r;
             real_t r_z = x2 / r;
-            real_t r_xx = (1.0 / r) * (1.0 - r_x * r_x);
+            real_t r_xx = (real_t(1) / r) * (real_t(1) - r_x * r_x);
             real_t r_yx = -(r_y / r) * r_x;
             real_t r_zx = -(r_z / r) * r_x;
 
@@ -818,8 +822,9 @@ void maxwell_solution(const Vector &x, vector<complex<real_t>> &E)
          // T_10 mode
          if (dim == 3)
          {
-            real_t k10 = sqrt(k * k - M_PI * M_PI);
-            E[1] = -zi * k / (real_t) M_PI * sin((real_t) M_PI*x(2))*exp(zi * k10 * x(0));
+            real_t k10 = sqrt(k * k - real_t(M_PI * M_PI));
+            E[1] = -zi * k / (real_t) M_PI *
+                   sin((real_t) M_PI*x(2))*exp(zi * k10 * x(0));
          }
          else if (dim == 2)
          {
@@ -860,8 +865,8 @@ void E_bdr_data_Re(const Vector &x, Vector &E)
    for (int i = 0; i < dim; ++i)
    {
       // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
+      if (x(i) - comp_domain_bdr(i, 0) < real_t(0) ||
+          x(i) - comp_domain_bdr(i, 1) > real_t(0))
       {
          in_pml = true;
          break;
@@ -887,8 +892,8 @@ void E_bdr_data_Im(const Vector &x, Vector &E)
    for (int i = 0; i < dim; ++i)
    {
       // check if in PML
-      if (x(i) - comp_domain_bdr(i, 0) < 0.0 ||
-          x(i) - comp_domain_bdr(i, 1) > 0.0)
+      if (x(i) - comp_domain_bdr(i, 0) < real_t(0) ||
+          x(i) - comp_domain_bdr(i, 1) > real_t(0))
       {
          in_pml = true;
          break;
@@ -918,7 +923,7 @@ void detJ_JT_J_inv_Re(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], real_t(2))).real();
+      D(i) = (det / pow2(dxs[i])).real();
    }
 }
 
@@ -935,7 +940,7 @@ void detJ_JT_J_inv_Im(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = (det / pow(dxs[i], real_t(2))).imag();
+      D(i) = (det / pow2(dxs[i])).imag();
    }
 }
 
@@ -952,7 +957,7 @@ void detJ_JT_J_inv_abs(const Vector &x, PML * pml, Vector & D)
 
    for (int i = 0; i < dim; ++i)
    {
-      D(i) = abs(det / pow(dxs[i], real_t(2)));
+      D(i) = abs(det / pow2(dxs[i]));
    }
 }
 
@@ -976,7 +981,7 @@ void detJ_inv_JT_J_Re(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], real_t(2)) / det).real();
+         D(i) = (pow2(dxs[i]) / det).real();
       }
    }
 }
@@ -1000,7 +1005,7 @@ void detJ_inv_JT_J_Im(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = (pow(dxs[i], real_t(2)) / det).imag();
+         D(i) = (pow2(dxs[i]) / det).imag();
       }
    }
 }
@@ -1024,7 +1029,7 @@ void detJ_inv_JT_J_abs(const Vector &x, PML * pml, Vector & D)
    {
       for (int i = 0; i < dim; ++i)
       {
-         D(i) = abs(pow(dxs[i], real_t(2)) / det);
+         D(i) = abs(pow2(dxs[i]) / det);
       }
    }
 }
@@ -1104,7 +1109,7 @@ void PML::SetAttributes(ParMesh *pmesh)
 void PML::StretchFunction(const Vector &x,
                           vector<complex<real_t>> &dxs)
 {
-   complex<real_t> zi = complex<real_t>(0., 1.);
+   constexpr complex<real_t> zi = complex<real_t>(0., 1.);
 
    real_t n = 2.0;
    real_t c = 5.0;
