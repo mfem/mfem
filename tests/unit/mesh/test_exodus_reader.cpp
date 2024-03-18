@@ -133,3 +133,40 @@ TEST_CASE("Exodus Wedge18", "[Mesh]")
 #endif
 }
 
+TEST_CASE("Exodus Mixed Mesh Order 1", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   const std::string fname = "simple-cube-multi-element-order1.e";
+
+   const std::string & fpath = ("data/" + fname);
+
+   Mesh mesh(fpath);
+
+   REQUIRE(mesh.Dimension() == 3);
+   REQUIRE(mesh.GetNodalFESpace() == nullptr);
+
+   // Pyramid, Wedge, Hex, Tet.
+   REQUIRE(mesh.HasGeometry(Geometry::PYRAMID));
+   REQUIRE(mesh.HasGeometry(Geometry::PRISM));
+   REQUIRE(mesh.HasGeometry(Geometry::CUBE));
+   REQUIRE(mesh.HasGeometry(Geometry::TETRAHEDRON));
+#endif
+}
+
+TEST_CASE("Exodus Mixed Mesh Order 2", "[Mesh]")
+{
+#ifdef MFEM_USE_NETCDF
+   const std::string fname = "simple-cube-multi-element-order2.e";
+
+   const std::string & fpath = ("data/" + fname);
+
+   Mesh mesh(fpath);
+
+   REQUIRE(mesh.Dimension() == 3);
+   REQUIRE(mesh.GetNodalFESpace() != nullptr);
+
+   // Hex, Tet only.
+   REQUIRE(mesh.HasGeometry(Geometry::CUBE));
+   REQUIRE(mesh.HasGeometry(Geometry::TETRAHEDRON));
+#endif
+}
