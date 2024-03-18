@@ -783,7 +783,7 @@ void maxwell_solution_curlcurl(const Vector & X,
    std::complex<real_t> pw = exp(-zi * omega * (X.Sum()));
    if (dim == 3)
    {
-      curlcurlE[0] = real_t(2.0) * omega * omega * pw;
+      curlcurlE[0] = 2_r * omega * omega * pw;
       curlcurlE[1] = - omega * omega * pw;
       curlcurlE[2] = - omega * omega * pw;
    }
