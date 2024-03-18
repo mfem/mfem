@@ -40,6 +40,16 @@ typedef double real_t;
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
 
+constexpr real_t operator""_r(long double v)
+{
+   return static_cast<real_t>(v);
+}
+
+constexpr real_t operator""_r(unsigned long long v)
+{
+   return static_cast<real_t>(v);
+}
+
 } // namespace mfem
 
 // Return value for main function in examples that should be skipped by testing
