@@ -52,7 +52,7 @@ static void PADGTraceSetup2D(const int Q1D,
          const real_t v0 = const_v ? V(0,0,0) : V(0,q,f);
          const real_t v1 = const_v ? V(1,0,0) : V(1,q,f);
          const real_t dot = n(q,0,f) * v0 + n(q,1,f) * v1;
-         const real_t abs = dot > 0.0 ? dot : -dot;
+         const real_t abs = dot > 0_r ? dot : -dot;
          const real_t w = W[q]*r*d(q,f);
          qd(q,0,0,f) = w*( alpha/2 * dot + beta * abs );
          qd(q,1,0,f) = w*( alpha/2 * dot - beta * abs );
