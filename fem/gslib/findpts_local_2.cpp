@@ -23,7 +23,6 @@ namespace mfem
 #define CODE_BORDER 1
 #define CODE_NOT_FOUND 2
 
-////// OBBOX //////
 static MFEM_HOST_DEVICE inline void lagrange_eval_first_derivative(double *p0,
                                                                    double x, int i,
                                                                    const double *z, const double *lagrangeCoeff, int pN)
@@ -123,9 +122,7 @@ static MFEM_HOST_DEVICE inline int hash_index(const findptsLocalHashData_t *p,
    return sum;
 }
 
-//// Linear algebra ////
 /* A is row-major */
-
 static MFEM_HOST_DEVICE inline void lin_solve_2(double x[2], const double A[4],
                                                 const double y[2])
 {
@@ -142,6 +139,7 @@ static MFEM_HOST_DEVICE inline double norm2(const double x[2]) { return x[0] * x
          1 = 01b if r is constrained at -1
          2 = 10b if r is constrained at +1
    SS is similarly for s constraints
+   SSRR = smax,smin,rmax,rmin
 */
 
 #define CONVERGED_FLAG (1u<<4)
@@ -176,8 +174,8 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
    return ((x>>1)&1u) | ((x>>2)&2u);
 }
 
-// compute (x,y) and (dxdn, dydx) data for all DOFs along the edge based on
-// edge index.
+// compute (x,y) and (dxdn, dydn) data for all DOFs along the edge based on
+// edge index. ei=0..3 corresponding to rmin, rmax, smin, smax.
 static MFEM_HOST_DEVICE inline findptsElementGEdge_t
 get_edge(const double *elx[2], const double *wtend, int ei,
          double *workspace,
@@ -363,7 +361,12 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
    int d, mask, flags;
    r0[0] = p->r[0], r0[1] = p->r[1];
 
-   mask = 0xfu;
+   mask = 0xfu; // 1111 - MSB to LSB - smax,smin,rmax,rmin
+   // bnd is initialized to be a box [-1, 1]^2, but if the limits change based
+   // on the initial guess (r0) and trust region, the mask is modified.
+   // Example: r0 = [0.2, -0.3].. r0[0]-tr = 0.2-1 = -0.8.
+   // In this case the bounding box will be shortened and the bit corresponding
+   // to rmin will be changed.
    for (d = 0; d < 2; ++d)
    {
       if (r0[d] - tr > -1)
@@ -376,6 +379,7 @@ static MFEM_HOST_DEVICE void newton_area(findptsElementPoint_t *const out,
       }
    }
 
+   // dr = Jac^-1*resid where resid = x^* - x(r)
    lin_solve_2(dr, jac, resid);
 
    fac = 1, flags = 0;
@@ -648,7 +652,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
                                      const double *x,
                                      const int point_pos_ordering,
                                      const double *xElemCoord,
-                                     const double *yElemCoord,
+                                     const int nel,
                                      const double *wtend,                                     const double *c,
                                      const double *A,
                                      const double *minBound,
@@ -674,7 +678,7 @@ static void FindPointsLocal2D_Kernel(const int npt,
    const int p_NE = D1D*D1D;
    MFEM_VERIFY(MD1 <= 14,"Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
-   const int nThreads = MAX_CONST(2*MD1, 4); 
+   const int nThreads = MAX_CONST(2*MD1, 4);
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -716,8 +720,8 @@ static void FindPointsLocal2D_Kernel(const int npt,
       hash.hash_n = hash_n;
       hash.offset = hashOffset;
       const int hi = hash_index(&hash, x_i);
-      const int *elp = hash.offset + hash.offset[hi],
-                 *const ele = hash.offset + hash.offset[hi + 1];
+      const int        *elp = hash.offset + hash.offset[hi];
+      const int *const  ele = hash.offset + hash.offset[hi + 1];
       *code_i = CODE_NOT_FOUND;
       *dist2_i = DBL_MAX;
 
@@ -748,8 +752,12 @@ static void FindPointsLocal2D_Kernel(const int npt,
             {
                const double *elx[dim];
 
-               elx[0] = xElemCoord + el * p_NE;
-               elx[1] = yElemCoord + el * p_NE;
+               for (int d = 0; d < dim; d++)
+               {
+                  elx[d] = xElemCoord + d*nel*p_NE + el * p_NE;
+               }
+               //               elx[0] = xElem + el * p_NE;
+               //               elx[1] = yElem + el * p_NE;
 
                //// findpts_el ////
                {
@@ -1106,10 +1114,10 @@ static void FindPointsLocal2D_Kernel(const int npt,
 
 void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
                                        int point_pos_ordering,
-                                       Array<int> &gsl_code_dev_l,
-                                       Array<int> &gsl_elem_dev_l,
-                                       Vector &gsl_ref_l,
-                                       Vector &gsl_dist_l,
+                                       Array<int> &code,
+                                       Array<int> &elem,
+                                       Vector &ref,
+                                       Vector &dist,
                                        int npt)
 {
    if (npt == 0) { return; }
@@ -1117,42 +1125,41 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
    switch (DEV.dof1d)
    {
       case 3: return FindPointsLocal2D_Kernel<3>(npt, DEV.tol,
-                                                point_pos.Read(), point_pos_ordering,
-                                                DEV.o_x.Read(), DEV.o_y.Read(),
-                                                DEV.o_wtend_x.Read(),
-                                                DEV.o_c.Read(), DEV.o_A.Read(),
-                                                DEV.o_min.Read(), DEV.o_max.Read(),
-                                                DEV.hash_n, DEV.o_hashMin.Read(),
-                                                DEV.o_hashFac.Read(),
-                                                DEV.o_offset.ReadWrite(),
-                                                gsl_code_dev_l.Write(),
-                                                gsl_elem_dev_l.Write(),
-                                                gsl_ref_l.Write(),
-                                                gsl_dist_l.Write(),
-                                                DEV.gll1d.ReadWrite(),
-                                                DEV.lagcoeff.Read(),
-                                                DEV.info.ReadWrite());
+                                                    point_pos.Read(), point_pos_ordering,
+                                                    DEV.o_xyz.Read(), NE_split_total,
+                                                    DEV.o_wtend.Read(),
+                                                    DEV.o_c.Read(), DEV.o_A.Read(),
+                                                    DEV.o_min.Read(), DEV.o_max.Read(),
+                                                    DEV.hash_n, DEV.o_hashMin.Read(),
+                                                    DEV.o_hashFac.Read(),
+                                                    DEV.o_offset.ReadWrite(),
+                                                    code.Write(),
+                                                    elem.Write(),
+                                                    ref.Write(),
+                                                    dist.Write(),
+                                                    DEV.gll1d.ReadWrite(),
+                                                    DEV.lagcoeff.Read(),
+                                                    DEV.info.ReadWrite());
       default: return FindPointsLocal2D_Kernel(npt, DEV.tol,
-                                              point_pos.Read(), point_pos_ordering,
-                                              DEV.o_x.Read(),
-                                              DEV.o_y.Read(),
-                                              DEV.o_wtend_x.Read(),
-                                              DEV.o_c.Read(),
-                                              DEV.o_A.Read(),
-                                              DEV.o_min.Read(),
-                                              DEV.o_max.Read(),
-                                              DEV.hash_n,
-                                              DEV.o_hashMin.Read(),
-                                              DEV.o_hashFac.Read(),
-                                              DEV.o_offset.ReadWrite(),
-                                              gsl_code_dev_l.Write(),
-                                              gsl_elem_dev_l.Write(),
-                                              gsl_ref_l.Write(),
-                                              gsl_dist_l.Write(),
-                                              DEV.gll1d.ReadWrite(),
-                                              DEV.lagcoeff.Read(),
-                                              DEV.info.ReadWrite(),
-                                              DEV.dof1d);
+                                                  point_pos.Read(), point_pos_ordering,
+                                                  DEV.o_xyz.Read(), NE_split_total,
+                                                  DEV.o_wtend.Read(),
+                                                  DEV.o_c.Read(),
+                                                  DEV.o_A.Read(),
+                                                  DEV.o_min.Read(),
+                                                  DEV.o_max.Read(),
+                                                  DEV.hash_n,
+                                                  DEV.o_hashMin.Read(),
+                                                  DEV.o_hashFac.Read(),
+                                                  DEV.o_offset.ReadWrite(),
+                                                  code.Write(),
+                                                  elem.Write(),
+                                                  ref.Write(),
+                                                  dist.Write(),
+                                                  DEV.gll1d.ReadWrite(),
+                                                  DEV.lagcoeff.Read(),
+                                                  DEV.info.ReadWrite(),
+                                                  DEV.dof1d);
    }
 
 
@@ -1162,8 +1169,6 @@ void FindPointsGSLIB::FindPointsLocal2(const Vector &point_pos,
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
-#undef int
-#undef double
 
 } // namespace mfem
 
