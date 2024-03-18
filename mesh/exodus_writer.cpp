@@ -19,7 +19,9 @@ namespace mfem
 {
 /// Function Prototypes.
 static void HandleNetCDFStatus(int status);
-
+static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
+                                                  std::set<mfem::Element::Type> & element_types,
+                                                  std::map<mfem::Element::Type, std::vector<int>> & element_ids_for_type);
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -56,6 +58,20 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    //
+   // Set # element blocks.
+   //
+   std::set<mfem::Element::Type> element_types;
+   std::map<mfem::Element::Type, std::vector<int>> element_ids_for_type;
+   GenerateExodusIIElementBlocksFromMesh(*this, element_types,
+                                         element_ids_for_type);
+
+   int num_elem_blk_id;
+   status = nc_def_dim(ncid, "num_elem_blk", (int)element_types.size(),
+                       &num_elem_blk_id);
+   HandleNetCDFStatus(status);
+
+
+   //
    // Close file
    //
    status = nc_close(ncid);
@@ -73,6 +89,34 @@ static void HandleNetCDFStatus(int status)
    }
 }
 
+/// @brief Generates blocks based on the elements in the mesh. We've lost information
+/// if we previously had an Exodus II mesh that we read-in. If all elements are the
+/// same then we create a single block. Otherwise, we create a block for each element
+/// type in the mesh.
+static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
+                                                  std::set<mfem::Element::Type> & element_types,
+                                                  std::map<mfem::Element::Type, std::vector<int>> & element_ids_for_type)
+{
+   element_types.clear();
+   element_ids_for_type.clear();
 
+   // Iterate over the elements in the mesh.
+   for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
+   {
+      mfem::Element::Type element_type = mesh.GetElementType(ielement);
 
+      if (element_types.count(element_type) == 0)  // Encountered a new element type!
+      {
+         element_types.insert(element_type);
+
+         element_ids_for_type[element_type] = { ielement };
+      }
+      else
+      {
+         std::vector<int> & element_ids = element_ids_for_type.at(element_type);
+
+         element_ids.push_back(ielement);
+      }
+   }
+}
 }
