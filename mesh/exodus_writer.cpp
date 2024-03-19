@@ -468,4 +468,41 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
 
    num_nodes = (int)node_ids.size();
 }
+
+
+static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
+                                             const std::vector<int> & boundary_ids,
+                                             std::map<int, int> & num_elements_for_boundary_id)
+{
+   num_elements_for_boundary_id.clear();
+
+   // Iterate over boundary elements.
+   std::set<int> boundaries_seen;
+
+   for (int ibdr_element = 0; ibdr_element < mesh.GetNBE(); ibdr_element++)
+   {
+      int boundary_id = mesh.GetBdrAttribute(ibdr_element);
+
+      if (boundaries_seen.count(boundary_id) == 0)
+      {
+         boundaries_seen.insert(boundary_id);
+         num_elements_for_boundary_id[boundary_id] = 1;
+      }
+      else
+      {
+         num_elements_for_boundary_id[boundary_id]++;
+      }
+
+      // TODO: - Returns the boundary face index of the boundary element. We need to convert this to the face (1-indexed) for Exodus II.
+      int ibdr_face_index = mesh.GetBdrElementFaceIndex(ibdr_element);
+
+      // TODO: - Need to create a vector containing all elements for that boundary ID. Since these are the boundary elements, we need to
+      // figure-out what MFEM element (stored in elements) this is!
+   }
+}
+
+
+
+
+
 }
