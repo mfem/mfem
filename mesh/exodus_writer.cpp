@@ -45,6 +45,10 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const int * num_dim_id_ptr,
                                            const std::vector<int> & boundary_ids);
 
+static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
+                          const std::vector<int> & unique_block_ids);
+
+
 void Mesh::WriteExodusII(const std::string fpath)
 {
    int status = NC_NOERR;
@@ -215,6 +219,11 @@ void Mesh::WriteExodusII(const std::string fpath)
    }
 
    //
+   // Write block IDs.
+   //
+   WriteBlockIDs(ncid, &num_dim_id, unique_block_ids);
+
+   //
    // Write sideset information.
    //
    WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids);
@@ -226,6 +235,19 @@ void Mesh::WriteExodusII(const std::string fpath)
    HandleNetCDFStatus(status);
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
+}
+
+static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
+                          const std::vector<int> & unique_block_ids)
+{
+   int status, unique_block_ids_ptr;
+
+   status = nc_def_var(ncid, "eb_prop1", NC_INT, 1, num_dim_id_ptr,
+                       &unique_block_ids_ptr);
+   HandleNetCDFStatus(status);
+
+   status = nc_put_var_int(ncid, unique_block_ids_ptr, unique_block_ids.data());
+   HandleNetCDFStatus(status);
 }
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
