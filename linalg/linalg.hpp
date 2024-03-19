@@ -32,6 +32,7 @@
 #include "invariants.hpp"
 #include "constraints.hpp"
 #include "auxiliary.hpp"
+#include "batchlinalg.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"
