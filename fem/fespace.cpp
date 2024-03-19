@@ -606,13 +606,15 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
 
       int counter = 0;
       std::string error_msg = "failed dof: ";
+      auto ess_tdofs_ = ess_tdofs.HostRead();
+      auto ess_tdofs2_ = ess_tdofs2.HostRead();
       for (int i = 0; i < ess_tdofs2.Size(); ++i)
       {
-         if (bool(ess_tdofs[i]) != bool(ess_tdofs2[i]))
+         if (bool(ess_tdofs_[i]) != bool(ess_tdofs2_[i]))
          {
             error_msg += std::to_string(i) += "(R ";
-            error_msg += std::to_string(bool(ess_tdofs[i])) += " P^T ";
-            error_msg += std::to_string(bool(ess_tdofs2[i])) += ") ";
+            error_msg += std::to_string(bool(ess_tdofs_[i])) += " P^T ";
+            error_msg += std::to_string(bool(ess_tdofs2_[i])) += ") ";
             counter++;
          }
       }

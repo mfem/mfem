@@ -983,14 +983,22 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    }
    else
    {
+      real_t *yp = y.HostReadWrite();
+      const real_t *xp = x.HostRead();
+
+      const int *Ip = HostRead(I, height+1);
+      const int nnz = Ip[height];
+      const int *Jp = HostRead(J, nnz);
+      const real_t *Ap = HostRead(A, nnz);
+
       for (int i = 0; i < height; i++)
       {
-         const real_t xi = a * x[i];
-         const int end = I[i+1];
-         for (int j = I[i]; j < end; j++)
+         const real_t xi = a * xp[i];
+         const int end = Ip[i+1];
+         for (int j = Ip[i]; j < end; j++)
          {
-            const int Jj = J[j];
-            y[Jj] += A[j] * xi;
+            const int Jj = Jp[j];
+            yp[Jj] += Ap[j] * xi;
          }
       }
    }
