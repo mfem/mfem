@@ -19,9 +19,12 @@ namespace mfem
 {
 /// Function Prototypes.
 static void HandleNetCDFStatus(int status);
+
 static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                                  std::set<mfem::Element::Type> & element_types,
-                                                  std::map<mfem::Element::Type, std::vector<int>> & element_ids_for_type);
+                                                  std::vector<int> & unique_block_ids,
+                                                  std::map<int, std::vector<int>>  & element_ids_for_block_id,
+                                                  std::map<int, Element::Type> & element_type_for_block_id);
+
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
                                              std::set<int> & boundary_ids);
 
@@ -42,7 +45,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Open file
    //
-   int flags = NC_CLOBBER | NC_NETCDF4; // Overwrite existing files and use NetCDF4 mode (avoid classic).
+   int flags = NC_CLOBBER |
+               NC_NETCDF4; // Overwrite existing files and use NetCDF4 mode (avoid classic).
 
    status = nc_create(fpath.c_str(), flags, &ncid);
    HandleNetCDFStatus(status);
@@ -86,13 +90,14 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # element blocks.
    //
-   std::set<mfem::Element::Type> element_types;
-   std::map<mfem::Element::Type, std::vector<int>> element_ids_for_type;
-   GenerateExodusIIElementBlocksFromMesh(*this, element_types,
-                                         element_ids_for_type);
+   std::vector<int> unique_block_ids;
+   std::map<int, Element::Type> element_type_for_block_id;
+   std::map<int, std::vector<int>> element_ids_for_block_id;
+   GenerateExodusIIElementBlocksFromMesh(*this, unique_block_ids,
+                                         element_ids_for_block_id, element_type_for_block_id);
 
    int num_elem_blk_id;
-   status = nc_def_dim(ncid, "num_elem_blk", (int)element_types.size(),
+   status = nc_def_dim(ncid, "num_elem_blk", (int)unique_block_ids.size(),
                        &num_elem_blk_id);
    HandleNetCDFStatus(status);
 
@@ -137,6 +142,11 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Write nodal coordinates.
    //
    WriteNodalCoordinatesFromMesh(ncid, *this);
+
+   //
+   // Write element block parameters.
+   //
+
 
    //
    // Close file
@@ -208,33 +218,48 @@ static void HandleNetCDFStatus(int status)
    }
 }
 
-/// @brief Generates blocks based on the elements in the mesh. We've lost information
-/// if we previously had an Exodus II mesh that we read-in. If all elements are the
-/// same then we create a single block. Otherwise, we create a block for each element
-/// type in the mesh.
+/// @brief Generates blocks based on the elements in the mesh. We assume that this was originally an Exodus II
+/// mesh. Therefore, we iterate over the elements and use the attributes as the element blocks. We assume that
+/// all elements belonging to the same block will have the same attribute. We can perform a safety check as well
+/// by ensuring that all elements in the block have the same element type. If this is not the case then something
+/// has gone horribly wrong!
 static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
-                                                  std::set<mfem::Element::Type> & element_types,
-                                                  std::map<mfem::Element::Type, std::vector<int>> & element_ids_for_type)
+                                                  std::vector<int> & unique_block_ids,
+                                                  std::map<int, std::vector<int>>  & element_ids_for_block_id,
+                                                  std::map<int, Element::Type> & element_type_for_block_id)
 {
-   element_types.clear();
-   element_ids_for_type.clear();
+   unique_block_ids.clear();
+   element_ids_for_block_id.clear();
+   element_type_for_block_id.clear();
+
+   std::set<int> observed_block_ids;
 
    // Iterate over the elements in the mesh.
    for (int ielement = 0; ielement < mesh.GetNE(); ielement++)
    {
-      mfem::Element::Type element_type = mesh.GetElementType(ielement);
+      Element::Type element_type = mesh.GetElementType(ielement);
 
-      if (element_types.count(element_type) == 0)  // Encountered a new element type!
+      int block_id = mesh.GetAttribute(ielement);
+
+      if (!observed_block_ids.count(block_id))
       {
-         element_types.insert(element_type);
+         unique_block_ids.push_back(block_id);
 
-         element_ids_for_type[element_type] = { ielement };
+         element_type_for_block_id[block_id] = element_type;
+         element_ids_for_block_id[block_id] = { ielement };
+
+         observed_block_ids.insert(block_id);
       }
       else
       {
-         std::vector<int> & element_ids = element_ids_for_type.at(element_type);
+         auto & block_element_ids = element_ids_for_block_id.at(block_id);
+         block_element_ids.push_back(ielement);
 
-         element_ids.push_back(ielement);
+         // Safety check: ensure that the element type matches what we have on record for the block.
+         if (element_type != element_type_for_block_id.at(block_id))
+         {
+            MFEM_ABORT("Multiple element types are defined for block: " << block_id);
+         }
       }
    }
 }
