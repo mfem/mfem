@@ -36,6 +36,10 @@ static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
 
 static void WriteNodalCoordinatesFromMesh(int ncid, Mesh & mesh);
 
+static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+                                          const int * num_dim_id_ptr,
+                                          const int block_id,
+                                          const std::map<int, std::vector<int>> & element_ids_for_block_id);
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -45,6 +49,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Open file
    //
+
    int flags = NC_CLOBBER |
                NC_NETCDF4; // Overwrite existing files and use NetCDF4 mode (avoid classic).
 
@@ -97,7 +102,7 @@ void Mesh::WriteExodusII(const std::string fpath)
                                          element_ids_for_block_id, element_type_for_block_id);
 
    int num_elem_blk_id;
-   status = nc_def_dim(ncid, "num_elem_blk", (int)unique_block_ids.size(),
+   status = nc_def_dim(ncid, "num_el_blk", (int)unique_block_ids.size(),
                        &num_elem_blk_id);
    HandleNetCDFStatus(status);
 
@@ -146,14 +151,16 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Write element block parameters.
    //
+   char name_buffer[100];
+
    for (int block_id : unique_block_ids)
    {
-      Element::Type block_element_type = element_type_for_block_id.at(block_id);
       const auto & block_element_ids = element_ids_for_block_id.at(block_id);
+      //
+      // TODO: - element block IDs 0-indexed MFEM --> 1-indexed Exodus II
+      //
 
       Element * front_element = GetElement(block_element_ids.front());
-
-      char name_buffer[100];
 
       //
       // Define # elements in the block.
@@ -163,6 +170,8 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_el_in_blk_id;
       status = nc_def_dim(ncid, name_buffer, block_element_ids.size(),
                           &num_el_in_blk_id);
+      HandleNetCDFStatus(status);
+
 
       //
       // Define # nodes per element. NB: - assume first-order elements currently!!
@@ -172,6 +181,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_node_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNVertices(),
                           &num_node_per_el_id);
+      HandleNetCDFStatus(status);
 
       //
       // Define # edges per element:
@@ -181,6 +191,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_edg_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNEdges(),
                           &num_edg_per_el_id);
+      HandleNetCDFStatus(status);
 
       //
       // Define # faces per element.
@@ -190,16 +201,13 @@ void Mesh::WriteExodusII(const std::string fpath)
       int num_fac_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNFaces(),
                           &num_fac_per_el_id);
+      HandleNetCDFStatus(status);
 
       //
-      // Define element connectivity for block.
+      // Define element node connectivity for block.
       //
-      sprintf(name_buffer, "connect%d", block_id);
-
-      int connect_id;   // 1 == vector!; name is arbitrary; NC_INT or NCINT64??
-      status = nc_def_var(ncid, name_buffer, NC_INT, 1, &num_dim_id, &connect_id);
-
-      nc_put_var_int(ncid, connect_id, block_element_ids.data());
+      WriteNodeConnectivityForBlock(ncid, *this, &num_dim_id, block_id,
+                                    element_ids_for_block_id);
    }
 
    //
@@ -210,6 +218,41 @@ void Mesh::WriteExodusII(const std::string fpath)
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
+
+static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
+                                          const int * num_dim_id_ptr,
+                                          const int block_id,
+                                          const std::map<int, std::vector<int>> & element_ids_for_block_id)
+{
+   int status{NC_NOERR}, connect_id;
+
+   // Generate arbitrary name:
+   char name_buffer[100];
+   sprintf(name_buffer, "connect%d", block_id);
+
+   // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
+   status = nc_def_var(ncid, name_buffer, NC_INT, 1, num_dim_id_ptr, &connect_id);
+   HandleNetCDFStatus(status);
+
+   std::vector<int> block_node_connectivity;
+
+   for (int element_id : element_ids_for_block_id.at(block_id))
+   {
+      // NB: assume first-order elements only for now.
+      // NB: - need to convert from 0-based indexing --> 1-based indexing.
+      mfem::Array<int> element_vertices;
+      mesh.GetElementVertices(element_id, element_vertices);
+
+      for (int vertex_id : element_vertices)
+      {
+         block_node_connectivity.push_back(vertex_id);
+      }
+   }
+
+   status = nc_put_var_int(ncid, connect_id, block_node_connectivity.data());
+   HandleNetCDFStatus(status);
+}
+
 
 static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
                                              std::vector<double> & coordx, std::vector<double> & coordy,
@@ -294,8 +337,9 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
       Element::Type element_type = mesh.GetElementType(ielement);
 
       int block_id = mesh.GetAttribute(ielement);
+      printf("block_id = %d\n", block_id);
 
-      if (!observed_block_ids.count(block_id))
+      if (observed_block_ids.count(block_id) == 0)
       {
          unique_block_ids.push_back(block_id);
 
