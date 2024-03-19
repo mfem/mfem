@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2023, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,7 +83,7 @@ template <typename KeyType, typename KernelType, typename HashFunction>
 class DispatchTable
 {
 protected:
-   std::unordered_map<KeyType, KernelType, HashFunction> table;
+   static std::unordered_map<KeyType, KernelType, HashFunction> table;
 };
 
 
@@ -120,7 +120,7 @@ class KernelDispatchTable<ApplyKernelsHelperClass, internal::KernelTypeList<User
          DispatchTable<std::tuple<int, UserParams...>, typename ApplyKernelsHelperClass::KernelSignature, KernelDispatchKeyHash<int, UserParams...>>
 {
 
-   // These typedefs prefent AddSpecialization from compiling unless the provided
+   // These typedefs prevent AddSpecialization from compiling unless the provided
    // kernel parameters match the kernel parameters specified to ApplyKernelsHelperClass.
    using KernelArgTypes2D = typename ApplyKernelsHelperClass::KernelArgTypes2D;
    using KernelArgTypes3D = typename ApplyKernelsHelperClass::KernelArgTypes3D;
@@ -200,39 +200,40 @@ public:
 
    }
 
-   void foobar()
+   template<UserParams... params>
+   struct AddSpecialization2D
    {
-      printf("here\n");
-   }
+      void operator()(KernelDispatchTable* table_ptr)
+      {
+         constexpr int DIM = 2;
+         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
+                                                                                params...);
+         // All kernels require at least D1D and Q1D
+         static_assert(sizeof...(params) >= 2,
+                       "All specializations require at least two template parameters");
+
+         constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
+
+         table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
+                                         Kernel2D<params..., NBZ>();
+      }
+   };
 
    template<UserParams... params>
-   void AddSpecialization2D()
+   struct AddSpecialization3D
    {
-      constexpr int DIM = 2;
-      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
-                                                                             params...);
-      // All kernels require at least D1D and Q1D
-      static_assert(sizeof...(params) >= 2,
-                    "All specializations require at least two template parameters");
+      void operator()(KernelDispatchTable* table_ptr)
+      {
+         constexpr int DIM = 3;
+         constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
+                                                                                params...);
+         static_assert(sizeof...(UserParams) >= 2,
+                       "All specializations require at least two template parameters");
 
-      constexpr int NBZ = GetNBZ(std::get<0>(param_tuple), std::get<1>(param_tuple));
-
-      this->table[param_tuple] = ApplyKernelsHelperClass::template
-                                 Kernel2D<params..., NBZ>();
-   }
-
-   template<UserParams... params>
-   void AddSpecialization3D()
-   {
-      constexpr int DIM = 3;
-      constexpr std::tuple<int, UserParams...> param_tuple = std::make_tuple(DIM,
-                                                                             params...);
-      static_assert(sizeof...(UserParams) >= 2,
-                    "All specializations require at least two template parameters");
-
-      this->table[param_tuple] = ApplyKernelsHelperClass::template
-                                 Kernel3D<params...>();
-   }
+         table_ptr->table[param_tuple] = ApplyKernelsHelperClass::template
+                                         Kernel3D<params...>();
+      }
+   };
 
 };
 

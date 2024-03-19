@@ -2135,10 +2135,15 @@ public:
       static KernelSignature Fallback3D();
    };
 
+   using ApplyKernelsType =
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+   using DiagKernelsType =
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+
    struct Kernels
    {
-      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams> apply;
-      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams> diag;
+      ApplyKernelsType apply;
+      DiagKernelsType diag;
       Kernels();
    };
    static Kernels kernels;
@@ -2307,16 +2312,19 @@ public:
    template <int D1D, int Q1D>
    static void AddSpecialization2D()
    {
-      kernels.apply. template AddSpecialization2D<D1D, Q1D>();
-      kernels.diag. template AddSpecialization2D<D1D, Q1D>();
-
+      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
    }
 
    template <int D1D, int Q1D>
    static void AddSpecialization3D()
    {
-      kernels.apply. template AddSpecialization3D<D1D, Q1D>();
-      kernels.diag. template AddSpecialization3D<D1D, Q1D>();
+      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
    }
 };
 
@@ -2373,10 +2381,15 @@ public:
       static KernelSignature Fallback3D();
    };
 
+   using ApplyKernelsType =
+      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams>;
+   using DiagKernelsType =
+      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams>;
+
    struct Kernels
    {
-      KernelDispatchTable<ApplyPAKernels, UserParams, KernelParams> apply;
-      KernelDispatchTable<DiagonalPAKernels, UserParams, KernelParams> diag;
+      ApplyKernelsType apply;
+      DiagKernelsType diag;
       Kernels();
    };
    static Kernels kernels;
@@ -2430,16 +2443,19 @@ public:
    template <int D1D, int Q1D>
    static void AddSpecialization2D()
    {
-      kernels.apply. template AddSpecialization2D<D1D, Q1D>();
-      kernels.diag. template AddSpecialization2D<D1D, Q1D>();
-
+      ApplyKernelsType:: template AddSpecialization2D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization2D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
    }
 
    template <int D1D, int Q1D>
    static void AddSpecialization3D()
    {
-      kernels.apply. template AddSpecialization3D<D1D, Q1D>();
-      kernels.diag. template AddSpecialization3D<D1D, Q1D>();
+      ApplyKernelsType:: template AddSpecialization3D<D1D, Q1D>  apply_helper_functor;
+      DiagKernelsType:: template AddSpecialization3D<D1D, Q1D>  diag_helper_functor;
+      apply_helper_functor(&kernels.apply);
+      diag_helper_functor(&kernels.diag);
    }
 };
 
