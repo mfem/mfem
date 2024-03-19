@@ -26,7 +26,7 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
                                                   std::map<int, Element::Type> & element_type_for_block_id);
 
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::set<int> & boundary_ids);
+                                             std::vector<int> & boundary_ids);
 
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
@@ -40,6 +40,10 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
                                           const int * num_dim_id_ptr,
                                           const int block_id,
                                           const std::map<int, std::vector<int>> & element_ids_for_block_id);
+
+static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+                                           const int * num_dim_id_ptr,
+                                           const std::vector<int> & boundary_ids);
 
 void Mesh::WriteExodusII(const std::string fpath)
 {
@@ -109,7 +113,7 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Set # side sets ("boundaries")
    //
-   std::set<int> boundary_ids;
+   std::vector<int> boundary_ids;
    GenerateExodusIISideSetsFromMesh(*this, boundary_ids);
 
    int num_side_sets_ids;
@@ -211,12 +215,36 @@ void Mesh::WriteExodusII(const std::string fpath)
    }
 
    //
+   // Write sideset information.
+   //
+   WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids);
+
+   //
    // Close file
    //
    status = nc_close(ncid);
    HandleNetCDFStatus(status);
 
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
+}
+
+static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
+                                           const int * num_dim_id_ptr,
+                                           const std::vector<int> & boundary_ids)
+{
+   //
+   // Add the boundary IDs
+   //
+   int status, boundary_ids_ptr;
+   status = nc_def_var(ncid, "ss_prop1", NC_INT, 1, num_dim_id_ptr,
+                       &boundary_ids_ptr);
+   HandleNetCDFStatus(status);
+
+   status = nc_put_var_int(ncid, boundary_ids_ptr, boundary_ids.data());
+   HandleNetCDFStatus(status);
+
+
+   // TODO: - Add the elements that lie on each boundary and their corresponding faces here...
 }
 
 static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
@@ -366,9 +394,11 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 /// element attributes (each one matches a sideset ID). We can then build a set of unique sideset
 /// IDs and a mapping from sideset ID to a vector of all element IDs.
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::set<int> & boundary_ids)
+                                             std::vector<int> & boundary_ids)
 {
    boundary_ids.clear();
+
+   std::set<int> boundary_ids_set;
 
    for (int ielement = 0; ielement < mesh.GetNBE(); ielement++)
    {
@@ -376,7 +406,11 @@ static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
 
       int boundary_id = boundary_element->GetAttribute();
 
-      boundary_ids.insert(boundary_id);
+      if (boundary_ids_set.count(boundary_id) == 0)
+      {
+         boundary_ids.push_back(boundary_id);
+         boundary_ids_set.insert(boundary_id);
+      }
    }
 }
 
