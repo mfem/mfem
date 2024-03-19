@@ -1010,7 +1010,7 @@ complex<real_t> acoustics_solution(const Vector & X)
 
          // pressure
          complex<real_t> ze = - x*x/(w*w) - zi*rk*y - zi * real_t(M_PI) * x * x/rl/r +
-                              zi*phi0/real_t(2);
+                              zi*phi0/2_r;
          real_t pf = pow(2.0/M_PI/(w*w),0.25);
 
          return pf*exp(ze);
@@ -1023,7 +1023,7 @@ complex<real_t> acoustics_solution(const Vector & X)
          real_t r = sqrt(x*x + y*y);
          real_t beta = omega * r;
          complex<real_t> Ho = real_t(jn(0, beta)) + zi * real_t(yn(0, beta));
-         return real_t(0.25)*zi*Ho;
+         return 0.25_r*zi*Ho;
       }
       break;
       default:
@@ -1180,9 +1180,9 @@ complex<real_t> acoustics_solution_laplacian(const Vector & X)
          complex<real_t> zdedy = r2*x*x/(w*w*w)*dwdy - zi*rk + zi*rPI*x*x/rl/
                                  (r*r)*drdy + zi*dphi0dy/r2;
          complex<real_t> zd2edxdx = -r2/(w*w) - r2*zi*rPI/rl/r;
-         complex<real_t> zd2edxdy = real_t(4)*x/(w*w*w)*dwdy + zi*r2*rPI*x/rl/(r*r)*drdy;
+         complex<real_t> zd2edxdy = 4_r*x/(w*w*w)*dwdy + zi*r2*rPI*x/rl/(r*r)*drdy;
          complex<real_t> zd2edydx = zd2edxdy;
-         complex<real_t> zd2edydy = -real_t(6)*x*x/(w*w*w*w)*dwdy*dwdy
+         complex<real_t> zd2edydy = -6_r*x*x/(w*w*w*w)*dwdy*dwdy
                                     //+ complex<real_t>(2.*x*x/(w*w*w)*d2wdydy)
                                     + real_t(2.*x*x/(w*w*w)*d2wdydy)
                                     - zi * real_t(2.*M_PI*x*x/rl/(r*r*r)*drdy*drdy)

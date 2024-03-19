@@ -26,6 +26,12 @@
 namespace mfem
 {
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+#define MFEM_HOST_DEVICE __host__ __device__
+#else
+#define MFEM_HOST_DEVICE
+#endif
+
 // MFEM precision configuration
 
 #if defined MFEM_USE_SINGLE && defined MFEM_USE_DOUBLE
@@ -39,6 +45,18 @@ typedef double real_t;
 #else
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
+
+MFEM_HOST_DEVICE
+constexpr real_t operator""_r(long double v)
+{
+   return static_cast<real_t>(v);
+}
+
+MFEM_HOST_DEVICE
+constexpr real_t operator""_r(unsigned long long v)
+{
+   return static_cast<real_t>(v);
+}
 
 } // namespace mfem
 
