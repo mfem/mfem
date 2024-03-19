@@ -176,7 +176,7 @@ void Mesh::WriteExodusII(const std::string fpath)
       //
       // Define # nodes per element. NB: - assume first-order elements currently!!
       //
-      sprintf(name_buffer, "num_node_per_el%d", block_id);
+      sprintf(name_buffer, "num_nod_per_el%d", block_id);
 
       int num_node_per_el_id;
       status = nc_def_dim(ncid, name_buffer, front_element->GetNVertices(),
