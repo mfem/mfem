@@ -25,8 +25,10 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-TOPOPT_COMMON_SRC = helper.cpp topopt.cpp MMA.cpp prob_elasticity.cpp
-
+TOPOPT_COMMON_SRC = helper.cpp topopt.cpp prob_elasticity.cpp
+ifneq (,$($(findstring $@,mma)))
+  TOPOPT_COMMON_SRC += MMA.cpp
+endif
 TOPOPT_COMMON_OBJ = $(TOPOPT_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = top_pmd top_pgd top_oc top_mma thermal_pmd top_pmd_oc
