@@ -146,7 +146,61 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Write element block parameters.
    //
+   for (int block_id : unique_block_ids)
+   {
+      Element::Type block_element_type = element_type_for_block_id.at(block_id);
+      const auto & block_element_ids = element_ids_for_block_id.at(block_id);
 
+      Element * front_element = GetElement(block_element_ids.front());
+
+      char name_buffer[100];
+
+      //
+      // Define # elements in the block.
+      //
+      sprintf(name_buffer, "num_el_in_blk%d", block_id);
+
+      int num_el_in_blk_id;
+      status = nc_def_dim(ncid, name_buffer, block_element_ids.size(),
+                          &num_el_in_blk_id);
+
+      //
+      // Define # nodes per element. NB: - assume first-order elements currently!!
+      //
+      sprintf(name_buffer, "num_node_per_el%d", block_id);
+
+      int num_node_per_el_id;
+      status = nc_def_dim(ncid, name_buffer, front_element->GetNVertices(),
+                          &num_node_per_el_id);
+
+      //
+      // Define # edges per element:
+      //
+      sprintf(name_buffer, "num_edg_per_el%d", block_id);
+
+      int num_edg_per_el_id;
+      status = nc_def_dim(ncid, name_buffer, front_element->GetNEdges(),
+                          &num_edg_per_el_id);
+
+      //
+      // Define # faces per element.
+      //
+      sprintf(name_buffer, "num_fac_per_el%d", block_id);
+
+      int num_fac_per_el_id;
+      status = nc_def_dim(ncid, name_buffer, front_element->GetNFaces(),
+                          &num_fac_per_el_id);
+
+      //
+      // Define element connectivity for block.
+      //
+      sprintf(name_buffer, "connect%d", block_id);
+
+      int connect_id;   // 1 == vector!; name is arbitrary; NC_INT or NCINT64??
+      status = nc_def_var(ncid, name_buffer, NC_INT, 1, &num_dim_id, &connect_id);
+
+      nc_put_var_int(ncid, connect_id, block_element_ids.data());
+   }
 
    //
    // Close file
