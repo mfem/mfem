@@ -228,7 +228,6 @@ int main(int argc, char *argv[])
       projected_grad_selfload->AddDomainIntegrator(new L2ProjectionLFIntegrator(
                                                       *gradH1_selfload));
       density.SetVolumeConstraintType(-1);
-      psi = inv_sigmoid(0.999);
    }
    density.ComputeVolume();
    // 10. Connect to GLVis. Prepare for VisIt output.
