@@ -26,7 +26,8 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
                                                   std::map<int, Element::Type> & element_type_for_block_id);
 
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::vector<int> & boundary_ids);
+                                             std::vector<int> & boundary_ids,
+                                             std::map<int, int> & num_elements_for_boundary_id);
 
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
@@ -43,7 +44,8 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const int * num_dim_id_ptr,
-                                           const std::vector<int> & boundary_ids);
+                                           const std::vector<int> & boundary_ids,
+                                           const std::map<int, int> & num_elements_for_boundary_id);
 
 static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
                           const std::vector<int> & unique_block_ids);
@@ -118,7 +120,9 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Set # side sets ("boundaries")
    //
    std::vector<int> boundary_ids;
-   GenerateExodusIISideSetsFromMesh(*this, boundary_ids);
+   std::map<int, int> num_elements_for_boundary_id;
+   GenerateExodusIISideSetsFromMesh(*this, boundary_ids,
+                                    num_elements_for_boundary_id);
 
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
@@ -226,7 +230,8 @@ void Mesh::WriteExodusII(const std::string fpath)
    //
    // Write sideset information.
    //
-   WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids);
+   WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids,
+                                  num_elements_for_boundary_id);
 
    //
    // Close file
@@ -252,7 +257,8 @@ static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
                                            const int * num_dim_id_ptr,
-                                           const std::vector<int> & boundary_ids)
+                                           const std::vector<int> & boundary_ids,
+                                           const std::map<int, int> & num_elements_for_boundary_id)
 {
    //
    // Add the boundary IDs
@@ -265,6 +271,20 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    status = nc_put_var_int(ncid, boundary_ids_ptr, boundary_ids.data());
    HandleNetCDFStatus(status);
 
+   //
+   // Add the number of elements for each boundary_id.
+   //
+   char name_buffer[100];
+
+   for (int boundary_id : boundary_ids)
+   {
+      sprintf(name_buffer, "num_side_ss%d", boundary_id);
+
+      int num_side_ss_id;
+      status = nc_def_dim(ncid, name_buffer,
+                          (size_t)num_elements_for_boundary_id.at(boundary_id), &num_side_ss_id);
+      HandleNetCDFStatus(status);
+   }
 
    // TODO: - Add the elements that lie on each boundary and their corresponding faces here...
 }
@@ -412,30 +432,6 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
    }
 }
 
-/// @brief Generates sidesets from the mesh. We iterate over the boundary elements and look at the
-/// element attributes (each one matches a sideset ID). We can then build a set of unique sideset
-/// IDs and a mapping from sideset ID to a vector of all element IDs.
-static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             std::vector<int> & boundary_ids)
-{
-   boundary_ids.clear();
-
-   std::set<int> boundary_ids_set;
-
-   for (int ielement = 0; ielement < mesh.GetNBE(); ielement++)
-   {
-      mfem::Element * boundary_element = mesh.GetBdrElement(ielement);
-
-      int boundary_id = boundary_element->GetAttribute();
-
-      if (boundary_ids_set.count(boundary_id) == 0)
-      {
-         boundary_ids.push_back(boundary_id);
-         boundary_ids_set.insert(boundary_id);
-      }
-   }
-}
-
 /// @brief Iterates over the elements of the mesh to extract a unique set of node IDs (or vertex IDs if first-order).
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
 {
@@ -471,9 +467,10 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
 
 
 static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
-                                             const std::vector<int> & boundary_ids,
+                                             std::vector<int> & boundary_ids,
                                              std::map<int, int> & num_elements_for_boundary_id)
 {
+   boundary_ids.clear();
    num_elements_for_boundary_id.clear();
 
    // Iterate over boundary elements.
@@ -486,6 +483,7 @@ static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
       if (boundaries_seen.count(boundary_id) == 0)
       {
          boundaries_seen.insert(boundary_id);
+         boundary_ids.push_back(boundary_id);
          num_elements_for_boundary_id[boundary_id] = 1;
       }
       else
