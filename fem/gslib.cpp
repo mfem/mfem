@@ -705,11 +705,7 @@ void FindPointsGSLIB::SetupDevice(MemoryType mt)
 
    const int mesh_pts_cnt = gsl_mesh.Size()/dim;
 
-   //TO DO: make DEV.O_x/y/z point to gsl_mesh if it is already on device?
-   // will gsl_mesh ever be on device since we do setup on cpu
-   DEV.o_xyz.UseDevice(true);
-   DEV.o_xyz.SetSize(mesh_pts_cnt*dim);
-   DEV.o_xyz = gsl_mesh.GetData();
+   gsl_mesh.UseDevice(true);
 
    DEV.o_c.UseDevice(true);
    DEV.o_c.SetSize(dim*NE_split_total);
