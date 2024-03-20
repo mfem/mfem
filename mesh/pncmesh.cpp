@@ -982,14 +982,16 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
    std::map<int, std::vector<int>> recv_elems;
 
    // Counts the number of slave faces of a master. This may be larger than the
-   // number of shared slaves if there exist degenerate slave-faces from face-edge constraints.
+   // number of shared slaves if there exist degenerate slave-faces from
+   // face-edge constraints.
    auto count_slaves = [&](int i, const Master& x)
    {
       return i + (x.slaves_end - x.slaves_begin);
    };
 
    const int bound = shared.conforming.Size() + std::accumulate(
-                        shared.masters.begin(), shared.masters.end(), 0, count_slaves);
+                        shared.masters.begin(), shared.masters.end(),
+                        0, count_slaves);
 
    fnbr.Reserve(bound);
    send_elems.Reserve(bound);

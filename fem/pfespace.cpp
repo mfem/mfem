@@ -1799,6 +1799,146 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
    }
 }
 
+void ParFiniteElementSpace::
+GetGhostFaceDofsWithoutGhostEdges(const MeshId &face_id,
+                                  Array<int> &dofs,
+                                  Array<int> &fullDofIndices) const
+{
+   MFEM_VERIFY(IsVariableOrder(), "");
+
+   // Code copied from GetGhostFaceDofs
+   // TODO: refactor this to avoid code duplication?
+
+   MFEM_VERIFY(!orders_changed, msg_orders_changed);
+
+   int nfv, V[4], E[4], Eo[4];
+   nfv = pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int nf_tri = fec->DofForGeometry(Geometry::TRIANGLE);
+   int nf_quad = fec->DofForGeometry(Geometry::SQUARE);
+   int nf = (nfv == 3) ? nf_tri : nf_quad;
+
+   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
+
+   int neConst = -1;
+
+   int base;
+   if (IsVariableOrder())
+   {
+      const int face = face_id.index;
+      const int* beg = var_face_dofs.GetRow(face);
+      const int variant = 0;  // TODO: allow for other variants?
+      const int order = GetFaceOrder(face, variant);
+
+      neConst = fec->GetNumDof(Geometry::SEGMENT, order);
+
+      base = beg[variant];
+      nf = beg[variant+1] - base;
+
+      base -= nfdofs;
+
+      int allne = 0;
+      for (int i = 0; i < nfv; i++)
+      {
+         const int* ebeg = var_edge_dofs.GetRow(E[i]);
+         ne = ebeg[variant+1] - ebeg[variant];
+         allne += ne;
+      }
+
+      dofs.SetSize(nfv*nv + allne + nf);
+   }
+   else
+   {
+      base = nf_quad * ghost_face_index;
+      // TODO: why nf_quad and never nf_tri? Is it because only quad faces are
+      // supported for NCMesh? If so, why even have nf_tri?
+
+      dofs.SetSize(nfv*(nv + ne) + nf);
+   }
+
+   fullDofIndices.SetSize(dofs.Size());
+
+   int offset = 0;
+   for (int i = 0; i < nfv; i++)
+   {
+      const int ghost = pncmesh->GetNVertices();
+      const int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      for (int j = 0; j < nv; j++)
+      {
+         fullDofIndices[offset] = offset;
+         dofs[offset++] = first + j;
+      }
+   }
+
+   int offsetFull = offset;
+
+   for (int i = 0; i < nfv; i++)
+   {
+      const int ghost = pncmesh->GetNEdges();
+      if (IsVariableOrder())
+      {
+         constexpr int variant = 0;
+         const int* beg = var_edge_dofs.GetRow(E[i]);
+         int ebase = beg[variant];
+         ne = beg[variant+1] - ebase;
+
+         MFEM_ASSERT(ebase == FindEdgeDof(E[i], ne), "sanity check?");
+
+         const int first = (E[i] < ghost) ? nvdofs + ebase
+                           /*          */ : ndofs + ngvdofs + ebase - nedofs;
+
+         const int edge_order = var_edge_orders[var_edge_dofs.GetI()[E[i]] + variant];
+         const int *ind = fec->GetDofOrdering(Geometry::SEGMENT, edge_order, Eo[i]);
+
+         MFEM_ASSERT(fec->GetNumDof(Geometry::SEGMENT, edge_order) == ne, "");
+
+         for (int j = 0; j < ne; j++)
+         {
+            if (E[i] < ghost)  // Skipping ghosts
+            {
+               fullDofIndices[offset] = offsetFull;
+               offsetFull++;
+               dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                                /*         */ : (-1 - (first + (-1 - ind[j])));
+            }
+         }
+
+         if (E[i] >= ghost)
+         {
+            offsetFull += neConst;   // Full dof count, not skipping ghosts.
+         }
+         else
+         {
+            MFEM_VERIFY(ne == neConst, "");
+         }
+      }
+      else
+      {
+         const int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                           /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+         const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+         for (int j = 0; j < ne; j++)
+         {
+            dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                             /*         */ : (-1 - (first + (-1 - ind[j])));
+         }
+      }
+   }
+
+   const int first = ndofs + ngvdofs + ngedofs + base;
+   for (int j = 0; j < nf; j++)
+   {
+      fullDofIndices[offset] = offsetFull;
+      offsetFull++;
+      dofs[offset++] = first + j;
+   }
+
+   dofs.SetSize(offset);
+   fullDofIndices.SetSize(offset);
+}
+
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
@@ -2601,6 +2741,7 @@ void NeighborRowMessage::Encode(int rank)
 
          // Handle orientation and sign change
          int edof = ri.edof;
+         int order_i = fec->GetOrder();
          double s = 1.0;
          if (ent == 1)
          {
@@ -2616,6 +2757,7 @@ void NeighborRowMessage::Encode(int rank)
                edof -= osglob;
 
                const int order = fes->GetEntityOrderAllVar(1, ri.index, allvar);
+               order_i = order;
 
                osvar = osglob;
 
@@ -2636,22 +2778,25 @@ void NeighborRowMessage::Encode(int rank)
          }
 
          // TODO: similar change to faces has no effect, because osloc == osvar always?
-         if (ent == 2 && varOrder)
-         {
-            int osvar = 0;  // Offset for DOFs in the variable order case
-            int var = 0;
-            const int order = FindLocalFaceOrder(ri.index, edof, osvar, var);
+         /*
+                   if (ent == 2 && varOrder)
+                   {
+                      int osvar = 0;  // Offset for DOFs in the variable order case
+                      int var = 0;
+                      const int order = FindLocalFaceOrder(ri.index, edof, osvar, var);
 
-            // Adjust edof to be for global DOFs
-            const int osloc = osvar;
+                      // Adjust edof to be for global DOFs
+                      const int osloc = osvar;
 
-            osvar = GetGlobalFaceOffset(ri.index, order);
+                      osvar = GetGlobalFaceOffset(ri.index, order);
 
-            MFEM_VERIFY(edof >= 0 && edof + osvar - osloc >= 0, "bug");
-            edof += osvar - osloc;
-         }
+                      MFEM_VERIFY(edof >= 0 && edof + osvar - osloc >= 0, "bug");
+                      edof += osvar - osloc;
+                   }
+         */
 
          bin_io::write<int>(stream, edof);
+         //bin_io::write<int>(stream, order_i);
          ri.row.write(stream, s);
       }
    }
@@ -2898,6 +3043,8 @@ void NeighborRowMessage::Decode(int rank)
          const MeshId &id = ids[i];
          // read the particular element dof value off the stream.
          int edof = bin_io::read<int>(stream);
+         //int order_i = bin_io::read<int>(stream);
+         //bin_io::read<int>(stream);
 
          // Handle orientation and sign change. This flips the sign on dofs
          // where necessary, and for edges and faces also reorders if flipped,
@@ -2916,14 +3063,17 @@ void NeighborRowMessage::Decode(int rank)
             if (varOrder)
             {
                const int order = FindEdgeOrder(id.index, edof, osvar, var);
+
                // TODO: similar change for FindFaceOrder?
                if (order < 0)
                {
-                  // Read the stream for this row and ignore it.
+                  // Read the stream for this row and ignore it. This is an
+                  // invalid row for an intermediate order or ghost edge not
+                  // used on this rank.
                   RowInfo tmprow(1, 0, 0, 0);  // Fake, unused row, just to read stream.
                   tmprow.row.read(stream, 1.0);
                   gi++;
-                  continue;  // Invalid row for an intermediate order not used on this rank.
+                  continue;
                }
                ind = fec->GetDofOrdering(Geometry::SEGMENT, order, eo);
             }
@@ -3254,9 +3404,11 @@ int ParFiniteElementSpace
          for (const auto &mf : list.masters)
          {
             // get master DOFs
+            bool mghost = false;
             if (pncmesh->IsGhost(entity, mf.index))
             {
                GetGhostDofs(entity, mf, master_dofs);
+               mghost = true;
             }
             else
             {
@@ -3302,7 +3454,32 @@ int ParFiniteElementSpace
                slave_fe->GetTransferMatrix(*fe, T, I);
 
                // make each slave DOF dependent on all master DOFs
-               AddDependencies(deps, master_dofs, slave_dofs, I);
+               if (master_dofs.Size() > I.NumCols())
+               {
+                  // Extract the master DOFs not on ghost edges.
+                  MFEM_VERIFY(entity == 2 && mghost, "");
+
+                  Array<int> master_dofs_sub, fullDofIndices;
+                  GetGhostFaceDofsWithoutGhostEdges(mf, master_dofs_sub,
+                                                    fullDofIndices);
+
+                  MFEM_VERIFY(master_dofs_sub.Size() <= I.NumCols(), "");
+
+                  DenseMatrix Isub;
+
+                  Array<int> all_slave_dofs(slave_dofs.Size());
+                  for (int j=0; j<slave_dofs.Size(); ++j)
+                  {
+                     all_slave_dofs[j] = j;
+                  }
+
+                  I.GetSubMatrix(all_slave_dofs, fullDofIndices, Isub);
+                  AddDependencies(deps, master_dofs_sub, slave_dofs, Isub);
+               }
+               else
+               {
+                  AddDependencies(deps, master_dofs, slave_dofs, I);
+               }
             }
          }
       }
