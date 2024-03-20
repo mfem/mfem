@@ -35,10 +35,6 @@
 namespace mfem
 {
 
-/** Count the number of entries in an array of doubles for which isfinite
-    is false, i.e. the entry is a NaN or +/-Inf. */
-inline int CheckFinite(const double *v, const int n);
-
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
 inline double infinity()
@@ -444,7 +440,7 @@ public:
 
    /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
-   int CheckFinite() const { return mfem::CheckFinite(HostRead(), size); }
+   int CheckFinite() const;
 
    /// Destroys vector.
    virtual ~Vector();
@@ -494,6 +490,8 @@ inline bool IsFinite(const double &val)
 #endif
 }
 
+/** Count the number of entries in an array of doubles for which isfinite
+    is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const double *v, const int n)
 {
    int bad = 0;
@@ -502,6 +500,11 @@ inline int CheckFinite(const double *v, const int n)
       if (!IsFinite(v[i])) { bad++; }
    }
    return bad;
+}
+
+inline int Vector::CheckFinite() const
+{
+   return mfem::CheckFinite(HostRead(), size);
 }
 
 inline Vector::Vector(int s)
