@@ -519,11 +519,13 @@ SIMPProjector::SIMPProjector(const double k_, const double rho0_):k(k_),
    dphys_dfrho.reset(new MappedGridFunctionCoefficient(
    nullptr, [this](double x) {return der_simp(x, rho0, k);}));
 }
+
 Coefficient &SIMPProjector::GetPhysicalDensity(GridFunction &frho)
 {
    phys_density->SetGridFunction(&frho);
    return *phys_density;
 }
+
 Coefficient &SIMPProjector::GetDerivative(GridFunction &frho)
 {
    dphys_dfrho->SetGridFunction(&frho);
@@ -553,11 +555,13 @@ ThresholdProjector::ThresholdProjector(
       return der_simp(rho_projected, rho0, k)*rho_dproj;
    }));
 }
+
 Coefficient &ThresholdProjector::GetPhysicalDensity(GridFunction &frho)
 {
    phys_density->SetGridFunction(&frho);
    return *phys_density;
 }
+
 Coefficient &ThresholdProjector::GetDerivative(GridFunction &frho)
 {
    dphys_dfrho->SetGridFunction(&frho);
@@ -656,6 +660,7 @@ double LatentDesignDensity::StationarityError(const GridFunction &grad,
    current_volume = volume_backup;
    return d/eps;
 }
+
 double LatentDesignDensity::ComputeBregmanDivergence(GridFunction &p,
                                                      GridFunction &q)
 {
@@ -709,6 +714,7 @@ double LatentDesignDensity::StationarityErrorL2(GridFunction &grad,
    SumCoefficient diff_rho(projected_rho, *rho_cf, 1.0, -1.0);
    return zero_gf->ComputeL2Error(diff_rho)/eps;
 }
+
 PrimalDesignDensity::PrimalDesignDensity(FiniteElementSpace &fes,
                                          DensityFilter& filter,
                                          double vol_frac):
@@ -775,6 +781,7 @@ double PrimalDesignDensity::StationarityError(const GridFunction &grad,
    current_volume = volume_backup;
    return d/eps;
 }
+
 ParametrizedLinearEquation::ParametrizedLinearEquation(
    FiniteElementSpace &fes, GridFunction &filtered_density,
    DensityProjector &projector, Array2D<int> &ess_bdr):
@@ -791,17 +798,20 @@ void ParametrizedLinearEquation::SetBilinearFormStationary(bool isStationary)
    AisStationary = isStationary;
    if (isStationary) { a->Assemble(); }
 }
+
 void ParametrizedLinearEquation::SetLinearFormStationary(bool isStationary)
 {
    BisStationary = isStationary;
    if (isStationary) { b->Assemble(); }
 }
+
 void ParametrizedLinearEquation::Solve(GridFunction &x)
 {
    if (!AisStationary) { a->Update(); }
    if (!BisStationary) { b->Update(); }
    SolveSystem(x);
 }
+
 void ParametrizedLinearEquation::DualSolve(GridFunction &x, LinearForm &new_b)
 {
    if (!AisStationary) { a->Update(); }
@@ -1044,6 +1054,7 @@ void VolumeForceCoefficient::Set(double r_,Vector & center_, Vector & force_)
    center = center_;
    force = force_;
 }
+
 void VolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
@@ -1082,10 +1093,12 @@ void LineVolumeForceCoefficient::Set(double r_,Vector & center_,
    center = center_;
    force = force_;
 }
+
 void LineVolumeForceCoefficient::UpdateSize()
 {
    VectorCoefficient::vdim = center.Size();
 }
+
 int Step_Armijo(TopOptProblem &problem, const GridFunction &x0,
                 const GridFunction &direction,
                 LinearForm &diff_densityForm, const double c1,
@@ -1154,6 +1167,7 @@ HelmholtzFilter::HelmholtzFilter(FiniteElementSpace &fes,
    // filter->AddBdrFaceIntegrator(new BoundaryMassIntegrator(bdr_eps), ess_bdr);
    filter->Assemble();
 }
+
 void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
                             bool apply_bdr)
 {
@@ -1192,6 +1206,7 @@ void HelmholtzFilter::Apply(Coefficient &rho, GridFunction &frho,
 #endif
    }
 }
+
 void HelmholtzL2Filter::Apply(Coefficient &rho, GridFunction &frho,
                               bool apply_bdr)
 {
