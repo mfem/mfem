@@ -545,9 +545,10 @@ static void GenerateExodusIISideSetsFromMesh(Mesh & mesh,
       // Returns the boundary face index of the boundary element. We need to convert these to Exodus II face indices. For now, we assume that MFEM and
       // Exodus II use the same mappings (this is almost certainly not the case). We also need to add 1 since MFEM uses 0-based indexing and Exodus II
       // uses 1-based indexing.
-      int ibdr_face_index = mesh.GetBdrElementFaceIndex(ibdr_element);
+      int face_index, face_orientation;
+      mesh.GetBdrElementFace(ibdr_element, &face_index, &face_orientation);
 
-      side_ids_for_boundary_id[boundary_id].push_back(ibdr_face_index + 1);
+      side_ids_for_boundary_id[boundary_id].push_back(face_orientation + 1);
 
       // TODO: - Need to create a vector containing all elements for that boundary ID. Since these are the boundary elements, we need to
       // figure-out what MFEM element (stored in elements) this is!
