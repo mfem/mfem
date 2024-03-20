@@ -403,11 +403,11 @@ public:
    /// Constructs a transfer operator from \p lFESpace to \p hFESpace.
    /** No matrices are assembled, only the action to a vector is being computed.
        If both spaces' FE collection pointers are pointing to the same
-       collection we assume that the grid was refined while keeping the order
+       collection, we assume that the grid was refined while keeping the order
        constant. If the FE collections are different, it is assumed that both
-       spaces have are using the same mesh. If the first element of the
-       high-order space is a `TensorBasisElement`, the optimized tensor-product
-       transfers are used. If not, the general transfers used. */
+       spaces are using the same mesh. If the first element of the high-order
+       space is a `TensorBasisElement`, the optimized tensor-product transfers
+       are used. If not, the general transfers used. */
    TransferOperator(const FiniteElementSpace& lFESpace,
                     const FiniteElementSpace& hFESpace);
 
