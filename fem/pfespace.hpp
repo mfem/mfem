@@ -132,6 +132,10 @@ private:
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
+   void GetGhostFaceDofsWithoutGhostEdges(const MeshId &face_id,
+                                          Array<int> &dofs,
+                                          Array<int> &fullDofIndices) const;
+
    /// Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
    void GetBareDofsVar(int entity, int index, Array<int> &dofs) const;
