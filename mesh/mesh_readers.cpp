@@ -1539,7 +1539,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // A map between a serial number of the vertex and its number in the file
    // (there may be gaps in the numbering, and also Gmsh enumerates vertices
    // starting from 1, not 0)
-   map<int, int> vertices_map;
+   unordered_map<int, int> vertices_map;
 
    // A map containing names of physical curves, surfaces, and volumes.
    // The first index is the dimension of the physical manifold, the second
@@ -1557,9 +1557,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
    // is non-trivial. Note that with these assumptions a 2D mesh parallel to the
    // yz plane will be considered a surface mesh embedded in 3D whereas the same
    // 2D mesh parallel to the xy plane will be considered a 2D mesh.
-   real_t bb_tol = 1e-14;
-   real_t bb_min[3];
-   real_t bb_max[3];
+   constexpr int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
+   constexpr real_t bb_tol = 1e-14;
+   real_t bb_min[gmsh_dim];
+   real_t bb_max[gmsh_dim];
 
    // Mesh order
    int mesh_order = 1;
@@ -1580,7 +1581,6 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
          getline(input, buff);
          vertices.SetSize(NumOfVertices);
          int serial_number;
-         const int gmsh_dim = 3; // Gmsh always outputs 3 coordinates
          real_t coord[gmsh_dim];
          for (int ver = 0; ver < NumOfVertices; ++ver)
          {
@@ -1642,7 +1642,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
          // number of nodes for each type of Gmsh elements, type is the index of
          // the array + 1
-         int nodes_of_gmsh_element[] =
+         constexpr int nodes_of_gmsh_element[] =
          {
             2,   // 2-node line.
             3,   // 3-node triangle.
@@ -1852,97 +1852,324 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
 
              This corresponds to the quad9 mapping below.
          */
-         int lin3[] = {0,2,1};                // 2nd order segment
-         int lin4[] = {0,2,3,1};              // 3rd order segment
-         int tri6[] = {0,3,1,5,4,2};          // 2nd order triangle
-         int tri10[] = {0,3,4,1,8,9,5,7,6,2}; // 3rd order triangle
-         int quad9[] = {0,4,1,7,8,5,3,6,2};   // 2nd order quadrilateral
-         int quad16[] = {0,4,5,1,11,12,13,6,  // 3rd order quadrilateral
-                         10,15,14,7,3,9,8,2
-                        };
-         int tet10[] {0,4,1,6,5,2,7,9,8,3};   // 2nd order tetrahedron
-         int tet20[] = {0,4,5,1,9,16,6,8,7,2, // 3rd order tetrahedron
-                        11,17,15,18,19,13,10,14,12,3
-                       };
-         int hex27[] {0,8,1,9,20,11,3,13,2,   // 2nd order hexahedron
-                      10,21,12,22,26,23,15,24,14,
-                      4,16,5,17,25,18,7,19,6
-                     };
-         int hex64[] {0,8,9,1,10,32,35,14,    // 3rd order hexahedron
-                      11,33,34,15,3,19,18,2,
-                      12,36,37,16,40,56,57,44,
-                      43,59,58,45,22,49,48,20,
-                      13,39,38,17,41,60,61,47,
-                      42,63,62,46,23,50,51,21,
-                      4,24,25,5,26,52,53,28,
-                      27,55,54,29,7,31,30,6
-                     };
+         constexpr int lin3[] = {0,2,1};                // 2nd order segment
+         constexpr int lin4[] = {0,2,3,1};              // 3rd order segment
+         constexpr int tri6[] = {0,3,1,5,4,2};          // 2nd order triangle
+         constexpr int tri10[] = {0,3,4,1,8,9,5,7,6,2}; // 3rd order triangle
+         constexpr int quad9[] = {0,4,1,7,8,5,3,6,2};   // 2nd order quadrilateral
+         constexpr int quad16[] = {0,4,5,1,11,12,13,6,  // 3rd order quadrilateral
+                                   10,15,14,7,3,9,8,2
+                                  };
 
-         int wdg18[] = {0,6,1,7,9,2,8,15,10,    // 2nd order wedge/prism
-                        16,17,11,3,12,4,13,14,5
-                       };
-         int wdg40[] = {0,6,7,1,8,24,12,9,13,2, // 3rd order wedge/prism
-                        10,26,27,14,30,38,34,33,35,16,
-                        11,29,28,15,31,39,37,32,36,17,
-                        3,18,19,4,20,25,22,21,23,5
-                       };
+         constexpr int tet10[] {0,4,1,6,5,2,7,9,8,3};   // 2nd order tetrahedron
+         constexpr int tet20[] = {0,4,5,1,9,16,6,8,7,2, // 3rd order tetrahedron
+                                  11,17,15,18,19,13,10,14,12,3
+                                 };
 
-         int pyr14[] = {0,5,1,6,13,8,3,          // 2nd order pyramid
-                        10,2,7,9,12,11,4
-                       };
-         int pyr30[] = {0,5,6,1,7,25,28,11,8,26, // 3rd order pyramid
-                        27,12,3,16,15,2,9,21,13,22,
-                        29,23,19,24,17,10,14,20,18,4
-                       };
+         constexpr int hex27[] {0,8,1,9,20,11,3,13,2,   // 2nd order hexahedron
+                                10,21,12,22,26,23,15,24,14,
+                                4,16,5,17,25,18,7,19,6
+                               };
+         constexpr int hex64[] {0,8,9,1,10,32,35,14,    // 3rd order hexahedron
+                                11,33,34,15,3,19,18,2,
+                                12,36,37,16,40,56,57,44,
+                                43,59,58,45,22,49,48,20,
+                                13,39,38,17,41,60,61,47,
+                                42,63,62,46,23,50,51,21,
+                                4,24,25,5,26,52,53,28,
+                                27,55,54,29,7,31,30,6
+                               };
 
+         constexpr int wdg18[] = {0,6,1,7,9,2,8,15,10,    // 2nd order wedge/prism
+                                  16,17,11,3,12,4,13,14,5
+                                 };
+         constexpr int wdg40[] = {0,6,7,1,8,24,12,9,13,2, // 3rd order wedge/prism
+                                  10,26,27,14,30,38,34,33,35,16,
+                                  11,29,28,15,31,39,37,32,36,17,
+                                  3,18,19,4,20,25,22,21,23,5
+                                 };
+
+         constexpr int pyr14[] = {0,5,1,6,13,8,3,          // 2nd order pyramid
+                                  10,2,7,9,12,11,4
+                                 };
+         constexpr int pyr30[] = {0,5,6,1,7,25,28,11,8,26, // 3rd order pyramid
+                                  27,12,3,16,15,2,9,21,13,22,
+                                  29,23,19,24,17,10,14,20,18,4
+                                 };
+
+         // Temporary storage for elements
          vector<Element*> elements_0D, elements_1D, elements_2D, elements_3D;
-         elements_0D.reserve(num_of_all_elements);
-         elements_1D.reserve(num_of_all_elements);
-         elements_2D.reserve(num_of_all_elements);
-         elements_3D.reserve(num_of_all_elements);
 
          // Temporary storage for high order vertices, if present
-         vector<Array<int>*> ho_verts_1D, ho_verts_2D, ho_verts_3D;
-         ho_verts_1D.reserve(num_of_all_elements);
-         ho_verts_2D.reserve(num_of_all_elements);
-         ho_verts_3D.reserve(num_of_all_elements);
+         vector<vector<int>> ho_verts_1D, ho_verts_2D, ho_verts_3D;
 
-         // Temporary storage for order of elements
+         // Temporary storage for high order element orders, if present
          vector<int> ho_el_order_1D, ho_el_order_2D, ho_el_order_3D;
-         ho_el_order_1D.reserve(num_of_all_elements);
-         ho_el_order_2D.reserve(num_of_all_elements);
-         ho_el_order_3D.reserve(num_of_all_elements);
-
-         // Vertex order mappings
-         Array<int*> ho_lin(11); ho_lin = NULL;
-         Array<int*> ho_tri(11); ho_tri = NULL;
-         Array<int*> ho_sqr(11); ho_sqr = NULL;
-         Array<int*> ho_tet(11); ho_tet = NULL;
-         Array<int*> ho_hex(10); ho_hex = NULL;
-         Array<int*> ho_wdg(10); ho_wdg = NULL;
-         Array<int*> ho_pyr(10); ho_pyr = NULL;
-
-         // Use predefined arrays at lowest orders (for efficiency)
-         ho_lin[2] = lin3;  ho_lin[3] = lin4;
-         ho_tri[2] = tri6;  ho_tri[3] = tri10;
-         ho_sqr[2] = quad9; ho_sqr[3] = quad16;
-         ho_tet[2] = tet10; ho_tet[3] = tet20;
-         ho_hex[2] = hex27; ho_hex[3] = hex64;
-         ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
-         ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
 
          bool has_nonpositive_phys_domain = false;
          bool has_positive_phys_domain = false;
 
+         auto AddElement = [&](int type_of_element,
+                               std::vector<int> &vert_indices,
+                               int phys_domain)
+         {
+            // Non-positive attributes are not allowed in MFEM. However,
+            // by default, Gmsh sets the physical domain of all elements
+            // to zero. In the case that all elements have physical domain
+            // zero, we will given them attribute 1. If only some elements
+            // have physical domain zero, we will throw an error.
+            if (phys_domain <= 0)
+            {
+               has_nonpositive_phys_domain = true;
+               phys_domain = 1;
+            }
+            else
+            {
+               has_positive_phys_domain = true;
+            }
+
+            // Initialize the mesh element
+            int el_order = 11;
+            switch (type_of_element)
+            {
+               case  1: //  2-node line
+               case  8: //  3-node line (2nd order)
+               case 26: //  4-node line (3rd order)
+               case 27: //  5-node line (4th order)
+               case 28: //  6-node line (5th order)
+               case 62: //  7-node line (6th order)
+               case 63: //  8-node line (7th order)
+               case 64: //  9-node line (8th order)
+               case 65: // 10-node line (9th order)
+               case 66: // 11-node line (10th order)
+               {
+                  if (elements_1D.capacity() == 0)
+                  {
+                     elements_1D.reserve(num_of_all_elements);
+                  }
+                  elements_1D.push_back(
+                     new Segment(vert_indices.data(), phys_domain));
+                  if (type_of_element != 1)
+                  {
+                     if (ho_verts_1D.capacity() == 0)
+                     {
+                        ho_verts_1D.reserve(num_of_all_elements);
+                        ho_el_order_1D.reserve(num_of_all_elements);
+                     }
+                     el_order = vert_indices.size() - 1;
+                     ho_verts_1D.push_back(vert_indices);
+                     ho_el_order_1D.push_back(el_order);
+                  }
+                  break;
+               }
+               case  2: el_order--; //  3-node triangle
+               case  9: el_order--; //  6-node triangle (2nd order)
+               case 21: el_order--; // 10-node triangle (3rd order)
+               case 23: el_order--; // 15-node triangle (4th order)
+               case 25: el_order--; // 21-node triangle (5th order)
+               case 42: el_order--; // 28-node triangle (6th order)
+               case 43: el_order--; // 36-node triangle (7th order)
+               case 44: el_order--; // 45-node triangle (8th order)
+               case 45: el_order--; // 55-node triangle (9th order)
+               case 46:
+               {
+                  el_order--; // 66-node triangle (10th order)
+                  if (elements_2D.capacity() == 0)
+                  {
+                     elements_2D.reserve(num_of_all_elements);
+                  }
+                  elements_2D.push_back(
+                     new Triangle(vert_indices.data(), phys_domain));
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_2D.capacity() == 0)
+                     {
+                        ho_verts_2D.reserve(num_of_all_elements);
+                        ho_el_order_2D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_2D.push_back(vert_indices);
+                     ho_el_order_2D.push_back(el_order);
+                  }
+                  break;
+               }
+               case  3: el_order--; //   4-node quadrangle
+               case 10: el_order--; //   9-node quadrangle (2nd order)
+               case 36: el_order--; //  16-node quadrangle (3rd order)
+               case 37: el_order--; //  25-node quadrangle (4th order)
+               case 38: el_order--; //  36-node quadrangle (5th order)
+               case 47: el_order--; //  49-node quadrangle (6th order)
+               case 48: el_order--; //  64-node quadrangle (7th order)
+               case 49: el_order--; //  81-node quadrangle (8th order)
+               case 50: el_order--; // 100-node quadrangle (9th order)
+               case 51:
+               {
+                  el_order--; // 121-node quadrangle (10th order)
+                  if (elements_2D.capacity() == 0)
+                  {
+                     elements_2D.reserve(num_of_all_elements);
+                  }
+                  elements_2D.push_back(
+                     new Quadrilateral(vert_indices.data(), phys_domain));
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_2D.capacity() == 0)
+                     {
+                        ho_verts_2D.reserve(num_of_all_elements);
+                        ho_el_order_2D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_2D.push_back(vert_indices);
+                     ho_el_order_2D.push_back(el_order);
+                  }
+                  break;
+               }
+               case  4: el_order--; //   4-node tetrahedron
+               case 11: el_order--; //  10-node tetrahedron (2nd order)
+               case 29: el_order--; //  20-node tetrahedron (3rd order)
+               case 30: el_order--; //  35-node tetrahedron (4th order)
+               case 31: el_order--; //  56-node tetrahedron (5th order)
+               case 71: el_order--; //  84-node tetrahedron (6th order)
+               case 72: el_order--; // 120-node tetrahedron (7th order)
+               case 73: el_order--; // 165-node tetrahedron (8th order)
+               case 74: el_order--; // 220-node tetrahedron (9th order)
+               case 75:
+               {
+                  el_order--; // 286-node tetrahedron (10th order)
+                  if (elements_3D.capacity() == 0)
+                  {
+                     elements_3D.reserve(num_of_all_elements);
+                  }
+#ifdef MFEM_USE_MEMALLOC
+                  elements_3D.push_back(TetMemory.Alloc());
+                  elements_3D.back()->SetVertices(vert_indices.data());
+                  elements_3D.back()->SetAttribute(phys_domain);
+#else
+                  elements_3D.push_back(
+                     new Tetrahedron(vert_indices.data(), phys_domain));
+#endif
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_3D.capacity() == 0)
+                     {
+                        ho_verts_3D.reserve(num_of_all_elements);
+                        ho_el_order_3D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_3D.push_back(vert_indices);
+                     ho_el_order_3D.push_back(el_order);
+                  }
+                  break;
+               }
+               case  5: el_order--; //    8-node hexahedron
+               case 12: el_order--; //   27-node hexahedron (2nd order)
+               case 92: el_order--; //   64-node hexahedron (3rd order)
+               case 93: el_order--; //  125-node hexahedron (4th order)
+               case 94: el_order--; //  216-node hexahedron (5th order)
+               case 95: el_order--; //  343-node hexahedron (6th order)
+               case 96: el_order--; //  512-node hexahedron (7th order)
+               case 97: el_order--; //  729-node hexahedron (8th order)
+               case 98:
+               {
+                  el_order--; // 1000-node hexahedron (9th order)
+                  el_order--; // Gmsh does not define an order 10 hex
+                  if (elements_3D.capacity() == 0)
+                  {
+                     elements_3D.reserve(num_of_all_elements);
+                  }
+                  elements_3D.push_back(
+                     new Hexahedron(vert_indices.data(), phys_domain));
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_3D.capacity() == 0)
+                     {
+                        ho_verts_3D.reserve(num_of_all_elements);
+                        ho_el_order_3D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_3D.push_back(vert_indices);
+                     ho_el_order_3D.push_back(el_order);
+                  }
+                  break;
+               }
+               case   6: el_order--; //   6-node wedge
+               case  13: el_order--; //  18-node wedge (2nd order)
+               case  90: el_order--; //  40-node wedge (3rd order)
+               case  91: el_order--; //  75-node wedge (4th order)
+               case 106: el_order--; // 126-node wedge (5th order)
+               case 107: el_order--; // 196-node wedge (6th order)
+               case 108: el_order--; // 288-node wedge (7th order)
+               case 109: el_order--; // 405-node wedge (8th order)
+               case 110:
+               {
+                  el_order--; // 550-node wedge (9th order)
+                  el_order--; // Gmsh does not define an order 10 wedge
+                  if (elements_3D.capacity() == 0)
+                  {
+                     elements_3D.reserve(num_of_all_elements);
+                  }
+                  elements_3D.push_back(
+                     new Wedge(vert_indices.data(), phys_domain));
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_3D.capacity() == 0)
+                     {
+                        ho_verts_3D.reserve(num_of_all_elements);
+                        ho_el_order_3D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_3D.push_back(vert_indices);
+                     ho_el_order_3D.push_back(el_order);
+                  }
+                  break;
+               }
+               case   7: el_order--; //   5-node pyramid
+               case  14: el_order--; //  14-node pyramid (2nd order)
+               case 118: el_order--; //  30-node pyramid (3rd order)
+               case 119: el_order--; //  55-node pyramid (4th order)
+               case 120: el_order--; //  91-node pyramid (5th order)
+               case 121: el_order--; // 140-node pyramid (6th order)
+               case 122: el_order--; // 204-node pyramid (7th order)
+               case 123: el_order--; // 285-node pyramid (8th order)
+               case 124:
+               {
+                  el_order--; // 385-node pyramid (9th order)
+                  el_order--; // Gmsh does not define an order 10 pyr
+                  if (elements_3D.capacity() == 0)
+                  {
+                     elements_3D.reserve(num_of_all_elements);
+                  }
+                  elements_3D.push_back(
+                     new Pyramid(vert_indices.data(), phys_domain));
+                  if (el_order > 1)
+                  {
+                     if (ho_verts_3D.capacity() == 0)
+                     {
+                        ho_verts_3D.reserve(num_of_all_elements);
+                        ho_el_order_3D.reserve(num_of_all_elements);
+                     }
+                     ho_verts_3D.push_back(vert_indices);
+                     ho_el_order_3D.push_back(el_order);
+                  }
+                  break;
+               }
+               case 15: // 1-node point
+               {
+                  elements_0D.push_back(
+                     new Point(vert_indices.data(), phys_domain));
+                  break;
+               }
+               default: // any other element
+               {
+                  MFEM_WARNING("Unsupported Gmsh element type.");
+                  break;
+               }
+            } // switch (type_of_element)
+         };
+
          if (binary)
          {
-            int n_elem_part = 0; // partial sum of elements that are read
-            const int header_size = 3;
             // header consists of 3 numbers: type of the element, number of
             // elements of this type, and number of tags
+            constexpr int header_size = 3;
             int header[header_size];
+            int n_elem_part = 0; // partial sum of elements that are read
             int n_elem_one_type; // number of elements of a specific type
-
             while (n_elem_part < num_of_all_elements)
             {
                input.read(reinterpret_cast<char*>(header),
@@ -1950,11 +2177,10 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                type_of_element = header[0];
                n_elem_one_type = header[1];
                n_tags          = header[2];
-
                n_elem_part += n_elem_one_type;
-
                const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
                vector<int> data(1+n_tags+n_elem_nodes);
+               vector<int> vert_indices(n_elem_nodes);
                for (int el = 0; el < n_elem_one_type; ++el)
                {
                   input.read(reinterpret_cast<char*>(&data[0]),
@@ -1972,218 +2198,26 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                   n_partitions = (n_tags > 2) ? data[dd++] : 0;
                   // we currently just skip the partitions if they exist, and go
                   // directly to vertices describing the mesh element
-                  vector<int> vert_indices(n_elem_nodes);
                   for (int vi = 0; vi < n_elem_nodes; ++vi)
                   {
-                     map<int, int>::const_iterator it =
-                        vertices_map.find(data[1+n_tags+vi]);
+                     const auto it = vertices_map.find(data[1+n_tags+vi]);
                      if (it == vertices_map.end())
                      {
-                        MFEM_ABORT("Gmsh file : vertex index doesn't exist");
+                        MFEM_ABORT("Gmsh file: vertex index doesn't exist");
                      }
                      vert_indices[vi] = it->second;
                   }
-
-                  // Non-positive attributes are not allowed in MFEM. However,
-                  // by default, Gmsh sets the physical domain of all elements
-                  // to zero. In the case that all elements have physical domain
-                  // zero, we will given them attribute 1. If only some elements
-                  // have physical domain zero, we will throw an error.
-                  if (phys_domain <= 0)
-                  {
-                     has_nonpositive_phys_domain = true;
-                     phys_domain = 1;
-                  }
-                  else
-                  {
-                     has_positive_phys_domain = true;
-                  }
-
-                  // initialize the mesh element
-                  int el_order = 11;
-                  switch (type_of_element)
-                  {
-                     case  1: //   2-node line
-                     case  8: //   3-node line (2nd order)
-                     case 26: //   4-node line (3rd order)
-                     case 27: //   5-node line (4th order)
-                     case 28: //   6-node line (5th order)
-                     case 62: //   7-node line (6th order)
-                     case 63: //   8-node line (7th order)
-                     case 64: //   9-node line (8th order)
-                     case 65: //  10-node line (9th order)
-                     case 66: //  11-node line (10th order)
-                     {
-                        elements_1D.push_back(
-                           new Segment(&vert_indices[0], phys_domain));
-                        if (type_of_element != 1)
-                        {
-                           el_order = n_elem_nodes - 1;
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_1D.push_back(hov);
-                           ho_el_order_1D.push_back(el_order);
-                        }
-                        break;
-                     }
-                     case  2: el_order--; //  3-node triangle
-                     case  9: el_order--; //  6-node triangle (2nd order)
-                     case 21: el_order--; // 10-node triangle (3rd order)
-                     case 23: el_order--; // 15-node triangle (4th order)
-                     case 25: el_order--; // 21-node triangle (5th order)
-                     case 42: el_order--; // 28-node triangle (6th order)
-                     case 43: el_order--; // 36-node triangle (7th order)
-                     case 44: el_order--; // 45-node triangle (8th order)
-                     case 45: el_order--; // 55-node triangle (9th order)
-                     case 46: el_order--; // 66-node triangle (10th order)
-                        {
-                           elements_2D.push_back(
-                              new Triangle(&vert_indices[0], phys_domain));
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_2D.push_back(hov);
-                              ho_el_order_2D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case  3: el_order--; //   4-node quadrangle
-                     case 10: el_order--; //   9-node quadrangle (2nd order)
-                     case 36: el_order--; //  16-node quadrangle (3rd order)
-                     case 37: el_order--; //  25-node quadrangle (4th order)
-                     case 38: el_order--; //  36-node quadrangle (5th order)
-                     case 47: el_order--; //  49-node quadrangle (6th order)
-                     case 48: el_order--; //  64-node quadrangle (7th order)
-                     case 49: el_order--; //  81-node quadrangle (8th order)
-                     case 50: el_order--; // 100-node quadrangle (9th order)
-                     case 51: el_order--; // 121-node quadrangle (10th order)
-                        {
-                           elements_2D.push_back(
-                              new Quadrilateral(&vert_indices[0], phys_domain));
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_2D.push_back(hov);
-                              ho_el_order_2D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case  4: el_order--; //   4-node tetrahedron
-                     case 11: el_order--; //  10-node tetrahedron (2nd order)
-                     case 29: el_order--; //  20-node tetrahedron (3rd order)
-                     case 30: el_order--; //  35-node tetrahedron (4th order)
-                     case 31: el_order--; //  56-node tetrahedron (5th order)
-                     case 71: el_order--; //  84-node tetrahedron (6th order)
-                     case 72: el_order--; // 120-node tetrahedron (7th order)
-                     case 73: el_order--; // 165-node tetrahedron (8th order)
-                     case 74: el_order--; // 220-node tetrahedron (9th order)
-                     case 75: el_order--; // 286-node tetrahedron (10th order)
-                        {
-#ifdef MFEM_USE_MEMALLOC
-                           elements_3D.push_back(TetMemory.Alloc());
-                           elements_3D.back()->SetVertices(&vert_indices[0]);
-                           elements_3D.back()->SetAttribute(phys_domain);
-#else
-                           elements_3D.push_back(
-                              new Tetrahedron(&vert_indices[0], phys_domain));
-#endif
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_3D.push_back(hov);
-                              ho_el_order_3D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case  5: el_order--; //    8-node hexahedron
-                     case 12: el_order--; //   27-node hexahedron (2nd order)
-                     case 92: el_order--; //   64-node hexahedron (3rd order)
-                     case 93: el_order--; //  125-node hexahedron (4th order)
-                     case 94: el_order--; //  216-node hexahedron (5th order)
-                     case 95: el_order--; //  343-node hexahedron (6th order)
-                     case 96: el_order--; //  512-node hexahedron (7th order)
-                     case 97: el_order--; //  729-node hexahedron (8th order)
-                     case 98: el_order--; // 1000-node hexahedron (9th order)
-                        {
-                           el_order--; // Gmsh does not define an order 10 hex
-                           elements_3D.push_back(
-                              new Hexahedron(&vert_indices[0], phys_domain));
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_3D.push_back(hov);
-                              ho_el_order_3D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case   6: el_order--; //   6-node wedge
-                     case  13: el_order--; //  18-node wedge (2nd order)
-                     case  90: el_order--; //  40-node wedge (3rd order)
-                     case  91: el_order--; //  75-node wedge (4th order)
-                     case 106: el_order--; // 126-node wedge (5th order)
-                     case 107: el_order--; // 196-node wedge (6th order)
-                     case 108: el_order--; // 288-node wedge (7th order)
-                     case 109: el_order--; // 405-node wedge (8th order)
-                     case 110: el_order--; // 550-node wedge (9th order)
-                        {
-                           el_order--; // Gmsh does not define an order 10 wedge
-                           elements_3D.push_back(
-                              new Wedge(&vert_indices[0], phys_domain));
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_3D.push_back(hov);
-                              ho_el_order_3D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case   7: el_order--; //   5-node pyramid
-                     case  14: el_order--; //  14-node pyramid (2nd order)
-                     case 118: el_order--; //  30-node pyramid (3rd order)
-                     case 119: el_order--; //  55-node pyramid (4th order)
-                     case 120: el_order--; //  91-node pyramid (5th order)
-                     case 121: el_order--; // 140-node pyramid (6th order)
-                     case 122: el_order--; // 204-node pyramid (7th order)
-                     case 123: el_order--; // 285-node pyramid (8th order)
-                     case 124: el_order--; // 385-node pyramid (9th order)
-                        {
-                           el_order--; // Gmsh does not define an order 10 pyr
-                           elements_3D.push_back(
-                              new Pyramid(&vert_indices[0], phys_domain));
-                           if (el_order > 1)
-                           {
-                              Array<int> * hov = new Array<int>;
-                              hov->Append(&vert_indices[0], n_elem_nodes);
-                              ho_verts_3D.push_back(hov);
-                              ho_el_order_3D.push_back(el_order);
-                           }
-                           break;
-                        }
-                     case 15: // 1-node point
-                     {
-                        elements_0D.push_back(
-                           new Point(&vert_indices[0], phys_domain));
-                        break;
-                     }
-                     default: // any other element
-                        MFEM_WARNING("Unsupported Gmsh element type.");
-                        break;
-
-                  } // switch (type_of_element)
+                  AddElement(type_of_element, vert_indices, phys_domain);
                } // el (elements of one type)
             } // all elements
          } // if binary
          else // ASCII
          {
+            vector<int> data, vert_indices;
             for (int el = 0; el < num_of_all_elements; ++el)
             {
                input >> serial_number >> type_of_element >> n_tags;
-               vector<int> data(n_tags);
+               data.resize(n_tags);
                for (int i = 0; i < n_tags; ++i) { input >> data[i]; }
                // physical domain - the most important value (to distinguish
                // materials with different properties)
@@ -2197,210 +2231,19 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                // we currently just skip the partitions if they exist, and go
                // directly to vertices describing the mesh element
                const int n_elem_nodes = nodes_of_gmsh_element[type_of_element-1];
-               vector<int> vert_indices(n_elem_nodes);
-               int index;
+               vert_indices.resize(n_elem_nodes);
                for (int vi = 0; vi < n_elem_nodes; ++vi)
                {
+                  int index;
                   input >> index;
-                  map<int, int>::const_iterator it = vertices_map.find(index);
+                  const auto it = vertices_map.find(index);
                   if (it == vertices_map.end())
                   {
-                     MFEM_ABORT("Gmsh file : vertex index doesn't exist");
+                     MFEM_ABORT("Gmsh file: vertex index doesn't exist");
                   }
                   vert_indices[vi] = it->second;
                }
-
-               // Non-positive attributes are not allowed in MFEM. However,
-               // by default, Gmsh sets the physical domain of all elements
-               // to zero. In the case that all elements have physical domain
-               // zero, we will given them attribute 1. If only some elements
-               // have physical domain zero, we will throw an error.
-               if (phys_domain <= 0)
-               {
-                  has_nonpositive_phys_domain = true;
-                  phys_domain = 1;
-               }
-               else
-               {
-                  has_positive_phys_domain = true;
-               }
-
-               // initialize the mesh element
-               int el_order = 11;
-               switch (type_of_element)
-               {
-                  case  1: //  2-node line
-                  case  8: //  3-node line (2nd order)
-                  case 26: //  4-node line (3rd order)
-                  case 27: //  5-node line (4th order)
-                  case 28: //  6-node line (5th order)
-                  case 62: //  7-node line (6th order)
-                  case 63: //  8-node line (7th order)
-                  case 64: //  9-node line (8th order)
-                  case 65: // 10-node line (9th order)
-                  case 66: // 11-node line (10th order)
-                  {
-                     elements_1D.push_back(
-                        new Segment(&vert_indices[0], phys_domain));
-                     if (type_of_element != 1)
-                     {
-                        Array<int> * hov = new Array<int>;
-                        hov->Append(&vert_indices[0], n_elem_nodes);
-                        ho_verts_1D.push_back(hov);
-                        el_order = n_elem_nodes - 1;
-                        ho_el_order_1D.push_back(el_order);
-                     }
-                     break;
-                  }
-                  case  2: el_order--; //  3-node triangle
-                  case  9: el_order--; //  6-node triangle (2nd order)
-                  case 21: el_order--; // 10-node triangle (3rd order)
-                  case 23: el_order--; // 15-node triangle (4th order)
-                  case 25: el_order--; // 21-node triangle (5th order)
-                  case 42: el_order--; // 28-node triangle (6th order)
-                  case 43: el_order--; // 36-node triangle (7th order)
-                  case 44: el_order--; // 45-node triangle (8th order)
-                  case 45: el_order--; // 55-node triangle (9th order)
-                  case 46: el_order--; // 66-node triangle (10th order)
-                     {
-                        elements_2D.push_back(
-                           new Triangle(&vert_indices[0], phys_domain));
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_2D.push_back(hov);
-                           ho_el_order_2D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case  3: el_order--; //   4-node quadrangle
-                  case 10: el_order--; //   9-node quadrangle (2nd order)
-                  case 36: el_order--; //  16-node quadrangle (3rd order)
-                  case 37: el_order--; //  25-node quadrangle (4th order)
-                  case 38: el_order--; //  36-node quadrangle (5th order)
-                  case 47: el_order--; //  49-node quadrangle (6th order)
-                  case 48: el_order--; //  64-node quadrangle (7th order)
-                  case 49: el_order--; //  81-node quadrangle (8th order)
-                  case 50: el_order--; // 100-node quadrangle (9th order)
-                  case 51: el_order--; // 121-node quadrangle (10th order)
-                     {
-                        elements_2D.push_back(
-                           new Quadrilateral(&vert_indices[0], phys_domain));
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_2D.push_back(hov);
-                           ho_el_order_2D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case  4: el_order--; //   4-node tetrahedron
-                  case 11: el_order--; //  10-node tetrahedron (2nd order)
-                  case 29: el_order--; //  20-node tetrahedron (3rd order)
-                  case 30: el_order--; //  35-node tetrahedron (4th order)
-                  case 31: el_order--; //  56-node tetrahedron (5th order)
-                  case 71: el_order--; //  84-node tetrahedron (6th order)
-                  case 72: el_order--; // 120-node tetrahedron (7th order)
-                  case 73: el_order--; // 165-node tetrahedron (8th order)
-                  case 74: el_order--; // 220-node tetrahedron (9th order)
-                  case 75: el_order--; // 286-node tetrahedron (10th order)
-                     {
-#ifdef MFEM_USE_MEMALLOC
-                        elements_3D.push_back(TetMemory.Alloc());
-                        elements_3D.back()->SetVertices(&vert_indices[0]);
-                        elements_3D.back()->SetAttribute(phys_domain);
-#else
-                        elements_3D.push_back(
-                           new Tetrahedron(&vert_indices[0], phys_domain));
-#endif
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           ho_el_order_3D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case  5: el_order--; //    8-node hexahedron
-                  case 12: el_order--; //   27-node hexahedron (2nd order)
-                  case 92: el_order--; //   64-node hexahedron (3rd order)
-                  case 93: el_order--; //  125-node hexahedron (4th order)
-                  case 94: el_order--; //  216-node hexahedron (5th order)
-                  case 95: el_order--; //  343-node hexahedron (6th order)
-                  case 96: el_order--; //  512-node hexahedron (7th order)
-                  case 97: el_order--; //  729-node hexahedron (8th order)
-                  case 98: el_order--; // 1000-node hexahedron (9th order)
-                     {
-                        el_order--;
-                        elements_3D.push_back(
-                           new Hexahedron(&vert_indices[0], phys_domain));
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           ho_el_order_3D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case   6: el_order--; //   6-node wedge
-                  case  13: el_order--; //  18-node wedge (2nd order)
-                  case  90: el_order--; //  40-node wedge (3rd order)
-                  case  91: el_order--; //  75-node wedge (4th order)
-                  case 106: el_order--; // 126-node wedge (5th order)
-                  case 107: el_order--; // 196-node wedge (6th order)
-                  case 108: el_order--; // 288-node wedge (7th order)
-                  case 109: el_order--; // 405-node wedge (8th order)
-                  case 110: el_order--; // 550-node wedge (9th order)
-                     {
-                        el_order--;
-                        elements_3D.push_back(
-                           new Wedge(&vert_indices[0], phys_domain));
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           ho_el_order_3D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case   7: el_order--; //   5-node pyramid
-                  case  14: el_order--; //  14-node pyramid (2nd order)
-                  case 118: el_order--; //  30-node pyramid (3rd order)
-                  case 119: el_order--; //  55-node pyramid (4th order)
-                  case 120: el_order--; //  91-node pyramid (5th order)
-                  case 121: el_order--; // 140-node pyramid (6th order)
-                  case 122: el_order--; // 204-node pyramid (7th order)
-                  case 123: el_order--; // 285-node pyramid (8th order)
-                  case 124: el_order--; // 385-node pyramid (9th order)
-                     {
-                        el_order--;
-                        elements_3D.push_back(
-                           new Pyramid(&vert_indices[0], phys_domain));
-                        if (el_order > 1)
-                        {
-                           Array<int> * hov = new Array<int>;
-                           hov->Append(&vert_indices[0], n_elem_nodes);
-                           ho_verts_3D.push_back(hov);
-                           ho_el_order_3D.push_back(el_order);
-                        }
-                        break;
-                     }
-                  case 15: // 1-node point
-                  {
-                     elements_0D.push_back(
-                        new Point(&vert_indices[0], phys_domain));
-                     break;
-                  }
-                  default: // any other element
-                     MFEM_WARNING("Unsupported Gmsh element type.");
-                     break;
-
-               } // switch (type_of_element)
+               AddElement(type_of_element, vert_indices, phys_domain);
             } // el (all elements)
          } // if ASCII
 
@@ -2524,81 +2367,106 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
             Nodes_gf.SetSpace(nfes);
             Nodes_gf.MakeOwner(nfec);
 
+            // Vertex order mappings
+            Array<const int*> ho_lin(11); ho_lin = NULL;
+            Array<const int*> ho_tri(11); ho_tri = NULL;
+            Array<const int*> ho_sqr(11); ho_sqr = NULL;
+            Array<const int*> ho_tet(11); ho_tet = NULL;
+            Array<const int*> ho_hex(10); ho_hex = NULL;
+            Array<const int*> ho_wdg(10); ho_wdg = NULL;
+            Array<const int*> ho_pyr(10); ho_pyr = NULL;
+
+            // Use predefined arrays at lowest orders (for efficiency)
+            ho_lin[2] = lin3;  ho_lin[3] = lin4;
+            ho_tri[2] = tri6;  ho_tri[3] = tri10;
+            ho_sqr[2] = quad9; ho_sqr[3] = quad16;
+            ho_tet[2] = tet10; ho_tet[3] = tet20;
+            ho_hex[2] = hex27; ho_hex[3] = hex64;
+            ho_wdg[2] = wdg18; ho_wdg[3] = wdg40;
+            ho_pyr[2] = pyr14; ho_pyr[3] = pyr30;
+
             int o = 0;
-            int el_order = 1;
             for (int el = 0; el < NumOfElements; el++)
             {
+               vector<int> * ho_verts = NULL;
+               int el_order = 1;
                const int * vm = NULL;
-               Array<int> * ho_verts = NULL;
                switch (GetElementType(el))
                {
                   case Element::SEGMENT:
-                     ho_verts = ho_verts_1D[el];
+                     ho_verts = &ho_verts_1D[el];
                      el_order = ho_el_order_1D[el];
                      if (!ho_lin[el_order])
                      {
-                        ho_lin[el_order] = new int[ho_verts->Size()];
-                        GmshHOSegmentMapping(el_order, ho_lin[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOSegmentMapping(el_order, ho_map);
+                        ho_lin[el_order] = ho_map;
                      }
                      vm = ho_lin[el_order];
                      break;
                   case Element::TRIANGLE:
-                     ho_verts = ho_verts_2D[el];
+                     ho_verts = &ho_verts_2D[el];
                      el_order = ho_el_order_2D[el];
                      if (!ho_tri[el_order])
                      {
-                        ho_tri[el_order] = new int[ho_verts->Size()];
-                        GmshHOTriangleMapping(el_order, ho_tri[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOTriangleMapping(el_order, ho_map);
+                        ho_tri[el_order] = ho_map;
                      }
                      vm = ho_tri[el_order];
                      break;
                   case Element::QUADRILATERAL:
-                     ho_verts = ho_verts_2D[el];
+                     ho_verts = &ho_verts_2D[el];
                      el_order = ho_el_order_2D[el];
                      if (!ho_sqr[el_order])
                      {
-                        ho_sqr[el_order] = new int[ho_verts->Size()];
-                        GmshHOQuadrilateralMapping(el_order, ho_sqr[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOQuadrilateralMapping(el_order, ho_map);
+                        ho_sqr[el_order] = ho_map;
                      }
                      vm = ho_sqr[el_order];
                      break;
                   case Element::TETRAHEDRON:
-                     ho_verts = ho_verts_3D[el];
+                     ho_verts = &ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
                      if (!ho_tet[el_order])
                      {
-                        ho_tet[el_order] = new int[ho_verts->Size()];
-                        GmshHOTetrahedronMapping(el_order, ho_tet[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOTetrahedronMapping(el_order, ho_map);
+                        ho_tet[el_order] = ho_map;
                      }
                      vm = ho_tet[el_order];
                      break;
                   case Element::HEXAHEDRON:
-                     ho_verts = ho_verts_3D[el];
+                     ho_verts = &ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
                      if (!ho_hex[el_order])
                      {
-                        ho_hex[el_order] = new int[ho_verts->Size()];
-                        GmshHOHexahedronMapping(el_order, ho_hex[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOHexahedronMapping(el_order, ho_map);
+                        ho_hex[el_order] = ho_map;
                      }
                      vm = ho_hex[el_order];
                      break;
                   case Element::WEDGE:
-                     ho_verts = ho_verts_3D[el];
+                     ho_verts = &ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
                      if (!ho_wdg[el_order])
                      {
-                        ho_wdg[el_order] = new int[ho_verts->Size()];
-                        GmshHOWedgeMapping(el_order, ho_wdg[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOWedgeMapping(el_order, ho_map);
+                        ho_wdg[el_order] = ho_map;
                      }
                      vm = ho_wdg[el_order];
                      break;
                   case Element::PYRAMID:
-                     ho_verts = ho_verts_3D[el];
+                     ho_verts = &ho_verts_3D[el];
                      el_order = ho_el_order_3D[el];
                      if (!ho_pyr[el_order])
                      {
-                        ho_pyr[el_order] = new int[ho_verts->Size()];
-                        GmshHOPyramidMapping(el_order, ho_pyr[el_order]);
+                        int * ho_map = new int[ho_verts->size()];
+                        GmshHOPyramidMapping(el_order, ho_map);
+                        ho_pyr[el_order] = ho_map;
                      }
                      vm = ho_pyr[el_order];
                      break;
@@ -2606,62 +2474,47 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                      MFEM_WARNING("Unsupported Gmsh element type.");
                      break;
                }
-               int nv = (ho_verts) ? ho_verts->Size() : 0;
-
-               for (int v = 0; v<nv; v++)
+               int nv = (ho_verts) ? ho_verts->size() : 0;
+               for (int v = 0; v < nv; v++)
                {
                   real_t * c = GetVertex((*ho_verts)[vm[v]]);
-                  for (int d=0; d<spaceDim; d++)
+                  for (int d = 0; d < spaceDim; d++)
                   {
                      Nodes_gf(spaceDim * (o + v) + d) = c[d];
                   }
                }
                o += nv;
             }
-         }
 
-         // Delete any high order element to vertex connectivity
-         for (size_t el=0; el<ho_verts_1D.size(); el++)
-         {
-            delete ho_verts_1D[el];
-         }
-         for (size_t el=0; el<ho_verts_2D.size(); el++)
-         {
-            delete ho_verts_2D[el];
-         }
-         for (size_t el=0; el<ho_verts_3D.size(); el++)
-         {
-            delete ho_verts_3D[el];
-         }
-
-         // Delete dynamically allocated high vertex order mappings
-         for (int ord=4; ord<ho_lin.Size(); ord++)
-         {
-            if (ho_lin[ord] != NULL) { delete [] ho_lin[ord]; }
-         }
-         for (int ord=4; ord<ho_tri.Size(); ord++)
-         {
-            if (ho_tri[ord] != NULL) { delete [] ho_tri[ord]; }
-         }
-         for (int ord=4; ord<ho_sqr.Size(); ord++)
-         {
-            if (ho_sqr[ord] != NULL) { delete [] ho_sqr[ord]; }
-         }
-         for (int ord=4; ord<ho_tet.Size(); ord++)
-         {
-            if (ho_tet[ord] != NULL) { delete [] ho_tet[ord]; }
-         }
-         for (int ord=4; ord<ho_hex.Size(); ord++)
-         {
-            if (ho_hex[ord] != NULL) { delete [] ho_hex[ord]; }
-         }
-         for (int ord=4; ord<ho_wdg.Size(); ord++)
-         {
-            if (ho_wdg[ord] != NULL) { delete [] ho_wdg[ord]; }
-         }
-         for (int ord=4; ord<ho_pyr.Size(); ord++)
-         {
-            if (ho_pyr[ord] != NULL) { delete [] ho_pyr[ord]; }
+            // Delete dynamically allocated high vertex order mappings
+            for (int ord=4; ord<ho_lin.Size(); ord++)
+            {
+               delete [] ho_lin[ord];
+            }
+            for (int ord=4; ord<ho_tri.Size(); ord++)
+            {
+               delete [] ho_tri[ord];
+            }
+            for (int ord=4; ord<ho_sqr.Size(); ord++)
+            {
+               delete [] ho_sqr[ord];
+            }
+            for (int ord=4; ord<ho_tet.Size(); ord++)
+            {
+               delete [] ho_tet[ord];
+            }
+            for (int ord=4; ord<ho_hex.Size(); ord++)
+            {
+               delete [] ho_hex[ord];
+            }
+            for (int ord=4; ord<ho_wdg.Size(); ord++)
+            {
+               delete [] ho_wdg[ord];
+            }
+            for (int ord=4; ord<ho_pyr.Size(); ord++)
+            {
+               delete [] ho_pyr[ord];
+            }
          }
 
          // Suppress warnings (MFEM_CONTRACT_VAR does not work here with nvcc):
@@ -2799,7 +2652,7 @@ void Mesh::ReadGmshMesh(std::istream &input, int &curved, int &read_gf)
                v[j] = v2v[v[j]];
             }
          }
-      }
+      } // section '$Periodic'
    } // we reach the end of the file
 
    // Process set names
