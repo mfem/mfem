@@ -12,6 +12,7 @@
 #include "vector.hpp"
 #include "operator.hpp"
 #include "../general/forall.hpp"
+#include "../general/workspace.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -50,7 +51,7 @@ void Operator::InitTVectors(const Operator *Po, const Operator *Ri,
 
 void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 {
-   mfem::Vector z(y.Size());
+   auto z = Workspace::NewVector(y.Size());
    Mult(x, z);
    y.Add(a, z);
 }
@@ -58,7 +59,7 @@ void Operator::AddMult(const Vector &x, Vector &y, const double a) const
 void Operator::AddMultTranspose(const Vector &x, Vector &y,
                                 const double a) const
 {
-   mfem::Vector z(y.Size());
+   auto z = Workspace::NewVector(y.Size());
    MultTranspose(x, z);
    y.Add(a, z);
 }
@@ -516,13 +517,8 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetDeviceMemoryClass();
-   MemoryType mem_type = GetMemoryType(mem_class);
    list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    constraint_list.MakeRef(list);
-   // typically z and w are large vectors, so use the device (GPU) to perform
-   // operations on them
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(height, mem_type); w.UseDevice(true);
 }
 
 void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
@@ -558,6 +554,7 @@ void ConstrainedOperator::AssembleDiagonal(Vector &diag) const
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   auto w = Workspace::NewVector(height);
    w = 0.0;
    const int csz = constraint_list.Size();
    auto idx = constraint_list.Read();
@@ -570,9 +567,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
       d_w[id] = d_x[id];
    });
 
-   // A.AddMult(w, b, -1.0); // if available to all Operators
-   A->Mult(w, z);
-   b -= z;
+   A->AddMult(w, b, -1.0);
 
    // Use read+write access - we are modifying sub-vector of b
    auto d_b = b.ReadWrite();
@@ -600,6 +595,7 @@ void ConstrainedOperator::ConstrainedMult(const Vector &x, Vector &y,
       return;
    }
 
+   auto z = Workspace::NewVector(height);
    z = x;
 
    auto idx = constraint_list.Read();
@@ -657,13 +653,6 @@ void ConstrainedOperator::MultTranspose(const Vector &x, Vector &y) const
    ConstrainedMult(x, y, transpose);
 }
 
-void ConstrainedOperator::AddMult(const Vector &x, Vector &y,
-                                  const double a) const
-{
-   Mult(x, w);
-   y.Add(a, w);
-}
-
 RectangularConstrainedOperator::RectangularConstrainedOperator(
    Operator *A,
    const Array<int> &trial_list,
@@ -673,19 +662,16 @@ RectangularConstrainedOperator::RectangularConstrainedOperator(
 {
    // 'mem_class' should work with A->Mult() and mfem::forall():
    mem_class = A->GetMemoryClass()*Device::GetMemoryClass();
-   MemoryType mem_type = GetMemoryType(mem_class);
    trial_list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    test_list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
    trial_constraints.MakeRef(trial_list);
    test_constraints.MakeRef(test_list);
-   // typically z and w are large vectors, so store them on the device
-   z.SetSize(height, mem_type); z.UseDevice(true);
-   w.SetSize(width, mem_type); w.UseDevice(true);
 }
 
 void RectangularConstrainedOperator::EliminateRHS(const Vector &x,
                                                   Vector &b) const
 {
+   auto w = Workspace::NewVector(width);
    w = 0.0;
    const int trial_csz = trial_constraints.Size();
    auto trial_idx = trial_constraints.Read();
@@ -719,6 +705,7 @@ void RectangularConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
    else
    {
+      auto w = Workspace::NewVector(width);
       w = x;
 
       auto idx = trial_constraints.Read();
@@ -754,6 +741,7 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
    }
    else
    {
+      auto z = Workspace::NewVector(height);
       z = x;
 
       auto idx = test_constraints.Read();
