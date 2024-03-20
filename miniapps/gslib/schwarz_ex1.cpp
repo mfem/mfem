@@ -307,6 +307,7 @@ int main(int argc, char *argv[])
    }
 
    // Send the solution by socket to a GLVis server.
+   if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
