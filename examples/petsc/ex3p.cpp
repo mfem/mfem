@@ -116,9 +116,11 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 1,000 elements.
    {
-      int ref_levels = ser_ref_levels < 0 ?
-                       (int)floor(log(1000./mesh->GetNE())/log(2.)/dim) : ser_ref_levels;
-      for (int l = 0; l < ref_levels; l++)
+      if (ser_ref_levels < 0)
+      {
+         ser_ref_levels = (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+      }
+      for (int l = 0; l < ser_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
