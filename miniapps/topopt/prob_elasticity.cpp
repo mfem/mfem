@@ -369,14 +369,11 @@ void Torsion3PreRefine(double &filter_radius, double &vol_fraction,
    vforce_cf.reset(new VectorFunctionCoefficient(3, [center](const Vector &x,
                                                              Vector &f)
    {
-      Vector xx(x); xx(0) = 0.0;
-      xx -= center;
-      double d = xx.Norml2();
-      if (x[0] > 1.0 && d < 0.2)
+      if (x[0] > 1.0)
       {
          f[0] = 0.0;
-         f[1] = -xx[2];
-         f[2] = xx[1];
+         f[1] = -x[2];
+         f[2] = x[1];
       }
       else
       {
