@@ -27,8 +27,8 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
 
 static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
                                          std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & elements_for_boundary_id,
-                                         std::map<int, std::vector<int>> & sides_for_boundary_id);
+                                         std::map<int, std::vector<int>> & elements_for_boundary_id_1based,
+                                         std::map<int, std::vector<int>> & sides_for_boundary_id_1based);
 
 static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes);
 
@@ -36,21 +36,20 @@ static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
                                              std::vector<double> & coordx, std::vector<double> & coordy,
                                              std::vector<double> & coordz);
 
-static void WriteNodalCoordinatesFromMesh(int ncid, Mesh & mesh);
+static void WriteNodalCoordinatesFromMesh(int ncid,
+                                          std::vector<double> & coordx, std::vector<double> & coordy,
+                                          std::vector<double> & coordz);
 
 static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
-                                          const int * num_dim_id_ptr,
                                           const int block_id,
                                           const std::map<int, std::vector<int>> & element_ids_for_block_id);
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
-                                           const int * num_dim_id_ptr,
                                            const std::vector<int> & boundary_ids,
                                            const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
                                            const std::map<int, std::vector<int>> & side_ids_for_boundary_id);
 
-static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
-                          const std::vector<int> & unique_block_ids);
+static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids);
 
 
 void Mesh::WriteExodusII(const std::string fpath)
@@ -122,10 +121,11 @@ void Mesh::WriteExodusII(const std::string fpath)
    // Set # side sets ("boundaries")
    //
    std::vector<int> boundary_ids;
-   std::map<int, std::vector<int>> element_ids_for_boundary_id;
-   std::map<int, std::vector<int>> side_ids_for_boundary_id;
-   GenerateExodusIIBoundaryInfo(*this, boundary_ids, element_ids_for_boundary_id,
-                                side_ids_for_boundary_id);
+   std::map<int, std::vector<int>> element_ids_for_boundary_id_1based;
+   std::map<int, std::vector<int>> side_ids_for_boundary_id_1based;
+   GenerateExodusIIBoundaryInfo(*this, boundary_ids,
+                                element_ids_for_boundary_id_1based,
+                                side_ids_for_boundary_id_1based);
 
    int num_side_sets_ids;
    status = nc_def_dim(ncid, "num_side_sets", (int)boundary_ids.size(),
@@ -146,22 +146,29 @@ void Mesh::WriteExodusII(const std::string fpath)
    // ndims = 1 (vectors).
    int coordx_id, coordy_id, coordz_id;
 
-   status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &num_dim_id, &coordx_id);
+   std::vector<double> coordx, coordy, coordz;
+   ExtractVertexCoordinatesFromMesh(ncid, *this, coordx, coordy, coordz);
+
+   int coord_dim;
+   status = nc_def_dim(ncid, "coord_dim", coordx.size(), &coord_dim);
    HandleNetCDFStatus(status);
 
-   status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &num_dim_id, &coordy_id);
+   status = nc_def_var(ncid, "coordx", NC_DOUBLE, 1, &coord_dim, &coordx_id);
+   HandleNetCDFStatus(status);
+
+   status = nc_def_var(ncid, "coordy", NC_DOUBLE, 1, &coord_dim, &coordy_id);
    HandleNetCDFStatus(status);
 
    if (Dim == 3)
    {
-      status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &num_dim_id, &coordz_id);
+      status = nc_def_var(ncid, "coordz", NC_DOUBLE, 1, &coord_dim, &coordz_id);
       HandleNetCDFStatus(status);
    }
 
    //
    // Write nodal coordinates.
    //
-   WriteNodalCoordinatesFromMesh(ncid, *this);
+   WriteNodalCoordinatesFromMesh(ncid, coordx, coordy, coordz);
 
    //
    // Write element block parameters.
@@ -221,21 +228,21 @@ void Mesh::WriteExodusII(const std::string fpath)
       //
       // Define element node connectivity for block.
       //
-      WriteNodeConnectivityForBlock(ncid, *this, &num_dim_id, block_id,
+      WriteNodeConnectivityForBlock(ncid, *this, block_id,
                                     element_ids_for_block_id);
    }
 
    //
    // Write block IDs.
    //
-   WriteBlockIDs(ncid, &num_dim_id, unique_block_ids);
+   WriteBlockIDs(ncid, unique_block_ids);
 
    //
    // Write sideset information.
    //
-   WriteSideSetInformationForMesh(ncid, *this, &num_dim_id, boundary_ids,
-                                  element_ids_for_boundary_id,
-                                  side_ids_for_boundary_id);
+   WriteSideSetInformationForMesh(ncid, *this, boundary_ids,
+                                  element_ids_for_boundary_id_1based,
+                                  side_ids_for_boundary_id_1based);
 
    //
    // Close file
@@ -246,12 +253,15 @@ void Mesh::WriteExodusII(const std::string fpath)
    mfem::out << "Mesh successfully written to Exodus II file" << std::endl;
 }
 
-static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
-                          const std::vector<int> & unique_block_ids)
+static void WriteBlockIDs(int ncid, const std::vector<int> & unique_block_ids)
 {
    int status, unique_block_ids_ptr;
 
-   status = nc_def_var(ncid, "eb_prop1", NC_INT, 1, num_dim_id_ptr,
+   int block_dim;
+   status = nc_def_dim(ncid, "block_dim", unique_block_ids.size(), &block_dim);
+   HandleNetCDFStatus(status);
+
+   status = nc_def_var(ncid, "eb_prop1", NC_INT, 1, &block_dim,
                        &unique_block_ids_ptr);
    HandleNetCDFStatus(status);
 
@@ -260,7 +270,6 @@ static void WriteBlockIDs(int ncid, const int * num_dim_id_ptr,
 }
 
 static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
-                                           const int * num_dim_id_ptr,
                                            const std::vector<int> & boundary_ids,
                                            const std::map<int, std::vector<int>> & element_ids_for_boundary_id,
                                            const std::map<int, std::vector<int>> & side_ids_for_boundary_id)
@@ -269,7 +278,13 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    // Add the boundary IDs
    //
    int status, boundary_ids_ptr;
-   status = nc_def_var(ncid, "ss_prop1", NC_INT, 1, num_dim_id_ptr,
+
+   int boundary_ids_dim;
+   status = nc_def_dim(ncid, "boundary_ids_dim", boundary_ids.size(),
+                       &boundary_ids_dim);
+   HandleNetCDFStatus(status);
+
+   status = nc_def_var(ncid, "ss_prop1", NC_INT, 1, &boundary_ids_dim,
                        &boundary_ids_ptr);
    HandleNetCDFStatus(status);
 
@@ -301,10 +316,16 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
    {
       const std::vector<int> & side_ids = side_ids_for_boundary_id.at(boundary_id);
 
+      sprintf(name_buffer, "side_ss%d_dim", boundary_id);
+
+      int side_id_dim;
+      status = nc_def_dim(ncid, name_buffer, side_ids.size(), &side_id_dim);
+      HandleNetCDFStatus(status);
+
       sprintf(name_buffer, "side_ss%d", boundary_id);
 
       int side_id_ptr;
-      status = nc_def_var(ncid, name_buffer, NC_INT, 1, num_dim_id_ptr, &side_id_ptr);
+      status = nc_def_var(ncid, name_buffer, NC_INT, 1,  &side_id_dim, &side_id_ptr);
       HandleNetCDFStatus(status);
 
       status = nc_put_var_int(ncid, side_id_ptr, side_ids.data());
@@ -320,19 +341,24 @@ static void WriteSideSetInformationForMesh(int ncid, Mesh & mesh,
       const std::vector<int> & element_ids = element_ids_for_boundary_id.at(
                                                 boundary_id);
 
-      sprintf(name_buffer, "elem_ss%d", boundary_id);
+      sprintf(name_buffer, "elem_ss%d_dim", boundary_id);
 
-      int elem_id_ptr;
-      status = nc_def_var(ncid, name_buffer, NC_INT, 1, num_dim_id_ptr, &elem_id_ptr);
+      int elem_ids_dim;
+      status = nc_def_dim(ncid, name_buffer, element_ids.size(), &elem_ids_dim);
       HandleNetCDFStatus(status);
 
-      status = nc_put_var_int(ncid, elem_id_ptr, element_ids.data());
+      sprintf(name_buffer, "elem_ss%d", boundary_id);
+
+      int elem_ids_ptr;
+      status = nc_def_var(ncid, name_buffer, NC_INT, 1, &elem_ids_dim, &elem_ids_ptr);
+      HandleNetCDFStatus(status);
+
+      status = nc_put_var_int(ncid, elem_ids_ptr, element_ids.data());
       HandleNetCDFStatus(status);
    }
 }
 
 static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
-                                          const int * num_dim_id_ptr,
                                           const int block_id,
                                           const std::map<int, std::vector<int>> & element_ids_for_block_id)
 {
@@ -340,11 +366,6 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 
    // Generate arbitrary name:
    char name_buffer[100];
-   sprintf(name_buffer, "connect%d", block_id);
-
-   // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
-   status = nc_def_var(ncid, name_buffer, NC_INT, 1, num_dim_id_ptr, &connect_id);
-   HandleNetCDFStatus(status);
 
    std::vector<int> block_node_connectivity;
 
@@ -357,9 +378,23 @@ static void WriteNodeConnectivityForBlock(int ncid, Mesh & mesh,
 
       for (int vertex_id : element_vertices)
       {
-         block_node_connectivity.push_back(vertex_id);
+         block_node_connectivity.push_back(vertex_id + 1);  // 1-based indexing.
       }
    }
+
+   sprintf(name_buffer, "connect%d_dim", block_id);
+
+   int node_connectivity_dim;
+   status = nc_def_dim(ncid, name_buffer, block_node_connectivity.size(),
+                       &node_connectivity_dim);
+   HandleNetCDFStatus(status);
+
+   // NB: 1 == vector!; name is arbitrary; NC_INT or NCINT64??
+   sprintf(name_buffer, "connect%d", block_id);
+
+   status = nc_def_var(ncid, name_buffer, NC_INT, 1, &node_connectivity_dim,
+                       &connect_id);
+   HandleNetCDFStatus(status);
 
    status = nc_put_var_int(ncid, connect_id, block_node_connectivity.data());
    HandleNetCDFStatus(status);
@@ -388,11 +423,10 @@ static void ExtractVertexCoordinatesFromMesh(int ncid, Mesh & mesh,
    }
 }
 
-static void WriteNodalCoordinatesFromMesh(int ncid, Mesh & mesh)
+static void WriteNodalCoordinatesFromMesh(int ncid,
+                                          std::vector<double> & coordx, std::vector<double> & coordy,
+                                          std::vector<double> & coordz)
 {
-   std::vector<double> coordx, coordy, coordz;
-   ExtractVertexCoordinatesFromMesh(ncid, mesh, coordx, coordy, coordz);
-
    int coordx_id, coordy_id, coordz_id;
    int status = NC_NOERR;
 
@@ -408,7 +442,7 @@ static void WriteNodalCoordinatesFromMesh(int ncid, Mesh & mesh)
    status = nc_put_var_double(ncid, coordy_id, coordy.data());
    HandleNetCDFStatus(status);
 
-   if (mesh.Dimension() == 3)
+   if (coordz.size() != 0)
    {
       status = nc_inq_varid(ncid, "coordz", &coordz_id);
       HandleNetCDFStatus(status);
@@ -449,7 +483,6 @@ static void GenerateExodusIIElementBlocksFromMesh(Mesh & mesh,
       Element::Type element_type = mesh.GetElementType(ielement);
 
       int block_id = mesh.GetAttribute(ielement);
-      printf("block_id = %d\n", block_id);
 
       if (observed_block_ids.count(block_id) == 0)
       {
@@ -509,13 +542,13 @@ static void GenerateExodusIINodeIDsFromMesh(Mesh & mesh, int & num_nodes)
 
 static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
                                          std::vector<int> & unique_boundary_ids,
-                                         std::map<int, std::vector<int>> & elements_for_boundary_id,
-                                         std::map<int, std::vector<int>> & sides_for_boundary_id)
+                                         std::map<int, std::vector<int>> & elements_for_boundary_id_1based,
+                                         std::map<int, std::vector<int>> & sides_for_boundary_id_1based)
 {
    // Store the unique boundary IDs.
    unique_boundary_ids.clear();
-   elements_for_boundary_id.clear();
-   sides_for_boundary_id.clear();
+   elements_for_boundary_id_1based.clear();
+   sides_for_boundary_id_1based.clear();
 
    for (int bdr_attribute : mesh.bdr_attributes)
    {
@@ -563,8 +596,9 @@ static void GenerateExodusIIBoundaryInfo(Mesh & mesh,
       int element_id = elements.front();
       int side_id = sides.front();
 
-      elements_for_boundary_id[boundary_id].push_back(element_id);
-      sides_for_boundary_id[boundary_id].push_back(side_id);
+      elements_for_boundary_id_1based[boundary_id].push_back(element_id +
+                                                             1);  // 1-based indexing.
+      sides_for_boundary_id_1based[boundary_id].push_back(side_id);
    }
 }
 
